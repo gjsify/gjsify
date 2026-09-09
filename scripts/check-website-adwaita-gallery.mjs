@@ -265,9 +265,9 @@ const WIDGET_COMPONENT = 'website/src/components/AdwWidget.astro';
  */
 const WINDOW_COMPONENT = 'website/src/components/AdwWidgetWindow.astro';
 
-/** The mounted preview's own element, and the expression that renders the code tabs. */
+/** The mounted preview's own element, and the expression that renders the tab pages. */
 const PREVIEW_MOUNT = 'adw-widget-preview-tpl';
-const TAB_MAP = 'tabs.map(';
+const PANE_MAP = 'tabbed.map(';
 
 /**
  * The same file with its comments blanked out.
@@ -287,30 +287,105 @@ const TAB_MAP = 'tabs.map(';
 const withoutComments = stripComments;
 
 /**
- * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view, and
- * exactly once.
+ * Arm 9, over the file that DRAWS a window: the preview is mounted exactly once, and
+ * OUTSIDE the tab view.
  *
- * The COUNTS are part of the arm, not tidiness: two preview panes render the widget
- * twice under two "Preview" tabs mounting the same markup, and the order read alone
- * blesses it — the first mount still precedes the tabs. Measured by duplicating the
- * pane: exit 0.
+ * Both halves are the arm. Two preview panes render the widget twice from the same
+ * markup, and one INSIDE the tab view is the widget offered to the reader as one tab
+ * among its own sources — which is the arrangement the preview window was restructured
+ * out of, and it comes back by moving four lines.
  *
- * Returns null when the file is right, or the reason it is not.
+ * The tab view and the pane map have to be FOUND for either read to mean anything: with
+ * no `<adw-tab-view>` in the file, "the mount is outside the tab view" is true of a file
+ * that draws no tabs at all, which is the vacuous pass this arm is most exposed to.
+ *
+ * Returns the reasons the file is wrong, empty when it is right.
  */
-function previewPanePosition(root) {
+function previewMountPlacement(root) {
+    const problems = [];
     const text = withoutComments(readFileSync(join(root, WINDOW_COMPONENT), 'utf8'));
+    const mounts = text.split(PREVIEW_MOUNT).length - 1;
+    if (mounts === 0) problems.push(`mounts no preview (\`${PREVIEW_MOUNT}\`) at all`);
+    if (mounts > 1) problems.push(`mounts ${mounts} previews, and a window runs the widget once`);
     const view = /<adw-tab-view\b[\s\S]*?<\/adw-tab-view>/.exec(text);
     if (view === null) {
-        return `holds no <adw-tab-view> … </adw-tab-view>, so there is no pane order to read`;
+        problems.push('holds no <adw-tab-view> … </adw-tab-view>, so there is no tab view to be outside of');
+        return problems;
     }
-    const mounts = view[0].split(PREVIEW_MOUNT).length - 1;
-    const maps = view[0].split(TAB_MAP).length - 1;
-    if (mounts === 0) return `mounts no preview (\`${PREVIEW_MOUNT}\`) inside its tab view`;
-    if (maps === 0) return `renders no code tabs (\`${TAB_MAP}\`) inside its tab view`;
-    if (mounts > 1) return `mounts ${mounts} previews inside its tab view, and a window runs the widget once`;
-    if (maps > 1) return `renders the code tabs ${maps} times inside its tab view`;
-    if (view[0].indexOf(PREVIEW_MOUNT) > view[0].indexOf(TAB_MAP)) return `mounts the preview AFTER the code tabs`;
-    return null;
+    const maps = view[0].split(PANE_MAP).length - 1;
+    if (maps !== 1) problems.push(`renders the tab pages (\`${PANE_MAP}\`) ${maps} times inside its tab view`);
+    if (view[0].includes(PREVIEW_MOUNT)) {
+        problems.push('mounts the preview INSIDE its tab view, so the running widget is one tab beside its sources');
+    }
+    return problems;
+}
+
+/**
+ * Arm 9, over the file that DECLARES the windows: exactly one window runs the widget,
+ * it is FIRST, it has nothing else in it, and the markup it mounts is shown somewhere
+ * after it.
+ *
+ * The last one is the half that is easy to lose. The live pane clones the `preview`
+ * fence whether or not any window renders that fence as code, so dropping the
+ * "HTML Web Components" tab leaves every block showing a widget whose markup a reader
+ * cannot read — at exit 0, with the fence still authored and still gated.
+ */
+function livePreviewDeclaration(windows, markupSlot, provided) {
+    const problems = [];
+    const liveAt = windows.flatMap((win, index) => (win.live ? [index] : []));
+    if (liveAt.length !== 1) {
+        problems.push(
+            `declares ${liveAt.length} window(s) with \`live: true\` in WINDOWS, and exactly one runs the ` +
+                'widget. With none, no block shows the widget at all; with two, one of them mounts a preview ' +
+                'the other already did.',
+        );
+        return problems;
+    }
+    const [index] = liveAt;
+    const live = windows[index];
+    if (index !== 0) {
+        problems.push(
+            `declares its live window at position ${index + 1} of ${windows.length}, so a reader scrolling ` +
+                'the block meets source code before the widget it is source FOR. The order is the promise ' +
+                "every gallery page's prose makes.",
+        );
+    }
+    if (live.slots.length > 0 || live.groups.length > 0) {
+        problems.push(
+            `gives the live window "${live.id}" ${live.slots.length} tab(s) and ${live.groups.length} data ` +
+                'group(s) beside the running widget. That window shows the widget and nothing else — a tab ' +
+                'bar over it offers the reader a choice between the widget and its sources, as if the widget ' +
+                'were one of them.',
+        );
+    }
+    if (markupSlot === null) {
+        problems.push(
+            'declares no MARKUP_SLOT, so nothing here can say which fence the live pane mounts — and the ' +
+                'read below would pass over any window list at all',
+        );
+        return problems;
+    }
+    const shownAt = windows.findIndex((win) => win.slots.includes(markupSlot));
+    if (shownAt === -1) {
+        problems.push(
+            `mounts the "${markupSlot}" fence and renders it on no window at all. The pane clones those ` +
+                'bytes whether or not a tab shows them, so every block would paint a widget whose markup a ' +
+                'reader cannot read, at exit 0, with the fence still authored.',
+        );
+    } else if (shownAt <= index) {
+        problems.push(
+            `shows the "${markupSlot}" fence on window ${shownAt + 1}, at or before the live window ` +
+                `(${index + 1}). The reader meets the widget, THEN the markup that painted it.`,
+        );
+    }
+    if (!provided.has(markupSlot)) {
+        problems.push(
+            `mounts the "${markupSlot}" fence and no <AdwWidget> block provides that slot, so the live ` +
+                'window renders nowhere. Arm 6 says the same of a tab slot; this is the pane the component ' +
+                'itself provides, which arm 6 cannot see.',
+        );
+    }
+    return problems;
 }
 
 /**
@@ -329,8 +404,9 @@ const MARKUP_OVERRIDE_LEDGER = {
 };
 
 /**
- * The window model `AdwWidget` renders: each window's id and the tab slots under it,
- * plus the one slot that is an override rather than a tab.
+ * The window model `AdwWidget` renders: each window's id, title, tab slots, data
+ * groups and whether it runs the widget — plus the slot whose fence is mounted, the
+ * one slot that is an override rather than a tab, and the slots that are a CORPUS.
  *
  * Read out of the component for the same reason the widget title is derived rather
  * than tabled: a second hand-written list is the thing that drifts, and this one
@@ -339,8 +415,23 @@ const MARKUP_OVERRIDE_LEDGER = {
  */
 function componentWindows(root) {
     const text = readFileSync(join(root, WIDGET_COMPONENT), 'utf8');
-    const decl = /\bconst WINDOWS = \[([\s\S]*?)\n\];/.exec(text);
+    // `const NAME = 'value';` — a `slot:` may NAME one of these instead of repeating
+    // the literal, and `MARKUP_SLOT` does, because the fence it names is mounted by one
+    // window and shown by another and the component holds that in one place. Resolved
+    // rather than tolerated: an identifier that resolves to nothing is reported below,
+    // where a plain quoted-literal read would have silently found one slot fewer.
+    const constants = new Map(
+        [...text.matchAll(/\bconst ([A-Z][A-Z0-9_]*) = '([a-z][a-z0-9-]*)';/g)].map(([, name, value]) => [
+            name,
+            value,
+        ]),
+    );
+    // The type annotation on the declaration carries its own `[` and `slot: string`,
+    // and neither is matched: the array opens at the ` = [` after it, and a slot is a
+    // quoted literal or an UPPERCASE identifier.
+    const decl = /\bconst WINDOWS(?::[\s\S]*?)? = \[([\s\S]*?)\n\];/.exec(text);
     const windows = [];
+    const unresolved = [];
     if (decl !== null) {
         // Split on the `id:` that opens each window, so every `slot:` between two ids
         // belongs to the window it follows. `split` with one capture group yields
@@ -348,23 +439,48 @@ function componentWindows(root) {
         const parts = decl[1].split(/\bid:\s*'([a-z][a-z0-9-]*)',/);
         for (let i = 1; i < parts.length; i += 2) {
             const chunk = withoutComments(parts[i + 1]);
-            const slots = [...chunk.matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
+            const slots = [];
+            for (const [, literal, name] of chunk.matchAll(/\bslot:\s*(?:'([a-z][a-z0-9-]*)'|([A-Z][A-Z0-9_]*))/g)) {
+                if (literal !== undefined) {
+                    slots.push(literal);
+                    continue;
+                }
+                const resolved = constants.get(name);
+                if (resolved === undefined) unresolved.push(`${parts[i]}: slot: ${name}`);
+                else slots.push(resolved);
+            }
             // The TITLE, read with the comments blanked out: every window's chunk is
-            // mostly prose, and the live window's own note names two other windows'
-            // titles inside it.
+            // mostly prose, and the live window's own note names other windows' titles
+            // inside it.
             const title = /\btitle:\s*'([^']*)'/.exec(chunk);
-            // A window with DATA panes renders on every block, filled or refused —
-            // `code:` is the list of them. It is not conditional on a page: arm 4 of
-            // `check-generated-website-data.mjs` refuses a block that reaches neither
-            // the snippet map nor the refusal map, so the pane is always one or the
-            // other. That is what makes arm 10 able to decide, from the source alone,
-            // that such a window is on a page.
-            const data = /\bcode:\s*[A-Za-z_$]/.test(chunk);
-            windows.push({ id: parts[i], slots, title: title === null ? null : title[1], data });
+            // A window with DATA GROUPS renders on every block, filled or refused. It is
+            // not conditional on a page: arms 4 and 7 of
+            // `check-generated-website-data.mjs` refuse a block that reaches neither the
+            // snippet map nor the refusal map of a group, so each group's pane is always
+            // one or the other. That is what makes arm 10 able to decide, from the source
+            // alone, that such a window is on a page.
+            const groups = /\bgroups:\s*\[([^\]]*)\]/.exec(chunk);
+            windows.push({
+                id: parts[i],
+                slots,
+                title: title === null ? null : title[1],
+                groups: groups === null ? [] : [...groups[1].matchAll(/[A-Za-z_$][\w$]*/g)].map(([g]) => g),
+                live: /\blive:\s*true/.test(chunk),
+            });
         }
     }
-    const override = /\bconst MARKUP_OVERRIDE = '([a-z][a-z0-9-]*)';/.exec(text);
-    return { windows, override: override === null ? null : override[1] };
+    // The corpus category, read as a whole: an ABSENT declaration is a broken read, not
+    // an empty category — the empty category is `{}`, and it is what a component with
+    // every fence rendered would declare.
+    const corpus = /\bconst CORPUS_SLOTS(?::[^=]*)? = \{([\s\S]*?)\n\};/.exec(text);
+    return {
+        windows,
+        unresolved,
+        markupSlot: constants.get('MARKUP_SLOT') ?? null,
+        override: constants.get('MARKUP_OVERRIDE') ?? null,
+        corpus:
+            corpus === null ? null : [...corpus[1].matchAll(/^\s+([a-z][a-z0-9-]*):/gm)].map(([, slot]) => slot),
+    };
 }
 
 /**
@@ -386,6 +502,18 @@ const pageProse = (text) =>
         .replaceAll(/```[\s\S]*?```/g, '')
         .replaceAll(/`[^`\n]*`/g, '')
         .replaceAll(/\s+/g, ' ');
+
+/**
+ * How a window TITLE is spelled where a page enumerates the windows: emphasised.
+ *
+ * Every gallery intro already writes them that way, and reading the bare string
+ * instead is what a SHORT title makes vacuous. "GJS" occurs in "GJSify", in the
+ * project's own name for itself and in half the prose on the site, so
+ * `prose.includes('GJS')` is satisfied by a page that never enumerates a window at
+ * all — the arm would then hold nothing while reporting on ten pages. The
+ * emphasised form is what the enumeration IS, so it is what the arm reads.
+ */
+const proseName = (title) => `**${title}**`;
 
 /** Where the site's navigation is hand-written, and how a page is spelled in it. */
 const SIDEBAR = 'website/astro.config.mjs';
@@ -427,6 +555,26 @@ function sidebarGroup(text, label) {
 // --- arm 12: the two authored PANES of one block, and the distance between them ---
 
 /**
+ * The two slots arm 12 READS, declared once.
+ *
+ * One declaration because two things need it: the fence reader below, and the corpus
+ * half of arm 6, which refuses a slot filed as authored-but-unrendered that no arm
+ * reads. A hand-written second list there could claim a reader this file does not
+ * have, which is the one way that category becomes a hole.
+ */
+const PANE_PAIR_SLOTS = ['gjs', 'nativescript'];
+
+/**
+ * Which arms of this gate read a slot's FENCE, and which slots each one reads.
+ *
+ * Derived from the arm's own input rather than written out beside it. `nativescript`
+ * is also read by `check-doc-fences.mjs` (every property write in it, against the
+ * port's source), and that is deliberately not listed: this map is what THIS file can
+ * prove, and a reader it cannot see is a reader it must not vouch for.
+ */
+const SLOT_READERS = new Map([['arm 12 (the `gjs` pane held against the `nativescript` pane)', PANE_PAIR_SLOTS]]);
+
+/**
  * The two panes of a block, dedented, as line arrays — or null where the block has
  * fewer than two.
  *
@@ -435,7 +583,10 @@ function sidebarGroup(text, label) {
  */
 function panePair(body) {
     const panes = {};
-    const fence = /<Fragment slot="(gjs|nativescript)">\s*```[a-z]*\n([\s\S]*?)```/g;
+    const fence = new RegExp(
+        `<Fragment slot="(${PANE_PAIR_SLOTS.join('|')})">\\s*\`\`\`[a-z]*\\n([\\s\\S]*?)\`\`\``,
+        'g',
+    );
     for (const [, slot, code] of body.matchAll(fence)) panes[slot] = code;
     if (panes.gjs === undefined || panes.nativescript === undefined) return null;
     const dedent = (text) => {
@@ -952,13 +1103,21 @@ for (const page of pages) {
 
 // --- the window/tab arms: what a page provides against what the component renders ---
 
-const { windows, override } = componentWindows(ROOT);
+const { windows, unresolved, markupSlot, override, corpus } = componentWindows(ROOT);
 const ports = new Set(windows.flatMap((w) => w.slots));
 if (windows.length === 0 || ports.size === 0) {
     console.error(
         `check-website-adwaita-gallery: no window or no port found in the WINDOWS array of\n` +
             `  ${WIDGET_COMPONENT} — that is a broken scan, not a component with no tabs. Nothing is\n` +
             '  unprovided in an empty set, and no window is dead in one either.',
+    );
+    process.exit(1);
+}
+if (unresolved.length > 0) {
+    console.error(
+        `check-website-adwaita-gallery: ${unresolved.length} slot(s) in the WINDOWS array of\n` +
+            `  ${WIDGET_COMPONENT} name a constant this reader cannot resolve (${unresolved.join(', ')}).\n` +
+            '  A slot read as nothing is a port arm 5 then reports as unknown on every page that fills it.',
     );
     process.exit(1);
 }
@@ -969,6 +1128,15 @@ if (override === null) {
     );
     process.exit(1);
 }
+if (corpus === null) {
+    console.error(
+        `check-website-adwaita-gallery: no CORPUS_SLOTS declared in ${WIDGET_COMPONENT}. The empty\n` +
+            '  category is `{}`; an absent declaration is a broken read, and every authored-but-unrendered\n' +
+            '  fence would come back from arm 5 as a misspelled port.',
+    );
+    process.exit(1);
+}
+const corpusSlots = new Set(corpus);
 
 const blocks = widgetBlocks(ROOT, pages);
 if (blocks.length === 0) {
@@ -980,23 +1148,24 @@ if (blocks.length === 0) {
 }
 
 const provided = new Set();
+/** Every slot ANY block writes, rendered or not — the corpus half of arm 6 reads this. */
+const authored = new Set();
 /** The blocks that override the preview window's markup tab — arm 8's input. */
 const overriding = new Map();
 for (const block of blocks) {
     for (const [, slot] of block.body.matchAll(/<Fragment slot="([^"]+)"/g)) {
+        authored.add(slot);
         if (ports.has(slot)) {
             provided.add(slot);
             continue;
         }
-        if (slot === override) {
-            overriding.set(block.title, block.page);
-            continue;
-        }
+        if (slot === override || corpusSlots.has(slot)) continue;
         failures.push(
             `${block.page}: <AdwWidget title="${block.title}"> provides a "${slot}" fragment, and AdwWidget\n` +
                 '    renders no slot of that name. Astro drops an unmatched slot in SILENCE — no warning, no\n' +
                 '    build failure — so the snippet is written, reviewed, committed and shown to nobody.\n' +
-                `    Ports: ${[...ports].join(', ')}. Markup override: ${override}.`,
+                `    Ports: ${[...ports].join(', ')}. Markup override: ${override}. Corpus slots:\n` +
+                `    ${[...corpusSlots].join(', ') || '(none)'}.`,
         );
     }
 }
@@ -1011,17 +1180,51 @@ for (const port of ports) {
     );
 }
 
-for (const window of windows) {
-    if (window.slots.length === 0) {
+// The CORPUS half of arm 6. A corpus slot is authored on the pages, read by an arm and
+// deliberately not rendered — and the category only stays honest while all three of
+// those are held, because "not rendered" is otherwise indistinguishable from the
+// misspelling arm 5 exists to catch. The READERS are derived from the arms themselves
+// ({@link SLOT_READERS}), so a slot cannot be filed here against a reader that is not
+// there.
+for (const slot of corpusSlots) {
+    if (ports.has(slot)) {
         failures.push(
-            `${WIDGET_COMPONENT} declares the window "${window.id}" with no tabs at all. A window is a\n` +
-                '    header bar, a title and its tabs, so an empty one announces a kind of implementation\n' +
-                '    that renders on no block at all — and arm 6 cannot see it, because there is no slot to\n' +
-                '    be unprovided. Give it a tab, or drop the window.',
+            `${WIDGET_COMPONENT} declares "${slot}" in CORPUS_SLOTS and renders it as a tab. A corpus\n` +
+                '    slot is one no window renders; the two lists cannot both be right.',
         );
         continue;
     }
-    if (window.slots.some((slot) => provided.has(slot))) continue;
+    if (!authored.has(slot)) {
+        failures.push(
+            `${WIDGET_COMPONENT} declares "${slot}" in CORPUS_SLOTS, and no <AdwWidget> block under\n` +
+                `    ${GALLERY} writes that fragment. The category covers nothing, and an empty corpus is a\n` +
+                '    reason recorded for a fence nobody authors. Write the first one, or drop the entry.',
+        );
+    }
+    const readers = [...SLOT_READERS].filter(([, slots]) => slots.includes(slot)).map(([arm]) => arm);
+    if (readers.length > 0) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} declares "${slot}" in CORPUS_SLOTS and no arm of this gate reads it. An\n` +
+            '    unrendered fence that nothing reads either is a fence written for nobody — which is exactly\n' +
+            '    what arm 5 refuses of a misspelled slot, so this category would be the hole to hide one in.\n' +
+            `    Arms that read a fence: ${[...SLOT_READERS.keys()].join('; ')}.`,
+    );
+}
+
+for (const window of windows) {
+    // Every way a window can put a pane on some block: a tab slot a page filled, a data
+    // group (filled or refused, so on every block), or the live preview the component
+    // provides itself. A window with none of the three is a header bar over nothing.
+    if (window.live || window.groups.length > 0 || window.slots.some((slot) => provided.has(slot))) continue;
+    if (window.slots.length === 0) {
+        failures.push(
+            `${WIDGET_COMPONENT} declares the window "${window.id}" with no pane source at all: no tab, no\n` +
+                '    data group, and it does not run the widget. It announces a kind of implementation that\n' +
+                '    renders on no block — and arm 6 cannot see it, because there is no slot to be\n' +
+                '    unprovided. Give it a pane, or drop the window.',
+        );
+        continue;
+    }
     failures.push(
         `${WIDGET_COMPONENT} declares the window "${window.id}" (${window.slots.join(', ')}), and no\n` +
             `    <AdwWidget> block under ${GALLERY} provides any of its tabs. The window renders nowhere:\n` +
@@ -1052,18 +1255,23 @@ for (const title of Object.keys(MARKUP_OVERRIDE_LEDGER)) {
     );
 }
 
-// --- arm 9: the live preview is the first pane of the window that runs the widget ---
+// --- arm 9: the reader meets the RUNNING WIDGET before any source ---
+//
+// The live pane and the markup tab are ONE source: the pane mounts the bytes the tab
+// shows. What makes that legible is ORDER — the widget, then the markup that painted
+// it — and the two are in different WINDOWS now, so the order is a fact about the
+// WINDOWS array as well as about the file that draws a window. Nothing else notices
+// either half: every pane still renders, the fence is still authored once, and arm 8
+// still holds.
 
-const panePosition = previewPanePosition(ROOT);
-if (panePosition !== null) {
+for (const problem of previewMountPlacement(ROOT)) {
     failures.push(
-        `${WINDOW_COMPONENT} ${panePosition}. The preview and the markup tab beside it are ONE\n` +
-            '    source — the pane mounts the bytes the tab shows — and the order is what makes that\n' +
-            '    legible: the reader meets the widget, then the markup that painted it, which is the order\n' +
-            "    every gallery page's prose promises. Swapped, the window opens on a block of HTML for a\n" +
-            '    widget the reader has not seen yet, and nothing else here would notice: both tabs still\n' +
-            '    render and the fence is still authored once.',
+        `${WINDOW_COMPONENT} ${problem}. The window that RUNS the widget shows the widget alone,\n` +
+            '    directly under its header bar — see arm 9.',
     );
+}
+for (const problem of livePreviewDeclaration(windows, markupSlot, provided)) {
+    failures.push(`${WIDGET_COMPONENT} ${problem}`);
 }
 
 // --- arm 10: a window a page SHOWS is a window the page's prose NAMES ---
@@ -1075,14 +1283,17 @@ if (panePosition !== null) {
  * THE INCIDENT. `Vanilla TypeScript` was renamed to `Native TypeScript` in
  * {@link WIDGET_COMPONENT} and nowhere else. Every gallery page's intro enumerates
  * the windows BY THESE EXACT STRINGS — the component's own note says so and relies on
- * it ("the four runtimes are named by the PAGE") — so nine pages were left naming a
- * window no block on them draws. In the same commit the frameworks window went from
- * three blocks to all forty, and seven of those intros still enumerated two windows
- * where the reader now meets three. Nothing saw either: the strings never leave the
- * prose, so the site builds and arms 1-9 stay green.
+ * it — so nine pages were left naming a window no block on them draws. In the same
+ * commit the frameworks window went from three blocks to all forty, and seven of those
+ * intros still enumerated two windows where the reader now meets three. Nothing saw
+ * either: the strings never leave the prose, so the site builds and arms 1-9 stay
+ * green.
+ *
+ * READ AS THE ENUMERATION WRITES THEM, emphasised — see {@link proseName} for the
+ * short title that makes the bare read vacuous.
  *
  * WHICH WINDOWS A PAGE SHOWS, from the source alone. A window is on a page if some
- * block there provides one of its tab slots, or if it declares DATA panes — those are
+ * block there provides one of its tab slots, or if it declares DATA GROUPS — those are
  * looked up per block and, where a block has none, replaced by the recorded reason,
  * so such a window is on every block (see `componentWindows`).
  *
@@ -1100,11 +1311,11 @@ if (panePosition !== null) {
  *
  * MEASURED against the four ways it can be wrong, each restored afterwards:
  *
- *   · rename the window in the component alone — exit 1, on all 9 pages, which is
- *     the defect this arm is named after
+ *   · rename the window in the component alone — exit 1, on every page that draws
+ *     it, which is the defect this arm is named after
  *   · drop "UI frameworks" from one page's intro — exit 1, on that page
- *   · remove the two `nativescript` fragments from `controls.mdx`, so the page stops
- *     drawing a window it still names — exit 1, the inverse direction
+ *   · take the `gjs` fragments off one page, so it stops drawing a window it still
+ *     names — exit 1, the inverse direction
  *   · break the title read (`title:` -> `heading:`) — exit 1 on the vacuity guard,
  *     not a green run against an empty set
  */
@@ -1121,7 +1332,9 @@ const shownBy = new Map(pages.map((page) => [page.path, new Set()]));
 for (const block of blocks) {
     const slots = new Set([...block.body.matchAll(/<Fragment slot="([^"]+)"/g)].map(([, slot]) => slot));
     for (const window of titledWindows) {
-        if (window.data || window.slots.some((slot) => slots.has(slot))) shownBy.get(block.page).add(window.title);
+        if (window.groups.length > 0 || window.slots.some((slot) => slots.has(slot))) {
+            shownBy.get(block.page).add(window.title);
+        }
     }
 }
 /** section dir → the union over that section's own pages, which its index stands for. */
@@ -1136,7 +1349,7 @@ for (const page of pages) {
     if (shown.size === 0) continue;
     const prose = pageProse(readFileSync(join(ROOT, page.path), 'utf8'));
     for (const title of titledWindows.map((window) => window.title)) {
-        const named = prose.includes(title);
+        const named = prose.includes(proseName(title));
         if (named === shown.has(title)) continue;
         failures.push(
             named

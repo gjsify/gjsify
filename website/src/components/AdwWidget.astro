@@ -4,54 +4,76 @@
 // Renders a COLUMN OF WINDOWS, one per KIND of implementation, because the kind
 // is the distinction a reader cannot recover on their own:
 //
-//   1. LIVE PREVIEW — the real widget, painted by @gjsify/adwaita-web custom
-//      elements on an Adwaita "view" surface, with the markup that paints it as
-//      the window's second tab. No screenshots: the browser runs the component,
-//      the way the official Libadwaita widget gallery shows one, and it follows
-//      the site's light/dark toggle.
-//   2. NATIVE TYPESCRIPT — `@girs` GObject-Introspection TypeScript and the
-//      matching Blueprint declaration: two FILES of one program, against the REAL
-//      libadwaita widget.
-//   3. UI FRAMEWORKS — that same real widget, driven through `@gjsify/gtk-host`.
-//   4. NATIVESCRIPT — the port that runs on a phone.
+//   1. THE WIDGET — the real component, painted by @gjsify/adwaita-web custom
+//      elements on an Adwaita "view" surface. No screenshots: the browser runs it,
+//      the way the official Libadwaita widget gallery shows one, and it follows the
+//      site's light/dark toggle.
+//   2. GJS — `@girs` GObject-Introspection TypeScript and the matching Blueprint
+//      declaration: two FILES of one program, against the REAL libadwaita widget.
+//   3. UI FRAMEWORKS — the same widget reached through an ELEMENT MODEL instead of
+//      the GObject API: the markup the first window is painted from, the three
+//      `@gjsify/gtk-host` dialects, React Native on GTK, and the NativeScript XML
+//      template.
 //
-// It used to be ONE window with those five as sibling tabs, and five siblings
-// cannot say any of it: `gjs`/`blueprint` ARE libadwaita, `web` and
-// `nativescript` are REIMPLEMENTATIONS of it, and a framework tab drives the real
-// one. A window can say it, in its title. {@link WINDOWS} is that model and it is
-// the one place a port is declared — `scripts/check-website-adwaita-gallery.mjs`
-// holds it against the pages in both directions, and refuses a window no page
-// fills.
+// It used to be ONE window with all of those as sibling tabs, and siblings cannot
+// say any of it: `gjs`/`blueprint` ARE libadwaita, `preview` and `nativescript` are
+// REIMPLEMENTATIONS of it, and a framework tab drives the real one. A window can say
+// it, in its title. {@link WINDOWS} is that model and it is the one place a port is
+// declared — `scripts/check-website-adwaita-gallery.mjs` holds it against the pages
+// in both directions, and refuses a window no page fills.
+//
+// THE FIRST WINDOW HAS NO TABS. It carried Preview | HTML | Attributes, and a tab
+// bar over a running widget offers the reader a choice between the widget and its
+// sources — which reads as if the widget were one of them. It is not a source, so it
+// gets a window and nothing else in it. Its markup IS a source, and it is now a tab
+// of the window that holds every other element-model rendering of the same widget,
+// labelled "HTML Web Components": that pane is a reimplementation driven by a
+// framework-ish element model, which is what that window is about.
+//
+// THE `nativescript` FENCE IS A CORPUS, NOT A TAB — see {@link CORPUS_SLOTS}. The end
+// state of convergence (ADR 0034) is that a block's NativeScript program IS its GJS
+// program, byte for byte. Rendering both is the redundancy a reader noticed. So the
+// fence stays AUTHORED on every page and stays arm 12's input: that arm proves it is
+// the same text, and where it is not, the recorded reason is what a reader needs —
+// which this window model already renders, through the refusal pane of the group the
+// port's own template belongs to.
+//
+// THE ATTRIBUTE TAB IS GONE. It listed what `observedAttributes` names beside what
+// the block's preview writes, which is what a reader PASSES and not what any of it
+// MEANS — too little to hold a pane on 39 blocks. The three incidents it was carrying
+// are in docs/code-anti-patterns.md (§ "A documentation surface written by hand, once
+// per page" and § "A `:global()` selector inside an `is:global` block"), and the
+// scanner it fed still runs: `check-website-attr-samples.mjs` holds every preview
+// fence against the element it names.
 //
 // TWO CLAIMS THE CHROME NO LONGER MAKES, both load-bearing, both still said:
 //
-//   · The first tab was labelled "GJS · Node · Bun · Deno" and not "GJS" on
-//     purpose: naming one runtime made the tab read as "the GJS variant", i.e. as
-//     if the other three needed a different program. They do not; that is the
-//     claim the whole site rests on. The window is titled for its AXIS ("Native
-//     TypeScript" — what two file tabs share) and the four runtimes are named by
-//     the PAGE: every gallery page's intro says "the `@girs` program that runs
-//     unchanged on GJS, Node, Bun and Deno". A window subtitle repeating it under
-//     all 40 blocks was the second copy.
-//   · "React Native on GTK" carried its qualifier in the tab LABEL, because a
-//     plain "React Native" standing beside Web and NativeScript would have read as
-//     the port that runs on a phone — which is not what this window renders. (That
-//     reason once read "code it has not written"; `@gjsify/adwaita-react-native`
-//     was written in #1380, and the qualifier survives it, because what is at stake
-//     here is what THIS window shows, not what exists elsewhere in the tree.) The
-//     qualifier is now the page's: `layout.mdx`, the only page with that window,
-//     says it "renders a GTK window, not a phone screen — which is why it is not
-//     the NativeScript one".
+//   · The GJS window's tab was once labelled "GJS · Node · Bun · Deno" and its
+//     window "Native TypeScript", both to avoid naming one runtime: naming GJS made
+//     the pane read as "the GJS variant", i.e. as if the other three needed a
+//     different program. They do not, and that is the claim the whole site rests on.
+//     It is now made ONCE, on the pages that are about runtimes (getting-started,
+//     runtimes, the frameworks index), instead of in an intro paragraph under all 40
+//     blocks and again in a window subtitle. So the window can be titled for what it
+//     runs, which is the shortest true name it has.
+//   · "React Native on GTK" carried its qualifier in the tab LABEL, because a plain
+//     "React Native" standing beside NativeScript would have read as the port that
+//     runs on a phone — which is not what that pane renders. (That reason once read
+//     "code it has not written"; `@gjsify/adwaita-react-native` was written in #1380,
+//     and the qualifier survives it, because what is at stake is what THIS pane
+//     shows, not what exists elsewhere in the tree.) The qualifier is now the page's:
+//     `layout.mdx`, the only page with that pane, says it renders a GTK window and
+//     not a phone screen.
 //
-// So the header bar carries a title and nothing else. Whatever a header bar sits
-// on is what the reader takes the window to be about: it once held the widget
-// TITLE over a pane of code, and the title read as belonging to the code. The
-// window carrying the widget's title is therefore the one that RUNS the widget,
-// and every other window is titled for its kind.
+// So the header bar carries a title and nothing else. Whatever a header bar sits on
+// is what the reader takes the window to be about: it once held the widget TITLE over
+// a pane of code, and the title read as belonging to the code. The window carrying
+// the widget's title is therefore the one that RUNS the widget, and every other
+// window is titled for its kind.
 //
-// ONE SOURCE FOR THE MARKUP. The `preview` slot is a fenced ```html block: the
-// window SHOWS that fence on its HTML tab (Expressive Code, exactly as authored)
-// and MOUNTS it in the Preview tab beside it.
+// ONE SOURCE FOR THE MARKUP. The `preview` slot is a fenced ```html block: the first
+// window MOUNTS it and the frameworks window SHOWS it (Expressive Code, exactly as
+// authored), from the same bytes.
 // It used to be a fragment of MDX markup with a second, hand-kept `web` fence
 // beside it saying the same thing — measured across the 40 blocks, 17 were
 // byte-identical and 23 had already drifted, and nothing checked them. The drift
@@ -62,8 +84,8 @@
 // above it. One fence renders and is shown, so there is no second copy to keep.
 //
 // Feed the rest as named MDX slots (one fenced code block each). A tab appears
-// only where its slot was given, and a WINDOW only where at least one of its tabs
-// did, so a port that cannot express THIS widget simply has no tab, and a kind
+// only where its slot was given, and a WINDOW only where at least one of its panes
+// filled, so a port that cannot express THIS widget simply has no tab, and a kind
 // with nothing to say has no window:
 //
 //   <AdwWidget title="Adw.SwitchRow">
@@ -109,7 +131,6 @@ interface Props {
     docHref?: string | false;
 }
 
-import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
 import {
     ADWAITA_FRAMEWORK_REFUSALS,
     ADWAITA_FRAMEWORK_SNIPPETS,
@@ -119,8 +140,8 @@ import {
     ADWAITA_NATIVESCRIPT_REFUSALS,
     ADWAITA_NATIVESCRIPT_TEMPLATES,
 } from '../data/adwaita-nativescript-templates';
-import { galleryElementTag, sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
+import type { WidgetPane } from './widget-panes';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
 
@@ -136,55 +157,21 @@ const deriveRef = (t: string): string | null => {
 };
 const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 
-// The web pillar's markup surface for this widget, GENERATED from the elements'
-// own `observedAttributes` (website/scripts/generate-adwaita-attributes.mjs).
-//
-// It is rendered here rather than written per page because it was written per page
-// and did not survive: measured across the 37 blocks that join to an element, 110
-// attributes were named on their page and 54 were not — all four of
-// `<adw-toolbar-view>`'s, and eight of `<adw-overlay-split-view>`'s including the
-// `breakpoint` its own section is about. One component, every block, no hand.
-//
-// It rides in the LIVE window, as a pane beside that window's markup, and not as a
-// panel under the whole block. `observedAttributes` is read out of
-// `packages/web/adwaita-web/src` and nowhere else, so the list is ONE port's answer.
-// The NativeScript widget of the same name is a class of camelCase PROPERTIES rather
-// than attributes: `icon` where this element's attribute is `icon-name`, plus
-// `hostButton`, `iconColor`, `iconIsFallback` and `ellipsize`, none of which any
-// attribute here names — and it does carry `useUnderline` and `canShrink`, so the
-// two lists are neither the same set nor disjoint. A different surface, not the same
-// one renamed; `check-vocabulary-alignment.mjs` declares every element name that does
-// not share a spelling across the renderers, and PRINTS how many — the literal that
-// used to sit here was already one off (22 against a measured 21). Under the last window this list read
-// as the block's SUMMARY, which is a claim about all four ports that no generator
-// here can make. The page's own contract is that where a port differs, ITS window
-// says so.
-//
-// The tag is DERIVED from the title's namespace by `galleryElementTag`, shared with the
-// two gates that check this pane — see its header for why the prefix is read and not
-// assumed. A title with no element (`Adw.Toast` is a plain class, not a custom element)
-// renders nothing at all — an EMPTY table would say "this widget takes no attributes",
-// which is the one answer that is never true.
-const elementTag = galleryElementTag(title);
-const attributes = ADWAITA_ATTRIBUTES[elementTag] ?? null;
-
 /**
  * The framework panes: Solid, Vue and React, rendered from
  * `data/adwaita-framework-snippets.ts` rather than written per page.
  *
- * Not slots, for the same reason the attribute table is not one — no page provides
- * them and no page should, because the snippet a page would carry is a COPY. Each
- * one here was compiled and run first: `showcases/gtk/adwaita-gallery-{solid,vue,react}`
- * build this exact markup and assert the resulting widget tree against GTK with the
- * diagnostics gate on, and `scripts/generate-adwaita-framework-snippets.mjs` extracts
- * them from those programs. That data file has existed and been gated since it landed;
- * until this component read it, nothing rendered it — 40 blocks' worth of generated,
- * checked, invisible snippets.
+ * Not slots — no page provides them and no page should, because the snippet a page
+ * would carry is a COPY. Each one here was compiled and run first:
+ * `showcases/gtk/adwaita-gallery-{solid,vue,react}` build this exact markup and
+ * assert the resulting widget tree against GTK with the diagnostics gate on, and
+ * `scripts/generate-adwaita-framework-snippets.mjs` extracts them from those
+ * programs. That data file has existed and been gated since it landed; until this
+ * component read it, nothing rendered it — 40 blocks' worth of generated, checked,
+ * invisible snippets.
  *
  * The order is the data file's own, and it puts the three host adapters together:
- * they are one element model (`@gjsify/gtk-host`) behind three renderer APIs. The
- * React Native tab beside them is a different layer and stays a slot, because it is
- * written per page against what that page shows.
+ * they are one element model (`@gjsify/gtk-host`) behind three renderer APIs.
  */
 const FRAMEWORK_PANES: readonly { id: FrameworkDialect; label: string; lang: string }[] = [
     { id: 'solid', label: 'Solid', lang: 'tsx' },
@@ -193,139 +180,101 @@ const FRAMEWORK_PANES: readonly { id: FrameworkDialect; label: string; lang: str
 ];
 
 /**
- * The XML half of the NativeScript window, from `data/adwaita-nativescript-templates.ts`.
+ * The NativeScript XML template, from `data/adwaita-nativescript-templates.ts`.
  *
- * A SLOT until now, and filled on four blocks of forty — which is the shape this
+ * A SLOT until #1502, and filled on four blocks of forty — which is the shape this
  * gallery has been told twice that it cannot keep: written per page, a snippet is a
  * copy, and thirty-six of them were simply never written. The generator behind this
  * data emits the same bytes into `showcases/dom/adwaita-gallery-nativescript`, which
  * inflates each one through NativeScript's own `Builder` on an Android device and
  * asserts the view tree it built.
+ *
+ * Labelled for the PORT and not for the file format, because it is the only pane of
+ * this window that runs on a phone and that is the fact a reader is looking for.
+ * Its sibling TypeScript pane is a corpus now ({@link CORPUS_SLOTS}), so "XML" no
+ * longer distinguishes it from anything on screen.
  */
 const NATIVESCRIPT_PANES: readonly { id: string; label: string; lang: string }[] = [
-    { id: 'nativescript-xml', label: 'XML', lang: 'xml' },
+    { id: 'nativescript-xml', label: 'NativeScript', lang: 'xml' },
 ];
 
 /**
- * The windows, in order, and every port this component renders.
+ * A GROUP of data panes and the recorded reason that stands in for them.
  *
- * A window says what KIND it is in its TITLE, and nothing else: the claims that
- * used to sit under it as a subtitle are on the page (see the header). `live`
- * marks the one window that runs the widget, whose first pane mounts the markup
- * its next tab shows.
+ * Two of them share the frameworks window, and they partition INDEPENDENTLY: 28
+ * blocks have a framework tree and 12 a reason, 28 have an XML template and 12 a
+ * reason, and the two sets of 12 are not the same 12 (`Gtk.DropDown` has a tree and
+ * no template; `Adw.PreferencesDialog` the reverse). One `code`/`refusal` pair per
+ * window could not express that: a block with a template and no tree would show the
+ * template and no framework reason, which is the silently-absent tab both refusal
+ * maps exist to prevent.
  */
-const WINDOWS = [
-    {
-        id: 'preview',
-        // No title of its own: this window takes the WIDGET's, because it is the
-        // one that runs the widget. See the header — a header bar names whatever
-        // it sits on, and this one sits on the running component.
-        title: null,
-        // The FIRST pane, where the markup of the tab beside it is mounted and
-        // painted. The reader meets the widget before its source, which is the
-        // order the page's own prose promises.
-        live: true,
-        tabs: [{ slot: 'preview', label: 'HTML' }],
+type PaneGroup = {
+    code: readonly { id: string; label: string; lang: string }[];
+    codeOf: (widget: string, pane: string) => string | undefined;
+    refusalOf: (widget: string) => string | undefined;
+    /** The pane the reason renders as. Its `pane` id has to be unique across ALL windows. */
+    refusal: { pane: string; label: string; missing: string; note: string };
+};
+
+const FRAMEWORK_GROUP: PaneGroup = {
+    code: FRAMEWORK_PANES,
+    codeOf: (widget, pane) => ADWAITA_FRAMEWORK_SNIPPETS[widget]?.[pane as FrameworkDialect],
+    refusalOf: (widget) => ADWAITA_FRAMEWORK_REFUSALS[widget],
+    refusal: {
+        pane: 'why-not',
+        label: 'Why not',
+        missing: 'Solid, Vue or React snippet',
+        note:
+            'Every snippet in this gallery was compiled and run before it was written down. Where a widget is ' +
+            'built imperatively rather than declared — a Gio.MenuModel, a dialog opened with present(), a ' +
+            'container with no child policy — there is nothing for the three dialects to differ about, so the ' +
+            'reason is recorded here rather than the tab being quietly absent.',
     },
-    {
-        id: 'native',
-        // Titled for the AXIS its two tabs share. The four runtimes that axis is
-        // about are named by every gallery page's intro, not here: the snippet is
-        // plain `@girs/*` GObject-Introspection TypeScript, which is exactly the
-        // code that runs unchanged on all four of them.
-        //
-        // NATIVE, not "Vanilla". Vanilla names a thing by what it is not — no
-        // framework — which was serviceable while the neighbouring window held a
-        // single React Native tab, and stopped being so once that window began
-        // naming Solid, Vue and React beside it. What this window actually shows is
-        // the GObject API itself, with no element model in between.
-        //
-        // The TITLE is the join with the pages: every gallery page's intro
-        // enumerates the windows by these exact strings, so renaming one here and
-        // nowhere else leaves nine pages naming a window that does not exist — which
-        // is what happened, and is what arm 10 of
-        // `scripts/check-website-adwaita-gallery.mjs` now refuses.
-        title: 'Native TypeScript',
-        tabs: [
-            { slot: 'gjs', label: 'TypeScript' },
-            // Blueprint is a FILE of the same program, which is why it is a tab here
-            // and not a window of its own: a `.blp` is a widget tree and nothing
-            // else, and the TypeScript beside it is the loader that mounts it.
-            // Standing alone it read as a fourth complete program, which it is not.
-            { slot: 'blueprint', label: 'Blueprint' },
-        ],
+};
+
+const NATIVESCRIPT_GROUP: PaneGroup = {
+    // The XML template is a FILE of a program whose other file is the `nativescript`
+    // corpus fence: NativeScript resolves `<adw:Clamp>` by loading the module the
+    // template's `xmlns` names — one per library, `~/adw` and `~/gtk`, so the prefix
+    // says which one a widget belongs to (ADR 0034 clause 2) — and the TypeScript is
+    // the loader that mounts the template and does what markup cannot say.
+    //
+    // DATA and not a slot, and the two are not interchangeable here: an XML template
+    // is the one dialect where "it renders" cannot be read off the text.
+    // NativeScript's Builder assigns an attribute verbatim (`open="false"` opened a
+    // dialog) and `LayoutBase` adds a child a widget cannot place anyway (a header
+    // bar painted over the content). Both at exit 0. Only a run says which.
+    code: NATIVESCRIPT_PANES,
+    codeOf: (widget) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
+    refusalOf: (widget) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
+    refusal: {
+        pane: 'why-no-xml',
+        // NOT "Why not", which is what both refusals rendered as while they sat in
+        // windows of their own. They share a window now, and two tabs reading "Why
+        // not" beside each other say nothing about which port is being refused.
+        label: 'Why no XML',
+        missing: 'NativeScript XML template',
+        note:
+            'NativeScript’s Builder reaches a widget through an attribute, which is always a string, and ' +
+            'through a child, which lands only where the widget declares a slot for it. A property that is an ' +
+            'array of options or a reference to another view fits through neither, so such a widget is built ' +
+            'from TypeScript instead.',
     },
-    {
-        id: 'frameworks',
-        // `@gjsify/react-native` renders React Native components onto GTK 4
-        // IN-PROCESS, so nothing under this window runs on a phone — which is why
-        // it is not filed with NativeScript, and why `layout.mdx`, the only page
-        // that fills this window, says it renders a GTK window and not a phone
-        // screen.
-        //
-        // This comment used to give a different reason — "there is no Adwaita
-        // widget set built out of React Native primitives, SO nothing under this
-        // window runs on a phone" — and that premise died with
-        // `@gjsify/adwaita-react-native` (#1380), which is exactly such a set. The
-        // `so` means the absence really was load-bearing as written; what survives
-        // is the CONCLUSION, on other grounds. What fills this window is direction
-        // A, and a direction-B package existing elsewhere in the tree does not put
-        // a phone on this page. It would take a TAB that renders one.
-        title: 'UI frameworks',
-        tabs: [{ slot: 'react-native', label: 'React Native' }],
-        // The Solid, Vue and React panes are DATA, filled from
-        // `ADWAITA_FRAMEWORK_SNIPPETS` for the 21 blocks that have an entry. The other
-        // 19 carry a recorded reason instead — see {@link FRAMEWORK_PANES} and
-        // {@link REFUSAL_PANE}. 21 + 19 is every block, which is the property that
-        // makes an empty frameworks window a bug rather than a gap.
-        code: FRAMEWORK_PANES,
-        codeOf: (widget: string, pane: string) =>
-            ADWAITA_FRAMEWORK_SNIPPETS[widget]?.[pane as FrameworkDialect],
-        refusalOf: (widget: string) => ADWAITA_FRAMEWORK_REFUSALS[widget],
-        refusal: {
-            pane: 'why-not',
-            missing: 'Solid, Vue or React snippet',
-            note:
-                'Every snippet in this gallery was compiled and run before it was written down. Where a widget is ' +
-                'built imperatively rather than declared — a Gio.MenuModel, a dialog opened with present(), a ' +
-                'container with no child policy — there is nothing for the three dialects to differ about, so the ' +
-                'reason is recorded here rather than the tab being quietly absent.',
-        },
-    },
-    {
-        id: 'nativescript',
-        title: 'NativeScript',
-        tabs: [{ slot: 'nativescript', label: 'TypeScript' }],
-        // The XML template is a FILE of the same program, exactly as Blueprint is on
-        // the window above: NativeScript resolves `<adw:Clamp>` by loading the module
-        // the template's `xmlns` names — one per library, `~/adw` and `~/gtk`, so the
-        // prefix says which one a widget belongs to (ADR 0034 clause 2) — and the
-        // TypeScript beside it is the loader that mounts the template and does what
-        // markup cannot say. Standing alone, either half is not a program.
-        //
-        // DATA and no longer a slot, and the two are not interchangeable here: an XML
-        // template is the one dialect where "it renders" cannot be read off the text.
-        // NativeScript's Builder assigns an attribute verbatim (`open="false"` opened
-        // a dialog) and `LayoutBase` adds a child a widget cannot place anyway (a
-        // header bar painted over the content). Both at exit 0. Only a run says which.
-        code: NATIVESCRIPT_PANES,
-        codeOf: (widget: string) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
-        refusalOf: (widget: string) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
-        refusal: {
-            pane: 'why-no-xml',
-            missing: 'NativeScript XML template',
-            note:
-                'NativeScript\u2019s Builder reaches a widget through an attribute, which is always a string, and ' +
-                'through a child, which lands only where the widget declares a slot for it. A property that is an ' +
-                'array of options or a reference to another view fits through neither, so the TypeScript beside ' +
-                'this window is where that widget is built.',
-        },
-    },
-];
+};
 
 /**
- * The one slot that is an OVERRIDE rather than a tab: markup shown in place of the
- * preview window's own fence.
+ * The slot whose fence is BOTH mounted and shown: the live pane clones its bytes, and
+ * the frameworks window's first tab renders it as code.
+ *
+ * A named constant because the two uses are now in different WINDOWS, so nothing else
+ * in this file puts them side by side.
+ */
+const MARKUP_SLOT = 'preview';
+
+/**
+ * The one slot that is an OVERRIDE rather than a tab: markup shown in place of
+ * {@link MARKUP_SLOT}'s own fence.
  *
  * It exists for a single widget and the gate holds it there with its reason:
  * `<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole
@@ -334,6 +283,119 @@ const WINDOWS = [
  * that renders is the fence that is shown, and there is no second copy to keep.
  */
 const MARKUP_OVERRIDE = 'web';
+
+/**
+ * Slots a page AUTHORS that no window renders, with what reads each one instead.
+ *
+ * A CATEGORY and not an exemption list, because Astro drops an unmatched slot in
+ * silence: without a name for it, a fence that is deliberately unrendered and a
+ * fence that is unrendered by a typo look identical to arm 5 of
+ * `check-website-adwaita-gallery.mjs`. So arm 6 refuses a corpus slot NO ARM READS,
+ * and derives the reading arms from their own source rather than from a second list —
+ * otherwise this becomes the hole a slot can be hidden in.
+ *
+ * `nativescript`: the end state of ADR 0034's convergence is that a block's
+ * NativeScript program IS its GJS program, byte for byte. Rendering both is the
+ * redundancy a reader noticed. So the fence is a CORPUS: arm 12 holds it against the
+ * `gjs` fence of the same block and prints the distance, and where the two are not
+ * one text the recorded reason is what a reader needs — which the frameworks window
+ * already renders, as the NativeScript group's refusal pane. Deleting the fence would
+ * delete the mechanism pushing the port to spell things the way GJS spells them;
+ * `check-doc-fences.mjs` holds every property write in it against the port's source
+ * as well.
+ */
+const CORPUS_SLOTS: Record<string, string> = {
+    nativescript:
+        'held against the `gjs` fence of the same block by arm 12 of ' +
+        'scripts/check-website-adwaita-gallery.mjs, which prints how far apart the two are',
+};
+
+/**
+ * The windows, in order, and every port this component renders.
+ *
+ * A window says what KIND it is in its TITLE, and nothing else: the claims that used
+ * to sit under it as a subtitle are on the page (see the header). `live` marks the one
+ * window that runs the widget.
+ */
+const WINDOWS: readonly {
+    id: string;
+    title: string | null;
+    live?: boolean;
+    tabs: readonly { slot: string; label: string }[];
+    groups: readonly PaneGroup[];
+}[] = [
+    {
+        id: 'preview',
+        // No title of its own: this window takes the WIDGET's, because it is the
+        // one that runs the widget. See the header — a header bar names whatever
+        // it sits on, and this one sits on the running component.
+        title: null,
+        // The ONLY window with no tabs and no groups, and the only one whose pane
+        // the component provides rather than a page. Its single pane is why it has
+        // no tab bar; arm 9 holds both halves — that this window is FIRST, so the
+        // reader meets the widget before any source, and that AdwWidgetWindow mounts
+        // it outside its tab view, so the widget is not offered as one tab among the
+        // sources again.
+        live: true,
+        tabs: [],
+        groups: [],
+    },
+    {
+        id: 'gjs',
+        // The runtime, which is the shortest true name this window has. It was
+        // "Native TypeScript" — titled for its AXIS rather than for GJS — while
+        // every gallery page's intro carried the four runtimes that axis is about;
+        // that sentence is now made once on the site's runtime pages, so the title
+        // no longer has to avoid the word. See the header for why the four-runtime
+        // claim is load-bearing and where it lives.
+        //
+        // The TITLE is the join with the pages: every gallery page's intro
+        // enumerates the windows by these exact strings, so renaming one here and
+        // nowhere else leaves nine pages naming a window that does not exist — which
+        // is what happened, and is what arm 10 of
+        // `scripts/check-website-adwaita-gallery.mjs` now refuses.
+        title: 'GJS',
+        tabs: [
+            { slot: 'gjs', label: 'TypeScript' },
+            // Blueprint is a FILE of the same program, which is why it is a tab here
+            // and not a window of its own: a `.blp` is a widget tree and nothing
+            // else, and the TypeScript beside it is the loader that mounts it.
+            // Standing alone it read as a fourth complete program, which it is not.
+            { slot: 'blueprint', label: 'Blueprint' },
+        ],
+        groups: [],
+    },
+    {
+        id: 'frameworks',
+        // Every rendering of this widget that goes through an ELEMENT MODEL rather
+        // than through the GObject API: markup, three host dialects, React Native,
+        // and the XML template.
+        //
+        // `@gjsify/react-native` renders React Native components onto GTK 4
+        // IN-PROCESS, so that pane does not run on a phone, and `layout.mdx` — the
+        // only page that fills it — says it renders a GTK window and not a phone
+        // screen. This note used to give a different reason ("there is no Adwaita
+        // widget set built out of React Native primitives, SO nothing under this
+        // window runs on a phone") and that premise died with
+        // `@gjsify/adwaita-react-native` (#1380), which is exactly such a set. The
+        // `so` means the absence really was load-bearing as written; what survives
+        // is the CONCLUSION, on other grounds. What fills that pane is direction A,
+        // and a direction-B package existing elsewhere in the tree does not put a
+        // phone in it. It would take a PANE that renders one — which the XML
+        // template beside it now is, and which is why it is labelled for the port.
+        title: 'UI frameworks',
+        tabs: [
+            // The markup the FIRST window is painted from, shown here because a
+            // custom-element tree is an element model like the three below it. Its
+            // fence is read for the mount whether or not this tab renders, so arm 9
+            // holds that the fence a reader can copy is actually shown somewhere.
+            { slot: MARKUP_SLOT, label: 'HTML Web Components' },
+            { slot: 'react-native', label: 'React Native' },
+        ],
+        // Filled on all 40 blocks, snippet or recorded reason — see {@link PaneGroup}.
+        groups: [FRAMEWORK_GROUP, NATIVESCRIPT_GROUP],
+    },
+];
 
 /** U+007F — Expressive Code's own stand-in for a newline inside `data-code`. */
 const EC_NEWLINE = String.fromCharCode(0x7f);
@@ -362,51 +424,40 @@ const decodeEcCode = (html: string): string | null => {
 /**
  * The pane id of the LIVE PREVIEW in `data-impls`.
  *
- * Not a slot: no page provides it, the component is it — which is why it is not
- * in {@link WINDOWS}, where every entry is a port a page has to fill. It joins
- * the same list as the slots because that list is POSITIONAL (index 0 is the
- * first pane, and the preview is now a pane like any other), and it has to differ
- * from every slot name or a reader picking "Preview" would move an unrelated
- * window instead.
+ * Not a slot: no page provides it, the component is it — which is why it names no
+ * slot in {@link WINDOWS}, where every tab is a port a page has to fill. It joins the
+ * same list as the slots because that list is POSITIONAL, and it has to differ from
+ * every slot name for the reason the collision throws below record.
  */
 const LIVE_PANE = 'live';
 
 /**
- * The pane id of the ATTRIBUTE LIST, the live window's last pane.
+ * The panes that say why a block has NO snippet in a group's dialect.
  *
- * Not a slot either, and for the same reason: no page provides it, the generated
- * table is it. It joins {@link LIVE_PANE} in the positional list below.
+ * Each group names its own pane id, and they now share a window, so the requirement
+ * is sharper than it was: `data-impls` is looked up by NAME, and one shared `why-not`
+ * would put two entries reading the same id in ONE list, where the first answers for
+ * both.
  */
-const ATTRS_PANE = 'attributes';
-
-/**
- * The panes that say why a block has NO snippet in a window's dialect.
- *
- * Both refusal maps exist for this and say so in their own headers: "a missing tab
- * and a tab that cannot exist look identical, and only one of them is a fact". Each
- * window names its own pane id, because `data-impls` is positional and looked up by
- * name — one shared `why-not` would give a reader who picked it on one window the
- * OTHER window's reason on the next block.
- */
-const REFUSAL_PANES = WINDOWS.flatMap((win) => (win.refusal === undefined ? [] : [win.refusal.pane]));
+const REFUSAL_PANES = WINDOWS.flatMap((win) => win.groups.map((group) => group.refusal.pane));
 
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
-// script below looks a pane up by name with `indexOf`, so a pane id equal to a
-// slot name gives the live window two entries reading the same id and the first one
-// answers for both: the HTML tab could never be the remembered choice, and picking
-// it would move every OTHER preview window to its Preview pane instead. Nothing
-// else notices — the ids never leave `data-impls`, so the site builds, both tabs
-// render, and every gate stays green.
+// script below looks a pane up by name with `indexOf`, so a pane id equal to a slot
+// name gives one window two entries reading the same id and the first one answers for
+// both: the colliding tab could never be the remembered choice, and picking it would
+// move every OTHER window to whatever sits at that position. Nothing else notices —
+// the ids never leave `data-impls`, so the site builds, every tab renders, and every
+// gate stays green. The frameworks window is where this became likely: it mixes slot
+// tabs with data panes and refusal panes in one list, so a slot named `solid` or
+// `react` is an in-window collision rather than a hypothetical.
 const OWN_PANES = [
     LIVE_PANE,
-    ATTRS_PANE,
     ...REFUSAL_PANES,
     ...FRAMEWORK_PANES.map((pane) => pane.id),
     ...NATIVESCRIPT_PANES.map((pane) => pane.id),
 ];
-const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) =>
-    OWN_PANES.includes(slot),
-);
+const RENDERED_SLOTS = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot));
+const collidingSlot = RENDERED_SLOTS.find((slot) => OWN_PANES.includes(slot));
 if (collidingSlot !== undefined) {
     throw new Error(
         `AdwWidget: "${collidingSlot}" is both a tab slot and one of this component's own pane ids ` +
@@ -419,8 +470,8 @@ if (collidingSlot !== undefined) {
 // sharing a pane id is the same defect as a slot colliding with one, one window over:
 // the stored choice is a bare NAME, `applyPreference` writes it into EVERY window whose
 // `data-impls` contains it, and a reader who picked the frameworks window's reason would
-// land on the NativeScript window's reason on the next block. {@link REFUSAL_PANES} is
-// exactly where that becomes tempting — one `why-not` for both refusal maps reads like
+// land on another window's reason on the next block. {@link REFUSAL_PANES} is exactly
+// where that becomes tempting — one `why-not` for both refusal maps reads like
 // deduplication — and nothing downstream would notice, because a duplicate id still
 // renders, still builds, and still leaves every gate green.
 const duplicatePane = OWN_PANES.find((id, index) => OWN_PANES.indexOf(id) !== index);
@@ -432,105 +483,115 @@ if (duplicatePane !== undefined) {
     );
 }
 
-const rendered: {
-    id: string;
-    title: string;
-    live: boolean;
-    attributes: { tag: string; names: string[]; sample: Map<string, string> } | null;
-    impls: string;
-    tabs: { slot: string; label: string; html: string }[];
-    code: { id: string; label: string; lang: string; source: string }[];
-    refusal: { pane: string; missing: string; note: string; reason: string } | null;
-}[] = [];
-let previewMarkup: string | null = null;
+// A CORPUS slot is one no window renders, so a slot in both lists is a contradiction
+// rather than a duplicate: the fence would render as a tab while every reader of
+// {@link CORPUS_SLOTS} is told it does not, and arm 6 of the gate would look for an
+// arm reading a slot the page can already see. Held here because this is the file
+// where both lists are authored.
+const renderedCorpusSlot = RENDERED_SLOTS.find((slot) => Object.hasOwn(CORPUS_SLOTS, slot));
+if (renderedCorpusSlot !== undefined) {
+    throw new Error(
+        `AdwWidget: "${renderedCorpusSlot}" is declared in CORPUS_SLOTS and rendered as a tab of a ` +
+            'window. A corpus slot is authored and deliberately NOT rendered; drop it from one list.',
+    );
+}
+
+// The block's markup, read ONCE and before any window: it belongs to the BLOCK rather
+// than to a window now that the pane that mounts it and the tab that shows it are in
+// two different ones. It used to be read as a side effect of rendering the first
+// window's first tab, which only worked while those were the same window.
+const markupHtml = Astro.slots.has(MARKUP_SLOT) ? await Astro.slots.render(MARKUP_SLOT) : null;
+const previewMarkup = markupHtml === null ? null : decodeEcCode(markupHtml);
+// Loud, at build time, never at runtime: without the source there is no preview, and
+// a silently empty stage on 40 blocks is exactly the failure this component was
+// restructured to end.
+//
+// EMPTY counts as without. An empty ```html fence decodes to '' and not to null, so it
+// walked past a `=== null` guard and mounted nothing: measured by emptying one fence —
+// the site built at exit 0, this gate and `check-doc-fences.mjs` both stayed green, and
+// /adwaita/controls/ shipped a "Preview" tab over an empty stage. That is the blank page
+// at exit 0 with zero diagnostics that the throw exists to prevent, so it has to cover
+// the blank one too.
+if (markupHtml !== null && (previewMarkup === null || previewMarkup.trim() === '')) {
+    throw new Error(
+        `AdwWidget(${title}): the preview slot rendered no single NON-EMPTY Expressive Code ` +
+            'block to read its markup back from. It has to hold exactly one fenced ```html ' +
+            'block, with markup in it.',
+    );
+}
+
+/**
+ * One window's panes, in RENDER order, which is also `data-impls` order.
+ *
+ * ONE array for both, and that is the point: the order used to live twice — once as
+ * the sequence of expressions in `AdwWidgetWindow`'s template and once as a
+ * hand-assembled `impls` string here — with a comment in each file asking the next
+ * editor to keep them in step. A stored preference is resolved by POSITION against
+ * that string, so the two disagreeing sends a reader who picked one pane to a
+ * different one, and nothing downstream can tell.
+ */
+const rendered: { id: string; title: string; panes: WidgetPane[] }[] = [];
 
 for (const spec of WINDOWS) {
-    const tabs: { slot: string; label: string; html: string }[] = [];
+    const panes: WidgetPane[] = [];
+    if (spec.live === true && previewMarkup !== null) {
+        panes.push({ id: LIVE_PANE, kind: 'live', markup: previewMarkup });
+    }
     for (const tab of spec.tabs) {
         if (!Astro.slots.has(tab.slot)) continue;
-        let html = await Astro.slots.render(tab.slot);
-        if (tab.slot === 'preview') {
-            previewMarkup = decodeEcCode(html);
-            // Loud, at build time, never at runtime: without the source there is no
-            // preview, and a silently empty stage on 40 blocks is exactly the failure
-            // this component was restructured to end.
-            //
-            // EMPTY counts as without. An empty ```html fence decodes to '' and not to
-            // null, so it walked past a `=== null` guard and mounted nothing: measured
-            // by emptying one fence — the site built at exit 0, this gate and
-            // `check-doc-fences.mjs` both stayed green, and /adwaita/controls/ shipped a
-            // "Preview" tab over an empty stage. That is the blank page at exit 0 with
-            // zero diagnostics that the throw below exists to prevent, so it has to
-            // cover the blank one too.
-            if (previewMarkup === null || previewMarkup.trim() === '') {
-                throw new Error(
-                    `AdwWidget(${title}): the preview slot rendered no single NON-EMPTY Expressive Code ` +
-                        'block to read its markup back from. It has to hold exactly one fenced ```html ' +
-                        'block, with markup in it.',
-                );
-            }
-            // The one override: the markup a reader should copy, where the fence
-            // that renders is not it.
-            if (Astro.slots.has(MARKUP_OVERRIDE)) html = await Astro.slots.render(MARKUP_OVERRIDE);
+        let html: string;
+        if (tab.slot === MARKUP_SLOT) {
+            // The one override: the markup a reader should copy, where the fence that
+            // renders is not it.
+            html = Astro.slots.has(MARKUP_OVERRIDE) ? await Astro.slots.render(MARKUP_OVERRIDE) : (markupHtml ?? '');
+        } else {
+            html = await Astro.slots.render(tab.slot);
         }
-        tabs.push({ ...tab, html });
+        panes.push({ id: tab.slot, kind: 'slot', label: tab.label, html });
     }
-    // The data panes, looked up by the block's own title — the same key the
-    // generator wrote. A block with no entry simply has none; a block whose entry
-    // is missing a dialect shows the dialects it has, because a pane rendering an
-    // empty fence is worse than an absent one.
-    const code = (spec.code ?? [])
-        .map((pane) => ({ ...pane, source: spec.codeOf?.(title, pane.id) ?? '' }))
-        .filter((pane) => pane.source !== '');
-
-    // A block with no snippet gets the RECORDED REASON, never silence. The two maps
-    // partition the gallery, so exactly one of `code` and `refusal` is non-empty on
-    // the frameworks window — and a block in NEITHER map leaves the window absent,
-    // which arm 4 of `check-generated-website-data.mjs` is what refuses.
-    const reason = spec.refusal === undefined || code.length > 0 ? undefined : spec.refusalOf?.(title);
-    const refusal = spec.refusal === undefined || reason === undefined ? null : { ...spec.refusal, reason };
-
-    // All three, because a window can now be entirely data: measured on the built
-    // site, the frameworks window fills on all 40 blocks while only 3 of them
-    // provide its slot. Testing `tabs` alone is what kept it invisible.
-    if (tabs.length === 0 && code.length === 0 && refusal === null) continue;
-    // `previewMarkup` is already read by the time this runs: the live window is
-    // first in WINDOWS and its own `preview` tab is what sets it.
-    const live = spec.live === true && previewMarkup !== null;
-    // The attribute list is the LIVE window's, because that is the window running the
-    // element whose `observedAttributes` produced it.
-    //
-    // NO pane has exactly one legitimate cause, a title with no element at all
-    // (`Adw.Toast` is a plain class). The `length > 0` arm is the other, and it is not
-    // a widget fact: an element the pillar registers that observes NOTHING is a reader
-    // that could not see the declaration, which is how `<adw-wrap-box>` shipped
-    // paneless over 14 attributes. `check-generated-website-data.mjs` fails on it now,
-    // so this arm is what that failure renders as rather than a silent policy.
-    const attrs =
-        live && attributes !== null && attributes.length > 0
-            ? { tag: elementTag, names: attributes, sample: sampleAttributes(previewMarkup, elementTag) }
-            : null;
-    rendered.push({
-        id: spec.id,
-        title: spec.title ?? title,
-        live,
-        attributes: attrs,
-        impls: [
-            ...(live ? [LIVE_PANE] : []),
-            ...tabs.map((t) => t.slot),
-            ...code.map((c) => c.id),
-            ...(refusal === null ? [] : [refusal.pane]),
-            ...(attrs === null ? [] : [ATTRS_PANE]),
-        ].join(','),
-        tabs,
-        code,
-        refusal,
-    });
+    // The data panes of each group, looked up by the block's own title — the same key
+    // the generator wrote. A block whose entry is missing a dialect shows the dialects
+    // it has, because a pane rendering an empty fence is worse than an absent one; a
+    // block with no entry at all gets the RECORDED REASON, never silence. The two maps
+    // partition the gallery per group, and a block in NEITHER map of a group leaves
+    // that group's pane absent, which arm 4 (frameworks) and arm 7 (NativeScript) of
+    // `check-generated-website-data.mjs` are what refuse.
+    for (const group of spec.groups) {
+        const code = group.code
+            .map((pane) => ({
+                id: pane.id,
+                kind: 'code' as const,
+                label: pane.label,
+                lang: pane.lang,
+                source: group.codeOf(title, pane.id) ?? '',
+            }))
+            .filter((pane) => pane.source !== '');
+        if (code.length > 0) {
+            panes.push(...code);
+            continue;
+        }
+        const reason = group.refusalOf(title);
+        if (reason === undefined) continue;
+        panes.push({
+            id: group.refusal.pane,
+            kind: 'refusal',
+            label: group.refusal.label,
+            missing: group.refusal.missing,
+            note: group.refusal.note,
+            reason,
+        });
+    }
+    // A window with nothing in it is skipped. Measured on the built site: the
+    // frameworks window fills on all 40 blocks while only 3 of them provide a slot of
+    // it, so testing the slots alone is what kept the data panes invisible.
+    if (panes.length === 0) continue;
+    rendered.push({ id: spec.id, title: spec.title ?? title, panes });
 }
 ---
 
 {/* One window per KIND, each shaped like a GNOME Workbench session. The first
-    names the WIDGET and runs it; the rest name what they are. */}
+    names the WIDGET and runs it; the rest name what they are — so the reference
+    link goes on window 0, the one carrying the widget's own title. */}
 <div class="adw-widget">
     {
         rendered.map((win, index) => (
@@ -538,15 +599,10 @@ for (const spec of WINDOWS) {
                 title={win.title}
                 refHref={index === 0 ? refHref : null}
                 widget={title}
-                impls={win.impls}
-                tabs={win.tabs}
-                code={win.code}
-                refusal={win.refusal}
-                preview={win.live ? previewMarkup : null}
+                panes={win.panes}
                 padding={padding}
                 scroll={scroll}
                 stage={stage}
-                attributes={win.attributes}
             />
         ))
     }
@@ -583,20 +639,17 @@ for (const spec of WINDOWS) {
             // `<adw-tab-view>` — the Adw.TabView block on /adwaita/view-switching/ is
             // one — and an unmarked `querySelector` handed that one back and silently
             // retargeted it whenever the reader picked an implementation on any other
-            // widget. It used to PRECEDE this view, back when the preview was a pane
-            // above the tab bar; now that the preview is the first TAB it is a
-            // DESCENDANT of this view (measured on the built page: the marked view at
-            // byte 784, the preview's own at 985), so an unmarked selector would
-            // happen to answer right today. The marker stays, because what makes it
-            // right is that it names the window's OWN view rather than where the
-            // preview currently sits.
+            // widget. The marker is what makes the read right rather than lucky, and
+            // the preview window is now the case that proves it: that window has no
+            // tab view of its own at all, so an unmarked selector there returns the
+            // MOUNTED WIDGET and nothing else.
             const view = el.querySelector<Adw.TabView>('adw-tab-view[data-impl-view]');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
-            // The windows hold disjoint tab sets, so a stored choice simply does not
-            // apply to most of them: picking "Blueprint" moves every Native
-            // TypeScript window and leaves the others where the reader left them.
+            // The windows hold disjoint pane sets, so a stored choice simply does not
+            // apply to most of them: picking "Blueprint" moves every GJS window and
+            // leaves the others where the reader left them.
             // A CALL, not an attribute: `selected="n"` was the door until ADR 0048 renamed
             // the markup half to `selected-page="<page id>"`, and these panes declare no
             // `page-id`. The stored preference is a NAME resolved to a position against the
@@ -645,12 +698,15 @@ for (const spec of WINDOWS) {
         // a window with a single pane — no tab view — has none, and the pane is the
         // window's own child.
         const active = host?.querySelector('.adw-tab-page:not([hidden]), .adw-widget-window-pane');
-        // The preview pane holds a running widget, not code. Falling back to the
-        // window's own block copies the markup that PAINTS what the reader is
-        // looking at, which is the one thing they can take away from that tab —
-        // and it is the same bytes, since the pane mounts the block beside it.
-        const ecButton =
-            active?.querySelector<HTMLButtonElement>(EC_COPY) ?? host?.querySelector<HTMLButtonElement>(EC_COPY);
+        // THE ACTIVE PANE ONLY. There used to be a fallback to the window's first code
+        // block, for the live preview pane, which held a running widget and no code
+        // while sharing a window with the markup that painted it. It shares no window
+        // with code any more — and a REFUSAL pane now does: on a frameworks window
+        // carrying Solid/Vue/React plus "Why no XML", a fallback would answer a press
+        // on the prose pane by copying a snippet the reader is not looking at. A press
+        // with nothing to copy does nothing and marks nothing, which is what a window
+        // with no code at all already did (see `copyable` in AdwWidgetWindow).
+        const ecButton = active?.querySelector<HTMLButtonElement>(EC_COPY);
         if (!ecButton) return;
         ecButton.click();
         btn.classList.add('copied');
@@ -702,10 +758,10 @@ for (const spec of WINDOWS) {
     }
 
     /* ── Live preview pane ──────────────────────────────────────────────
-       The first PANE of the window that runs the widget: an Adwaita "view"
-       surface the real widget is painted onto. It carries no frame and no
-       separator of its own — the window around it owns every edge, and the tab
-       bar above it is the only line the reader needs. */
+       The only pane of the window that runs the widget: an Adwaita "view"
+       surface the real widget is painted onto, directly under the header bar. It
+       carries no frame and no separator of its own — the window around it owns
+       every edge, and the header bar above it is the only line the reader needs. */
     .adw-widget-preview {
         background: var(--adw-view-bg);
         overflow: hidden;
@@ -823,68 +879,5 @@ for (const spec of WINDOWS) {
         background-color: currentColor;
         -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
         mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
-    }
-
-    /* The attribute pane of the live window — rendered by AdwWidgetWindow, styled
-       here, like every other class in that file: this block is `is:global`, which
-       is why no `:global()` wrapper belongs on these selectors. Written with one,
-       it survived the build as a LITERAL `:global(.adw-widget-attrs)` in the emitted
-       CSS — a selector that matches nothing, on a pane that still rendered. */
-    .adw-widget-attrs {
-        padding: 0.85rem 1rem 1rem;
-        font-size: 0.9em;
-    }
-
-    .adw-widget-attrs table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-    }
-
-    /* The caption reads BEFORE the table for a screen reader, which is the order the
-       sentence wants: what the list is, then the list. */
-    .adw-widget-attrs caption {
-        text-align: left;
-        color: var(--sl-color-gray-2);
-        line-height: 1.5;
-        padding-bottom: 0.75rem;
-    }
-
-    .adw-widget-attrs th,
-    .adw-widget-attrs td {
-        padding: 0.35rem 0.75rem 0.35rem 0;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.16);
-        vertical-align: baseline;
-    }
-
-    .adw-widget-attrs thead th {
-        font-size: 0.85em;
-        font-weight: 600;
-        color: var(--sl-color-gray-3);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .adw-widget-attrs tbody tr:last-child th,
-    .adw-widget-attrs tbody tr:last-child td {
-        border-bottom: 0;
-    }
-
-    /* Monospace by CLASS, not by a `<code>` element: `attr-sample.mjs` resolves each cell
-       to a string plus a class, so the styling has to travel with it. Starlight's own
-       inline-code styling is off in here anyway (`not-content`), so the element bought
-       nothing the class does not. */
-    .adw-widget-attrs tbody th,
-    .adw-widget-attrs .is-value {
-        font-family: var(--__sl-font-mono);
-        font-weight: 400;
-    }
-
-    /* Neither of these cells is a VALUE — one says the preview writes the attribute with
-       nothing after it, the other that it does not write it at all — so neither takes the
-       monospace above, and both step back from the cells that are. */
-    .adw-widget-attrs .is-absent,
-    .adw-widget-attrs .is-bare {
-        color: var(--sl-color-gray-3);
     }
 </style>
