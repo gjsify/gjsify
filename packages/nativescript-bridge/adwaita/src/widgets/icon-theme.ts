@@ -15,7 +15,7 @@
 // SUBSET of `@gjsify/adwaita-icons` and offers {@link registerIcon} for anything outside
 // it. The subset exists because the whole set does not fit — and on a PHONE bundle that
 // is not a stylesheet argument but a download one. Measured over
-// `packages/web/adwaita-icons/*.ts` (the command is in ADR 0034 § Amendment 16):
+// `packages/web/adwaita-icons/*.ts` (the command is in ADR 0034 § Amendment 18):
 //
 //   · the whole barrel        644 glyphs, 732 371 bytes of SVG source  (715.2 KiB)
 //   · {@link COMPILED_ICONS}   31 glyphs,  27 851 bytes                 (27.2 KiB)
