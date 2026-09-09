@@ -1,6 +1,6 @@
 ---
 title: Runtimes
-description: "Where your gjsify code can run: GJS, Node.js, Bun, Deno and the browser, and how to choose between them."
+description: "Where your gjsify code can run: GJS, Node.js, Bun, Deno, the browser and mobile, and how to choose between them."
 ---
 
 gjsify targets four JavaScript runtimes, and one flag decides which build you
@@ -17,12 +17,14 @@ resolves to.
 
 Every code sample on this site follows that rule, so read them as runtime-neutral
 even where they name one. The TypeScript in the [widget gallery](/gjsify/adwaita/)
-is written for GJS and runs unchanged on Node.js, Bun and Deno, because `gi://Adw`
-is the same import on all four. Two further targets answer those same `Adw.*` and
-`Gtk.*` names from a port instead of from libadwaita: `--app browser` through
-`@gjsify/adwaita-web`, and `--app nativescript` through
-`@gjsify/adwaita-nativescript`, on a phone. The widget you learn once keeps its
-name in all five places. What changes is the host around it.
+is written for GJS, and it runs unchanged on Node.js, Bun and Deno. `gi://Adw` is
+the same import on all four.
+
+Two further targets answer those same `Adw.*` and `Gtk.*` names from a port rather
+than from libadwaita. Add `--gi-renderer` to the build, and `--app browser`
+resolves `gi://Adw` out of `@gjsify/adwaita-web`, `--app nativescript` out of
+`@gjsify/adwaita-nativescript`, on a phone. So the widget you learn once keeps its
+name in five places. What changes is the host around it.
 
 Start from the runtime you already have:
 
