@@ -81,6 +81,7 @@ at a comfortable measure on a large display without wasting room on a small one.
 <AdwWidget title="Adw.Clamp">
   <Fragment slot="preview">
     ```html
+    <!-- maximum-size: The maximum size allocated to the child. -->
     <adw-clamp maximum-size="400">
       <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
         This content is clamped: it stops growing past the maximum size and stays centred.
@@ -470,6 +471,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
 <AdwWidget title="Adw.WrapBox">
   <Fragment slot="preview">
     ```html
+    <!-- child-spacing: The spacing between widgets on the same line. -->
     <adw-wrap-box child-spacing="8" line-spacing="8">
       <gtk-button label="Design" pill></gtk-button>
       <gtk-button label="Adwaita" pill></gtk-button>

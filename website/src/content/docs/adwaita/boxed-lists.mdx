@@ -140,6 +140,7 @@ row responds to a click, which is how you open a detail page.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- activatable: Determines whether the ::row-activated signal will be emitted for this row. -->
       <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
         <span slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
         <gtk-button slot="suffix" icon="go-next" flat></gtk-button>
@@ -220,6 +221,7 @@ the row you will use most in a preferences page.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- active: Whether the switch row is in the "on" or "off" position. -->
       <adw-switch-row title="Automatic updates" subtitle="Download and install updates without asking" active></adw-switch-row>
     </adw-preferences-group>
     ```
@@ -273,6 +275,7 @@ user types.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- text: The contents of the entry. -->
       <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
     </adw-preferences-group>
     ```
@@ -323,6 +326,7 @@ to reveal it. Use it anywhere a password or key is edited inline.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- text: The contents of the entry. -->
       <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
     </adw-preferences-group>
     ```
@@ -376,6 +380,8 @@ same array goes in the `model` attribute as JSON.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- model: The model that provides the displayed items. -->
+      <!-- selected: The position of the selected item. -->
       <adw-combo-row
         title="Accent colour"
         subtitle="Used to highlight selected items"
@@ -476,6 +482,7 @@ size or a count.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- adjustment: The adjustment that holds the value of the spin row. -->
       <adw-spin-row title="Font size" value="16" adjustment='{"lower":0,"upper":100,"stepIncrement":1}'></adw-spin-row>
     </adw-preferences-group>
     ```
@@ -603,6 +610,7 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
+      <!-- start-icon-name: The icon name to show before the title. -->
       <adw-button-row title="Add account" start-icon-name="list-add" class="suggested-action"></adw-button-row>
     </adw-preferences-group>
     ```

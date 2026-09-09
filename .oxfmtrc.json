@@ -94,6 +94,12 @@
         // quotes, 1140 lines) would make the two gates contradict each other, and
         // the next legitimate regeneration would silently revert the formatting and
         // turn `oxfmt --check .` red. One file, one writer.
-        "packages/infra/resolve-npm/lib/register-globals-closure.mjs"
+        "packages/infra/resolve-npm/lib/register-globals-closure.mjs",
+        // The gallery's attribute glosses, read out of the GIR by
+        // `scripts/generate-adwaita-attribute-comments.mjs`. Same arrangement as the two
+        // above it: the generator emits its final bytes itself, because the two jobs that
+        // hold them (`check-generated-website-data.mjs` on Linux and Windows) are
+        // `checkout` + `setup-node` and have no `node_modules` to run a formatter from.
+        "scripts/adwaita-attribute-meanings.mjs"
     ]
 }

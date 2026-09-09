@@ -49,6 +49,8 @@ it from an inline list glyph up to a full profile header.
 <AdwWidget title="Adw.Avatar">
   <Fragment slot="preview">
     ```html
+    <!-- text: Sets the text used to generate the fallback initials and color. -->
+    <!-- show-initials: Whether initials are used instead of an icon on the fallback avatar. -->
     <adw-avatar text="Ada Lovelace" size="96" show-initials icon="avatar-default"></adw-avatar>
     ```
   </Fragment>
@@ -167,6 +169,7 @@ shows the **disabled-text** placeholder instead.
       <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
       <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
       <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
+      <!-- disabled-text: The text displayed when no accelerator is set. -->
       <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
     </div>
     ```
@@ -294,6 +297,7 @@ give the user a way out, such as a button that creates their first document.
 <AdwWidget title="Adw.StatusPage" padding="flush" stage="height: 320px; display:flex;">
   <Fragment slot="preview">
     ```html
+    <!-- description: The description markup to be displayed below the title. -->
     <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
       <gtk-button label="New Document" pill suggested></gtk-button>
     </adw-status-page>

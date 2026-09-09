@@ -434,6 +434,22 @@ jobs:
       - name: Check every Adwaita doc sample is one that runs
         run: node scripts/check-doc-fences.mjs
 
+      # …and that every attribute IN those fences still carries the gloss the GIR gives
+      # it. The generator writes an inline HTML comment per attribute whose meaning its
+      # name does not carry, read from the GObject property the custom element mirrors,
+      # and this re-derives all of it and refuses a drift.
+      #
+      # It rides HERE and not in `audit-runtimes.yml` with the other Adwaita gates for
+      # the same reason the step above does: it needs `Adw-1.gir` and `Gtk-4.0.gir`, and
+      # this is the only job whose image has `gtk4-devel` + `libadwaita-devel`. Those
+      # gates run on a bare `ubuntu-latest`, where the GIR does not exist — so the
+      # GIR-free half of the mechanism is arm 12 of `check-generated-website-data.mjs`,
+      # which holds the fences against the committed sentences and therefore fails on a
+      # hand-edited comment on every PR leg, GIR or no GIR. Neither half alone is enough:
+      # this one cannot run there, and that one cannot see the doc text.
+      - name: Check every Adwaita attribute gloss is the GIR's
+        run: node scripts/generate-adwaita-attribute-comments.mjs --check
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
