@@ -15,16 +15,19 @@
         "lib"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test-gtk.gjs.mjs test.node.mjs src/icons.generated.ts",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:icons": "node scripts/build-icon-gresource.mjs",
+        "build": "gjsify run build:icons && gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "gjsify tsc",
-        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:gtk && gjsify run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:gtk": "gjsify build src/test-gtk.mts --app gjs --outfile test-gtk.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs && gjsify run test:node",
+        "test": "gjsify run build:icons && gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs && gjsify run test:gtk && gjsify run test:node",
         "test:gjs": "gjsify run test.gjs.mjs",
+        "test:gtk": "gjsify run test-gtk.gjs.mjs",
         "test:node": "node test.node.mjs",
         "storybook": "gjsify storybook",
         "storybook:build": "gjsify storybook --build-only --out dist/storybook.gjs.mjs"

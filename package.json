@@ -124,6 +124,7 @@
         "check:nativescript-widget-coverage": "node scripts/check-nativescript-widget-coverage.mjs",
     "check:nativescript-icon-names": "node scripts/check-nativescript-icon-names.mjs",
         "check:vocabulary-alignment": "node scripts/check-vocabulary-alignment.mjs",
+    "check:bundled-icon-parity": "node scripts/check-bundled-icon-parity.mjs",
         "clear": "gjsify foreach clear -v --no-private -p --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"",
         "clear:examples": "gjsify foreach clear -v -p --include \"@gjsify/example-*\"",
         "npm:publish": "gjsify run build && gjsify run build:examples && gjsify run npm:publish:prebuilt",

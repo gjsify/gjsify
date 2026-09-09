@@ -2,8 +2,9 @@
 // Wires the boilerplate every native Adwaita app repeats: the runAsync
 // lifecycle (NOT sync run() — a synchronous view load hangs its spinner under
 // run(), because GJS does not flush the promise-job queue), a startup CSS
-// bootstrap, the opt-in @gjsify/devtools control plane, get-or-create window on
-// activate, and the standard app.quit (<primary>q) + app.about actions.
+// bootstrap, the startup ICON bootstrap beside it, the opt-in @gjsify/devtools
+// control plane, get-or-create window on activate, and the standard app.quit
+// (<primary>q) + app.about actions.
 
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
@@ -15,6 +16,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 // bridge (AGENTS.md § The legacy imports.* object is NOT an API).
 import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
+import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
 /** Options for {@link AdwaitaApp} / {@link runAdwaitaApp}. */
@@ -27,6 +29,21 @@ export interface AdwaitaAppOptions {
     createWindow: (app: Adw.Application) => Gtk.Window;
     /** CSS string applied display-wide on `startup` (via `Gtk.CssProvider`). */
     css?: string;
+    /**
+     * The app's own Adwaita icon glyphs, registered on `startup` so `icon-name`
+     * resolves without depending on the host having the Adwaita theme installed.
+     *
+     * ON BY DEFAULT, because the guarantee is the point: before this existed, a
+     * gjsify app on a host with a different icon set drew a different glyph — or
+     * the broken-image paintable — under every documented name, and nothing
+     * noticed. The default is `'fallback'`: the host's theme still wins where it
+     * HAS the name, and the bundle fills every hole.
+     *
+     * `false` (or `{ prefer: 'host' }`) is the documented way out for an app that
+     * deliberately wants only the host theme; `{ prefer: 'bundled' }` makes the
+     * shipped set authoritative. See {@link BundledIconThemeOptions}.
+     */
+    bundledIcons?: boolean | BundledIconThemeOptions;
     /** When set, wires an `app.about` action opening an `Adw.AboutDialog`. */
     about?: AboutInfo;
     /** Wire `app.quit` (`<primary>q`). Default `true`. */
@@ -37,7 +54,7 @@ export interface AdwaitaAppOptions {
      * `GJSIFY_DEVTOOLS` env var (safe in production either way).
      */
     devtools?: boolean | InstallDevtoolsOptions;
-    /** Extra work on `startup`, after CSS + devtools are wired. */
+    /** Extra work on `startup`, after icons + CSS + devtools are wired. */
     onStartup?: (app: Adw.Application) => void;
 }
 
@@ -79,9 +96,19 @@ export class AdwaitaApp extends Adw.Application {
     }
 
     private _onStartup(): void {
+        // Icons BEFORE CSS and before any widget exists: `Gtk.IconTheme` caches a
+        // lookup, so a resource path added after something has already asked for a
+        // name leaves that widget on whatever answered first.
+        this._installBundledIcons();
         if (this._options.css) this._loadCss(this._options.css);
         this._installDevtools();
         this._options.onStartup?.(this);
+    }
+
+    private _installBundledIcons(): void {
+        const icons = this._options.bundledIcons;
+        if (icons === false) return;
+        installBundledIconTheme(typeof icons === 'object' ? icons : {});
     }
 
     private _loadCss(css: string): void {

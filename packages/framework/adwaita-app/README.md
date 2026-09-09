@@ -66,9 +66,67 @@ promise-job queue under `run()`).
   exit code. `AdwaitaAppOptions`: `applicationId`, `createWindow`, optional
   `flags`, `css`, `about` (`AboutInfo`), `quitAction` (default on, `<primary>q`),
   `devtools` (`true` | `InstallDevtoolsOptions` | omitted = env-gated),
-  `onStartup`.
+  `bundledIcons` (default on — see below), `onStartup`.
 - `AdwaitaApp` — the configured `Adw.Application` subclass, if you need the
   instance instead of `runAdwaitaApp`.
+
+### Bundled icons
+
+`icon-name` on GTK resolves against the icon theme the HOST has installed, and
+nothing guarantees that is Adwaita — so a documented name can draw a different
+glyph, or the broken-image paintable, on a machine that ships a different set.
+This package bundles a subset of `@gjsify/adwaita-icons` into a GResource and
+registers it on `startup`, so the names your app writes always resolve to a
+glyph your app ships. **On by default.**
+
+The subset is the same one `@gjsify/adwaita-web` compiles into its stylesheet
+(41 glyphs, 20.3 KiB compiled, 27.1 KiB as the base64 the bundle travels as), so
+one `icon-name` means one glyph on the browser, on GTK and on NativeScript.
+`scripts/check-bundled-icon-parity.mjs` fails when the two lists drift apart.
+
+```ts
+runAdwaitaApp({
+    applicationId: 'org.example.App',
+    createWindow,
+    // bundledIcons: true,                  // the default
+    // bundledIcons: { prefer: 'bundled' }, // the shipped set is authoritative
+    // bundledIcons: false,                 // host theme only, the way it was before
+});
+```
+
+`prefer` decides how the bundle relates to the host's theme, and the difference
+is measured rather than assumed:
+
+| `prefer` | host theme HAS the name | host theme lacks it |
+|---|---|---|
+| `'fallback'` (default) | the host's glyph is drawn | **the bundled glyph is drawn** |
+| `'bundled'` | **the bundled glyph is drawn** | **the bundled glyph is drawn** |
+| `'host'` | the host's glyph | nothing is registered — broken image |
+
+`'fallback'` is the default because `Gtk.IconTheme.add_resource_path()`
+*contributes* to the theme rather than overriding it — its own documentation
+says so — and a user who chose Papirus should keep Papirus. It already closes
+the failure this exists for: the name never fails to resolve.
+
+`'bundled'` is for the case where the shipped glyph matters more than the host's
+taste — a screenshot rig, a kiosk, a gallery whose pictures must match its
+prose. It works by pointing the icon theme at a theme name nothing installs, so
+only the app's resource can answer. The cost: a name **outside** the bundle then
+has nothing behind it but GTK's own builtins. Register your own with
+`registerBundledIconResource()` + `Gtk.IconTheme.add_resource_path()`, or pass a
+`Gdk.Paintable` to the few widgets that accept one.
+
+- `installBundledIconTheme(options?): boolean` — what `AdwaitaApp` calls on
+  `startup`. For an app that builds its `Adw.Application` some other way.
+- `addBundledIconsToTheme(theme)` — the same, on a `Gtk.IconTheme` you own.
+- `registerBundledIconResource(): Gio.Resource` — register the GResource only.
+- `BUNDLED_ICON_RESOURCE_PATH`, `BUNDLED_ICON_THEME_NAME`, `BUNDLED_ICON_COUNT`.
+
+> Only 15 of the 22 `icon-name` properties in Gtk-4.0 + Adw-1 have a
+> `Gdk.Paintable`/`Gio.Icon` sibling at all (`Gtk.Button`, `Adw.ActionRow`,
+> `Adw.ButtonRow`, `Adw.SplitButton`, `Adw.Toggle`, … have none), which is why
+> the guarantee is built on the icon THEME rather than on handing widgets an
+> imported SVG: for most of them there is no property to hand it to.
 
 ### Navigation shell
 

@@ -197,3 +197,10 @@ ship/
 # by hand when reproducing a leg, and CPython writes `__pycache__/` beside them.
 __pycache__/
 *.pyc
+
+# The @gjsify/adwaita-app icon GResource, base64-embedded by
+# scripts/build-icon-gresource.mjs from @gjsify/adwaita-icons. Generated on every
+# build, like adwaita-web's _icons.generated.scss beside it — and for the same
+# reason it is not committed: the SUBSET is the decision and it lives in the
+# generator, where check-bundled-icon-parity.mjs can read it without a build.
+packages/framework/adwaita-app/src/icons.generated.ts
