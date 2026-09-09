@@ -5,7 +5,7 @@ description: A webcam preview where video.srcObject = stream drives a real brows
 
 A live webcam preview built on `navigator.mediaDevices.getUserMedia({ video: true })`, with the resulting `MediaStream` assigned to a `<video>` element's `srcObject`.
 
-That single assignment is the whole cross-platform surface. In a browser it lights up a real `<video>`. On GJS it flows through [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video)'s `VideoBridge` into a GTK 4 `Gtk.Picture` fed by GStreamer's `gtk4paintablesink`. The demo shows that live media handles cross from capture to display without your code knowing which platform it is on.
+That single assignment is all the platform-specific code there is. In a browser it lights up a real `<video>`. On GJS it flows through [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video)'s `VideoBridge` into a GTK 4 `Gtk.Picture` fed by GStreamer's `gtk4paintablesink`. Live media crosses from capture to display without your code knowing which platform it is on.
 
 The shared module is about ten lines:
 
@@ -34,7 +34,7 @@ You need:
 
 ## Run it on GJS
 
-It builds two bundles, `--app gjs` and `--app browser`, and no `--app node` one: the capture side is a GStreamer pipeline reached through a typelib. From `showcases/dom/webrtc-video/`:
+It builds two bundles, `--app gjs` and `--app browser`, and no `--app node` one, because the capture side is a GStreamer pipeline reached through a typelib. From `showcases/dom/webrtc-video/`:
 
 ```bash
 gjsify run build     # gjs + browser bundles and the assets
@@ -53,7 +53,7 @@ gjsify run start:browser    # serves dist/ on localhost:8080
 
 The browser build uses the browser's own `getUserMedia` and a real `<video>` element.
 
-To embed it in a page of your own, import `mount()` from `src/browser/browser.ts`. The package is private and not published to npm, so there is no `@gjsify/example-dom-webrtc-video/browser` specifier to import; copy the file or point at your checkout.
+To embed it in a page of your own, import `mount()` from `src/browser/browser.ts`. The package is private and not published to npm, so there is no `@gjsify/example-dom-webrtc-video/browser` specifier to import. Copy the file, or point at your checkout.
 
 ```ts
 const handle = mount(container, { title: 'Webcam' });

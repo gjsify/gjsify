@@ -5,11 +5,11 @@ description: An unmodified Express 5 blog app serving HTTP and JSON, with one so
 
 A small Express 5 blog: a JSON API, server-rendered article pages, and a static frontend. Express comes straight from npm with no fork and no shim in your code.
 
-The demo shows one `src/index.ts` serving on all four runtimes with no branch anywhere in it, GJS included. If you already have an Express service, this is what porting it looks like: nothing.
+One `src/index.ts` serves on all four runtimes with no branch anywhere in it, GJS included. If you already have an Express service, this is what porting it looks like: nothing.
 
 ## Run it
 
-This showcase declares all four runtimes, so pick the one you already have:
+It declares all four runtimes, so pick the one you have:
 
 ```bash
 gjsify showcase express-webserver --runtime gjs
@@ -33,7 +33,7 @@ curl http://localhost:3000/api/runtime
 
 Set `PORT` to listen somewhere else.
 
-`/api/runtime` is the interesting one: it reports which JavaScript engine is serving the request, from `runtimeName` in `@gjsify/runtime`. Run the same source on another runtime and that one field changes. Nothing else does, including the routes, the rendered pages and the JSON.
+`/api/runtime` is the interesting one. It reports which JavaScript engine is serving the request, from `runtimeName` in `@gjsify/runtime`. Run the same source on another runtime and that one field changes. Nothing else does, including the routes, the rendered pages and the JSON.
 
 From `showcases/node/express-webserver/` in a checkout you can build both bundles and run them side by side:
 
@@ -47,13 +47,13 @@ Same `src/index.ts`, two bundles: `dist/index.gjs.js` and `dist/index.node.mjs`.
 
 ## What it uses
 
-Which server implementation Express lands on is decided by the build target, and this is the one place the four runtimes genuinely diverge.
+The build target decides which server implementation Express lands on, and this is the one place the four runtimes genuinely diverge.
 
 Under `--app node` the `node:` imports stay as they are, so Express gets the host runtime's own `http`, `stream`, `events` and `url`. Under `--app gjs` there are no such builtins, so `gjsify build` rewrites each import to a GNOME-backed package:
 
 | Package | What Express needs it for |
 |---|---|
-| [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http) | `http.createServer()`, `Server.listen()`, and the `IncomingMessage` and `ServerResponse` surface |
+| [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http) | `http.createServer()`, `Server.listen()`, `IncomingMessage` and `ServerResponse` |
 | [`@gjsify/stream`](https://github.com/gjsify/gjsify/tree/main/packages/node/stream) | `req.pipe(res)` and body parsing |
 | [`@gjsify/events`](https://github.com/gjsify/gjsify/tree/main/packages/node/events) | `EventEmitter`, which Express and its middleware lean on throughout |
 | [`@gjsify/url`](https://github.com/gjsify/gjsify/tree/main/packages/node/url) | URL parsing in the route matcher |
@@ -69,7 +69,7 @@ You install none of them, and you import none of them. [How it works](/gjsify/ho
 - `src/data/posts.ts` holds the in-memory post fixtures the API and the pages both read.
 - `src/public/` is the static frontend, served with `express.static()`.
 
-Compared with the GTK showcases there is no shell to write, because a server has no UI. Build it, run it, and the only per-target file is the bundle.
+There is no shell to write here, because a server has no UI. The only per-target file is the bundle.
 
 ## Related
 

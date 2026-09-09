@@ -7,7 +7,7 @@ import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
 A 2D platformer built with [Excalibur.js](https://excaliburjs.com/) 0.32 and [Tiled](https://www.mapeditor.org/) tilemaps. The engine comes straight from npm with no fork and no patch.
 
-That is the thing to take away: a game engine written for the browser, reaching for WebGL2, `<canvas>`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, `requestAnimationFrame` and WebAudio, runs inside a native Adwaita window. If gjsify can carry Excalibur, it can carry the npm library you had in mind.
+A game engine written for the browser, reaching for WebGL2, `<canvas>`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, `requestAnimationFrame` and WebAudio, runs inside a native Adwaita window. If gjsify can carry Excalibur, it can carry the npm library you had in mind.
 
 Based on [sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumper) by the Excalibur team.
 
@@ -17,7 +17,7 @@ Based on [sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumpe
 
 ## Run it
 
-This showcase declares all four runtimes, so pick the one you already have:
+It declares all four runtimes, so pick the one you have:
 
 ```bash
 gjsify showcase excalibur-jelly-jumper --runtime gjs
@@ -37,7 +37,7 @@ A GTK 4 window opens with the game filling it and pause and mute buttons in the 
 
 The engine renders through WebGL2 on `Gtk.GLArea`. If no GL2 context is available it falls back to Canvas 2D over Cairo, the same fallback the browser build takes.
 
-Under `gjs` the game runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs one shared `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
+`--runtime gjs` runs the `--app gjs` bundle against GJS's native `gi://`. The other three share one `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. Leave the flag off and [Choose the runtime](/gjsify/showcases/#choose-the-runtime) says what the CLI picks.
 
 ## Run it in the browser
 
@@ -53,7 +53,7 @@ handle.unmute();
 handle.pause();
 ```
 
-`assetBase` is what makes one resource table serve both targets: the game's `/res/...` paths are rewritten against it at load time. The handle also exposes `resume()`, `mute()`, `isPaused` and `isMuted`.
+`assetBase` is what makes one resource table serve both targets. The game's `/res/...` paths are rewritten against it at load time. The handle also exposes `resume()`, `mute()`, `isPaused` and `isMuted`.
 
 Tilemaps and spritesheets ship with the package under `@gjsify/example-dom-excalibur-jelly-jumper/assets/*`.
 
@@ -73,7 +73,7 @@ Tilemaps and spritesheets ship with the package under `@gjsify/example-dom-excal
 
 [`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper)
 
-Every target enters the same `startGame(canvas, options)` in `src/game.ts`. The scenes, actors, physics, components, state and UI all sit at the top level of `src/` and never mention a platform. Only the shell differs: `src/gjs/gjs.ts` builds the `Adw.Application` and its window, `src/browser/browser.ts` exports `mount()`, and `src/browser/browser-main.ts` runs it full-page.
+Every target enters the same `startGame(canvas, options)` in `src/game.ts`. The scenes, actors, physics, components, state and UI all sit at the top level of `src/` and never mention a platform. Only the shell differs. `src/gjs/gjs.ts` builds the `Adw.Application` and its window, `src/browser/browser.ts` exports `mount()`, and `src/browser/browser-main.ts` runs it full-page.
 
 Per-target tuning goes through options on that one function (`pixelRatio`, `fixedUpdateFps`, `enablePerf`) rather than through forked code.
 

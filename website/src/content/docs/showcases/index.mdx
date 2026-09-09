@@ -3,18 +3,18 @@ title: Showcases
 description: Complete demo apps you can start with one command, each showing a slice of what gjsify can build on GTK 4.
 ---
 
-Showcases are finished, runnable apps. Each one starts with a single command, opens a real GTK 4 window, and is written in ordinary web code: `<canvas>`, WebGL, `fetch`, `XMLHttpRequest`, `RTCPeerConnection`, Express. They are the quickest way to find out whether gjsify can carry the kind of app you want to build, and the source of each one is a working template you can copy from.
+Showcases are finished, runnable apps. One command starts one and a real GTK 4 window opens. Behind that window is ordinary web code: `<canvas>`, WebGL, `fetch`, `XMLHttpRequest`, `RTCPeerConnection`, Express. Run a few to find out whether gjsify can carry the app you have in mind. Each one is also a working template you can copy from.
 
 ## Run one
 
-You need the `gjsify` CLI and at least one of `gjs`, `node`, `bun` and `deno`; two of the ten below declare `gjs` only, and the table says which. There is nothing to clone:
+You need the `gjsify` CLI and at least one of `gjs`, `node`, `bun` and `deno`. Two of the ten below declare `gjs` only, and the table says which. Nothing to clone:
 
 ```bash
 gjsify showcase                          # list every showcase
 gjsify showcase canvas2d-fireworks       # run one, opens a GTK 4 window
 ```
 
-The CLI fetches the showcase's npm package on demand, sets up the native typelibs it needs, and launches it. If a system library is missing, `gjsify system-check` names it. Add `--runtime` to say which of the four runs it, or leave it off and let the CLI resolve one: [Choose the runtime](#choose-the-runtime) below spells out both.
+The CLI fetches the showcase's npm package on demand, sets up the native typelibs it needs, and launches it. If a system library is missing, `gjsify system-check` names it. Add `--runtime` to say which of the four runs it, or leave it off and let the CLI resolve one. [Choose the runtime](#choose-the-runtime) below covers both.
 
 On Linux the GTK 4 stack comes from your distribution on every runtime. On macOS and Windows the `node`, `bun` and `deno` route pulls a prebuilt GTK 4 and Adwaita closure (`@gjsify/gtk-runtime-<os>-<arch>`) into the same cache, so there is no system GTK to install either.
 
@@ -46,13 +46,13 @@ gjsify showcase canvas2d-fireworks --runtime bun
 gjsify showcase canvas2d-fireworks --runtime deno
 ```
 
-Same window, same code, and here is what actually differs underneath:
+Same window, same code. What differs is underneath:
 
 - `--runtime gjs` runs the showcase's `--app gjs` bundle. GJS is GNOME's own JavaScript runtime, so `gi://Gtk` is native and nothing bridges into GTK.
 - `--runtime node`, `bun` and `deno` run its `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. One bundle serves all three, because Node-API is their shared native ABI.
 - GJS is packaged for Linux and, partially, macOS; there is no GJS host on Windows. Node, Bun and Deno reach all three operating systems. [Platform Support](/gjsify/platform-support/) has the per-OS state.
 
-With no `--runtime` flag, the CLI runs the `--app gjs` bundle when `gjs` is on PATH, and otherwise the `--app node` bundle on whichever runtime the CLI itself is running on. That default follows from packaging rather than from a preference: a showcase's canonical build is its `--app gjs` bundle, declared as `gjsify.main`, and every showcase ships one, while not every showcase ships an `--app node` bundle.
+With no `--runtime` flag, the CLI runs the `--app gjs` bundle when `gjs` is on PATH, and otherwise the `--app node` bundle on whichever runtime the CLI itself is running on. That default is packaging, not preference. A showcase's canonical build is its `--app gjs` bundle, declared as `gjsify.main`. Every showcase ships one, and not every showcase ships an `--app node` bundle.
 
 Each showcase declares the runtimes it supports in `package.json` under `gjsify.example.runtimes`. Ask for one it does not declare and you get a clear error rather than a crash deep in the bundle. `minimalist-browser` and `webrtc-loopback` declare `["gjs"]`, because their native side is a WebKit view and a GStreamer pipeline reached through a typelib, so neither ships an `--app node` bundle. Their browser builds are unaffected: those run on the browser's own WebKit and WebRTC.
 
@@ -74,7 +74,7 @@ The package name follows the pattern `@gjsify/example-<category>-<name>`, so `ad
 
 ## Read the source
 
-Every showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the gjsify repo. They share one layout: a platform-agnostic module holds the app itself, and a thin shell per target wraps it. `src/gjs/` is the GTK shell, `src/browser/` is the DOM shell, and the file in between imports nothing platform-specific.
+Every showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the gjsify repo. They share one layout. A platform-agnostic module holds the app itself, and a thin shell per target wraps it. `src/gjs/` is the GTK shell, `src/browser/` is the DOM shell, and the file in between imports nothing platform-specific.
 
 That split is what you want to copy. Keep your app logic free of `@gjsify/*` imports, write against the standard APIs, and the same file runs on GTK and in a browser.
 

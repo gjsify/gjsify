@@ -7,7 +7,7 @@ import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
 A small browser shell: URL bar, back, forward and reload, and an `<iframe>` filling the rest of the window.
 
-The demo shows how to embed web content inside a GTK app. Write against `HTMLIFrameElement` the way you would on a web page, and on GJS you get a full `WebKit.WebView` behind it, with cookies, JavaScript, CSS and `postMessage` all working. Reports, help pages, OAuth flows, third-party widgets: this is the pattern for all of them.
+This is how you embed web content inside a GTK app. Write against `HTMLIFrameElement` the way you would on a web page, and on GJS you get a full `WebKit.WebView` behind it, with cookies, JavaScript, CSS and `postMessage` all working. Reports, help pages, OAuth flows, third-party widgets: same pattern for all of them.
 
 ## Live demo
 
@@ -58,19 +58,19 @@ The same input and button handlers, wrapped around a real `<iframe>`.
 
 ## Pick the right iframe API
 
-`IFrameBridge` gives you two surfaces and you can use either.
+`IFrameBridge` gives you two APIs, and either is fine.
 
 The standard one is `iframe.src`, `iframe.srcdoc`, `iframe.contentWindow.postMessage()` and `addEventListener('message')`. Use it when you want code that also runs in a browser, which is what this showcase does.
 
 The WebKit one is on the bridge itself: `loadUri()`, `loadHtml()`, `postMessage()`, `goBack()`, `goForward()`, `canGoBack`, `canGoForward`, and `reload()` inherited from `WebKit.WebView`. Use it when you want WebKit's own back and forward list rather than one you track yourself.
 
-One thing to watch on GJS: `contentWindow` is null until the first navigation finishes. Re-attach your message listener from `onReady()` after each load, the way `src/gjs/gjs.ts` does. A real `<iframe>` keeps `contentWindow` across navigations, so the browser build does not need this.
+On GJS, `contentWindow` is null until the first navigation finishes. Re-attach your message listener from `onReady()` after each load, the way `src/gjs/gjs.ts` does. A real `<iframe>` keeps `contentWindow` across navigations, so the browser build does not need this.
 
 ## Copy the structure
 
 [`showcases/dom/minimalist-browser/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/minimalist-browser)
 
-- `src/browser-demo.ts` holds `BrowserCore`: the history stack, the `postMessage` wiring and the built-in `page:<name>` library. It runs unchanged in both targets because it talks to a duck-typed `IFrameHandle`, and both a real `<iframe>` and `IFrameBridge.iframeElement` satisfy it.
+- `src/browser-demo.ts` holds `BrowserCore`: the history stack, the `postMessage` wiring and the built-in `page:<name>` library. It runs unchanged in both targets because it talks to a duck-typed `IFrameHandle`, which both a real `<iframe>` and `IFrameBridge.iframeElement` satisfy.
 - `src/gjs/gjs.ts` is the `Adw.Application` shell driving `IFrameBridge`.
 - `src/browser/browser.ts` exports `mount()`; `browser-main.ts` runs it full-page.
 

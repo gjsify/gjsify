@@ -3,9 +3,9 @@ title: napi
 description: Load native Node.js N-API addons (.node) inside GJS, so a GJS app can use a database driver or codec straight from npm.
 ---
 
-[`@gjsify/napi`](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi) lets a GJS app use native npm addons. A compiled `.node` file, the exact binary you would `require()` on Node, loads and runs unchanged under GJS.
+[`@gjsify/napi`](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi) lets a GJS app use native npm addons. A compiled `.node` file, the exact binary you would `require()` on Node, loads and runs unchanged under GJS. It is experimental, and five real npm addons pass its golden-diff harness against Node today.
 
-You care about this if the library you need exists on npm as a native addon and you don't want to reimplement it in pure JavaScript. A database driver, a hashing library, a codec: install it, import it, and it works in a `gjsify build --app gjs` build with no wrapper on your side.
+You want it if the library you need exists on npm as a native addon and you would rather not reimplement it in pure JavaScript. A database driver, a hashing library, a codec: install it, import it, and it works in a `gjsify build --app gjs` build with no wrapper on your side.
 
 It is not a way to talk to GObject libraries. On GJS the native [`gi://`](/gjsify/patterns/gobject-classes/) binding stays the way to use GTK, GLib and everything else introspected, and you should always prefer it.
 
@@ -57,23 +57,23 @@ A golden-diff harness runs a deterministic workout of each addon on Node (the re
 | [`@node-rs/argon2`](https://github.com/napi-rs/node-rs) | Rust, napi-rs | synchronous | ✅ byte-identical |
 | [`node-sqlite3`](https://github.com/TryGhost/node-sqlite3) | C++, node-addon-api | **asynchronous** | ✅ byte-identical |
 
-Those are C, C++ and Rust addons emitted by three different N-API code generators, which is good evidence that an arbitrary *synchronous* addon runs unmodified. `node-sqlite3` additionally drives the async surface (`napi_async_work` plus threadsafe functions), so asynchronous `node-addon-api` packages are reachable too, not only the sync subset.
+Those are C, C++ and Rust addons emitted by three different N-API code generators, which is good evidence that an arbitrary *synchronous* addon runs unmodified. `node-sqlite3` also drives the async side (`napi_async_work` plus threadsafe functions), so asynchronous `node-addon-api` packages are reachable too, not only the sync subset.
 
 ### Scope
 
-The full synchronous N-API surface is implemented, plus the async and threadsafe-function group. `napi_async_work` runs each addon's `execute` callback on a `GThreadPool` worker (sized after `UV_THREADPOOL_SIZE`, as libuv does) and marshals `complete` back onto the GLib main context, so async addons get real concurrency.
+The whole synchronous N-API is implemented, plus the async and threadsafe-function group. `napi_async_work` runs each addon's `execute` callback on a `GThreadPool` worker (sized after `UV_THREADPOOL_SIZE`, as libuv does) and marshals `complete` back onto the GLib main context, so async addons get real concurrency.
 
-A few Node-specific corners stay stubbed because they have no engine-agnostic meaning on GJS, most notably `napi_get_uv_event_loop`: GJS has no libuv loop, the GLib main context is the loop.
+A few Node-specific corners stay stubbed because they have no engine-agnostic meaning on GJS. The clearest is `napi_get_uv_event_loop`: GJS has no libuv loop, the GLib main context is the loop.
 
 ### Platforms
 
 Prebuilt and CI-validated on **Linux x86_64** and **macOS arm64**, the same GJS and mozjs-140 pairing on both. Both prebuilds are rebuilt from the released source on every release and ship as optional dependencies (`@gjsify/napi-linux-x64`, `@gjsify/napi-darwin-arm64`), each carrying a `.so` or `.dylib` plus its `.gir` and `.typelib`.
 
-**Windows** is groundwork only. The loader and build wiring exist behind a manual CI job, but it is blocked upstream: the shim links GJS's SpiderMonkey, and no prebuilt `libgjs` for Windows exists yet. The [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) has the platform matrix.
+**Windows** is groundwork only. The loader and build wiring exist behind a manual CI job, but it is blocked upstream. The shim links GJS's SpiderMonkey, and no prebuilt `libgjs` for Windows exists yet. The [package README](https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme) has the platform matrix.
 
 ## How it works
 
-Node-API is an engine-agnostic C ABI: the same `.node` binary already runs on Node, Deno and Bun. `@gjsify/napi` implements that ABI once more, over GJS's SpiderMonkey engine. The shim ships as a GObject-Introspection package (`.so` plus `.gir` plus `.typelib`), so GJS loads it through `imports.gi` like any other GI library, and it exposes `loadAddon(path)` to `dlopen` an addon and bind its `napi_*` symbols to the shim's implementation.
+Node-API is an engine-agnostic C ABI, which is why the same `.node` binary already runs on Node, Deno and Bun. `@gjsify/napi` implements that ABI once more, over GJS's SpiderMonkey engine. The shim ships as a GObject-Introspection package (`.so` plus `.gir` plus `.typelib`), so GJS loads it through `imports.gi` like any other GI library, and it exposes `loadAddon(path)` to `dlopen` an addon and bind its `napi_*` symbols to the shim's implementation.
 
 Your addon is built the normal way, with node-gyp or prebuilds. Nothing about it changes. The work is all on the shim side, and two pieces of it are worth knowing about:
 
@@ -82,7 +82,7 @@ Your addon is built the normal way, with node-gyp or prebuilds. Nothing about it
 
 ### How the import gets rewritten
 
-For `--app gjs` builds, a bundler plugin (`napiNodeAddonPlugin`) intercepts the addon's own acquisition helper and routes the compiled `.node` through `loadAddon`. It handles the four conventions a bundler can actually see: a direct `.node` import, `node-gyp-build`, `bindings`, and a napi-rs generated loader.
+For `--app gjs` builds, a bundler plugin (`napiNodeAddonPlugin`) intercepts the addon's own acquisition helper and routes the compiled `.node` through `loadAddon`. It handles the four conventions a bundler can see: a direct `.node` import, `node-gyp-build`, `bindings`, and a napi-rs generated loader.
 
 For the `node-gyp-build` and `bindings` cases it locates the binary with node-gyp-build's own probe order (`build/Release`, then `build/Debug`, then `prebuilds/`), so the GJS build loads the same file Node would. For a napi-rs package it replaces the generated loader module wholesale, because that module's `createRequire` body does not survive bundling. Detection is conservative and falls through to normal resolution when it isn't sure. The plugin is always on for `--app gjs` and does nothing when no native addon is in the graph.
 
