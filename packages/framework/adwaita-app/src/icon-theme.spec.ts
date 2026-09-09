@@ -37,8 +37,27 @@ import {
 /** Where a system theme would live. Explicit, so the test does not depend on the env. */
 const SYSTEM_SEARCH_PATH = ['/usr/share/icons', '/usr/share/pixmaps'];
 
+/**
+ * GTK has to be initialised before `Gtk.IconTheme` exists, and `init_check` is the form
+ * that survives having no display.
+ *
+ * MEASURED, because the failure is not an exception: `Gtk.IconTheme.new()` in an
+ * uninitialised process SEGFAULTS — exit 139, before the first `print` of the file, with
+ * no GJS stack and nothing on stderr. Under the test runner that surfaced only as
+ * `gjs exited with signal SIGTERM` part-way through the second suite. `init_check()`
+ * returns FALSE here (no display) and every lookup below still resolves; `init()` would
+ * abort instead, which is why it is not used.
+ */
+let gtkReady = false;
+function initGtk(): void {
+    if (gtkReady) return;
+    Gtk.init_check();
+    gtkReady = true;
+}
+
 /** A theme object standing in for a host running `themeName`. */
 function hostTheme(themeName: string, withBundle: boolean): Gtk.IconTheme {
+    initGtk();
     const theme = Gtk.IconTheme.new();
     theme.set_search_path(SYSTEM_SEARCH_PATH);
     theme.set_theme_name(themeName);
@@ -53,18 +72,21 @@ function drawnUri(theme: Gtk.IconTheme, name: string): string {
 
 /** Every icon name the compiled bundle actually contains, read out of the resource. */
 function bundledNames(): string[] {
+    initGtk();
     registerBundledIconResource();
     const walk = (dir: string): string[] =>
         Gio.resources_enumerate_children(dir, 0).flatMap((child) =>
             child.endsWith('/') ? walk(dir + child) : [dir + child],
         );
-    return walk(`${BUNDLED_ICON_RESOURCE_PATH}/`).map((path) => (path.split('/').pop() as string).replace(/\.svg$/, ''));
+    return walk(`${BUNDLED_ICON_RESOURCE_PATH}/`).map((path) =>
+        (path.split('/').pop() as string).replace(/\.svg$/, ''),
+    );
 }
 
-/** The bytes at a `resource://` or `file://` URI. */
-function bytesAt(uri: string): Uint8Array {
+/** The document at a `resource://` or `file://` URI, as text. */
+function text(uri: string): string {
     const [, data] = Gio.File.new_for_uri(uri).load_contents(null);
-    return data;
+    return new TextDecoder().decode(data);
 }
 
 export default async () => {
@@ -72,13 +94,11 @@ export default async () => {
         await it(`contains ${BUNDLED_ICON_COUNT} glyphs, all readable out of the GResource`, () => {
             const names = bundledNames();
             expect(names.length).toBe(BUNDLED_ICON_COUNT);
-            // The GResource is zlib-COMPRESSED, which halves it (42.9 KiB -> 20.3 KiB) and
-            // is only safe because GIO decompresses on read. Reading one back is what says
-            // so; a compressed resource GTK could not decode would look identical from the
-            // outside until an icon failed to parse.
-            const svg = new TextDecoder().decode(
-                bytesAt(`resource://${BUNDLED_ICON_RESOURCE_PATH}/scalable/actions/list-add-symbolic.svg`),
-            );
+            // The GResource is zlib-COMPRESSED, which takes 53 % off it (43 377 B ->
+            // 20 349 B) and is only safe because GIO decompresses on read. Reading one back
+            // is what says so; a compressed resource GTK could not decode would look
+            // identical from the outside until an icon failed to parse.
+            const svg = text(`resource://${BUNDLED_ICON_RESOURCE_PATH}/scalable/actions/list-add-symbolic.svg`);
             expect(svg.includes('<svg')).toBe(true);
         });
     });
@@ -100,18 +120,22 @@ export default async () => {
         // Adwaita set. `BUNDLED_ICON_THEME_NAME` is a theme nothing installs, so the theme
         // chain contributes nothing and only the resource path can answer.
         await it('draws the app’s document, asserted by URI AND by bytes', () => {
-            const without = hostTheme(BUNDLED_ICON_THEME_NAME, false);
-            const withBundle = hostTheme(BUNDLED_ICON_THEME_NAME, true);
+            const bundlePath = `resource://${BUNDLED_ICON_RESOURCE_PATH}`;
+            const before = drawnUri(hostTheme(BUNDLED_ICON_THEME_NAME, false), 'list-add-symbolic');
+            const after = drawnUri(hostTheme(BUNDLED_ICON_THEME_NAME, true), 'list-add-symbolic');
 
-            const before = drawnUri(without, 'list-add-symbolic');
-            const after = drawnUri(withBundle, 'list-add-symbolic');
+            // Without the bundle something else answers — GTK's own builtin resource icons
+            // on this build. WHICH other thing is not the claim; that it is not ours is.
+            expect(before.startsWith(`${bundlePath}/`)).toBe(false);
+            expect(after).toBe(`${bundlePath}/scalable/actions/list-add-symbolic.svg`);
 
-            // Before: GTK's own builtin resource icons answer, NOT the app's.
-            expect(before.startsWith(`resource://${BUNDLED_ICON_RESOURCE_PATH}/`)).toBe(false);
-            expect(after).toBe(`resource://${BUNDLED_ICON_RESOURCE_PATH}/scalable/actions/list-add-symbolic.svg`);
-
-            // …and the two are different DOCUMENTS, which the URIs alone do not say.
-            expect(bytesAt(after)).not.toStrictEqual(bytesAt(before));
+            // The URI alone does not say the CONTENT is the glyph the bundle was built
+            // from — a right path to a wrong document reads identically. So the bytes GTK
+            // resolved to are compared with the bytes sitting in the GResource.
+            const drawn = text(after);
+            expect(drawn).toBe(text(`${bundlePath}/scalable/actions/list-add-symbolic.svg`));
+            expect(drawn.includes('<svg')).toBe(true);
+            if (before !== '') expect(drawn).not.toBe(text(before));
         });
     });
 

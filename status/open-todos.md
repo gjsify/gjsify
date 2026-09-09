@@ -5734,3 +5734,41 @@ needs a musl symbol set to be sound, so it is a policy change to `prebuild-libc`
 Publishing `-musl` packages makes the question moot for the bridges that can be built twice.
 Either way the CLI's install-time report stays useful for the residue, and neither is decidable
 from a working copy.
+
+### The bundled icon theme wins only where the host theme is silent
+
+`@gjsify/adwaita-app` now ships the Adwaita subset in the app's own GResource and registers
+it on `startup` (`installBundledIconTheme`), so `icon-name` no longer depends on the host
+having the Adwaita set installed. Before it, `add_resource_path` and `add_search_path` had
+ZERO hits in every `.ts`/`.js`/`.mjs`/`.tmpl`/`.blp` outside `node_modules` — every gjsify
+GTK app drew whatever theme the host happened to have, and nothing in the tree noticed.
+
+**What is left is the other half of that guarantee, and it is a GTK semantic rather than an
+omission.** `Gtk.IconTheme.add_resource_path()` CONTRIBUTES to the icon theme; it does not
+override it. Measured on gtk4 by asking `lookup_icon(...).get_file().get_uri()` — the file
+the widget paints:
+
+| host theme | `list-add-symbolic` resolves to |
+|---|---|
+| Adwaita (ships the name) | `file:///usr/share/icons/Adwaita/…` — the HOST wins |
+| oxygen, Bluecurve, hicolor | `resource:///…` — the bundle wins |
+
+So on a desktop running Papirus or Breeze, a name those themes ship still draws THEIR glyph.
+That is correct for an app (the user chose that theme) and wrong for a screenshot rig, which
+is why `prefer: 'bundled'` exists: it points the icon theme at a name nothing installs, so
+the theme chain contributes nothing and only the app's resource can answer.
+
+**Why there is no third mode that wins while keeping the host theme.** Getting above the
+user's theme means BEING the user's theme, and a theme is selected by name out of a search
+PATH of directories — `set_search_path` takes filenames, and a GResource is not a directory.
+An app could extract its icons to a cache dir at startup and prepend that, which is a second
+bundling mechanism for one edge; it is not done, and this entry is where that trade is
+recorded rather than rediscovered.
+
+**Not wired into the `create-app` templates**, measured rather than assumed: all four
+(`gtk-minimal`, `adw-canvas2d`, `adw-game`, `adw-webgl`) construct `Adw.Application` /
+`Gtk.Application` by hand instead of through `runAdwaitaApp`, and **none of them names an
+icon anywhere** — no `icon-name` in any `.ts` or `.blp`. Adding the dependency would ship
+26.5 KiB and a startup call to apps with no icons. The day a template draws one, the change is
+one line: `runAdwaitaApp` already defaults this on, and a hand-built application calls
+`installBundledIconTheme()`.
