@@ -613,6 +613,13 @@ The numbers are PRINTED, never written here. What the change was measured agains
 the KIND of work that would close each one — a rename, a glyph, renderer work, or a different
 program. Ledger entries are self-retiring, the shape arm 5b and arm 11 already have.
 
+**The `nativescript` fence is a CORPUS now, not a tab** (ADR 0034 § Amendment 16). It is still
+authored on all 40 blocks and still arm 12's only input; it is no longer rendered anywhere,
+because the end state of this convergence is that the two panes are the same program under two
+labels. Do not look for it on a page, and do not delete it: the fence IS the measurement. The
+category is declared in `AdwWidget.astro`'s `CORPUS_SLOTS` and arm 6 refuses an entry no arm
+reads.
+
 **What is left, with its price.**
 
 - *The `glyph` entries are one renderer decision.* Every icon property on the port takes an
