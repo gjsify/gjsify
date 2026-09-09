@@ -39,7 +39,7 @@ const CHECKER = join(MONOREPO_ROOT, 'scripts', 'check-prebuild-loader-path.mjs')
 const { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } = await import(`file://${CHECKER}`);
 // The libc-axis readers live in the SAME parser (AGENTS.md: extend `binary.mjs`, never add a
 // second) but are not on the loader-path CLI's surface, so they come from the package.
-const { readElfNeeded, readElfGlibcRequires, compareGlibcVersions } = await import(
+const { readElfNeeded, readElfGlibcRequires, compareGlibcVersions, isGlibcSoname } = await import(
     `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')}`
 );
 
@@ -454,6 +454,75 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
             readElfGlibcRequires(prebuildDir('infra', 'lightningcss-native', 'linux-x64', 'libgjsifylightningcss.so')),
             null,
         );
+    });
+
+    it('does NOT read a `GLIBC_*` need against a NON-glibc file as a glibc floor', () => {
+        // The measurement that held `main` red (run 34311463250). GCC's unwinder
+        // exports `__register_frame_info`/`__deregister_frame_info` under the version
+        // label `GLIBC_2.0` — those two symbols lived in glibc before they moved to
+        // libgcc, so the label is history, not a dependency, and Alpine's libgcc
+        // defines it exactly as GNU's does. This artifact's `.gnu.version_r` holds ONE
+        // group, `File: libgcc_s.so.1`, with `GCC_3.0`/`GCC_3.3`/`GCC_4.2.0`/`GLIBC_2.0`
+        // in it; DT_NEEDED is `libgcc_s.so.1` + `libc.musl-aarch64.so.1` and no glibc
+        // soname at all. Read without the file, it reported a glibc floor of 2.0 — a
+        // promise about glibc from a binary no glibc host can load — which made
+        // `generate-platform-packages --write` want a `gjsify.glibcRequires` entry on
+        // one of the four new `-musl` manifests, which made
+        // `clear-committed-platform-exemptions.mjs` refuse the clear.
+        const arm64Musl = prebuildDir('infra', 'lightningcss-native', 'linux-arm64-musl', 'libgjsify_lightningcss.so');
+        const needed = readElfNeeded(arm64Musl);
+        assert.deepEqual(
+            needed?.filter((n) => n.startsWith('libc')),
+            ['libc.musl-aarch64.so.1'],
+        );
+        assert.ok(needed?.includes('libgcc_s.so.1'), needed?.join(', '));
+        assert.equal(readElfGlibcRequires(arm64Musl), null);
+    });
+
+    it('is measured, not just absent: the x64-musl sibling never had the need at all', () => {
+        // The asymmetry is the tell, and it is why "null on both" is not evidence on its
+        // own. Same source, same job, two arches: on aarch64 the compiler emits the two
+        // unwinder-registration shims and on x86-64 it does not, so only the arm64 build
+        // ever carried a `GLIBC_*` name. A test that only looked at x64 would have
+        // passed before the fix.
+        const x64Musl = prebuildDir('infra', 'lightningcss-native', 'linux-x64-musl', 'libgjsify_lightningcss.so');
+        assert.equal(readElfGlibcRequires(x64Musl), null);
+        assert.ok(readElfNeeded(x64Musl)?.includes('libgcc_s.so.1'));
+    });
+
+    it('still credits a need against libm.so.6, which is glibc-only and carries real floors', () => {
+        // The other half of the attribution: narrowing it to `libc.so.6` would have
+        // dropped a genuine requirement. `lightningcss-native`'s riscv64 build needs
+        // `GLIBC_2.35` symbols from `libm.so.6`, and musl has no `libm.so.6` under any
+        // name — its maths lives inside `libc.musl-<arch>.so.1`.
+        assert.ok(isGlibcSoname('libm.so.6'));
+        assert.ok(isGlibcSoname('libc.so.6'));
+        assert.ok(isGlibcSoname('ld-linux-x86-64.so.2'));
+        // ppc64le / s390x. A predicate matching only `ld-linux-*` cost a red run once.
+        assert.ok(isGlibcSoname('ld64.so.2'));
+        assert.ok(isGlibcSoname('ld64.so.1'));
+        // The pre-2.34 satellites, recorded by anything linked against an older glibc.
+        assert.ok(isGlibcSoname('libpthread.so.0'));
+        assert.ok(isGlibcSoname('librt.so.1'));
+        // NOT glibc: GCC's runtime, musl's C library, libxcrypt, and our own artifacts.
+        assert.ok(!isGlibcSoname('libgcc_s.so.1'));
+        assert.ok(!isGlibcSoname('libc.musl-aarch64.so.1'));
+        assert.ok(!isGlibcSoname('libcrypt.so.1'));
+        assert.ok(!isGlibcSoname('libglib-2.0.so.0'));
+    });
+
+    it('leaves every glibc floor in the tree exactly where it was', () => {
+        // Attribution is only safe if it subtracts nothing real, so the highest and the
+        // lowest measured floors are pinned by value rather than by "the audit is green".
+        // Measured across all 38 committed Linux libraries before and after: one number
+        // changed, the spurious 2.0 above.
+        assert.equal(
+            readElfGlibcRequires(
+                prebuildDir('infra', 'lightningcss-native', 'linux-riscv64', 'libgjsify_lightningcss.so'),
+            ),
+            '2.39',
+        );
+        assert.equal(readElfGlibcRequires(prebuildDir('framework', 'webgl', 'linux-s390x', 'libgwebgl.so')), '2.2');
     });
 
     it('compares versions numerically, so 2.9 does not outrank 2.34', () => {

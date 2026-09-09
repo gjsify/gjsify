@@ -16,9 +16,6 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "linux-x64-musl": "prebuilds.yml's `build-prebuilds-musl` leg builds and verifies it inside alpine:3.24 on a native runner and uploads it; `commit-prebuilds` lands the directory on main and `clear-committed-platform-exemptions.mjs` clears this entry"
-        },
         "platforms": [
             "linux-x64-musl"
         ],

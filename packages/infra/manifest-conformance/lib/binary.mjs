@@ -580,6 +580,70 @@ export function compareGlibcVersions(a, b) {
 const GLIBC_VERSION_RE = /^GLIBC_(\d+(?:\.\d+)*)$/;
 
 /**
+ * glibc's pre-2.34 satellite libraries, listed because their names share no
+ * shape with each other or with `libc.so.6`.
+ *
+ * glibc 2.34 merged all of them into `libc.so.6` and left empty stubs behind for
+ * ABI compatibility, so nothing this repository's CI builds records one — every
+ * runner is Fedora 41 or newer. They are here for the artifact a CONSUMER points
+ * these readers at: a binding built on RHEL 8 records `libpthread.so.0` and
+ * `librt.so.1`, and its versioned needs against them are as real a floor as any
+ * against `libc.so.6`.
+ *
+ * `libcrypt.so.1` is absent on purpose — it left glibc for libxcrypt, so on a
+ * modern distro it is a THIRD-PARTY library and its versions are not glibc's.
+ */
+const GLIBC_SATELLITE_SONAMES = new Set([
+    'libpthread.so.0',
+    'libdl.so.2',
+    'librt.so.1',
+    'libutil.so.1',
+    'libnsl.so.1',
+    'libanl.so.1',
+    'libresolv.so.2',
+    'libBrokenLocale.so.1',
+    'libmvec.so.1',
+    'libthread_db.so.1',
+]);
+
+/**
+ * Is this DT_NEEDED leaf a library GLIBC ITSELF provides?
+ *
+ * The ONE predicate for that question, because two callers need it and they
+ * must not disagree about the same bytes:
+ *   • {@link readElfGlibcRequires} — a `.gnu.version_r` entry records WHICH FILE
+ *     it needs a version from, and only a need against glibc's own libraries is
+ *     a glibc floor.
+ *   • `libcFlavourOfNeeded` in the `prebuild-libc` rule — the glibc half of
+ *     "which C library was this linked against".
+ * A hand-rolled second copy of this knowledge has already cost a red run once:
+ * a predicate matching `ld-linux-*` but not ppc64le/s390x's `ld64.so.*` made the
+ * generator and the rule reach different verdicts about one file.
+ *
+ * The set is glibc's ABI sonames, which have not moved in twenty-five years:
+ *   • `libc.so.6` — the C library (`libc.so.6.1` on alpha/ia64).
+ *   • `libm.so.6` — the maths library, glibc-only (musl's maths lives inside
+ *     `libc.musl-<arch>.so.1`; there is no `libm.so.6` on a musl host at all).
+ *     It carries REAL floors: `@gjsify/lightningcss-native`'s riscv64 build
+ *     needs `GLIBC_2.35` symbols from it.
+ *   • the loader — `ld-linux-<arch>.so.<n>` on most ports, `ld64.so.1`/`ld64.so.2`
+ *     on s390x/ppc64le. All five spellings appear in this tree's artifacts.
+ *   • the pre-2.34 satellites, empty stubs since glibc merged them into
+ *     `libc.so.6` but still recorded by anything linked against an older glibc.
+ *
+ * `libgcc_s.so.1` is deliberately NOT in it, and that omission is the whole
+ * point of the predicate — see {@link readElfGlibcRequires}.
+ *
+ * @param {string} leaf a DT_NEEDED leaf name, or a `.gnu.version_r` `vn_file`
+ * @returns {boolean}
+ */
+export function isGlibcSoname(leaf) {
+    if (/^lib(c|m)\.so\.6(\.\d+)?$/.test(leaf)) return true;
+    if (/^ld-linux(-|\.)/.test(leaf) || /^ld\d*\.so\.\d+$/.test(leaf)) return true;
+    return GLIBC_SATELLITE_SONAMES.has(leaf);
+}
+
+/**
  * The highest glibc symbol version an ELF image REQUIRES — its real floor.
  *
  * This is what the dynamic linker enforces: a binary whose `.gnu.version_r`
@@ -595,12 +659,36 @@ const GLIBC_VERSION_RE = /^GLIBC_(\d+(?:\.\d+)*)$/;
  * meaningless (and `Number('PRIVATE')` is `NaN`, which silently loses every
  * comparison).
  *
+ * A VERSION NEED BELONGS TO A FILE, and only a need against glibc's own
+ * libraries is a glibc floor ({@link isGlibcSoname}). `.gnu.version_r` is
+ * grouped by `vn_file` precisely so a loader knows who has to supply each
+ * version, and ignoring that field — which this function did — attributes every
+ * `GLIBC_*` name in the table to glibc no matter who provides it.
+ *
+ * The one provider in this tree that is not glibc is `libgcc_s.so.1`. GCC's
+ * unwinder exports `__register_frame_info`/`__deregister_frame_info` under the
+ * version label `GLIBC_2.0`, because those two symbols lived in glibc before
+ * they moved to libgcc; the label is a historical name, not a dependency on
+ * glibc, and Alpine's libgcc defines it exactly as GNU's does. Measured: the
+ * `linux-arm64-musl` build of `@gjsify/lightningcss-native` records ONE version
+ * need, `File: libgcc_s.so.1` with `Name: GLIBC_2.0`, and nothing else. Read
+ * without the file, that musl-linked artifact reported a glibc floor of `2.0` —
+ * a promise about glibc from a binary no glibc host can load — while its
+ * `linux-x64-musl` sibling, built from the same source in the same job, reported
+ * none, because on x86-64 the compiler emits no reference to those two shims.
+ * That number reached `generate-platform-packages --write`, which wanted to add
+ * `gjsify.glibcRequires` to one of the four new musl manifests, which made
+ * `clear-committed-platform-exemptions.mjs` refuse to clear an exemption it
+ * would also have changed a MEASURED declaration to clear — and `main`'s
+ * `commit-prebuilds` job stayed red with every build leg green, holding the
+ * first musl artifacts off npm (run 34311463250).
+ *
  * @param {string} file
  * @returns {string | null} the bare version (`'2.34'`), or null when the image
- *   is not ELF, has no `.gnu.version_r`, or requires no `GLIBC_<x.y>` symbol at
- *   all. Callers that need to tell "unreadable" from "genuinely no floor" ask
- *   {@link readElfNeeded} first — it returns null for exactly the unreadable
- *   case and an array for every image this parser understood.
+ *   is not ELF, has no `.gnu.version_r`, or requires no `GLIBC_<x.y>` symbol
+ *   FROM A GLIBC LIBRARY. Callers that need to tell "unreadable" from "genuinely
+ *   no floor" ask {@link readElfNeeded} first — it returns null for exactly the
+ *   unreadable case and an array for every image this parser understood.
  */
 export function readElfGlibcRequires(file) {
     const data = readFileSync(file);
@@ -624,17 +712,22 @@ export function readElfGlibcRequires(file) {
     for (let i = 0; i < verneed.info; i++) {
         if (vn + 16 > data.length) break;
         const cnt = u16(vn + 2);
-        const auxOff = u32(vn + 8);
+        // `vn_file` — the soname that has to SUPPLY these versions. Skipping the
+        // whole group is cheaper and clearer than filtering each Vernaux: every
+        // name under one Verneed is a requirement on the same file.
+        const needFile = elf.strAt(strtab, u32(vn + 4));
         const nextOff = u32(vn + 12);
-        let aux = vn + auxOff;
-        for (let j = 0; j < cnt; j++) {
-            if (aux + 16 > data.length) break;
-            const nameIdx = u32(aux + 8);
-            const auxNext = u32(aux + 12);
-            const m = GLIBC_VERSION_RE.exec(elf.strAt(strtab, nameIdx));
-            if (m && (max === null || compareGlibcVersions(m[1], max) > 0)) max = m[1];
-            if (auxNext === 0) break;
-            aux += auxNext;
+        if (isGlibcSoname(needFile)) {
+            let aux = vn + u32(vn + 8);
+            for (let j = 0; j < cnt; j++) {
+                if (aux + 16 > data.length) break;
+                const nameIdx = u32(aux + 8);
+                const auxNext = u32(aux + 12);
+                const m = GLIBC_VERSION_RE.exec(elf.strAt(strtab, nameIdx));
+                if (m && (max === null || compareGlibcVersions(m[1], max) > 0)) max = m[1];
+                if (auxNext === 0) break;
+                aux += auxNext;
+            }
         }
         if (nextOff === 0) break;
         vn += nextOff;

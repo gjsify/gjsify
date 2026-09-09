@@ -340,6 +340,16 @@ const STACK_IN_TABS: RouteManifest = [
     { contextKey: '(deep)/detail.tsx', module: { default: Home } },
 ];
 
+/** The tab route files `WIDE_TABS` and `BAR_TABS` share. */
+const SIX_TAB_FILES: RouteManifest = [
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: 'two.tsx', module: { default: TabTwo } },
+    { contextKey: 'three.tsx', module: { default: TabOne } },
+    { contextKey: 'four.tsx', module: { default: TabTwo } },
+    { contextKey: 'five.tsx', module: { default: TabOne } },
+    { contextKey: 'six.tsx', module: { default: TabTwo } },
+];
+
 /**
  * Five tabs with real labels, because the narrow threshold is MEASURED off them.
  *
@@ -366,12 +376,45 @@ const WIDE_TABS: RouteManifest = [
                 ),
         },
     },
-    { contextKey: 'one.tsx', module: { default: TabOne } },
-    { contextKey: 'two.tsx', module: { default: TabTwo } },
-    { contextKey: 'three.tsx', module: { default: TabOne } },
-    { contextKey: 'four.tsx', module: { default: TabTwo } },
-    { contextKey: 'five.tsx', module: { default: TabOne } },
-    { contextKey: 'six.tsx', module: { default: TabTwo } },
+    ...SIX_TAB_FILES,
+];
+
+/**
+ * The marker the bottom-bar vectors look for, and nothing else in this tree is one.
+ *
+ * `GtkSwitch` rather than something more bar-like, for two reasons that both had to be
+ * learned. A `Gtk.Box` or a `Gtk.Label` would be indistinguishable from the wrapper the
+ * router adds and from the rest of the chrome, so a vector keyed on either would pass
+ * on the wrapper alone. And `AdwActionRow`, tried first, is a `GtkListBoxRow`: outside
+ * a list box it criticals with `gtk_list_box_row_grab_focus: assertion 'box != NULL'
+ * failed`, which the suite's own quiet-GTK gate then failed the test for — correctly,
+ * and for a fault in the vector rather than in the router.
+ */
+const BAR_MARKER = 'GtkSwitch';
+
+/** `WIDE_TABS` plus a caller's persistent bottom bar. */
+const BAR_TABS: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    {
+                        // See `BAR_MARKER` for why it is this widget and not
+                        // something that looks more like a now-playing strip.
+                        bottomBar: createElement(BAR_MARKER),
+                    },
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'Startseite' } }),
+                    createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Entdecken' } }),
+                    createElement(Tabs.Screen, { key: '3', name: 'three', options: { title: 'Mediathek' } }),
+                    createElement(Tabs.Screen, { key: '4', name: 'four', options: { title: 'Mitmachen' } }),
+                    createElement(Tabs.Screen, { key: '5', name: 'five', options: { title: 'Profil' } }),
+                    createElement(Tabs.Screen, { key: '6', name: 'six' }),
+                ),
+        },
+    },
+    ...SIX_TAB_FILES,
 ];
 
 /** A root navigator that renders NO bar: the window must keep its own. */
@@ -1298,6 +1341,75 @@ export default async () => {
                     undefined,
                     [420, 700],
                 );
+            });
+
+            await it('puts a caller\u2019s bottom bar between the content and the switcher bar', async () => {
+                // WHY THIS PROP EXISTS. `<Tabs>` reads its children as declarations and
+                // refuses anything else, and an app cannot wrap `<Tabs>` from outside
+                // either: the switcher is created with `slot: 'title'`, which resolves
+                // against the PARENT, so a box between a tab layout and the header bar
+                // takes the switcher's slot away. A consumer wanting a now-playing strip
+                // above its tabs had no way to get one and recorded it as a limitation.
+                //
+                // NARROW on purpose. The switcher bar is mounted in both layouts and
+                // only REVEALED when narrow, so in a wide window it has no height and
+                // "above the switcher bar" would be true of anything.
+                let contentWithBar = 0;
+                await windowed(
+                    app(BAR_TABS),
+                    async (_window, container) => {
+                        const view = find(container, 'AdwToolbarView') as Adw.ToolbarView;
+                        const bar = find(container, 'AdwViewSwitcherBar') as Adw.ViewSwitcherBar;
+                        // SETTLED ON A HEIGHT, not on `reveal`. `reveal` flips before the
+                        // animation runs, and measured at that moment the bar is
+                        // `height=0` at the same y the bar above it ends — so "above the
+                        // switcher bar" would compare two edges that coincide. Waiting
+                        // for real height makes the comparison unambiguous.
+                        expect((await settle(() => bar.get_reveal() && bar.get_height() > 0)) >= 0).toBe(true);
+
+                        const marker = maybeFind(container, BAR_MARKER);
+                        expect(marker === null ? 'absent' : 'present').toBe('present');
+
+                        // ORDER, read off the allocations rather than off the child list:
+                        // `Adw.ToolbarView` puts the first-added bottom bar closer to the
+                        // content, and this asserts the consequence a user sees instead
+                        // of the mechanism that produces it.
+                        const yOf = (widget: Gtk.Widget): number => {
+                            const [ok, rect] = widget.compute_bounds(view);
+                            expect(ok).toBe(true);
+                            return rect.get_y();
+                        };
+                        const stack = find(container, 'AdwViewStack');
+                        expect(yOf(marker as Gtk.Widget) < yOf(bar)).toBe(true);
+                        expect(yOf(stack) < yOf(marker as Gtk.Widget)).toBe(true);
+                        // Kept for the note below rather than for an assertion.
+                        contentWithBar = stack.get_height();
+                    },
+                    undefined,
+                    [420, 700],
+                );
+
+                // AND NOTHING IN THE TREE WHEN NOTHING IS ASKED FOR.
+                await windowed(
+                    app(WIDE_TABS),
+                    async (_window, container) => {
+                        expect(maybeFind(container, BAR_MARKER)).toBe(null);
+                    },
+                    undefined,
+                    [420, 700],
+                );
+
+                // WHAT THIS STOPS SHORT OF, because measuring said the obvious assertion
+                // was empty. The implementation renders `null` rather than an empty
+                // wrapper box when no bar is asked for, and that saves a widget and an
+                // element per tab layout — not any pixels. Measured: an empty `Gtk.Box`
+                // as a bottom bar takes no height, and the view stack above it is
+                // allocated 98 px either way, so a mutant that ALWAYS rendered the
+                // wrapper passed a height comparison and this whole vector. The guard is
+                // therefore unmeasured by design rather than by omission; a vector for it
+                // would have to reach inside `Adw.ToolbarView` for a bar count that Adw
+                // exposes no getter for.
+                void contentWithBar;
             });
 
             await it('follows React when the route changes', async () => {
