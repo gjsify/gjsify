@@ -39,12 +39,13 @@ something else: an attribute arrives as a string, and a child a widget has no sl
 is added to the layout anyway.
 
 The Solid, Vue and React tabs go through
-[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host),
-and these four blocks are the only ones with a
-[`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab beside them. That tab
-renders a GTK window, not a phone screen, which is why it is not the NativeScript one;
-the [React Native page](/gjsify/frameworks/react-native/#adwaita-widgets) says what
-does and does not exist there.
+[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host).
+The clamp, the header bar and the toolbar view carry a
+[`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab as well, the only three
+blocks on the site that do. That tab renders a GTK window, not a phone screen, which
+is why it is not the NativeScript one; the [React Native
+page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
+exist there.
 
 The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
 `AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a
