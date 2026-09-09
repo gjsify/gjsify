@@ -755,8 +755,27 @@ export default async () => {
                 // `ANCESTRY` is what turns a per-type table into "every method a caller can
                 // write on this widget". Held against `GObject.type_parent` and
                 // `GObject.type_interfaces`, the two answers the running type system gives.
+                //
+                // THE TWO ANSWERS ARE NOT EQUALLY AVAILABLE, and the first version of this
+                // test assumed they were. It was green on the generating host and red on
+                // darwin and over the node-gi bridge, with two shapes that are the same
+                // mistake: `GObject.type_name(parent)` can answer null where a GType handle
+                // is opaque, which put a literal `null` into a set of names and reported
+                // every widget as "chain lacks null"; and `GObject.type_interfaces()` can
+                // answer short, which reported every interface the table DOES carry as one
+                // the widget "does not inherit here". Neither is a table error.
+                //
+                // So the two halves are held separately, and a host that cannot answer is
+                // COUNTED rather than ignored: the class chain is strict wherever every
+                // parent could be named, the interface set is strict wherever the host
+                // reported any, and the test refuses to pass on a host that answered
+                // NOTHING — which is what a silent skip would have looked like.
                 const problems: string[] = [];
                 let checked = 0;
+                let chainsHeld = 0;
+                let interfacesHeld = 0;
+                const unnamedParents: string[] = [];
+                const noInterfaces: string[] = [];
                 for (const [gtype, chain] of Object.entries(ANCESTRY)) {
                     const owner = methodOwner(gtype);
                     if (owner?.$gtype === undefined) {
@@ -764,20 +783,58 @@ export default async () => {
                         continue;
                     }
                     checked++;
-                    const expected = new Set<string>();
-                    for (let parent = GObject.type_parent(owner.$gtype); parent; parent = GObject.type_parent(parent)) {
-                        expected.add(GObject.type_name(parent) as string);
-                    }
-                    for (const iface of GObject.type_interfaces(owner.$gtype))
-                        expected.add(GObject.type_name(iface) as string);
                     const got = new Set(chain);
-                    for (const name of expected) if (!got.has(name)) problems.push(`${gtype}: chain lacks ${name}`);
-                    for (const name of got)
-                        if (!expected.has(name))
-                            problems.push(`${gtype}: chain names ${name}, which it does not inherit here`);
+
+                    const parents: string[] = [];
+                    let nameable = true;
+                    for (let parent = GObject.type_parent(owner.$gtype); parent; parent = GObject.type_parent(parent)) {
+                        const name = GObject.type_name(parent);
+                        if (typeof name !== 'string' || name.length === 0) {
+                            nameable = false;
+                            break;
+                        }
+                        parents.push(name);
+                    }
+                    if (nameable) {
+                        chainsHeld++;
+                        for (const name of parents) if (!got.has(name)) problems.push(`${gtype}: chain lacks ${name}`);
+                    } else {
+                        unnamedParents.push(gtype);
+                    }
+
+                    const ifaceNames = GObject.type_interfaces(owner.$gtype)
+                        .map((iface) => GObject.type_name(iface))
+                        .filter((name): name is string => typeof name === 'string' && name.length > 0);
+                    if (ifaceNames.length > 0) {
+                        interfacesHeld++;
+                        for (const name of ifaceNames)
+                            if (!got.has(name)) problems.push(`${gtype}: chain lacks ${name}`);
+                    } else {
+                        noInterfaces.push(gtype);
+                    }
+
+                    // The reverse direction is only answerable where BOTH halves were: a name
+                    // the table carries and the host did not report is an extra only if the
+                    // host was able to report at all.
+                    if (nameable && ifaceNames.length > 0) {
+                        const reported = new Set([...parents, ...ifaceNames]);
+                        for (const name of got)
+                            if (!reported.has(name))
+                                problems.push(`${gtype}: chain names ${name}, which it does not inherit here`);
+                    }
+                }
+                if (unnamedParents.length > 0 || noInterfaces.length > 0) {
+                    console.error(
+                        `  (this host named no parent for ${unnamedParents.length} type(s) and no interface for ` +
+                            `${noInterfaces.length}; those halves are unheld here, not disagreeing)`,
+                    );
                 }
                 expect(problems).toStrictEqual([]);
                 expect(checked > 100).toBe(true);
+                // Not vacuous: a host answering neither question would otherwise pass with an
+                // empty problem list, which is exactly how the first version looked green.
+                expect(chainsHeld > 100).toBe(true);
+                expect(interfacesHeld > 0).toBe(true);
             });
 
             await it('reads the host verbs off GObject.Object.prototype and from nowhere else', async () => {
