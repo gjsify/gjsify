@@ -34,6 +34,10 @@
   ledger and no gate touched — with GJS's `connect`/`disconnect` on every NativeScript
   widget, a typelib-read method table as the in-repo oracle, a third ledger beside the
   widget and property ones, and forty-eight methods renamed to the only spelling GJS installs.
+  § Amendment 16, 2026-09-09, takes the consequence of § Amendment 14 on the documentation
+  surface: the `nativescript` fence stops being a rendered TAB and becomes a CORPUS, authored
+  on all 40 blocks and read only by arm 12, because the end state of this convergence is that
+  the two panes are one text and showing both is the redundancy that end state predicts.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -2772,3 +2776,77 @@ amendment converges; the signal NAMES a NativeScript widget emits for platform e
   generator would let gtk-host emit the method table in the same run as `props.ts` and
   `widgets.ts`, under one provenance, and would give the typelib reading a second source to
   be held against. Recorded in `status/open-todos.md` in the shape the enum-values gap was.
+
+## Amendment 16, 2026-09-09 — the second pane stops being a tab, and stays a corpus
+
+§ Amendment 14 measured the two panes of every gallery block and printed the distance: 40
+pairs, **5 identical after one declared normalisation and a line distance of 481**, the
+remaining 35 ledgered with the KIND of work closing each would take. This amendment takes the
+consequence that measurement makes obvious and § Amendment 14 did not draw.
+
+**If the goal is reached, the two tabs show the same program twice.** That is what "byte for
+byte" means, and it is already true of five blocks: a reader who opened both tabs there saw
+one text under two labels. Before the goal is reached, the thing a reader needs is not the
+diff either — it is the RECORDED REASON, which is prose, and which the gate already demands
+per block. Either way the second tab is not what carries the information. A reader said so
+first; the number is what made the argument checkable.
+
+### What moved
+
+The gallery block went from four windows to three. The `nativescript` TypeScript pane is no
+longer rendered anywhere; the port's XML template is the "NativeScript" tab of the **UI
+frameworks** window, beside the markup, Solid, Vue, React and React Native, because all of
+those reach the widget through an element model rather than through the GObject API.
+
+**The fence stays AUTHORED, on every block, and stays arm 12's input.** Deleting it would
+delete the mechanism: arm 12 is what pushes the port to spell things the way GJS spells them,
+and it reads the `.mdx` fences, not a generated file. `check-doc-fences.mjs` reads the same
+fences for its 153 property writes. So the printed numbers are unchanged by this amendment —
+40 pairs, 5 identical, distance 481 — and that is the point: **no program moved.**
+
+### The category, and the hole it would otherwise be
+
+A fence that is authored and deliberately unrendered is indistinguishable, to a static reader,
+from a fence whose slot name is misspelled — and Astro drops an unmatched slot in silence,
+which is the whole reason arm 5 of `check-website-adwaita-gallery.mjs` exists. Letting one
+slot through arm 5 therefore opens exactly the hole arm 5 was built to close.
+
+So the category is declared in ONE place, `CORPUS_SLOTS` in `AdwWidget.astro`, with the
+reason per slot, and arm 6 holds three things about each entry: some block writes it, no
+window renders it (the component throws on that too, since both lists are authored there), and
+**some arm of that file READS it**. The reader set is derived from the arm's own input — one
+`PANE_PAIR_SLOTS` declaration feeds both the fence regex and the corpus check — so a slot
+cannot be filed here against a reader the file does not have. A category nothing reads is a
+category, not a reason.
+
+### Two ledgers, and only one of them is rendered
+
+Worth stating plainly, because the two are easy to conflate. `ADWAITA_NATIVESCRIPT_REFUSALS`
+says why a block has no XML TEMPLATE, and the window renders it as a pane, so a reader who
+looks for the port and finds no markup is told why. `PANE_TEXT_DIVERGENCES` says why a block's
+two PROGRAMS are not one text, and it is printed by the gate and read by whoever is closing
+the gap. This amendment does not render the second one. It is engineering state about a port,
+partitioned by the kind of work each entry needs, and its audience is the person doing that
+work.
+
+### What this closes from § Amendment 14
+
+§ Amendment 14 left this open: *"The `--gi-renderer` flag is now load-bearing for a reader. A
+NativeScript snippet opens with a `gi://` line that resolves only when the build passes the
+flag, so each gallery page says so in the paragraph that already explains how the two ports
+follow libadwaita's naming. Nothing holds that sentence."*
+
+Half of that sentence was a claim about a PANE — "opens with the same import line as the one
+beside it" — and there is no pane beside it now, so the pages no longer make it. What survives
+is the fact: both ports answer `gi://Adw` and `gi://Gtk`, and on NativeScript that resolves
+once the build passes `--gi-renderer`. Still held by nothing, and still true; arm 10 holds
+window TITLES in prose and this is not one.
+
+### One rename, for the same reason
+
+The window titled "Native TypeScript" is now titled **GJS**. That title avoided naming a
+runtime on purpose (§ Amendment 14's neighbourhood: naming GJS made the pane read as "the GJS
+variant", as if Node, Bun and Deno needed a different program), and it paid for that by
+requiring every gallery intro to carry the four-runtime sentence. The sentence is now made
+once, on the pages that are about runtimes. ADR 0033's consequence names the window by its old
+title and has been updated to name it by its new one.

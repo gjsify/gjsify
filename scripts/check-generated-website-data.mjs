@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The website's generated data files are current, and every gallery block reaches one.
 //
-// THE INCIDENT, TWICE
+// THE INCIDENT
 //
 // `generate-theming-tokens.mjs`'s own header states the rule this repo keeps
 // paying for: "a contract TYPED OUT on the website is the drift this repo keeps
@@ -12,24 +12,19 @@
 // behind it at all. Generating a fact and then not holding the generation is the
 // same drift one step removed.
 //
-// The second half is what a MISS looks like. `AdwWidget` renders a widget's
-// attribute table by deriving the element tag from its `title`. A title that
-// resolves gets a table; a title that does not gets NOTHING — and "this widget has
-// no attributes" and "I could not find this widget" render identically. `Adw.Toast`
-// is legitimately in the second group (it is a plain class, not a custom element);
-// a renamed element or a typo'd title would join it, silently, and the page would
-// keep looking documented.
-//
 // WHAT IT CHECKS
 //
 //   1. Every generator listed in {@link GENERATORS} reproduces its committed
 //      output. Run with no argument they WRITE; `--check` compares and exits 1.
-//   2. Every `<AdwWidget title="…">` on a gallery page derives a tag that the web
-//      pillar actually registers AND observes something — or sits in
-//      {@link NO_ATTRIBUTE_PANE} with the reason
-//      its widget has none.
-//   3. Nothing in {@link NO_ATTRIBUTE_PANE} names a title that DOES get a pane, so a stale
-//      exemption cannot read as considered when it is merely forgotten.
+//
+//      Arms 2 and 3 were the attribute pane's join — every `<AdwWidget title="…">`
+//      derives a tag the web pillar registers AND observes something, or is ledgered
+//      with the reason it has none — and they retired with the pane. The numbers they
+//      were carrying, and the "a generated surface still has two ways to be empty"
+//      finding that produced the second half of arm 2, are in
+//      docs/code-anti-patterns.md § "A documentation surface written by hand, once per
+//      page". The arm NUMBERS below are unchanged on purpose: they are cited from four
+//      other files, and renumbering would silently repoint every citation.
 //   4. Every gallery block reaches the framework-snippet source: either a tree in
 //      `adwaita-gallery-trees.mjs` or a REFUSAL naming why it has none, never both
 //      and never neither. A block with no snippet and no refusal is a tab that
@@ -105,8 +100,6 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { galleryElementTag } from '../website/src/components/attr-sample.mjs';
-import { observedAttributes } from './adwaita-elements.mjs';
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
 import {
     ADWAITA_GALLERY_SHARED_TREES,
@@ -188,7 +181,6 @@ const docsDir = (section) => join(ROOT, 'website/src/content/docs', section);
  * held 17. The website was publishing coverage the repo no longer had.
  */
 const GENERATORS = [
-    'website/scripts/generate-adwaita-attributes.mjs',
     // Not under `website/` any more, and the move is the point: it emits the website's
     // grouped shape AND `@gjsify/adwaita-core`'s light+dark map from ONE read of the
     // stylesheet. A second reader of one source is a second truth, and this tree already
@@ -205,25 +197,6 @@ const GENERATORS = [
     'scripts/generate-adwaita-nativescript-templates.mjs',
 ];
 
-/**
- * Gallery titles whose block renders NO attribute pane, with the reason.
- *
- * Not a convenience list: each entry is a claim that gets checked back, so a title
- * that later gains an observing element turns this into a failure rather than a
- * permanently silent block.
- *
- * TWO ways to have no pane and only one used to be checked. A title that resolves to
- * no element failed here; a title that resolved to an element observing NOTHING was
- * counted and waved through, and this check printed its own contradiction — "40
- * gallery block(s), 38 rendering a generated attribute table, 1 exemption(s)" — at
- * exit 0. `<adw-wrap-box>` was the second: 14 attributes its own
- * `attributeChangedCallback` serves, read as none because the reader could not see a
- * `return [...PROPERTY_ATTRIBUTES];`, and one gallery block silently without a pane.
- */
-const NO_ATTRIBUTE_PANE = {
-    'Adw.Toast': `A toast is not an element — \`AdwToast\` is a plain class the overlay takes, so its surface is constructor options (\`timeout\`, \`buttonLabel\`) rather than attributes. \`<adw-toast-overlay>\` IS an element and is documented on the same page; it observes nothing of its own.`,
-};
-
 const failures = [];
 const notes = [];
 
@@ -231,10 +204,7 @@ const notes = [];
 // nothing". Checked here rather than beside its use because the element reader below
 // throws first, and a Node stack trace reads like a broken gate instead of a bad
 // argument.
-for (const [label, path] of [
-    ...DOCS_SECTIONS.map((section) => [`the ${section} gallery pages`, docsDir(section)]),
-    ['the element reader', join(ROOT, 'scripts/adwaita-elements.mjs')],
-]) {
+for (const [label, path] of DOCS_SECTIONS.map((section) => [`the ${section} gallery pages`, docsDir(section)])) {
     if (!existsSync(path)) {
         console.error(`check-generated-website-data: cannot look — ${label} is not at ${path}. Wrong --root?`);
         process.exit(1);
@@ -265,22 +235,13 @@ for (const rel of GENERATORS) {
 }
 
 // ---------------------------------------------------------------------------
-// 2 + 3. every gallery block reaches an element, and no exemption is stale
+// the gallery's own blocks, which arms 4, 7 and 11 are all about
 // ---------------------------------------------------------------------------
-
-const { byTag, unreadable } = observedAttributes(ROOT);
-if (unreadable.length > 0) {
-    failures.push(
-        `${unreadable.length} element(s) declare an observedAttributes the reader cannot resolve — ` +
-            `an unreadable one renders an EMPTY table: ${unreadable.join(', ')}`,
-    );
-}
 
 const seenTitles = new Set();
 let blocks = 0;
-let tabled = 0;
 
-for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
+for (const { file } of DOCS_SECTIONS.flatMap((section) =>
     readdirSync(docsDir(section))
         .filter((f) => f.endsWith('.mdx'))
         // `buttons.mdx` now exists in both sections, so a bare filename in a failure
@@ -291,39 +252,6 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     for (const [, title] of text.matchAll(/<AdwWidget\s+title="([^"]+)"/g)) {
         blocks++;
         seenTitles.add(title);
-        const tag = galleryElementTag(title);
-        if (byTag.has(tag)) {
-            const observed = byTag.get(tag).length;
-            if (observed > 0) tabled++;
-            if (NO_ATTRIBUTE_PANE[title] && observed > 0) {
-                failures.push(
-                    `${page}: "${title}" is exempted in NO_ATTRIBUTE_PANE and DOES get a pane, from ` +
-                        `<${tag}>. Drop the exemption — a stale one reads as considered.`,
-                );
-            } else if (observed === 0 && !NO_ATTRIBUTE_PANE[title]) {
-                failures.push(
-                    `${page}: "${title}" derives <${tag}>, which the pillar registers but which this\n` +
-                        '    reader says observes NOTHING, so its block renders no attribute pane and looks\n' +
-                        '    documented anyway. Either the reader cannot see the declaration (teach\n' +
-                        '    scripts/adwaita-elements.mjs the shape) or the element really has none — say\n' +
-                        '    so in NO_ATTRIBUTE_PANE.',
-                );
-            }
-            continue;
-        }
-        if (NO_ATTRIBUTE_PANE[title]) continue;
-        failures.push(
-            `${page}: "${title}" derives <${tag}>, which the web pillar does not register, so its\n` +
-                '    block renders no attribute pane and looks documented anyway. Either the title or\n' +
-                '    the element name is wrong, or the widget has no element — say so in\n' +
-                '    NO_ATTRIBUTE_PANE.',
-        );
-    }
-}
-
-for (const title of Object.keys(NO_ATTRIBUTE_PANE)) {
-    if (!seenTitles.has(title)) {
-        failures.push(`NO_ATTRIBUTE_PANE names "${title}", which no gallery page uses. Drop the entry.`);
     }
 }
 
@@ -675,8 +603,8 @@ if (checkedSnippets === 0) failures.push('no snippet was matched against a probe
 /**
  * NativeScript-core properties a template may name that no widget source declares.
  *
- * Checked back like {@link NO_ATTRIBUTE_PANE}: an entry whose widget later grows a
- * setter of its own fails here, so the list cannot quietly outlive its reason. These
+ * Checked back: an entry whose widget later grows a setter of its own fails here, so
+ * the list cannot quietly outlive its reason. These
  * are `Property` objects on NativeScript's own base classes, which DO carry a
  * `valueConverter` — which is why arm 8 does not demand `xmlNumber`/`xmlBoolean` of
  * them.
@@ -1308,10 +1236,7 @@ notes.push(
 if (blocks === 0) failures.push('no <AdwWidget> block found on any gallery page — the reader is broken');
 if (ADWAITA_GALLERY_TREES.length === 0) failures.push('no framework tree at all — arms 4 and 5 proved nothing');
 
-notes.push(
-    `${blocks} gallery block(s), ${tabled} rendering a generated attribute table, ` +
-        `${byTag.size} registered element(s), ${Object.keys(NO_ATTRIBUTE_PANE).length} exemption(s)`,
-);
+notes.push(`${blocks} gallery block(s) across ${DOCS_SECTIONS.length} section(s)`);
 
 for (const note of notes) console.log(`check-generated-website-data: ${note}`);
 

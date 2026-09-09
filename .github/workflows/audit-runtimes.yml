@@ -760,14 +760,14 @@ jobs:
       - name: Check the gallery documents every storybook widget and every port
         run: node scripts/check-website-adwaita-gallery.mjs
 
-      # …and that the DATA those pages render is still the data its source says. Two
-      # generators emit committed files (`adwaita-tokens.ts`, `adwaita-attributes.ts`)
-      # and until now nothing re-ran either: `generate-theming-tokens.mjs` is a
-      # `website` npm script, in no workflow at all, so the documented theming
-      # contract could disagree with the stylesheet indefinitely. It also holds the
-      # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
-      # element renders no table and looks documented anyway, which is the same thing
-      # as "this widget has no attributes" from the page's side.
+      # …and that the DATA those pages render is still the data its source says. The
+      # generators emit committed files (`adwaita-tokens.ts`, the framework snippets,
+      # the NativeScript templates) and until now nothing re-ran any of them:
+      # `generate-theming-tokens.mjs` was a `website` npm script, in no workflow at
+      # all, so the documented theming contract could disagree with the stylesheet
+      # indefinitely. It also holds the join each pane rides on — a gallery block that
+      # reaches neither a snippet nor a recorded reason renders a tab that is silently
+      # absent, which reads to a page's reader as a port that cannot do it.
       #
       # It runs BETWEEN two `git status` snapshots, and that is not belt-and-braces.
       # The check IMPORTS the generators it verifies, and a generator whose writer
@@ -789,13 +789,15 @@ jobs:
             exit 1
           fi
 
-      # The attribute TABLE on those pages goes one step further than the generated
-      # list: its second column prints the value the block's own preview markup sets,
-      # read out of the fence by a hand-rolled scanner. That scanner lived in the one
-      # .astro file oxlint is told to skip, so nothing read it and nothing ran it —
-      # and it shipped `&lt;Control&gt;C` as a value, a blank cell for `x=""`, and an
-      # element inside an HTML comment scanned as markup.
-      - name: Check the gallery's attribute samples are read faithfully
+      # Every preview fence, held against the element it paints. A fence writing an
+      # attribute its element does not observe is a silently empty widget, because an
+      # attribute is a string and no type sees it — measured when ADR 0046 renamed
+      # `items` to `model` and four call sites kept writing the retired spelling. The
+      # scanner that reads the fences lived in the one .astro file oxlint is told to
+      # skip, so nothing read it and nothing ran it: it shipped `&lt;Control&gt;C` as a
+      # value, could not tell `x=""` from a bare `x`, and scanned an element inside an
+      # HTML comment as markup.
+      - name: Check the gallery's preview fences name attributes their elements observe
         run: node scripts/check-website-attr-samples.mjs
 
       # One meta drives all three panels, so the three ALWAYS look identical — which
@@ -1406,14 +1408,14 @@ jobs:
       - name: Check the gallery documents every storybook widget and every port
         run: node scripts/check-website-adwaita-gallery.mjs
 
-      # …and that the DATA those pages render is still the data its source says. Two
-      # generators emit committed files (`adwaita-tokens.ts`, `adwaita-attributes.ts`)
-      # and until now nothing re-ran either: `generate-theming-tokens.mjs` is a
-      # `website` npm script, in no workflow at all, so the documented theming
-      # contract could disagree with the stylesheet indefinitely. It also holds the
-      # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
-      # element renders no table and looks documented anyway, which is the same thing
-      # as "this widget has no attributes" from the page's side.
+      # …and that the DATA those pages render is still the data its source says. The
+      # generators emit committed files (`adwaita-tokens.ts`, the framework snippets,
+      # the NativeScript templates) and until now nothing re-ran any of them:
+      # `generate-theming-tokens.mjs` was a `website` npm script, in no workflow at
+      # all, so the documented theming contract could disagree with the stylesheet
+      # indefinitely. It also holds the join each pane rides on — a gallery block that
+      # reaches neither a snippet nor a recorded reason renders a tab that is silently
+      # absent, which reads to a page's reader as a port that cannot do it.
       #
       # It runs BETWEEN two `git status` snapshots, and that is not belt-and-braces.
       # The check IMPORTS the generators it verifies, and a generator whose writer
@@ -1435,13 +1437,15 @@ jobs:
             exit 1
           fi
 
-      # The attribute TABLE on those pages goes one step further than the generated
-      # list: its second column prints the value the block's own preview markup sets,
-      # read out of the fence by a hand-rolled scanner. That scanner lived in the one
-      # .astro file oxlint is told to skip, so nothing read it and nothing ran it —
-      # and it shipped `&lt;Control&gt;C` as a value, a blank cell for `x=""`, and an
-      # element inside an HTML comment scanned as markup.
-      - name: Check the gallery's attribute samples are read faithfully
+      # Every preview fence, held against the element it paints. A fence writing an
+      # attribute its element does not observe is a silently empty widget, because an
+      # attribute is a string and no type sees it — measured when ADR 0046 renamed
+      # `items` to `model` and four call sites kept writing the retired spelling. The
+      # scanner that reads the fences lived in the one .astro file oxlint is told to
+      # skip, so nothing read it and nothing ran it: it shipped `&lt;Control&gt;C` as a
+      # value, could not tell `x=""` from a bare `x`, and scanned an element inside an
+      # HTML comment as markup.
+      - name: Check the gallery's preview fences name attributes their elements observe
         run: node scripts/check-website-attr-samples.mjs
 
       # One meta drives all three panels, so the three ALWAYS look identical — which

@@ -613,6 +613,13 @@ The numbers are PRINTED, never written here. What the change was measured agains
 the KIND of work that would close each one — a rename, a glyph, renderer work, or a different
 program. Ledger entries are self-retiring, the shape arm 5b and arm 11 already have.
 
+**The `nativescript` fence is a CORPUS now, not a tab** (ADR 0034 § Amendment 16). It is still
+authored on all 40 blocks and still arm 12's only input; it is no longer rendered anywhere,
+because the end state of this convergence is that the two panes are the same program under two
+labels. Do not look for it on a page, and do not delete it: the fence IS the measurement. The
+category is declared in `AdwWidget.astro`'s `CORPUS_SLOTS` and arm 6 refuses an entry no arm
+reads.
+
 **What is left, with its price.**
 
 - *The `glyph` entries are one renderer decision.* Every icon property on the port takes an
@@ -5103,8 +5110,11 @@ tree is 384 findings of which about ten are real: `packages/framework/gtk-host` 
 useful version is scoped by a hand-kept list of two directories, and a gate whose scope is
 a hand-kept list goes blind the first time a fifth showcase is added — the failure mode
 `coreListParsers` was just rewritten to avoid one file away. What closes it properly is a
-tag → attribute type surface the imperative call sites can be checked against, which is the
-same derivation `website/scripts/generate-adwaita-attributes.mjs` already runs for the docs.
+tag → attribute type surface the imperative call sites can be checked against. The
+`observedAttributes` half of that derivation is `scripts/adwaita-elements.mjs`, which arm 3 of
+`check-website-attr-samples.mjs` still reads; the generator that once emitted it as website
+data went with the attribute pane (ADR 0034 § Amendment 16), and it emitted names, not types,
+so it was never the missing half anyway.
 
 ### The NativeScript list-model setter is held by core's vectors, not by a widget test
 

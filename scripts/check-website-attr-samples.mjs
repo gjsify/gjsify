@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// The Adwaita gallery's attribute table reads REAL VALUES off preview markup, and
-// nothing held the reader that does it.
+// The Adwaita gallery's preview fences are read by a hand-rolled HTML scanner, and
+// nothing held it.
 //
 // THE INCIDENT
 //
@@ -8,7 +8,7 @@
 // one .astro file `.oxlintrc.json` ignores, because oxlint's reader takes a `<script>`
 // inside a JSX comment there as a real opener and stops parsing. So a hand-rolled HTML
 // scanner sat in the only website file no linter reads, with no test, feeding a column
-// the page presents as fact. Three of its answers were wrong on the SHIPPED site
+// the page presented as fact. Three of its answers were wrong on the SHIPPED site
 // before this gate existed:
 //
 //   · `<adw-shortcut-label accelerator="&lt;Control&gt;C">` printed `&lt;Control&gt;C`
@@ -19,8 +19,12 @@
 //   · An element inside an HTML COMMENT was scanned like markup, and an unquoted
 //     value was reported as a bare attribute — i.e. as "set", losing the value.
 //
-// A wrong value in that column is worse than no column, because the column's whole
-// claim is that it was read off the sample.
+// THE COLUMN IS GONE and the scanner is not. The attribute pane was retired with the
+// gallery's window model (docs/code-anti-patterns.md § "A documentation surface
+// written by hand, once per page"), so nothing publishes a sampled value any more —
+// but arm 3 below reads the same scan, and it is the arm a RENAME breaks. Every wrong
+// answer above is a wrong answer there too: a name lost inside a comment, or read off
+// the wrong tag, is a name arm 3 never compares to anything.
 //
 // WHAT IT CHECKS
 //
@@ -28,11 +32,12 @@
 //      quote-aware scan can get wrong — `>` inside a value, the other quote character,
 //      an unquoted value, a self-closing tag, a repeated name, a tag name that is a
 //      prefix of another, a commented-out element, a character reference, an empty
-//      value.
+//      value. The EXACT map, so a name the scan invents fails as loudly as one it
+//      drops.
 //   2. EVERY preview fence the gallery actually ships: the sampled value for each
 //      observed attribute occurs, verbatim, in the fence it was read from — after
 //      decoding — so a scan that drifts into another element's attributes fails here
-//      rather than on the page.
+//      rather than changing, in silence, what arm 3 is looking at.
 //   3. …and the OTHER direction, which arm 2 is structurally blind to: an attribute the
 //      fence WRITES that the element does not observe. Arm 2 walks the observed names, so
 //      a name outside that list is not compared to anything — it just never appears in the
@@ -64,7 +69,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { attributeCells, galleryElementTag, sampleAttributes } from '../website/src/components/attr-sample.mjs';
+import { galleryElementTag, sampleAttributes } from '../website/src/components/attr-sample.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
@@ -125,7 +130,11 @@ function scriptedAttributeWrites(text) {
 
 // ---------------------------------------------------------------- 1. fixtures
 
-/** @type {[string, string, string, Record<string, string>][]} name, markup, tag, expected cells */
+/**
+ * @type {[string, string, string, Record<string, string>][]} name, markup, tag, the
+ * WHOLE map the scan must produce — `''` where the source writes the attribute with no
+ * value, and a name the scan must not report simply absent.
+ */
 const FIXTURES = [
     [
         '`>` inside a quoted value',
@@ -143,10 +152,7 @@ const FIXTURES = [
         'an UNQUOTED value',
         '<gtk-button label=Download can-shrink></gtk-button>',
         'gtk-button',
-        {
-            label: 'Download',
-            'can-shrink': 'set',
-        },
+        { label: 'Download', 'can-shrink': '' },
     ],
     ['a self-closing tag', '<adw-avatar size="48" text="PG" />', 'adw-avatar', { size: '48', text: 'PG' }],
     [
@@ -154,21 +160,19 @@ const FIXTURES = [
         '<adw-button-content-extra icon-name="wrong"></adw-button-content-extra>' +
             '<adw-button-content label="right"></adw-button-content>',
         'adw-button-content',
-        { 'icon-name': 'not used', label: 'right' },
+        { label: 'right' },
     ],
     [
         'an element inside an HTML COMMENT',
         '<!-- <gtk-button label="commented-out"></gtk-button> -->\n<gtk-button can-shrink></gtk-button>',
         'gtk-button',
-        { label: 'not used', 'can-shrink': 'set' },
+        { 'can-shrink': '' },
     ],
     [
         'a name REPEATED on one tag',
         '<gtk-button label="first" label="second"></gtk-button>',
         'gtk-button',
-        {
-            label: 'first',
-        },
+        { label: 'first' },
     ],
     [
         'CHARACTER REFERENCES in a value',
@@ -180,9 +184,7 @@ const FIXTURES = [
         'an EMPTY value, which the DOM cannot tell from a bare attribute',
         '<gtk-button label=""></gtk-button>',
         'gtk-button',
-        {
-            label: 'set',
-        },
+        { label: '' },
     ],
     ['an UPPERCASE tag', '<GTK-BUTTON LABEL="x"></GTK-BUTTON>', 'gtk-button', { label: 'x' }],
     [
@@ -195,13 +197,12 @@ const FIXTURES = [
 ];
 
 for (const [what, markup, tag, expected] of FIXTURES) {
-    const names = Object.keys(expected);
-    const cells = attributeCells(names, sampleAttributes(markup, tag));
-    const got = Object.fromEntries(cells.map((c) => [c.name, c.text]));
-    for (const name of names) {
-        if (got[name] !== expected[name]) {
-            fail(`fixture — ${what}: \`${name}\``, JSON.stringify(expected[name]), JSON.stringify(got[name]));
-        }
+    // The WHOLE map, compared as one value. Walking the expected names alone could not
+    // see a name the scan INVENTS — a value read off a neighbouring tag, an attribute
+    // picked up inside a comment — and arm 3's business is exactly the names in a fence.
+    const got = Object.fromEntries(sampleAttributes(markup, tag));
+    if (JSON.stringify(got) !== JSON.stringify(expected)) {
+        fail(`fixture — ${what}`, JSON.stringify(expected), JSON.stringify(got));
     }
 }
 
@@ -277,7 +278,7 @@ for (const [what, source, expected] of SCRIPTED_FIXTURES) {
 
 const { byTag } = observedAttributes(ROOT);
 let blocks = 0;
-let cellsSeen = 0;
+let sampledSeen = 0;
 let unobservedSeen = 0;
 for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     readdirSync(docsDir(section))
@@ -311,19 +312,19 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
                 'a name it never reads, so the preview shows one thing and the element does another',
             );
         }
-        for (const cell of attributeCells(names, sampleAttributes(markup, tag))) {
-            cellsSeen++;
-            if (cell.kind !== 'value') continue;
-            // The value the page prints has to be IN the fence the page shows. Compared
+        const sampled = sampleAttributes(markup, tag);
+        for (const name of names) {
+            const value = sampled.get(name);
+            if (value === undefined) continue;
+            sampledSeen++;
+            // A bare attribute has no value to find.
+            if (value === '') continue;
+            // The value read back has to be IN the fence it was read from. Compared
             // after re-encoding the three references a fence can carry, so a decoded
             // `<Control>C` still matches the `&lt;Control&gt;C` it was read from.
-            const encoded = cell.text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-            if (!markup.includes(cell.text) && !markup.includes(encoded)) {
-                fail(
-                    `${page} — <${tag}> \`${cell.name}\``,
-                    'a value present in the preview fence',
-                    JSON.stringify(cell.text),
-                );
+            const encoded = value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+            if (!markup.includes(value) && !markup.includes(encoded)) {
+                fail(`${page} — <${tag}> \`${name}\``, 'a value present in the preview fence', JSON.stringify(value));
             }
         }
     }
@@ -370,10 +371,13 @@ if (receiversSeen === 0) {
     );
 }
 
-if (blocks === 0 || cellsSeen === 0) {
+if (blocks === 0 || sampledSeen === 0) {
     // A scanner that finds nothing passes every assertion above it. That is the failure
     // this repo keeps paying for, so it is an error rather than a quiet exit 0.
-    failures.push(`read ${blocks} gallery blocks and ${cellsSeen} cells — the fence reader found nothing to check`);
+    failures.push(
+        `read ${blocks} gallery blocks and sampled ${sampledSeen} observed attribute(s) — the fence ` +
+            'reader found nothing to check',
+    );
 }
 
 if (failures.length > 0) {
@@ -383,7 +387,7 @@ if (failures.length > 0) {
 }
 console.log(
     `check-website-attr-samples: ${FIXTURES.length + UNOBSERVED_FIXTURES.length + SCRIPTED_FIXTURES.length} ` +
-        `fixtures and ${cellsSeen} cells across ${blocks} gallery blocks, ${unobservedSeen} unobserved ` +
-        `attribute(s) written; ${scriptedSeen} scripted attribute name(s) on ${receiversSeen} resolved ` +
-        'element binding(s) — ok',
+        `fixtures and ${sampledSeen} observed attribute(s) sampled across ${blocks} gallery blocks, ` +
+        `${unobservedSeen} unobserved attribute(s) written; ${scriptedSeen} scripted attribute name(s) on ` +
+        `${receiversSeen} resolved element binding(s) — ok`,
 );

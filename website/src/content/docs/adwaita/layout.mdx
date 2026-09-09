@@ -11,59 +11,62 @@ view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
-Each block below is a stack of windows. The first one RUNS the widget: the preview
-is the live browser port, so it follows the light and dark toggle the way a real
-window would, and the HTML tab beside it holds the very markup that paints it —
-one `import '@gjsify/adwaita-web'` registers every element in it. Then comes
-one window per kind of implementation, for every kind that can express this widget.
-Two of them name a file pair — **Native TypeScript**, the `@girs` program that
-runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint declaration
-beside it, and **NativeScript**, the port that runs on a phone, which splits the same
-way: an XML template holds the tree and the TypeScript beside it is the loader.
+Every block below is three windows. The first one runs the widget. It is the live
+browser port, so it follows the light and dark toggle like a real window.
+
+**GJS** holds the `@girs` program and the Blueprint declaration that goes with it:
+two files of one program, against the real libadwaita widget. **UI frameworks** holds
+the same widget reached through an element model. Its HTML Web Components tab is the
+markup that paints the preview, and one `import '@gjsify/adwaita-web'` registers every
+element in it. Solid, Vue and React go through `@gjsify/gtk-host`. NativeScript is the
+XML template that runs on a phone, and on this page every widget is a tree, so all
+four blocks have one.
 
 A NativeScript template reaches these widgets through its `xmlns`, and the namespace
 is a MODULE: NativeScript loads it and reads the element name off its exports, so
 `xmlns:adw="~/adw"` needs an app-local `app/adw.ts` that re-exports what the markup
-names. A bare package specifier there does not resolve. There is **one barrel per
-library** — `~/adw` for `Adw.*`, `~/gtk` for `Gtk.*` — because the prefix is the only
-thing in XML that can say which library a widget belongs to: point both at one module
-and `<adw:Button>` silently builds the GTK button. Every XML tab in this
-gallery was inflated on an Android device before it was written down —
+names. A bare package specifier there does not resolve. There is one barrel per
+library, `~/adw` for `Adw.*` and `~/gtk` for `Gtk.*`, because the prefix is the only
+thing in XML that can say which library a widget belongs to. Point both at one module
+and `<adw:Button>` silently builds the GTK button.
+
+Every NativeScript tab in this gallery was inflated on an Android device before it was
+written down.
 [`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
 loads each template through NativeScript's own `Builder` and asserts the view tree it
-built, which is the only way to tell a template that renders from one that renders
+built. That is the only way to tell a template that renders from one that renders
 something else: an attribute arrives as a string, and a child a widget has no slot for
 is added to the layout anyway.
 
-The third, **UI frameworks**, is on all four as well: each shows the same widget
-written in Solid, Vue and React through
-[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host),
-with a [`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab beside them. The
-wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
-`AdwWrapBox`, so a child placed in one was refused by name — deliberately, because a
-renderer that guessed the policy would call `add`, `append` or `set_child` and be
-wrong at exit 0. The policy is now curated against libadwaita, so the block has a tree
-like the other three. That window renders a GTK window, not a phone screen — which is
-why it is not the NativeScript one, and the [React Native
+The Solid, Vue and React tabs go through
+[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host).
+The clamp, the header bar and the toolbar view carry a
+[`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab as well, the only three
+blocks on the site that do. That tab renders a GTK window, not a phone screen, which
+is why it is not the NativeScript one; the [React Native
 page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
 exist there.
 
-Two of those three style with `className`, and both configure their token scales
-on the way in. That line is not decoration: the values behind a class name come
-from the project, the layer's default scales are deliberately small (spacing holds
-`0` and `px` alone), and a class naming an undeclared token throws out of the
-render — leaving an empty window at exit 0 with nothing in the log. The header
-bar's snippet names no class and needs no such line.
+The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
+`AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a
+renderer guessing the policy would call `add`, `append` or `set_child` and be wrong at
+exit 0. The policy is now curated against libadwaita, so the block has a tree like the
+other three.
 
-Libadwaita is the reference here, typed by
+Two of the three host dialects style with `className`, and both configure their token
+scales on the way in. That line is not decoration. The values behind a class name come
+from the project, the layer's default scales are deliberately small (spacing holds `0`
+and `px` alone), and a class naming an undeclared token throws out of the render,
+leaving an empty window at exit 0 with nothing in the log. The header bar's snippet
+names no class and needs no such line.
+
+Libadwaita is the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so. Both ports answer
-`gi://Adw` and `gi://Gtk`, which is what lets a NativeScript snippet elsewhere on
-this site open with the same import line as the Native TypeScript one beside it.
-Not here: every widget on this page is a tree, so each NativeScript window is an XML
-template and the loader that mounts it.
+follow its naming, and where a port differs, the window that shows it says so. Both
+answer `gi://Adw` and `gi://Gtk`. On NativeScript that resolves once you build with
+`gjsify build --app nativescript --gi-renderer`.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
