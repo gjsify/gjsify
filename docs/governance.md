@@ -208,3 +208,25 @@ its slack in full. If they can, either the check should not gate, or its ledger 
 exact enough that concurrent spenders collide in git first. A whole-tree or whole-repo
 aggregate is structurally blind to concurrent PRs; only per-item exactness gives the merge
 something to trip over.
+
+## Agent context budget
+
+The root AGENTS.md reached **277 KB** before it was split, one defensible paragraph at a time.
+That is the whole argument for a ceiling: no single addition was wrong, and the sum was
+unreadable.
+
+`scripts/check-agent-context-size.mjs --check` holds a 32 KiB hard cap — `project_doc_max_bytes`,
+where Codex silently truncates the tail with no warning — plus an EXACT per-file ceiling in
+`status/agent-context-budget.json`.
+
+**Exact, not an upper bound, and that is deliberate.** Below fails too, so a file that shrank
+must record the new ceiling; the ratchet then makes regrowth a failing check rather than a
+gradual return to 277 KB.
+
+**No list of over-target files belongs in a context file.** Several are over the 20 KB target,
+the check PRINTS which, and a list written down goes stale as OTHER files grow — so the gate
+catches regrowth instead of claiming the target is met.
+
+**The ledger line is also a collision detector.** Slack is what two concurrent PRs each spend in
+full, and `status/agent-context-budget.json` is what makes them collide in git rather than on
+`main` (§ Concurrent PRs).

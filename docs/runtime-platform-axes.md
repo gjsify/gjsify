@@ -23,3 +23,46 @@ GJS = primary target, NON-NEGOTIABLE. Long-term: "alles unter allem lauffähig" 
 |universal `-core` split (convention, not mandate): logic shared by ≥3 runtimes MAY split into platform-agnostic core + thin adapters — but a `/core` SUBPATH is the DEFAULT over a new `-core` PACKAGE: a new published `@gjsify/*` name needs a tier, a quintuplet and the manual first-publish + Trusted-Publisher bootstrap (§ Package convention), and skipping that breaks the serialized release train for every alphabetically-later package. A separate package only for a genuine cycle or independent external consumers (`@gjsify/canvas2d-core`).
 |**graduation** (2026-05-28): axes 1–4 are OUT of experimental status — document them per-axis, and describe what is validated BY NAME (integration suites, Playwright browser tests, autobahn, named showcases); never blanket "WinterCG-compatible"/"Node-compatible runtime" claims. Axis 5 pre-graduation. The per-package slot tables + audit drift are derived from the manifests, which are the single source of truth.
 |non-goals: turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a correct polyfill needs; tracking `refs/node-gtk` as a live fork (read-only derivation source); refactoring existing GJS-bound packages cross-runtime.
+
+### Runtime axis — the two slots that are not what they look like
+
+**NativeScript is one slot, not two.** `gjsify.nativescriptPlatforms: ['ios','android']`
+(default both) narrows capability WITHIN the slot. iOS and Android are deliberately NOT
+separate slots, because NS ships one core with internal platform branching. A package that
+does not declare `nativescript` has that slot SKIPPED by the drift check; backfill is
+opportunistic.
+
+**`react-native` is declaration-only, and DRIFT is deliberately silent on it.** Metro owns a
+React Native app's build the way `@nativescript/vite` owns NativeScript's, so the slot feeds
+the ALIAS layer and there is no `--app react-native`. No heuristic suggests a value for it,
+and that silence is the point: `--apply` writes a suggestion VERBATIM into every declarable
+package that has none, so an unmeasured guess would land in all of them unreviewed. Two
+checks still hold the slot: `auditRuntimeShape` (every key a known runtime, every value a
+known slot) and the reachability pass, where a `polyfill` slot reaching GLib/Gio is FATAL as
+it is on `browser`/`nativescript`.
+
+### OS axis — the retired spelling, and why the blindness is a rule
+
+ONE spelling everywhere: `${process.platform}-${process.arch}` (`linux-x64`, `linux-arm64`,
+`darwin-arm64`, `win32-x64`; `ppc64`, `s390x` and `riscv64` are identical in every
+vocabulary). The retired uname spelling (`linux-x86_64`) is enforced OUT on every WRITE path
+and tolerated READ-only: `prebuildDirCandidates` probes declared → canonical → legacy, so
+tarballs published before the rename still load.
+
+Why the two axes stay blind to each other by design, measured rather than argued: the whole
+native-bridge set stayed Linux-only while the project described itself as
+platform-independent, because `gjsify.runtimes` says nothing about operating systems. An axis
+that answered the other's question would have hidden that instead of surfacing it.
+
+### Intra-GJS layering — why `gjsify.headless` exists at all
+
+The runtime axis is structurally blind here. A `gi://Gdk` import is an INPUT to the drift
+check, so it made the declaration agree BETTER, and the ADR-0014 reachability pass only
+visits `polyfill`/`partial` slots, which a `node:none`/`browser:native` package has none of.
+
+That blind spot is how `@gjsify/canvas2d-core` — split out of `@gjsify/canvas2d` precisely to
+be GTK-free — imported `gi://Gdk`, which is `libgtk-4.so` in GTK4, at five call sites for its
+whole life. The declared side-effect subpath that legitimately reaches Gdk is
+`@gjsify/canvas2d-core/gdk`, imported explicitly by `dom-elements/register/canvas` and
+`canvas2d`, which is why the check walks the ROOT import graph only: scanning `src/**` would
+flag the fix itself.

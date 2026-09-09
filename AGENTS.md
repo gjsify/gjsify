@@ -10,34 +10,31 @@ This file holds what is true across the whole repo. Everything scoped to one sub
 THAT subtree's AGENTS.md and is authoritative there — never restate it here, a second copy is a
 second truth that drifts. **Read this file, then the one for what you are touching.**
 
-| Working on | Read |
-|---|---|
-| `packages/node/*` — Node API pillar, CJS-ESM interop | [packages/node](packages/node/AGENTS.md) |
-| `packages/web/*` — Web API pillar | [packages/web](packages/web/AGENTS.md) |
-| `packages/dom/*` — DOM pillar | [packages/dom](packages/dom/AGENTS.md) |
-| `packages/framework/*` — GTK host, storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
-| the CLI + the GJS bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
-| the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
-| slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm](packages/infra/resolve-npm/AGENTS.md) |
-| `packages/node-gi` — axis 5, `gi://` on Node/Bun/Deno | [packages/node-gi](packages/node-gi/AGENTS.md) |
-| `packages/napi` — N-API host in GJS | [packages/napi](packages/napi/AGENTS.md) |
-| `packages/nativescript-bridge` | [packages/nativescript-bridge](packages/nativescript-bridge/AGENTS.md) |
-| writing or running tests | [tests/](tests/AGENTS.md) |
+|`packages/node/*` — Node API pillar, CJS-ESM interop → packages/node/AGENTS.md
+|`packages/web/*` — Web API pillar → packages/web/AGENTS.md
+|`packages/dom/*` — DOM pillar → packages/dom/AGENTS.md
+|`packages/framework/*` — GTK host, storybook, devtools, bridges, ADR 0012 registration → packages/framework/AGENTS.md
+|the CLI + the GJS bootstrap bundles → packages/infra/cli/AGENTS.md
+|the build (`--app <target>`, platform plugins) → packages/infra/rolldown-plugin-gjsify/AGENTS.md
+|slot routing (`@gjsify/<X>` → platform entry) → packages/infra/resolve-npm/AGENTS.md
+|`packages/node-gi` — axis 5, `gi://` on Node/Bun/Deno → packages/node-gi/AGENTS.md
+|`packages/napi` — N-API host in GJS → packages/napi/AGENTS.md
+|`packages/nativescript-bridge` → packages/nativescript-bridge/AGENTS.md
+|writing or running tests → tests/AGENTS.md
 
-Reference material — read on demand, not loaded every session:
+Reference material — read on demand, not loaded every session. Root `docs/`:
 
-| | |
-|---|---|
-| the long-form governance reasoning | [docs/governance.md](docs/governance.md) |
-| OS-axis enforcement + portability strategy | [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md) |
-| the measured anti-patterns, with their incidents | [docs/code-anti-patterns.md](docs/code-anti-patterns.md) |
-| `/register` subpath convention | [docs/register-convention.md](docs/register-convention.md) |
-| build artifacts: the git hook, freshness, what an exit code proves | [docs/build-artifacts.md](docs/build-artifacts.md) |
-| native extensions + prebuilds | [docs/prebuilds.md](docs/prebuilds.md) |
-| first-publish bootstrap + release closure | [docs/publishing.md](docs/publishing.md) |
-| selective CI | [docs/ci-selective.md](docs/ci-selective.md) · lint/format [docs/lint-format.md](docs/lint-format.md) |
-| GNOME lib ↔ API mapping table | [docs/gnome-mappings.md](docs/gnome-mappings.md) |
-| `refs/` · attribution · status data · examples · axis 6 | [references](docs/references.md) · [attribution](docs/attribution.md) · [status](docs/status-changelog.md) · [examples](docs/examples-showcases.md) · [toolchains](docs/bundled-toolchains.md) |
+|the long-form governance reasoning → governance.md
+|OS-axis enforcement + portability strategy → runtime-platform-axes.md
+|the measured anti-patterns, with their incidents → code-anti-patterns.md
+|`/register` subpath convention → register-convention.md
+|build artifacts: the git hook, freshness, what an exit code proves → build-artifacts.md
+|native extensions + prebuilds → prebuilds.md
+|first-publish bootstrap + release closure → publishing.md
+|selective CI → ci-selective.md · lint/format → lint-format.md
+|GNOME lib ↔ API mapping table → gnome-mappings.md
+|what SM140 gives you beyond ES2024 → engine-baseline.md
+|`refs/` · attribution · status data · examples · axis 6 → references.md · attribution.md · status-changelog.md · examples-showcases.md · bundled-toolchains.md
 
 ADRs: `docs/adr/` (numbered, MADR-style). Open work: `status/open-todos.md`.
 
@@ -68,39 +65,42 @@ The ONE model for "where does this code run and who checks the claim". Four orth
 
 ### The axes
 
-|**Runtime axis — `gjsify.runtimes`**: quintuplet `{gjs, node, browser, nativescript, react-native}`, each slot ∈ {`polyfill`, `native`, `partial`, `none`}. Declares which JS RUNTIMES a package serves and how; says NOTHING about operating systems. NativeScript is the 4th slot (V8 on Android/iOS, metadata-driven native bridge — conceptually GJS↔GNOME with `java.io.File`/`NSFileManager` instead of `Gio.File`); optional `gjsify.nativescriptPlatforms: ['ios','android']` (default both) narrows capability WITHIN the slot — iOS/Android are deliberately NOT separate slots, because NS ships one core with internal platform branching. If a package doesn't declare `nativescript`, the drift check skips that slot (backfill is opportunistic). **`react-native` is the 5th slot and is DECLARATION-ONLY**: Metro owns a React Native app's build the way `@nativescript/vite` owns NativeScript's, so it feeds the ALIAS layer and there is deliberately no `--app react-native`. No heuristic suggests it, so DRIFT is silent on it — `--apply` writes a suggestion verbatim into every declarable package that has none, and an unmeasured guess would land there unreviewed. Two checks still hold it: `auditRuntimeShape` (every key a known runtime, every value a known slot) and the reachability pass, where a `polyfill` slot reaching GLib/Gio is FATAL as on `browser`/`nativescript`. Not to be confused with `gjsify build --dialect react-native`, which says what the SOURCE is written in, not what the PACKAGE runs on; a package can be both.
-|**OS axis — TWO declarations, one per question (ADR 0018)**: `gjsify.os` = what the CODE claims (`{linux,darwin,win32}` → `supported`/`partial`/`none`, below `supported` needs a PRINTED `gjsify.osNotes.<os>` reason), demanded only of pkgs BRANCHING on the OS in shipping source — DERIVED, so no OS-conditional code = nothing to declare; `gjsify.platforms` = the `<os>-<arch>` targets a pkg with a native build system (meson/node-gyp) or a prebuild dir PROMISES a prebuild for (a pure-TS pkg is legitimately `os.win32:"supported"` with no win32 in `platforms`). ONE spelling everywhere: `${process.platform}-${process.arch}` (`linux-x64`/`linux-arm64`/`darwin-arm64`/`win32-x64`; `ppc64`/`s390x`/`riscv64` identical in every vocabulary) — it is what a running process computes about itself, so resolution needs no translation. The retired uname spelling (`linux-x86_64`) is enforced OUT on every WRITE path and tolerated READ-only (`prebuildDirCandidates` probes declared → canonical → legacy) so pre-rename tarballs still load. The two axes are blind to each other BY DESIGN, and that blindness is measured: the whole native-bridge set stayed Linux-only while the project described itself as platform-independent, because `runtimes` says nothing about OSes. Never let one axis answer the other's question.
-|**Intra-GJS layering — `gjsify.headless`** (ADR 0015): a package that DOCUMENTS itself as headless declares either `true` (root entry reaches NO typelib: no `gi://`, no `@girs/*` value import, no bare `cairo`/`system`/`gettext`, no `imports.*`) or a LIST of forbidden typelib namespaces (`["Gdk","GdkPixbuf","Gsk","Gtk","Adw"]` — headless *of GTK*, Cairo/Pango still fine). `audit-runtimes --check` walks the ROOT import graph from `exports["."]` (relative imports AND `@gjsify/*` workspace edges) and fails on any forbidden reach. ROOT-ONLY IS THE POINT: a side-effect SUBPATH may legitimately reach them (`@gjsify/canvas2d-core/gdk`, imported explicitly by `dom-elements/register/canvas` + `canvas2d`) — scanning `src/**` would flag the fix itself. Why the axis exists: the runtime axis is structurally blind here — a `gi://Gdk` import is an INPUT to the drift check (it made the declaration agree BETTER), and the ADR-0014 reachability pass only visits `polyfill`/`partial` slots, which a `node:none`/`browser:native` package has none of. That blind spot is how `@gjsify/canvas2d-core` — split out of `@gjsify/canvas2d` precisely to be GTK-free — imported `gi://Gdk` (= `libgtk-4.so` in GTK4) at five call sites for its whole life. Not wanted on pure-TS contract packages: their all-`polyfill` slots already put ADR 0014 in charge.
+|**Runtime axis — `gjsify.runtimes`**: quintuplet `{gjs, node, browser, nativescript, react-native}`, each slot ∈ {`polyfill`, `native`, `partial`, `none`}. Declares which JS RUNTIMES a package serves and how; says NOTHING about operating systems. NativeScript is the 4th slot (V8 on Android/iOS, metadata-driven native bridge — conceptually GJS↔GNOME with `java.io.File`/`NSFileManager` instead of `Gio.File`); `gjsify.nativescriptPlatforms` narrows capability WITHIN it. **`react-native` is the 5th slot and is DECLARATION-ONLY**: Metro owns a React Native app's build, so it feeds the ALIAS layer and there is deliberately no `--app react-native`. Held by `auditRuntimeShape` and the reachability pass, where a `polyfill` slot reaching GLib/Gio is FATAL as on `browser`/`nativescript`. Not to be confused with `gjsify build --dialect react-native`, which says what the SOURCE is written in, not what the PACKAGE runs on; a package can be both. Why iOS/Android are not separate slots, and why DRIFT is silent on `react-native`: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
+|**OS axis — TWO declarations, one per question (ADR 0018)**: `gjsify.os` = what the CODE claims (`{linux,darwin,win32}` → `supported`/`partial`/`none`, below `supported` needs a PRINTED `gjsify.osNotes.<os>` reason), demanded only of pkgs BRANCHING on the OS in shipping source — DERIVED, so no OS-conditional code = nothing to declare; `gjsify.platforms` = the `<os>-<arch>` targets a pkg with a native build system (meson/node-gyp) or a prebuild dir PROMISES a prebuild for (a pure-TS pkg is legitimately `os.win32:"supported"` with no win32 in `platforms`). ONE spelling everywhere: `${process.platform}-${process.arch}` — it is what a running process computes about itself, so resolution needs no translation. **The two axes are blind to each other BY DESIGN, and never let one answer the other's question.** The retired uname spelling, the read-only tolerance behind it, and the measurement that made the blindness a rule: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
+|**Intra-GJS layering — `gjsify.headless`** (ADR 0015): a package that DOCUMENTS itself as headless declares either `true` (root entry reaches NO typelib: no `gi://`, no `@girs/*` value import, no bare `cairo`/`system`/`gettext`, no `imports.*`) or a LIST of forbidden typelib namespaces (`["Gdk","GdkPixbuf","Gsk","Gtk","Adw"]` — headless *of GTK*, Cairo/Pango still fine). `audit-runtimes --check` walks the ROOT import graph from `exports["."]` (relative imports AND `@gjsify/*` workspace edges) and fails on any forbidden reach. ROOT-ONLY IS THE POINT: a side-effect SUBPATH may legitimately reach them, and scanning `src/**` would flag the fix itself. Not wanted on pure-TS contract packages: their all-`polyfill` slots already put ADR 0014 in charge. Why the other two axes are structurally blind here, and the incident that cost: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
 |**Build target — `--app gjs|node|browser|nativescript`**: how a BUILD selects a runtime; the alias layer routes each `@gjsify/<X>` per its declared slots (§ Slot routing). ONE `--app node` bundle serves node, bun AND deno (Node-API is their common ABI) — `--runtime <gjs|node|bun|deno>` on `gjsify showcase|run|storybook` selects the LAUNCHER, not a different bundle (shared map `packages/infra/cli/src/utils/runtimes.ts`). NB `gjsify.example.runtimes` (which runtimes a showcase SHIPS artifacts for, § Showcase) is a distinct field from `gjsify.runtimes` (slot routing).
 
 ## Don't patch — implement at the source
 
 We own ~every Web/Node/DOM API. First question for any new feature: *"which package owns this,
-can we implement it there?"* — never *"where can we monkey-patch it in?"*. The five hard rules,
-each with the incident that produced it, are [docs/code-anti-patterns.md](docs/code-anti-patterns.md):
+can we implement it there?"* — never *"where can we monkey-patch it in?"*. Five hard rules, each
+written out with the incident that produced it in
+[docs/code-anti-patterns.md](docs/code-anti-patterns.md):
 
 |**reading globals**: `import { X } from '@gjsify/<pkg>'`, not `(globalThis as any).X` — six documented exceptions, all in register/bootstrap code
-|**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a consumer. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` and `node-bundle-guard.ts`
+|**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a CONSUMER. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` and `node-bundle-guard.ts`
 |**patching classes you own**: put the method on the class, not on `globalThis.X.method=…` in a register module
 |**"no module to import from"**: check again — the workspace almost certainly exports it
-|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A `/core` subpath beats a new `-core` package — a separate NAME needs a package-level cycle or independent external consumers, never onboarding cost (a release step, § Package convention)
+|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A separate `-core` NAME needs a package-level cycle or independent external consumers, never onboarding cost
 
 ## Code anti-patterns — measured
 
-Recurring shapes LLM-written code gets wrong. Every one was paid for in THIS repo; the incidents
-are in [docs/code-anti-patterns.md](docs/code-anti-patterns.md) — read them before arguing with a rule.
+Recurring shapes LLM-written code gets wrong. Every one was paid for in THIS repo, and the
+incident IS the rule — so it is written out in
+[docs/code-anti-patterns.md](docs/code-anti-patterns.md), which you read before arguing with one.
+Here: the rule and what enforces it.
 
 |**try/catch around a call that cannot throw** — for GI calls read the GIR, only `throws="1"` raises. A kept catch must STATE ITS REASON; `eslint/no-empty` is `error`
 |**paranoid probes for what the workspace guarantees** — redundant `x?.m?.()` on our own classes hides real bugs as silent no-calls. Only the documented probes are sanctioned
-|**comments that restate the code** — comment WHY; a restating comment is a second copy that drifts. Cut restatement, narrative history, upstream source coordinates; keep the incident, GI quirks, spec links, error text. A LIVE COUNT is restatement too, and drifts unseen (`224 packages` → 232, `~110` → 199): write what the number establishes, not the number. `scripts/check-comment-budget.mjs` reports per-tree volume — a score, so it advises
+|**comments that restate the code** — comment WHY. Cut restatement, narrative history, upstream source coordinates; keep the incident, GI quirks, spec links, error text. **A LIVE COUNT is restatement too**: write what the number establishes, not the number. `scripts/check-comment-budget.mjs` reports per-tree volume — a score, so it advises
 |**duplication instead of a helper** — the SECOND copy is where you lift; the drifted copy fails in a CONSUMER while the owning package stays green
 |**scattered lifecycle** — cleanup beside creation, ownership in ONE place, wired to the exit the host actually has
 |**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
 |**monolithic entry points** — `index.ts` = barrel re-exports only
-|**a side-effect import that has no side effect** — css-as-string makes any CSS import `export default "<css>"`, so a bare `import './x.css'` (or of a package whose `.` export IS css) tree-shakes away, exit 0. `@gjsify/adwaita-web` shipped no font that way for its whole life, invisible on a GNOME host. Import the VALUE and apply it; enforced by `gjsify/no-css-side-effect-import`
-|**an interface assembled in TypeScript** — a widget class that builds its own children instead of declaring them in a `.blp` cannot be translated AT ALL: a caption assigned from code carries no `translatable` attribute, so `xgettext` never sees it and the app looks untranslated rather than untranslatable. Measured 2026-08: Learn6502 holds a whole application in 24 Blueprint files with 8 programmatic constructions; two apps that grew the other way carry 31 template-free widget classes and 673 unreachable captions. Declare the tree in Blueprint, keep logic in TypeScript, fill data-driven children inside the template. Enforced by `gjsify/prefer-blueprint-template` + `gjsify/no-literal-widget-label`
+|**a side-effect import that has no side effect** — css-as-string makes any CSS import `export default "<css>"`, so a bare `import './x.css'` tree-shakes away at exit 0. Import the VALUE and apply it; enforced by `gjsify/no-css-side-effect-import` and the `stylesheet-font-families` conformance rule
+|**an interface assembled in TypeScript** — a widget class that builds its own children instead of declaring them in a `.blp` cannot be translated AT ALL: a caption assigned from code carries no `translatable` attribute, so `xgettext` never sees it. Declare the tree in Blueprint, keep logic in TypeScript, fill data-driven children inside the template. Enforced by `gjsify/prefer-blueprint-template` + `gjsify/no-literal-widget-label`
 |**toolkit imports in shared code** — declare `gjsify.headless` so CI holds the claim instead of relying on discipline
-|**a deferral marker that names nothing** — a `TODO`/`FIXME`/`HACK`/`XXX` opening a comment line must anchor to `#123`, a forge issue URL, `open-todos` (the `status/` ledger) or `fixed upstream in …`; better still, fix it in the PR that exposed it. A bare marker has no owner and no retirement. Enforced at `error` by `gjsify/todo-needs-anchor`
+|**a deferral marker that names nothing** — a `TODO`/`FIXME`/`HACK`/`XXX` opening a comment line must anchor to `#123`, a forge issue URL, `open-todos` (the `status/` ledger) or `fixed upstream in …`; better still, fix it in the PR that exposed it. Enforced at `error` by `gjsify/todo-needs-anchor`
 
 ## Package convention
 
@@ -144,7 +144,7 @@ checks" reads as green before anything has started.
 
 ## Constraints
 
-Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | tests pass on Node + GJS | do NOT modify `refs/`. SM128 (GJS 1.84) is no longer supported; SM128-era polyfills still load (idempotent no-ops), retired package by package as native SM140 paths are validated. SM140 highlights beyond ES2024: Iterator helpers, `import … with{type:"json"}`, Temporal (preview), Float16Array, `Uint8Array.{from,to}{Base64,Hex}`, `RegExp.escape`, `Promise.try`, `JSON.rawJSON`, `Intl.DurationFormat`, `Math.sumPrecise`, `Atomics.pause`, `Error.isError`, native `Error.captureStackTrace`.
+Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | tests pass on Node + GJS | do NOT modify `refs/`. SM128 (GJS 1.84) is no longer supported; SM128-era polyfills still load (idempotent no-ops), retired package by package as native SM140 paths are validated. What SM140 gives you beyond ES2024: [docs/engine-baseline.md](docs/engine-baseline.md).
 
 **TypeScript version invariant**: root + EVERY workspace declares `typescript: "^6.0.3"` — no 5.x
 carve-out, enforced by the CI `gjsify upgrade --check` step. Bumping it touches every
@@ -163,14 +163,12 @@ axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchai
 
 **Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
 Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
-silently truncates the tail with no warning. This file reached 277 KB before it was split, one
-defensible paragraph at a time. Held by `scripts/check-agent-context-size.mjs --check`: the 32 KiB
-cap plus an EXACT per-file ceiling. Several files are over the 20 KB target — the check PRINTS
-which, and a list here goes stale as OTHER files grow — so the gate catches REGROWTH instead of
-claiming the target is met. Exact means BELOW fails too: touch a context file, `--update`, commit
-`status/agent-context-budget.json` with it. Slack is what two concurrent PRs each spend in full,
-and that ledger line is what makes them collide in git rather than on `main`
-([docs/governance.md](docs/governance.md) § Concurrent PRs).
+silently truncates the tail with no warning. Held by `scripts/check-agent-context-size.mjs
+--check`: the 32 KiB cap plus an EXACT per-file ceiling, so a file can only shrink. Exact means
+BELOW fails too — touch a context file, `--update`, commit `status/agent-context-budget.json`
+with it. Why the ceiling is exact, why no list of over-target files belongs here, and what the
+ledger line does to two concurrent PRs: [docs/governance.md](docs/governance.md) § Agent context
+budget.
 
 **Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
 AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →
