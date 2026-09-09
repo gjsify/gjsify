@@ -25,7 +25,9 @@ export {
 export type { IconPath, SymbolicIconOptions } from './icon-path.js';
 
 /**
- * Render an Adwaita symbolic SVG string to a native {@link ImageSource}. The base
+ * Render an Adwaita symbolic SVG string to a native {@link ImageSource}. A NAME is not
+ * accepted here — `resolveIconSource` in `icon-theme.ts` turns one into the document
+ * first, so the rasteriser has exactly one input shape. The base
  * implementation returns `null` — only the platform variants rasterise. Callers
  * treat `null` as "no icon available" (the widget shows nothing / its fallback).
  */

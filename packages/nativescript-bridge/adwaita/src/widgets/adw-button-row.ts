@@ -127,7 +127,8 @@ export class AdwButtonRow extends AdwActionRow {
     }
 
     /**
-     * A leading Adwaita symbolic SVG string before the centered title (e.g.
+     * The leading icon before the centered title — an Adwaita icon NAME
+     * (`'list-add-symbolic'`) or a symbolic SVG SOURCE string (e.g.
      * `listAddSymbolic`). Empty collapses the icon.
      */
     get startIconName(): string {
@@ -139,7 +140,8 @@ export class AdwButtonRow extends AdwActionRow {
     }
 
     /**
-     * A trailing Adwaita symbolic SVG string after the centered title (e.g.
+     * The trailing icon after the centered title — an Adwaita icon NAME
+     * (`'go-next-symbolic'`) or a symbolic SVG SOURCE string (e.g.
      * `goNextSymbolic`) — `Adw.ButtonRow:end-icon-name`. Empty collapses it.
      */
     get endIconName(): string {

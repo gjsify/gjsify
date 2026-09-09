@@ -17,8 +17,10 @@
 // chrome. Use this for a glyph that sits inside another widget (e.g. the
 // `AdwComboRow` down-chevron); for a tappable icon BUTTON use `AdwImageButton`.
 //
-// Pass an Adwaita symbolic SVG string (e.g. `panDownSymbolic` from
-// `@gjsify/adwaita-icons`) to {@link icon}.
+// {@link iconName} takes an Adwaita icon NAME (`'list-add-symbolic'`, resolved through
+// `icon-theme.ts`' compiled subset) or an Adwaita symbolic SVG SOURCE string (e.g.
+// `panDownSymbolic` from `@gjsify/adwaita-icons`). Both doors, one property — the two
+// grammars are disjoint, and `resolveIconSource` is where that is decided.
 //
 // Reference: refs/libadwaita/src/stylesheet (symbolic icon usage).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -26,6 +28,7 @@
 import { Image } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
+import { resolveIconSource } from './icon-theme.js';
 import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -35,7 +38,11 @@ import { withSignals } from './signals.js';
 export const DEFAULT_GTK_IMAGE_SIZE = 16;
 
 export class GtkImage extends withSignals(Image) {
-    private _iconSvg = '';
+    // The value the CALLER set, name or source, so the getter round-trips it the way
+    // `gtk_image_get_icon_name` returns the name that was set. Resolution happens at
+    // render time instead, which is also what makes a late `registerIcon` visible on the
+    // next re-render rather than frozen at assignment.
+    private _icon = '';
     // Default fill follows the active color scheme (dark fg on light, near-white
     // on dark); an explicit `iconColor` pins it and stops following the theme.
     private _iconColor = themeIconColor();
@@ -82,18 +89,23 @@ export class GtkImage extends withSignals(Image) {
     }
 
     private _render(): void {
-        if (!this._iconSvg) return;
-        const source = renderSymbolicIcon(this._iconSvg, { size: this._iconSize, color: this._iconColor });
+        const svg = resolveIconSource(this._icon);
+        if (!svg) return;
+        const source = renderSymbolicIcon(svg, { size: this._iconSize, color: this._iconColor });
         if (source) this.imageSource = source;
     }
 
-    /** The Adwaita symbolic SVG string to render (e.g. `panDownSymbolic`). */
+    /**
+     * The icon to render: an Adwaita icon NAME (`'list-add-symbolic'`) or an Adwaita
+     * symbolic SVG SOURCE string (e.g. `panDownSymbolic`). A name the compiled subset
+     * does not carry draws the `image-missing` glyph; `''` draws nothing.
+     */
     get iconName(): string {
-        return this._iconSvg;
+        return this._icon;
     }
 
-    set iconName(svg: string) {
-        this._iconSvg = svg ?? '';
+    set iconName(value: string) {
+        this._icon = value ?? '';
         this._render();
     }
 

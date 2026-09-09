@@ -17,10 +17,11 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { avatarIconSize, avatarMode } from '@gjsify/adwaita-core';
 import { AVATAR_ICON_SIZE_VECTORS, AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';
-import { avatarDefaultSymbolic, imageMissingSymbolic } from '@gjsify/adwaita-icons/status';
+import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
 import { extractIconPaths } from './widgets/icon-path.js';
-import { AVATAR_DEFAULT_ICON, avatarIconSvg, avatarViewState, avatarVisibilities } from './widgets/avatar-view.js';
+import { resolveIconSource } from './widgets/icon-theme.js';
+import { AVATAR_DEFAULT_ICON, avatarIcon, avatarViewState, avatarVisibilities } from './widgets/avatar-view.js';
 
 export default async () => {
     await describe('avatarVisibilities (Adw.Avatar update_visibility, adw-avatar.c:117-124)', async () => {
@@ -51,21 +52,30 @@ export default async () => {
         });
     });
 
-    await describe('avatarIconSvg (Adw.Avatar update_icon, adw-avatar.c:192-195)', async () => {
+    await describe('avatarIcon (Adw.Avatar update_icon, adw-avatar.c:192-195)', async () => {
         await it("an unset icon falls back to the default, the way C's NULL icon-name does", () => {
-            expect(avatarIconSvg('')).toBe(AVATAR_DEFAULT_ICON);
-            expect(avatarIconSvg(null)).toBe(AVATAR_DEFAULT_ICON);
-            expect(avatarIconSvg(undefined)).toBe(AVATAR_DEFAULT_ICON);
+            expect(avatarIcon('')).toBe(AVATAR_DEFAULT_ICON);
+            expect(avatarIcon(null)).toBe(AVATAR_DEFAULT_ICON);
+            expect(avatarIcon(undefined)).toBe(AVATAR_DEFAULT_ICON);
         });
 
-        await it('a caller-supplied SVG is passed through unchanged', () => {
-            // The SVG source IS the icon identity on this runtime — there is no
-            // icon-theme name to resolve, and no lookup is attempted.
-            expect(avatarIconSvg(imageMissingSymbolic)).toBe(imageMissingSymbolic);
+        await it('a caller-supplied icon is passed through unchanged', () => {
+            // Whichever door it came through: this function decides only whether the
+            // caller set anything, and `resolveIconSource` at the widget decides what it
+            // was. Both are asserted, because a substitution that swallowed a name would
+            // pass a source-only test.
+            expect(avatarIcon('starred-symbolic')).toBe('starred-symbolic');
+            const svg = '<svg viewBox="0 0 16 16"></svg>';
+            expect(avatarIcon(svg)).toBe(svg);
         });
 
         await it("the default is the icon THEME's asset, not libadwaita's own", () => {
-            expect(AVATAR_DEFAULT_ICON).toBe(avatarDefaultSymbolic);
+            // `adw-avatar-default-symbolic` is libadwaita's own bundled glyph and is
+            // drawn `fill="none"` plus a stroke, which this renderer would FILL into a
+            // solid disc. The theme's `avatar-default` is the same drawing authored as a
+            // fill — so the name is asserted, and so is what it resolves to.
+            expect(AVATAR_DEFAULT_ICON).toBe('avatar-default-symbolic');
+            expect(resolveIconSource(AVATAR_DEFAULT_ICON)).toBe(avatarDefaultSymbolic);
         });
 
         await it('the default icon actually renders — it has fillable path data', () => {
@@ -74,7 +84,7 @@ export default async () => {
             // extracts, so that asset would paint a solid disc. A default whose paths
             // this parser cannot find would be an invisible fallback, which is the
             // failure the whole property is supposed to remove.
-            const paths = extractIconPaths(AVATAR_DEFAULT_ICON);
+            const paths = extractIconPaths(resolveIconSource(AVATAR_DEFAULT_ICON));
             expect(paths.length > 0).toBe(true);
             expect(paths.every((path) => path.d.length > 0)).toBe(true);
             // `null` fill means "take the caller's colour", which is what makes the
@@ -106,7 +116,7 @@ export default async () => {
             expect(state.mode).toBe('icon');
             expect(state.label).toBe('collapse');
             expect(state.icon).toBe('visible');
-            expect(state.iconSvg).toBe(AVATAR_DEFAULT_ICON);
+            expect(state.iconName).toBe(AVATAR_DEFAULT_ICON);
         });
 
         await it('asking for initials switches the label on and the icon off', () => {
@@ -116,9 +126,23 @@ export default async () => {
             expect(state.icon).toBe('collapse');
         });
 
-        await it("a caller's own SVG replaces the default in the icon arm", () => {
-            const state = avatarViewState({ showInitials: false, text: '', iconName: imageMissingSymbolic });
-            expect(state.iconSvg).toBe(imageMissingSymbolic);
+        await it("a caller's own icon replaces the default in the icon arm", () => {
+            // Both doors, because both are things a caller passes: a theme NAME and the
+            // SVG document. The state machine is opaque to the difference — only
+            // `resolveIconSource` at the widget knows which it got.
+            expect(avatarViewState({ showInitials: false, text: '', iconName: 'starred-symbolic' }).iconName).toBe(
+                'starred-symbolic',
+            );
+            const svg = '<svg viewBox="0 0 16 16"></svg>';
+            expect(avatarViewState({ showInitials: false, text: '', iconName: svg }).iconName).toBe(svg);
+        });
+
+        await it('resolves its own default to the Adwaita person glyph', () => {
+            // AVATAR_DEFAULT_ICON is a NAME since the icon theme landed, and a name that
+            // does not resolve draws `image-missing` SILENTLY. So the default is asserted
+            // against the document it has to reach, not against itself: this is the one
+            // assertion that fails if the subset ever loses the entry.
+            expect(resolveIconSource(AVATAR_DEFAULT_ICON)).toBe(avatarDefaultSymbolic);
         });
 
         await it('never reports the image mode, because the port cannot draw one', () => {

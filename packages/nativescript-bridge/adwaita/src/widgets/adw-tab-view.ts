@@ -20,7 +20,8 @@
 // instead. Pages swap by visibility (no slide animation), a `loading` page shows its
 // icon rather than a spinner, and tab drag-and-drop — hence the `dragging` and
 // `is-transferring-page` terms — has no NS analogue. The `icon` slot carries an Adwaita
-// symbolic SVG string rather than a GTK icon name; the model treats it as opaque.
+// icon NAME or a symbolic SVG SOURCE string, either resolved by `icon-theme.ts` at the
+// widget; the model treats it as opaque.
 //
 // Reference: refs/libadwaita/src/adw-tab-view.c (Adw.TabView)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (Adw.TabBar autohide)

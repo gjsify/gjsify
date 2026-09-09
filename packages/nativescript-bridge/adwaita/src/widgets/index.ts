@@ -251,6 +251,24 @@ export { applyConstructProps, nsAlignment } from './construct-props.js';
 export type { ConstructProps } from './construct-props.js';
 export { GTK_ALIGN } from './gtk-align.js';
 
+// --- Icon theme (names) ---
+// Every icon property here takes an Adwaita icon NAME (`'list-add-symbolic'`) or the
+// symbolic SVG SOURCE. `registerIcon` is the door for a glyph outside the compiled
+// subset — the shape `@gjsify/adwaita-web`'s `icon-registry.ts` already has, and for the
+// same measured reason: the whole `@gjsify/adwaita-icons` barrel does not belong in a
+// phone bundle.
+export {
+    ICON_FALLBACK_NAME,
+    compiledIconNames,
+    iconValueKind,
+    isIconAvailable,
+    registerIcon,
+    registeredIconNames,
+    resolveIconSource,
+    unregisterIcon,
+} from './icon-theme.js';
+export type { IconValueKind } from './icon-theme.js';
+
 // --- Icon rendering ---
 // Rasterise an Adwaita symbolic SVG (e.g. from `@gjsify/adwaita-icons`) to a native
 // image — NativeScript has no SVG decoder. `AdwImageButton` uses this internally.

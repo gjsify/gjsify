@@ -37,7 +37,7 @@ import { GtkImage } from './gtk-image.js';
 import type { AdwViewStack } from './adw-view-stack.js';
 import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
-import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
+import { createViewSwitcherBarState } from './view-switcher-model.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -183,7 +183,7 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
             nodes.button.className = model.selected
                 ? 'adw-viewswitcherbar-button active'
                 : 'adw-viewswitcherbar-button';
-            nodes.icon.iconName = nsIconSvg(model.iconName);
+            nodes.icon.iconName = model.iconName;
             nodes.label.text = model.label;
             nodes.badge.text = model.badgeLabel;
             nodes.badge.visibility = model.badgeLabel.length > 0 || model.needsAttention ? 'visible' : 'collapse';

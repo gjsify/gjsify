@@ -36,10 +36,10 @@ import {
     NS_PASSWORD_ENTRY_ROW_CLASS,
     applyEntryRowState,
     applyPasswordEntryRowState,
-    peekIconSvg,
     type EntryRowViews,
     type PasswordEntryRowViews,
 } from './widgets/entry-row-view.js';
+import { resolveIconSource } from './widgets/icon-theme.js';
 
 /** Stand-ins for the NS views the painter drives — the real painter, fake `Label`s. */
 function makeViews(): EntryRowViews {
@@ -226,9 +226,10 @@ export const AdwEntryRowsNsTest = async () => {
                 for (const step of steps) applyPasswordStep(password, state, step);
 
                 expect(passwordViews.field.secure).toBe(!expected.revealed);
-                expect(passwordViews.peekButton.iconName).toBe(
-                    expected.peekIconName === 'view-conceal-symbolic' ? viewConcealSymbolic : viewRevealSymbolic,
-                );
+                // The vector's own NAME, verbatim: the painter no longer translates, so
+                // the assertion is the identity the conformance table already states.
+                // What the name DRAWS is asserted once, below, rather than 14 times here.
+                expect(passwordViews.peekButton.iconName).toBe(expected.peekIconName);
                 // The caps-lock warning lives on the PARENT row — the password
                 // row only pushes `show_indicator` into it (C:57-59).
                 expect(views.indicator.visibility).toBe(visible(entryIndicatorVisible));
@@ -246,12 +247,19 @@ export const AdwEntryRowsNsTest = async () => {
             });
         }
 
-        await it('maps the canonical icon names onto the vendored symbolics', () => {
-            // The core names the icon the way the C does; this is the one place
-            // that turns a name into an asset — the mapping used to exist three
-            // and a half times across the two ports.
-            expect(peekIconSvg('view-reveal-symbolic')).toBe(viewRevealSymbolic);
-            expect(peekIconSvg('view-conceal-symbolic')).toBe(viewConcealSymbolic);
+        await it("hands the peek button the core's canonical icon NAME, unchanged", () => {
+            // The painter used to translate here (`peekIconSvg`), because the port could
+            // not resolve a name. It can, so the translation is gone and the assertion
+            // moved with it: the button gets the NAME the C uses, and the icon theme is
+            // what turns it into the asset. Both halves, or a painter that quietly wrote
+            // the wrong name would pass on a lookup that is correct about nothing.
+            const { password, passwordViews } = makePasswordRow();
+            expect(passwordViews.peekButton.iconName).toBe('view-reveal-symbolic');
+            expect(resolveIconSource(passwordViews.peekButton.iconName)).toBe(viewRevealSymbolic);
+
+            password.setRevealed(true);
+            expect(passwordViews.peekButton.iconName).toBe('view-conceal-symbolic');
+            expect(resolveIconSource(passwordViews.peekButton.iconName)).toBe(viewConcealSymbolic);
         });
     });
 };

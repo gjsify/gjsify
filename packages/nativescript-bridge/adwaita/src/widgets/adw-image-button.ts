@@ -10,8 +10,10 @@
 // {@link attachRowPressFeedback} the activatable rows use (NS only auto-highlights
 // `Button`); the rounded-square shape + flat fill come from the `.adw-image-button` CSS.
 //
-// Pass an Adwaita symbolic SVG string (e.g. `goPreviousSymbolic` from
-// `@gjsify/adwaita-icons`) to {@link icon}. Add a `tap` listener for the click.
+// {@link iconName} takes an Adwaita icon NAME (`'go-previous-symbolic'`, resolved
+// through `icon-theme.ts`' compiled subset) or an Adwaita symbolic SVG SOURCE string
+// (e.g. `goPreviousSymbolic` from `@gjsify/adwaita-icons`). Add a `tap` listener for
+// the click.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.image-button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -19,6 +21,7 @@
 import { GridLayout, Image, ItemSpec } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
+import { resolveIconSource } from './icon-theme.js';
 import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
@@ -31,7 +34,9 @@ export const DEFAULT_ICON_BUTTON_ICON_SIZE = 16;
 export class AdwImageButton extends withSignals(GridLayout) {
     /** The centered icon image. */
     protected readonly _image: Image;
-    private _iconSvg = '';
+    // The value the CALLER set, name or source — see `GtkImage._icon` for why the
+    // resolution is deferred to render time rather than done in the setter.
+    private _icon = '';
     // Default fill follows the active color scheme; an explicit `iconColor` pins it.
     private _iconColor = themeIconColor();
     private _explicitColor = false;
@@ -87,18 +92,23 @@ export class AdwImageButton extends withSignals(GridLayout) {
 
     /** Re-render the icon bitmap from the current svg / colour / size. */
     private _render(): void {
-        if (!this._iconSvg) return;
-        const source = renderSymbolicIcon(this._iconSvg, { size: this._iconSize, color: this._iconColor });
+        const svg = resolveIconSource(this._icon);
+        if (!svg) return;
+        const source = renderSymbolicIcon(svg, { size: this._iconSize, color: this._iconColor });
         if (source) this._image.imageSource = source;
     }
 
-    /** The Adwaita symbolic SVG string to render (e.g. `goPreviousSymbolic`). */
+    /**
+     * The icon to render: an Adwaita icon NAME (`'go-previous-symbolic'`) or an Adwaita
+     * symbolic SVG SOURCE string (e.g. `goPreviousSymbolic`). A name the compiled subset
+     * does not carry draws the `image-missing` glyph; `''` draws nothing.
+     */
     get iconName(): string {
-        return this._iconSvg;
+        return this._icon;
     }
 
-    set iconName(svg: string) {
-        this._iconSvg = svg ?? '';
+    set iconName(value: string) {
+        this._icon = value ?? '';
         this._image.width = this._iconSize;
         this._image.height = this._iconSize;
         this._render();

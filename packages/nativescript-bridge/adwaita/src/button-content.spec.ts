@@ -32,14 +32,15 @@ import {
     buttonContentClassName,
     buttonContentEllipsize,
     buttonContentIconIsFallback,
-    buttonContentIconSvg,
+    buttonContentIcon,
     buttonContentLabelText,
     buttonContentLabelVisibility,
     buttonContentRootedParentClassName,
     buttonContentUnrootedParentClassName,
 } from './widgets/button-content.js';
+import { ICON_FALLBACK_NAME, resolveIconSource } from './widgets/icon-theme.js';
 
-/** A stand-in SVG — the NS port is handed icon SOURCE, not an icon-theme name. */
+/** A stand-in SVG — the port takes icon SOURCE as well as an icon-theme name. */
 const SVG = '<svg viewBox="0 0 16 16"></svg>';
 
 export default async () => {
@@ -94,12 +95,17 @@ export default async () => {
             const svg = iconName === '' ? '' : SVG;
             await it(`${JSON.stringify(iconName)} → fallback ${isFallback} — ${rule}`, () => {
                 expect(buttonContentIconIsFallback(svg)).toBe(isFallback);
-                expect(buttonContentIconSvg(svg)).toBe(isFallback ? imageMissingSymbolic : SVG);
+                expect(buttonContentIcon(svg)).toBe(isFallback ? ICON_FALLBACK_NAME : SVG);
             });
         }
 
         await it('resolves the empty slot to the real image-missing asset', () => {
-            expect(buttonContentIconSvg('').length > 0).toBe(true);
+            // Two steps now, and both are asserted: the empty slot becomes the NAME, and
+            // the name resolves to the vendored document. Asserting only the first would
+            // pass on a name nothing can draw — which is the whole failure mode
+            // `ICON_FALLBACK_NAME` exists to avoid.
+            expect(buttonContentIcon('')).toBe(ICON_FALLBACK_NAME);
+            expect(resolveIconSource(buttonContentIcon(''))).toBe(imageMissingSymbolic);
         });
     });
 

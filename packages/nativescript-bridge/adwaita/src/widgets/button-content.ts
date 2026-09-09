@@ -8,9 +8,11 @@
 //      not have) and take it off again on unroot. NS views hold a space-separated
 //      string rather than a `classList`, so the swap goes through
 //      {@link replaceClasses};
-//   2. the icon FALLBACK: this port is handed SVG SOURCE rather than an icon-theme
-//      name, so it substitutes the `image-missing` asset itself instead of
-//      resolving the name;
+//   2. the icon FALLBACK. C substitutes `image-missing` for an empty `icon-name`, and
+//      so does this — as the NAME, which `icon-theme.ts` resolves at the widget. It
+//      used to substitute the SVG DOCUMENT here, because the port had no name
+//      resolution; that made this module one of four hand-rolled name-to-glyph maps
+//      in the port, and the registry is what retired them;
 //   3. `visibility`, NS's spelling of `gtk_widget_set_visible`.
 //
 // FIDELITY GAP: `can-shrink` is `PANGO_ELLIPSIZE_END` on the label and the NS CSS
@@ -34,8 +36,8 @@ import {
     buttonContentLabelVisible,
 } from '@gjsify/adwaita-core';
 import type { ButtonContentEllipsize } from '@gjsify/adwaita-core';
-import { imageMissingSymbolic } from '@gjsify/adwaita-icons/status';
 import { replaceClasses } from './chrome.js';
+import { ICON_FALLBACK_NAME } from './icon-theme.js';
 
 // Re-exported so `adw-button-content.ts` and its consumers get both halves from one place.
 export { BUTTON_CONTENT_STYLE_CLASS, buttonContentEllipsize, buttonContentLabelText, buttonContentLabelVisible };
@@ -48,21 +50,21 @@ export const BUTTON_CONTENT_CAN_SHRINK_CLASS = 'can-shrink';
 const OWN_CLASSES: readonly string[] = [BUTTON_CONTENT_CAN_SHRINK_CLASS];
 
 /**
- * The SVG the icon view is given: the app's, or the `image-missing` asset for an
- * empty slot — the fallback `init` applies too, while `icon_name` is still `""`.
+ * The icon the icon view is given: the app's, or the `image-missing` NAME for an empty
+ * slot — the fallback `init` applies too, while `icon_name` is still `""`.
  *
  * The C NEVER hides the image, only the label, so this port keeps the icon view
  * parented at all times and swaps its source. Upstream's own doc comments claim the
  * icon is hidden instead; the code disagrees with them and this follows the code
  * (see the conformance vector's `rule`).
  */
-export function buttonContentIconSvg(svg: string): string {
-    return buttonContentIconIsEmpty(svg) ? imageMissingSymbolic : svg;
+export function buttonContentIcon(icon: string): string {
+    return buttonContentIconIsEmpty(icon) ? ICON_FALLBACK_NAME : icon;
 }
 
 /** Whether the icon shown is the empty-slot fallback rather than an app asset. */
-export function buttonContentIconIsFallback(svg: string): boolean {
-    return buttonContentIconIsEmpty(svg);
+export function buttonContentIconIsFallback(icon: string): boolean {
+    return buttonContentIconIsEmpty(icon);
 }
 
 /**

@@ -139,7 +139,7 @@ export class AdwAvatar extends withSignals(GridLayout) {
         this._label.visibility = state.label;
         this._icon.visibility = state.icon;
         // Only when it is on screen: assigning `iconName` rasterises a bitmap.
-        if (state.icon === 'visible') this._icon.iconName = state.iconSvg;
+        if (state.icon === 'visible') this._icon.iconName = state.iconName;
     }
 
     /** The name the initials are derived from, and the colour is hashed from. */
@@ -182,7 +182,8 @@ export class AdwAvatar extends withSignals(GridLayout) {
     }
 
     /**
-     * The fallback icon, as an Adwaita symbolic SVG string (e.g. `contactNewSymbolic`
+     * The fallback icon: an Adwaita icon NAME (`'avatar-default-symbolic'`) or a
+     * symbolic SVG SOURCE string (e.g. `contactNewSymbolic`
      * from `@gjsify/adwaita-icons`) — NOT an icon-theme name, because nothing on this
      * runtime resolves one. Empty falls back to {@link AVATAR_DEFAULT_ICON}, the way an
      * unset `icon-name` falls back to `adw-avatar-default-symbolic` under GTK.
