@@ -121,6 +121,12 @@ export declare function readElfNeeded(file: string): string[] | null;
 export declare function readElfGlibcRequires(file: string): string | null;
 /** Component-wise NUMERIC comparison — `'2.9'` must not sort above `'2.34'`. */
 export declare function compareGlibcVersions(a: string, b: string): number;
+/**
+ * Does GLIBC provide this soname? The ONE predicate, shared by the flavour read
+ * and by the version-need attribution `readElfGlibcRequires` does — a
+ * `GLIBC_2.0` need against `libgcc_s.so.1` is not a glibc floor.
+ */
+export declare function isGlibcSoname(leaf: string): boolean;
 
 /** Which C library an ELF's DT_NEEDED list names; null = libc-agnostic. */
 export type PrebuildLibc = 'glibc' | 'musl';
@@ -129,8 +135,17 @@ export declare function libcFlavourOfNeeded(needed: readonly string[]): Prebuild
 export declare function parsePrebuildTarget(token: string): { os: string; arch: string; libc: 'musl' | null };
 /** The ONE target a build on this host may stage into (write side; exact). */
 export declare function hostPrebuildTarget(platform: string, arch: string, libc?: PrebuildLibc | null): string;
+/**
+ * Can this image load on a musl host? `'musl'` = it IS musl-linked, so it loads
+ * there and nowhere else; `'incompatible'` = the glibc loader is recorded, which
+ * musl cannot supply; `'agnostic'` = no libc soname at all; `'undetermined'` =
+ * glibc-linked with no glibc loader, which only a real `dlopen` on musl settles.
+ */
+export type MuslVerdict = 'incompatible' | 'agnostic' | 'undetermined' | 'musl';
+export declare function muslVerdictOfNeeded(needed: readonly string[]): MuslVerdict;
 export declare function measurePrebuildLibc(dir: string): {
     flavour: PrebuildLibc | null;
+    musl: MuslVerdict;
     glibcRequires: string | null;
     libs: string[];
     mixed: boolean;

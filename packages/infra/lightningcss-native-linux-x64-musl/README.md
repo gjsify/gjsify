@@ -1,14 +1,5 @@
 # @gjsify/lightningcss-native-linux-x64-musl
 
-> **No artifact in this tarball yet.** `linux-x64-musl` is declared by
-> `@gjsify/lightningcss-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-musl` leg builds and verifies it inside alpine:3.24 on a native runner and uploads it; `commit-prebuilds` lands the directory on main and `clear-committed-platform-exemptions.mjs` clears this entry
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/lightningcss-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **linux-x64-musl** native artifacts of [`@gjsify/lightningcss-native`](https://www.npmjs.com/package/@gjsify/lightningcss-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
