@@ -439,10 +439,7 @@ function componentWindows(root) {
     // rather than tolerated: an identifier that resolves to nothing is reported below,
     // where a plain quoted-literal read would have silently found one slot fewer.
     const constants = new Map(
-        [...text.matchAll(/\bconst ([A-Z][A-Z0-9_]*) = '([a-z][a-z0-9-]*)';/g)].map(([, name, value]) => [
-            name,
-            value,
-        ]),
+        [...text.matchAll(/\bconst ([A-Z][A-Z0-9_]*) = '([a-z][a-z0-9-]*)';/g)].map(([, name, value]) => [name, value]),
     );
     // The type annotation on the declaration carries its own `[` and `slot: string`,
     // and neither is matched: the array opens at the ` = [` after it, and a slot is a
@@ -496,8 +493,7 @@ function componentWindows(root) {
         unresolved,
         markupSlot: constants.get('MARKUP_SLOT') ?? null,
         override: constants.get('MARKUP_OVERRIDE') ?? null,
-        corpus:
-            corpus === null ? null : [...corpus[1].matchAll(/^\s+([a-z][a-z0-9-]*):/gm)].map(([, slot]) => slot),
+        corpus: corpus === null ? null : [...corpus[1].matchAll(/^\s+([a-z][a-z0-9-]*):/gm)].map(([, slot]) => slot),
     };
 }
 
@@ -1358,7 +1354,7 @@ for (const window of windows) {
     if (window.title !== null || window.live) continue;
     failures.push(
         `${WIDGET_COMPONENT} declares the window "${window.id}" with no title this reader can see, and\n` +
-            '    it does not run the widget. Only the live window is untitled (it takes the widget\'s own\n' +
+            "    it does not run the widget. Only the live window is untitled (it takes the widget's own\n" +
             '    title), so either the title read is broken for this window or the window is unnamed — and\n' +
             '    arm 10 cannot hold a page against a window title it never saw.',
     );

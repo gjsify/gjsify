@@ -324,11 +324,7 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
             // `<Control>C` still matches the `&lt;Control&gt;C` it was read from.
             const encoded = value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
             if (!markup.includes(value) && !markup.includes(encoded)) {
-                fail(
-                    `${page} — <${tag}> \`${name}\``,
-                    'a value present in the preview fence',
-                    JSON.stringify(value),
-                );
+                fail(`${page} — <${tag}> \`${name}\``, 'a value present in the preview fence', JSON.stringify(value));
             }
         }
     }
