@@ -55,3 +55,24 @@ export const menuNotAList = <adw-split-button menuModel={{ label: 'Save as…' }
 /** A property that is not a `GMenuModel` is NOT widened — the overlay is a name list. */
 // @ts-expect-error TS2322 — `label` is a string, and no menu model widens it
 export const labelNotAMenu = <adw-split-button label={[{ label: 'Save as…' }]} />;
+
+/** A list model is an ARRAY, not one item — the same shape as the menu negative above. */
+// @ts-expect-error TS2353 — model takes a list, or a real Gio.ListModel; a descriptor's keys exist on neither
+export const listNotAnArray = <adw-combo-row model={{ value: 'a', label: 'A' }} />;
+
+/**
+ * `model` is widened by the property's TYPE, not by its name.
+ *
+ * `Gtk.ListView:model` is a `Gtk.SelectionModel`, which a `Gtk.StringList` is not, so
+ * the portable form is a compile error here — and, for a caller that reaches the host
+ * untyped, a refusal by name at runtime (`list-model-mismatch`). One keying, two layers.
+ */
+// @ts-expect-error TS2740 — GtkListView.model is a Gtk.SelectionModel and is not widened, so string[] lacks its members
+export const listViewNotWidened = <gtk-list-view model={['a', 'b']} />;
+
+/**
+ * A bare number is NOT an adjustment (ADR 0047 § 1): it would be the value, and `value`
+ * is a property of its own on every widget that takes an adjustment.
+ */
+// @ts-expect-error TS2322 — adjustment takes an object of the six numbers, or a real Gtk.Adjustment
+export const adjustmentNotANumber = <adw-spin-row adjustment={5} />;

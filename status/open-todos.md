@@ -4881,49 +4881,15 @@ probes — at minimum "drop `jsxImportSource` and every negative evaporates" and
 its probes is the checked-nothing shape that whole script exists to refuse, which
 is why it is tracked here instead of half-added.
 
-### A portable list model reaches every renderer except GTK
-
-ADR 0046 gave the list the portable value form ADR 0042 gave the menu —
-`AdwListModelInput`, accepted by `@gjsify/adwaita-web`,
-`@gjsify/adwaita-nativescript` and `@gjsify/adwaita-react-native` under one name,
-`model`. What it did NOT build is the seam ADR 0042 § 8 built for the menu:
-`packages/framework/gtk-host/src/props.ts`' `coerce` has a `GMenuModel` branch
-turning an authored array into a real `Gio.Menu`, and no branch turning one into
-a `Gtk.StringList` for a `Gio.ListModel`-typed property.
-
-Left out on purpose and not for lack of a design: `packages/framework/gtk-host/**`
-was being reworked concurrently by two other changes, so a speculative edit there
-would have landed as a merge conflict rather than as a feature. Nothing measured
-says the branch is hard — it is the same ParamSpec test beside the enum one, and
-`packages/framework/adwaita-react-native/src/widgets/combo-row.gtk.tsx` already
-builds the `Gtk.StringList` by hand for exactly this property, so the conversion
-exists and is simply not at the seam.
-
-What it costs while it is open, measured by `scripts/check-generated-website-data.mjs`:
-`Adw.ComboRow` and `Gtk.DropDown` stay refused in the website gallery, so the two
-list widgets carry no Solid/Vue/React snippet. Their refusal reasons now name the
-seam rather than the value — "nothing turns the portable list form into one at the
-ParamSpec seam" — which is the half that is still true.
-
-Closing it is three things: the `coerce` branch, the `dependencies` edge from
-`@gjsify/gtk-host` (tier 3) onto `@gjsify/adwaita-core` (tier 2) that ADR 0042
-already established, and the two gallery trees with their probes. Whether
-`ListController.setRows` should widen to take an `AdwListModel` at the same time is
-part of the same decision — `@gjsify/gtk-host/list` is a published subpath and
-`@gjsify/react-native` consumes it.
-
-**A THIRD portable value now waits on the same seam.** ADR 0047 gave the numeric
-range one (`AdwAdjustment`, `adjustment` on all four surfaces), and `coerce` has no
-branch turning it into a `Gtk.Adjustment` either — a caller writing
-`<adw-spin-row adjustment={…}>` in gtk-host JSX still constructs the real GObject.
-That conversion is written and working one package over
-(`packages/framework/adwaita-react-native/src/widgets/spin-row.gtk.tsx`), exactly as
-the list's is, so the same sentence applies: the conversion exists and is simply not
-at the seam. Three values waiting on one branch is the argument for building it.
-
 ### The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix
 
-The other half of #1524, and it is deliberately NOT what ADR 0046 built.
+The other half of #1524, and it is deliberately NOT what ADR 0046 built — nor what its
+§ Amendment built. The seam half, the `coerce` branch that turns the portable list model
+into a `Gtk.StringList` for the widgets that HAVE a `model` property, landed with that
+amendment (`Adw.ComboRow` and `Gtk.DropDown` carry their framework snippets now, and
+`Adw.SpinRow` with the adjustment's), and the entry that tracked it is gone. This entry is
+the other half and stays open on purpose: a curated descriptor per widget, driven by a real
+window, which no value seam can substitute for.
 
 A list `model` property exists on five GTK widget interfaces
 (`AdwComboRow`, `GtkDropDown`, `GtkColumnView`, `GtkGridView`, `GtkListView` —

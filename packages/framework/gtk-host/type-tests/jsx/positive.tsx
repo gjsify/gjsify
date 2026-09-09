@@ -99,3 +99,23 @@ export const menus = (
         <gtk-entry extra-menu={[{ label: 'Paste', action: 'app.paste' }]} />
     </gtk-box>
 );
+
+/**
+ * A LIST and a RANGE written as values (ADR 0046, ADR 0047) — the two siblings of the
+ * menu above, on the same ParamSpec seam.
+ *
+ * `model` is widened ONLY where the property's own type is a `Gio.ListModel`
+ * (`negative-props.tsx` holds `<gtk-list-view>` to that — its `model` is a
+ * `Gtk.SelectionModel`), and every adjustment spelling where it is a `Gtk.Adjustment`.
+ * Both input forms of the list are legal on purpose: the bare-string shorthand and the
+ * `{ value, label }` descriptor; an adjustment is any SUBSET of the six numbers.
+ */
+export const values = (
+    <adw-preferences-group>
+        <adw-combo-row title="Accent colour" model={['Blue', 'Teal']} selected={1} />
+        <gtk-drop-down model={[{ value: 'a', label: 'Always' }, 'Never']} />
+        <adw-spin-row title="Font size" adjustment={{ lower: 0, upper: 100, value: 16 }} />
+        {/* The scrollable spellings are widened too, and an empty object is the shared default. */}
+        <gtk-scrolled-window hadjustment={{ upper: 1000, pageSize: 200 }} vadjustment={{}} />
+    </adw-preferences-group>
+);

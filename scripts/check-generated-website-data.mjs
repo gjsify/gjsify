@@ -44,6 +44,11 @@
 //      descriptor) and is actually PROBED, and every placement the probe measures is
 //      either a gallery refusal or ledgered in the probe itself. Nothing held the two
 //      lists against each other, so a stale claim and an unmeasured one both read green.
+//   5c. Every refusal that names a GType names one the ParamSpec seam does NOT convert —
+//      read out of `coerce` in `gtk-host/src/props.ts`, the other file a refusal can go
+//      stale against. Three refusals stood for a release after ADR 0046/0047 gave their
+//      values a portable form, because 5b watches the descriptor table and nothing
+//      watched the seam.
 //   6. Every snippet the website ships occurs, line for line, in the probe showcase
 //      that COMPILES AND RUNS it. Both come from one generator run, so today they
 //      cannot disagree — and that is exactly why it is worth asserting: the day a
@@ -535,6 +540,71 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
                 'each uncurated-placement refusal measured',
         );
     }
+    // ---------------------------------------------------------------------------
+    // 5c. a refusal naming a GType the ParamSpec seam converts is stale
+    // ---------------------------------------------------------------------------
+    //
+    // The third kind of refusal reason, after `uncurated-placement` (5b) and the
+    // NativeScript member reasons (8): "its model is a Gio.ListModel, and nothing turns
+    // the portable list form into one at the ParamSpec seam" — a claim about `coerce` in
+    // `gtk-host/src/props.ts`, a different file from the descriptor table, moving on a
+    // different schedule. ADR 0042 gave the menu its branch and the two menu refusals
+    // were retired BY HAND; ADR 0046 and 0047 gave the list and the adjustment their
+    // values, their three refusals stood for a release with half their reason gone, and
+    // nothing read them.
+    //
+    // THE A/B THAT WROTE THIS ARM: with the list and adjustment branches in `coerce` and
+    // the three refusals still in the ledger, this arm printed three failures — one per
+    // block — before the trees replacing them existed. That is the shape a stale refusal
+    // takes, and the one 5b already refuses for the descriptor table.
+    //
+    // A GType `coerce` converts is one that appears in a `type_is_a` test there, in
+    // either position: the property's type (`type_is_a(valueType, Gio.ListModel.$gtype)`)
+    // or the type the branch BUILDS (`type_is_a(Gtk.StringList.$gtype, valueType)`). Both
+    // are the seam knowing the type, so a refusal naming either is one the seam answers.
+    // Plain Node cannot ask a typelib whether `Gtk.StringList` IS a `Gio.ListModel`, which
+    // is why the built type counts too — the DropDown refusal named the built type and
+    // the ComboRow refusal the property's, and one predicate has to catch both.
+    const coerceSrc = readOr('props.ts');
+    if (coerceSrc === null) {
+        failures.push('gtk-host/src/props.ts is unreadable — arm 5c would pass vacuously');
+    } else {
+        const converted = new Set(
+            [...coerceSrc.matchAll(/type_is_a\(\s*(?:valueType,\s*)?(Gio|Gtk|Adw|GObject)\.(\w+)\.\$gtype/g)].map(
+                (m) => `${m[1]}.${m[2]}`,
+            ),
+        );
+        if (converted.size === 0) {
+            failures.push(
+                'coerce in gtk-host/src/props.ts reads as converting NO GType — the branch shape changed and arm 5c is blind',
+            );
+        }
+        // A dotted GType in prose — `Gio.ListModel`, `Gtk.Adjustment`. The block's own title
+        // (`Adw.ComboRow`) has the same shape and is not a claim about a value, so it is
+        // filtered out by name rather than by a looser pattern.
+        const GTYPE_MENTION = /\b(Gio|Gtk|Adw|GObject)\.([A-Z]\w+)\b/g;
+        for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_REFUSALS)) {
+            const named = [...reason.matchAll(GTYPE_MENTION)]
+                .map((m) => `${m[1]}.${m[2]}`)
+                .filter((name) => name !== widget);
+            if (/ParamSpec seam/.test(reason) && named.length === 0) {
+                failures.push(
+                    `"${widget}" blames the ParamSpec seam and names no GType, so nothing can hold the claim. ` +
+                        'Name the type the seam lacks a branch for.',
+                );
+            }
+            for (const gtype of named) {
+                if (!converted.has(gtype)) continue;
+                failures.push(
+                    `"${widget}" is refused because its value is a ${gtype} with no literal spelling, and coerce in ` +
+                        `packages/framework/gtk-host/src/props.ts converts a ${gtype} now. The refusal is stale — ` +
+                        'that block can have a tree.',
+                );
+            }
+        }
+        notes.push(`${converted.size} GType(s) the ParamSpec seam converts, held against every refusal reason`);
+    }
+
     notes.push(
         `${ADWAITA_GALLERY_TREES.length} framework tree(s), ` +
             `${Object.keys(ADWAITA_GALLERY_REFUSALS).length} refusal(s), against ${hostTags.size} gtk-host tag(s)`,

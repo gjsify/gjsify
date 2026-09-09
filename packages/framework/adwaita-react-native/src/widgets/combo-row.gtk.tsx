@@ -9,15 +9,21 @@
 // `model` into `{value,label}` pairs here as well, so a bare string means the same thing on
 // both halves.
 //
+// THE `Gtk.StringList` IS NOT BUILT HERE ANY MORE. This file used to construct it by hand,
+// which was the conversion ADR 0046 § 7 described as existing "one package over" and not at
+// the seam. `@gjsify/gtk-host`'s `coerce` turns the portable list model into the real model
+// at the ParamSpec seam now (ADR 0046 § Amendment), so this half hands the array through and
+// imports no `gi://` at all — the second copy is where the helper got lifted.
+//
 // THE MODEL IS MEMOISED, AND THAT IS NOT AN OPTIMISATION. `@gjsify/gtk-host` patches a
-// property only when the prop CHANGES, and a freshly constructed `Gtk.StringList` is a new
-// value on every render — so an unmemoised model would be written on every parent re-render,
-// and `adw_combo_row_set_model` resets the selection through `gtk_single_selection_set_model`
-// each time. The key is the LABELS joined, not the array identity, because an inline
-// `model={['a','b']}` literal is a new array on every render too and is the ordinary way to
-// write this. `preferences.gtk.spec.tsx` re-renders a row with an unrelated prop changed and
-// asserts the selection survives; without the memo that assertion fails, which is what makes
-// this paragraph a rule and not a preference.
+// property only when the prop CHANGES BY IDENTITY, and the seam builds a NEW `Gtk.StringList`
+// for every array it is handed — so an unmemoised model would be written on every parent
+// re-render, and `adw_combo_row_set_model` resets the selection through
+// `gtk_single_selection_set_model` each time. The key is the LABELS joined, not the array
+// identity, because an inline `model={['a','b']}` literal is a new array on every render too
+// and is the ordinary way to write this. `preferences.gtk.spec.tsx` re-renders a row with an
+// unrelated prop changed and asserts the selection survives; without the memo that assertion
+// fails, which is what makes this paragraph a rule and not a preference.
 //
 // `GTK_INVALID_LIST_POSITION` IS TRANSLATED ON THE WAY OUT. `AdwComboRow:selected` is a
 // `guint`, so "nothing selected" reads back as 4294967295; `@gjsify/adwaita-core` spells the
@@ -26,7 +32,6 @@
 // spellings across the two halves — the exact shape `normalizeClampSize` exists to remove on
 // `AdwClamp`.
 
-import Gtk from 'gi://Gtk?version=4.0';
 import type Adw from 'gi://Adw?version=1';
 import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 
@@ -58,16 +63,15 @@ export function AdwComboRow({
 }: AdwComboRowProps): ReactElement | null {
     const row = useRef<Adw.ComboRow | null>(null);
 
-    // `Gtk.StringList` and not a `Gtk.StringObject` list: `Adw.ComboRow`'s default
-    // `expression` reads `GtkStringObject:string`, so a string list is the model that needs
-    // no factory and no expression — which is what keeps this half's surface as small as the
-    // core's.
-    const labels = normalizeComboOptions(model).map((option) => option.label);
+    // Normalised HERE so the memo key is the labels the seam will draw; the seam normalises
+    // again, idempotently, which is what lets one door serve the authored and the normalised
+    // form alike.
+    const options = normalizeComboOptions(model);
     // A separator that cannot occur in an authored label. Joining on a space would give
     // `['a b']` and `['a', 'b']` the same key, and the second model would never reach the
     // widget.
-    const key = labels.join('\u0001');
-    const strings = useMemo(() => new Gtk.StringList({ strings: labels }), [key]);
+    const key = options.map((option) => option.label).join('\u0001');
+    const items = useMemo(() => options, [key]);
 
     const notifySelected = useCallback(() => {
         const current = row.current;
@@ -79,7 +83,7 @@ export function AdwComboRow({
             ref={row}
             title={title}
             subtitle={subtitle}
-            model={strings}
+            model={items}
             selected={selected}
             use-subtitle={useSubtitle}
             onNotifySelected={onNotifySelected === undefined ? undefined : notifySelected}

@@ -69,6 +69,40 @@ export const err = {
                 `and no diagnostic, so the host refuses here while a refusal is still reportable. ` +
                 `A detailed action name is "app.act", "app.act::target" or "app.act(variant)".`,
         ),
+    badListModel: (tag: string, prop: string, got: string) =>
+        new GtkHostError(
+            'bad-list-model',
+            `<${tag}>.${prop} is a Gio.ListModel and got ${got}. Write the portable list model — an array ` +
+                `of strings or of { value, label } descriptors (ADR 0046) — or a real Gio.ListModel. Anything ` +
+                `else reaches set_property as a value GObject cannot store: a CRITICAL at exit 0 and an EMPTY ` +
+                `list, which a reader cannot tell from "no items yet".`,
+        ),
+    /**
+     * A list-shaped property the portable list model cannot satisfy.
+     *
+     * `Gtk.ListView:model` is a `Gtk.SelectionModel`, which IS a `Gio.ListModel` — so a
+     * branch keyed on the ParamSpec's list-ness alone would build a `Gtk.StringList`
+     * for it, and `set_property` would refuse the write with a CRITICAL at exit 0,
+     * leaving the view empty. The second test in `coerce` asks whether the property can
+     * HOLD what the branch builds; where it cannot, this names the type GTK wants.
+     */
+    listModelMismatch: (tag: string, prop: string, gtypeName: string) =>
+        new GtkHostError(
+            'list-model-mismatch',
+            `<${tag}>.${prop} is a ${gtypeName}, and the portable list model becomes a Gtk.StringList — a ` +
+                `Gio.ListModel, not a ${gtypeName}. GObject would refuse that write with a CRITICAL at exit 0 ` +
+                `and leave the widget empty. Wrap it yourself (Gtk.NoSelection.new(new Gtk.StringList({ strings }))), ` +
+                `or use @gjsify/gtk-host/list for a factory-driven view.`,
+        ),
+    badAdjustment: (tag: string, prop: string, got: string) =>
+        new GtkHostError(
+            'bad-adjustment',
+            `<${tag}>.${prop} is a Gtk.Adjustment and got ${got}. Write the portable adjustment — an object ` +
+                `naming any of value, lower, upper, stepIncrement, pageIncrement, pageSize (ADR 0047) — or a ` +
+                `real Gtk.Adjustment. A bare number is refused on purpose: it would be the value, and value ` +
+                `is a property of its own on every widget that takes an adjustment, so ${prop}={3} and ` +
+                `value={3} would be two spellings of one write.`,
+        ),
     badEnum: (tag: string, prop: string, nick: string, gtypeName: string) =>
         new GtkHostError(
             'bad-enum',

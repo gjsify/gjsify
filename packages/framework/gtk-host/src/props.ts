@@ -11,7 +11,9 @@ import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
 import Pango from 'gi://Pango?version=1.0';
 
+import { buildAdjustment, isPortableAdjustment } from './adjustment.js';
 import { err } from './errors.js';
+import { buildStringList, isPortableListModel } from './list-model.js';
 import { buildGioMenu, isPortableMenu } from './menu.js';
 import type { WidgetDescriptor } from './types.js';
 
@@ -139,6 +141,9 @@ export function enumMembers(gtypeName: string): string[] | undefined {
     return undefined;
 }
 
+/** What a refusal calls the value it got — the kind with its article, so the sentence reads. */
+const kindOf = (value: unknown): string => (Array.isArray(value) ? 'an array' : `a ${typeof value}`);
+
 /**
  * Turn an authored value into one GObject will actually store.
  *
@@ -162,6 +167,36 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
     // path every existing application uses is untouched.
     if (GObject.type_is_a(valueType, Gio.MenuModel.$gtype) && isPortableMenu(value)) {
         return buildGioMenu(value);
+    }
+
+    // A `Gio.ListModel` property authored as an ARRAY is the portable list model (ADR
+    // 0046), and this is where it becomes a real `Gtk.StringList`. TWO ParamSpec facts
+    // decide it, and neither is the property's NAME: `model` is also what `Gtk.ListView`
+    // calls its `Gtk.SelectionModel`, which IS a `Gio.ListModel` — so the first test
+    // alone would build a string list for it and `set_property` would refuse the write
+    // with a CRITICAL at exit 0, the view left empty. The second test asks whether the
+    // property can HOLD what this branch builds, and where it cannot the refusal names
+    // the type GTK wants. A real `Gio.ListModel` passes straight through, as the menu
+    // does above; a string or an object is refused by name, because the total
+    // normaliser would have turned either into an EMPTY list without a word.
+    if (GObject.type_is_a(valueType, Gio.ListModel.$gtype) && !(value instanceof GObject.Object)) {
+        if (!isPortableListModel(value)) throw err.badListModel(tag, spec.get_name(), kindOf(value));
+        if (!GObject.type_is_a(Gtk.StringList.$gtype, valueType)) {
+            throw err.listModelMismatch(tag, spec.get_name(), GObject.type_name(valueType));
+        }
+        return buildStringList(value);
+    }
+
+    // A `Gtk.Adjustment` property authored as an OBJECT is the portable adjustment (ADR
+    // 0047), and this is where it becomes a real `Gtk.Adjustment` — for all seven
+    // interfaces that carry one, keyed on the ParamSpec and not on `adjustment` /
+    // `hadjustment` / `vadjustment`. A bare NUMBER is refused by name rather than read as
+    // the value: `value` is a property of its own on every one of those widgets, and the
+    // one thing GObject would do with the number is guess a GType for it and store
+    // nothing, at exit 0.
+    if (GObject.type_is_a(valueType, Gtk.Adjustment.$gtype) && !(value instanceof GObject.Object)) {
+        if (!isPortableAdjustment(value)) throw err.badAdjustment(tag, spec.get_name(), kindOf(value));
+        return buildAdjustment(value);
     }
 
     if (GObject.type_is_a(valueType, GObject.TYPE_ENUM) && typeof value === 'string') {

@@ -160,7 +160,10 @@ export const gtypeOfTag = (tag) => {
  *
  * Object entries are what the portable menu model needs (ADR 0042): `menuModel` takes a
  * list of `{ label, action }` descriptors, and before it there was no snippet at all —
- * a `GMenuModel` has no literal spelling, which is exactly what the refusal said.
+ * a `GMenuModel` has no literal spelling, which is exactly what the refusal said. A
+ * bare OBJECT is the portable adjustment (ADR 0047), `adjustment={{ lower, upper }}`,
+ * and takes the same writer for the same reason: `JSON.stringify` would double-quote
+ * its keys inside a Vue attribute.
  */
 function jsLiteral(value, pad = '') {
     if (typeof value === 'string') return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
@@ -191,15 +194,18 @@ function jsLiteral(value, pad = '') {
 function jsxAttr(name, value, pad = '') {
     if (typeof value === 'string') return `${name}=${JSON.stringify(value)}`;
     if (value === true) return name;
-    if (Array.isArray(value)) return `${name}={${jsLiteral(value, pad)}}`;
+    if (isLiteralValue(value)) return `${name}={${jsLiteral(value, pad)}}`;
     return `${name}={${JSON.stringify(value)}}`;
 }
+
+/** An array or a plain object — the two value shapes `jsLiteral` writes rather than `JSON.stringify`. */
+const isLiteralValue = (value) => Array.isArray(value) || (value !== null && typeof value === 'object');
 
 /** One attribute, in a Vue template: kebab-case, and `:` for anything not a string. */
 function vueAttr(name, value, pad = '') {
     const attr = kebab(name);
     if (typeof value === 'string') return `${attr}=${JSON.stringify(value)}`;
-    if (Array.isArray(value)) return `:${attr}="${jsLiteral(value, pad)}"`;
+    if (isLiteralValue(value)) return `:${attr}="${jsLiteral(value, pad)}"`;
     return `:${attr}="${JSON.stringify(value)}"`;
 }
 
@@ -412,6 +418,42 @@ function menuMatches(actual: unknown, expected: unknown): boolean {
     return true;
 }
 
+/**
+ * A \`Gio.ListModel\` property against the portable list model the tree declares (ADR 0046).
+ *
+ * The declared value is an ARRAY and what the widget holds is a \`Gtk.StringList\`, so
+ * \`!==\` would fail every time. Compared item by item on the ONE string a
+ * \`Gtk.StringObject\` carries — the label, which is what the widget draws — so the
+ * assertion is that the array became a real model, not that it was accepted.
+ */
+function listMatches(actual: unknown, expected: unknown): boolean {
+    const model = actual as Gtk.StringList | null;
+    const declared = expected as Array<string | { label?: string; value?: string }>;
+    if (!(model instanceof Gtk.StringList)) return false;
+    if (model.get_n_items() !== declared.length) return false;
+    for (let i = 0; i < declared.length; i += 1) {
+        const item = declared[i];
+        const label = typeof item === 'string' ? item : (item.label ?? item.value);
+        if (model.get_string(i) !== label) return false;
+    }
+    return true;
+}
+
+/**
+ * A \`Gtk.Adjustment\` property against the portable adjustment the tree declares (ADR 0047).
+ *
+ * Every field the tree AUTHORED must read back off the real adjustment; a field it left
+ * out is the core's default and not the tree's claim.
+ */
+function adjustmentMatches(actual: unknown, expected: unknown): boolean {
+    if (!(actual instanceof Gtk.Adjustment)) return false;
+    const held = actual as unknown as Record<string, unknown>;
+    for (const [field, value] of Object.entries(expected as Record<string, number>)) {
+        if (held[field] !== value) return false;
+    }
+    return true;
+}
+
 /** Does the REAL widget carry every property the tree declares? */
 function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefined): boolean {
     for (const [name, expected] of Object.entries(props ?? {})) {
@@ -422,6 +464,14 @@ function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefin
         }
         if (name === 'menuModel') {
             if (!menuMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
+            continue;
+        }
+        if (name === 'model') {
+            if (!listMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
+            continue;
+        }
+        if (name === 'adjustment') {
+            if (!adjustmentMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
             continue;
         }
         const actual = (widget as unknown as Record<string, unknown>)[name];
