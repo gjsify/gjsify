@@ -260,3 +260,51 @@ a lexical scanner that knows strings, template holes and regex literals, keeps
 every non-comment byte and every line boundary, and hides 0 code lines. Its
 self-test runs on IMPORT, with one vector per shape, so every consumer inherits
 the proof. Do not write a ninth copy; import it.
+
+## A documentation surface written by hand, once per page
+
+**Rule: a surface a reader has to be able to enumerate — every attribute, every
+token, every tag — is READ from the thing that defines it and rendered from data.
+A page that describes it in prose describes whatever the author remembered.**
+
+Measured 2026-08-23 across the 37 `<AdwWidget>` blocks that join to a custom
+element: of the attributes those elements observe, **110 were named somewhere on
+their page and 54 were not**. Whole visual surfaces were missing — all four of
+`<adw-toolbar-view>`'s (`top-bar-style`, `bottom-bar-style`, and both
+`extend-content-to-*-edge`) appeared nowhere on the site, and
+`<adw-overlay-split-view>` was short eight, including the `breakpoint` that makes
+the adaptive collapse its own section is about happen at all. Nothing could see
+it: no script read an `observedAttributes` literal, and no script read an
+attribute name out of an `.mdx`.
+
+**A generated surface still has two ways to be empty, and only one of them used
+to be checked.** The generated pane was rendered where the block's title resolved
+to a registered element, so a title resolving to NO element failed loudly, while a
+title resolving to an element that observes NOTHING was counted and waved
+through. `<adw-wrap-box>` was the second kind: 14 attributes its own
+`attributeChangedCallback` serves, read as none because the reader could not see a
+`return [...PROPERTY_ATTRIBUTES];`, and one gallery block shipped paneless while
+looking documented. The check printed its own contradiction — *"40 gallery
+block(s), 38 rendering a generated attribute table, 1 exemption(s)"* — at exit 0.
+"This widget has no attributes" and "I could not find this widget" render
+identically, so a generator's reader needs a floor per widget, not per run.
+
+The pane itself was retired with the gallery's window model: it said what a
+reader PASSES and not what any of it MEANS, which is too little to hold a tab on
+39 blocks, and attribute meaning moves into the HTML fence as inline comments
+sourced from the GIR property docs instead. The
+measurements stay here because the RULE outlived the pane — `adwaita-tokens.ts`,
+the framework snippets and the NativeScript templates are all the same shape, and
+each one exists because a hand-written version of it drifted.
+
+## A `:global()` selector inside an `is:global` block
+
+**Rule: inside `<style is:global>` the selectors are already global. Wrapping one
+in `:global(…)` there emits the pseudo-class LITERALLY.**
+
+Measured on the built site: a rule written as `:global(.adw-widget-attrs) { … }`
+inside an `is:global` block survived the build as exactly that string in the
+emitted CSS — a selector matching nothing, on a pane that still rendered, so the
+page looked unstyled rather than broken and nothing in the build said a word.
+Astro strips `:global()` only in a SCOPED style block, where it is the escape
+hatch; in a global one there is nothing to escape from.
