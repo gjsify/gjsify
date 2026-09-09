@@ -81,17 +81,19 @@ export const err = {
      * A list-shaped property the portable list model cannot satisfy.
      *
      * `Gtk.ListView:model` is a `Gtk.SelectionModel`, which IS a `Gio.ListModel` — so a
-     * branch keyed on the ParamSpec's list-ness alone would build a `Gtk.StringList`
-     * for it, and `set_property` would refuse the write with a CRITICAL at exit 0,
-     * leaving the view empty. The second test in `coerce` asks whether the property can
-     * HOLD what the branch builds; where it cannot, this names the type GTK wants.
+     * branch keyed on the ParamSpec's list-ness alone would build a `Gtk.StringList` for
+     * it, and GObject's answer to that is SILENCE (measured, GTK 4.22.4): `set_property`
+     * transforms an object of the wrong type into NULL and logs nothing, so the view is
+     * empty at exit 0 and not even the diagnostics gate reports it. The second test in
+     * `coerce` asks whether the property can HOLD what the branch builds; where it
+     * cannot, this names the type GTK wants.
      */
     listModelMismatch: (tag: string, prop: string, gtypeName: string) =>
         new GtkHostError(
             'list-model-mismatch',
             `<${tag}>.${prop} is a ${gtypeName}, and the portable list model becomes a Gtk.StringList — a ` +
-                `Gio.ListModel, not a ${gtypeName}. GObject would refuse that write with a CRITICAL at exit 0 ` +
-                `and leave the widget empty. Wrap it yourself (Gtk.NoSelection.new(new Gtk.StringList({ strings }))), ` +
+                `Gio.ListModel, not a ${gtypeName}. GObject would turn that write into NULL without a diagnostic ` +
+                `and leave the widget empty at exit 0. Wrap it yourself (Gtk.NoSelection.new(new Gtk.StringList({ strings }))), ` +
                 `or use @gjsify/gtk-host/list for a factory-driven view.`,
         ),
     badAdjustment: (tag: string, prop: string, got: string) =>

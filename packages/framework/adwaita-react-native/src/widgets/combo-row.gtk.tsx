@@ -5,8 +5,8 @@
 // `ComboState` IS NOT USED HERE, the same way `clamp.gtk.tsx` does not run `clampAllocate`:
 // the core's port of the selection model is for a renderer with no libadwaita, and running
 // both would give the row two authorities for which item is selected. What the core DOES own
-// on this path is the option vocabulary — `normalizeComboOptions` is what turns the authored
-// `model` into `{value,label}` pairs here as well, so a bare string means the same thing on
+// on this path is the option vocabulary — the seam runs `normalizeComboOptions` over the
+// authored `model` exactly as the native half does, so a bare string means the same thing on
 // both halves.
 //
 // THE `Gtk.StringList` IS NOT BUILT HERE ANY MORE. This file used to construct it by hand,
@@ -15,15 +15,14 @@
 // at the ParamSpec seam now (ADR 0046 § Amendment), so this half hands the array through and
 // imports no `gi://` at all — the second copy is where the helper got lifted.
 //
-// THE MODEL IS MEMOISED, AND THAT IS NOT AN OPTIMISATION. `@gjsify/gtk-host` patches a
-// property only when the prop CHANGES BY IDENTITY, and the seam builds a NEW `Gtk.StringList`
-// for every array it is handed — so an unmemoised model would be written on every parent
-// re-render, and `adw_combo_row_set_model` resets the selection through
-// `gtk_single_selection_set_model` each time. The key is the LABELS joined, not the array
-// identity, because an inline `model={['a','b']}` literal is a new array on every render too
-// and is the ordinary way to write this. `preferences.gtk.spec.tsx` re-renders a row with an
-// unrelated prop changed and asserts the selection survives; without the memo that assertion
-// fails, which is what makes this paragraph a rule and not a preference.
+// THE MODEL IS NOT MEMOISED ANY MORE, AND THE REASON IS THE SEAM'S. This file carried a
+// content-keyed `useMemo` because a new `Gtk.StringList` per render reset the selection
+// through `gtk_single_selection_set_model`, and an inline `model={['a','b']}` literal IS a new
+// array on every render. The seam now splices a list it built rather than replacing it, and
+// answers an equal array with no write at all (`gtk-host/src/list-model.ts` has the
+// measurement), so the workaround went home to the core. `preferences.gtk.spec.tsx` still
+// re-renders a row with an unrelated prop changed and asserts the selection survives — the
+// same assertion, held by the seam instead of by this file.
 //
 // `GTK_INVALID_LIST_POSITION` IS TRANSLATED ON THE WAY OUT. `AdwComboRow:selected` is a
 // `guint`, so "nothing selected" reads back as 4294967295; `@gjsify/adwaita-core` spells the
@@ -33,9 +32,9 @@
 // `AdwClamp`.
 
 import type Adw from 'gi://Adw?version=1';
-import { useCallback, useMemo, useRef, type ReactElement } from 'react';
+import { useCallback, useRef, type ReactElement } from 'react';
 
-import { ADW_COMBO_NO_SELECTION, normalizeComboOptions } from '@gjsify/adwaita-core';
+import { ADW_COMBO_NO_SELECTION } from '@gjsify/adwaita-core';
 
 import type { AdwComboRowProps } from '../props.js';
 
@@ -63,16 +62,6 @@ export function AdwComboRow({
 }: AdwComboRowProps): ReactElement | null {
     const row = useRef<Adw.ComboRow | null>(null);
 
-    // Normalised HERE so the memo key is the labels the seam will draw; the seam normalises
-    // again, idempotently, which is what lets one door serve the authored and the normalised
-    // form alike.
-    const options = normalizeComboOptions(model);
-    // A separator that cannot occur in an authored label. Joining on a space would give
-    // `['a b']` and `['a', 'b']` the same key, and the second model would never reach the
-    // widget.
-    const key = options.map((option) => option.label).join('\u0001');
-    const items = useMemo(() => options, [key]);
-
     const notifySelected = useCallback(() => {
         const current = row.current;
         if (current !== null) onNotifySelected?.(comboSelectedIndex(current.selected));
@@ -83,7 +72,7 @@ export function AdwComboRow({
             ref={row}
             title={title}
             subtitle={subtitle}
-            model={items}
+            model={model}
             selected={selected}
             use-subtitle={useSubtitle}
             onNotifySelected={onNotifySelected === undefined ? undefined : notifySelected}

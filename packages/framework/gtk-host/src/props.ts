@@ -173,12 +173,18 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
     // 0046), and this is where it becomes a real `Gtk.StringList`. TWO ParamSpec facts
     // decide it, and neither is the property's NAME: `model` is also what `Gtk.ListView`
     // calls its `Gtk.SelectionModel`, which IS a `Gio.ListModel` — so the first test
-    // alone would build a string list for it and `set_property` would refuse the write
-    // with a CRITICAL at exit 0, the view left empty. The second test asks whether the
-    // property can HOLD what this branch builds, and where it cannot the refusal names
-    // the type GTK wants. A real `Gio.ListModel` passes straight through, as the menu
-    // does above; a string or an object is refused by name, because the total
-    // normaliser would have turned either into an EMPTY list without a word.
+    // alone would build a string list for it, and what GTK does with that is worse than
+    // a diagnostic (measured, GTK 4.22.4 / gjs 1.88.1): `set_property` — the route a
+    // GObject value takes — turns the mismatch into NULL and logs NOTHING, so the view is
+    // empty at exit 0 and the diagnostics gate is quiet; constructed with it, GJS throws a
+    // TypeError from inside `materialize`, after `el.props` has recorded the array a
+    // rebuild would replay. The second test asks whether the property can HOLD what this
+    // branch builds, and where it cannot the refusal names the type GTK wants, at the call
+    // that authored it. A real `Gio.ListModel` passes straight through, as the menu does
+    // above; a string or an object is refused by name, because the total normaliser
+    // would have turned either into an EMPTY list without a word. What a built list does
+    // to the one the widget already holds is `setProp`'s question, answered in
+    // `list-model.ts`: spliced, never replaced.
     if (GObject.type_is_a(valueType, Gio.ListModel.$gtype) && !(value instanceof GObject.Object)) {
         if (!isPortableListModel(value)) throw err.badListModel(tag, spec.get_name(), kindOf(value));
         if (!GObject.type_is_a(Gtk.StringList.$gtype, valueType)) {

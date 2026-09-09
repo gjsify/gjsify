@@ -282,10 +282,17 @@ merge conflict rather than as a feature. Both changes have landed, and so has th
 never on the property's name — with TWO facts rather than one. The first is the one § 7
 anticipated: the property's type is a `Gio.ListModel`. The second was found by writing the
 vector for it: `Gtk.ListView:model` is a `Gtk.SelectionModel`, which IS a `Gio.ListModel`,
-so a branch keyed on list-ness alone builds a `Gtk.StringList` for it and `set_property`
-refuses the write with a CRITICAL at exit 0, the view left empty. The branch therefore also
-asks whether the property can HOLD a `Gtk.StringList`, and where it cannot it refuses by
-name (`list-model-mismatch`), naming the type GTK wants. The type surface keys the same
+so a branch keyed on list-ness alone builds a `Gtk.StringList` for it — and what GObject
+does with that was measured in review (GTK 4.22.4, GLib 2.88.3, gjs 1.88.1) rather than
+assumed, because the first draft of this paragraph said "a CRITICAL at exit 0" and no route
+produces one. `set_property`, the route a GObject value takes through the host, transforms
+the mismatched object into NULL and logs NOTHING: the view is empty at exit 0 and the
+diagnostics gate every spec installs sees nothing. Constructed with it, GJS throws a
+`TypeError` from inside `materialize` — after `el.props` has recorded the array a rebuild
+would replay. The branch therefore also asks whether the property can HOLD a
+`Gtk.StringList`, and where it cannot it refuses by name (`list-model-mismatch`) at the call
+that authored it, naming the type GTK wants; `list-model.spec.ts` pins the silent write on
+raw GTK so the refusal cannot be read as belt-and-braces. The type surface keys the same
 way: `WithPortableList<T>` widens `model` only where its declared type is exactly
 `Gio.ListModel`, and `type-tests/` holds `<gtk-list-view model={[…]}>` as a compile error.
 
@@ -313,12 +320,27 @@ with the diagnostics gate on: the vectors above, the two widgets reading back a 
 `Adw.ComboRow` and `Gtk.DropDown` have their Solid, Vue and React snippets, compiled and
 asserted against the real tree by `showcases/gtk/adwaita-gallery-{solid,vue,react}`.
 
+**A list the seam built is updated in place, never replaced.** Found in review, as a
+design question before it was a vector: `coerce` builds a new `Gtk.StringList` per write,
+and `AdwComboRow:selected` is a POSITION into the model. Measured through a real
+`Adw.ComboRow` and a real `Gtk.DropDown` at selected 2 of `['a','b','c']`: replacing the
+model lands on 0 — with one label changed and with the same three strings alike — while
+`splice` on the list the widget already holds keeps it, a whole-list splice by position
+and a minimal one by ITEM (a prepend moves 2 → 3 under the same string). `coerce` stays
+pure and never sees the widget, so the update is `setProp`'s: it hands the freshly built
+list to `reconcileStringList` (`list-model.ts`), which splices the common-prefix/suffix
+difference into the held list and writes nothing for an equal array. Only a list the seam
+built is spliced; an application's own `Gtk.StringList` is replaced, as the imperative
+line would. The adjustment is deliberately NOT given the same treatment: its value is in
+the object, so re-handing it re-asserts that value by contract, and an in-place
+`configure` would land on the same six numbers a fresh object does (`adjustment.ts`).
+
 **The React Native arm hands the value through.** `combo-row.gtk.tsx` built the
 `Gtk.StringList` by hand — the "one package over" copy § 7 named — and now hands the
-normalised array to the seam and imports no `gi://`. Its memo stays, and the reason moved
-with it: gtk-host writes a property only when the prop changes by identity, and the seam
-builds a NEW list for every array it is handed, so an unmemoised model would reset the
-selection on every parent re-render.
+authored array to the seam and imports no `gi://`. Its content-keyed memo is gone with it:
+it existed because a new model per render reset the selection, and the seam answers an
+equal array with no write now, so the workaround went home to the core;
+`preferences.gtk.spec.tsx` keeps the assertion the memo was for.
 
 **`ListController.setRows` is NOT widened, and the reason is structural.** "What this does
 NOT decide" made it part of this decision, so it is decided here: refused.

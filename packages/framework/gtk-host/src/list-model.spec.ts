@@ -19,28 +19,21 @@ import { LIST_NORMALIZE_VECTORS, LIST_PARSE_VECTORS, type ListNormalizeVector } 
 
 import { installDiagnosticsGate } from './conformance/index.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
-import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
-import { buildStringList, fromStringList, isPortableListModel } from './list-model.js';
+import { buildStringList, fromStringList, isPortableListModel, stringsOf } from './list-model.js';
 import { paramSpecs } from './props.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
+import { codeOf } from './testing/refusal.mjs';
 
-/** The strings a real `Gtk.StringList` holds, in order — read off GTK, never off the input. */
-function stringsOf(model: Gio.ListModel | null): string[] {
-    if (!(model instanceof Gtk.StringList)) return [];
-    const out: string[] = [];
-    for (let index = 0; index < model.get_n_items(); index += 1) out.push(model.get_string(index) ?? '');
-    return out;
-}
+/** What a widget's `model` holds — `[]` for anything but a `Gtk.StringList`, so a wrong model reads as no strings. */
+const heldStrings = (model: Gio.ListModel | null): string[] =>
+    model instanceof Gtk.StringList ? stringsOf(model) : [];
 
-/** The refusal code a call raises, or what it did instead — so a wrong refusal reads as one. */
-function codeOf(fn: () => unknown): string {
-    try {
-        fn();
-    } catch (error) {
-        return error instanceof GtkHostError ? error.code : `not-a-GtkHostError: ${String(error)}`;
-    }
-    return 'no throw';
+/** A widget with a `model` and a `selected` position: what the two string-list widgets share. */
+interface StringListWidget {
+    model: Gio.ListModel | null;
+    selected: number;
+    selectedItem: Gtk.StringObject | null;
 }
 
 export default async () => {
@@ -117,7 +110,7 @@ export default async () => {
                     const widget = materialize(el) as unknown as { model: Gio.ListModel | null };
                     expect(widget.model instanceof Gtk.StringList).toBe(true);
                     // The model that was written, not a model that merely exists.
-                    expect(stringsOf(widget.model)).toStrictEqual(['Blue', 'Teal', 'Green']);
+                    expect(heldStrings(widget.model)).toStrictEqual(['Blue', 'Teal', 'Green']);
                 });
 
                 await it(`<${tag}> selects the position it was given, on the model it was given`, () => {
@@ -146,18 +139,93 @@ export default async () => {
                 materialize(el);
                 expect((el.widget as unknown as Adw.ComboRow).model).toBe(model);
             });
+        });
 
-            await it('a replaced model is a NEW list, as the imperative line would make it', () => {
-                const el = createElement('gtk-drop-down', { model: ['a', 'b', 'c'], selected: 2 });
-                const widget = materialize(el) as unknown as Gtk.DropDown;
+        await gated(diagnostics, 'a list the seam built is updated in place, and the selection survives', async () => {
+            // THE PREMISE, measured rather than assumed: replacing the model is what drops the
+            // selection — even when the strings are the same three. If GTK ever keeps it, this
+            // row turns red and the splice below can retire with its paragraph.
+            for (const tag of ['adw-combo-row', 'gtk-drop-down'] as const) {
+                await it(`<${tag}> given a NEW Gtk.StringList of the same strings lands on 0 — the reason to splice`, () => {
+                    const widget = materialize(
+                        createElement(tag, { model: ['a', 'b', 'c'], selected: 2 }),
+                    ) as unknown as StringListWidget;
+                    expect(widget.selected).toBe(2);
+                    widget.model = new Gtk.StringList({ strings: ['a', 'b', 'c'] });
+                    expect(widget.selected).toBe(0);
+                });
+            }
+
+            const mounted = (tag: 'adw-combo-row' | 'gtk-drop-down') => {
+                const el = createElement(tag, { model: ['a', 'b', 'c'], selected: 2 });
+                const widget = materialize(el) as unknown as StringListWidget;
                 expect(widget.selected).toBe(2);
-                setProp(el, 'model', ['only']);
-                expect(stringsOf(widget.model)).toStrictEqual(['only']);
-                // GTK re-selects on a new model: position 2 no longer exists. This is what
-                // `dropDown.model = new Gtk.StringList(…)` does in a GJS application, and the
-                // reason the React Native arm memoises its model by CONTENT rather than
-                // handing a fresh array to every render.
-                expect(widget.selected).toBe(0);
+                return { el, widget, list: widget.model };
+            };
+
+            for (const tag of ['adw-combo-row', 'gtk-drop-down'] as const) {
+                await it(`<${tag}> keeps the SAME Gtk.StringList across a write, and the selection with it`, () => {
+                    const { el, widget, list } = mounted(tag);
+                    setProp(el, 'model', ['A', 'b', 'c']);
+                    // Identity: the object GTK holds is the one it held. A reader with a
+                    // reference to it — a factory, a filter model — is not left with a dead one.
+                    expect(widget.model).toBe(list);
+                    expect(heldStrings(widget.model)).toStrictEqual(['A', 'b', 'c']);
+                    expect(widget.selected).toBe(2);
+                    expect(widget.selectedItem?.string).toBe('c');
+                });
+
+                await it(`<${tag}> re-handed an EQUAL array writes nothing — no memo needed upstream`, () => {
+                    // What `combo-row.gtk.tsx` in @gjsify/adwaita-react-native used to carry a
+                    // content-keyed memo for: an inline `model={['a','b','c']}` literal is a new
+                    // array on every render, and a new model per render reset the selection.
+                    const { el, widget, list } = mounted(tag);
+                    setProp(el, 'model', ['a', 'b', 'c']);
+                    expect(widget.model).toBe(list);
+                    expect(widget.selected).toBe(2);
+                });
+
+                await it(`<${tag}> changing the SELECTED label keeps the position and shows the new label`, () => {
+                    const { el, widget } = mounted(tag);
+                    setProp(el, 'model', ['a', 'b', 'C']);
+                    expect(widget.selected).toBe(2);
+                    expect(widget.selectedItem?.string).toBe('C');
+                });
+
+                await it(`<${tag}> prepending moves the selection WITH its item`, () => {
+                    const { el, widget } = mounted(tag);
+                    setProp(el, 'model', ['z', 'a', 'b', 'c']);
+                    expect(widget.selected).toBe(3);
+                    expect(widget.selectedItem?.string).toBe('c');
+                });
+
+                await it(`<${tag}> shrinking past the selection is clamped by GTK, in place`, () => {
+                    const { el, widget, list } = mounted(tag);
+                    setProp(el, 'model', ['only']);
+                    expect(widget.model).toBe(list);
+                    expect(heldStrings(widget.model)).toStrictEqual(['only']);
+                    expect(widget.selected).toBe(0);
+                });
+            }
+
+            await it('a real Gtk.StringList written over a seam-built one REPLACES it — the imperative object wins', () => {
+                const { el, widget, list } = mounted('adw-combo-row');
+                const own = new Gtk.StringList({ strings: ['x'] });
+                setProp(el, 'model', own);
+                expect(widget.model).toBe(own);
+                expect(widget.model === list).toBe(false);
+            });
+
+            await it('an array written over an application-owned Gtk.StringList replaces it, never splices it', () => {
+                // The application's object is not the seam's to mutate: it may be shared with
+                // another widget, and it stays as the application left it.
+                const own = new Gtk.StringList({ strings: ['x', 'y'] });
+                const el = createElement('adw-combo-row', { model: own });
+                const widget = materialize(el) as unknown as StringListWidget;
+                setProp(el, 'model', ['p', 'q']);
+                expect(widget.model === own).toBe(false);
+                expect(stringsOf(own)).toStrictEqual(['x', 'y']);
+                expect(heldStrings(widget.model)).toStrictEqual(['p', 'q']);
             });
         });
 
@@ -177,12 +245,26 @@ export default async () => {
                 expect(codeOf(() => setProp(el, 'model', { value: 'a', label: 'A' }))).toBe('bad-list-model');
             });
 
+            await it('the naive write is SILENT: set_property turns the mismatch into NULL and this gate sees nothing', () => {
+                // THE INCIDENT the second ParamSpec question exists for, pinned on raw GTK so the
+                // refusal below cannot be mistaken for belt-and-braces. Measured on GTK 4.22.4 /
+                // GLib 2.88.3: `g_object_set_property` transforms an object that is not of the
+                // property's type into NULL and logs NOTHING — not a CRITICAL, not a WARNING — so
+                // the view is empty at exit 0 and even this diagnostics gate is quiet, which the
+                // gated block asserts. (Constructed with it, GJS throws a TypeError from inside
+                // `materialize` instead — after `el.props` has recorded the array a rebuild would
+                // replay.) `set_property` is the route `writeProperty` takes for a GObject value.
+                const view = new Gtk.ListView();
+                view.set_property('model', new Gtk.StringList({ strings: ['a'] }));
+                expect(view.model).toBe(null);
+            });
+
             await it('a list-shaped property the string list cannot satisfy is refused naming the type GTK wants', () => {
                 // THE PREMISE, so the vector cannot pass for the wrong reason: `GtkListView:model`
                 // IS a Gio.ListModel — the first ParamSpec test says yes — and is NOT satisfied
                 // by a Gtk.StringList — the second says no. A branch keyed on the name `model`
-                // or on list-ness alone would build the string list and GTK would refuse the
-                // write with a CRITICAL at exit 0.
+                // or on list-ness alone would build the string list and hand it to the silent
+                // write above.
                 const spec = paramSpecs(Gtk.ListView, 'GtkListView').get('model');
                 expect(spec === undefined).toBe(false);
                 const valueType = (spec as GObject.ParamSpec).value_type;

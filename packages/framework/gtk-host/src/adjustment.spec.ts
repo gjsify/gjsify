@@ -18,27 +18,17 @@ import { ADJUSTMENT_AUTHORED_VECTORS, ADJUSTMENT_PARSE_VECTORS } from '@gjsify/a
 import { buildAdjustment, fromAdjustment, isPortableAdjustment } from './adjustment.js';
 import { installDiagnosticsGate } from './conformance/index.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
-import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
 import { paramSpecs } from './props.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
-
-/** The refusal code a call raises, or what it did instead — so a wrong refusal reads as one. */
-function codeOf(fn: () => unknown): string {
-    try {
-        fn();
-    } catch (error) {
-        return error instanceof GtkHostError ? error.code : `not-a-GtkHostError: ${String(error)}`;
-    }
-    return 'no throw';
-}
+import { codeOf } from './testing/refusal.mjs';
 
 /**
- * The four of the seven adjustment holders that have a widget in the shipped table and
- * take the property without a second one written first. `GtkScaleButton:adjustment` and
+ * The adjustment holders driven here: one per interface whose widget takes the property
+ * without a second one written first. `GtkScaleButton:adjustment` and
  * `GtkScrollbar:adjustment` exist too and go through the same ParamSpec branch; they are
- * not repeated here because a fifth and sixth identical row would prove nothing the
- * `GtkRange` and `GtkScrolledWindow` rows do not.
+ * not repeated because another identical row would prove nothing the `GtkRange` and
+ * `GtkScrolledWindow` rows do not.
  */
 const HOLDERS: ReadonlyArray<readonly [tag: string, prop: string, accessor: string]> = [
     ['adw-spin-row', 'adjustment', 'adjustment'],
@@ -119,7 +109,7 @@ export default async () => {
             }
         });
 
-        await gated(diagnostics, 'the widgets take it — four of the seven interfaces', async () => {
+        await gated(diagnostics, 'the widgets take it — one row per interface driven', async () => {
             for (const [tag, prop, accessor] of HOLDERS) {
                 await it(`<${tag} ${prop}={{…}}> reaches a real Gtk.Adjustment`, () => {
                     const el = createElement(tag, { [prop]: { lower: 10, upper: 20, value: 15 } });

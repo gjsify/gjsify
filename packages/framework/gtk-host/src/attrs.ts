@@ -182,8 +182,9 @@ export type WithPortableList<T> = Omit<T, ListModelProp> & {
 };
 
 /**
- * The three spellings an adjustment property has on the shipped table — `adjustment` on
- * five widgets, `hadjustment`/`vadjustment` on `GtkScrollable` and `GtkScrolledWindow`.
+ * The spellings an adjustment property has on the shipped table — `adjustment` on the
+ * widgets that hold one, `hadjustment`/`vadjustment` on `GtkScrollable` and
+ * `GtkScrolledWindow`. The name picks the candidates; the declared TYPE decides.
  */
 type AdjustmentProp = 'adjustment' | 'hadjustment' | 'vadjustment';
 

@@ -54,14 +54,14 @@ gjs 1.88.1:
 | `selectable: 'false'` (a string) | JS truthiness makes it TRUE | honours `'true'`/`'false'`, throws on any other string |
 | a string for a flags property | dropped silently | throws, naming the flags GType and asking for the numeric value |
 | `model: 'Blue'` on a `Gio.ListModel` property | a CRITICAL and an EMPTY list | throws `bad-list-model`, naming the tag and the kind it got |
-| `model: ['a']` on `Gtk.ListView`, whose model is a `Gtk.SelectionModel` | a CRITICAL, the view left empty | throws `list-model-mismatch`, naming the type GTK wants |
+| `model: ['a']` on `Gtk.ListView`, whose model is a `Gtk.SelectionModel` | `set_property` turns it into NULL and logs NOTHING — an empty view, and even the diagnostics gate is quiet; constructed with it, GJS throws from inside `materialize` | throws `list-model-mismatch` at the authoring call, naming the type GTK wants |
 | `adjustment: 5` on a `Gtk.Adjustment` property | guesses a GType, stores nothing | throws `bad-adjustment`: a number would be the `value`, which is its own property |
 
-### Three values cross the seam
+### Values that cross the seam
 
-Three GObjects with no literal spelling have a PORTABLE form in `@gjsify/adwaita-core`, and
+A GObject with no literal spelling can have a PORTABLE form in `@gjsify/adwaita-core`, and
 `coerce` builds the real object from it at the ParamSpec seam — keyed on the property's
-TYPE, read off the installed GTK, never on its name:
+TYPE, read off the installed GTK, never on its name. The table is the list:
 
 | authored as | for a property typed | becomes | decided in |
 |---|---|---|---|
@@ -70,6 +70,11 @@ TYPE, read off the installed GTK, never on its name:
 | an object of any of the six numbers | `Gtk.Adjustment` | `Gtk.Adjustment` | ADR 0047 § Amendment |
 
 A real GObject passes straight through in every row, so the imperative path is untouched.
+A `Gtk.StringList` the seam built is UPDATED in place on the next write rather than
+replaced — `AdwComboRow:selected` is a position into the model, and measured on GTK 4.22.4
+a replacement drops it to 0 even for the same strings, while a splice keeps it; an equal
+array writes nothing at all (`list-model.ts`). A menu and an adjustment are replaced, for
+the reasons `menu.ts` and `adjustment.ts` give.
 Each conversion has its inverse (`fromGioMenu`, `fromStringList`, `fromAdjustment`), which
 is what turns "the value maps onto GTK" into a round trip the shared conformance vectors
 drive (`menu.spec.ts`, `list-model.spec.ts`, `adjustment.spec.ts`). The type surfaces

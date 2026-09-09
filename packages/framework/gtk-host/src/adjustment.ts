@@ -1,11 +1,20 @@
 // The portable adjustment as a real `Gtk.Adjustment` (ADR 0047 § Amendment).
 //
-// The third value on the ParamSpec seam, after the menu (`menu.ts`) and the list
-// (`list-model.ts`), and the widest of the three: an adjustment property sits on seven
-// GTK widget interfaces (`AdwSpinRow`, `GtkSpinButton`, `GtkRange`, `GtkScaleButton`,
-// `GtkScrollbar`, `GtkScrolledWindow`, `GtkScrollable`), so one `coerce` branch is what
-// lets `<adw-spin-row adjustment={{ lower: 0, upper: 100 }}>` and
+// A value on the ParamSpec seam beside the menu (`menu.ts`) and the list
+// (`list-model.ts`), and the one with the most holders: an adjustment property sits on
+// `AdwSpinRow`, `GtkSpinButton`, `GtkRange`, `GtkScaleButton`, `GtkScrollbar`,
+// `GtkScrolledWindow` and `GtkScrollable`, so one `coerce` branch is what lets
+// `<adw-spin-row adjustment={{ lower: 0, upper: 100 }}>` and
 // `<gtk-scrolled-window hadjustment={{ … }}>` be written at all.
+//
+// THE ADJUSTMENT IS REPLACED ON EVERY WRITE, AND THAT IS NOT THE LIST'S DEFECT. A list
+// the seam built is spliced in place because `selected` is a position INTO it and a new
+// model takes the position away (`list-model.ts`). An adjustment carries its value in
+// the object itself, and "the object is the whole adjustment" (below) means re-handing
+// it re-asserts that value by contract — an in-place `configure` would land on the same
+// six numbers a fresh object does. What a replacement loses is only a reference an
+// application took to the previous object; an application that wants a stable one
+// passes a real `Gtk.Adjustment`, which the seam passes through untouched.
 //
 // THE OBJECT IS THE WHOLE ADJUSTMENT. `normalizeAdjustment` fills an authored subset out
 // to six numbers from `ADW_ADJUSTMENT_DEFAULTS` and clamps the value; what it answers is

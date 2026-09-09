@@ -15,6 +15,23 @@
 // store of richer objects would need an `expression` written beside it, which is a
 // SECOND property from one prop, and the seam writes one property per prop.
 //
+// A LIST THE SEAM BUILT IS UPDATED IN PLACE, NEVER REPLACED. `AdwComboRow:selected` is a
+// POSITION into the model, and replacing the model takes it away. MEASURED on GTK 4.22.4
+// through a real `Adw.ComboRow` and a real `Gtk.DropDown`, selected 2 of `['a','b','c']`:
+// `model = new Gtk.StringList(…)` lands on 0 — with ONE label changed and with the SAME
+// three strings alike — while `model.splice(…)` on the list the widget already holds
+// keeps it: a whole-list splice keeps the position (2 → 2), a minimal one keeps the ITEM
+// (prepend: 2 → 3 with the same string under it; remove one before it: 2 → 1). So
+// `setProp` hands a freshly built list to {@link reconcileStringList}, which splices the
+// common-prefix/suffix-trimmed difference into the held list and emits nothing at all
+// when the strings are equal. That is also why a consumer needs no memo to keep an
+// authored `model={['a','b']}` literal from resetting the selection on every render:
+// the seam answers an unchanged array with silence. Only a list THIS module built is
+// spliced — one an application handed in imperatively is its own object, and an array
+// written over it replaces it, as the imperative line would. The neighbouring measurement
+// in `list/controller.ts` chose a whole-model splice for a different reason (a factory
+// re-binds a row when its model OBJECT changes); here the reason is the selection.
+//
 // WHAT DOES NOT CROSS, stated rather than left to be found. A `Gtk.StringObject` holds
 // ONE string, so an item's `label` crosses and its `value` does not. On this surface
 // that loses nothing an author could reach: GTK spells a selection as a POSITION
@@ -32,6 +49,12 @@ import type { AdwListModel, AdwListModelInput } from '@gjsify/adwaita-core';
 import { normalizeComboOptions } from '@gjsify/adwaita-core';
 
 /**
+ * The lists this module built, so {@link reconcileStringList} never splices an object an
+ * application owns. Weak on purpose: the widget's reference is the only one that matters.
+ */
+const seamBuilt = new WeakSet<Gtk.StringList>();
+
+/**
  * A portable list model as a live `Gtk.StringList`.
  *
  * Accepts the AUTHORED form as well as the normalised one: `normalizeComboOptions` is
@@ -39,7 +62,9 @@ import { normalizeComboOptions } from '@gjsify/adwaita-core';
  * renderer handing its own normalised model back in takes the same door.
  */
 export function buildStringList(input: AdwListModelInput): Gtk.StringList {
-    return new Gtk.StringList({ strings: normalizeComboOptions(input).map((option) => option.label) });
+    const list = new Gtk.StringList({ strings: normalizeComboOptions(input).map((option) => option.label) });
+    seamBuilt.add(list);
+    return list;
 }
 
 /**
@@ -51,6 +76,39 @@ export function buildStringList(input: AdwListModelInput): Gtk.StringList {
  */
 export const isPortableListModel = (value: unknown): value is AdwListModelInput => Array.isArray(value);
 
+/** The strings a `Gtk.StringList` holds, in order — read off GTK, never off an input. */
+export function stringsOf(model: Gtk.StringList): string[] {
+    const out: string[] = [];
+    for (let index = 0; index < model.get_n_items(); index += 1) out.push(model.get_string(index) ?? '');
+    return out;
+}
+
+/**
+ * Splice a freshly built list's difference into the list `widget[accessor]` holds, if
+ * both are this module's — see the header for the measurement that makes this a rule.
+ *
+ * Answers whether the write is DONE: `true` means the held list now reads as `fresh`
+ * (an equal list is left untouched, so nothing is emitted); `false` means one of the two
+ * is not the seam's, and the caller writes the property as it would any other.
+ */
+export function reconcileStringList(widget: object, accessor: string, fresh: unknown): boolean {
+    if (!(fresh instanceof Gtk.StringList) || !seamBuilt.has(fresh)) return false;
+    const held = (widget as Record<string, unknown>)[accessor];
+    if (!(held instanceof Gtk.StringList) || !seamBuilt.has(held)) return false;
+    const before = stringsOf(held);
+    const after = stringsOf(fresh);
+    let start = 0;
+    while (start < before.length && start < after.length && before[start] === after[start]) start += 1;
+    let endBefore = before.length;
+    let endAfter = after.length;
+    while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
+        endBefore -= 1;
+        endAfter -= 1;
+    }
+    if (start !== endBefore || start !== endAfter) held.splice(start, endBefore - start, after.slice(start, endAfter));
+    return true;
+}
+
 /**
  * A `Gtk.StringList` back as a portable model — the inverse of {@link buildStringList}
  * for the half that crosses.
@@ -60,10 +118,5 @@ export const isPortableListModel = (value: unknown): value is AdwListModelInput 
  * that stopped arriving fails a test naming it instead of vanishing from a popup.
  */
 export function fromStringList(model: Gtk.StringList): AdwListModel {
-    const items: { value: string; label: string }[] = [];
-    for (let index = 0; index < model.get_n_items(); index += 1) {
-        const label = model.get_string(index) ?? '';
-        items.push({ value: label, label });
-    }
-    return items;
+    return stringsOf(model).map((label) => ({ value: label, label }));
 }
