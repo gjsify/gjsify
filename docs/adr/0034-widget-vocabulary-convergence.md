@@ -27,7 +27,9 @@
   and `--app nativescript` instead of to an empty module, and § Amendment 13, which lands
   stage 8 — the construct-props bag on all 46 NativeScript widgets, the first change here to
   reach a CONSTRUCTOR, and the one that found § Context wrong about NativeScript's alignment
-  vocabulary.
+  vocabulary. § Amendment 14, 2026-09-09, CASHES stages 8 and 9 in on the documentation
+  surface — the move § Amendment 12 named and deliberately did not make — and puts a printed
+  distance behind it, so "the two snippets are closer" stops being unfalsifiable.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -2532,3 +2534,119 @@ than closed: the attribute door has no coercer to hang it on, and a per-widget
 `set verticalAlignment` would shadow `View`'s own, which is the hazard
 `check-nativescript-xml-doors.mjs` arm 2 exists for. Same convergence question as
 `halign` / `valign`, and it retires with it.
+
+## Amendment 14, 2026-09-09 — the two snippets, cashed in and measured
+
+§ Amendment 12 closed with *"the two snippets are still not the same text, and this stage
+did not rewrite them"*, naming the `Adw.Avatar` block on `presentation.mdx` as the example.
+This amendment makes that move, and the interesting half is not the rewrite: it is that
+until now nothing in this repository could have told you whether stages 8 and 9 had bought
+anything on the surface they were argued for.
+
+### What moved
+
+Every `<Fragment slot="nativescript">` pane in the gallery is now written the way the port
+actually supports since 2026-09-05: `import Adw from 'gi://Adw?version=1'` where the pane
+needs only widgets, and the construct-props bag in place of the `new X(); x.a = …; x.b = …`
+run. Measured on `origin/main` before the change, across all `.mdx` under
+`website/src/content/docs/{adwaita,gtk}/`: **40 blocks carry both panes, 0 of 40 used the
+bag, 36 used the assignment form**, and every one imported `@gjsify/adwaita-nativescript`.
+
+Four panes keep that package import and each says why in the fence: three bind the TYPE
+`AdwViewPage` and one binds `NOTIFY_SIDEBAR_SELECTED`, a signal name. Neither is a widget,
+so neither has a namespace member, and § 3's "never a rename" is why they are not given one.
+The four `layout.mdx` panes keep it too, for a different reason: those are the blocks whose
+NativeScript window is an XML template plus a loader, so the pane is a `~/adw` barrel and a
+`Builder.load()` and never constructs a widget at all.
+
+### Two panes were DRIFT rather than a gap, and the arm is how they surfaced
+
+Neither was found by reading the port; both were found by putting the two texts side by
+side and asking what the difference was FOR. That is the census's real yield, one surface
+over from the `Typescript`/`TypeScript` finding the tree census produced.
+
+- **`Adw.ShortcutLabel`** showed one keycap where the preview, the `gjs` pane and the
+  Blueprint pane show five — alternatives, a range, a sequence, keys held together, and the
+  disabled placeholder. The port parses the same grammar: `shortcut-label.ts` calls
+  `@gjsify/adwaita-core`'s `parseShortcutLabel`, and both its setters rebuild. So the pane
+  was short for no reason, and it is now byte-identical to its sibling.
+- **`Adw.AlertDialog`** never marked its Delete response destructive, though
+  `setResponseAppearance` is right there. It takes the NICK
+  (`'default' | 'suggested' | 'destructive'`, `@gjsify/adwaita-core`'s own union) rather
+  than an `Adw.ResponseAppearance` constant — which is § 4's rule about enums, reached from
+  the documentation side rather than the constructor side.
+
+Both are the same shape as the `Adw.WrapBox` chip count the tree census found: a snippet
+that quietly showed less than the block it documents, with nothing comparing it to anything.
+
+### The measurement, and why it is a printed distance rather than a sentence
+
+`check-website-adwaita-gallery.mjs` arm 12 reads the two panes of each block and compares
+them after **one declared normalisation**: the lines that BIND the widget namespaces are read
+as the namespaces they bind, so `import { Adw, Gtk } from '@gjsify/adwaita-nativescript'` and
+the two `gi://` lines beside each other compare equal. That equivalence is exactly what stage
+9 established, and declaring it is what makes the number honest — **without it this very
+change would have cut the printed distance by forty lines while moving no program.**
+
+It lives in that file and not in `check-generated-website-data.mjs`, whose arm 11 holds the
+same claim over the gallery's two authored TREES: that arm's corpus is two generated data
+files, this one's is the authored `.mdx` blocks and their fences, which arm 5 there already
+reads.
+
+Measured, and PRINTED on every run rather than written here: 40 pairs, **0 identical and a
+line distance of 599 before**, 5 identical after, the remaining 35 ledgered with a reason
+that opens with the KIND of work closing it would take — `vocabulary` (a rename), `glyph`
+(the port's icon properties take an SVG source), `property` (renderer work, or never), or
+`composition` (two different programs). Where an entry names more than one, the most
+expensive kind wins, or the cheapest word would win every argument and the ledger would read
+as a rename list over a set of renderer gaps.
+
+Ledger entries are self-retiring, the shape arm 5b and arm 11 already have: a ledgered block
+whose two panes have BECOME one text fails. Both directions were A/B-proven on the real
+gallery — breaking an identical pair reports it as unledgered, closing a ledgered one reports
+the entry as stale.
+
+### One thing the self-test found about its own normalisation
+
+The partition vectors — a rule each, failing before any page is read, as
+`check-vocabulary-alignment.mjs` requires of itself — can only see a widening that changes a
+VERDICT, and the dangerous widenings mostly do not. Measured: widening the specifier set from
+`@gjsify/adwaita-nativescript` to `@gjsify/*`, so that a glyph import is swallowed into the
+marker too, left **every partition vector green** and moved only the distance. The marker
+carries the namespaces it binds, so two panes stayed two texts either way.
+
+So the transform is held on its OWN OUTPUT by a second vector list, and that is the only
+place "one declared normalisation" is a fact rather than a claim in a comment. Both
+widenings — the specifier set, and dropping the names from the marker — now go red there
+before a page is read.
+
+### A converged pane had to become MORE checkable, not less
+
+Stage 8's bag would have taken coverage away: `check-doc-fences.mjs`'s NativeScript arm holds
+every `x.p = v` in a `nativescript` fence against the port's declared members, and moving
+those writes into `new Adw.Avatar({ … })` would have moved them out of its sight — with its
+own vacuity guard the only thing left to notice. So the arm learned the second door, held by
+the SAME predicate, because they are the same claim about the widget; and both doors now
+refuse a getter with no setter, which a bag rejects by name and a bare assignment throws on in
+strict mode. Measured: 143 property writes held before, 153 after, and two A/B probes — an
+unknown key (`showInitals`) and a read-only one (`Adw.StatusPage.child`) — each red with its
+own message. The bag reader carries vectors of its own, because a key reader that quietly
+finds nothing passes every bag in the gallery.
+
+### What is deliberately left open
+
+- **Five of forty, and the rest is renderer work.** The `glyph` kind is one decision — the
+  port resolves no theme name, so every icon pane imports its glyph — and would close a whole
+  bucket at once. The `composition` kind splits into the four XML-loader panes, which are not
+  a divergence a rename could close, and the blocks where a `@nativescript/core` layout stands
+  in for a widget the port does not ship.
+- **`Gtk` is 5 of 106 on this renderer**, so a gjs pane reaching for any GTK widget outside
+  Button/DropDown/Entry/Image/MenuButton is a `property` entry by construction, not by
+  authoring.
+- **Nothing here runs either pane.** The panes are compared as TEXT and their properties are
+  held against the port's SOURCE; that a converged pane renders the same tree on a phone is
+  the same open question ADR 0027 § 9's conformance vectors close, and it is not closed here.
+- **The `--gi-renderer` flag is now load-bearing for a reader.** A NativeScript snippet opens
+  with a `gi://` line that resolves only when the build passes the flag, so each gallery page
+  says so in the paragraph that already explains how the two ports follow libadwaita's naming.
+  Nothing holds that sentence; arm 10 holds window TITLES in prose and this is not one.

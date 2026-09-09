@@ -84,6 +84,33 @@
 //      exists, and growing the frameworks window from three blocks to forty left
 //      seven intros enumerating two windows where the reader meets three. Arms 1-9
 //      see neither: the strings never leave the prose.
+//  12. The `gjs` pane and the `nativescript` pane of one block are the SAME TEXT,
+//      or the block is ledgered in {@link PANE_TEXT_DIVERGENCES} with the reason and
+//      the KIND of work that would close it. ADR 0034 § Amendment 12 said the `gi://`
+//      arms were "the last of the two things keeping the website's Native TypeScript
+//      and NativeScript snippets from being the same text" and then left the snippets
+//      alone; nothing measured how far apart they were, so nothing could say whether
+//      the two stages that landed had bought anything.
+//
+//      THIS FILE AND NOT `check-generated-website-data.mjs`, whose arm 11 holds the
+//      same claim over the gallery's two authored TREES: that arm's corpus is two
+//      generated data files and it never opens an `.mdx`, while this file's corpus IS
+//      the authored blocks and their `<Fragment>` panes — arm 5 already reads them.
+//
+//      ONE declared normalisation, and its reason: the lines that BIND the widget
+//      namespaces are read as the namespaces they bind, so
+//      `import { Adw, Gtk } from '@gjsify/adwaita-nativescript'` and
+//      `import Adw from 'gi://Adw?version=1'` beside `import Gtk from 'gi://Gtk?version=4.0'`
+//      compare equal. That equivalence is what stage 9 established, and holding it
+//      here is what stops the printed distance from being bought by editing forty
+//      import lines. Nothing else is normalised: an `@gjsify/adwaita-icons` or
+//      `@nativescript/core` import is a real difference and stays one.
+//
+//      Self-retiring, the shape arm 5b and arm 11 of the sibling gate already have —
+//      a ledgered block whose two panes have BECOME the same text fails, so a reason
+//      cannot outlive what it was recorded for. The partition and the DISTANCE are
+//      PRINTED on every run and written down nowhere: a count in a header is the
+//      drift this gallery has already paid for twice.
 //   9. The LIVE PREVIEW is the FIRST pane of the window that runs the widget, in
 //      {@link WINDOW_COMPONENT} — the file that draws a window, which is where pane
 //      order is decided.
@@ -395,6 +422,420 @@ function sidebarGroup(text, label) {
     const end = text.indexOf(']', start);
     if (end === -1) return null;
     return [...text.slice(start, end).matchAll(/\bslug:\s*'([^']+)'/g)].map(([, slug]) => slug);
+}
+
+// --- arm 12: the two authored PANES of one block, and the distance between them ---
+
+/**
+ * The two panes of a block, dedented, as line arrays — or null where the block has
+ * fewer than two.
+ *
+ * The fence body and not the fragment: a `<Fragment>` carries MDX indentation and a
+ * ```ts opener, neither of which is part of the program a reader copies.
+ */
+function panePair(body) {
+    const panes = {};
+    const fence = /<Fragment slot="(gjs|nativescript)">\s*```[a-z]*\n([\s\S]*?)```/g;
+    for (const [, slot, code] of body.matchAll(fence)) panes[slot] = code;
+    if (panes.gjs === undefined || panes.nativescript === undefined) return null;
+    const dedent = (text) => {
+        const lines = text.replace(/^\n+|\s+$/g, '').split('\n');
+        const filled = lines.filter((line) => line.trim() !== '');
+        const indent = filled.length === 0 ? 0 : Math.min(...filled.map((line) => /^ */.exec(line)[0].length));
+        return lines.map((line) => line.slice(indent));
+    };
+    return { gjs: dedent(panes.gjs), nativescript: dedent(panes.nativescript) };
+}
+
+/**
+ * A line that BINDS the widget namespaces, either way it can be spelled.
+ *
+ * `Gio` is deliberately absent: the `gi://` arms answer `Adw` and `Gtk` and nothing
+ * else (ADR 0034 § Amendment 12), so a `gi://Gio` import is a namespace the port has
+ * no counterpart for and a real difference between two panes.
+ */
+const NAMESPACE_IMPORT =
+    /^import (?:(Adw|Gtk)|\{\s*(Adw|Gtk)(?:,\s*(Adw|Gtk))?\s*\}) from '(?:gi:\/\/(?:Adw|Gtk)\?version=[^']+|@gjsify\/adwaita-nativescript)';$/;
+
+/**
+ * THE ONE NORMALISATION. A run of namespace-import lines becomes a single marker
+ * naming the namespaces it binds.
+ *
+ * A run and not a line, because `gi://` needs one import per namespace where the
+ * package barrel needs one for both — the two spellings differ in LINE COUNT, and a
+ * per-line rewrite would leave that difference standing while claiming to have
+ * removed it.
+ */
+function normalisePane(lines) {
+    const out = [];
+    let bound = null;
+    const flush = () => {
+        if (bound === null) return;
+        out.push(`«widget vocabulary: ${[...bound].sort().join(', ')}»`);
+        bound = null;
+    };
+    for (const line of lines) {
+        const match = NAMESPACE_IMPORT.exec(line.trim());
+        if (match === null) {
+            flush();
+            out.push(line);
+            continue;
+        }
+        bound ??= new Set();
+        for (const name of match.slice(1)) if (name !== undefined) bound.add(name);
+    }
+    flush();
+    return out;
+}
+
+/** Levenshtein over LINES: how many lines a reader would have to add, drop or retype. */
+function paneDistance(a, b) {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i += 1) {
+        let diagonal = row[0];
+        row[0] = i;
+        for (let j = 1; j <= b.length; j += 1) {
+            const above = row[j];
+            row[j] = a[i - 1] === b[j - 1] ? diagonal : 1 + Math.min(row[j], row[j - 1], diagonal);
+            diagonal = above;
+        }
+    }
+    return row[b.length];
+}
+
+/**
+ * The kinds a divergence reason may open with, and the WORK each names.
+ *
+ * The kind is what closing the WHOLE entry would take, so where an entry carries more
+ * than one the most expensive wins: `composition` > `property` > `glyph` > `vocabulary`.
+ * Without that rule the cheapest word would win every argument, and the ledger would
+ * read as a rename list over a set of renderer gaps.
+ */
+const PANE_DIVERGENCE_KINDS = new Map([
+    ['vocabulary', 'same widgets and same UI; a method, property or value is spelled differently — a rename'],
+    [
+        'glyph',
+        "the port's icon properties take an SVG SOURCE, so the pane imports the glyph — closes when the " +
+            'port resolves theme names',
+    ],
+    ['property', 'one side sets something the other has no counterpart for — renderer work, or never'],
+    [
+        'composition',
+        'two different programs: an XML template plus its loader, or a @nativescript/core layout standing ' +
+            'in for a widget',
+    ],
+]);
+
+/** The kinds and what each one MEANS, for the two failures that ask an author to pick one. */
+const paneKindMenu = () => [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `      ${kind}: ${means}`).join('\n');
+
+/**
+ * Blocks whose two panes are NOT the same text, and why.
+ *
+ * Every entry is self-retiring: the day its two panes agree, arm 12 fails here rather
+ * than passing over a reason whose cause is gone. The blocks that DO agree are
+ * deliberately absent — that set is derived and printed on every run, and writing it
+ * down beside this one would be the second copy that drifts.
+ */
+const PANE_TEXT_DIVERGENCES = {
+    'Adw.PreferencesGroup':
+        "vocabulary: rows go in through addRow() where libadwaita's add() takes any widget, the header " +
+        'button is text/styleClasses against label/add_css_class(), and it takes no alignment — the port ' +
+        'places a header suffix itself.',
+    'Adw.ActionRow':
+        'property: the port’s Gtk.Button is text-only, so the trailing chevron is a Gtk.Image rather than ' +
+        'a flat button; add_prefix/add_suffix are setPrefix/setSuffix, and both glyphs are SVG sources.',
+    'Adw.ComboRow':
+        'vocabulary: the model is a string array where GTK takes a Gtk.StringList. The portable value shape ' +
+        'is what would close it, and it is the same question ADR 0034 § 1 asks of every value.',
+    'Adw.SpinRow':
+        "property: the adjustment is @gjsify/adwaita-core's AdwAdjustment where GTK takes a Gtk.Adjustment, " +
+        'and the port installs no `digits` — it renders the value the state machine holds.',
+    'Adw.ExpanderRow': 'vocabulary: add_row() is addRow() on the port, and nothing else differs.',
+    'Adw.ButtonRow':
+        'glyph: startIconName takes an SVG source rather than a theme name, so the pane imports the glyph; ' +
+        'and a style class is className rather than add_css_class().',
+    'Adw.ButtonContent':
+        "composition: the port's Gtk.Button is text-only, so the button around the content is a " +
+        '@nativescript/core StackLayout carrying the Adwaita classes; the icon is an SVG source.',
+    'Adw.SplitButton':
+        'vocabulary: the menu is a plain array where GTK takes a Gio.Menu with action names — a namespace ' +
+        'the gi:// arms deliberately do not answer — and the icon is an SVG source.',
+    'Adw.ToggleGroup':
+        'property: the port has no Adw.Toggle widget; setToggles() takes plain descriptors, and each icon is ' +
+        'an SVG source.',
+    'Adw.Toast':
+        'property: the port has no Adw.Toast widget at all — showToast() is the whole API, its timeout is in ' +
+        'milliseconds, and the overlay takes its content through setContent().',
+    'Adw.AlertDialog':
+        'composition: heading and body are constructor positionals, the response appearance is the NICK ' +
+        'rather than an Adw.ResponseAppearance constant, and present() RESOLVES to the chosen response ' +
+        "instead of taking a parent — the platform's own confirm chrome stands in for the dialog.",
+    'Adw.AboutDialog':
+        'property: the port exposes scalar fields only — no developers, designers or licenseType — so the ' +
+        'credits fold into the developer line and the application icon is a character rather than a theme name.',
+    'Adw.PreferencesDialog':
+        "glyph: the page icon is an SVG source; beside it the group's rows go in through addRow()/addGroup(), " +
+        'the combo model is an array and the adjustment is the portable shape.',
+    'Adw.Clamp':
+        'composition: the NativeScript window splits into an XML template and a loader, so this pane is the ' +
+        '`~/adw` barrel the template’s xmlns resolves to plus a Builder.load(), not a widget construction.',
+    'Adw.HeaderBar':
+        'composition: same split as Adw.Clamp — two barrels (`~/adw`, `~/gtk`) and the loader; the tree the ' +
+        'gjs pane builds is the XML tab beside this one.',
+    'Adw.ToolbarView':
+        'composition: same split as Adw.Clamp, plus the three glyphs an XML attribute cannot carry, which the ' +
+        'loader hands to views the template gave ids.',
+    'Adw.WrapBox':
+        'composition: same split as Adw.Clamp — the chip run is a fixed tree, so it lives in the template and ' +
+        'this pane loads it.',
+    'Adw.NavigationSplitView':
+        'property: the port has no Adw.NavigationPage, Adw.SidebarSection or Adw.SidebarItem, so the sidebar ' +
+        'takes a flat label list and each pane is a toolbar view directly.',
+    'Adw.OverlaySplitView': 'property: the same three missing widgets as Adw.NavigationSplitView, one block over.',
+    'Adw.NavigationView':
+        'property: pages are pushed by TAG rather than by widget, there is no Adw.NavigationPage to wrap them, ' +
+        'and the port’s Gtk.Button is text-only with a `tap` listener rather than a `clicked` signal.',
+    'Adw.Sidebar':
+        'composition: the port’s sidebar takes a flat label list with no per-item subtitle or icon, the ' +
+        'selection notify is an event NAME, and the two panes sit in a @nativescript/core GridLayout.',
+    'Adw.BottomSheet':
+        'composition: @nativescript/core’s StackLayout and Label stand in for Gtk.Box and Gtk.Label, which ' +
+        'the port does not ship, and the boxed list is built without prefixes.',
+    'Adw.Avatar':
+        'glyph: iconName takes the SVG SOURCE rather than a theme name, so the fallback glyph is imported and ' +
+        'handed in. Everything else about the two panes is already one text.',
+    'Adw.Banner':
+        'composition: the gjs pane wraps the banner in a sized Gtk.Box to give a full-width widget something ' +
+        'to fill; the port lays that out itself, and its banner label is plain text with no markup subset.',
+    'Adw.Spinner':
+        'property: the port sizes a spinner with `size`, where GTK asks for a width, a height and two ' +
+        'alignments — the port has no layout surface to put a size request on.',
+    'Adw.StatusPage':
+        'glyph: the icon is an SVG source; beside it `child` is setChild() and the button’s caption and ' +
+        'classes are text/styleClasses.',
+    'Adw.ViewSwitcher':
+        'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
+        'and content together — and each icon is an SVG source.',
+    'Adw.ViewSwitcherBar':
+        'property: the port’s view stack has no items-changed signal, so refresh() stands in for it by hand, ' +
+        'and each page icon is an SVG source.',
+    'Adw.TabView':
+        'property: the port has no Adw.TabBar and no Adw.TabPage; setViews() carries the chips and the pages ' +
+        'together, and the page icon is an SVG source.',
+    'Adw.InlineViewSwitcher':
+        'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
+        'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
+    'Adw.Carousel':
+        'composition: the port has no Adw.CarouselIndicatorDots (the carousel draws its own row) and no ' +
+        'Gtk.Box or Gtk.Label, so each card is a @nativescript/core StackLayout.',
+    'Gtk.Button':
+        'property: the port’s Gtk.Button is text-only, so the circular icon-only variant has no counterpart ' +
+        'at all; label/add_css_class() are text/styleClasses and the wrap box takes no alignment.',
+    'Gtk.MenuButton':
+        'property: the menu is a plain array where GTK takes a Gio.Menu with action names, there is no popover ' +
+        'so `primary` has no counterpart, and the icon is an SVG source.',
+    'Gtk.Entry':
+        'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
+        'surface to put them on.',
+    'Gtk.DropDown':
+        'property: the port has no Gtk.PropertyExpression, no Gtk.StringObject and no search field, so the ' +
+        'model is a string array and enableSearch has no counterpart.',
+};
+
+/**
+ * The rules of arm 12, over a world of pairs — a pure function, so the vectors below
+ * can break each one with no gallery on disk.
+ */
+function panePartitionProblems(world) {
+    const problems = [];
+    let identical = 0;
+    let distance = 0;
+    for (const { title, gjs, nativescript } of world.pairs) {
+        const a = normalisePane(gjs);
+        const b = normalisePane(nativescript);
+        const gap = paneDistance(a, b);
+        const same = gap === 0;
+        if (same) identical += 1;
+        distance += gap;
+        const ledgered = Object.hasOwn(world.ledger, title);
+        if (same && ledgered) {
+            problems.push(
+                `${title}: ledgered as a pane divergence and its two panes are now the SAME TEXT. The reason ` +
+                    'has been closed — delete the entry, so the gallery stops carrying a reason for a difference ' +
+                    'that is gone.',
+            );
+        }
+        if (!same && !ledgered) {
+            problems.push(
+                `${title}: its \`gjs\` and \`nativescript\` panes are ${gap} line(s) apart and ` +
+                    'nothing says why. ADR 0034 stages 8 and 9 make the two the same text wherever the port has ' +
+                    'the widget and the property; where it does not, record the reason and its kind in ' +
+                    `PANE_TEXT_DIVERGENCES:\n${paneKindMenu()}`,
+            );
+        }
+    }
+    const titles = new Set(world.pairs.map((pair) => pair.title));
+    for (const [title, reason] of Object.entries(world.ledger)) {
+        if (!titles.has(title)) {
+            problems.push(
+                `${title}: ledgered as a pane divergence, and no block has both a \`gjs\` and a ` +
+                    '`nativescript` pane under that title. A stale entry reads as considered when it is merely ' +
+                    'forgotten.',
+            );
+        }
+        const kind = /^([a-z]+):/.exec(reason)?.[1];
+        if (kind !== undefined && PANE_DIVERGENCE_KINDS.has(kind)) continue;
+        problems.push(
+            `${title}: its divergence reason opens with ${kind === undefined ? 'no kind' : `"${kind}"`}, and a ` +
+                `reason must open with one of:\n${paneKindMenu()}`,
+        );
+    }
+    if (world.pairs.length === 0) {
+        problems.push('no gallery block carries both a `gjs` and a `nativescript` pane — arm 12 proved nothing');
+    }
+    return { problems, identical, distance };
+}
+
+/**
+ * Vectors for arm 12, every one of which must FAIL before a page is read.
+ *
+ * The last two are about the NORMALISATION itself and are the reason this list exists:
+ * one proves it applies (the two import spellings really do compare equal), the other
+ * that it is no WIDER than declared (a glyph import is not erased with them). A
+ * normalisation that quietly grew would make every pane agree and every ledger entry
+ * fail as stale, which reads like progress.
+ */
+const PANE_VECTORS = [
+    ['the aligned baseline', { pairs: [{ title: 'A', gjs: ['x'], nativescript: ['x'] }], ledger: {} }, null],
+    [
+        'two panes apart with nothing saying why',
+        { pairs: [{ title: 'A', gjs: ['x'], nativescript: ['y'] }], ledger: {} },
+        'nothing says why',
+    ],
+    [
+        'a ledger entry whose two panes have become one text',
+        { pairs: [{ title: 'A', gjs: ['x'], nativescript: ['x'] }], ledger: { A: 'vocabulary: gone' } },
+        'now the SAME TEXT',
+    ],
+    [
+        'a ledger entry for a block with no pair',
+        {
+            pairs: [{ title: 'A', gjs: ['x'], nativescript: ['y'] }],
+            ledger: { A: 'vocabulary: r', B: 'vocabulary: r' },
+        },
+        'no block has both',
+    ],
+    [
+        'a reason that opens with no kind',
+        { pairs: [{ title: 'A', gjs: ['x'], nativescript: ['y'] }], ledger: { A: 'they differ' } },
+        'opens with no kind',
+    ],
+    [
+        'a reason that opens with a kind nothing declares',
+        { pairs: [{ title: 'A', gjs: ['x'], nativescript: ['y'] }], ledger: { A: 'style: they differ' } },
+        'opens with "style"',
+    ],
+    ['no pair at all', { pairs: [], ledger: {} }, 'arm 12 proved nothing'],
+    [
+        'THE NORMALISATION APPLIES: the two import spellings are one text',
+        {
+            pairs: [
+                {
+                    title: 'A',
+                    gjs: ["import Adw from 'gi://Adw?version=1';", "import Gtk from 'gi://Gtk?version=4.0';", 'x'],
+                    nativescript: ["import { Adw, Gtk } from '@gjsify/adwaita-nativescript';", 'x'],
+                },
+            ],
+            ledger: { A: 'vocabulary: stale, because the two are one text' },
+        },
+        'now the SAME TEXT',
+    ],
+    [
+        // A CONTROL, clean on purpose: its cleanliness is what a WIDER normalisation
+        // would destroy. The marker carries the namespaces it binds, so a pane that
+        // reaches for `Gtk` and one that does not are still two texts. Drop the names
+        // from the marker — the tempting simplification, since every marker then reads
+        // alike — and these two become one text, at which point the self-retiring rule
+        // fires on an entry that is still true. Measured both ways.
+        'THE NORMALISATION IS NO WIDER: binding Gtk is not the same as not binding it',
+        {
+            pairs: [
+                {
+                    title: 'A',
+                    gjs: ["import Adw from 'gi://Adw?version=1';", "import Gtk from 'gi://Gtk?version=4.0';", 'x'],
+                    nativescript: ["import Adw from 'gi://Adw?version=1';", 'x'],
+                },
+            ],
+            ledger: { A: 'property: the port has no counterpart for the Gtk widget beside it' },
+        },
+        null,
+    ],
+];
+
+/**
+ * What the one normalisation does, asserted directly.
+ *
+ * The partition vectors above can only see a widening that changes a VERDICT, and the
+ * dangerous ones mostly do not: swallowing a glyph import into the marker run still
+ * leaves two panes two texts, because the marker names what it binds. Measured — with
+ * the specifier alternative widened to `@gjsify/*`, every partition vector stayed
+ * green and only the distance moved. So the transform is held on its own OUTPUT, which
+ * is the only place "one declared normalisation" is a fact rather than a claim in a
+ * comment.
+ */
+const PANE_NORMALISATION_VECTORS = [
+    [
+        ["import Adw from 'gi://Adw?version=1';", "import Gtk from 'gi://Gtk?version=4.0';", 'x'],
+        ['«widget vocabulary: Adw, Gtk»', 'x'],
+    ],
+    [
+        ["import { Adw, Gtk } from '@gjsify/adwaita-nativescript';", 'x'],
+        ['«widget vocabulary: Adw, Gtk»', 'x'],
+    ],
+    [["import { Adw } from '@gjsify/adwaita-nativescript';"], ['«widget vocabulary: Adw»']],
+    // NOT normalised, each for its own reason: a glyph is a value the port needs and
+    // libadwaita does not, `@nativescript/core` is a toolkit GJS has no counterpart
+    // for, and `gi://Gio` is a namespace the arms deliberately do not answer.
+    [
+        ["import { folderSymbolic } from '@gjsify/adwaita-icons/places';"],
+        ["import { folderSymbolic } from '@gjsify/adwaita-icons/places';"],
+    ],
+    [["import { StackLayout } from '@nativescript/core';"], ["import { StackLayout } from '@nativescript/core';"]],
+    [["import Gio from 'gi://Gio?version=2.0';"], ["import Gio from 'gi://Gio?version=2.0';"]],
+    // A RUN, not a line: only lines that sit together collapse into one marker.
+    [
+        ["import Adw from 'gi://Adw?version=1';", '', "import Gtk from 'gi://Gtk?version=4.0';"],
+        ['«widget vocabulary: Adw»', '', '«widget vocabulary: Gtk»'],
+    ],
+];
+
+const paneSelfTestFailures = [];
+for (const [input, want] of PANE_NORMALISATION_VECTORS) {
+    const got = normalisePane(input);
+    if (got.join('\n') === want.join('\n')) continue;
+    paneSelfTestFailures.push(
+        `normalisePane(${JSON.stringify(input)}) produced ${JSON.stringify(got)} and must produce ` +
+            `${JSON.stringify(want)}. The one declared normalisation is not the one that runs.`,
+    );
+}
+for (const [label, world, expected] of PANE_VECTORS) {
+    const { problems } = panePartitionProblems(world);
+    if (expected === null) {
+        if (problems.length > 0) paneSelfTestFailures.push(`${label} should be clean, got: ${problems.join(' | ')}`);
+        continue;
+    }
+    if (problems.length === 0) paneSelfTestFailures.push(`${label} produced NO problem — that rule is not holding`);
+    else if (!problems.some((problem) => problem.includes(expected))) {
+        paneSelfTestFailures.push(
+            `${label} failed for the wrong reason (wanted "${expected}"): ${problems.join(' | ')}`,
+        );
+    }
+}
+if (paneSelfTestFailures.length > 0) {
+    console.error('check-website-adwaita-gallery: arm 12 SELF-TEST failed — the check itself is broken:');
+    for (const failure of paneSelfTestFailures) console.error(`  - ${failure}`);
+    process.exit(1);
 }
 
 // A section declares the GIR namespace its widgets carry, and `bareName` decides
@@ -798,6 +1239,15 @@ for (const section of GALLERY_SECTIONS) {
     );
 }
 
+// --- arm 12: the same block, written twice, and how far apart the two are ---
+
+const panePairs = blocks.flatMap((block) => {
+    const pair = panePair(block.body);
+    return pair === null ? [] : [{ title: block.title, ...pair }];
+});
+const panePartition = panePartitionProblems({ pairs: panePairs, ledger: PANE_TEXT_DIVERGENCES });
+failures.push(...panePartition.problems);
+
 if (failures.length > 0) {
     console.error(`check-website-adwaita-gallery: ${failures.length} gallery/storybook disagreement(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
@@ -831,4 +1281,19 @@ console.log(
         `of ${blocks.length} blocks provides, every fragment slot they write is one the component renders, ` +
         `${overriding.size} block(s) override the markup tab, all ledgered, and ${WINDOW_COMPONENT} mounts ` +
         'the live preview ahead of them.',
+);
+
+/** The ledger's own partition, by kind, so a run says what the remaining work IS. */
+const paneKindCounts = new Map([...PANE_DIVERGENCE_KINDS.keys()].map((kind) => [kind, 0]));
+for (const reason of Object.values(PANE_TEXT_DIVERGENCES)) {
+    if (reason === null) continue;
+    const kind = /^([a-z]+):/.exec(reason)?.[1];
+    if (paneKindCounts.has(kind)) paneKindCounts.set(kind, paneKindCounts.get(kind) + 1);
+}
+console.log(
+    `check-website-adwaita-gallery: ${panePairs.length} block(s) written twice — ` +
+        `${panePartition.identical} are the SAME TEXT after one normalisation (the widget-namespace import ` +
+        `lines), ${panePairs.length - panePartition.identical} ledgered [` +
+        [...paneKindCounts].map(([kind, count]) => `${kind} ${count}`).join(', ') +
+        `] — distance ${panePartition.distance} line(s) over all pairs.`,
 );

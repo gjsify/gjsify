@@ -27,7 +27,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
@@ -76,17 +79,18 @@ it from an inline list glyph up to a full profile header.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
-    const avatar = new Adw.Avatar();
-    avatar.text = 'Ada Lovelace';
-    avatar.size = 96;
-    avatar.showInitials = true;
-    // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
-    // resolves one, so the fallback glyph is handed in. Left empty it is the same
-    // Adwaita person icon, and `showInitials = false` is what shows it.
-    avatar.iconName = avatarDefaultSymbolic;
+    const avatar = new Adw.Avatar({
+        size: 96,
+        text: 'Ada Lovelace',
+        showInitials: true,
+        // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
+        // resolves one, so the fallback glyph is handed in. Left empty it is the same
+        // Adwaita person icon, and `showInitials: false` is what shows it.
+        iconName: avatarDefaultSymbolic,
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -134,12 +138,13 @@ space while the message applies.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const banner = new Adw.Banner();
-    banner.title = 'Metered connection: updates paused';
-    banner.buttonLabel = 'Resume';
-    banner.revealed = true;
+    const banner = new Adw.Banner({
+        title: 'Metered connection: updates paused',
+        buttonLabel: 'Resume',
+        revealed: true,
+    });
     // No `useMarkup`: the NS banner label is plain text (no rich-text subset).
     ```
   </Fragment>
@@ -217,13 +222,19 @@ shows the **disabled-text** placeholder instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const shortcut = new Adw.ShortcutLabel();
-    // `disabledText` first: an empty accelerator renders the placeholder, so the
-    // placeholder has to be in place before the accelerator triggers the rebuild.
-    shortcut.disabledText = 'Disabled';
-    shortcut.accelerator = '<Control>C';
+    // Ctrl+C. The keycap order is GTK's, not the string's: `<Shift><Control>a`
+    // renders as Ctrl Shift A.
+    const shortcut = new Adw.ShortcutLabel({ accelerator: '<Control>C' });
+
+    // A space lists alternatives, `...` a range, `+` a sequence, `&` keys held together.
+    const alternatives = new Adw.ShortcutLabel({ accelerator: '<Shift>A Home' });
+    const range = new Adw.ShortcutLabel({ accelerator: '<Alt>1...9' });
+    const together = new Adw.ShortcutLabel({ accelerator: 'Control_L&Control_R' });
+
+    // With no accelerator the placeholder is shown instead.
+    const unset = new Adw.ShortcutLabel({ accelerator: '', disabledText: 'Disabled' });
     ```
   </Fragment>
 </AdwWidget>
@@ -267,10 +278,9 @@ instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const spinner = new Adw.Spinner();
-    spinner.size = 48;
+    const spinner = new Adw.Spinner({ size: 48 });
     ```
   </Fragment>
 </AdwWidget>
@@ -329,18 +339,22 @@ give the user a way out, such as a button that creates their first document.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const button = new Gtk.Button();
-    button.text = 'New Document';
-    button.styleClasses = 'suggested-action';
+    const button = new Gtk.Button({
+        text: 'New Document',
+        styleClasses: 'pill suggested-action',
+    });
 
-    const page = new Adw.StatusPage();
-    page.iconName = folderSymbolic; // an Adwaita symbolic icon (SVG string)
-    page.title = 'No Documents';
-    page.description = 'Documents you create or open will appear here.';
-    page.setChild(button);
+    const statusPage = new Adw.StatusPage({
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: folderSymbolic,
+        title: 'No Documents',
+        description: 'Documents you create or open will appear here.',
+    });
+    statusPage.setChild(button);
     ```
   </Fragment>
 </AdwWidget>
@@ -380,11 +394,12 @@ so a single-line title stays vertically centred.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const windowTitle = new Adw.WindowTitle();
-    windowTitle.title = 'Inbox';
-    windowTitle.subtitle = '3 unread messages';
+    const windowTitle = new Adw.WindowTitle({
+        title: 'Inbox',
+        subtitle: '3 unread messages',
+    });
     ```
   </Fragment>
 </AdwWidget>

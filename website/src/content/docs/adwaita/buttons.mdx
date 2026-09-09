@@ -30,7 +30,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
@@ -86,14 +89,16 @@ short.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
     import { StackLayout } from '@nativescript/core';
 
-    const content = new Adw.ButtonContent();
-    content.iconColor = '#ffffff';
-    content.label = 'Download';
-    content.iconName = folderDownloadSymbolic; // an Adwaita symbolic icon (SVG string)
+    const content = new Adw.ButtonContent({
+        label: 'Download',
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: folderDownloadSymbolic,
+        iconColor: '#ffffff',
+    });
 
     // Gtk.Button is text-only, so a styled layout wraps the content.
     const button = new StackLayout();
@@ -170,12 +175,14 @@ header bar or toolbar, where a raised button looks too heavy.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { documentSaveSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const button = new Adw.SplitButton();
-    button.menuModel = ['Save as…', 'Export', 'Print']; // or items, sections, submenus — ADR 0042
-    button.iconName = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
+    const button = new Adw.SplitButton({
+        menuModel: ['Save as…', 'Export', 'Print'], // or items, sections, submenus — ADR 0042
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: documentSaveSymbolic,
+    });
     // With no icon set, the label drives the action half: button.label = 'Save';
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
     ```
@@ -256,7 +263,7 @@ once set", and the only setter is class-level.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const group = new Adw.ToggleGroup();
