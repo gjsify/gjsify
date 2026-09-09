@@ -63,7 +63,9 @@ export type { NotifySliderValueEventData } from './adw-slider-row.js';
 // (ExpanderState) is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here.
 export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
-export { GtkButton } from './gtk-button.js';
+export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-button.js';
+export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
+export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
 export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';

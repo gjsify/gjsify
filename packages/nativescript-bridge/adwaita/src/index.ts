@@ -28,6 +28,10 @@ export {
     MENU_ITEM_ACTIVATED,
     DEFAULT_GTK_IMAGE_SIZE,
     DEFAULT_BOX_SPACING,
+    GTK_BUTTON_CLICKED,
+    GTK_BUTTON_LABEL_CLASS,
+    buttonSlotAfterWrite,
+    buttonSlotDetaches,
     boxChildMargin,
     boxSpacingChanges,
     normalizeBoxSpacing,
@@ -133,6 +137,8 @@ export {
 } from './widgets/index.js';
 export type {
     BoxOrientation,
+    ButtonSlot,
+    ButtonSlotWrite,
     NotifyActiveEventData,
     NotifyTextEventData,
     NotifyEntryTextEventData,

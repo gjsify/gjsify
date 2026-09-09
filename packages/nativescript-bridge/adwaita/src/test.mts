@@ -29,6 +29,7 @@ import accentThemeNsTestSuite from './accent-theme.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
 import boxLayoutTestSuite from './box-layout.spec.js';
+import buttonSlotTestSuite from './button-slot.spec.js';
 import labelTextTestSuite from './label-text.spec.js';
 import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
@@ -44,6 +45,7 @@ run({
     windowInsetsTestSuite,
     styleClassesTestSuite,
     boxLayoutTestSuite,
+    buttonSlotTestSuite,
     labelTextTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,
