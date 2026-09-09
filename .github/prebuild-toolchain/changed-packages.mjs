@@ -102,6 +102,54 @@ const WORKFLOW = join(ROOT, '.github', 'workflows', 'prebuilds.yml');
  * the filter too (so a change to one triggers a run at all); this list is what
  * makes them rebuild EVERY package once a run has started.
  */
+/**
+ * Trigger paths that must START a run but must NOT rebuild every package.
+ *
+ * THE CRITERION IS "CAN IT CHANGE THE BYTES", which is narrower than "the
+ * build calls it". Rebuilding proves something about an artifact only when the
+ * changed input could have altered that artifact. A CHECKER cannot, however
+ * central it is to whether the artifact is accepted: a changed rule has to be
+ * re-VERIFIED, and re-verification needs the committed binary and the rule, not
+ * a compiler.
+ *
+ * All three entries below are checkers. `scripts/manifest-conformance/rules/`
+ * holds manifest and workflow rules only — `platforms-ci`, `pr-trigger-parity`,
+ * `tier`, `release-train`, `status-data` and so on. The two rules that do read a
+ * compiled binary, `prebuild-artifacts` and `prebuild-libc`, live in
+ * `packages/infra/manifest-conformance/lib/rules/` and are not under this path
+ * at all — so the glob forced eight architectures to recompile for changes that
+ * cannot reach a byte of any prebuild, while covering none of the half that can.
+ *
+ * NOTHING GOES UNVERIFIED BY THIS. They stay in the `paths:` filter, so a run
+ * still starts and the jobs that read the COMMITTED artifacts still run — and
+ * `audit-runtimes.yml` executes the whole registry, both halves, over the
+ * committed tree on every pull request and every push. That is where a rule
+ * change is answered, and it needs no rebuild to answer it.
+ *
+ * The case worth naming, because it is the one this trades away: a rule that
+ * TIGHTENS what an artifact must satisfy — a higher glibc floor, a narrower
+ * `DT_NEEDED` set — can make an already-committed binary invalid, and no
+ * rebuild here will notice. It does not go quiet, though: the audit reads those
+ * bytes against the new rule and goes RED, which is the loud half of the
+ * trade. The repair is then a toolchain or workflow change, and both of those
+ * ARE on the shared list, so the rebuild happens under the input that actually
+ * causes it. A stale binary passing silently is the failure this file exists to
+ * prevent, and that one is still impossible.
+ *
+ * MEASURED on the #1607 merge (`ba6ddd795c..c8ae146b84`), which touched
+ * `platforms-ci.mjs` plus two lines of workflow wiring: all 12 bridges were
+ * marked BUILD with `reason: shared input changed (…platforms-ci.mjs)` — an
+ * eight-architecture rebuild whose critical path is ~97 minutes of emulated
+ * riscv64. `prebuilds.yml` is still a shared input, because its steps DO shape
+ * the bytes, so that particular merge still rebuilds; what stops is a rebuild
+ * triggered by a rule ALONE.
+ */
+const VERIFY_ONLY_TRIGGERS = [
+    'scripts/check-refs-pin.mjs',
+    'scripts/check-prebuild-loader-path.mjs',
+    'scripts/manifest-conformance/**',
+];
+
 const SHARED_SCRIPTS = [
     'scripts/stage-prebuild.mjs',
     'scripts/check-refs-pin.mjs',
@@ -321,7 +369,10 @@ function buildSharedMatchers(pathFilters, packageDirs) {
     for (const s of SHARED_SCRIPTS) {
         if (!out.some((o) => o.glob === s)) out.push({ glob: s, re: globToRegExp(s) });
     }
-    return out;
+    // Applied LAST, so it holds whether the entry arrived from the `paths:`
+    // filter or from the supplement above — see VERIFY_ONLY_TRIGGERS for why a
+    // checker triggers a run without rebuilding what it checks.
+    return out.filter((o) => !VERIFY_ONLY_TRIGGERS.includes(o.glob));
 }
 
 // ─── self-check: the gate and the trigger must agree ───────────────────────
