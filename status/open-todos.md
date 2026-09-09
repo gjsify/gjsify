@@ -2810,11 +2810,13 @@ types the spec walks, the list is empty, so the INTERFACE half of the artifact's
 cannot be held there. The class half is fine: `type_parent` answers for all of them, and the
 spec's own probe prints `named` and `withInterfaces` on every run.
 
-**`connect` / `disconnect` are reachable but not own members of `GObject.Object.prototype`.**
-The artifact measured the host verbs by SUBTRACTION on the generating host (everything on
-the prototype that is not a typelib method of GObject), so where the verb sits is what that
-subtraction depended on. Over the bridge the verbs are callable through the prototype chain
-and `hasOwnProperty` is false.
+**The GJS host verbs are not on `GObject.Object.prototype` at all.** `connect`,
+`connect_after`, `connect_object`, `disconnect`, `emit` and `set` are ABSENT there over the
+bridge — not inherited rather than own, which is what a first reading assumed and what cost
+a second CI round. The artifact measured the host verbs by SUBTRACTION on the generating
+host (everything on the prototype that is not a typelib method of GObject), so the
+prototype is what that measurement depended on; the half that survives everywhere is the
+claim about the ARTIFACT, that a host verb is not also a typelib method.
 
 Both are scoped with `it.failing(..., { when })` rather than skipped, so each RUNS on every
 host, stays strict on gjs, and fails the day the bridge starts answering — the marker

@@ -849,44 +849,55 @@ export default async () => {
                 { when: chainProbe.withInterfaces === 0 },
             );
 
-            // Whether this host distinguishes an OWN member of `GObject.Object.prototype` from an
-            // inherited one the way gjs does. Probed, not assumed: over the node-gi bridge the
-            // verbs are reachable but not own.
-            const verbsAreOwn = GJS_OBJECT_METHODS.every((name) =>
-                Object.prototype.hasOwnProperty.call(GObject.Object.prototype, name),
+            // WHERE the host verbs live is a HOST question, and this host may answer none of it.
+            // Probed rather than assumed: on gjs each verb is an own member of
+            // `GObject.Object.prototype`; over the node-gi bridge `connect`, `connect_after`,
+            // `connect_object`, `disconnect`, `emit` and `set` are not on that prototype AT
+            // ALL — not merely inherited rather than own, which is what the first split
+            // assumed and what made the strict half red there.
+            const verbsOnPrototype = GJS_OBJECT_METHODS.every(
+                (name) =>
+                    typeof (GObject.Object.prototype as unknown as Record<string, unknown>)[name] === 'function' &&
+                    Object.prototype.hasOwnProperty.call(GObject.Object.prototype, name),
             );
 
-            await it('reads the host verbs off GObject.Object.prototype and from nowhere else', async () => {
+            await it('keeps the host verbs out of the typelib half of the artifact', async () => {
                 // `connect` and `disconnect` are what `@gjsify/adwaita-nativescript` converges
-                // its widgets on (ADR 0034 § Amendment 14); they come from GJS, not from any
-                // typelib, and the artifact measured them by subtraction on the generating host.
-                // What every host must agree on is that the verb is REACHABLE and callable, and
-                // that it is not a typelib method of GObject.
+                // its widgets on (ADR 0034 § Amendment 15). The artifact measured the host verbs
+                // by SUBTRACTION on the generating host — everything on the prototype that is
+                // not a typelib method of GObject — and THIS is the half of that subtraction
+                // every host can answer, because it is a claim about the artifact and not about
+                // the prototype: a name in the host list must not also be a typelib method.
                 const typelib = new Set(OWN_METHODS['GObject'] ?? []);
                 const problems: string[] = [];
-                for (const name of GJS_OBJECT_METHODS) {
-                    if (typeof (GObject.Object.prototype as unknown as Record<string, unknown>)[name] !== 'function')
-                        problems.push(`${name} is not a callable member of GObject.Object.prototype`);
+                for (const name of GJS_OBJECT_METHODS)
                     if (typelib.has(name))
                         problems.push(`${name} is a typelib method of GObject and does not belong in the host list`);
-                }
                 expect(problems).toStrictEqual([]);
+                expect(GJS_OBJECT_METHODS.length > 0).toBe(true);
                 for (const verb of ['connect', 'disconnect']) expect(GJS_OBJECT_METHODS.includes(verb)).toBe(true);
             });
 
             await it.failing(
-                'installs the host verbs as OWN members of GObject.Object.prototype',
+                'installs the host verbs as own members of GObject.Object.prototype',
                 async () => {
-                    // WHERE the verb sits is what the artifact's subtraction depended on, so it
-                    // is asserted rather than dropped — just not as if every host answered it.
+                    // The other half of the subtraction, and the one a host can decline
+                    // entirely. Asserted rather than dropped, because WHERE the verb sits is
+                    // what the artifact's measurement depended on.
+                    const proto = GObject.Object.prototype as unknown as Record<string, unknown>;
                     const problems: string[] = [];
-                    for (const name of GJS_OBJECT_METHODS)
+                    for (const name of GJS_OBJECT_METHODS) {
+                        if (typeof proto[name] !== 'function') {
+                            problems.push(`${name} is not a callable member of GObject.Object.prototype`);
+                            continue;
+                        }
                         if (!Object.prototype.hasOwnProperty.call(GObject.Object.prototype, name))
                             problems.push(`${name} is not an own member of GObject.Object.prototype`);
+                    }
                     expect(problems).toStrictEqual([]);
                 },
-                'The node-gi bridge and the darwin closure reach the host verbs through the prototype chain rather than installing them as own members. Tracked in status/open-todos.md; this marker retires itself the day they are own.',
-                { when: !verbsAreOwn },
+                'The node-gi bridge and the darwin closure do not put the GJS host verbs on GObject.Object.prototype — connect, connect_after, connect_object, disconnect, emit and set are absent there rather than inherited. Tracked in status/open-todos.md; this marker retires itself the day the prototype carries them.',
+                { when: !verbsOnPrototype },
             );
 
             await it('excuses only the widgets this host really has no class for', async () => {
