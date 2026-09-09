@@ -5,7 +5,6 @@
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
 import type { View } from '@nativescript/core';
-import { mailUnreadSymbolic } from '@gjsify/adwaita-icons/status';
 import { navigationSplitViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class NavigationSplitViewNsStory extends StoryView {
@@ -46,7 +45,7 @@ export class NavigationSplitViewNsStory extends StoryView {
     /** A status page inside a toolbar view — the content page. */
     private buildContent(): View {
         const status = new Adw.StatusPage();
-        status.iconName = mailUnreadSymbolic;
+        status.iconName = 'mail-unread-symbolic';
         status.title = 'All Mail';
         status.description = 'Select a conversation from the list to read it here.';
 

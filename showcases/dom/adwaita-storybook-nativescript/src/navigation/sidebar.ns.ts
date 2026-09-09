@@ -4,9 +4,6 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
-import { mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
-import { folderSymbolic } from '@gjsify/adwaita-icons/places';
-import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { GridLayout, ItemSpec } from '@nativescript/core';
 import { sidebarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -15,10 +12,10 @@ export class SidebarNsStory extends StoryView {
     private _status: Adw.StatusPage | null = null;
 
     private readonly items: readonly { title: string; subtitle: string; icon: string }[] = [
-        { title: 'Inbox', subtitle: '3 unread', icon: mailUnreadSymbolic },
-        { title: 'Starred', subtitle: 'Favourites', icon: starredSymbolic },
-        { title: 'Sent', subtitle: 'Outgoing mail', icon: mailSendSymbolic },
-        { title: 'Archive', subtitle: 'Older mail', icon: folderSymbolic },
+        { title: 'Inbox', subtitle: '3 unread', icon: 'mail-unread-symbolic' },
+        { title: 'Starred', subtitle: 'Favourites', icon: 'starred-symbolic' },
+        { title: 'Sent', subtitle: 'Outgoing mail', icon: 'mail-send-symbolic' },
+        { title: 'Archive', subtitle: 'Older mail', icon: 'folder-symbolic' },
     ];
 
     constructor() {

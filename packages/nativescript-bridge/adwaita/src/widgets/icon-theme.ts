@@ -18,14 +18,21 @@
 // `packages/web/adwaita-icons/*.ts` (the command is in ADR 0034 § Amendment 16):
 //
 //   · the whole barrel        644 glyphs, 732 371 bytes of SVG source  (715.2 KiB)
-//   · {@link COMPILED_ICONS}   24 glyphs,  22 089 bytes                 (21.6 KiB)
-//   · what the subset ADDS     18 glyphs,  18 371 bytes                 (17.9 KiB)
+//   · {@link COMPILED_ICONS}   31 glyphs,  27 868 bytes                 (27.2 KiB)
+//   · what the subset ADDS     25 glyphs,  24 150 bytes                 (23.6 KiB)
 //
-// The third row is the honest one: six of the twenty-four were already imported by a
+// The third row is the honest one: six of the thirty-one were already imported by a
 // widget in this directory for its own chrome, so the bundle grows by the other
-// eighteen — 2.5 % of the barrel. A `import * from '@gjsify/adwaita-icons'` would pull
-// all 644 in, which is why nothing here does that and why the membership rule below is
-// enforced by a gate rather than by intent.
+// twenty-five — 3.3 % of the barrel. A `import * from '@gjsify/adwaita-icons'` would
+// pull all 644 in, which is why nothing here does that and why the membership rule
+// below is enforced by a gate rather than by intent.
+//
+// AN ENTRY IS PAID FOR BY EVERY APP, and that is deliberate rather than overlooked: a
+// bundler cannot tree-shake individual properties out of an object literal, so the map
+// is all-or-nothing exactly as the web pillar's stylesheet is. It is the reason arm 2 of
+// the gate exists — an entry nothing emits is a byte bought for nobody — and the reason
+// seven entries here are the price of a storybook control whose every option draws,
+// which is the same trade `build-scss.mjs` records for five of its own.
 //
 // THE MEMBERSHIP RULE: every icon name a shipping NativeScript-facing surface in this
 // repository emits as a NAME, and nothing else. The port's own chrome glyphs are NOT in
@@ -48,22 +55,28 @@
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
 import {
+    contactNewSymbolic,
     documentEditSymbolic,
+    documentOpenSymbolic,
     documentSaveSymbolic,
+    editDeleteSymbolic,
     goNextSymbolic,
     listAddSymbolic,
     listRemoveSymbolic,
+    mailReplySenderSymbolic,
     mailSendSymbolic,
     openMenuSymbolic,
     sendToSymbolic,
+    systemSearchSymbolic,
     viewConcealSymbolic,
     viewGridSymbolic,
     viewListSymbolic,
+    viewMoreSymbolic,
     viewPagedSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
-import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
+import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { folderDocumentsSymbolic, folderDownloadSymbolic, folderMusicSymbolic, folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, imageMissingSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
@@ -89,8 +102,12 @@ export const ICON_FALLBACK_NAME = 'image-missing';
  */
 const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'avatar-default': avatarDefaultSymbolic,
+    'camera-photo': cameraPhotoSymbolic,
+    'contact-new': contactNewSymbolic,
     'document-edit': documentEditSymbolic,
+    'document-open': documentOpenSymbolic,
     'document-save': documentSaveSymbolic,
+    'edit-delete': editDeleteSymbolic,
     'emblem-system': emblemSystemSymbolic,
     folder: folderSymbolic,
     'folder-documents': folderDocumentsSymbolic,
@@ -100,6 +117,7 @@ const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'image-missing': imageMissingSymbolic,
     'list-add': listAddSymbolic,
     'list-remove': listRemoveSymbolic,
+    'mail-reply-sender': mailReplySenderSymbolic,
     'mail-send': mailSendSymbolic,
     'mail-unread': mailUnreadSymbolic,
     'network-wireless': networkWirelessSymbolic,
@@ -107,9 +125,11 @@ const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'preferences-system': preferencesSystemSymbolic,
     'send-to': sendToSymbolic,
     starred: starredSymbolic,
+    'system-search': systemSearchSymbolic,
     'view-conceal': viewConcealSymbolic,
     'view-grid': viewGridSymbolic,
     'view-list': viewListSymbolic,
+    'view-more': viewMoreSymbolic,
     'view-paged': viewPagedSymbolic,
     'view-reveal': viewRevealSymbolic,
 };

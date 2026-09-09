@@ -5,26 +5,16 @@
 // and cannot host a child widget, so the content goes in a StackLayout carrying the same classes —
 // the same workaround the browser twin uses.
 
+// The story's `iconName` control offers THEME NAMES, and since `icon-theme.ts` the port
+// resolves one — so the local name-to-SVG map that used to sit here is gone. Seven of
+// these existed across this showcase, each re-implementing the `-symbolic` strip and a
+// switch over three or four names, each with its own fallback.
+
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
-import { listAddSymbolic, mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
-import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
-import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { StackLayout } from '@nativescript/core';
 import { buttonContentMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// GTK symbolic name → a real Adwaita symbolic SVG, rasterised natively by GtkImage. NOT an emoji
-// glyph, so this matches Adw.ButtonContent.
-const ICON_SVGS: Record<string, string> = {
-    'folder-download-symbolic': folderDownloadSymbolic,
-    'list-add-symbolic': listAddSymbolic,
-    'mail-send-symbolic': mailSendSymbolic,
-    'starred-symbolic': starredSymbolic,
-};
-
-function iconSvg(symbolic: string): string {
-    return ICON_SVGS[symbolic] ?? '';
-}
 
 export class ButtonContentNsStory extends StoryView {
     private _content: Adw.ButtonContent | null = null;
@@ -67,7 +57,7 @@ export class ButtonContentNsStory extends StoryView {
     private _syncContent(): void {
         if (!this._content) return;
         this._content.label = this.args.label as string;
-        this._content.iconName = iconSvg(this.args.iconName as string);
+        this._content.iconName = this.args.iconName as string;
         // `canShrink` round-trips and reports its PangoEllipsizeMode, but the NS
         // CSS subset has no ellipsize — the control reflects the state rather
         // than truncating the label. See Adw.ButtonContent.canShrink.

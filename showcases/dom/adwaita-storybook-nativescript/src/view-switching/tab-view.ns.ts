@@ -4,7 +4,6 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
-import { viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
 import { tabViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 const TABS: ReadonlyArray<{ title: string; body: string }> = [
@@ -41,7 +40,7 @@ export class TabViewNsStory extends StoryView {
     // no icon-theme lookup, so Adw.StatusPage takes a glyph.
     private _buildPageBody(tab: { title: string; body: string }): Adw.StatusPage {
         const status = new Adw.StatusPage();
-        status.iconName = viewGridSymbolic;
+        status.iconName = 'view-grid-symbolic';
         status.title = tab.title;
         status.description = tab.body;
         return status;

@@ -7,14 +7,13 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
-import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 import { toggleGroupMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The three toggles, mirroring the native demo (icon + label).
 const TOGGLES = [
-    { label: 'List', icon: viewListSymbolic },
-    { label: 'Grid', icon: viewGridSymbolic },
-    { label: 'Columns', icon: viewPagedSymbolic },
+    { label: 'List', icon: 'view-list-symbolic' },
+    { label: 'Grid', icon: 'view-grid-symbolic' },
+    { label: 'Columns', icon: 'view-paged-symbolic' },
 ];
 
 export class ToggleGroupNsStory extends StoryView {

@@ -5,7 +5,6 @@
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
 import type { View } from '@nativescript/core';
-import { folderMusicSymbolic } from '@gjsify/adwaita-icons/places';
 import { overlaySplitViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /**
@@ -55,7 +54,7 @@ export class OverlaySplitViewNsStory extends StoryView {
 
     private buildContent(): View {
         const status = new Adw.StatusPage();
-        status.iconName = folderMusicSymbolic;
+        status.iconName = 'folder-music-symbolic';
         status.title = 'Your Library';
         status.description = 'Toggle the sidebar to browse sections. Collapse it to overlay the content.';
 
