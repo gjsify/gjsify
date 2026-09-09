@@ -119,6 +119,8 @@ header bar or toolbar, where a raised button looks too heavy.
 <AdwWidget title="Adw.SplitButton">
   <Fragment slot="preview">
     ```html
+    <!-- icon-name: The name of the icon used to automatically populate the button. -->
+    <!-- menu-model: The `GMenuModel` from which the popup will be created. -->
     <adw-split-button
       label="Save"
       icon-name="document-save"
@@ -218,6 +220,7 @@ once set", and the only setter is class-level.
 <AdwWidget title="Adw.ToggleGroup">
   <Fragment slot="preview">
     ```html
+    <!-- active: The index of the active toggle. -->
     <adw-toggle-group active="0">
       <adw-toggle label="List" icon-name="view-list"></adw-toggle>
       <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>

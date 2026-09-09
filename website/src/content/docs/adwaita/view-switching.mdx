@@ -51,6 +51,7 @@ swaps between the two on a breakpoint.
 <AdwWidget title="Adw.ViewSwitcher" padding="flush" stage="height: 300px; width: 100%; display: flex; flex-direction: column;">
   <Fragment slot="preview">
     ```html
+    <!-- policy: The policy to determine which mode to use. -->
     <adw-view-switcher policy="wide" style="flex: 1; width: 100%;">
       <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
         <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
@@ -199,6 +200,7 @@ does not appear.
           <adw-status-page icon="folder" title="Archive" description="The archive page."></adw-status-page>
         </adw-view-stack-page>
       </adw-view-stack>
+      <!-- reveal: Whether the bar should be revealed or hidden. -->
       <adw-view-switcher-bar slot="bottom" stack="gallery-switcher-bar-stack" reveal></adw-view-switcher-bar>
     </adw-toolbar-view>
     ```
