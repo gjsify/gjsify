@@ -186,16 +186,27 @@ export function platformManifest(parent, target, measured, exemption = null) {
         version: parent.version,
         description:
             `${target} prebuilt native library + GObject-Introspection typelib for ${parent.name}. ` +
-            `Installed automatically on ${osCpu.os[0]}/${osCpu.cpu[0]} as an optionalDependency of that package ` +
+            `Installed automatically on ${osCpu.os[0]}/${osCpu.cpu[0]}${osCpu.libc ? `/${osCpu.libc[0]}` : ''} ` +
+            'as an optionalDependency of that package ' +
             '(ADR 0017) and skipped everywhere else. Contains no JavaScript.',
         license: 'MIT',
         os: osCpu.os,
         cpu: osCpu.cpu,
     };
     // npm's `libc` is a Linux-only install filter, honoured by npm, yarn and
-    // pnpm. Present ONLY when measurement proved the artifact cannot load under
-    // musl — see `measureLibcFields`.
-    if (measured.libc) manifest.libc = measured.libc;
+    // pnpm. It arrives here from two different kinds of claim, and the token
+    // wins because something else already holds the token honest:
+    //
+    //   • A `-musl` TOKEN declares the axis. It can be trusted over the
+    //     measurement because `prebuild-libc`'s Check A fails the package when
+    //     a `-musl` directory holds glibc-linked libraries — so a mislabelled
+    //     directory is red at the audit rather than mis-declared here. Without
+    //     the field npm installs a musl image on a glibc host, where its loader
+    //     is simply absent.
+    //   • Otherwise measurement decides, and only when it proved the artifact
+    //     cannot load under musl — see `measureLibcFields`.
+    if (osCpu.libc) manifest.libc = osCpu.libc;
+    else if (measured.libc) manifest.libc = measured.libc;
     // No `main`/`module`/`types`/`exports`: see the header. The prebuild
     // directory is the entire payload, so it is the entire `files` list.
     manifest.files = ['prebuilds'];
@@ -262,7 +273,7 @@ export function platformManifest(parent, target, measured, exemption = null) {
  */
 export function platformReadme(parent, target, planned) {
     const name = platformPackageName(parent.name, target);
-    const osCpu = /** @type {{os: string[], cpu: string[]}} */ (osCpuForTarget(target));
+    const osCpu = /** @type {{os: string[], cpu: string[], libc?: string[]}} */ (osCpuForTarget(target));
     const deferred =
         planned && planned.state === 'uncommitted'
             ? `
@@ -285,7 +296,7 @@ JavaScript in this package and nothing to import from it.
 
 You do not install this directly. \`${parent.name}\` declares it as an
 \`optionalDependencies\` entry and this package declares \`os: ["${osCpu.os[0]}"]\`,
-\`cpu: ["${osCpu.cpu[0]}"]\`, so your package manager installs the one build that fits your
+\`cpu: ["${osCpu.cpu[0]}"]\`${osCpu.libc ? ` and \`libc: ["${osCpu.libc[0]}"]\`` : ''}, so your package manager installs the one build that fits your
 machine and silently skips the rest — the same model \`esbuild\`, \`rolldown\` and
 \`lightningcss\` use. Before this split every consumer downloaded every platform's
 binary: 97.3 MB of which a linux-x64 machine could load 31.5 MB.

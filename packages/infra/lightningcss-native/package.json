@@ -21,7 +21,9 @@
     "gjsify": {
         "platforms": [
             "linux-x64",
+            "linux-x64-musl",
             "linux-arm64",
+            "linux-arm64-musl",
             "linux-ppc64",
             "linux-s390x",
             "linux-riscv64",
@@ -82,9 +84,11 @@
         "@gjsify/lightningcss-native-darwin-arm64": "workspace:*",
         "@gjsify/lightningcss-native-darwin-x64": "workspace:*",
         "@gjsify/lightningcss-native-linux-arm64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-arm64-musl": "workspace:*",
         "@gjsify/lightningcss-native-linux-ppc64": "workspace:*",
         "@gjsify/lightningcss-native-linux-riscv64": "workspace:*",
         "@gjsify/lightningcss-native-linux-s390x": "workspace:*",
-        "@gjsify/lightningcss-native-linux-x64": "workspace:*"
+        "@gjsify/lightningcss-native-linux-x64": "workspace:*",
+        "@gjsify/lightningcss-native-linux-x64-musl": "workspace:*"
     }
 }

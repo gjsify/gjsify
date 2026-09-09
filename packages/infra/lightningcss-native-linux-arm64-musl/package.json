@@ -1,0 +1,43 @@
+{
+    "name": "@gjsify/lightningcss-native-linux-arm64-musl",
+    "version": "0.48.0",
+    "description": "linux-arm64-musl prebuilt native library + GObject-Introspection typelib for @gjsify/lightningcss-native. Installed automatically on linux/arm64/musl as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT",
+    "os": [
+        "linux"
+    ],
+    "cpu": [
+        "arm64"
+    ],
+    "libc": [
+        "musl"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platformsUncommitted": {
+            "linux-arm64-musl": "prebuilds.yml's `build-prebuilds-musl` leg builds and verifies it inside alpine:3.24 on a native runner and uploads it; `commit-prebuilds` lands the directory on main and `clear-committed-platform-exemptions.mjs` clears this entry"
+        },
+        "platforms": [
+            "linux-arm64-musl"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/lightningcss-native-linux-arm64-musl"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/lightningcss-native-linux-arm64-musl#readme"
+}

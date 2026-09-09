@@ -4,6 +4,31 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `HOST_TARGET` is libc-blind, so the audit dlopens the wrong directory on musl
+
+`HOST_TARGET` in `packages/infra/manifest-conformance/lib/platforms.mjs` is
+`${process.platform}-${process.arch}` and nothing more. `prebuild-artifacts`'s Half 2b
+compares a committed directory's canonical token against it to decide which one to load
+for real (`canon !== HOST_TARGET` → structural check only), so on an Alpine or
+postmarketOS host it dlopens `prebuilds/linux-arm64/`, which is the glibc build and
+cannot load there, and skips `prebuilds/linux-arm64-musl/`, which is the one that can.
+
+Unreachable until the first `-musl` directory is committed, which is what #1607 arranges.
+Measured on a OnePlus 6T (postmarketOS v26.06, musl 1.2.6, aarch64, gjs 1.88.1) against
+that PR's own CI artifacts: the `linux-arm64` build of `@gjsify/lightningcss-native` fails
+with `Error relocating …/libgjsify_lightningcss.so: gnu_get_libc_version: symbol not
+found`, the `linux-arm64-musl` build loads and minifies CSS correctly. So the audit run on
+such a host answers both halves wrongly at once.
+
+Two things are missing and neither is a one-liner. A host-libc probe belongs in
+`platforms.mjs`, which today reaches for no runtime facts beyond `process`; and a CI leg
+that runs `audit-runtimes --check` on musl is what would keep the fix honest —
+`check-committed-musl` is the closest thing and it deliberately reads binaries rather than
+running the audit. Until both exist, the write side (`hostPrebuildTarget` in
+`rules/prebuild-libc.mjs`) is the only libc-aware host token in the tree, and it is exact
+by design.
+
+
 ### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
 
 `@gjsify/xmlhttprequest` ships a class in `src/index.ts`. `@gjsify/fetch` ships another in

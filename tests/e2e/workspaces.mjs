@@ -60,6 +60,16 @@ export function discoverWorkspaces() {
  * packages / 199 s before, 185 / 258 s after, which pushed `cli-only-pnp` past its parent's
  * timeout. Filtering to the host target keeps the prebuilds `dlx-native-prebuilds` and
  * `napi-transparent-app-gjs` need and drops only bytes no install could have used.
+ *
+ * DO NOT "fix" a missing registry copy by packing the package back in. Measured on yarn
+ * 4.14.1: a `file:` tarball for a package the current architecture does not support (a
+ * foreign `cpu`, or a `libc` the host does not have) resolves and then dies in the FETCH
+ * step with `ENOENT … .yarn/cache/<name>-file-<hash>.zip` — Yarn skips fetching what it
+ * will not link and then stats the cache entry anyway. The same tarball for a supported
+ * package installs fine, so the filter is load-bearing for Yarn PnP and not only a size
+ * optimisation. When npm cannot supply the omitted package at all — a name queued in
+ * `status/pending-npm-bootstrap.json` and not yet published — the answer is that publish,
+ * not a tarball and not a skip: a real consumer is in the same state.
  */
 export function isForeignPlatformPackage(pkg) {
     const g = pkg.gjsify;

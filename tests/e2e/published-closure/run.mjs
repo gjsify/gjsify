@@ -340,7 +340,12 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             r.out,
             /UNRESOLVABLE: @fix\/bridge@1\.2\.3 → optionalDependencies\.@fix\/bridge-darwin-arm64@1\.2\.3/,
         );
-        assert.match(r.out, /skips an unresolvable optionalDependency in SILENCE/);
+        // BOTH halves of the consequence, because the two package managers fail
+        // differently and a message naming only npm's silence reads as "the
+        // install works, the binary is missing" — which is not what a Yarn
+        // consumer gets (measured on yarn 4.14.1: `YN0035`, no install at all).
+        assert.match(r.out, /skip an unresolvable optionalDependency in\s+SILENCE/);
+        assert.match(r.out, /Yarn refuses the install outright/);
         assert.match(r.out, /--tolerate-republish/);
         // The intact sibling must NOT be reported — a guard that names everything
         // names nothing.

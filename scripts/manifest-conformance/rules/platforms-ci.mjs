@@ -17,13 +17,11 @@ import { resolve } from 'node:path';
 
 import {
     canonicalPlatform,
-    canonicalPrebuildTarget,
     collectNativePackages,
     defineRule,
     hostPrebuildTarget,
     isPlatformPackageManifest,
     KNOWN_ARCH_TOKENS,
-    parsePrebuildTarget,
     platformPackageName,
     prebuildOwnership,
     PLATFORM_RE,
@@ -150,15 +148,18 @@ export function splitSteps(lines) {
  * `build-prebuilds-macos-experimental`) is not a platform CI produces, and counting it
  * lets a package declare a target no user will ever receive.
  *
- * A LIBC-CARRYING target is excluded too, and for a different reason: it is not a
- * `gjsify.platforms` promise in the first place. `prebuilds.yml`'s Alpine leg marks its
- * matrix entries `libc: musl`, composes `linux-<arch>-musl`, and contributes nothing
- * here — it proves that the SOURCES build and load on musl, which is what keeps the
- * npm `libc` policy honest, without promising anybody a musl binary. That exclusion is
- * what let the leg stop being `workflow_dispatch`-only: without the key it would be
- * credited with `linux-x64`/`linux-arm64`, the targets the glibc legs build, and the
- * audit would pass having measured the wrong job. An unrecognised `libc:` value, or the
- * right one on a non-Linux entry, THROWS rather than folding down to a bare token.
+ * A LIBC-CARRYING target is a target like any other. `prebuilds.yml`'s Alpine leg marks
+ * its matrix entries `libc: musl`, which composes `linux-<arch>-musl` — a token
+ * `PLATFORM_RE` accepts and two bridges declare, so the leg is credited with what it
+ * actually builds and `auditPlatforms` holds it against the declaration in both
+ * directions. The key stays load-bearing for the reason it was added: deleting it
+ * credits the leg with `linux-x64`/`linux-arm64`, which the glibc legs build and this
+ * one does not, so the audit would pass having measured the wrong job. It used to be
+ * dropped here instead, back when `PLATFORM_RE` rejected the suffix and no declaration
+ * could exist to compare it against; dropping it now would report all four declared
+ * musl targets as "no CI job produces this" while the leg that produces them sits in
+ * the same file. An unrecognised `libc:` value, or the right one on a non-Linux entry,
+ * THROWS rather than folding down to a bare token.
  *
  * ADVISORY — a package the parser finds no job for is reported as unverified rather
  * than failed, so a build wired up in a shape this parser cannot read never produces
@@ -249,15 +250,7 @@ export async function parseCiPlatforms(
                                 'and the entry would silently be read as an ordinary platform promise.',
                         );
                     }
-                    // `canonicalPrebuildTarget`, NOT `canonicalPlatform`: the
-                    // latter is libc-BLIND by design (it splits on `-` and keeps
-                    // two parts), so it folds `linux-x64-musl` straight back down
-                    // to `linux-x64` — which is the very silent credit this key
-                    // exists to prevent, arriving through the canonicaliser
-                    // instead of through the missing key. Measured: with
-                    // `canonicalPlatform` here the musl fixture below credits
-                    // `linux-x64` and passes as if the axis did not exist.
-                    targets.add(canonicalPrebuildTarget(hostPrebuildTarget(entryOs, arch, entry.libc ?? 'glibc')));
+                    targets.add(canonicalPlatform(hostPrebuildTarget(entryOs, arch, entry.libc ?? 'glibc')));
                 }
             } else {
                 // The libc key is read ONLY from `matrix.include` entries above.
@@ -281,28 +274,6 @@ export async function parseCiPlatforms(
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }
-            // A libc-carrying target is NOT a `gjsify.platforms` promise, so it
-            // must not reach the map declared-vs-built is computed from. The
-            // vocabulary is `<os>-<arch>` and the libc distinction rides npm's
-            // own field; a musl leg therefore proves that the SOURCES build and
-            // load on musl without promising anyone a musl binary.
-            //
-            // Dropped here rather than at the composition above so the throw
-            // guarding the vocabulary still sees every value, and so the reason
-            // sits with the invariant it protects.
-            // Deleting the current entry mid-iteration is defined for a Set (the
-            // iterator skips removed entries), so no copy is needed.
-            for (const target of targets) {
-                if (parsePrebuildTarget(target).libc) targets.delete(target);
-            }
-            // Attribute nothing when every target was dropped. Adding an EMPTY
-            // set would be worse than adding none: `auditPlatforms` treats the
-            // presence of a set as "the parser found jobs for this package" and
-            // then fails every declared target as unbuilt. Today the glibc legs
-            // are parsed first so the set is already populated, which makes this
-            // a correctness property that would otherwise depend on job ORDER in
-            // the file.
-            if (targets.size === 0) continue;
             // This map means exactly "which targets does CI BUILD", so a job that
             // only CONSUMES another job's artifacts must contribute nothing. The
             // per-step verb test cannot see that alone: `commit-prebuilds`' steps

@@ -82,7 +82,6 @@ export {
     renderPrebuildLibcSummary,
     libcFlavourOfNeeded,
     parsePrebuildTarget,
-    canonicalPrebuildTarget,
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
 export {

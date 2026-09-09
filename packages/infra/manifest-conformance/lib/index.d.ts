@@ -127,8 +127,6 @@ export type PrebuildLibc = 'glibc' | 'musl';
 export declare function libcFlavourOfNeeded(needed: readonly string[]): PrebuildLibc | null;
 /** Split `<os>-<arch>[-musl]`; `libc` is only ever set when `os === 'linux'`. */
 export declare function parsePrebuildTarget(token: string): { os: string; arch: string; libc: 'musl' | null };
-/** Canonical `<os>-<arch>[-musl]` — libc-AWARE, unlike `canonicalPlatform`. */
-export declare function canonicalPrebuildTarget(token: string): string;
 /** The ONE target a build on this host may stage into (write side; exact). */
 export declare function hostPrebuildTarget(platform: string, arch: string, libc?: PrebuildLibc | null): string;
 export declare function measurePrebuildLibc(dir: string): {
@@ -155,7 +153,9 @@ export declare const ARCH_ALIASES: Record<string, string>;
 export declare const KNOWN_ARCH_TOKENS: Set<string>;
 export declare const LIB_EXT: Record<string, string>;
 export declare const HOST_TARGET: string;
+/** Canonical `<os>-<arch>[-musl]`; a token with no arch half comes back untouched. */
 export declare function canonicalPlatform(token: string): string;
+export declare const MUSL_SUFFIX: string;
 
 export declare const packageOutputsRule: Rule;
 export declare const prebuildArtifactsRule: Rule;

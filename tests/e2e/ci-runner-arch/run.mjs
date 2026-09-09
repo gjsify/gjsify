@@ -615,9 +615,13 @@ jobs:
     // musl on ordinary ubuntu runners, so its `runs-on` says `linux-x64` — the
     // very target the glibc legs build and it does not. It carries `libc: musl`
     // on each matrix entry precisely so the parser composes `linux-<arch>-musl`
-    // and drops it: `-musl` is not a `gjsify.platforms` token (the distinction
-    // rides npm's `libc` field), so the leg proves the sources build and load on
-    // musl without promising anyone a musl binary.
+    // rather than the bare token.
+    //
+    // That composed target is now KEPT and credited. It used to be dropped, on
+    // the premise that `-musl` was not a `gjsify.platforms` token; since
+    // `@gjsify/lightningcss-native` and `@gjsify/sab-native` declare four musl
+    // targets it is one, and dropping it would report them as built by nothing
+    // while this very leg builds them.
     //
     // The PAIR below is the point. The first fixture is what the workflow looks
     // like; the second is what deleting one key does, and it is why the key
@@ -644,11 +648,11 @@ ${libcLine}
           path: packages/node/tls-native/prebuilds/linux-x64-musl/
 `;
 
-    it('credits nothing to a leg whose matrix entries declare `libc: musl`', async () => {
+    it('credits the musl target to a leg whose matrix entries declare `libc: musl`', async () => {
         assert.deepEqual(
             await coverage(alpineJob('            libc: musl')),
-            {},
-            'a musl leg makes no `<os>-<arch>` promise, so it must contribute nothing to declared-vs-built.',
+            { '@gjsify/tls-native': ['linux-x64-musl'] },
+            'the leg builds a musl binary and the token says so, so it is credited with `linux-x64-musl` — and, crucially, NOT with the bare `linux-x64` the glibc legs build.',
         );
     });
 
@@ -807,12 +811,30 @@ describe('the libc axis — the real prebuilds.yml', () => {
         }
     };
 
-    it('credits the Alpine leg in the real workflow with nothing', async () => {
+    it('credits the Alpine leg in the real workflow with its musl targets', async () => {
+        const got = await coverage(realMuslJob());
         assert.deepEqual(
-            await coverage(realMuslJob()),
-            {},
-            'the real `build-prebuilds-musl` must contribute no `<os>-<arch>` promise. If this fails, `libc: musl` has left its matrix entries (or an entry was added without one) and the leg is now credited with targets the glibc legs build — a green audit measuring the wrong job.',
+            got,
+            {
+                '@gjsify/lightningcss-native': ['linux-arm64-musl', 'linux-x64-musl'],
+                '@gjsify/sab-native': ['linux-arm64-musl', 'linux-x64-musl'],
+            },
+            'the real `build-prebuilds-musl` builds exactly the four targets those two packages declare. Bare `linux-x64`/`linux-arm64` appearing here would mean `libc: musl` has left its matrix entries (or an entry was added without one), and the leg is credited with targets the glibc legs build — a green audit measuring the wrong job.',
         );
+        // Stated separately from the equality above because it is the property
+        // that survives a change to the leg's package list, which the equality
+        // does not: not one credited token here may be BARE. A bare token is a
+        // promise the glibc legs already make, so an entry composing one would
+        // credit this leg with a build it does not do — and whoever adds a third
+        // package to the leg will update the map above without re-deriving why.
+        for (const targets of Object.values(got)) {
+            for (const target of targets) {
+                assert.ok(
+                    target.endsWith('-musl'),
+                    `\`${target}\` is a bare token, so \`libc: musl\` was not read for the entry that composed it.`,
+                );
+            }
+        }
     });
 
     it('credits both bare targets once those `libc:` lines are deleted', async () => {
