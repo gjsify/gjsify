@@ -74,11 +74,11 @@ full Adwaita storybook against that bundle.
 
 Web views reach Windows too. `@gjsify/webview2-native` supplies a `WebKit-6.0`
 namespace backed by Microsoft's WebView2, so the code that embeds a page on Linux
-embeds one here unchanged. What decides whether you can build on it: the view is
-an overlay the OS composites on top of your window, so no ancestor can clip or
-scroll it; the WebView2 Evergreen runtime has to be present on the end user's
-machine, which is your installer's job to declare; and the view has been proven
-headlessly rather than re-parented under a real application window.
+embeds one here unchanged. Three things decide whether you can build on it. The
+view is an overlay the OS composites on top of your window, so no ancestor can
+clip or scroll it. The WebView2 Evergreen runtime has to be present on the end
+user's machine, which your installer has to declare. And the view has been proven
+headlessly, not re-parented under a real application window.
 [Web Views](/gjsify/guides/web-views/) has each of those in full.
 
 Two host settings are worth getting right before you start, because both fail in
@@ -102,14 +102,14 @@ skipped.
 `--app node` is fully supported: builds, conformance and a real GTK/Adwaita
 window are all exercised on Apple silicon, and `@gjsify/gtk-runtime-darwin-arm64`
 ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
-get the same treatment against `@gjsify/gtk-runtime-darwin-x64`: the same builds,
-the same display-free conformance and the same windowed GUI proof, each one a
-matrix leg beside its Apple-silicon twin rather than a reduced substitute.
+get the same against `@gjsify/gtk-runtime-darwin-x64`: the same builds, the same
+display-free conformance, the same windowed GUI proof, each one a matrix leg
+beside its Apple-silicon twin rather than a reduced substitute.
 
 Web views come with the package here. `@gjsify/webkit-native` puts Apple's WebKit
-behind the same `WebKit-6.0` namespace `@gjsify/iframe` uses on Linux, so there is
-no WebKitGTK to hunt for — upstream's GTK port is Linux-only by decision — and
-nothing in your code changes. The minimum deployment target is macOS 11, and a few
+behind the same `WebKit-6.0` namespace `@gjsify/iframe` uses on Linux, so nothing
+in your code changes and there is no WebKitGTK to hunt for. Upstream's GTK port is
+Linux-only by decision. The minimum deployment target is macOS 11, and a few
 page-level behaviours differ (document focus, the pointer cursor);
 [Web Views](/gjsify/guides/web-views/) names them.
 
