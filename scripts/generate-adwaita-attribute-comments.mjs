@@ -255,7 +255,12 @@ const stem = (word) =>
  * grammar list was doing anything at all.
  */
 function stemmed(list) {
-    return new Set(list.split(/\s+/).filter((word) => word !== '').map(stem));
+    return new Set(
+        list
+            .split(/\s+/)
+            .filter((word) => word !== '')
+            .map(stem),
+    );
 }
 
 /**
@@ -844,9 +849,12 @@ export function applyMeanings(root, meanings) {
 /** The counts the generated module publishes, so a hand-edited one is a red gate. */
 export const meaningCounts = (meanings, applied) => ({
     set: applied.set.size,
-    glossed: Object.values(meanings).flatMap((entries) => Object.values(entries)).filter((s) => s !== null).length,
-    nameSuffices: Object.values(meanings).flatMap((entries) => Object.values(entries)).filter((s) => s === null)
-        .length,
+    glossed: Object.values(meanings)
+        .flatMap((entries) => Object.values(entries))
+        .filter((s) => s !== null).length,
+    nameSuffices: Object.values(meanings)
+        .flatMap((entries) => Object.values(entries))
+        .filter((s) => s === null).length,
     divergent: Object.keys(ATTRIBUTE_MEANING_LEDGER).length,
     authored: Object.keys(AUTHORED_MEANINGS).length,
     commentLines: applied.commentLines,
@@ -913,7 +921,7 @@ export function derive(root, gir) {
     // what the frequency floor bought on its own.
     const shared = new Set(
         [...documentFrequency.entries()]
-            .filter(([word, count]) => count >= SHARED_VOCABULARY_MIN_DOCS)
+            .filter(([, count]) => count >= SHARED_VOCABULARY_MIN_DOCS)
             .filter(([word]) => !FUNCTION_WORDS.has(word) && !PRESENTATION_WORDS.has(word))
             .map(([word]) => word),
     );
@@ -1067,7 +1075,9 @@ const ADWAITA_MEANING_PROVENANCE_HINT = (() => {
     try {
         const text = readFileSync(join(ROOT, MEANINGS_MODULE), 'utf8');
         const found = [...text.matchAll(/namespace: '([^']+)',\s*\n\s*version: '([^']+)'/g)];
-        return found.length === 0 ? 'an unrecorded GIR' : found.map(([, ns, version]) => `${ns} ${version}`).join(' / ');
+        return found.length === 0
+            ? 'an unrecorded GIR'
+            : found.map(([, ns, version]) => `${ns} ${version}`).join(' / ');
     } catch {
         return 'an unrecorded GIR';
     }

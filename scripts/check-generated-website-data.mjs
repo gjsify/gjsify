@@ -114,10 +114,7 @@ import {
     hostTagOf,
 } from './adwaita-gallery-shared-trees.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
-import {
-    ADWAITA_ATTRIBUTE_MEANING_COUNTS,
-    ADWAITA_ATTRIBUTE_MEANINGS,
-} from './adwaita-attribute-meanings.mjs';
+import { ADWAITA_ATTRIBUTE_MEANING_COUNTS, ADWAITA_ATTRIBUTE_MEANINGS } from './adwaita-attribute-meanings.mjs';
 import {
     applyMeanings,
     ATTRIBUTE_MEANING_LEDGER,
