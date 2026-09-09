@@ -41,11 +41,7 @@
  *     numbers. An entry the build no longer needs is a NOTE, not a failure: "we
  *     support glibc ≥ 2.28 as policy even though today's binary only needs 2.17"
  *     is a legitimate, conservative promise, and failing it would make a
- *     deliberate distro baseline impossible to state. The number comes from
- *     `readElfGlibcRequires`, which counts a `GLIBC_<x.y>` version need only when
- *     the FILE it is needed from is one glibc itself provides — a musl artifact
- *     that reports a glibc floor is reporting `libgcc_s.so.1`'s historical symbol
- *     labels, and that is what it did.
+ *     deliberate distro baseline impossible to state.
  *
  *   • **Per package — the `libc` FIELD, which is where the design deviates.**
  *     The obvious rule is "links glibc ⇒ declare `libc: ["glibc"]`". This rule
@@ -69,14 +65,7 @@
  *     and DOES record the interpreter on riscv64, because Fedora's riscv64
  *     toolchain links it explicitly. `@gjsify/webrtc-native` is the same shape.
  *
- *     So the field is keyed on musl-LOADABILITY, in four tiers:
- *       – every target `musl` (`libc.musl-<arch>.so.1` recorded) ⇒
- *         `libc: ["musl"]` is REQUIRED, and it is the ONLY tier the ELF settles
- *         in both directions: glibc has no `libc.musl-*` under any name, so the
- *         artifact loads on exactly one libc. This is the ADR-0017 `-musl`
- *         per-target package, and the tier the rule shipped without — it called
- *         those artifacts "glibc-linked, musl-loadability undetermined" and
- *         demanded `["glibc"]` from four packages the generator gives `["musl"]`.
+ *     So the field is keyed on musl-LOADABILITY, in three tiers:
  *       – every target `agnostic` (no libc soname at all) ⇒ `libc` must be
  *         ABSENT. Declaring it refuses installs on hosts where the artifact
  *         provably works.
@@ -88,10 +77,7 @@
  *         the field would forbid stating a fact; requiring it would refuse a
  *         working install. The one exception is an `agnostic` target in the mix:
  *         its absence of a libc soname IS proof, so the field stays forbidden
- *         there and no load test can overturn it. A `musl` target in the mix is
- *         not "anything else" but a FAILURE of its own — one package-level filter
- *         cannot describe two libcs, and since ADR 0017 the suffix is part of the
- *         package NAME, so a mixed set is a directory staged into the wrong one.
+ *         there and no load test can overturn it.
  *     The note is the point: a standing, printed-every-run statement of a gap
  *     npm's vocabulary cannot hold, and it stops being a note the moment those
  *     targets get `-musl` siblings.
@@ -126,7 +112,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
-import { compareGlibcVersions, isGlibcSoname, readElfGlibcRequires, readElfNeeded } from '../binary.mjs';
+import { compareGlibcVersions, readElfGlibcRequires, readElfNeeded } from '../binary.mjs';
 import { canonicalPlatform, MUSL_SUFFIX } from '../platforms.mjs';
 import { collectNativePackages } from './prebuild-artifacts.mjs';
 
@@ -210,14 +196,10 @@ export function hostPrebuildTarget(platform, arch, libc) {
  * @returns {'glibc' | 'musl' | null}
  */
 export function libcFlavourOfNeeded(needed) {
-    // `isGlibcSoname` is the ONE answer to "does glibc provide this soname",
-    // shared with `readElfGlibcRequires`, which needs the same judgement about a
-    // version need's `vn_file`. Two copies of it disagreed about `ld64.so.*`
-    // once and made the generator emit a manifest the rule rejected.
-    const isGlibc = needed.some(isGlibcSoname);
-    // Plain prefixes, so `startsWith` — musl's two sonames have no variable part
-    // beyond the arch, and there is no satellite set to enumerate: musl ships one
-    // library.
+    const isGlibc = needed.some((n) => n === 'libc.so.6' || /^ld-linux(-|\.)/.test(n) || /^ld\d*\.so\.\d+$/.test(n));
+    // Plain prefixes, so `startsWith` — unlike the glibc line above, whose two
+    // patterns carry an alternation and a digit class and stay regexes. The
+    // asymmetry is the signal: these two sonames have no variable part.
     const isMusl = needed.some((n) => n.startsWith('libc.musl-') || n.startsWith('ld-musl-'));
     // Both cannot be true for a loadable image; report glibc and let the caller
     // fail on the contradiction, which it does with the full leaf list.
@@ -227,28 +209,8 @@ export function libcFlavourOfNeeded(needed) {
 }
 
 /**
- * Can this image load on a musl host? Four states, and only three of them are
- * decidable from an ELF header.
- *
- * THE FOURTH ANSWER, `'musl'`, is the one this function did not have. It was
- * written when every committed artifact was glibc-built, so its question was
- * really "can a GLIBC image load on musl" and its `else` branch read any libc
- * soname at all as glibc. The moment the first musl-linked artifacts landed,
- * that branch called them `'undetermined'` — "glibc-linked with musl-loadability
- * undetermined" — about six libraries whose DT_NEEDED says
- * `libc.musl-<arch>.so.1` and nothing else, and whose loadability on musl had
- * been demonstrated by a real `gjs` run inside `alpine:3.24` in the job that
- * built them. `auditPrebuildLibc`'s own summary printed "4 musl" from
- * `libcFlavourOfNeeded` in the same run in which Check C called those four
- * targets glibc-linked, because the two read the same bytes through different
- * functions and only one of them had been taught the axis.
- *
- * A musl-linked image is the mirror of `'incompatible'`, not a weaker form of
- * `'undetermined'`: it loads on musl by construction and CANNOT load on glibc,
- * where `libc.musl-<arch>.so.1` is a file that does not exist under any name.
- * That is a decidable fact with a package-level consequence — `libc: ["musl"]`
- * — so it gets its own answer rather than being inferred at each call site from
- * `libcFlavourOfNeeded`.
+ * Can a glibc-built image load on a musl host? Three states, and only two of
+ * them are decidable from an ELF header.
  *
  * THE CORRECTION THIS ENCODES. The obvious reading — "`libc.so.6` in DT_NEEDED
  * ⇒ glibc ⇒ cannot load on musl" — is FALSE, and this rule asserted it. musl's
@@ -291,25 +253,12 @@ export function libcFlavourOfNeeded(needed) {
  * than "behaves correctly" even for the six that load — which is why
  * {@link measurePrebuildLibc} keeps reporting the glibc floor separately.
  *
- * That is a statement about a GLIBC-BUILT image running on musl, and it does not
- * extend to a musl-built one: there the floor is not weak, it does not exist.
- * `readElfGlibcRequires` returns null for all six committed musl libraries
- * because nothing in them needs a version from a glibc library — the ONE
- * `GLIBC_*` name among them is `libgcc_s.so.1`'s, which is GCC's label and which
- * Alpine's own libgcc supplies. Reading it as glibc's is what held `main` red.
- *
  * @param {readonly string[]} needed DT_NEEDED leaf names
- * @returns {'incompatible' | 'agnostic' | 'undetermined' | 'musl'}
+ * @returns {'incompatible' | 'agnostic' | 'undetermined'}
  */
 export function muslVerdictOfNeeded(needed) {
-    // Asked FIRST, so a musl image is never mistaken for a glibc one that has
-    // no loader recorded. The loader test below cannot fire for it — musl's
-    // loader is `ld-musl-<arch>.so.1`, which neither pattern matches — but
-    // reading the flavour first states the priority instead of relying on that.
-    const flavour = libcFlavourOfNeeded(needed);
-    if (flavour === 'musl') return 'musl';
     if (needed.some((n) => /^ld-linux(-|\.)/.test(n) || /^ld\d*\.so\.\d+$/.test(n))) return 'incompatible';
-    return flavour === null ? 'agnostic' : 'undetermined';
+    return libcFlavourOfNeeded(needed) === null ? 'agnostic' : 'undetermined';
 }
 
 /** A `gjsify.glibcRequires` value: a dotted glibc release, e.g. `2.39`. */
@@ -334,18 +283,8 @@ const GLIBC_VERSION_VALUE_RE = /^\d+(?:\.\d+)*$/;
  * on x64 — the Vala half records no libc, the cdylib beside it records the glibc
  * loader — so a per-library verdict would report the directory as loadable.
  *
- * `'musl'` sits BELOW `'incompatible'` in that worst-case order and above the
- * other two. A directory where one library is musl-linked and another names the
- * glibc loader cannot load anywhere, and reporting `'musl'` for it would hand
- * Check C a `libc: ["musl"]` requirement for an unloadable set; `mixed` already
- * fails that directory, and the order is what keeps the verdict honest until it
- * does. `'agnostic'` yielding to `'musl'` is the ordinary Rust-bridge shape
- * inverted onto Alpine: `libgjsifylightningcss.so` records `libc.musl-*` while
- * `libgjsifysabnative.so`'s glibc sibling records nothing, so a directory is
- * musl the moment any library in it is.
- *
  * @param {string} dir
- * @returns {{flavour: 'glibc'|'musl'|null, musl: 'incompatible'|'agnostic'|'undetermined'|'musl', glibcRequires: string|null, libs: string[], mixed: boolean, unreadable: string[]}}
+ * @returns {{flavour: 'glibc'|'musl'|null, musl: 'incompatible'|'agnostic'|'undetermined', glibcRequires: string|null, libs: string[], mixed: boolean, unreadable: string[]}}
  *   `unreadable` names `.so` files whose ELF this parser could not read; a
  *   non-empty list makes the whole measurement untrustworthy and the caller
  *   turns it into a failure.
@@ -355,7 +294,7 @@ export function measurePrebuildLibc(dir) {
         .filter((f) => f.endsWith('.so'))
         .sort();
     /** @type {Set<'glibc'|'musl'>} */ const flavours = new Set();
-    /** @type {Set<'incompatible'|'agnostic'|'undetermined'|'musl'>} */ const muslVerdicts = new Set();
+    /** @type {Set<'incompatible'|'agnostic'|'undetermined'>} */ const muslVerdicts = new Set();
     /** @type {string[]} */ const unreadable = [];
     /** @type {string|null} */ let glibcRequires = null;
 
@@ -380,11 +319,9 @@ export function measurePrebuildLibc(dir) {
         // Worst-case wins: one unloadable library sinks the directory.
         musl: muslVerdicts.has('incompatible')
             ? 'incompatible'
-            : muslVerdicts.has('musl')
-              ? 'musl'
-              : muslVerdicts.has('undetermined')
-                ? 'undetermined'
-                : 'agnostic',
+            : muslVerdicts.has('undetermined')
+              ? 'undetermined'
+              : 'agnostic',
         glibcRequires,
         libs,
         mixed: flavours.size > 1,
@@ -591,50 +528,6 @@ export function auditPrebuildLibc(nativePkgs) {
         const byVerdict = (v) => [...measured.entries()].filter(([, m]) => m.musl === v).map(([t]) => t);
         const incompatible = byVerdict('incompatible');
         const undetermined = byVerdict('undetermined');
-        const muslLinked = byVerdict('musl');
-
-        // A MUSL-LINKED package, i.e. a `-musl` per-target package (ADR 0017).
-        // Asked before every other branch because it is the one state whose
-        // answer is `["musl"]`, and the branches below only ever reach for
-        // `["glibc"]` or nothing — this package spent its first run being told
-        // by the `undetermined` branch that "the only defensible package-level
-        // value here is `["glibc"]`", about a library that names
-        // `libc.musl-<arch>.so.1` in DT_NEEDED and no glibc soname at all.
-        //
-        // The filter is REQUIRED here, not optional, and it is the one tier
-        // where the ELF is complete evidence in both directions: musl supplies
-        // `libc.musl-<arch>.so.1` and glibc does not, under any name, so the
-        // artifact loads on exactly one libc. Without the field npm installs it
-        // on a glibc host, where the load fails at the loader; `-musl` is also
-        // the token a musl host resolves FIRST (`hostPrebuildTarget`), so the
-        // directory would shadow the default build that might have loaded.
-        //
-        // `generate-platform-packages.mjs` already writes it from the TOKEN for
-        // exactly these packages. That the rule refused what the generator emits
-        // is what made this a red `main` rather than a mis-declared manifest.
-        if (muslLinked.length === measured.size) {
-            if (declaredLibc === null) {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): every committed Linux target is musl-linked (${muslLinked.join(', ')} record \`libc.musl-<arch>.so.1\` in DT_NEEDED), which glibc cannot supply under any name — no \`libc.musl-*\` file exists on a glibc host. npm, yarn and pnpm all honour \`libc\`, so without it the package installs where nothing can load, and a musl host resolves the \`-musl\` token FIRST, shadowing the default build. Add \`"libc": ["musl"]\`.`,
-                );
-            } else if (declaredLibc.length !== 1 || declaredLibc[0] !== 'musl') {
-                failures.push(
-                    `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\` but every committed Linux target is musl-linked (${muslLinked.join(', ')}). Declare exactly \`["musl"]\`.`,
-                );
-            }
-            continue;
-        }
-        if (muslLinked.length > 0) {
-            // npm's field is one package-level filter, so a package holding both
-            // flavours cannot state either. It also cannot arise from the
-            // generator: a per-target package has exactly one target, and its
-            // token decides the suffix. So this is a directory staged into the
-            // wrong package — Check A names the target, this names the split.
-            failures.push(
-                `${pkg.name} (${pkg.path}): mixes musl-linked target(s) (${muslLinked.join(', ')}) with ${[...incompatible, ...undetermined, ...byVerdict('agnostic')].join(', ')} in ONE package. npm's \`libc\` is a single package-level filter, so no value here is right: \`["musl"]\` refuses the glibc half on glibc hosts and \`["glibc"]\` refuses the musl half on musl hosts. Since ADR 0017 each target owns a package and the \`-musl\` suffix is part of its name — this is a directory staged into the wrong one.`,
-            );
-            continue;
-        }
 
         if (!muslVerdicts.has('incompatible') && !muslVerdicts.has('undetermined')) {
             // Every committed Linux artifact is libc-agnostic: no libc soname at
@@ -716,12 +609,8 @@ export function auditPrebuildLibc(nativePkgs) {
                     )}. npm's field has no per-target dimension and refusing the install everywhere would also refuse it where the artifact works; the bridge's own graceful no-native path covers the targets where it does not. Ship a \`${MUSL_SUFFIX}\` sibling for the constrained target(s) and this note goes away.`,
             );
         } else {
-            // The declared value is INTERPOLATED, not spelled out: this note read
-            // `declares libc: ["glibc"]` from a hardcoded string while the failure
-            // above it named the real value, so one run said two contradictory
-            // things about the four `-musl` packages, which declare `["musl"]`.
             notes.push(
-                `${pkg.name}: declares \`libc: ${JSON.stringify(declaredLibc)}\` while the ELF alone cannot prove it — ${undetermined.join(', ') || '(none)'} are glibc-linked with no glibc loader recorded. Keep this declaration ONLY if a musl load test failed for every declared target; the ELF is not the evidence for it.`,
+                `${pkg.name}: declares \`libc: ["glibc"]\` while the ELF alone cannot prove it — ${undetermined.join(', ') || '(none)'} are glibc-linked with no glibc loader recorded. Keep this declaration ONLY if a musl load test failed for every declared target; the ELF is not the evidence for it.`,
             );
         }
     }

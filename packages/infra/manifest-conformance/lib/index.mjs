@@ -33,7 +33,6 @@ export {
     readElfNeeded,
     readElfGlibcRequires,
     compareGlibcVersions,
-    isGlibcSoname,
 } from './binary.mjs';
 export { PLATFORM_RE, ARCH_ALIASES, KNOWN_ARCH_TOKENS, canonicalPlatform, LIB_EXT, HOST_TARGET } from './platforms.mjs';
 export {
@@ -82,7 +81,6 @@ export {
     measurePrebuildLibc,
     renderPrebuildLibcSummary,
     libcFlavourOfNeeded,
-    muslVerdictOfNeeded,
     parsePrebuildTarget,
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';

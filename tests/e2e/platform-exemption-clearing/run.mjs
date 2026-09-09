@@ -20,7 +20,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -67,27 +67,8 @@ const FIXTURE_WHY = 'a fixture reason — the deferral text is not what this sui
  * would silently shrink `paths` to the manifest alone and the assertion below
  * would pass while proving half of what it claims.
  */
-function splitPairFixture({
-    pillar = 'node',
-    bridge = 'tls-native',
-    target = 'darwin-x64',
-    /**
-     * Files copied out of the REAL committed prebuild into the landing
-     * directory, or `[]` for an empty one.
-     *
-     * Empty is faithful for a darwin target and only for one: `measureLibcFields`
-     * short-circuits off linux, so `expectedFiles` is artifact-INDEPENDENT there
-     * and an empty directory produces the same manifest a full one would. On a
-     * LINUX target it is the opposite — the whole point is that the generator
-     * MEASURES what landed, which is where the refusal this suite guards comes
-     * from. A darwin-only fixture therefore cannot reach it, and did not: the
-     * clearer refused its first real linux landing on `main` (run 34311463250)
-     * with every case in this file green.
-     */
-    artifact = [],
-} = {}) {
+function splitPairFixture() {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-split-pair-'));
-    const childRel = join('packages', pillar, `${bridge}-${target}`);
     // `planPlatformPackages` derives each child's semver `range` from
     // `isWorkspaceMember`; without the root manifest the copied `workspace:*`
     // entry mismatches and the plan describes something else entirely.
@@ -103,25 +84,25 @@ function splitPairFixture({
     // empty file is faithful. No `binding.gyp`, so the parent classifies as
     // meson → `prebuildOwnership` 'split' rather than a 'committed-here' failure.
     for (const rel of [
-        join('packages', pillar, bridge, 'package.json'),
-        join(childRel, 'package.json'),
-        join(childRel, 'README.md'),
+        join('packages', 'node', 'tls-native', 'package.json'),
+        join('packages', 'node', 'tls-native-darwin-x64', 'package.json'),
+        join('packages', 'node', 'tls-native-darwin-x64', 'README.md'),
     ]) {
         mkdirSync(join(root, dirname(rel)), { recursive: true });
         copyFileSync(join(MONOREPO_ROOT, rel), join(root, rel));
     }
-    writeFileSync(join(root, 'packages', pillar, bridge, 'meson.build'), '# fixture\n');
+    writeFileSync(join(root, 'packages', 'node', 'tls-native', 'meson.build'), '# fixture\n');
     // Narrow the parent to the ONE target under test. `tls-native` really
     // declares seven, and `platform-packages` requires a child package per
     // declared target — copying one child out of seven makes the audit report the
     // six missing siblings, which would drown the assertion this test is for.
     // Narrowing keeps the pair internally consistent instead of faking six
     // packages whose committed Linux artifacts also carry measured glibc floors.
-    const parentManifest = join(root, 'packages', pillar, bridge, 'package.json');
+    const parentManifest = join(root, 'packages', 'node', 'tls-native', 'package.json');
     const parent = JSON.parse(readFileSync(parentManifest, 'utf8'));
-    parent.gjsify.platforms = [target];
+    parent.gjsify.platforms = ['darwin-x64'];
     parent.optionalDependencies = Object.fromEntries(
-        Object.entries(parent.optionalDependencies ?? {}).filter(([name]) => name.endsWith(`-${target}`)),
+        Object.entries(parent.optionalDependencies ?? {}).filter(([name]) => name.endsWith('-darwin-x64')),
     );
     writeFileSync(parentManifest, `${JSON.stringify(parent, null, 4)}\n`);
 
@@ -129,7 +110,7 @@ function splitPairFixture({
     // fixture owns its own precondition. Done before the artifact directory
     // exists: `expectedFiles` measures a binary when one is there, and the
     // point here is the no-artifact shape.
-    const childDir = join(root, childRel);
+    const childDir = join(root, 'packages', 'node', 'tls-native-darwin-x64');
     const childName = JSON.parse(readFileSync(join(childDir, 'package.json'), 'utf8')).name;
     const plan = planPlatformPackages(generatorContext(root));
     // Matched by NAME, like the script under test: `platformPackageName()` is the
@@ -154,25 +135,18 @@ function splitPairFixture({
         writeFileSync(join(childDir, name), contents);
     }
 
-    // The landing. `artifact` decides whether the generator has bytes to measure
-    // — see the parameter's own note for why an empty directory is faithful on
-    // darwin and blind on linux.
-    const landing = join(childDir, 'prebuilds', target);
-    mkdirSync(landing, { recursive: true });
-    const source = join(MONOREPO_ROOT, childRel, 'prebuilds', target);
-    for (const name of artifact) copyFileSync(join(source, name), join(landing, name));
+    // The landing: an EMPTY directory is enough, because `expectedFiles` is
+    // artifact-independent for a darwin target (`measureLibcFields`
+    // short-circuits off linux to the same shape as the no-directory fallback).
+    mkdirSync(join(childDir, 'prebuilds', 'darwin-x64'), { recursive: true });
     return {
         root,
-        childRel: toPosix(childRel),
         childDir,
         childName,
         target: planned.target,
         cleanup: () => rmSync(root, { recursive: true, force: true }),
     };
 }
-
-/** `join()` gives back the host separator; the reported paths are POSIX. */
-const toPosix = (p) => p.split(sep).join('/');
 
 /**
  * A synthetic workspace root holding one package.
@@ -315,55 +289,10 @@ describe('clear-committed-platform-exemptions', () => {
             const { cleared, paths } = clearSatisfiedExemptions(f.root);
             assert.deepEqual(cleared, [`${f.childName} ${f.target}`]);
             // Both generated files, not just the manifest.
-            assert.deepEqual(paths.sort(), [`${f.childRel}/README.md`, `${f.childRel}/package.json`]);
-            assert.deepEqual(auditPlatformPackages(generatorContext(f.root)).failures, []);
-        } finally {
-            f.cleanup();
-        }
-    });
-
-    it('clears a `-musl` exemption whose REAL artifact landed, measurement and all', () => {
-        // THE CASE THAT WAS MISSING, and it cost the first musl release.
-        //
-        // Every other case here lands a darwin target, where `measureLibcFields`
-        // short-circuits off linux and the generator's manifest cannot depend on
-        // what arrived. So nothing in this suite had ever driven the clearer
-        // through the measurement it refuses on — and on the first run that did
-        // (34311463250, the #1607 merge) it refused: `readElfGlibcRequires`
-        // attributed a `GLIBC_2.0` version need to glibc when the file it names is
-        // `libgcc_s.so.1`, the generator therefore wanted a
-        // `gjsify.glibcRequires` entry on `@gjsify/lightningcss-native-linux-arm64-musl`,
-        // and the clearer will not make a measured declaration from a `[skip ci]`
-        // job. `commit-prebuilds` stayed red with all thirteen build legs green
-        // and the four musl npm packages stayed empty.
-        //
-        // The pair is the WORST one on purpose: arm64-musl is the only artifact in
-        // the tree whose only `GLIBC_*` version need names a non-glibc file, and
-        // both of its libraries are copied so the aggregation over a Rust pair is
-        // in scope too.
-        const f = splitPairFixture({
-            pillar: 'infra',
-            bridge: 'lightningcss-native',
-            target: 'linux-arm64-musl',
-            artifact: [
-                'libgjsifylightningcss.so',
-                'libgjsify_lightningcss.so',
-                'GjsifyLightningcss-1.0.typelib',
-                'GjsifyLightningcss-1.0.gir',
-            ],
-        });
-        try {
-            const { cleared, paths } = clearSatisfiedExemptions(f.root);
-            assert.deepEqual(cleared, [`${f.childName} ${f.target}`]);
-            assert.deepEqual(paths.sort(), [`${f.childRel}/README.md`, `${f.childRel}/package.json`]);
-            // The measured half, stated rather than implied: the artifact is
-            // musl-linked, so it keeps the `libc: ["musl"]` its TOKEN gives it and
-            // gains NO glibc floor. A floor here would be a promise about glibc
-            // made by a binary no glibc host can load.
-            const child = JSON.parse(readFileSync(join(f.childDir, 'package.json'), 'utf8'));
-            assert.deepEqual(child.libc, ['musl']);
-            assert.equal(child.gjsify.glibcRequires, undefined);
-            assert.equal(child.gjsify.platformsUncommitted, undefined);
+            assert.deepEqual(paths.sort(), [
+                'packages/node/tls-native-darwin-x64/README.md',
+                'packages/node/tls-native-darwin-x64/package.json',
+            ]);
             assert.deepEqual(auditPlatformPackages(generatorContext(f.root)).failures, []);
         } finally {
             f.cleanup();

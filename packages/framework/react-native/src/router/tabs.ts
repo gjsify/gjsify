@@ -106,7 +106,6 @@ interface TabsViewProps {
     screenOptions?: TabScreenOptions;
     /** `false` renders the stack with no header bar, and so with no switcher. */
     headerShown?: boolean;
-    bottomBar?: ReactNode;
 }
 
 type TabDescriptor = Pick<
@@ -436,31 +435,6 @@ function TabsView(props: TabsViewProps): ReactElement {
     );
 
     /**
-     * A caller's persistent bar, in a box of its own.
-     *
-     * The box carries the slot so that `bottomBar` can be ANY node — a fragment, or a
-     * component whose root element the caller does not control. Without it the caller
-     * would have to know that its outermost element needs `slot="bottom"`, which is a
-     * host detail leaking into an application.
-     *
-     * `null` when there is nothing, rather than an empty box — and the reason is NOT
-     * the obvious one. "An empty bottom bar is a strip of dead pixels" was the guess,
-     * and it is false: measured, an empty `Gtk.Box` as a bottom bar takes no height and
-     * the view stack above it is allocated exactly as much either way, so a mutant that
-     * always rendered the wrapper passed every geometric assertion. What the guard
-     * actually saves is the widget and the element — one per tab layout, per render —
-     * for a caller that asked for no bar. That is real but invisible, so it is NOT
-     * gated by a vector; `router.spec.ts` says the same thing where it stops asserting.
-     */
-    const persistentBar = useMemo(
-        () =>
-            props.bottomBar === undefined || props.bottomBar === null
-                ? null
-                : createElement('GtkBox', { slot: 'bottom' }, props.bottomBar),
-        [props.bottomBar],
-    );
-
-    /**
      * Contribute the switcher upward instead of building a second header bar.
      *
      * The condition is the whole chrome rule for this navigator: an inner `<Tabs>` with
@@ -642,9 +616,8 @@ function TabsView(props: TabsViewProps): ReactElement {
         }
     });
 
-    // `headerShown: false` refuses the switcher, and with it both bottom bars: a
-    // navigator asked for no tab chrome gets none, in either place — and a caller's
-    // `bottomBar` has no toolbar view to live in either.
+    // `headerShown: false` refuses the switcher, and with it the bottom bar: a
+    // navigator asked for no tab chrome gets none, in either place.
     if (props.headerShown === false) return createElement(NavigationContent, null, viewStack);
 
     /**
@@ -684,11 +657,6 @@ function TabsView(props: TabsViewProps): ReactElement {
                       },
                       titleWidget,
                   ),
-            // BEFORE the switcher bar, because `Adw.ToolbarView` puts the
-            // first-added bottom bar closer to the content — measured, see
-            // `TabsProps.bottomBar`. A now-playing strip therefore sits above the
-            // tabs, as it does on a phone.
-            persistentBar,
             switcherBar,
             viewStack,
         ),
@@ -716,39 +684,8 @@ export interface TabsProps {
     children?: ReactNode;
     /** Options for every tab, before its own. */
     screenOptions?: TabScreenOptions;
-    /** `false` drops the header bar, and with it the switcher and the bottom bar. */
+    /** `false` drops the header bar, and with it the switcher. */
     headerShown?: boolean;
-    /**
-     * A persistent bar between the content and the switcher bar — a now-playing strip,
-     * a selection toolbar, an offline notice.
-     *
-     * ## Why a prop rather than a child
-     *
-     * `<Tabs>` reads its children as `<Tabs.Screen>` DECLARATIONS and refuses anything
-     * else by name, so there is no child position to put this in. And an app cannot
-     * wrap `<Tabs>` from outside either: the switcher is created with `slot: 'title'`,
-     * which resolves against the PARENT, so a box placed between a tab layout and the
-     * header bar takes the switcher's slot away and the router refuses it. A consumer
-     * hit exactly that and recorded "no mini player" as a limitation for weeks.
-     *
-     * ## Where it lands, measured
-     *
-     * `Adw.ToolbarView`'s `bottom` slot is an ADDER, so it takes this and the switcher
-     * bar together, and the order decides the stacking. MEASURED on libadwaita 1.9.3 in a
-     * 480x320 window: with two bottom bars added in sequence, the FIRST sits closer to
-     * the content — content at y=0 h=214, first-added at y=217, second-added at y=257.
-     * So this is rendered BEFORE the switcher bar, which puts it above it, which is
-     * where a phone puts a now-playing strip relative to its tab bar.
-     *
-     * Wrapped in a `Gtk.Box` rather than slotted directly, so that a caller can hand
-     * over any node — including a fragment or a component whose root element it does
-     * not control — without having to know that a slot name is involved.
-     *
-     * NOT RENDERED under `headerShown: false`, which drops the whole toolbar view and
-     * has nowhere to put it. Named here rather than worked around, because a navigator
-     * that asked for no chrome getting a bar anyway would be the greater surprise.
-     */
-    bottomBar?: ReactNode;
 }
 
 /**
@@ -773,7 +710,6 @@ export function Tabs(props: TabsProps): ReactElement {
         {
             ...(props.screenOptions === undefined ? {} : { screenOptions: props.screenOptions }),
             ...(props.headerShown === undefined ? {} : { headerShown: props.headerShown }),
-            ...(props.bottomBar === undefined ? {} : { bottomBar: props.bottomBar }),
         } as TabsViewProps,
         ...screens,
     );

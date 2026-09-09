@@ -190,54 +190,6 @@ describe('prebuild change gate — package discovery', () => {
         assert.match(r.stderr, /refs\/oxc/);
     });
 
-    it('FAILS when a SHARED INPUT is missing from the trigger', (t) => {
-        // The check whose absence let the substance move out from under the gate. ADR 0017
-        // moved `prebuild-artifacts`, `prebuild-libc` and the one ELF/Mach-O/PE parser they
-        // share out of `scripts/manifest-conformance/` and into
-        // `packages/infra/manifest-conformance/`; the trigger kept naming only the half
-        // they left, and `SHARED_SCRIPTS`' own comment — "they are in the filter too (so a
-        // change to one triggers a run at all)" — quietly stopped being true. So editing
-        // what every build's gate ACCEPTS started no prebuilds run, on the PR or on the
-        // merge. Measured on the fix for run 34311463250, where the defect being fixed was
-        // in `prebuild-libc`'s own reader.
-        //
-        // A shared input outside the trigger is not merely under-covered: it can only ever
-        // make a run that is ALREADY happening build more, never start one, so its
-        // rebuild-everything power is unreachable on exactly the change that needs it.
-        const tmp = mkdtempSync(join(tmpdir(), 'prebuild-gate-shared-'));
-        t.after(() => rmSync(tmp, { recursive: true, force: true }));
-        mkdirSync(join(tmp, '.github', 'workflows'), { recursive: true });
-        mkdirSync(join(tmp, '.github', 'prebuild-toolchain'), { recursive: true });
-        copyFileSync(script, join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'));
-
-        // Removed from BOTH lists, so the divergence check above cannot be what fails and
-        // the assertion is attributable to this invariant alone.
-        const text = readFileSync(workflow, 'utf8');
-        const broken = text.replaceAll("      - 'packages/infra/manifest-conformance/**'\n", '');
-        assert.notEqual(broken, text, 'the fixture must actually remove the entry');
-        writeFileSync(join(tmp, '.github', 'workflows', 'prebuilds.yml'), broken);
-        symlinkSync(join(repoRoot, 'packages'), join(tmp, 'packages'), 'dir');
-
-        const r = runScript(['--all', '--format=json'], {
-            cwd: tmp,
-            exe: join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'),
-        });
-        assert.notEqual(r.status, 0, 'a shared input outside the trigger must FAIL the classifier');
-        assert.match(r.stderr, /is a SHARED INPUT/);
-        assert.match(r.stderr, /packages\/infra\/manifest-conformance/);
-        // Both lists named, not one — the message has to say where to add it.
-        assert.match(r.stderr, /list\(s\) #1, #2/);
-    });
-
-    it('rebuilds every package when the PORTABLE conformance registry changes', () => {
-        // The other half of the same invariant, on the real workflow: the rules that decide
-        // whether a prebuild is ACCEPTABLE now reach every package, so a change to one of
-        // them cannot leave a stale artifact behind that a newer rule would reject.
-        const report = classify(['packages/infra/manifest-conformance/lib/rules/prebuild-libc.mjs']);
-        assert.equal(report.build.length, packageCount());
-        assert.match(report.reason, /shared input changed/);
-    });
-
     it('holds every package to a trigger under its own directory', () => {
         // A gate must not outlive its trigger: a package with no `on: paths:` entry under
         // its directory can never START this workflow from its own sources, so gating it

@@ -116,16 +116,8 @@ const stringifyManifest = (obj) => `${JSON.stringify(obj, null, 4)}\n`;
  * opposite: musl treats a `DT_NEEDED` of `libc.so.6` as a request for itself and
  * loads such an image happily, confirmed on `alpine:3.24.1` for six of this repo's
  * bridges. Declaring `libc: ["glibc"]` there would refuse the install on exactly the
- * platform the axis exists to support, so nothing is declared and the four-tier
+ * platform the axis exists to support, so nothing is declared and the three-tier
  * judgement stays with the rule.
- *
- * The verdict's fourth answer, `'musl'`, is deliberately NOT read here: a musl-linked
- * image needs `libc: ["musl"]`, and `platformManifest` already takes that from the
- * TOKEN, which is the stronger source — `prebuild-libc`'s Check A fails a `-musl`
- * directory holding glibc-linked libraries, so the token cannot be wrong unnoticed,
- * whereas a measurement would silently drop the filter from a `-musl` package whose
- * artifact has not landed yet. Reading it here would be a second policy about one
- * field, and the two would differ for exactly the state where the exemption is live.
  *
  * @param {string} dir absolute path to the target's prebuild directory
  * @param {string} target the `<os>-<arch>` token

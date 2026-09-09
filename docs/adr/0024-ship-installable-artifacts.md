@@ -194,20 +194,8 @@ the silence. On macOS and Windows the question does not arise: the closure is in
 `gjsify.glibcRequires` must be measured from the binary rather than believed, because the
 dynamic linker enforces the measured number and a host below it gets
 `version 'GLIBC_x.y' not found` with no fallback. The floor is readable without `readelf` or
-`ldd`: walk the section headers, read `DT_NEEDED` from `.dynamic`, ~~take the highest
-`GLIBC_x.y` in `.dynstr`~~ — take the highest `GLIBC_x.y` that `.gnu.version_r` needs FROM A
-GLIBC LIBRARY. The struck half is the recipe as `readElfGlibcRequires` first implemented it,
-and it is a defect: `.gnu.version_r` groups its entries by `vn_file`, the soname that has to
-supply each version, and the highest name in the table is not the highest name glibc owes. The
-one non-glibc provider of a `GLIBC_*` label is `libgcc_s.so.1` — GCC's unwinder still labels
-`__register_frame_info`/`__deregister_frame_info` `GLIBC_2.0`, the version glibc gave them
-before they moved, and Alpine's own libgcc defines it identically. So the aarch64 musl build of
-`@gjsify/lightningcss-native` measured a floor of `2.0` while its x86-64 sibling from the same
-job measured none, the generator wanted a `gjsify.glibcRequires` entry for it, and
-`clear-committed-platform-exemptions.mjs` refused to clear an exemption it would also have made
-a measured declaration to clear: `commit-prebuilds` red with every build leg green, and the
-first musl artifacts held off npm (run 34311463250, fixed in #1613 by `isGlibcSoname()`, the
-one predicate both the floor and the flavour read).
+`ldd`: walk the section headers, read `DT_NEEDED` from `.dynamic`, take the highest `GLIBC_x.y`
+in `.dynstr`.
 
 **Correction, 2026-08-15 — this section shipped already-false and is kept as the record.** As
 drafted it read "nothing checks it against the binary" and listed the work as separable stage 1.

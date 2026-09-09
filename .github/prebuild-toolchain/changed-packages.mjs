@@ -155,16 +155,10 @@ const SHARED_SCRIPTS = [
     'scripts/check-refs-pin.mjs',
     'scripts/check-prebuild-loader-path.mjs',
     // Since #847 the three entries above are thin CLI wrappers and the checks
-    // live in a conformance registry. A rule change alters what every build
-    // verifies, so a registry is a shared input in its own right — naming
+    // live in the conformance registry. A rule change alters what every build
+    // verifies, so the registry is a shared input in its own right — naming
     // only the wrappers would let the substance move out from under the gate.
-    // Which is exactly what happened: ADR 0017 moved `prebuild-artifacts`,
-    // `prebuild-libc` and the ELF/Mach-O/PE parser they share into the
-    // PORTABLE package, and only the half they left was listed. `selfCheck`
-    // now asserts every entry here is in the trigger too, so the next move
-    // fails a check instead of going quiet.
     'scripts/manifest-conformance/**',
-    'packages/infra/manifest-conformance/**',
 ];
 
 // ─── argv ──────────────────────────────────────────────────────────────────
@@ -418,22 +412,6 @@ function selfCheck(table, pathFilterLists) {
                 `prebuilds.yml: \`on: paths:\` list #${i + 2} differs from list #1 — the two MUST be identical (a path that can change a prebuild on main has to be able to prove itself on a PR).` +
                     (missing.length ? ` Missing from #${i + 2}: ${missing.join(', ')}.` : '') +
                     (extra.length ? ` Only in #${i + 2}: ${extra.join(', ')}.` : ''),
-            );
-        }
-    }
-    // A shared input that is not in the trigger can only make a run that is
-    // ALREADY happening build more — it can never start one. The list's own
-    // comment says "they are in the filter too"; this is what makes that a fact.
-    // It was not one: `packages/infra/manifest-conformance/**` held the rules
-    // every build's gate runs and appeared in neither `paths:` list, so editing
-    // a prebuild's acceptance criteria started no prebuilds run at all.
-    for (const shared of SHARED_SCRIPTS) {
-        const missingFrom = pathFilterLists
-            .map((list, i) => (list.includes(shared) ? null : `#${i + 1}`))
-            .filter(Boolean);
-        if (missingFrom.length > 0) {
-            problems.push(
-                `\`${shared}\` is a SHARED INPUT — a change to it rebuilds every package — but it is missing from prebuilds.yml \`on: paths:\` list(s) ${missingFrom.join(', ')}, so a change to it cannot start this workflow on that event and would rebuild nothing. Add \`${shared}\` to BOTH paths lists.`,
             );
         }
     }

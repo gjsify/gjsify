@@ -121,31 +121,16 @@ on:
       # to one can change every artifact, so they trigger a run AND rebuild
       # every package (see the `changes` job's shared-input rule).
       #
-      # The TWO conformance registries are here for the same reason and are
+      # `scripts/manifest-conformance/**` is here for the same reason and is
       # NOT optional: since #847 the three scripts above are thin CLI entry
-      # points and the checks themselves live in a registry. Listing only
+      # points and the checks themselves live in that registry. Listing only
       # the entry points would mean editing what a build VERIFIES while
       # nothing rebuilds — the precise shape of silent staleness this gate
       # exists to prevent.
-      #
-      # `packages/infra/manifest-conformance/**` is the PORTABLE half, and it
-      # was missing for as long as it has existed. ADR 0017 moved the rules
-      # that decide whether a prebuild is acceptable at all —
-      # `prebuild-artifacts`, `prebuild-libc` and the one ELF/Mach-O/PE parser
-      # under them — out of `scripts/manifest-conformance/` and into that
-      # package, and the trigger kept naming only the half they left. So the
-      # substance did exactly what the paragraph above says it must not: it
-      # moved out from under the gate. Measured on the fix for run 34311463250,
-      # where a defect in `prebuild-libc`'s own reader was what held
-      # `commit-prebuilds` red — a change to that file started no prebuilds
-      # run, on the PR or on the merge, so the job whose green run the fix is
-      # FOR could not have proved itself either way. `changed-packages.mjs`'
-      # `selfCheck` now asserts every shared input is in both lists.
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/manifest-conformance/**'
-      - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
       # gate's own content did not trigger the workflow that runs it — measured: the
       # fix for a red `commit-prebuilds` touched `tests/e2e/prebuild-change-gate/` and
@@ -200,7 +185,6 @@ on:
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/manifest-conformance/**'
-      - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
       # gate's own content did not trigger the workflow that runs it — measured: the
       # fix for a red `commit-prebuilds` touched `tests/e2e/prebuild-change-gate/` and
