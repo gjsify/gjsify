@@ -76,6 +76,17 @@
 //               a photograph instead: `shotEvidence`/`blankReason` in that package's
 //               `probe.ts`, which exist because a non-empty PNG is not proof.
 //
+//   NATIVESCRIPT
+//               inside a `nativescript` fence, every property a constructed widget
+//               is given — through `x.p = v` OR through the construct-props bag
+//               `new Adw.Avatar({ p: v })` (ADR 0034 § Amendment 13) — is one that
+//               widget declares or the ambient core slice does, and is not a getter
+//               with no setter. Both doors, one predicate: they are the same claim
+//               about the widget, and they fail differently for a reader — an
+//               unknown assignment sticks as a dead own-property at exit 0, an
+//               unknown bag key THROWS. The bag reader carries its own vectors,
+//               because a key reader that quietly finds nothing passes every bag.
+//
 //   CLASSES     every `adw-`-prefixed class in a `class=`/`className` value must
 //               appear somewhere in the tracked SCSS. The SCSS side is read as a
 //               loose token scan rather than a selector parse, because the
@@ -97,6 +108,8 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+    chainOf,
+    matchingParen,
     membersOf,
     NS_CORE_TYPES,
     readCoreProperties,
@@ -617,18 +630,135 @@ const NS_CONSTRUCTION = new RegExp(
     'g',
 );
 
+/**
+ * Every `new Adw.Avatar(` in a fence, bound to a name or not.
+ *
+ * The SECOND door (ADR 0034 § Amendment 13) needs no variable: the class is in the `new`
+ * expression and the keys are in the argument list, so `group.addRow(new Adw.EntryRow({…}))`
+ * is judged where the assignment reader — which has to follow a binding — sees nothing.
+ */
+const NS_ANY_CONSTRUCTION = new RegExp(`\\bnew\\s+(${WIDGET_REFERENCE})\\s*\\(`, 'g');
+
+/**
+ * The TOP-LEVEL keys of an object literal, as written.
+ *
+ * A construct-props bag is authored by hand in a doc fence, so it carries the two shapes a
+ * naive `\w+:` scan gets wrong in opposite directions: a NESTED literal
+ * (`adjustment: { lower: 8 }`) whose inner keys belong to no widget, and a `// …` comment
+ * above a key, which is where these fences explain why a value is an SVG source. Depth is
+ * tracked over `{}`, `[]`, `()` and every quote form so that both land right.
+ *
+ * Shorthand (`{ title, description }`) is a key too — `title` there is `title: title` — and
+ * it is what the arrow-function pages in `view-switching.mdx` are written with.
+ */
+function objectLiteralKeys(text, open, close) {
+    const keys = [];
+    let depth = 0;
+    let atSegmentStart = true;
+    for (let i = open + 1; i < close; i += 1) {
+        const ch = text[i];
+        if (ch === '/' && text[i + 1] === '/') {
+            i = text.indexOf('\n', i);
+            if (i === -1) break;
+            continue;
+        }
+        if (ch === "'" || ch === '"' || ch === '`') {
+            for (i += 1; i < close && text[i] !== ch; i += 1) if (text[i] === '\\') i += 1;
+            atSegmentStart = false;
+            continue;
+        }
+        if (ch === '{' || ch === '[' || ch === '(') depth += 1;
+        else if (ch === '}' || ch === ']' || ch === ')') depth -= 1;
+        else if (ch === ',' && depth === 0) {
+            atSegmentStart = true;
+            continue;
+        }
+        if (depth !== 0 || !atSegmentStart) continue;
+        if (/\s/.test(ch)) continue;
+        const key = /^([A-Za-z_$][\w$]*)\s*[:,}]/.exec(`${text.slice(i, close)}}`);
+        if (key !== null) keys.push(key[1]);
+        atSegmentStart = false;
+    }
+    return keys;
+}
+
+/**
+ * The construct-props bag in `new Klass(…)`, or null when the call passes none.
+ *
+ * The LAST top-level object literal in the argument list, because that is where the bag is
+ * declared on all 46 classes: 45 take `constructor(props?)` and `AdwAlertDialog` takes
+ * `constructor(heading, body, props?)`. Reading the FIRST would hand `AdwAlertDialog`'s
+ * heading string to the key check on the day someone writes the third argument.
+ */
+function constructBagKeys(text, afterParen) {
+    const close = matchingParen(text, afterParen);
+    if (close === -1) return null;
+    let depth = 0;
+    let open = null;
+    let bag = null;
+    for (let i = afterParen + 1; i < close; i += 1) {
+        const ch = text[i];
+        if (ch === '/' && text[i + 1] === '/') {
+            const eol = text.indexOf('\n', i);
+            if (eol === -1 || eol > close) break;
+            i = eol;
+            continue;
+        }
+        // A quote inside a value carries braces of its own — `title: "a { b"` — and
+        // `matchingBrace` counts them, which is why this scan matches its own close
+        // rather than borrowing that reader.
+        if (ch === "'" || ch === '"' || ch === '`') {
+            for (i += 1; i < close && text[i] !== ch; i += 1) if (text[i] === '\\') i += 1;
+            continue;
+        }
+        if (ch === '{' || ch === '(' || ch === '[') {
+            if (ch === '{' && depth === 0) open = i;
+            depth += 1;
+        } else if (ch === '}' || ch === ')' || ch === ']') {
+            depth -= 1;
+            if (ch === '}' && depth === 0 && open !== null) bag = [open, i];
+        }
+    }
+    return bag === null ? null : objectLiteralKeys(text, bag[0], bag[1]);
+}
+
+/**
+ * Members of `klass` that a bag or an assignment cannot reach: a getter with no setter
+ * anywhere in the in-package chain.
+ *
+ * `membersOf` folds getters, setters and methods into one set, which is right for "does
+ * this widget know that word" and wrong for "can a caller write it". `applyConstructProps`
+ * walks the descriptors and refuses a `set: undefined` by name; a bare assignment to one
+ * throws in strict mode, which every NativeScript bundle is. So a fence handing
+ * `Adw.StatusPage` a `child` key is a crash a reader meets on the first run, and the
+ * looser set says the widget has it.
+ */
+function readOnlyMembers(sources, klass) {
+    const getters = new Set();
+    const setters = new Set();
+    for (const text of chainOf(sources, klass)) {
+        for (const [, name] of text.matchAll(/^ {4}get (\w+)[(<]/gm)) getters.add(name);
+        for (const [, name] of text.matchAll(/^ {4}set (\w+)[(<]/gm)) setters.add(name);
+    }
+    return new Set([...getters].filter((name) => !setters.has(name)));
+}
+
 function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellings) {
     const held = new Map();
     for (const [, variable, spelling] of fence.body.matchAll(NS_CONSTRUCTION)) {
         const klass = widgetClassOf(spelling, spellings);
         if (klass !== null && nsWidgets.has(klass)) held.set(variable, klass);
     }
+    /** Can a caller write `klass.name`, through either door? */
+    const writable = (klass, name) =>
+        (coreProperties.has(name) || membersOf(nsWidgets, klass).has(name)) &&
+        !(readOnlyMembers(nsWidgets, klass).has(name) && !coreProperties.has(name));
     let writes = 0;
     for (const [, variable, property] of fence.body.matchAll(/\b([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
         const klass = held.get(variable);
         if (klass === undefined) continue;
         writes += 1;
-        if (coreProperties.has(property) || membersOf(nsWidgets, klass).has(property)) continue;
+        if (writable(klass, property)) continue;
         fail(
             `${where}:${fence.line}`,
             `\`${variable}.${property} = …\` — ${klass} has no such member, and NativeScript takes an ` +
@@ -637,7 +767,59 @@ function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellin
                 `(${NS_CORE_TYPES}) is the other place the name could legitimately live.`,
         );
     }
+    // The bag door. `x.p = v` and `new X({ p: v })` are the same claim about the widget,
+    // so they are held by the same predicate — and the bag is the door that TELLS the
+    // reader, because an unknown key throws where an assignment sticks silently.
+    for (const match of fence.body.matchAll(NS_ANY_CONSTRUCTION)) {
+        const klass = widgetClassOf(match[1], spellings);
+        if (klass === null || !nsWidgets.has(klass)) continue;
+        const keys = constructBagKeys(fence.body, match.index + match[0].length - 1);
+        if (keys === null) continue;
+        for (const key of keys) {
+            writes += 1;
+            if (writable(klass, key)) continue;
+            fail(
+                `${where}:${fence.line}`,
+                `\`new ${match[1]}({ ${key}: … })\` — ${klass} has no settable \`${key}\`, and a ` +
+                    'construct-props bag goes through the declared setters (ADR 0034 § Amendment 13), so ' +
+                    'this one THROWS on the first run rather than rendering nothing. The ambient core ' +
+                    `slice (${NS_CORE_TYPES}) is the other place the name could legitimately live.`,
+            );
+        }
+    }
     return writes;
+}
+
+/**
+ * Vectors for {@link constructBagKeys}, run before any fence is read.
+ *
+ * A key reader that quietly returns nothing reports every bag as clean, which is the
+ * vacuous pass this file refuses everywhere else — and the four shapes below are the ones
+ * the gallery actually writes, each of which a `\w+:` scan gets wrong: a nested literal
+ * whose inner keys belong to no widget, a comment above a key, a string value containing a
+ * brace, and property shorthand.
+ */
+const NS_BAG_FIXTURES = [
+    ['new Adw.Avatar()', []],
+    ['new Adw.Avatar({ size: 96, text: "Ada" })', ['size', 'text']],
+    ['new Adw.SpinRow({ title: "n", adjustment: { lower: 8, upper: 24 } })', ['title', 'adjustment']],
+    ['new Adw.Banner({\n// `title` takes plain text\ntitle: "x",\nrevealed: true })', ['title', 'revealed']],
+    ['new Adw.Banner({ title: "a { b", buttonLabel: "c" })', ['title', 'buttonLabel']],
+    ['new Adw.StatusPage({ iconName: icon, title, description })', ['iconName', 'title', 'description']],
+    ['new Adw.AlertDialog("Delete?", "body", { closeResponse: "cancel" })', ['closeResponse']],
+    ['new Adw.ToggleGroup({ }); group.setToggles([{ label: "List" }])', []],
+];
+
+for (const [source, want] of NS_BAG_FIXTURES) {
+    const at = /\bnew\s+[A-Za-z.]+\s*\(/.exec(source);
+    const got = constructBagKeys(source, at.index + at[0].length - 1) ?? [];
+    if (got.join(',') === want.join(',')) continue;
+    fail(
+        'nativescript/self-test',
+        `constructBagKeys(${JSON.stringify(source)}) read [${got.join(', ')}] and must read ` +
+            `[${want.join(', ')}]. The bag reader is wrong, so nothing it says about a fence can be ` +
+            'believed — and a reader that finds no key passes every bag in the gallery.',
+    );
 }
 
 // ---------------------------------------------------------------------------
