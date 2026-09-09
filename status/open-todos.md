@@ -538,6 +538,60 @@ It also carries the correction this entry implies and § 9 does not: § 9 names 
 as the second renderer, and the corpus that exists pairs `gtk-host` with the NativeScript
 port, because those are the two the gallery authors from one source.
 
+### The gallery's two authored PANES are now measured too, and five of forty are one text
+
+The sibling fact to the entry above, one surface over. That one is about the gallery's two
+authored TREES — the data two generators emit. This one is about the two authored PANES a
+reader actually copies: the `gjs` fence and the `nativescript` fence of the same block.
+
+ADR 0034 § Amendment 12 said the `gi://` arms were *"the last of the two things keeping the
+website's Native TypeScript and NativeScript snippets from being the same text"*, and left
+the snippets alone. Stages 8 and 9 both landed on 2026-09-05 and neither was cashed in on the
+documentation surface for four days, because nothing MEASURED the distance: no arm read a
+`nativescript` fence against its `gjs` sibling, so "the two are now closer" was unfalsifiable.
+
+Arm 12 of `check-website-adwaita-gallery.mjs` is that measurement — this file and not
+`check-generated-website-data.mjs`, whose arm 11 holds the same claim over the two trees but
+never opens an `.mdx`. ONE declared normalisation: the lines that BIND the widget namespaces
+are read as the namespaces they bind, so `import { Adw, Gtk } from '@gjsify/adwaita-nativescript'`
+and the two `gi://` lines compare equal. That normalisation is what makes the number honest —
+without it this very change could have halved the printed distance by editing forty import
+lines and moving no program. It is held on its own output by vectors, because the partition
+vectors cannot see a widening that changes no verdict: measured, widening the specifier set to
+`@gjsify/*` left every partition vector green and moved only the distance.
+
+The numbers are PRINTED, never written here. What the change was measured against: 40 pairs,
+0 identical, distance 599 lines before; 5 identical after, and the remaining 35 ledgered by
+the KIND of work that would close each one — a rename, a glyph, renderer work, or a different
+program. Ledger entries are self-retiring, the shape arm 5b and arm 11 already have.
+
+**What is left, with its price.**
+
+- *The `glyph` entries are one renderer decision.* Every icon property on the port takes an
+  SVG SOURCE rather than a theme name, so those panes import a glyph from
+  `@gjsify/adwaita-icons` where the GJS pane writes `'folder-symbolic'`. Nothing on that
+  runtime resolves a theme name today; a resolver would close a whole kind at once.
+- *The `composition` entries split two ways.* Four are the `layout.mdx` blocks, where the
+  NativeScript window is an XML template plus a loader and the TypeScript pane is therefore a
+  `~/adw` barrel and a `Builder.load()` — not a widget construction at all, and not a
+  divergence a rename could close. The rest are blocks where the port has no counterpart
+  widget (`Gtk.Box`, `Gtk.Label`, `Adw.CarouselIndicatorDots`) and a `@nativescript/core`
+  layout stands in.
+- *The `property` entries are the renderer backlog*, and they overlap the `property` bucket of
+  the tree census above rather than repeating it: a pane can differ on a property the two
+  trees never carried.
+- *`Gtk` is the narrow half.* The arm answers `Adw` and `Gtk` and the NativeScript renderer
+  has 5 of 106 `Gtk` members, so every GTK widget a gjs pane reaches for outside
+  Button/DropDown/Entry/Image/MenuButton is a `property` entry by construction.
+
+**What this does NOT close, and it is the same limit as the entry above.** Two panes being one
+text is not two runtimes behaving the same. The panes are compared as TEXT; nothing here runs
+either of them. `check-doc-fences.mjs` holds every property a NativeScript pane writes —
+through an assignment or through the construct-props bag — against the port's own declared
+members, which is what makes a converged pane checkable rather than merely plausible, but that
+is a name check too. See *The doc fences that show no imports are unread, on purpose* for the
+API-shape gap that a tsc pass would close and this one does not.
+
 ### A property can agree on its NAME and disagree on its VALUE KIND
 
 `check-vocabulary-alignment.mjs` prints a property distance and calls a NativeScript
@@ -3987,6 +4041,22 @@ Attempted and NOT landed, with what was measured:
   arm reads TS2304 only and treats an unresolved module as none of its business.
 
 So it wants a different job and a different unit, not a wider regex on this one.
+
+**Where that leaves a `nativescript` fence, stated because those fences now carry more.** They
+are NOT typechecked in the API-shape sense above — the arm reads TS2304 only, and the port's
+`lib/types` are not built in this job. What holds them instead is `check-doc-fences.mjs`'s own
+NativeScript arm, which reads the port's SOURCE with no build and refuses a property a widget
+does not declare, through either door: `x.p = v` and `new Adw.Avatar({ p: v })`. The bag door
+is the one that TELLS the reader — an unknown assignment sticks as a dead own-property at exit
+0, an unknown bag key throws (ADR 0034 § Amendment 13) — and a getter with no setter is
+refused on both, because a bag refuses it by name and a bare assignment throws in strict mode,
+which every NativeScript bundle is. Both directions were A/B-proven on the real gallery.
+
+What that arm cannot see is a MISSING import: it resolves `Adw.StatusPage` through the port's
+own namespace barrels, never through the fence's import list. A fence that shows at least one
+import is covered anyway — the SNIPPETS arm reports the unbound `Adw` as TS2304 — so what is
+left uncovered is the import-LESS fence, which that arm passes over on purpose. Every
+`nativescript` fence in the gallery shows its imports today, and nothing holds that.
 
 One measurement discipline note, because the probe repeated the defect this PR is about:
 the throwaway script written to measure the class reported `0 diagnostics` twice while tsc
