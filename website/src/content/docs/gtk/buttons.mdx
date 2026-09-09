@@ -136,14 +136,27 @@ each other and mean the same thing everywhere in the toolkit, so a
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12 });
+    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, horizontalAlignment: 'center' });
 
-    // No circular variant here: this Gtk.Button is text-only, so an icon-only
-    // button is Adw.ButtonContent inside a styled layout — see Adwaita/Buttons.
-    box.add(new Gtk.Button({ text: 'Pill', styleClasses: 'pill' }));
-    box.add(new Gtk.Button({ text: 'Suggested', styleClasses: 'suggested-action' }));
-    box.add(new Gtk.Button({ text: 'Delete', styleClasses: 'destructive-action' }));
-    box.add(new Gtk.Button({ text: 'Flat', styleClasses: 'flat' }));
+    const pill = new Gtk.Button({ label: 'Pill' });
+    pill.add_css_class('pill');
+    box.append(pill);
+
+    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
+    circular.add_css_class('circular');
+    box.append(circular);
+
+    const suggested = new Gtk.Button({ label: 'Suggested' });
+    suggested.add_css_class('suggested-action');
+    box.append(suggested);
+
+    const destructive = new Gtk.Button({ label: 'Delete' });
+    destructive.add_css_class('destructive-action');
+    box.append(destructive);
+
+    const flat = new Gtk.Button({ label: 'Flat' });
+    flat.add_css_class('flat');
+    box.append(flat);
     ```
   </Fragment>
 </AdwWidget>

@@ -135,13 +135,17 @@ space while the message applies.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const banner = new Adw.Banner({
         title: 'Metered connection: updates paused',
         buttonLabel: 'Resume',
         revealed: true,
     });
-    // No `useMarkup`: the NS banner label is plain text (no rich-text subset).
+
+    // The banner is full-width; a sized container gives it a width to fill.
+    const container = new Gtk.Box({ orientation: 'vertical', width: 460 });
+    container.append(banner);
     ```
   </Fragment>
 </AdwWidget>
@@ -341,7 +345,8 @@ give the user a way out, such as a button that creates their first document.
     import Gtk from 'gi://Gtk?version=4.0';
 
     const button = new Gtk.Button({
-        text: 'New Document',
+        label: 'New Document',
+        horizontalAlignment: 'center',
         styleClasses: 'pill suggested-action',
     });
 

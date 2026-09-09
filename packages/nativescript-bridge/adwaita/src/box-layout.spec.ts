@@ -85,8 +85,16 @@ export default async () => {
             // `wrapBoxChildMargin` puts half the spacing on all four edges because a
             // wrapping run has gaps on two axes. A box has one, so three of the four
             // edges are 0 and the box's own bounds are untouched: no outer inset.
-            expect(boxChildMargin(1, 12, 'vertical').split(' ').filter((edge) => edge !== '0')).toStrictEqual(['12']);
-            expect(boxChildMargin(1, 12, 'horizontal').split(' ').filter((edge) => edge !== '0')).toStrictEqual(['12']);
+            expect(
+                boxChildMargin(1, 12, 'vertical')
+                    .split(' ')
+                    .filter((edge) => edge !== '0'),
+            ).toStrictEqual(['12']);
+            expect(
+                boxChildMargin(1, 12, 'horizontal')
+                    .split(' ')
+                    .filter((edge) => edge !== '0'),
+            ).toStrictEqual(['12']);
         });
 
         await it('is all zeroes at the default spacing, so an untouched box writes nothing visible', () => {
@@ -100,28 +108,33 @@ export default async () => {
 
     await describe('resolveBoxChildOrder — `gtk_widget_insert_after`, NULL means FIRST', async () => {
         await it('inserts at the FIRST position for a NULL sibling, not the last', () => {
-            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: null, op: 'insert-after' }))
-                .toStrictEqual(['c', 'a', 'b']);
+            expect(
+                resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: null, op: 'insert-after' }),
+            ).toStrictEqual(['c', 'a', 'b']);
         });
 
         await it('inserts directly after the named sibling', () => {
-            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: 'a', op: 'insert-after' }))
-                .toStrictEqual(['a', 'c', 'b']);
+            expect(
+                resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: 'a', op: 'insert-after' }),
+            ).toStrictEqual(['a', 'c', 'b']);
         });
 
         await it('refuses an insert of a child the box already holds', () => {
-            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'a', sibling: 'b', op: 'insert-after' }))
-                .toBe(null);
+            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'a', sibling: 'b', op: 'insert-after' })).toBe(
+                null,
+            );
         });
 
         await it('refuses a reorder of a child the box does not hold', () => {
-            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: 'a', op: 'reorder-after' }))
-                .toBe(null);
+            expect(resolveBoxChildOrder({ children: ['a', 'b'], child: 'c', sibling: 'a', op: 'reorder-after' })).toBe(
+                null,
+            );
         });
 
         await it('moves an existing child rather than duplicating it', () => {
-            expect(resolveBoxChildOrder({ children: ['a', 'b', 'c'], child: 'a', sibling: 'b', op: 'reorder-after' }))
-                .toStrictEqual(['b', 'a', 'c']);
+            expect(
+                resolveBoxChildOrder({ children: ['a', 'b', 'c'], child: 'a', sibling: 'b', op: 'reorder-after' }),
+            ).toStrictEqual(['b', 'a', 'c']);
         });
 
         await it('refuses a child placed after itself, where C hits a g_return_if_fail', () => {

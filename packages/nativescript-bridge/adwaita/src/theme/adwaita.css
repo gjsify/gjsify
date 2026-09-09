@@ -499,6 +499,19 @@ Page.adw-window {
     padding: 10 32 10 32;
 }
 
+/* `%circular_button` — the explicit exception to the 9px rounded square: a full
+ * circle at 34×34 with no padding (_buttons.scss:312-317). It is the shape an
+ * icon-only button takes, which is why the rule arrives with the icon: while
+ * `Gtk.Button` was the platform's text-only `Button` the variant "had no counterpart
+ * at all", and a class with no rule would have drawn a rounded rectangle instead. The
+ * 34 is the same number `.adw-image-button` above carries, from the same line. */
+.adw-button.circular {
+    width: 34;
+    height: 34;
+    border-radius: 9999;
+    padding: 0;
+}
+
 /* The button's OWN label, and it exists because the button is a `GridLayout`.
  *
  * `.adw-button` above declares `color` and `font-weight`; a `GridLayout` has no text,

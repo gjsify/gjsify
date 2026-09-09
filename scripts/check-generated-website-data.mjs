@@ -611,7 +611,8 @@ if (checkedSnippets === 0) failures.push('no snippet was matched against a probe
  */
 const NS_CORE_PROPS = {
     id: 'ViewBase.id — the handle a code-behind reaches a template child by.',
-    orientation: 'LayoutBase orientation, inherited by Gtk.Box from StackLayout — the same two nicks Gtk.Orientation has, which is why the box does not re-declare it.',
+    orientation:
+        'LayoutBase orientation, inherited by Gtk.Box from StackLayout — the same two nicks Gtk.Orientation has, which is why the box does not re-declare it.',
 };
 
 let nsSources = new Map();

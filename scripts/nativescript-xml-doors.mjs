@@ -187,6 +187,45 @@ export function readCoreProperties(root) {
     return new Set([...text.matchAll(/^\s{4,}([A-Za-z_$][A-Za-z0-9_$]*)\??:/gm)].map((m) => m[1]));
 }
 
+/**
+ * Every METHOD name the ambient slice declares — the other half of
+ * {@link readCoreProperties}, and the half a fence reader needs to tell
+ * `box.addChild(view)` (a real `LayoutBase` method) from `carousel.addPage(view)` (a
+ * method no class in this package has ever declared, which was printed in the gallery
+ * for as long as the gallery existed).
+ *
+ * `connect` and `disconnect` are added by hand and not read off a declaration: they come
+ * from the `withSignals` MIXIN rather than from `@nativescript/core`, they are on every
+ * widget class in the package (ADR 0034 § Amendment 15), and no `extends` chain a reader
+ * walks passes through the mixin's `abstract class WithSignals`.
+ *
+ * Deliberately over-broad in the same direction the property reader is: a name here only
+ * ever EXEMPTS a call from "this widget has no such method", so a name too many costs
+ * coverage and a name too few costs a false alarm.
+ *
+ * THROWS on an empty read rather than returning one, because a reader that finds no core
+ * method reports every call in the gallery as valid — the vacuous pass this file's own
+ * self-test exists to refuse.
+ */
+export function readCoreMethods(root) {
+    const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
+    const names = new Set(['connect', 'disconnect']);
+    for (const [, name] of text.matchAll(/^\s{4,}(?:readonly\s+)?([A-Za-z_$][A-Za-z0-9_$]*)(?:<[^>]*>)?\s*\(/gm)) {
+        names.add(name);
+    }
+    // The ambient slice declares `addChild` on `LayoutBase` and `addEventListener` on
+    // `Observable`. If neither is here the regex has stopped matching declarations and
+    // the set is worthless, whatever its size.
+    for (const canary of ['addChild', 'addEventListener']) {
+        if (names.has(canary)) continue;
+        throw new Error(
+            `${NS_CORE_TYPES} declares no \`${canary}(\` that this reader can see. The ambient method set is ` +
+                'empty or wrong, and a reader that finds no core method passes every call it is given.',
+        );
+    }
+    return names;
+}
+
 /** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
 export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
 export const SIGNALS_MIXIN = 'withSignals';

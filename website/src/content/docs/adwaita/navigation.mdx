@@ -493,10 +493,13 @@ the detail page and watch the back button appear.
 
     // Root page: a pill button that pushes the detail page by tag.
     const open = new Gtk.Button({
-        text: 'Open contact',
-        styleClasses: 'pill',
+        label: 'Open contact',
+        horizontalAlignment: 'center',
+        verticalAlignment: 'middle',
     });
-    open.addEventListener('tap', () => view.push('detail'));
+    open.add_css_class('pill');
+    open.add_css_class('suggested-action');
+    open.connect('clicked', () => view.push('detail'));
     const root = new Adw.ToolbarView();
     root.add_top_bar(new Adw.HeaderBar({ title: 'Contacts' }));
     root.set_content(open);
@@ -613,10 +616,7 @@ already knows how to be one.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    // `NOTIFY_SIDEBAR_SELECTED` is a signal NAME, not a widget, so it has no member in
-    // the `Adw` namespace and keeps the package import.
-    import { NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
-    import { GridLayout, ItemSpec } from '@nativescript/core';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const items = [
         { title: 'Inbox', subtitle: '3 unread', icon: 'mail-unread-symbolic' },
@@ -633,20 +633,16 @@ already knows how to be one.
     const status = new Adw.StatusPage();
     const syncContent = () => {
         const it = items[sidebar.selected] ?? items[0];
-        status.iconName = it.icon;
         status.title = it.title;
+        status.iconName = it.icon;
         status.description = it.subtitle;
     };
-    sidebar.addEventListener(NOTIFY_SIDEBAR_SELECTED, syncContent);
+    sidebar.connect('notify::selected', syncContent);
     syncContent();
 
-    const box = new GridLayout();
-    box.addColumn(new ItemSpec(1, 'auto'));
-    box.addColumn(new ItemSpec(1, 'star'));
-    GridLayout.setColumn(sidebar, 0);
-    box.addChild(sidebar);
-    GridLayout.setColumn(status, 1);
-    box.addChild(status);
+    const box = new Gtk.Box({ orientation: 'horizontal' });
+    box.append(sidebar);
+    box.append(status);
     ```
   </Fragment>
 </AdwWidget>
@@ -808,35 +804,44 @@ content pane, not to work.
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
-    import { Label, StackLayout } from '@nativescript/core';
 
-    const sheet = new Adw.BottomSheet();
+    const sheet = new Adw.BottomSheet({ open: true, canClose: true });
 
     // Persistent content: a centered pill button that toggles the sheet.
-    const center = new StackLayout();
-    center.horizontalAlignment = 'center';
-    center.verticalAlignment = 'middle';
-    const toggle = new Gtk.Button({ text: 'Toggle sheet', styleClasses: 'pill' });
-    toggle.addEventListener('tap', () => { sheet.open = !sheet.open; });
-    center.addChild(toggle);
-    sheet.set_content(center);
+    const toggle = new Gtk.Button({
+        label: 'Toggle sheet',
+        horizontalAlignment: 'center',
+        verticalAlignment: 'middle',
+    });
+    toggle.add_css_class('pill');
+    toggle.add_css_class('suggested-action');
+    toggle.connect('clicked', () => { sheet.open = !sheet.open; });
+    sheet.set_content(toggle);
 
     // The sheet: a title above a boxed list of share actions.
-    const box = new StackLayout();
-    box.orientation = 'vertical';
-    const title = new Label();
-    title.text = 'Share track';
-    title.className = 'title-2';
-    box.addChild(title);
+    const box = new Gtk.Box({
+        orientation: 'vertical',
+        spacing: 12,
+        marginTop: 18,
+        marginBottom: 24,
+        marginLeft: 18,
+        marginRight: 18,
+    });
+    box.append(new Gtk.Label({ label: 'Share track', styleClasses: 'title-2' }));
 
     const group = new Adw.PreferencesGroup();
-    for (const rowTitle of ['Copy link', 'Send to a friend', 'Add to playlist']) {
-        group.add(new Adw.ActionRow({ title: rowTitle }));
+    for (const [title, icon] of [
+        ['Copy link', 'edit-copy-symbolic'],
+        ['Send to a friend', 'mail-send-symbolic'],
+        ['Add to playlist', 'list-add-symbolic'],
+    ] as const) {
+        const row = new Adw.ActionRow({ title });
+        row.add_prefix(new Gtk.Image({ iconName: icon }));
+        row.activatable = true;
+        group.add(row);
     }
-    box.addChild(group);
+    box.append(group);
     sheet.set_sheet(box);
-
-    sheet.open = true;
     ```
   </Fragment>
 </AdwWidget>

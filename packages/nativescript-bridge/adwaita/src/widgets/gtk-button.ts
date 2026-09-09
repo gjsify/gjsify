@@ -41,13 +41,13 @@
 // under GTK's name and both lines reach the same handler. `AdwSplitButton` already emits
 // `clicked` for its action half, which is where the name comes from.
 //
-// THE ICON IS AN SVG SOURCE, NOT A THEME NAME. `iconName` takes the Adwaita symbolic SVG
-// string (e.g. `listAddSymbolic` from `@gjsify/adwaita-icons`), because nothing on this
-// runtime resolves an icon-theme name — the same door `GtkImage`, `AdwAvatar` and
-// `AdwStatusPage` already have, and the reason the gallery carries a `glyph` divergence
-// kind at all. A SIBLING CHANGE is making theme names resolve on this port; when it lands
-// the door converts underneath this property and nothing here moves, because the property
-// is already spelled `iconName`.
+// THE ICON GOES THROUGH `GtkImage`, WHICH IS WHY IT TAKES A THEME NAME. `iconName` accepts
+// `'list-add-symbolic'` and an Adwaita symbolic SVG string alike, and neither spelling is
+// implemented here: the icon slot parents a `GtkImage` and writes the value straight onto
+// its own `iconName`, so `resolveIconSource` (ADR 0034 § Amendment 18) answers for both.
+// A property whose whole body is a delegation is the reason this widget inherited a
+// capability it was written before — and why the same delegation is what a reader should
+// follow rather than a second copy of the rule.
 //
 // Reference: refs/gtk gtk/gtkbutton.c (GtkButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss

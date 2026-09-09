@@ -704,25 +704,24 @@ const paneKindMenu = () => [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `  
  */
 const PANE_TEXT_DIVERGENCES = {
     'Adw.PreferencesGroup':
-        "vocabulary: rows go in through addRow() where libadwaita's add() takes any widget, the header " +
-        'button is text/styleClasses against label/add_css_class(), and it takes no alignment — the port ' +
-        'places a header suffix itself.',
+        'vocabulary: one line, and it is the alignment. The header button takes verticalAlignment where GTK ' +
+        'takes valign, which is the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open; everything ' +
+        'else about these two panes is already one text.',
     'Adw.ActionRow':
-        'property: the port’s Gtk.Button is text-only, so the trailing chevron is a Gtk.Image rather than ' +
-        'a flat button — and with no button there is no activatableWidget to point at and no valign to ' +
-        'put on it.',
+        'vocabulary: one line, and it is the alignment. The trailing chevron is a flat Gtk.Button on both ' +
+        'sides now and both icons are theme names, so what is left is verticalAlignment against valign — ' +
+        'the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open.',
     'Adw.ComboRow':
         'vocabulary: the model is a string array where GTK takes a Gtk.StringList. The portable value shape ' +
         'is what would close it, and it is the same question ADR 0034 § 1 asks of every value.',
     'Adw.SpinRow':
         "property: the adjustment is @gjsify/adwaita-core's AdwAdjustment where GTK takes a Gtk.Adjustment, " +
         'and the port installs no `digits` — it renders the value the state machine holds.',
-    'Adw.ExpanderRow': 'vocabulary: add_row() is addRow() on the port, and nothing else differs.',
     'Adw.ButtonRow': 'vocabulary: a style class is className rather than add_css_class(), and nothing else differs.',
     'Adw.ButtonContent':
-        "composition: the port's Gtk.Button is text-only, so the button around the content is a " +
-        '@nativescript/core StackLayout carrying the Adwaita classes; and the icon bitmap is pre-coloured, ' +
-        'so a suggested button pins iconColor where GTK inherits `color` from the stylesheet.',
+        'property: the icon bitmap is PRE-COLOURED, so a suggested button pins iconColor where GTK inherits ' +
+        '`color` from the stylesheet — a property GTK has no counterpart for. The button around the content ' +
+        'is a Gtk.Button with a child on both sides now.',
     'Adw.SplitButton':
         'vocabulary: the menu is a plain array where GTK takes a Gio.Menu with action names — a namespace ' +
         'the gi:// arms deliberately do not answer.',
@@ -732,8 +731,9 @@ const PANE_TEXT_DIVERGENCES = {
         'web pillar hand-draws a substitute — this pane names one that resolves rather than drawing the ' +
         'image-missing fallback its gjs twin gets.',
     'Adw.Toast':
-        'property: the port has no Adw.Toast widget at all — showToast() is the whole API, its timeout is in ' +
-        'milliseconds, and the overlay takes its content through setContent().',
+        'property: the port has no Adw.Toast widget at all — showToast() is the whole API and its timeout is ' +
+        'in milliseconds — and the overlay takes its content through set_child() where GTK passes `child` to ' +
+        'the constructor.',
     'Adw.AlertDialog':
         'composition: heading and body are constructor positionals, the response appearance is the NICK ' +
         'rather than an Adw.ResponseAppearance constant, and present() RESOLVES to the chosen response ' +
@@ -762,23 +762,27 @@ const PANE_TEXT_DIVERGENCES = {
         'takes a flat label list and each pane is a toolbar view directly.',
     'Adw.OverlaySplitView': 'property: the same three missing widgets as Adw.NavigationSplitView, one block over.',
     'Adw.NavigationView':
-        'property: pages are pushed by TAG rather than by widget, there is no Adw.NavigationPage to wrap them, ' +
-        'and the port’s Gtk.Button is text-only with a `tap` listener rather than a `clicked` signal.',
+        'property: pages are pushed by TAG rather than by widget and there is no Adw.NavigationPage to wrap ' +
+        'them, so the toolbar view IS the page and add() takes the tag beside it. The button is the same ' +
+        'text on both sides now, `clicked` included; the icon is an SVG source.',
     'Adw.Sidebar':
-        'composition: the port’s sidebar takes a flat label list with no per-item subtitle or icon, the ' +
-        'selection notify is an event NAME, and the two panes sit in a @nativescript/core GridLayout.',
+        'property: the port has no Adw.SidebarSection, no Adw.SidebarItem and no Gtk.Separator, so the sidebar ' +
+        'takes a flat label list with no per-item subtitle or icon and the two panes sit side by side with ' +
+        'nothing between them; widthRequest is an exact width here, and each icon is an SVG source.',
     'Adw.BottomSheet':
-        'composition: @nativescript/core’s StackLayout and Label stand in for Gtk.Box and Gtk.Label, which ' +
-        'the port does not ship, and the boxed list is built without prefixes.',
+        'property: the port has no `modal` — the sheet neither dims nor blocks what is behind it — and no ' +
+        'expand flags or logical margins, so vexpand is absent and marginStart/End are marginLeft/Right; the ' +
+        'content and sheet slots are set_content()/set_sheet() where GTK assigns the properties.',
     'Adw.Banner':
-        'composition: the gjs pane wraps the banner in a sized Gtk.Box to give a full-width widget something ' +
-        'to fill; the port lays that out itself, and its banner label is plain text with no markup subset.',
+        'property: one line, and it is the size request. widthRequest is a MINIMUM in GTK and NativeScript’s ' +
+        'width is exact, so the container asks for the width rather than declining to go under it — there is ' +
+        'no size-negotiation protocol here to route a request to.',
     'Adw.Spinner':
         'property: the port sizes a spinner with `size`, where GTK asks for a width, a height and two ' +
         'alignments — the port has no layout surface to put a size request on.',
     'Adw.StatusPage':
-        'property: `child` is read-only here so the button goes in through set_child(), the button’s caption ' +
-        'and classes are text/styleClasses, and there is no layout surface to take its halign.',
+        'property: `child` is read-only here so the button goes in through set_child(), the style classes are ' +
+        'one whitespace-separated string where GTK takes a list, and halign is horizontalAlignment.',
     'Adw.ViewSwitcher':
         'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
         'and content together, where GTK adds each page to the stack and binds the switcher to it.',
@@ -791,11 +795,13 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
     'Adw.Carousel':
-        'composition: the port has no Adw.CarouselIndicatorDots (the carousel draws its own row) and no ' +
-        'Gtk.Box or Gtk.Label, so each card is a @nativescript/core StackLayout.',
+        'property: the port has no Adw.CarouselIndicatorDots — the carousel draws its own dot row, so there ' +
+        'is nothing to bind and nothing to put it in a box with — and no swipe/scroll-wheel knobs; pageWidth ' +
+        'is what sizes a page, where GTK asks the child for its natural size.',
     'Gtk.Button':
-        'property: the port’s Gtk.Button is text-only, so the circular icon-only variant has no counterpart ' +
-        'at all; label/add_css_class() are text/styleClasses and the wrap box takes no alignment.',
+        'vocabulary: one line, and it is the alignment. The circular icon-only variant has a counterpart now ' +
+        '— it had none while the button was the platform’s text-only one, and its icon is the same theme ' +
+        'name — so what is left is halign as horizontalAlignment.',
     'Gtk.MenuButton':
         'property: the menu is a plain array where GTK takes a Gio.Menu with action names, and there is no ' +
         'popover, so `primary` has no counterpart and the menu opens as the platform action sheet.',

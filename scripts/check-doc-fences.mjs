@@ -112,6 +112,7 @@ import {
     matchingParen,
     membersOf,
     NS_CORE_TYPES,
+    readCoreMethods,
     readCoreProperties,
     readNamespaceSpellings,
     readWidgets,
@@ -743,7 +744,7 @@ function readOnlyMembers(sources, klass) {
     return new Set([...getters].filter((name) => !setters.has(name)));
 }
 
-function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellings) {
+function checkNativescriptFence(fence, where, nsWidgets, coreProperties, coreMethods, spellings) {
     const held = new Map();
     for (const [, variable, spelling] of fence.body.matchAll(NS_CONSTRUCTION)) {
         const klass = widgetClassOf(spelling, spellings);
@@ -754,6 +755,7 @@ function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellin
         (coreProperties.has(name) || membersOf(nsWidgets, klass).has(name)) &&
         !(readOnlyMembers(nsWidgets, klass).has(name) && !coreProperties.has(name));
     let writes = 0;
+    let calls = 0;
     for (const [, variable, property] of fence.body.matchAll(/\b([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
         const klass = held.get(variable);
         if (klass === undefined) continue;
@@ -787,7 +789,28 @@ function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellin
             );
         }
     }
-    return writes;
+    // THE THIRD SHAPE A FENCE REACHES A WIDGET BY, and it was the one nothing read. A
+    // property write and a construct-props key are both held above; a METHOD CALL was not,
+    // and two of them had been wrong in the published gallery for as long as the panes
+    // existed — `carousel.addPage(page)`, where `Adw.Carousel` declares `append`, and
+    // `box.add(button)`, where `Adw.WrapBox` declares `append` too. Both are a
+    // `TypeError: … is not a function` on the first run, which is LOUDER than the silent
+    // drop the other two doors have — and that is exactly why nothing had noticed: the
+    // gallery's snippets are read, not run, so a line that throws reads the same as a line
+    // that works.
+    for (const [, variable, method] of fence.body.matchAll(/\b([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*\(/g)) {
+        const klass = held.get(variable);
+        if (klass === undefined) continue;
+        calls += 1;
+        if (coreMethods.has(method) || membersOf(nsWidgets, klass).has(method)) continue;
+        fail(
+            `${where}:${fence.line}`,
+            `\`${variable}.${method}(…)\` — ${klass} declares no such method, and neither does the ambient ` +
+                `core slice (${NS_CORE_TYPES}). That is a TypeError on the first run. The GIR verb the port ` +
+                'actually ships is the usual fix — `append` where a snippet says `add` or `addPage`.',
+        );
+    }
+    return { writes, calls };
 }
 
 /**
@@ -849,6 +872,7 @@ const styled = readStyledClasses();
 const { sources: nsWidgets } = readWidgets(ROOT);
 const nsSpellings = readNamespaceSpellings(ROOT);
 const nsCoreProperties = readCoreProperties(ROOT);
+const nsCoreMethods = readCoreMethods(ROOT);
 
 const sources = [
     ...DOCS_SECTIONS.flatMap((section) =>
@@ -878,6 +902,7 @@ let tsFences = 0;
 let blueprintFences = 0;
 let styledFences = 0;
 let nsWrites = 0;
+let nsCalls = 0;
 
 try {
     for (const rel of sources) {
@@ -895,7 +920,18 @@ try {
             checkTsFence(fence, rel, icons);
             // The fence opener sits INSIDE the Fragment, so its own line names the slot.
             if (slots[fence.line] === 'nativescript') {
-                nsWrites += checkNativescriptFence(fence, rel, nsWidgets, nsCoreProperties, nsSpellings);
+                {
+                    const seen = checkNativescriptFence(
+                        fence,
+                        rel,
+                        nsWidgets,
+                        nsCoreProperties,
+                        nsCoreMethods,
+                        nsSpellings,
+                    );
+                    nsWrites += seen.writes;
+                    nsCalls += seen.calls;
+                }
             }
         }
         checkIconStrings(text, rel, icons, webIcons, exempt);
@@ -1277,6 +1313,13 @@ if (nsWrites === 0) {
             'the extractor is broken, not the docs',
     );
 }
+if (nsCalls === 0) {
+    fail(
+        'scan',
+        'no method call on a constructed NativeScript widget was found in any `nativescript` fence — ' +
+            'the extractor is broken, not the docs',
+    );
+}
 
 if (blueprint.ok) {
     notes.push(`${blueprintFences} blueprint fence(s) compiled with blueprint-compiler`);
@@ -1299,7 +1342,8 @@ notes.push(
         'frameworks page(s), each with the token step at or above it',
 );
 notes.push(
-    `${nsWrites} property write(s) in nativescript fences held against ${nsWidgets.size} widget class(es) ` +
+    `${nsWrites} property write(s) and ${nsCalls} method call(s) in nativescript fences held against ` +
+        `${nsWidgets.size} widget class(es) ` +
         `and ${nsCoreProperties.size} ambient core name(s)`,
 );
 notes.push(

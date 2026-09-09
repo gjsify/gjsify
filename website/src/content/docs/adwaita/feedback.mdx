@@ -136,7 +136,7 @@ on the desktop.
     });
 
     const overlay = new Adw.ToastOverlay();
-    overlay.set_content(content);
+    overlay.set_child(content);
 
     // The NativeScript overlay timer is in milliseconds.
     overlay.showToast('File moved to Trash', {
