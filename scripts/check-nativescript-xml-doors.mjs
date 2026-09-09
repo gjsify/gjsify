@@ -62,7 +62,7 @@
 //      NOT their position, and both in-repo shortcuts (the nick order, and `@girs`'s
 //      initialiser-less `enum Align`) say otherwise. What this arm CANNOT hold is that one
 //      alias declaration; `construct-props.spec.ts` pins the seven derived numbers instead.
-//   6. THE FOURTH DOOR (ADR 0034 § Amendment 14). Every widget class reaches GJS's
+//   6. THE FOURTH DOOR (ADR 0034 § Amendment 15). Every widget class reaches GJS's
 //      `connect` / `disconnect`: a class extending a `@nativescript/core` base wraps it in
 //      `withSignals(…)` from `widgets/signals.ts`, and a class extending a port base
 //      inherits the two and does NOT wrap again. Both directions fail — a bare platform
@@ -526,7 +526,7 @@ for (const [tag, { file, text }] of [...sources].sort()) {
         failures.push(
             `${file}: ${tag} extends ${head.base} bare. Every class that meets @nativescript/core takes GJS's ` +
                 `connect/disconnect there — \`extends ${SIGNALS_MIXIN}(${head.base})\` — or a GJS event snippet ` +
-                'runs on every widget but this one (ADR 0034 § Amendment 14).',
+                'runs on every widget but this one (ADR 0034 § Amendment 15).',
         );
         continue;
     }

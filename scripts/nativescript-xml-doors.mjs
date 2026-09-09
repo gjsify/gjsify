@@ -21,7 +21,7 @@
 //     side: a value arriving through it is a real JS value rather than a string, so a
 //     setter must NOT widen its declared type to admit an enum constant — that would
 //     drag the number into the ATTRIBUTE door, where it has no coercer.
-//   · A SIGNAL HANDLER (ADR 0034 § Amendment 14). The one door that goes OUT: GJS's
+//   · A SIGNAL HANDLER (ADR 0034 § Amendment 15). The one door that goes OUT: GJS's
 //     `connect(name, cb) -> id` / `disconnect(id)`, which `widgets/signals.ts` puts on
 //     every class as a mixin applied where the class meets `@nativescript/core` —
 //     `extends withSignals(GridLayout)`. A class extending a platform base bare has no

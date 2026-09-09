@@ -336,7 +336,7 @@ function packageSources(dir) {
  * missing — which ends the chain walk and hands the widget a setter set seven short.
  *
  * The `withSignals(…)` wrapper is the port's own, applied where a class extends a
- * `@nativescript/core` base (ADR 0034 § Amendment 14), and the BASE is what it wraps:
+ * `@nativescript/core` base (ADR 0034 § Amendment 15), and the BASE is what it wraps:
  * read as `withSignals`, every such chain would end at a class the ambient slice does not
  * declare and every widget would fail this gate for a reason that is not about coverage.
  *

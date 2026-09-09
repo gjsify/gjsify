@@ -7,7 +7,7 @@
 // `generated/props.ts`. Methods had no such side. Nothing in this repository said which
 // verbs a GJS caller can write on `Adw.ToolbarView` — `add_top_bar`, `set_content`,
 // `remove` — so a port could name the same operation `addTopBar` for its whole life with
-// every gate green, which `@gjsify/adwaita-nativescript` did (ADR 0034 § Amendment 14).
+// every gate green, which `@gjsify/adwaita-nativescript` did (ADR 0034 § Amendment 15).
 //
 // AND THE SPELLING IS NOT FREE. Measured on this machine (`gjs -m`, Gtk 4.22, Adw 1.9):
 //

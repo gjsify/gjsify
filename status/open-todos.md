@@ -4,6 +4,54 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The `@girs/*` vocabulary carries no method table, so the method oracle is read from the typelib
+
+`check-vocabulary-alignment.mjs`'s method ledger (ADR 0034 § Amendment 14) holds a port's
+public methods against `packages/framework/gtk-host/src/generated/methods.mts`, and that
+file is NOT emitted by gtk-host's vocabulary generator the way `props.ts` and `widgets.ts`
+are. It cannot be: measured on the published `@girs/gtk-4.0@4.6.0`, `gtk-4.0-vocabulary.js`
+exports PROVENANCE, OWN_PROPS, OWN_SIGNALS, DECLS, CHILD_HOLDERS, ENUM_NICKS,
+SLOT_CANDIDATES and SINCE — eight names, no method table. `SLOT_CANDIDATES` is derived from
+methods (ADR 0029 § 4's one-widget-argument rule) and carries the SLOT it derived, never
+the verb.
+
+So `scripts/generate-widget-methods.mjs` reads the installed typelib through GIRepository
+instead — the same arrangement `generate-enum-values.mjs` set for enum values, for the same
+reasons, held the same two ways (the no-install gate holds the shape, gtk-host's
+`generated.spec.ts` holds every name against the running GJS). It is a maintainer step, not
+a CI gate, and its provenance line is the typelib's, not the vocabulary's: the artifact was
+read from Gtk 4.22.4 / Adw 1.9.3 while `widgets.ts` was generated from 4.23.3 / 1.10.0, so
+`GtkSvgWidget` is a declared absence in `METHODS_UNAVAILABLE` until somebody regenerates on
+a newer host.
+
+**What would close it**: an `OWN_METHODS` export beside `OWN_PROPS` in ts-for-gir's surface
+generator (`packages/generator-typescript/src/surface/`, the venue ADR 0029 § Amendment
+names) plus a release. Then gtk-host's generator emits the table in the same run as the
+other three artifacts, under ONE provenance line, and the typelib reading becomes what it
+should be — a second source the `.gir` reading is held against, rather than the only one.
+The gate's reader (`scripts/widget-methods.mjs`) would not change; the generator's input
+would.
+
+### `withSignals` shadows nothing in `@nativescript/core` today, and nothing holds "today"
+
+`widgets/signals.ts` adds `connect` and `disconnect` to every `@gjsify/adwaita-nativescript`
+widget (ADR 0034 § Amendment 14) on the measurement that no view base of
+`@nativescript/core@9.1.0-alpha.11` declares either — `Observable`, `ViewBase`, `View`,
+`LayoutBase` and their platform variants have none, the one `disconnect(` in the package
+is `GesturesObserver`'s, and no runtime `.js` assigns the name. That is the same class of
+hazard the `cssClasses` incident came from: `ViewBase`'s constructor assigns a member, a
+widget shadows it, and the widget dies inside its own constructor.
+
+The ambient slice `src/ns-core.d.ts` holds the hazard in ONE direction only. A member it
+declares makes a shadowing widget fail `gjsify tsc`; a member the real package ADDS later
+is a name it cannot declare, so a future core that grows `Observable.connect` would be
+shadowed by the mixin with no type error anywhere in this repository, and the first place
+it would show is a consumer's build against the real package. What would hold it: a step in
+`tests/integration/nativescript` — the one venue with the real `@nativescript/core`
+installed — that asserts the two names are absent from every base the widgets extend, and
+fails the day one appears. Not built here, because that suite is a device-adjacent leg
+nobody runs in the required job, and a guard that runs nowhere is prose.
+
 ### `HOST_TARGET` is libc-blind, so the audit dlopens the wrong directory on musl
 
 `HOST_TARGET` in `packages/infra/manifest-conformance/lib/platforms.mjs` is
@@ -999,6 +1047,11 @@ the counterpart nor declared today**:
     adw-password-entry-row     subtitle  activatableWidget
     adw-expander-row           activatableWidget
     gtk-menu-button            iconColor  iconSize
+
+The METHOD half of the same gate (ADR 0034 § Amendment 14) was built with the resolving
+reader from the start — `nsMethodsOf` in the world builder walks `extendsOf` through every
+abstract port base, so `AdwSplitViewBase.set_content` is measured on both split views. The
+property half could share that walk; the 18 verdicts are what still stand between them.
 
 The fix is a one-function change in that gate's world builder plus 18 ledger entries with
 reasons, and it is a separate PR on purpose: every one of the 18 needs a `gir`-or-`own`
