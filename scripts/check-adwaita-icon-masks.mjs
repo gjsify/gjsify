@@ -39,8 +39,15 @@
 //     here. This is also why a website `.mdx` is read only for `=`-form HTML attributes:
 //     the same file carries GJS (`iconName: 'x-symbolic'`) and Blueprint
 //     (`icon-name: "x-symbolic";`) panes, both colon-form, both about other renderers.
-//   • the NativeScript port — its `GtkImage` takes SVG SOURCE, not a name, so a missing
-//     icon there is a missing import the compiler already rejects.
+//   • the NativeScript port — held by its OWN gate, `check-nativescript-icon-names.mjs`.
+//     This bullet used to read "its `GtkImage` takes SVG SOURCE, not a name, so a missing
+//     icon there is a missing import the compiler already rejects", and that stopped being
+//     true when `icon-theme.ts` gave the port a compiled subset of its own: a name there is
+//     a string no compiler inspects. The two pillars are two gates because their inputs are
+//     two shapes — a `Record` in a `.ts` module against a data-URI generator in an `.mjs`
+//     build script, and a `.mdx` read per `<Fragment>` slot against one read for `=`-form
+//     attributes only. The rule is the same one, and so is the reason: the whole set does
+//     not fit either target.
 //   • FIXTURES: `*.spec.ts` anywhere, and adwaita-core's `conformance/` vector tables.
 //     NOT because they are malformed — only `conformance/view-stack.ts` is; `action-row`
 //     names `external-link-symbolic` and `split-button` names `help-about-symbolic`,

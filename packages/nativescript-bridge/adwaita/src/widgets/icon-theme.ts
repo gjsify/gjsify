@@ -18,8 +18,8 @@
 // `packages/web/adwaita-icons/*.ts` (the command is in ADR 0034 § Amendment 16):
 //
 //   · the whole barrel        644 glyphs, 732 371 bytes of SVG source  (715.2 KiB)
-//   · {@link COMPILED_ICONS}   31 glyphs,  27 868 bytes                 (27.2 KiB)
-//   · what the subset ADDS     25 glyphs,  24 150 bytes                 (23.6 KiB)
+//   · {@link COMPILED_ICONS}   31 glyphs,  27 851 bytes                 (27.2 KiB)
+//   · what the subset ADDS     25 glyphs,  24 133 bytes                 (23.6 KiB)
 //
 // The third row is the honest one: six of the thirty-one were already imported by a
 // widget in this directory for its own chrome, so the bundle grows by the other
@@ -38,9 +38,12 @@
 // repository emits as a NAME, and nothing else. The port's own chrome glyphs are NOT in
 // here — a combo row's `pan-down`, a spin row's `value-increase`, a split button's arrow
 // are imported at their point of use, because no caller names them and an entry no
-// caller can reach is a byte bought for nobody. `check-doc-fences.mjs`' NativeScript icon
-// arm holds the rule from the other side: a name a `nativescript` fence writes and this
-// map does not carry draws the `image-missing` fallback, and the gate says so.
+// caller can reach is a byte bought for nobody.
+//
+// `check-nativescript-icon-names.mjs` holds that rule in BOTH directions over eight
+// surfaces, and its second arm is the one that keeps a subset a subset. It found a defect
+// the moment it ran: the storybook's button-row story mapped `edit-delete`, a name its own
+// control does not offer, so picking "Trash" drew nothing at all.
 //
 // THE SVG-SOURCE DOOR STAYS OPEN. Name resolution is an ADDITION: a consumer with a glyph
 // this map does not carry can still pass the document itself, exactly as before, and
@@ -59,7 +62,6 @@ import {
     documentEditSymbolic,
     documentOpenSymbolic,
     documentSaveSymbolic,
-    editDeleteSymbolic,
     goNextSymbolic,
     listAddSymbolic,
     listRemoveSymbolic,
@@ -78,7 +80,13 @@ import {
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
-import { folderDocumentsSymbolic, folderDownloadSymbolic, folderMusicSymbolic, folderSymbolic } from '@gjsify/adwaita-icons/places';
+import {
+    folderDocumentsSymbolic,
+    folderDownloadSymbolic,
+    folderMusicSymbolic,
+    folderSymbolic,
+    userTrashSymbolic,
+} from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, imageMissingSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
 /**
@@ -107,7 +115,6 @@ const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'document-edit': documentEditSymbolic,
     'document-open': documentOpenSymbolic,
     'document-save': documentSaveSymbolic,
-    'edit-delete': editDeleteSymbolic,
     'emblem-system': emblemSystemSymbolic,
     folder: folderSymbolic,
     'folder-documents': folderDocumentsSymbolic,
@@ -126,6 +133,7 @@ const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'send-to': sendToSymbolic,
     starred: starredSymbolic,
     'system-search': systemSearchSymbolic,
+    'user-trash': userTrashSymbolic,
     'view-conceal': viewConcealSymbolic,
     'view-grid': viewGridSymbolic,
     'view-list': viewListSymbolic,

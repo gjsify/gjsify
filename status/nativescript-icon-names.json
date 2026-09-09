@@ -1,0 +1,7 @@
+{
+    "reviewed": {
+        "adw-entry-edit": "The trailing pencil of Adw.EntryRow. libadwaita ships this glyph ITSELF (refs/libadwaita/src/icons/adw-entry-edit.svg) rather than taking it from the icon theme, so it is in neither /usr/share/icons/Adwaita nor @gjsify/adwaita-icons and cannot be compiled at all. @gjsify/adwaita-core carries the canonical name (ENTRY_ROW_EDIT_ICON_NAME, entry-row.ts) because the web renderer puts it in data-icon-name; the NativeScript row never hands it to a widget \u2014 entry-row.ts imports documentEditSymbolic and gives its own GtkImage the DOCUMENT, so no name reaches the subset. The web pillar lists it for the same reason.",
+        "adw-entry-apply": "The apply button of an edited Adw.EntryRow. Same origin as adw-entry-edit \u2014 a libadwaita-bundled glyph (refs/libadwaita/src/icons/adw-entry-apply.svg), absent from both the icon theme and @gjsify/adwaita-icons. The port substitutes objectSelectSymbolic as a document at the point of use, so the canonical name in the core is never handed to a widget here.",
+        "caps-lock": "The caps-lock warning of Adw.PasswordEntryRow. caps-lock-symbolic is in neither the Adwaita icon theme nor @gjsify/adwaita-icons' exports, so compiling it is not an option that exists. The core holds the canonical name (CAPS_LOCK_ICON_NAME); the NativeScript row draws dialogWarningSymbolic as a document instead, which adw-entry-row.ts records in place."
+    }
+}
