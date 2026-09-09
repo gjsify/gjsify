@@ -219,7 +219,7 @@ import {
     pickFile, saveFile,
 } from '@gjsify/adwaita-app';
 
-// The parent every one of these dialogs is modal to — your own window, not a
+// The parent every one of these dialogs is modal to: your own window, not a
 // browser `window`. GJS has no such global.
 const myWindow = new Adw.ApplicationWindow({ application: new Adw.Application({ applicationId: 'org.example.App' }) });
 
@@ -245,9 +245,9 @@ const target = await saveFile(myWindow, { title: 'Export', initialName: 'report.
 `pickFile` and `saveFile` resolve to `null` when the user cancels, so a cancel is a normal
 value and not an exception.
 
-Pair `destructive: true` with `defaultResponse: 'cancel'`. The reason to show a "really
-delete this?" dialog is the accidental gesture, and a confirm default hands the reflex of
-dismissing a dialog with Enter the deletion instead of the escape.
+Pair `destructive: true` with `defaultResponse: 'cancel'`. A "really delete this?" dialog
+exists to catch the accidental gesture. Make the confirm response the default and the reflex
+of pressing Enter to get rid of a dialog performs the deletion instead of escaping it.
 
 ## Jump straight to a view while developing
 
@@ -257,7 +257,7 @@ view you're working on instead of clicking there every time.
 ```ts
 import { readAppDevHooks, resolveInitialNavIndex } from '@gjsify/adwaita-app';
 
-// Whatever `MYAPP_FILE` should open — your own document store.
+// Whatever `MYAPP_FILE` should open: your own document store.
 const store = { load: (path: string): void => console.log('opening', path) };
 
 const hooks = readAppDevHooks({ prefix: 'MYAPP' });

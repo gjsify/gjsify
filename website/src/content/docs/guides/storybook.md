@@ -193,8 +193,8 @@ each variant. See [Devtools & MCP](/gjsify/guides/devtools/) for the whole loop.
 ## The rule of thumb
 
 Treat a story as part of the widget: **every custom widget ships a `*.story.ts` next to
-it.** It is the widget's living documentation and its visual regression surface. A widget
-without a story is a widget nobody can look at without running your whole app.
+it.** It is the widget's living documentation, and it is what a screenshot test can point
+at. A widget without a story is a widget nobody can look at without running your whole app.
 
 ## The packages behind it
 

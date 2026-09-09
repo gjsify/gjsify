@@ -12,7 +12,7 @@ compared on [Ship your app](/gjsify/ship/); for a GTK app, use
 A `gjsify build` output is already one self-contained file, so Flatpak buys you
 three specific things: the pinned runtime, any build-time helpers you need
 (`glib-compile-resources`, `blueprint-compiler`) bundled once, and a sandbox
-that makes it easy to say which host paths the tool may touch.
+where you declare which host paths the tool may touch.
 
 ## Keep the GNOME runtime
 
