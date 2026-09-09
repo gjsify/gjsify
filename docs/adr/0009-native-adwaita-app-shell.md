@@ -114,3 +114,63 @@ consumers plus storybook.
 5. Follow-up (`status/open-todos.md`): release + first-publish/Trusted-Publisher
    bootstrap (maintainer-gated, needs npm OTP), then wire buchhaltung + eco-retrofit +
    storybook onto it on their next shell touch.
+
+## Amendment 1, 2026-09-09 — the app ships its icons, and GTK defers to the host theme
+
+The shell gained a startup icon bootstrap beside the startup CSS one: a subset of
+`@gjsify/adwaita-icons` compiled into the app's own GResource and registered with the icon
+theme, so `icon-name` resolves without the host having the Adwaita set installed. Before it,
+`add_resource_path` and `add_search_path` had ZERO hits in every `.ts`/`.js`/`.mjs`/`.tmpl`/
+`.blp` outside `node_modules`, and a documented icon name drew whatever the host had — or
+the broken-image paintable.
+
+### The declared divergence, and why it is a decision
+
+**Under the default `prefer: 'fallback'`, GTK is the only one of the three renderers whose
+drawn glyph is not determined by the toolkit.** That is deliberate, and this is where it is
+recorded rather than discovered.
+
+The other two have no host theme to defer to. `@gjsify/adwaita-web` resolves a name against
+its compiled subset in `packages/web/adwaita-web/src/icon-registry.ts`, and the NativeScript
+port against its own in `packages/nativescript-bridge/adwaita/src/widgets/icon-theme.ts`
+(ADR 0034 § Amendment 16) — a browser and a phone runtime ship no icon theme, so both always
+draw the shipped Adwaita glyph. GTK does have one, and
+`Gtk.IconTheme.add_resource_path()` CONTRIBUTES to it rather than overriding it: its own GIR
+doc says "make application-specific icons available as part of the icon theme". Measured on
+gtk4 by asking `lookup_icon(...).get_file().get_uri()`, which is the file the widget paints:
+
+| host icon theme | `list-add-symbolic` resolves to | |
+|---|---|---|
+| Adwaita (defines the name) | `file:///usr/share/icons/Adwaita/…` | the HOST's glyph |
+| oxygen | `resource:///…` | the app's glyph |
+| Bluecurve | `resource:///…` | the app's glyph |
+| hicolor | `resource:///…` | the app's glyph |
+
+So on a Papirus or Breeze desktop, the glyph the gallery documents and the glyph the app
+draws can differ. **That is the intended behaviour, not a gap:** a user who installed a
+different icon theme chose it, and honouring it is what GNOME's own applications do — the
+icons an app ships are a floor under the theme, not a replacement for it. The failure this
+bootstrap exists to end is the other one, and it is closed on every host: a name never fails
+to resolve.
+
+Where the shipped glyph matters more than the host's taste — a screenshot rig, a kiosk, a
+documentation gallery whose pictures have to match its prose — `prefer: 'bundled'` makes the
+shipped set authoritative. It points the icon theme at a name nothing installs, so the theme
+chain contributes nothing and only the app's resource can answer; the cost is that a name
+OUTSIDE the bundle then has nothing behind it but GTK's builtins. `prefer: 'host'` (or
+`bundledIcons: false`) keeps the pre-amendment behaviour.
+
+Both directions are asserted rather than described, in
+`packages/framework/adwaita-app/src/icon-theme.spec.ts`: one arm proves the bundled glyph
+wins where the host theme lacks the name, and another proves the host still wins where it
+has it. Overstating this guarantee is precisely how a reader would come to trust a glyph
+they are not getting, so the limit has a test of its own.
+
+### What else it costs
+
+41 glyphs — the same set `@gjsify/adwaita-web` compiles, held by
+`scripts/check-bundled-icon-parity.mjs` so the two cannot drift — at 20 349 B compiled
+(19.9 KiB) and 27 132 B as the base64 the bundle travels as (26.5 KiB). The bytes are a
+value rather than a sibling file because `gjsify build` emits one bundle with no asset
+pipeline; the compiling is still `glib-compile-resources`, through the CLI's own
+`gjsify gresource`.
