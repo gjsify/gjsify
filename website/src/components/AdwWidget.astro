@@ -61,6 +61,14 @@
 // their snippet dropped. A reader copying the tab often did not get the widget
 // above it. One fence renders and is shown, so there is no second copy to keep.
 //
+// WHICH IS ALSO WHERE AN ATTRIBUTE'S MEANING NOW LIVES. An HTML comment is inert in the
+// DOM, so a gloss written into that one fence is shown on the HTML tab, copied with the
+// markup, and mounts as nothing. `scripts/generate-adwaita-attribute-comments.mjs` writes
+// one per attribute whose GIR doc says something the attribute's own NAME does not — 27
+// of the 107 this gallery sets, measured, with the other 80 accounted for in the same run
+// (ADR 0052). It replaces a pane that listed every `observedAttributes` name beside the
+// value this preview passes, which described what the fence beside it already showed.
+//
 // Feed the rest as named MDX slots (one fenced code block each). A tab appears
 // only where its slot was given, and a WINDOW only where at least one of its tabs
 // did, so a port that cannot express THIS widget simply has no tab, and a kind
