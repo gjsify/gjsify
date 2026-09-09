@@ -93,13 +93,13 @@ export default {
 |---|---|---|
 | `isCustomElement` | `isGtkHostTag` | Which tags compile to an element vnode instead of a component lookup. |
 | `include` | `/\.vue$/` | Which modules to compile. |
-| `runtimeModuleName` | `@vue/runtime-core` | Module the generated code imports Vue's runtime from. `vue` — the compiler's own default — drags `@vue/runtime-dom` and the DOM renderer into a bundle with no DOM. |
+| `runtimeModuleName` | `@vue/runtime-core` | Module the generated code imports Vue's runtime from. `vue`, the compiler's own default, drags `@vue/runtime-dom` and the DOM renderer into a bundle with no DOM. |
 
 ## The tag predicate, and why it is only a prefix rule
 
 `isGtkHostTag` accepts `gtk-`/`adw-` kebab **and** `Gtk`/`Adw` followed by a capital. Both
 spellings are required: `isCustomElement` is consulted for PascalCase tags too, and one
-`GlobalComponents` key answers both spellings — so a kebab-only rule leaves `<GtkBox>`
+`GlobalComponents` key answers both spellings, so a kebab-only rule leaves `<GtkBox>`
 type-checking and then resolving as a missing component.
 
 It decides "element vnode or component lookup", never whether the widget exists. An unknown
@@ -110,13 +110,13 @@ first one to drift.
 
 Without the predicate the failure is silent in the direction that matters. Measured on one
 template: **7 of 7 tags compiled to `_resolveComponent(…)` and zero element vnodes were
-emitted.** Vue's resolver misses, warns once per tag — and that warning is `__DEV__`-only,
+emitted.** Vue's resolver misses and warns once per tag, and that warning is `__DEV__`-only,
 which the production defines above strip. With the predicate: 0 `resolveComponent`, 6
 `createElementVNode` plus the root `createElementBlock`.
 
 ## The build recipe
 
-`@vue/runtime-core` is DOM-free in fact — every `document`, `navigator` and `HTMLElement`
+`@vue/runtime-core` is DOM-free in fact. Every `document`, `navigator` and `HTMLElement`
 reference sits in a dev, HMR or devtools branch behind `__DEV__` or a `typeof window` guard.
 But `--globals auto` is a static scan: it injects a polyfill for each identifier it *sees*,
 which made the bundle require `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` at load. The
@@ -124,7 +124,7 @@ four defines let dead-code elimination remove those branches first.
 
 One import the recipe cannot save is `Suspense`. `SuspenseImpl` carries `hydrate:
 hydrateSuspense`, which contains a literal `document.createElement("div")` that no define
-eliminates — hydration is never called here, but the identifier is still there. Measured, same
+eliminates. Hydration is never called here, but the identifier is still there. Measured, same
 entry plus one named import, `--app gjs`:
 
 | Import | Bytes | Typelibs |
@@ -136,8 +136,7 @@ entry plus one named import, `--app gjs`:
 | `+ Suspense`, `--exclude-globals document` | 196 614 | `gi://GLib` |
 
 So `--exclude-globals document` is the escape if you need `Suspense`. `Transition` is not in
-the table because `@vue/runtime-core` does not export it at all — it belongs to
-`runtime-dom`.
+the table because `@vue/runtime-core` does not export it at all; it belongs to `runtime-dom`.
 
 ## The type check, and the trap that fakes a green one
 
@@ -159,8 +158,8 @@ behind it:
 - **`strictTemplates: true`.** Measured on `vue-tsc@3.3.11`: with it, an unknown prop, an
   unknown tag, an unknown event, a wrong value type and a bad enum nick all fail. Without it,
   the unknown prop, the unknown event and the unknown *tag* are silently accepted while wrong
-  value types still error — so a project without it sees type errors appear and concludes the
-  surface works.
+  value types still error. A project without it sees type errors appear and concludes that its
+  types hold.
 - **Set it in the base of your `extends` chain.** Measured, four cells, all four: the base
   tsconfig's value wins and the child's is ignored outright, in *both* directions. In a
   monorepo the shared base config therefore decides this for every package and a per-package
@@ -181,7 +180,7 @@ import '@gjsify/gtk-host/vue-components';
 
 ## What it refuses, and what it ignores
 
-**`<style>` is refused with a named error.** GTK styling is a `Gtk.CssProvider` concern —
+**`<style>` is refused with a named error.** GTK styling is a `Gtk.CssProvider` concern:
 there is no element a CSS rule could attach to, and `<style scoped>` compiles to an attribute
 selector GTK 4 CSS does not have. Load the CSS yourself with
 `Gtk.CssProvider.load_from_string()` plus `Gtk.StyleContext.add_provider_for_display()`, and
@@ -193,15 +192,15 @@ depend on the block's `lang`. Write JSX in a `.tsx` file and compile it with
 [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) instead. A `<script>` with no
 `lang` is parsed as TypeScript.
 
-**A split SFC is refused as well** — `<template src>` and `<script src>`, and a
+**A split SFC is refused as well**, meaning `<template src>` and `<script src>`, and a
 `<template lang>` other than `html`. Measured, each compiled to something that looked like a
-component and was not: an external template became `return null`, an external script became an
+component and was not. An external template became `return null`, an external script became an
 empty object with the module never imported, and `lang="pug"` compiled to a render function
 returning the pug source as a text node. All three render blank or logic-less at exit 0.
 
 Out of scope and not attempted: HMR, asset-URL rewriting, custom blocks, SSR, `?query`
 suffixes on a `.vue` import, and watch-mode dependency registration. A custom block is the one
-thing neither compiled nor refused — the plugin reports it as a build warning naming the block
+thing neither compiled nor refused. The plugin reports it as a build warning naming the block
 and otherwise ignores it.
 
 ## Related

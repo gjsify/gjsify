@@ -1,21 +1,20 @@
 ---
 title: Styling on GTK
-description: How @gjsify/gtk-host/style turns utility classes and style objects into GTK CSS, widget properties and attach-time intents — with the measured traps behind that split, the worst of which fail with no diagnostic at all.
+description: How @gjsify/gtk-host/style turns utility classes and style objects into GTK CSS, widget properties and attach-time intents, plus the measured traps behind that split. The worst of them fail with no diagnostic at all.
 ---
 
 [`@gjsify/gtk-host/style`](https://www.npmjs.com/package/@gjsify/gtk-host) is the styling
 partition: a utility class (`flex-1`, `mt-2xs`, `bg-emphasis`) or a `style={{…}}` object goes in,
 and GTK-shaped output comes out.
 
-It is framework-agnostic by construction. `class="flex-1"` in a Vue template is the same question
-as `className="flex-1"` on a React element, and both are the same question as a style object — so
-the answer lives one level below any of them, in the host rather than beside it. Today the binding
-that consumes it is [`@gjsify/react-native`](/gjsify/frameworks/react-native/), on both its React
-and its Solid front ends.
+It is framework-agnostic by construction. `class="flex-1"` in a Vue template, `className="flex-1"`
+on a React element and a `style` object are all the same question, so the answer lives one level
+below all three, in the host rather than beside it. Today the binding that consumes it is
+[`@gjsify/react-native`](/gjsify/frameworks/react-native/), on both its React and its Solid front
+ends.
 
 **Everything on this page is a measurement against a real GTK, not a reading of a specification.**
-That matters here more than in most places, because GTK's failure mode for a styling mistake is
-*exit 0 and a window that looks nearly right*.
+GTK's failure mode for a styling mistake is *exit 0 and a window that looks nearly right*.
 
 ## Three destinations, and no fourth
 
@@ -34,26 +33,26 @@ class and does the same in both directions. Both carry a value alongside the nam
 this a property" and "does this value parse" are different questions and only the pair is
 testable.
 
-Anything the partition cannot answer is a **named error** — an unknown utility, a token missing
+Anything the partition cannot answer is a **named error**: an unknown utility, a token missing
 from a scale, or a combination GTK has no way to express. There is no silent drop, because a
 styling layer that quietly ignores part of its input is invisible in CI and obvious on screen.
 
 ## `text-align` is not GTK CSS
 
-It is the single most likely mistake in this whole area, because it reads like paint. Anyone
-reading a `text-*` vocabulary groups it with `color` and `font-size`, emits it as a CSS
-declaration, and **GTK's parser drops it in silence** — the text stays left-aligned with no
-diagnostic anywhere.
+This is the most likely mistake in the whole area, because `text-align` reads like paint. Anyone
+reading a `text-*` vocabulary groups it with `color` and `font-size` and emits it as a CSS
+declaration. **GTK's parser drops it in silence**: the text stays left-aligned, with no diagnostic
+anywhere.
 
 Text alignment on GTK is a **widget property**, and specifically `Gtk.Label`'s: `xalign` (a float)
-together with `justify` (an enum). Both are needed for one `text-*`, because `xalign` positions a
-line inside the label's allocation while `justify` positions the lines relative to each other — so
-a single-line label ignores `justify` and a wrapped one looks unaligned without `xalign`. Setting
-one of the two is the shape that passes the test and fails on the first paragraph.
+together with `justify` (an enum). One `text-*` needs both. `xalign` positions a line inside the
+label's allocation, `justify` positions the lines relative to each other, so a single-line label
+ignores `justify` and a wrapped one looks unaligned without `xalign`. Setting one of the two is the
+shape that passes the test and fails on the first paragraph.
 
-And `Gtk.Box` has neither, measured. So `text-center` on a `<View>` wrapping a `<Text>` — ordinary
-authoring — cannot be resolved where the class is written. It becomes an **intent**, and the value
-travels down to the first descendant that can take it.
+`Gtk.Box` has neither, measured. So `text-center` on a `<View>` wrapping a `<Text>`, which is
+ordinary authoring, cannot be resolved where the class is written. It becomes an **intent**, and
+the value travels down to the first descendant that can take it.
 
 There is no logical spelling to map onto, either: `Gtk.Label:xalign` is `0 = left` and
 `GtkJustification` has exactly `LEFT`, `RIGHT`, `CENTER` and `FILL`. `text-start` and `text-end`
@@ -61,28 +60,27 @@ are named refusals pointing at `text-left` / `text-right`.
 
 ## GTK CSS margins are physical; widget margins are logical
 
-This is the decisive measurement of the whole partition, and the one to keep if everything else is
-rewritten:
+This is the decisive measurement of the whole partition:
 
 - **GTK CSS** accepts `margin-left` and `margin-right`. It **refuses** `margin-start`,
   `margin-end`, `padding-start` and `padding-end`.
 - **`Gtk.Widget`** installs `margin-start` and `margin-end`. It installs **no** `margin-left` and
   **no** `margin-right`.
 
-The two mechanisms are therefore not two ways to spell one thing that a layer gets to choose
-between. Each is the **only** route for one half of the source vocabulary, which splits along the
-same line: `ml-*` / `mr-*` are physical, `ms-*` / `me-*` are logical.
+So the two mechanisms are not two spellings of one thing a layer gets to choose between. Each is
+the **only** route for one half of the source vocabulary, which splits along the same line:
+`ml-*` / `mr-*` are physical, `ms-*` / `me-*` are logical.
 
-So `ml-*` / `mr-*` go through CSS and `ms-*` / `me-*` go through the widget property — and that is
-what stays correct under RTL. Routing `ms-*` through CSS would produce a margin that does not flip
-for a reader of Arabic or Hebrew: a bug with no failing test and no visible symptom in the
+`ml-*` / `mr-*` therefore go through CSS and `ms-*` / `me-*` through the widget property, and that
+is what stays correct under RTL. Routing `ms-*` through CSS would produce a margin that does not
+flip for a reader of Arabic or Hebrew: a bug with no failing test and no visible symptom in the
 language it was written in.
 
 `mt-*` / `mb-*` have no logical-versus-physical distinction to preserve, so they join the widget
-channel. Which leaves `m-*` straddling both, because `m-*` is physical: its horizontal half is CSS
-and its vertical half is widget properties. That looks like an inconsistency and is the opposite —
-it is what keeps `m-4 mx-2` resolving by last-wins on one key instead of stacking a CSS margin on
-top of a widget margin.
+channel. That leaves `m-*` straddling both, because `m-*` is physical: its horizontal half is CSS
+and its vertical half is widget properties. The apparent inconsistency is the point. It is what
+keeps `m-4 mx-2` resolving by last-wins on one key instead of stacking a CSS margin on top of a
+widget margin.
 
 `m-4 ms-2` cannot be saved that way, so it is a **refusal by name**:
 
@@ -92,16 +90,16 @@ top of a widget margin.
 
 ### Padding has no second route at all
 
-No GTK class installs a `padding` property of any kind — not `Gtk.Widget`, not `Gtk.Box`. Every
-padding is CSS, and a **logical** padding (`ps-*`, `pe-*`) is therefore a named refusal rather than
-a physical approximation: `padding-start` is not a CSS property either, so there is nothing to
-approximate it with. Use `pl-*` / `pr-*`.
+No GTK class installs a `padding` property of any kind, not `Gtk.Widget` and not `Gtk.Box`. Every
+padding is CSS, so a **logical** padding (`ps-*`, `pe-*`) is a named refusal rather than a physical
+approximation: `padding-start` is not a CSS property either, so there is nothing to approximate it
+with. Use `pl-*` / `pr-*`.
 
-## `border-width` without `border-style` paints nothing — and occupies nothing
+## `border-width` without `border-style` paints nothing, and occupies nothing
 
 CSS's initial `border-style` is `none`, and `none` zeroes the width. Measured on GTK 4.22.4, on a
-`Gtk.Box` carrying the class and rooted in a `Gtk.Window` — and the box's **contents are part of
-the measurement**, because a box's minimum size is its children's, so the absolute numbers only
+`Gtk.Box` carrying the class and rooted in a `Gtk.Window`. The box's **contents are part of the
+measurement**, because a box's minimum size is its children's, so the absolute numbers only
 reproduce on the shape they were taken on:
 
 | Declarations | empty `Gtk.Box` | one holding `Label("x")` |
@@ -110,11 +108,11 @@ reproduce on the shape they were taken on:
 | `border-width: 4px` | 0 × 0 px | 9 × 18 px |
 | `border-width: 4px; border-style: solid` | 8 × 8 px | 17 × 26 px |
 
-The no-border row is what makes the point, which is why it is in the table rather than assumed: a
-width without a style measures **identical to no border at all**, on either shape, and adding the
-style adds 4 px per edge — 8 px on each axis — on both. So a `border` utility that emitted only a
-width would be a class that does absolutely nothing, silently: no paint, and no space taken
-either, which is why it does not even show up as a layout shift you might notice.
+The no-border row is in the table rather than assumed, because it is what makes the point: a width
+without a style measures **identical to no border at all** on either shape, and adding the style
+adds 4 px per edge, 8 px on each axis, on both. A `border` utility that emitted only a width would
+therefore do nothing whatsoever, silently. No paint, and no space taken either, so not even a
+layout shift you might notice.
 
 Tailwind solves this in its preflight, globally. There is no preflight here, because a generated
 class has to be self-sufficient. The style therefore travels with the width: `border-style: solid`
@@ -124,13 +122,13 @@ is appended whenever a rule sets a border width and nothing in the same rule has
 
 GTK's CSS parser recovers from a bad **declaration** by dropping it. It does not always recover
 from a malformed **construct**: one can end the document, and every rule that follows is then
-silently absent. The symptom is "the application lost its styling", with no error anywhere — and
-in the measured case (an unterminated string) **GTK reported no error at all**.
+silently absent. The symptom is "the application lost its styling", with no error anywhere. In the
+measured case, an unterminated string, **GTK reported no error at all**.
 
 That is why a generated rule is **probed before it joins the sheet**. Each new rule is loaded into
 a throwaway `Gtk.CssProvider` together with a sentinel rule, the provider is serialised back, and
-the rule is accepted only if the sentinel survived the round trip. A behavioural test against the
-real parser rather than a model of its grammar — the only kind that cannot drift against a GTK
+the rule is accepted only if the sentinel survived the round trip. That tests the real parser
+instead of a model of its grammar, which is the only kind of test that cannot drift against a GTK
 upgrade.
 
 The refusal says which of the two happened:
@@ -145,8 +143,8 @@ document, so it is refused:
 
 ## `orientation` and `spacing` belong to `Gtk.Box`, not to `Gtk.Widget`
 
-Measured: `orientation` and `spacing` are not on `Gtk.Widget`. They are `Gtk.Box`'s — `orientation`
-via `Gtk.Orientable` — and a `Gtk.Label` has neither. `Gtk.CenterBox` has `orientation` and no
+Measured: `orientation` and `spacing` are not on `Gtk.Widget`. They are `Gtk.Box`'s, `orientation`
+by way of `Gtk.Orientable`, and a `Gtk.Label` has neither. `Gtk.CenterBox` has `orientation` and no
 `spacing` at all.
 
 So `flex-row` and `gap-*` name properties the partition can identify but cannot legally *apply*
@@ -157,32 +155,31 @@ deliberately weaker than the per-class table: the strongest thing it can assert 
 
 `items-*` is missing two things at once. GTK has no `align-items`: the alignment lives on each
 child as `halign` / `valign`, so resolving it means walking children. And *which* of the two it is
-depends on the element's own orientation — where the defaults disagree, since a `Gtk.Box` is
+depends on the element's own orientation, where the defaults disagree, since a `Gtk.Box` is
 horizontal and a React Native `View` is a column. There is not even a safe fallback to guess with.
 
 ## Your `@theme` will still lean on Tailwind for `0` and `full`
 
-The values behind a class name are your project's — that is the rule the whole
-partition is built on, and the default scale it ships is *deliberately* tiny so that
-a token you never declared is a named error rather than a wrong margin.
+The values behind a class name are your project's. That is the rule the whole partition is built
+on, and the default scale it ships is *deliberately* tiny, so that a token you never declared is a
+named error rather than a wrong margin.
 
-Measured, and it is the highest-frequency finding of the whole exercise: a
-production-shaped application whose Tailwind v4 `@theme` declares its own scales
-**still relies on Tailwind's defaults** for a handful of utilities. Running its real
-class vocabulary — **87 distinct utilities, 826 occurrences** — through this partition
-with tokens generated mechanically from that `@theme` resolves **81 of 87 distinct and
-803 of 826 occurrences**. Five of the six failures are one thing:
+Measured, and the highest-frequency finding of the whole exercise: a production-shaped application
+whose Tailwind v4 `@theme` declares its own scales **still relies on Tailwind's defaults** for a
+handful of utilities. Its real class vocabulary is **87 distinct utilities, 826 occurrences**. Run
+through this partition with tokens generated mechanically from that `@theme`, it resolves **81 of
+87 distinct and 803 of 826 occurrences**. Five of the six failures are one thing:
 
 | Class | Uses | Missing from |
 |---|---:|---|
 | `rounded-full` | 11 | the project's `borderRadius` scale |
 | `inset-0`, `left-0`, `right-0`, `top-0` | 9 between them | the project's `spacing` scale |
 
-The scales have no `full` and no `0`, and there is no reason they should.
-**Neither is a design decision.** A token source emits the values a designer chose;
-`inset-0` means "flush" and `rounded-full` means "a pill". So a project can declare
-its entire palette and type scale and still lean on Tailwind for the *structural*
-tokens — and find that out one class at a time, in a window.
+The scales have no `full` and no `0`, and there is no reason they should. **Neither is a design
+decision.** A token source emits the values a designer chose; `inset-0` means "flush" and
+`rounded-full` means "a pill". So a project can declare its entire palette and type scale and
+still lean on Tailwind for the *structural* tokens, then find that out one class at a time, in a
+window.
 
 The answer is an **opt-in you can see in your own code**, not a wider default:
 
@@ -194,31 +191,28 @@ import { tokens } from './tokens.js';
 configureStyle({ tokens: mergeTokens(TAILWIND_DEFAULT_TOKENS, tokens) });
 ```
 
-**Use `mergeTokens`, not a spread.** `{ ...TAILWIND_DEFAULT_TOKENS, ...tokens }`
-replaces whole *scales*, so a project that declares any `spacing` at all loses `0`
-again — which is the exact bug the constant exists to answer. `mergeTokens` merges
-token by token, later sets winning, so your `px` overrides the default `px` without
-taking the rest of the scale with it.
+**Use `mergeTokens`, not a spread.** `{ ...TAILWIND_DEFAULT_TOKENS, ...tokens }` replaces whole
+*scales*, so a project that declares any `spacing` at all loses `0` again, which is the exact bug
+the constant exists to answer. `mergeTokens` merges token by token, later sets winning, so your
+`px` overrides the default `px` without taking the rest of the scale with it.
 
-`TAILWIND_DEFAULT_TOKENS` is **not** a copy of Tailwind's default theme, and the
-smallness of the built-in default is unchanged. It carries the structural tokens and
-the keyword sets — the ones a `@theme` has no reason to name — and no numeric ladder,
-because shipping `spacing-4` … `spacing-96` would be shipping a design decision your
-project has already made differently. Three divergences from Tailwind's own numbers,
-each forced:
+`TAILWIND_DEFAULT_TOKENS` is **not** a copy of Tailwind's default theme, and the built-in default
+stays as small as it was. It carries the structural tokens and the keyword sets, the ones a
+`@theme` has no reason to name, and no numeric ladder: shipping `spacing-4` … `spacing-96` would
+ship a design decision your project has already made differently. Three divergences from
+Tailwind's own numbers, each one forced:
 
-- **every length is px, not rem** — a `rem` token pads and cannot margin, since
-  `Gtk.Widget:margin-top` is a `gint` of device pixels with no unit conversion behind
-  it. A rem-faithful copy would trade "the token is missing" for "the token throws on
-  half the families";
-- **`full` is `9999px`**, not `calc(infinity * 1px)` — GTK's parser has no infinity,
-  and a radius larger than the box is clamped anyway;
-- **`inherit` is absent from the colours** — `color: inherit` parses, but
-  `alpha(inherit, 0.5)` does not (measured), so `bg-inherit/50` would be a refusal
-  rather than a colour. The other four keywords survive the modifier and are carried.
+- **every length is px, not rem.** A `rem` token pads and cannot margin, because
+  `Gtk.Widget:margin-top` is a `gint` of device pixels with no unit conversion behind it. A
+  rem-faithful copy would trade "the token is missing" for "the token throws on half the families".
+- **`full` is `9999px`**, not `calc(infinity * 1px)`. GTK's parser has no infinity, and a radius
+  larger than the box is clamped anyway.
+- **`inherit` is absent from the colours.** `color: inherit` parses, `alpha(inherit, 0.5)` does not
+  (measured), so `bg-inherit/50` would be a refusal rather than a colour. The other four keywords
+  survive the modifier and are carried.
 
-You do not have to find any of this out from a table. A scale miss whose token
-Tailwind's defaults *do* define says so in the error, with the value:
+You do not have to find any of this out from a table. A scale miss whose token Tailwind's defaults
+*do* define says so in the error, with the value:
 
 ```
 @gjsify/gtk-host/style: "rounded-full" — "full" is not in the borderRadius scale.
@@ -227,62 +221,59 @@ Known: l, m, s. Tailwind's own default scale defines "full" (9999px) — a proje
 tokens with mergeTokens() if you rely on it
 ```
 
-An ordinary typo gets no such sentence, deliberately: a remedy offered where it would
-not have helped sends a reader to add a dependency instead of to fix the spelling.
+An ordinary typo gets no such sentence, deliberately: a remedy offered where it would not have
+helped sends a reader to add a dependency instead of to fix the spelling.
 
 ## `flex-wrap` is a different widget, not a property
 
-A `Gtk.Box` lays its children on one line and installs nothing that gives it a
-second one. Wrapping on GTK is `Gtk.FlowBox` — another class, reached by swapping the
-widget rather than by setting anything — so `flex-wrap` is an **intent** for the same
-reason `justify-between` is: the partition answers for an element's properties and
-has no say in what the element becomes. The layer above swaps the tag, and
-`flex-nowrap` is *resolved* by there being nothing to do, since a box is already one
-line.
+A `Gtk.Box` lays its children on one line and installs nothing that gives it a second one.
+Wrapping on GTK is `Gtk.FlowBox`, another class, reached by swapping the widget rather than by
+setting anything. So `flex-wrap` is an **intent** for the same reason `justify-between` is: the
+partition answers for an element's properties and has no say in what the element becomes. The layer
+above swaps the tag, and `flex-nowrap` is *resolved* by there being nothing to do, since a box is
+already one line.
 
-`flex-wrap-reverse` stays a refusal. `Gtk.FlowBox` installs `orientation`,
-`homogeneous`, `row-spacing`, `column-spacing`, `min-children-per-line`,
-`max-children-per-line` and `selection-mode`, and nothing that reverses the line
-order — so reverse the children instead, which is what the tree is for.
+`flex-wrap-reverse` stays a refusal. `Gtk.FlowBox` installs `orientation`, `homogeneous`,
+`row-spacing`, `column-spacing`, `min-children-per-line`, `max-children-per-line` and
+`selection-mode`, and nothing that reverses the line order. Reverse the children instead, which is
+what the tree is for.
 
 Two `Gtk.FlowBox` defaults are corrected on the way in, and both are the silent kind:
 
 | Default | What it would do to a `flex-wrap` container |
 |---|---|
-| `max-children-per-line: 7` | seven children per line however much room is left — a layout that is plausible on screen and wrong |
+| `max-children-per-line: 7` | seven children per line however much room is left, a layout that is plausible on screen and wrong |
 | `selection-mode: SINGLE` | a click selects a child and draws a focus ring, which a flex container never does |
 
-There is **no "no limit" spelling** for the first. `0` is out of range for the
-`guint` — a `GLib-GObject-CRITICAL`, and the property keeps its old value — and
-writing `G_MAXUINT` stores **65535**, which is therefore GTK's own way to say "as
-many as fit". It costs nothing: the natural width tracks the child count, measured
-identical for twelve children at `12`, `1024` and `65535`.
+There is **no "no limit" spelling** for the first. `0` is out of range for the `guint`: you get a
+`GLib-GObject-CRITICAL` and the property keeps its old value. Writing `G_MAXUINT` stores **65535**,
+which is therefore GTK's own way to say "as many as fit". It costs nothing: the natural width
+tracks the child count, measured identical for twelve children at `12`, `1024` and `65535`.
 
-**A gap changes channel when an element wraps.** `Gtk.FlowBox` has *no* `spacing` at
-all; it has `row-spacing` and `column-spacing`, and both are real at once. So on a
-wrapping element `gap-*` becomes both spacings instead of the box's single one, and
-the axis-qualified spellings stop being an orientation question — `gap-x-*` is the
-gap between children in a line whichever way the lines run. That is also the one
-place the two-gap-spellings refusal lifts: `gap-4 gap-x-2` asks a `Gtk.Box` for two
-spacings it does not have, and asks a `Gtk.FlowBox` for exactly the two it does.
+**A gap changes channel when an element wraps.** `Gtk.FlowBox` has *no* `spacing` at all. It has
+`row-spacing` and `column-spacing`, and both are real at once. So on a wrapping element `gap-*`
+becomes both spacings instead of the box's single one, and the axis-qualified spellings stop being
+an orientation question: `gap-x-*` is the gap between children in a line whichever way the lines
+run. That is also the one place the two-gap-spellings refusal lifts. `gap-4 gap-x-2` asks a
+`Gtk.Box` for two spacings it does not have, and asks a `Gtk.FlowBox` for exactly the two it does.
 
-`orientation` needs no translation and keeps working across the swap, measured on
-both classes: `HORIZONTAL` fills along x and wraps into rows, `VERTICAL` fills along
-y and wraps into columns — the same meaning `flex-row` and `flex-col` already had.
+`orientation` needs no translation and keeps working across the swap, measured on both classes:
+`HORIZONTAL` fills along x and wraps into rows, `VERTICAL` fills along y and wraps into columns,
+the same meaning `flex-row` and `flex-col` already had.
 
 ## The generated stylesheet
 
 A widget takes `css-classes`, a string array. So something has to turn a set of declarations into
 a **name** and keep a document that defines it.
 
-- **Class names are content-addressed** — FNV-1a over the rule text. Two elements with the same
+- **Class names are content-addressed**, FNV-1a over the rule text. Two elements with the same
   declarations get the same class and the document holds one rule, not one per element. A
   per-element name is the shape that makes a long list re-parse the whole sheet on every row.
 - **Reload is coalesced.** Mounting a tree produces one rule per distinct style, and reloading the
   document per rule is quadratic. It is rebuilt once per microtask instead, with an explicit
   `flush()` for a test or for an application about to present a window.
 - **Variants become pseudo-classes** on the same generated name: `active:` → `:active`, and
-  likewise `hover:`, `focus:` and `disabled:`. That is what makes a pressed style free — GTK
+  likewise `hover:`, `focus:` and `disabled:`. That is what makes a pressed style free: GTK
   animates the state itself, and nothing has to reach the framework when a finger goes down. A
   variant with no pseudo-class equivalent is refused by name, listing the ones that work.
 
@@ -291,22 +282,22 @@ a **name** and keep a document that defines it.
 | You write | What happens |
 |---|---|
 | `justify-around`, `justify-evenly` | refused at the partition: GTK's box gives leftover main-axis space to the children that expand and has no per-gap distribution mode |
-| `justify-between` | deferred, then refused at attach time: the mapping is `Gtk.CenterBox`, a different **widget**, and two or three children pick it — this layer resolves properties for the widget it was handed and has no children to count. Spell the distribution with a spacer child (`flex-1`) or with `gap-*` |
+| `justify-between` | deferred, then refused at attach time: the mapping is `Gtk.CenterBox`, a different **widget**, and two or three children pick it, while this layer resolves properties for the widget it was handed and has no children to count. Spell the distribution with a spacer child (`flex-1`) or with `gap-*` |
 | `ps-*` / `pe-*` | refused: GTK has no logical padding in either mechanism |
 | `text-start` / `text-end` | refused: GTK aligns text physically |
 | `w-1/2` and other fractions | refused: a widget requests a *minimum* in pixels or expands to fill. `w-full` / `h-full` are the only fractions with an exact GTK meaning |
-| `overflow-scroll`, `overflow-auto` | refused: scrolling is a **widget** on GTK, not an overflow mode — wrap the element in a `Gtk.ScrolledWindow`. `Gtk.Overflow` has exactly `VISIBLE` and `HIDDEN` |
+| `overflow-scroll`, `overflow-auto` | refused: scrolling is a **widget** on GTK, not an overflow mode, so wrap the element in a `Gtk.ScrolledWindow`. `Gtk.Overflow` has exactly `VISIBLE` and `HIDDEN` |
 | `flex-2`, `grow-2`, `shrink-*`, `basis-*` | refused: GTK expresses main-axis growth as the boolean `hexpand` / `vexpand`, so there is no growth factor, shrink factor or flex basis to carry. `flex-1` is the only spelling with a GTK meaning |
 | `flex-wrap-reverse` | refused: `Gtk.FlowBox` runs its lines in one direction only and installs nothing that reverses them. Reverse the children |
 | `flex-wrap` on a `<Text>`, or on a `ScrollView`'s own class list | refused at attach time: there is no wrapping `Gtk.Label` and no wrapping `Gtk.ScrolledWindow` to swap in. On a `ScrollView` the box that holds the children is reached through `contentContainerClassName` |
-| a name no family claims | `UnknownUtilityError`, naming the utility — never a silent drop |
+| a name no family claims | `UnknownUtilityError`, naming the utility, never a silent drop |
 
-The first two rows refuse at different moments, and it is worth knowing why. **No child count
-makes `space-around` or `space-evenly` expressible**, so an attach-time answer could add nothing —
-refusing them where the class is read is the earliest and strongest place available. For
-`space-between` the child count *is* the whole question, so it travels as an intent and is answered
-where the children are known. Either way the message names the GTK mechanism that is missing, not
-the utility that is unsupported.
+The first two rows refuse at different moments, and the reason is worth knowing. **No child count
+makes `space-around` or `space-evenly` expressible**, so an attach-time answer could add nothing,
+and refusing them where the class is read is the earliest place available. For `space-between` the
+child count *is* the whole question, so it travels as an intent and is answered where the children
+are known. Either way the message names the GTK mechanism that is missing, not the utility that is
+unsupported.
 
 The pattern is the same throughout: a refusal costs a reader one sentence, and an approximation
 costs them an afternoon in a window where every widget is present and something is quietly in the
@@ -314,11 +305,10 @@ wrong place.
 
 ## Your own stylesheet, and Adwaita's named colours
 
-The generated sheet above is one of **two** documents an application has on its
-display. The other is the one you wrote — a GTK CSS file, plus the Adwaita named
-colours set from your design tokens — and it goes through a small registry rather
-than a setter, because the shape it has to fit is several named looks with one
-selected at runtime:
+The generated sheet above is one of **two** documents an application has on its display. The other
+is the one you wrote: a GTK CSS file, plus the Adwaita named colours set from your design tokens.
+It goes through a small registry rather than a setter, because what it has to fit is several named
+looks with one selected at runtime:
 
 ```ts
 import { NEUTRAL_THEME, ThemeRegistry } from '@gjsify/gtk-host/style';
@@ -337,53 +327,49 @@ themes
 themes.selectDefault(process.platform); // …or themes.select('ocean') from a settings row
 ```
 
-It is framework-agnostic, like the rest of this page: nothing about it is React's or
-Vue's, and the platform is a **parameter** rather than a `process.platform` read
-inside the package — which is also what lets a settings screen preview another
-desktop's look.
+It is framework-agnostic, like the rest of this page. Nothing about it is React's or Vue's, and the
+platform is a **parameter** rather than a `process.platform` read inside the package, which is also
+what lets a settings screen preview another desktop's look.
 
-`NEUTRAL_THEME` is the one theme shipped today, and its document is **empty**. That
-is a statement, not a placeholder: a GTK application should look like the desktop it
-is running on, and the accent belongs to whoever picked it in Settings. Selecting the
-neutral theme is how an application returns to Adwaita *exactly*, which is measurably
-true — reloading the provider to the empty string restores every named colour to
-libadwaita's own value.
+`NEUTRAL_THEME` is the one theme shipped today, and its document is **empty**. That is a statement,
+not a placeholder: a GTK application should look like the desktop it is running on, and the accent
+belongs to whoever picked it in Settings. Selecting the neutral theme is how an application returns
+to Adwaita *exactly*, and that is measurably true. Reloading the provider to the empty string
+restores every named colour to libadwaita's own value.
 
-It also declares `defaultOn: ['*']`, so `selectDefault(process.platform)` resolves on
-every platform GTK runs on and not only on the three this project targets — a theme
-with a dedicated `defaultOn` list still wins over it by being registered later.
-`selectDefault` refuses only when *nothing* registered declares a default, which is a
-question it should not guess at. `themes.dispose()` takes the document back off the
-display, for a shell that tears its theming down rather than exiting.
+It also declares `defaultOn: ['*']`, so `selectDefault(process.platform)` resolves on every
+platform GTK runs on and not only on the three this project targets. A theme with a dedicated
+`defaultOn` list still wins over it by being registered later. `selectDefault` refuses only when
+*nothing* registered declares a default, which is a question it should not guess at.
+`themes.dispose()` takes the document back off the display, for a shell that tears its theming down
+rather than exiting.
 
 ### The accent is a custom property, not `AdwStyleManager`
 
-**`AdwStyleManager:accent-color` cannot carry a design token's accent on any runtime,
-because it is an enum.** `AdwAccentColor` has nine members — BLUE, TEAL, GREEN,
-YELLOW, ORANGE, RED, PINK, PURPLE, SLATE — so `rgb(17 34 51)` has no representation
-in it. The accent is therefore a CSS custom property: `--accent-bg-color` and its 47
-siblings, redefined on `:root`, which is what Adwaita's own rules resolve against.
+**`AdwStyleManager:accent-color` cannot carry a design token's accent on any runtime, because it is
+an enum.** `AdwAccentColor` has nine members: BLUE, TEAL, GREEN, YELLOW, ORANGE, RED, PINK, PURPLE
+and SLATE. So `rgb(17 34 51)` has no representation in it. The accent is therefore a CSS custom
+property, `--accent-bg-color` and its 47 siblings, redefined on `:root`, which is what Adwaita's own
+rules resolve against.
 
-**That property is also read-only**, on every closure this suite has been measured
-on — Linux with libadwaita 1.9.3 and all three published runtime bundles — and
-libadwaita's own source installs the ParamSpec readable-only, read at 1.10.alpha.1.
-Assigning throws *Property AdwStyleManager.accent-color is not writable*.
+**That property is also read-only** on every closure this suite has been measured on: Linux with
+libadwaita 1.9.3 and all three published runtime bundles. libadwaita's own source installs the
+ParamSpec readable-only, read at 1.10.alpha.1, and assigning throws *Property
+AdwStyleManager.accent-color is not writable*.
 
-But that is deliberately **not** the reason given above, because "the property is
-locked" and "the property is the wrong shape" lead to different code. The first
-invites *just set the property* the moment a flag somewhere seems to allow it — which
-reaches nine colours at best and silently ignores the application's own accent token
-otherwise. The second holds on every runtime, whatever the flag says. The theme
-registry reads and writes that property nowhere, and branches on its writability
+But that is deliberately **not** the reason given above, because "the property is locked" and "the
+property is the wrong shape" lead to different code. The first invites *just set the property* the
+moment a flag somewhere seems to allow it, which reaches nine colours at best and silently ignores
+the application's own accent token otherwise. The second holds on every runtime, whatever the flag
+says. The theme registry reads and writes that property nowhere, and branches on its writability
 nowhere.
 
-48 named colours are measured to exist and are the set a theme may override. A name
-libadwaita does not define is refused: `--acccent-bg-color` is a perfectly valid
-custom property that nothing ever reads, so a theme setting it would silently do
-nothing. The **legacy** `@define-color accent_bg_color …` spelling also still works,
-and is deliberately not what this emits — mixing the two is how you get a definition
-nothing reads, which is why an underscored name is a refusal naming the hyphenated
-one.
+48 named colours are measured to exist and are the set a theme may override. A name libadwaita does
+not define is refused: `--acccent-bg-color` is a perfectly valid custom property that nothing ever
+reads, so a theme setting it would silently do nothing. The **legacy**
+`@define-color accent_bg_color …` spelling also still works, and is deliberately not what this
+emits. Mixing the two is how you get a definition nothing reads, which is why an underscored name is
+a refusal naming the hyphenated one.
 
 ### The provider priority is the whole design
 
@@ -391,33 +377,31 @@ Three measurements, and the plausible guess is wrong in all three:
 
 | Measured | Consequence |
 |---|---|
-| libadwaita's own stylesheet sits at **exactly** `STYLE_PROVIDER_PRIORITY_THEME` (200) — an override at 199 loses, at 201 wins, at 200 wins *only* by being added later | a theme document must be strictly above 200, or its effect depends on load order |
+| libadwaita's own stylesheet sits at **exactly** `STYLE_PROVIDER_PRIORITY_THEME` (200): an override at 199 loses, at 201 wins, at 200 wins *only* by being added later | a theme document must be strictly above 200, or its effect depends on load order |
 | the generated sheet is at `STYLE_PROVIDER_PRIORITY_APPLICATION` (600), and at equal priority the **later** provider wins | a theme at 600 installed after the sheet silently clobbers the utility class you wrote at the element |
-| priority is resolved **before** specificity — a low-specificity rule at 400 beats a high-specificity one at 200 | "make the theme selector more specific" is not a lever; the number is the only one |
+| priority is resolved **before** specificity: a low-specificity rule at 400 beats a high-specificity one at 200 | "make the theme selector more specific" is not a lever; the number is the only one |
 
-So a theme document is installed at `STYLE_PROVIDER_PRIORITY_SETTINGS` (400), GTK's
-own named value in the one gap that satisfies both constraints — and measured to do
-so **whichever document is installed first**. A utility class always beats the theme,
-the theme always beats Adwaita.
+So a theme document is installed at `STYLE_PROVIDER_PRIORITY_SETTINGS` (400), GTK's own named value
+in the one gap that satisfies both constraints, and measured to do so **whichever document is
+installed first**. A utility class always beats the theme, the theme always beats Adwaita.
 
-An application document goes through the **same containment probe** as a generated
-rule, and for a stronger reason: it is the document this package did not write. It is
-probed at *registration*, so a malformed rule names the line that declared the theme
-rather than the settings row that switched to it hours later.
+An application document goes through the **same containment probe** as a generated rule, and for a
+stronger reason: it is the document this package did not write. It is probed at *registration*, so
+a malformed rule names the line that declared the theme rather than the settings row that switched
+to it hours later.
 
-One provider is installed once and its **document is replaced** on a switch. Removing
-and re-adding also works, measured; replacing is chosen because a provider installed
-once can never end up at the wrong position relative to the generated sheet, however
-many times a user has changed theme.
+One provider is installed once and its **document is replaced** on a switch. Removing and
+re-adding also works, measured. Replacing is chosen because a provider installed once can never
+end up at the wrong position relative to the generated sheet, however many times a user has
+changed theme.
 
 ### Do not read a switch back from a pixel
 
-Sampling a `Gtk.WidgetPaintable` render node reports the **old** colour after a
-provider is removed — the paintable's node is cached and a removal does not
-invalidate it, while a subsequent add does. That reads exactly like "removing a
-provider does not work", and it is false; it cost a wrong conclusion before it was
-caught. Resolve `var(--name)` into a `color` and read `widget.get_color()`: the
-resolved value is the truth, the pixel is a picture of a cache.
+Sampling a `Gtk.WidgetPaintable` render node reports the **old** colour after a provider is removed.
+The paintable's node is cached and a removal does not invalidate it, while a subsequent add does.
+That reads exactly like "removing a provider does not work", and it is false; it cost a wrong
+conclusion before it was caught. Resolve `var(--name)` into a `color` and read
+`widget.get_color()`: the resolved value is the truth, the pixel is a picture of a cache.
 
 ## This is not the Adwaita web token contract
 
@@ -430,9 +414,8 @@ and nothing there applies here.
 
 - [React Native](/gjsify/frameworks/react-native/) for the primitive vocabulary that consumes this
   partition, and how `className` and `style={{…}}` reach it
-- [UI Frameworks](/gjsify/frameworks/) for the host layer, and for the *property-coercion*
-  refusals — enum nicks, read-only writes, misspelled properties — which are a different table
-  from this page's
+- [UI Frameworks](/gjsify/frameworks/) for the host layer, and for the *property-coercion* refusals
+  that are a different table from this page's: enum nicks, read-only writes, misspelled properties
 - [Adwaita theming](/gjsify/adwaita/theming/) for the web token contract
 - [ADR 0032](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
   §§ 1–6 for the layer split, the one normalised property set, and why an intent exists at all
