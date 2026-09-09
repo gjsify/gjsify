@@ -12,7 +12,7 @@ export {
     writeDevtoolsAddressFile,
 } from './peer-transport.js';
 export type { DevtoolsPeerServer } from './peer-transport.js';
-export { captureWidgetPng } from './screenshot.js';
+export { captureWidget, captureWidgetPng, type CaptureBlocker, type CaptureResult } from './screenshot.js';
 export { buildVariant, variantKindFor } from './gvariant.js';
 export type { VariantKind } from './gvariant.js';
 export { activateAction, changeActionState, describeActions } from './actions.js';

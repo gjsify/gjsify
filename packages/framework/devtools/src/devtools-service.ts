@@ -15,7 +15,7 @@ import { activateAction, changeActionState, describeActions } from './actions.js
 import { buildDevtoolsIfaceXml } from './devtools-iface.js';
 import type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
 import { type DevtoolsPeerServer, removeDevtoolsAddressFile } from './peer-transport.js';
-import { captureWidgetPng } from './screenshot.js';
+import { captureWidget, type CaptureBlocker } from './screenshot.js';
 import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
 import {
@@ -64,13 +64,23 @@ function frameDelay(ms: number): Promise<void> {
  * iterations turn a transient empty capture into a real screenshot. `null` only if the
  * widget never becomes renderable.
  */
-async function captureWidgetWhenRenderable(widget: Gtk.Widget, tries = 12, gapMs = 50): Promise<Uint8Array | null> {
+/** How many frames the warm-up waits for, named so the log can quote it. */
+const SCREENSHOT_TRIES = 12;
+
+async function captureWidgetWhenRenderable(
+    widget: Gtk.Widget,
+    tries = SCREENSHOT_TRIES,
+    gapMs = 50,
+): Promise<{ png: Uint8Array | null; blocker: CaptureBlocker | null }> {
+    let blocker: CaptureBlocker | null = null;
     for (let i = 0; i < tries; i++) {
-        const png = captureWidgetPng(widget);
-        if (png) return png;
+        const result = captureWidget(widget);
+        if (result.png) return { png: result.png, blocker: null };
+        blocker = result.blocker;
         await frameDelay(gapMs);
     }
-    return captureWidgetPng(widget);
+    const last = captureWidget(widget);
+    return { png: last.png, blocker: last.png ? null : (last.blocker ?? blocker) };
 }
 
 /**
@@ -240,9 +250,10 @@ export class DevtoolsService {
 
     /**
      * Capture `scope` to PNG, warming up across frames: a just-launched or mid-layout
-     * window yields a zero-size GSK frame, so the first `captureWidgetPng` can be empty.
-     * Empty bytes remain the genuine-failure signal, for a window that never realises at
-     * all.
+     * window yields a zero-size GSK frame, so the first capture can be empty. Empty
+     * bytes remain the genuine-failure signal, for a window that never realises at all
+     * — and the reason now goes to the log beside them, because the wire cannot carry
+     * it and a silent empty image gets a cause invented for it.
      */
     private async _captureScopePng(scope: string): Promise<Uint8Array> {
         const resolved = this._resolveRootWidget(scope);
@@ -256,16 +267,28 @@ export class DevtoolsService {
             if (isActiveWindowScope(scope)) return new Uint8Array(0);
             throw new Error(formatDbusErrorMessage('not-found', `no widget at '${scope}'`));
         }
-        let png = captureWidgetPng(resolved.widget);
-        if (!png) {
-            // Present the toplevel that OWNS the scope rather than `get_active_window()`:
-            // for a child widget the two can differ, and presenting the wrong window
-            // leaves the target unrealised for every one of the retries below.
-            const root = resolved.widget.get_root();
-            if (root instanceof Gtk.Window) root.present();
-            png = await captureWidgetWhenRenderable(resolved.widget);
-        }
-        return png ?? new Uint8Array(0);
+        const first = captureWidget(resolved.widget);
+        if (first.png) return first.png;
+
+        // Present the toplevel that OWNS the scope rather than `get_active_window()`:
+        // for a child widget the two can differ, and presenting the wrong window
+        // leaves the target unrealised for every one of the retries below.
+        const root = resolved.widget.get_root();
+        if (root instanceof Gtk.Window) root.present();
+        const warmed = await captureWidgetWhenRenderable(resolved.widget);
+        if (warmed.png) return warmed.png;
+
+        // SAY WHY, because the reply cannot. Empty bytes are the contract for "not up
+        // yet, retry" and they carry no reason at all — so a caller that hits any of
+        // the other three reasons sees an empty PNG and is free to invent a cause for
+        // it. One was invented: an empty reply became "the devtools cannot screenshot
+        // a live video" in a consumer's README, while the same window in the same
+        // second answered 308 714 bytes for the same request.
+        console.warn(
+            `[devtools] Screenshot('${scope}') has no image: ${warmed.blocker ?? 'unknown'} ` +
+                `after ${SCREENSHOT_TRIES} tries. Empty bytes follow.`,
+        );
+        return new Uint8Array(0);
     }
 
     /** `ListActions() -> s` — JSON of the `app.*` + `win.*` actions. */
