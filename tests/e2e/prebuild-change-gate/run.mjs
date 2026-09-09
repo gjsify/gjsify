@@ -259,23 +259,53 @@ describe('prebuild change gate — what counts as changed', () => {
         assert.deepEqual(classify(['refs/oxc']).build, ['oxfmt-native']);
     });
 
-    it('rebuilds every package when a shared input changes', () => {
+    it('rebuilds every package when an input that shapes the BYTES changes', () => {
         for (const shared of [
             '.github/workflows/prebuilds.yml',
             '.github/prebuild-toolchain/emulated-build.sh',
             'scripts/stage-prebuild.mjs',
-            'scripts/check-refs-pin.mjs',
-            'scripts/check-prebuild-loader-path.mjs',
-            // The three scripts above are thin CLI entry points; their substance lives in
-            // the conformance registry. A rule change alters what every build verifies, so
-            // naming only the wrappers would let the check move out from under the gate.
-            'scripts/manifest-conformance/rules/refs-pin.mjs',
-            'scripts/manifest-conformance/rules/platforms-ci.mjs',
-            'scripts/manifest-conformance/unchecked-fields.mjs',
         ]) {
             const { build, skip } = classify([shared]);
             assert.deepEqual(skip, [], `${shared} must rebuild everything`);
             assert.equal(build.length, packageCount());
+        }
+    });
+
+    it('a CHECKER starts a run and rebuilds nothing', () => {
+        // The distinction the shared list used to collapse. These three entries used to
+        // rebuild all twelve bridges, on the reasoning that "a rule change alters what
+        // every build verifies". It does — but verifying needs the COMMITTED binary and
+        // the rule, not a compiler, and `scripts/manifest-conformance/rules/` holds
+        // manifest and workflow rules only. The two rules that read a compiled binary,
+        // `prebuild-artifacts` and `prebuild-libc`, live under
+        // `packages/infra/manifest-conformance/lib/rules/` and were never in that glob.
+        //
+        // Measured on the #1607 merge: `platforms-ci.mjs` plus two lines of workflow
+        // wiring marked all twelve BUILD, an eight-architecture rebuild whose critical
+        // path is ~97 minutes of emulated riscv64.
+        const text = readFileSync(workflow, 'utf8');
+        for (const checker of [
+            'scripts/check-refs-pin.mjs',
+            'scripts/check-prebuild-loader-path.mjs',
+            'scripts/manifest-conformance/rules/refs-pin.mjs',
+            'scripts/manifest-conformance/rules/platforms-ci.mjs',
+            'scripts/manifest-conformance/unchecked-fields.mjs',
+        ]) {
+            const { build } = classify([checker]);
+            assert.deepEqual(build, [], `${checker} must rebuild nothing on its own`);
+        }
+        // The other half of the argument, and the half that makes the first half safe:
+        // they are still TRIGGERS, so the run starts and the jobs that read the committed
+        // artifacts still execute. Both `paths:` blocks, per the workflow's own
+        // repeated-VERBATIM rule — a trigger present on one event and not the other is
+        // how this would rot silently.
+        for (const glob of [
+            'scripts/check-refs-pin.mjs',
+            'scripts/check-prebuild-loader-path.mjs',
+            'scripts/manifest-conformance/**',
+        ]) {
+            const occurrences = text.split(`- '${glob}'`).length - 1;
+            assert.equal(occurrences, 2, `${glob} must stay in BOTH on: paths: blocks, so a run still starts`);
         }
     });
 
