@@ -1058,6 +1058,21 @@ ${provenance
 const RUN_AS_PROGRAM = process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url;
 const CHECK = process.argv.includes('--check');
 
+/**
+ * What the COMMITTED text was read from, scraped out of the generated module rather than
+ * imported: this file is that module's writer, and importing its own output would make a
+ * missing or half-written module an import error instead of a message.
+ */
+const ADWAITA_MEANING_PROVENANCE_HINT = (() => {
+    try {
+        const text = readFileSync(join(ROOT, MEANINGS_MODULE), 'utf8');
+        const found = [...text.matchAll(/namespace: '([^']+)',\s*\n\s*version: '([^']+)'/g)];
+        return found.length === 0 ? 'an unrecorded GIR' : found.map(([, ns, version]) => `${ns} ${version}`).join(' / ');
+    } catch {
+        return 'an unrecorded GIR';
+    }
+})();
+
 if (RUN_AS_PROGRAM) {
     const dir = findGirDirectory();
     if (dir === null) {
@@ -1078,9 +1093,20 @@ if (RUN_AS_PROGRAM) {
     const counts = meaningCounts(derived.meanings, derived.applied);
     const module = meaningsModule({ meanings: derived.meanings, provenance: gir.provenance, counts });
 
+    // The PROVENANCE rides on every failure, not only on the success line. A machine
+    // whose libadwaita predates a widget reports that widget's attributes as having no
+    // GIR property — measured against an `org.gnome.Sdk` flatpak two releases back
+    // (Adw 1.8 / Gtk 4.20), which reads `<adw-sidebar mode>` as a divergence because
+    // `AdwSidebar` arrived in 1.8's successor. Without the version in the message that
+    // is indistinguishable from a real finding, and the reader repairs the wrong thing.
+    const read = `GIR ${gir.provenance.map((entry) => `${entry.namespace} ${entry.version}`).join(' / ')} from ${dir}`;
     if (derived.problems.length > 0) {
-        console.error('generate-adwaita-attribute-comments: the join does not hold:');
+        console.error(`generate-adwaita-attribute-comments: the join does not hold (${read}):`);
         for (const problem of derived.problems) console.error(`  ${problem}`);
+        console.error(
+            `\n  If that GIR is older than the one ${MEANINGS_MODULE} was generated against ` +
+                `(${ADWAITA_MEANING_PROVENANCE_HINT}), the finding is the version, not the data.`,
+        );
         process.exit(1);
     }
 
@@ -1105,9 +1131,13 @@ if (RUN_AS_PROGRAM) {
 
     if (CHECK) {
         if (drift.length > 0) {
-            console.error('generate-adwaita-attribute-comments: committed output is stale:');
+            console.error(`generate-adwaita-attribute-comments: committed output is stale (${read}):`);
             for (const line of drift) console.error(`  ${line}`);
-            console.error('\nRe-run: node scripts/generate-adwaita-attribute-comments.mjs');
+            console.error(
+                '\nRe-run: node scripts/generate-adwaita-attribute-comments.mjs\n' +
+                    `  The committed text was read from ${ADWAITA_MEANING_PROVENANCE_HINT}. A different version ` +
+                    'here is version skew, and the diff is then the upstream doc change.',
+            );
             process.exit(1);
         }
         console.log(`generate-adwaita-attribute-comments --check: OK. ${summary}`);
