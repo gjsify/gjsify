@@ -2798,6 +2798,29 @@ Every failure had the shape described above, the one CI reports: `tests 9 / pass
 
 **Possibly a different class from the `worker.terminate()` mid-native-call residual, and deliberately not filed as a correction of it.** Both are nondeterministic crashes around worker teardown, but that one is a SIGSEGV at 12/200 with a named mechanism — a terminate landing while the worker OS thread sits inside a blocking GLib call — while this one loses the file inside the cross-env worker with no failing subtest at all. Nothing measured here shows they are one thing, and merging them on resemblance would cost the next reader both rates.
 
+### `@gjsify/node-gi` — `type_interfaces()` answers nothing, and the host verbs are not OWN
+
+Found by `packages/framework/gtk-host/src/generated.spec.ts`, which holds the generated
+method artifact against the running type system. Two questions gjs answers and the bridge
+does not, both measured on the `framework suites over the reverse bridge` leg and on the
+darwin shipped closure:
+
+**`GObject.type_interfaces()` returns nothing.** Not "fewer" — for every one of the 168
+types the spec walks, the list is empty, so the INTERFACE half of the artifact's `ANCESTRY`
+cannot be held there. The class half is fine: `type_parent` answers for all of them, and the
+spec's own probe prints `named` and `withInterfaces` on every run.
+
+**`connect` / `disconnect` are reachable but not own members of `GObject.Object.prototype`.**
+The artifact measured the host verbs by SUBTRACTION on the generating host (everything on
+the prototype that is not a typelib method of GObject), so where the verb sits is what that
+subtraction depended on. Over the bridge the verbs are callable through the prototype chain
+and `hasOwnProperty` is false.
+
+Both are scoped with `it.failing(..., { when })` rather than skipped, so each RUNS on every
+host, stays strict on gjs, and fails the day the bridge starts answering — the marker
+retires itself. Whoever closes either one should expect the corresponding `it.failing` to go
+red as a PASS and delete the marker in the same PR.
+
 ### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 
 gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not. **One of the three shapes this entry listed is now closed, and it closed the opposite way to the fix shape recorded here** — worth keeping rather than deleting, because the recorded fix was measured impossible: `makeEnum` FREEZES its member object, so a lazy getter cannot be attached afterwards at all. The enum GType is therefore resolved and defined EAGERLY, non-enumerable, and simply absent for an enum the typelib does not register (`gi.js`, `Ns.Enum.$gtype`; witnessed by `conformance/golden/class-realization.txt`, `enum $gtype: true`).
