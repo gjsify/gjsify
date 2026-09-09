@@ -1349,6 +1349,21 @@ if (titledWindows.length === 0) {
     );
 }
 
+// PER WINDOW, because the whole-set guard above cannot see one window dropping out.
+// `title: null` is legitimate on exactly one window — the live one takes the WIDGET's
+// title — so a title this reader cannot see is indistinguishable from that, and arm 10
+// then stops checking that window with nothing said. MEASURED: spell one `title:` as
+// `heading:` and the arm goes green over a window no page names.
+for (const window of windows) {
+    if (window.title !== null || window.live) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} declares the window "${window.id}" with no title this reader can see, and\n` +
+            '    it does not run the widget. Only the live window is untitled (it takes the widget\'s own\n' +
+            '    title), so either the title read is broken for this window or the window is unnamed — and\n' +
+            '    arm 10 cannot hold a page against a window title it never saw.',
+    );
+}
+
 /** page path → the titled windows its own blocks draw. */
 const shownBy = new Map(pages.map((page) => [page.path, new Set()]));
 for (const block of blocks) {
