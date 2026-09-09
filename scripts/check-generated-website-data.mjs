@@ -78,6 +78,16 @@
 //      file, arm 1 then reports drift that is not drift, and the repair is to
 //      re-add the exemption rather than to re-run the generator — so the failure
 //      has to say which of the two it is.
+//  12. Every preview fence carries exactly the attribute gloss
+//      `scripts/adwaita-attribute-meanings.mjs` says it carries, and every attribute
+//      a fence sets is decided in exactly one place — glossed, name-suffices,
+//      ledgered as a GIR divergence, or ledgered as authored. This is the half of
+//      that mechanism a job with NO GIR can hold, and it is the half that catches a
+//      hand: `generate-adwaita-attribute-comments.mjs --check` re-derives the text
+//      from the GIR and runs only in `main.yml`'s `tree-checks` image, while THIS
+//      check runs on `checkout` + `setup-node` on Linux and Windows for every PR.
+//      Without it, deleting a comment line from an `.mdx` would be green here and
+//      red only in the one job that has `libadwaita-devel`.
 //  11. The two authored trees describe the SAME UI, or say why they do not. Every
 //      block drawn by both renderers is either authored ONCE in
 //      `adwaita-gallery-shared-trees.mjs` or ledgered in that file's
@@ -104,6 +114,18 @@ import {
     hostTagOf,
 } from './adwaita-gallery-shared-trees.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
+import {
+    ADWAITA_ATTRIBUTE_MEANING_COUNTS,
+    ADWAITA_ATTRIBUTE_MEANINGS,
+} from './adwaita-attribute-meanings.mjs';
+import {
+    applyMeanings,
+    ATTRIBUTE_MEANING_LEDGER,
+    ATTRIBUTE_OXFMT_EXEMPT_OUTPUTS,
+    AUTHORED_MEANINGS,
+    MEANINGS_MODULE,
+    meaningCounts,
+} from './generate-adwaita-attribute-comments.mjs';
 import {
     gtypeOfTag,
     HOST_WIDGET_ROWS,
@@ -1058,7 +1080,7 @@ try {
     if (!Array.isArray(ignored) || ignored.length === 0) {
         failures.push(`${OXFMT_CONFIG}: no ignorePatterns array — arm 7 cannot judge anything`);
     } else {
-        for (const rel of [...OXFMT_EXEMPT_OUTPUTS, ...NS_OXFMT_EXEMPT_OUTPUTS]) {
+        for (const rel of [...OXFMT_EXEMPT_OUTPUTS, ...NS_OXFMT_EXEMPT_OUTPUTS, ...ATTRIBUTE_OXFMT_EXEMPT_OUTPUTS]) {
             if (ignored.includes(rel)) continue;
             failures.push(
                 `${OXFMT_CONFIG} no longer exempts ${rel}. It is GENERATED — its bytes come from a generator ` +
@@ -1067,7 +1089,8 @@ try {
             );
         }
         notes.push(
-            `${OXFMT_EXEMPT_OUTPUTS.length + NS_OXFMT_EXEMPT_OUTPUTS.length} generated output(s) exempt from ${OXFMT_CONFIG}`,
+            `${OXFMT_EXEMPT_OUTPUTS.length + NS_OXFMT_EXEMPT_OUTPUTS.length + ATTRIBUTE_OXFMT_EXEMPT_OUTPUTS.length} ` +
+                `generated output(s) exempt from ${OXFMT_CONFIG}`,
         );
     }
 } catch (error) {
@@ -1222,6 +1245,66 @@ if (paired.length === 0) failures.push('no gallery block has a tree on both rend
 notes.push(
     `${paired.length} block(s) drawn by both renderers — ${sharedByWidget.size} from one authored tree, ` +
         `${Object.keys(ADWAITA_GALLERY_TREE_DIVERGENCES).length} ledgered as divergent; ${convergedBlocks} agree today`,
+);
+
+// ---------------------------------------------------------------------------
+// 12. every fence carries the gloss the generated module says it carries
+// ---------------------------------------------------------------------------
+
+/**
+ * The GIR-free half of the attribute-gloss mechanism.
+ *
+ * `applyMeanings` is the SAME placement code the generator writes the fences with, run
+ * here against the COMMITTED sentences instead of freshly-read GIR ones. A second
+ * placement implementation would check a rule the fences were not written with; one
+ * implementation and two inputs is what makes this comparable.
+ *
+ * WHY IT IS NOT ENOUGH TO LET THE GENERATOR'S OWN `--check` DO IT. That check needs
+ * `Adw-1.gir` and `Gtk-4.0.gir`, which exist in `main.yml`'s `tree-checks` image
+ * (`gtk4-devel` + `libadwaita-devel`) and in NEITHER job that runs this file — both are
+ * `checkout` + `setup-node` and nothing else. So a comment line deleted from an `.mdx`
+ * would pass on every PR leg that could see the file and fail only in the one leg that
+ * can see the GIR. With the committed module in between, the deletion is red here too,
+ * and the two checks cannot both be green while either half is wrong.
+ */
+const applied = applyMeanings(ROOT, ADWAITA_ATTRIBUTE_MEANINGS);
+for (const problem of applied.problems) failures.push(problem);
+
+for (const [rel, expected] of applied.files) {
+    if (readFileSync(join(ROOT, rel), 'utf8') === expected) continue;
+    failures.push(
+        `${rel}: its preview fences are not the attribute gloss ${MEANINGS_MODULE} says they carry. A gloss ` +
+            'was edited, moved or deleted by hand — the fences are generated. Re-run ' +
+            '`node scripts/generate-adwaita-attribute-comments.mjs` (it needs a GIR), or restore the line.',
+    );
+}
+
+// The counts the module publishes are the measurement the line between "glossed" and
+// "the name says it" rests on, so a hand-edited number is a hand-edited claim.
+const measuredCounts = meaningCounts(ADWAITA_ATTRIBUTE_MEANINGS, applied);
+for (const [key, measured] of Object.entries(measuredCounts)) {
+    const committed = ADWAITA_ATTRIBUTE_MEANING_COUNTS[key];
+    if (committed === measured) continue;
+    failures.push(
+        `${MEANINGS_MODULE}: ADWAITA_ATTRIBUTE_MEANING_COUNTS.${key} says ${committed} and this tree measures ` +
+            `${measured}. The counts are the published measurement, not a comment.`,
+    );
+}
+
+// An empty module would make every comparison above vacuous, and it is exactly what a
+// broken emitter produces.
+if (Object.keys(ADWAITA_ATTRIBUTE_MEANINGS).length === 0) {
+    failures.push(`${MEANINGS_MODULE} glosses no element at all — arm 12 proved nothing`);
+}
+if (measuredCounts.glossed === 0) {
+    failures.push(`${MEANINGS_MODULE} carries no gloss at all — arm 12 would pass against a fence with none`);
+}
+
+notes.push(
+    `${measuredCounts.set} attribute(s) set by ${applied.fences.length} fence(s) — ${measuredCounts.glossed} ` +
+        `glossed from the GIR, ${measuredCounts.nameSuffices} where the name suffices, ` +
+        `${Object.keys(ATTRIBUTE_MEANING_LEDGER).length} with no GIR property, ` +
+        `${Object.keys(AUTHORED_MEANINGS).length} authored; ${measuredCounts.commentLines} comment line(s)`,
 );
 
 // A scan whose corpus is empty reports green while proving nothing.

@@ -109,6 +109,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** The generated module, and the one arm 12 of `check-generated-website-data.mjs` reads. */
 export const MEANINGS_MODULE = 'scripts/adwaita-attribute-meanings.mjs';
 
+/**
+ * The generated output nothing formats, and arm 10 of `check-generated-website-data.mjs`
+ * holds its `.oxfmtrc.json` exemption.
+ *
+ * The `.mdx` fences need no entry: `**\/*.mdx` is already ignored tree-wide.
+ */
+export const ATTRIBUTE_OXFMT_EXEMPT_OUTPUTS = [MEANINGS_MODULE];
+
 /** The gallery pages. Both namespaces, because a web tag carries its library's prefix. */
 export const GALLERY_DOC_DIRS = ['website/src/content/docs/adwaita', 'website/src/content/docs/gtk'];
 
