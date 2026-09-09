@@ -529,6 +529,15 @@ criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one au
 through both renderers; the seven blocks here are what such a suite would have to start
 from, and the ledger says what would have to converge before it could grow past them.
 
+**[ADR 0051](../docs/adr/0051-one-authored-tree-rendered.md) proposes that suite** — one
+corpus and a driver per renderer in ADR 0030's shape, the expectations staying
+`adwaita-core`'s so a failure is attributable to the renderer rather than to a freshly
+written assertion, the remainder declared per block and self-retiring, and a fifth stage
+putting `adwaita-web` on the same corpus by emitting the gallery `preview` fence from it.
+It also carries the correction this entry implies and § 9 does not: § 9 names `adwaita-web`
+as the second renderer, and the corpus that exists pairs `gtk-host` with the NativeScript
+port, because those are the two the gallery authors from one source.
+
 ### A property can agree on its NAME and disagree on its VALUE KIND
 
 `check-vocabulary-alignment.mjs` prints a property distance and calls a NativeScript
