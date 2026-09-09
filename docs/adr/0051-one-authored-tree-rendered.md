@@ -72,10 +72,13 @@ Read over `packages/framework/gtk-host/src` at `c8ae146b84`:
 | their entire toolkit coupling | `import type Gtk from '@girs/gtk-4.0'` — 15 type references, 12 of them `Gtk.Widget` |
 | files carrying a runtime `gi://` import | 18, none of them an adapter |
 
-`policies.ts` says of itself that it holds the ONE runtime `gi://Gtk` import and the one
-literal `new Gtk.Box()` in the package. So the adapters are already toolkit-free where it
-counts: a second renderer behind the same ops is a **parameterisation of the node type**,
-not a rewrite of the reconciliation.
+`policies.ts` holds the literal `new Gtk.Box()` the Vue adapter used to own, and its own
+header names what that was: *"the ONE runtime toolkit import and the ONE concrete widget
+class in any adapter, i.e. exactly the widget knowledge ADR 0027 § 7 forbids one"*. The
+claim is about the ADAPTERS and not about the package — nine other files here import
+`gi://Gtk` at runtime, which is the point: the toolkit knowledge is concentrated where the
+table is, and absent where the reconciliation is. So a second renderer behind the same ops
+is a **parameterisation of the node type**, not a rewrite of the reconciliation.
 
 That parameterisation has a precedent in this tree with three renderers already on it.
 `packages/framework/storybook-core/src/story-view-base.ts` declares
