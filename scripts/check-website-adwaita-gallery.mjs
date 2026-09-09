@@ -527,8 +527,7 @@ const PANE_DIVERGENCE_KINDS = new Map([
 ]);
 
 /** The kinds and what each one MEANS, for the two failures that ask an author to pick one. */
-const paneKindMenu = () =>
-    [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `      ${kind}: ${means}`).join('\n');
+const paneKindMenu = () => [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `      ${kind}: ${means}`).join('\n');
 
 /**
  * Blocks whose two panes are NOT the same text, and why.
@@ -790,7 +789,10 @@ const PANE_NORMALISATION_VECTORS = [
         ["import Adw from 'gi://Adw?version=1';", "import Gtk from 'gi://Gtk?version=4.0';", 'x'],
         ['«widget vocabulary: Adw, Gtk»', 'x'],
     ],
-    [["import { Adw, Gtk } from '@gjsify/adwaita-nativescript';", 'x'], ['«widget vocabulary: Adw, Gtk»', 'x']],
+    [
+        ["import { Adw, Gtk } from '@gjsify/adwaita-nativescript';", 'x'],
+        ['«widget vocabulary: Adw, Gtk»', 'x'],
+    ],
     [["import { Adw } from '@gjsify/adwaita-nativescript';"], ['«widget vocabulary: Adw»']],
     // NOT normalised, each for its own reason: a glyph is a value the port needs and
     // libadwaita does not, `@nativescript/core` is a toolkit GJS has no counterpart
