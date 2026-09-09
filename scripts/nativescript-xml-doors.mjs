@@ -192,29 +192,140 @@ export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
 export const SIGNALS_MIXIN = 'withSignals';
 
 /**
- * What one widget class extends: the base name, and whether it is wrapped in
- * `withSignals(…)`. `null` when the declaration has no `extends` this reader can spell.
+ * The `withSignals(` opener, tolerant of the line break a long declaration takes.
  *
- * Generics on the class and on the base are skipped the way `classBases` in
- * `check-nativescript-widget-coverage.mjs` skips them, and for the reason it records:
- * `AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState>`.
+ * ONE CLASS IN THE PORT DOES NOT FIT ON A LINE, and it is what made this a constant
+ * rather than an inline pattern. `AdwSplitViewBase` is generic AND wrapped, so the
+ * formatter writes
+ *
+ *     export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends withSignals(
+ *         GridLayout,
+ *     ) {
+ *
+ * A pattern demanding the base name immediately after the paren cannot match that, and
+ * it does not fail loudly: the optional `withSignals\(` group backtracks to empty and
+ * the base capture then takes `withSignals` ITSELF. Both readers over this package did
+ * that, in two separate copies, and both then reported the MIXIN as a base the ambient
+ * slice does not declare — `check-nativescript-xml-doors` as "extends withSignals bare"
+ * on a class that is wrapped correctly, `check-nativescript-widget-coverage` as a chain
+ * that "leaves the package at 'withSignals'" for the two split views. Two false reds,
+ * one blind spot, on the single class whose declaration is too long for a line.
+ *
+ * Every self-test vector on both sides was single-line, which is why it survived being
+ * written down: the readers were proven against the shape they were written against.
+ * {@link CLASS_BASE_VECTORS} now carries the wrapped-and-broken form.
+ */
+const MIXIN_OPEN = `${SIGNALS_MIXIN}\\(\\s*`;
+
+/**
+ * Every class a source declares and what it extends, comments stripped.
+ *
+ * ONE reader for the whole package, because there were two and they shared a defect.
+ * The precedent is `gir-scalar-properties.mjs`, extracted for the same reason on the GIR
+ * side: two definitions of the same reading are two answers that can disagree while both
+ * stay green.
+ *
+ * The type arguments are what makes this a reader rather than a one-liner:
+ * `AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState>` names its base
+ * with a generic, and a pattern that stops at the identifier before `<` reads the base as
+ * missing — which ends a chain walk and hands the widget a setter set seven short.
+ *
+ * @param {string} source
+ * @returns {Map<string, { base: string | null, wrapped: boolean }>}
+ */
+export function classBases(source) {
+    const bases = new Map();
+    const pattern = new RegExp(
+        String.raw`\bclass\s+([A-Za-z0-9_$]+)(?:<[^>]*>)?(?:\s+extends\s+(` +
+            MIXIN_OPEN +
+            String.raw`)?([A-Za-z0-9_$]+))?`,
+        'g',
+    );
+    for (const [, name, open, base] of executable(source).matchAll(pattern)) {
+        bases.set(name, { base: base ?? null, wrapped: open !== undefined });
+    }
+    return bases;
+}
+
+/**
+ * What one widget class extends: the base name, and whether it is wrapped in
+ * `withSignals(…)`. `null` when the class is absent or its declaration has no `extends`.
  *
  * @param {string} text the module source
  * @param {string} name the class
  * @returns {{ base: string, wrapped: boolean } | null}
  */
 export function extendsOf(text, name) {
-    const match = new RegExp(
-        `export (?:abstract )?class ${name}\\b(?:<[^{]*?>)?\\s+extends\\s+(${SIGNALS_MIXIN}\\()?([A-Za-z0-9_$]+)`,
-    ).exec(executable(text));
-    if (match === null) return null;
-    return { base: match[2], wrapped: match[1] !== undefined };
+    const entry = classBases(text).get(name);
+    if (entry === undefined || entry.base === null) return null;
+    return { base: entry.base, wrapped: entry.wrapped };
+}
+
+/** Every class a source declares — where the port's chains are allowed to end. */
+export function ambientCoreClasses(source) {
+    return new Set(classBases(source).keys());
 }
 
 /** Every class the ambient slice declares — where a port chain is allowed to leave the package. */
 export function readCoreClasses(root) {
-    const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
-    return new Set([...executable(text).matchAll(/\bclass\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]));
+    return ambientCoreClasses(readFileSync(join(root, NS_CORE_TYPES), 'utf8'));
+}
+
+/**
+ * The reader's own vectors: source, class, the base wanted, and whether it is wrapped.
+ *
+ * `undefined` as the wanted base means the class must not appear at all. The last four
+ * rows are the ones the two copies of this reader failed — a wrapped base pushed onto its
+ * own line, with and without the trailing comma the formatter adds, and with a type
+ * parameter that itself contains the word `extends`.
+ */
+export const CLASS_BASE_VECTORS = [
+    ['export class AdwDemo extends GridLayout {}', 'AdwDemo', 'GridLayout', false],
+    ['export abstract class AdwBase<T> extends GridLayout {}', 'AdwBase', 'GridLayout', false],
+    ['class AdwDemo extends AdwBase<NsState> {}', 'AdwDemo', 'AdwBase', false],
+    ['class AdwDemo extends AdwBase<NsState<Deep>> {}', 'AdwDemo', 'AdwBase', false],
+    ['export class AdwGroup extends StackLayout implements NsSearchableGroup {}', 'AdwGroup', 'StackLayout', false],
+    ['export class AdwDemo extends withSignals(GridLayout) {}', 'AdwDemo', 'GridLayout', true],
+    [
+        'export abstract class AdwBase<T> extends withSignals(GridLayout) implements NsX {}',
+        'AdwBase',
+        'GridLayout',
+        true,
+    ],
+    ['export class AdwRoot {}', 'AdwRoot', null, false],
+    // A class named inside a comment is prose, and these files explain their own
+    // hierarchies in prose — `adw-combo-row.ts` opens with "Extends {@link AdwActionRow}".
+    ['// class AdwGhost extends GridLayout\nexport class AdwDemo extends Image {}', 'AdwGhost', undefined, false],
+    ['export class AdwDemo extends withSignals(\n    GridLayout,\n) {}', 'AdwDemo', 'GridLayout', true],
+    ['export class AdwDemo extends withSignals(\n    GridLayout\n) {}', 'AdwDemo', 'GridLayout', true],
+    [
+        'export abstract class AdwBase<T extends NsState = NsState> extends withSignals(\n    GridLayout,\n) {}',
+        'AdwBase',
+        'GridLayout',
+        true,
+    ],
+];
+
+/**
+ * Prove the reader before either gate reads real data.
+ *
+ * Exported and called by BOTH gates rather than by the one that happens to own the file:
+ * they each depend on this reading, and a reader proven in only one job is proven for
+ * only one job.
+ *
+ * @returns {string[]} one line per failing vector
+ */
+export function classReaderSelfTest() {
+    const failures = [];
+    for (const [source, klass, wantBase, wantWrapped] of CLASS_BASE_VECTORS) {
+        const entry = classBases(source).get(klass);
+        const gotBase = entry === undefined ? undefined : entry.base;
+        const gotWrapped = entry === undefined ? false : entry.wrapped;
+        const label = `classBases(${JSON.stringify(source)}).get('${klass}')`;
+        if (gotBase !== wantBase) failures.push(`${label} base is ${gotBase}, wanted ${wantBase}`);
+        if (gotWrapped !== wantWrapped) failures.push(`${label} wrapped is ${gotWrapped}, wanted ${wantWrapped}`);
+    }
+    return failures;
 }
 
 /**

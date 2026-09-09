@@ -105,6 +105,7 @@ import {
     readWidgets,
     SETTER_ONLY_ON_BASE,
     settersOf,
+    classReaderSelfTest,
     SIGNALS_MIXIN,
     stringTolerant,
     STRING_TOLERANT,
@@ -116,6 +117,11 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
 
 const failures = [];
 const notes = [];
+
+// The shared class reader, proven here as well as in `check-nativescript-widget-coverage`:
+// arm 6 below asks what each class extends, so a reader that misreads a wrapped base
+// turns a correctly-wrapped class into a reported defect. It did exactly that.
+failures.push(...classReaderSelfTest());
 
 const { sources, files } = readWidgets(ROOT);
 const types = readTypeSources(ROOT);
