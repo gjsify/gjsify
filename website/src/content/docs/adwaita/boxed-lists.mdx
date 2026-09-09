@@ -194,18 +194,18 @@ row responds to a click, which is how you open a detail page.
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
-    import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
-    import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 
     const row = new Adw.ActionRow({
         title: 'Wi-Fi',
         subtitle: 'Connected to Highgarden 5GHz',
     });
 
-    // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
-    // resolves one, so the glyph is imported and handed in.
-    row.add_prefix(new Gtk.Image({ iconName: networkWirelessSymbolic }));
-    row.add_suffix(new Gtk.Image({ iconName: goNextSymbolic }));
+    row.add_prefix(new Gtk.Image({ iconName: 'network-wireless-symbolic' }));
+
+    // Gtk.Button is text-only here, so the trailing chevron is a Gtk.Image rather than
+    // a flat button — and with no button there is no activatable widget to point at.
+    row.add_suffix(new Gtk.Image({ iconName: 'go-next-symbolic' }));
+    row.activatable = true;
     ```
   </Fragment>
 </AdwWidget>
@@ -642,12 +642,10 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const row = new Adw.ButtonRow({
         title: 'Add account',
-        // `startIconName` takes the SVG SOURCE here, not a theme name.
-        startIconName: listAddSymbolic,
+        startIconName: 'list-add-symbolic',
     });
     row.className = 'adw-button-row suggested-action';
     ```

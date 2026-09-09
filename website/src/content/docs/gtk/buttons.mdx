@@ -220,11 +220,9 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   <Fragment slot="nativescript">
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
-    import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const button = new Gtk.MenuButton({
-        // `iconName` takes the SVG SOURCE here, not a theme name.
-        iconName: openMenuSymbolic,
+        iconName: 'open-menu-symbolic',
         menuModel: [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }],
         menuTitle: 'Document',
     });

@@ -448,18 +448,17 @@ the view moves.
     // app/views/toolbar-view.ts — the loader, and the three things markup cannot say.
     import { Builder } from '@nativescript/core';
     import { Adw, AdwImageButton } from '@gjsify/adwaita-nativescript';
-    import { listAddSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
-    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
     export const view = Builder.load({ path: '~/views', name: 'toolbar-view' });
 
-    // An icon here is the SVG SOURCE, not a theme name — NativeScript's Image
-    // decodes no SVG, so the widget rasterises the markup itself. An XML attribute
-    // is a string, so the template declares the buttons and gives them ids, and the
-    // loader hands each one its glyph.
-    view.getViewById<Adw.StatusPage>('library').iconName = folderSymbolic;
-    view.getViewById<AdwImageButton>('add').iconName = listAddSymbolic;
-    view.getViewById<AdwImageButton>('share').iconName = sendToSymbolic;
+    // An icon name carries through an XML attribute, so these three lines exist only
+    // because the ACTION BAR does not: Gtk.ActionBar has no counterpart here, so the
+    // bottom bar is a header bar the template fills, and the ids are how the loader
+    // reaches into it.
+    view.getViewById<Adw.StatusPage>('library').iconName = 'folder-documents-symbolic';
+    view.getViewById<AdwImageButton>('add').iconName = 'list-add-symbolic';
+    view.getViewById<AdwImageButton>('remove').iconName = 'list-remove-symbolic';
+    view.getViewById<AdwImageButton>('share').iconName = 'send-to-symbolic';
     ```
   </Fragment>
 </AdwWidget>

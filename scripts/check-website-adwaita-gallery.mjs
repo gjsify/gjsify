@@ -709,7 +709,8 @@ const PANE_TEXT_DIVERGENCES = {
         'places a header suffix itself.',
     'Adw.ActionRow':
         'property: the port’s Gtk.Button is text-only, so the trailing chevron is a Gtk.Image rather than ' +
-        'a flat button; add_prefix/add_suffix are setPrefix/setSuffix, and both glyphs are SVG sources.',
+        'a flat button — and with no button there is no activatableWidget to point at and no valign to ' +
+        'put on it.',
     'Adw.ComboRow':
         'vocabulary: the model is a string array where GTK takes a Gtk.StringList. The portable value shape ' +
         'is what would close it, and it is the same question ADR 0034 § 1 asks of every value.',
@@ -717,18 +718,19 @@ const PANE_TEXT_DIVERGENCES = {
         "property: the adjustment is @gjsify/adwaita-core's AdwAdjustment where GTK takes a Gtk.Adjustment, " +
         'and the port installs no `digits` — it renders the value the state machine holds.',
     'Adw.ExpanderRow': 'vocabulary: add_row() is addRow() on the port, and nothing else differs.',
-    'Adw.ButtonRow':
-        'glyph: startIconName takes an SVG source rather than a theme name, so the pane imports the glyph; ' +
-        'and a style class is className rather than add_css_class().',
+    'Adw.ButtonRow': 'vocabulary: a style class is className rather than add_css_class(), and nothing else differs.',
     'Adw.ButtonContent':
         "composition: the port's Gtk.Button is text-only, so the button around the content is a " +
-        '@nativescript/core StackLayout carrying the Adwaita classes; the icon is an SVG source.',
+        '@nativescript/core StackLayout carrying the Adwaita classes; and the icon bitmap is pre-coloured, ' +
+        'so a suggested button pins iconColor where GTK inherits `color` from the stylesheet.',
     'Adw.SplitButton':
         'vocabulary: the menu is a plain array where GTK takes a Gio.Menu with action names — a namespace ' +
-        'the gi:// arms deliberately do not answer — and the icon is an SVG source.',
+        'the gi:// arms deliberately do not answer.',
     'Adw.ToggleGroup':
-        'property: the port has no Adw.Toggle widget; setToggles() takes plain descriptors, and each icon is ' +
-        'an SVG source.',
+        'property: the port has no Adw.Toggle widget, so setToggles() takes plain descriptors; and the third ' +
+        'toggle names view-paged-symbolic, because view-columns-symbolic is in no icon theme and only the ' +
+        'web pillar hand-draws a substitute — this pane names one that resolves rather than drawing the ' +
+        'image-missing fallback its gjs twin gets.',
     'Adw.Toast':
         'property: the port has no Adw.Toast widget at all — showToast() is the whole API, its timeout is in ' +
         'milliseconds, and the overlay takes its content through setContent().',
@@ -738,10 +740,11 @@ const PANE_TEXT_DIVERGENCES = {
         "instead of taking a parent — the platform's own confirm chrome stands in for the dialog.",
     'Adw.AboutDialog':
         'property: the port exposes scalar fields only — no developers, designers or licenseType — so the ' +
-        'credits fold into the developer line and the application icon is a character rather than a theme name.',
+        'credits fold into the developer line; and applicationIcon paints a Label, so it takes a text glyph ' +
+        'where every icon property beside it now takes a theme name.',
     'Adw.PreferencesDialog':
-        "glyph: the page icon is an SVG source; beside it the group's rows go in through addRow()/addGroup(), " +
-        'the combo model is an array and the adjustment is the portable shape.',
+        'property: the combo model is a string array, the adjustment is the portable shape rather than a ' +
+        'Gtk.Adjustment, the dialog takes its own title, and present() takes no parent.',
     'Adw.Clamp':
         'composition: the NativeScript window splits into an XML template and a loader, so this pane is the ' +
         '`~/adw` barrel the template’s xmlns resolves to plus a Builder.load(), not a widget construction.',
@@ -749,8 +752,8 @@ const PANE_TEXT_DIVERGENCES = {
         'composition: same split as Adw.Clamp — two barrels (`~/adw`, `~/gtk`) and the loader; the tree the ' +
         'gjs pane builds is the XML tab beside this one.',
     'Adw.ToolbarView':
-        'composition: same split as Adw.Clamp, plus the three glyphs an XML attribute cannot carry, which the ' +
-        'loader hands to views the template gave ids.',
+        'composition: same split as Adw.Clamp, and the bottom bar is a second header bar because the port has ' +
+        'no Gtk.ActionBar — so the loader reaches its buttons by the ids the template gave them.',
     'Adw.WrapBox':
         'composition: same split as Adw.Clamp — the chip run is a fixed tree, so it lives in the template and ' +
         'this pane loads it.',
@@ -767,9 +770,6 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.BottomSheet':
         'composition: @nativescript/core’s StackLayout and Label stand in for Gtk.Box and Gtk.Label, which ' +
         'the port does not ship, and the boxed list is built without prefixes.',
-    'Adw.Avatar':
-        'glyph: iconName takes the SVG SOURCE rather than a theme name, so the fallback glyph is imported and ' +
-        'handed in. Everything else about the two panes is already one text.',
     'Adw.Banner':
         'composition: the gjs pane wraps the banner in a sized Gtk.Box to give a full-width widget something ' +
         'to fill; the port lays that out itself, and its banner label is plain text with no markup subset.',
@@ -777,17 +777,16 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port sizes a spinner with `size`, where GTK asks for a width, a height and two ' +
         'alignments — the port has no layout surface to put a size request on.',
     'Adw.StatusPage':
-        'glyph: the icon is an SVG source; beside it `child` is setChild() and the button’s caption and ' +
-        'classes are text/styleClasses.',
+        'property: `child` is read-only here so the button goes in through set_child(), the button’s caption ' +
+        'and classes are text/styleClasses, and there is no layout surface to take its halign.',
     'Adw.ViewSwitcher':
         'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
-        'and content together — and each icon is an SVG source.',
+        'and content together, where GTK adds each page to the stack and binds the switcher to it.',
     'Adw.ViewSwitcherBar':
-        'property: the port’s view stack has no items-changed signal, so refresh() stands in for it by hand, ' +
-        'and each page icon is an SVG source.',
+        'property: the port’s view stack has no items-changed signal, so refresh() stands in for it by hand.',
     'Adw.TabView':
-        'property: the port has no Adw.TabBar and no Adw.TabPage; setViews() carries the chips and the pages ' +
-        'together, and the page icon is an SVG source.',
+        'property: the port has no Adw.TabBar and no Adw.TabPage, so setViews() carries the chips and the ' +
+        'pages together and there is no page object to set a title on.',
     'Adw.InlineViewSwitcher':
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
@@ -798,8 +797,8 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port’s Gtk.Button is text-only, so the circular icon-only variant has no counterpart ' +
         'at all; label/add_css_class() are text/styleClasses and the wrap box takes no alignment.',
     'Gtk.MenuButton':
-        'property: the menu is a plain array where GTK takes a Gio.Menu with action names, there is no popover ' +
-        'so `primary` has no counterpart, and the icon is an SVG source.',
+        'property: the menu is a plain array where GTK takes a Gio.Menu with action names, and there is no ' +
+        'popover, so `primary` has no counterpart and the menu opens as the platform action sheet.',
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',
