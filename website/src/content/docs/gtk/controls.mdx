@@ -33,7 +33,10 @@ spells both controls the way the GIR does — `<gtk-entry>` and `<gtk-drop-down>
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
 that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
 port names them by the same rule, `Gtk.Entry` and `Gtk.DropDown`. Where a port behaves
-differently, its own window says so.
+differently, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -90,12 +93,14 @@ control in row presentation, and the label doubles as the row title.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Gtk } from '@gjsify/adwaita-nativescript';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const entry = new Gtk.Entry();
-    entry.placeholderText = 'Search files…';
+    const entry = new Gtk.Entry({
+        placeholderText: 'Search files…',
+    });
+
     entry.text = 'notes.md';
-    entry.editable = false;
+    entry.editable = false; // read but do not change
     ```
   </Fragment>
 </AdwWidget>
@@ -148,11 +153,12 @@ the popover follows, and the rows that did not change keep their place.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Gtk } from '@gjsify/adwaita-nativescript';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const dropDown = new Gtk.DropDown();
-    dropDown.model = ['Automatic', 'Always', 'Never', 'When busy'];
-    dropDown.selected = 0;
+    const dropDown = new Gtk.DropDown({
+        model: ['Automatic', 'Always', 'Never', 'When busy'],
+        selected: 0,
+    });
     // The list opens as the platform action sheet, which has no search field —
     // so `enableSearch` has no NativeScript equivalent.
     ```

@@ -59,7 +59,11 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, which is what lets a NativeScript snippet elsewhere on
+this site open with the same import line as the Native TypeScript one beside it.
+Not here: every widget on this page is a tree, so each NativeScript window is an XML
+template and the loader that mounts it.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a

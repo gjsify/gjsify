@@ -26,7 +26,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (an
@@ -109,21 +112,19 @@ preferences page.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const group = new Adw.PreferencesGroup();
-    group.title = 'Account';
-    group.description = 'Manage how this device signs in and syncs.';
+    const signOut = new Gtk.Button({ text: 'Sign out', styleClasses: 'flat' });
 
-    const name = new Adw.EntryRow();
-    name.title = 'Display name';
-    name.text = 'Grace Hopper';
-    group.addRow(name);
+    const group = new Adw.PreferencesGroup({
+        title: 'Account',
+        description: 'Manage how this device signs in and syncs.',
+        headerSuffix: signOut,
+    });
 
-    const sync = new Adw.SwitchRow();
-    sync.title = 'Sync over Wi-Fi only';
-    sync.active = true;
-    group.addRow(sync);
+    group.addRow(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
+    group.addRow(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
     ```
   </Fragment>
 </AdwWidget>
@@ -192,21 +193,20 @@ row responds to a click, which is how you open a detail page.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
     import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
     import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 
-    const row = new Adw.ActionRow();
-    row.title = 'Wi-Fi';
-    row.subtitle = 'Connected to Highgarden 5GHz';
+    const row = new Adw.ActionRow({
+        title: 'Wi-Fi',
+        subtitle: 'Connected to Highgarden 5GHz',
+    });
 
-    const icon = new Gtk.Image();
-    icon.iconName = networkWirelessSymbolic; // an Adwaita symbolic icon (SVG string)
-    row.setPrefix(icon);
-
-    const chevron = new Gtk.Image();
-    chevron.iconName = goNextSymbolic;
-    row.setSuffix(chevron);
+    // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
+    // resolves one, so the glyph is imported and handed in.
+    row.setPrefix(new Gtk.Image({ iconName: networkWirelessSymbolic }));
+    row.setSuffix(new Gtk.Image({ iconName: goNextSymbolic }));
     ```
   </Fragment>
 </AdwWidget>
@@ -251,12 +251,13 @@ the row you will use most in a preferences page.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.SwitchRow();
-    row.title = 'Automatic updates';
-    row.subtitle = 'Download and install updates without asking';
-    row.active = true;
+    const row = new Adw.SwitchRow({
+        title: 'Automatic updates',
+        subtitle: 'Download and install updates without asking',
+        active: true,
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -302,11 +303,13 @@ user types.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.EntryRow();
-    row.title = 'Display name';
-    row.text = 'Ada Lovelace';
+    const row = new Adw.EntryRow({
+        title: 'Display name',
+        text: 'Ada Lovelace',
+        showApplyButton: true,
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -349,11 +352,12 @@ to reveal it. Use it anywhere a password or key is edited inline.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.PasswordEntryRow();
-    row.title = 'Password';
-    row.text = 'correct-horse-battery';
+    const row = new Adw.PasswordEntryRow({
+        title: 'Password',
+        text: 'correct-horse-battery',
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -414,13 +418,14 @@ same array goes in the `model` attribute as JSON.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.ComboRow();
-    row.title = 'Accent colour';
-    row.subtitle = 'Used to highlight selected items';
-    row.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
-    row.selected = 1;
+    const row = new Adw.ComboRow({
+        title: 'Accent colour',
+        subtitle: 'Used to highlight selected items',
+        model: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'],
+        selected: 1,
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -508,12 +513,12 @@ size or a count.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.SpinRow();
-    row.title = 'Font size';
-    row.adjustment = { lower: 0, upper: 100, stepIncrement: 1 };
-    row.value = 16;
+    const row = new Adw.SpinRow({
+        title: 'Font size',
+        adjustment: { lower: 0, upper: 100, value: 16, stepIncrement: 1 },
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -574,21 +579,16 @@ whole section.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const row = new Adw.ExpanderRow();
-    row.title = 'Proxy settings';
-    row.subtitle = 'Route traffic through a custom proxy';
-    row.expanded = true;
+    const row = new Adw.ExpanderRow({
+        title: 'Proxy settings',
+        subtitle: 'Route traffic through a custom proxy',
+        expanded: true,
+    });
 
-    const host = new Adw.EntryRow();
-    host.title = 'Host';
-    host.text = 'proxy.example.com';
-    row.addRow(host);
-
-    const auth = new Adw.SwitchRow();
-    auth.title = 'Use authentication';
-    row.addRow(auth);
+    row.addRow(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
+    row.addRow(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```
   </Fragment>
 </AdwWidget>
@@ -635,12 +635,14 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const row = new Adw.ButtonRow();
-    row.title = 'Add account';
-    row.startIconName = listAddSymbolic; // an Adwaita symbolic icon (SVG string)
+    const row = new Adw.ButtonRow({
+        title: 'Add account',
+        // `startIconName` takes the SVG SOURCE here, not a theme name.
+        startIconName: listAddSymbolic,
+    });
     row.className = 'adw-button-row suggested-action';
     ```
   </Fragment>

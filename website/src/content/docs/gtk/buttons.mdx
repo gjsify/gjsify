@@ -32,7 +32,10 @@ spells both buttons the way the GIR does — `<gtk-button>` and `<gtk-menu-butto
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
 that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
 port names them by the same rule, `Gtk.Button` and `Gtk.MenuButton`. Where a port
-behaves differently, its own window says so.
+behaves differently, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -133,31 +136,17 @@ each other and mean the same thing everywhere in the toolkit, so a
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const box = new Adw.WrapBox();
-    box.childSpacing = 12;
-    box.lineSpacing = 12;
+    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12 });
 
-    const pill = new Gtk.Button();
-    pill.text = 'Pill';
-    pill.styleClasses = 'pill';
-    box.add(pill);
-
-    const suggested = new Gtk.Button();
-    suggested.text = 'Suggested';
-    suggested.styleClasses = 'suggested-action';
-    box.add(suggested);
-
-    const destructive = new Gtk.Button();
-    destructive.text = 'Delete';
-    destructive.styleClasses = 'destructive-action';
-    box.add(destructive);
-
-    const flat = new Gtk.Button();
-    flat.text = 'Flat';
-    flat.styleClasses = 'flat';
-    box.add(flat);
+    // No circular variant here: this Gtk.Button is text-only, so an icon-only
+    // button is Adw.ButtonContent inside a styled layout — see Adwaita/Buttons.
+    box.add(new Gtk.Button({ text: 'Pill', styleClasses: 'pill' }));
+    box.add(new Gtk.Button({ text: 'Suggested', styleClasses: 'suggested-action' }));
+    box.add(new Gtk.Button({ text: 'Delete', styleClasses: 'destructive-action' }));
+    box.add(new Gtk.Button({ text: 'Flat', styleClasses: 'flat' }));
     ```
   </Fragment>
 </AdwWidget>
@@ -231,13 +220,15 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Gtk } from '@gjsify/adwaita-nativescript';
+    import Gtk from 'gi://Gtk?version=4.0';
     import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const button = new Gtk.MenuButton();
-    button.iconName = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
-    button.menuTitle = 'Document';
-    button.menuModel = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
+    const button = new Gtk.MenuButton({
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: openMenuSymbolic,
+        menuModel: [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }],
+        menuTitle: 'Document',
+    });
     // NativeScript has no popover, so the menu opens as the platform action sheet.
     ```
   </Fragment>

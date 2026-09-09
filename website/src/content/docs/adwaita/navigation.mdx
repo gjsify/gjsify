@@ -27,7 +27,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 These are the widgets that lean hardest on Libadwaita: adaptive breakpoints,
@@ -174,7 +177,7 @@ the sidebar and the content each their own navigation page and header bar.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { mailUnreadSymbolic } from '@gjsify/adwaita-icons/status';
 
     // Sidebar: the navigation list, not a boxed list. The NS surface takes a
@@ -183,21 +186,19 @@ the sidebar and the content each their own navigation page and header bar.
     sidebarList.setItems(['All Mail', 'Starred', 'Drafts', 'Archive']);
     sidebarList.selected = 0;
 
-    const sidebarHeader = new Adw.HeaderBar();
-    sidebarHeader.title = 'Mailboxes';
     const sidebar = new Adw.ToolbarView();
-    sidebar.addTopBar(sidebarHeader);
+    sidebar.addTopBar(new Adw.HeaderBar({ title: 'Mailboxes' }));
     sidebar.setContent(sidebarList);
 
     // Content: a status page inside a toolbar view.
-    const status = new Adw.StatusPage();
-    status.iconName = mailUnreadSymbolic;
-    status.title = 'All Mail';
-    status.description = 'Select a conversation from the list to read it here.';
-    const contentHeader = new Adw.HeaderBar();
-    contentHeader.title = 'All Mail';
+    const status = new Adw.StatusPage({
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: mailUnreadSymbolic,
+        title: 'All Mail',
+        description: 'Select a conversation from the list to read it here.',
+    });
     const content = new Adw.ToolbarView();
-    content.addTopBar(contentHeader);
+    content.addTopBar(new Adw.HeaderBar({ title: 'All Mail' }));
     content.setContent(status);
 
     const view = new Adw.NavigationSplitView();
@@ -331,23 +332,23 @@ navigation pane that should not push the main content aside on a narrow window.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { folderMusicSymbolic } from '@gjsify/adwaita-icons/places';
 
     const sidebarList = new Adw.Sidebar();
     sidebarList.setItems(['Home', 'Discover', 'Library', 'Settings']);
     sidebarList.selected = 0;
 
-    const header = new Adw.HeaderBar();
-    header.styleClasses = 'flat';
     const sidebar = new Adw.ToolbarView();
-    sidebar.addTopBar(header);
+    sidebar.addTopBar(new Adw.HeaderBar({ styleClasses: 'flat' }));
     sidebar.setContent(sidebarList);
 
-    const status = new Adw.StatusPage();
-    status.iconName = folderMusicSymbolic;
-    status.title = 'Your Library';
-    status.description = 'Toggle the sidebar to browse sections. Collapse it to overlay the content.';
+    const status = new Adw.StatusPage({
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: folderMusicSymbolic,
+        title: 'Your Library',
+        description: 'Toggle the sidebar to browse sections. Collapse it to overlay the content.',
+    });
     const content = new Adw.ToolbarView();
     content.addTopBar(new Adw.HeaderBar());
     content.setContent(status);
@@ -480,31 +481,31 @@ the detail page and watch the back button appear.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
     import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
     const view = new Adw.NavigationView();
 
     // Detail page.
-    const detailHeader = new Adw.HeaderBar();
-    detailHeader.title = 'Ada Lovelace';
-    const detailStatus = new Adw.StatusPage();
-    detailStatus.iconName = avatarDefaultSymbolic;
-    detailStatus.title = 'Ada Lovelace';
-    detailStatus.description = 'Mathematician and writer, the first computer programmer.';
+    const detailStatus = new Adw.StatusPage({
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: avatarDefaultSymbolic,
+        title: 'Ada Lovelace',
+        description: 'Mathematician and writer, the first computer programmer.',
+    });
     const detail = new Adw.ToolbarView();
-    detail.addTopBar(detailHeader);
+    detail.addTopBar(new Adw.HeaderBar({ title: 'Ada Lovelace' }));
     detail.setContent(detailStatus);
 
     // Root page: a pill button that pushes the detail page by tag.
-    const rootHeader = new Adw.HeaderBar();
-    rootHeader.title = 'Contacts';
-    const open = new Gtk.Button();
-    open.text = 'Open contact';
-    open.styleClasses = 'pill';
+    const open = new Gtk.Button({
+        text: 'Open contact',
+        styleClasses: 'pill',
+    });
     open.addEventListener('tap', () => view.push('detail'));
     const root = new Adw.ToolbarView();
-    root.addTopBar(rootHeader);
+    root.addTopBar(new Adw.HeaderBar({ title: 'Contacts' }));
     root.setContent(open);
 
     view.add(root, 'root');
@@ -616,7 +617,10 @@ already knows how to be one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    // `NOTIFY_SIDEBAR_SELECTED` is a signal NAME, not a widget, so it has no member in
+    // the `Adw` namespace and keeps the package import.
+    import { NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
     import { mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
@@ -630,10 +634,9 @@ already knows how to be one.
     ];
 
     // The NS surface takes a flat label list (no per-item subtitle/icon slot).
-    const sidebar = new Adw.Sidebar();
+    const sidebar = new Adw.Sidebar({ width: 220 });
     sidebar.setItems(items.map((it) => it.title));
     sidebar.selected = 0;
-    sidebar.width = 220;
 
     const status = new Adw.StatusPage();
     const syncContent = () => {
@@ -810,7 +813,8 @@ content pane, not to work.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
     import { Label, StackLayout } from '@nativescript/core';
 
     const sheet = new Adw.BottomSheet();
@@ -819,9 +823,7 @@ content pane, not to work.
     const center = new StackLayout();
     center.horizontalAlignment = 'center';
     center.verticalAlignment = 'middle';
-    const toggle = new Gtk.Button();
-    toggle.text = 'Toggle sheet';
-    toggle.styleClasses = 'pill';
+    const toggle = new Gtk.Button({ text: 'Toggle sheet', styleClasses: 'pill' });
     toggle.addEventListener('tap', () => { sheet.open = !sheet.open; });
     center.addChild(toggle);
     sheet.setContent(center);
@@ -836,9 +838,7 @@ content pane, not to work.
 
     const group = new Adw.PreferencesGroup();
     for (const rowTitle of ['Copy link', 'Send to a friend', 'Add to playlist']) {
-        const row = new Adw.ActionRow();
-        row.title = rowTitle;
-        group.addRow(row);
+        group.addRow(new Adw.ActionRow({ title: rowTitle }));
     }
     box.addChild(group);
     sheet.setSheet(box);

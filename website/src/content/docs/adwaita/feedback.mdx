@@ -27,7 +27,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews hold each dialog **open** and each toast **visible**, which is not
@@ -127,11 +130,12 @@ on the desktop.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const content = new Adw.StatusPage();
-    content.title = 'Documents';
-    content.description = 'Drag files here to organise them.';
+    const content = new Adw.StatusPage({
+        title: 'Documents',
+        description: 'Drag files here to organise them.',
+    });
 
     const overlay = new Adw.ToastOverlay();
     overlay.setContent(content);
@@ -205,7 +209,7 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
     const dialog = new Adw.AlertDialog(
         'Delete Project?',
@@ -214,6 +218,9 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
 
     dialog.addResponse('cancel', 'Cancel');
     dialog.addResponse('delete', 'Delete');
+    // The appearance is the nick, not a constant: `@gjsify/adwaita-core` spells it
+    // 'default' | 'suggested' | 'destructive' on every surface.
+    dialog.setResponseAppearance('delete', 'destructive');
     dialog.defaultResponse = 'cancel';
     dialog.closeResponse = 'cancel';
 
@@ -290,17 +297,18 @@ Legal sub-pages you never lay out yourself.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
 
-    const dialog = new Adw.AboutDialog();
-    dialog.applicationName = 'Adwaita Storybook';
-    dialog.applicationIcon = '🗔';
-    dialog.version = '0.11.0';
-    // NS exposes only scalar fields: credits fold into the developer line.
-    dialog.developerName = 'A GJSify Project · Ada Lovelace, Grace Hopper';
-    dialog.comments = 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.';
-    dialog.website = 'https://github.com/gjsify/gjsify';
-    dialog.copyright = '© 2026 The GJSify Project';
+    const dialog = new Adw.AboutDialog({
+        applicationName: 'Adwaita Storybook',
+        applicationIcon: '🗔',
+        version: '0.11.0',
+        // NS exposes only scalar fields: credits fold into the developer line.
+        developerName: 'A GJSify Project · Ada Lovelace, Grace Hopper',
+        comments: 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.',
+        website: 'https://github.com/gjsify/gjsify',
+        copyright: '© 2026 The GJSify Project',
+    });
 
     dialog.present();
     ```
@@ -410,32 +418,32 @@ the web port renders them stacked instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 
-    const dialog = new Adw.PreferencesDialog();
-    dialog.title = 'Preferences';
+    const dialog = new Adw.PreferencesDialog({ title: 'Preferences' });
 
-    const page = new Adw.PreferencesPage();
-    const group = new Adw.PreferencesGroup();
-    group.title = 'Appearance';
+    const page = new Adw.PreferencesPage({
+        title: 'General',
+        // `iconName` takes the SVG SOURCE here, not a theme name.
+        iconName: preferencesSystemSymbolic,
+    });
 
-    const darkStyle = new Adw.SwitchRow();
-    darkStyle.title = 'Dark style';
-    darkStyle.subtitle = 'Use a dark colour scheme';
-    darkStyle.active = true;
-    group.addRow(darkStyle);
+    const group = new Adw.PreferencesGroup({
+        title: 'Appearance',
+        description: 'Control how the application looks and behaves.',
+    });
 
-    const accent = new Adw.ComboRow();
-    accent.title = 'Accent colour';
-    accent.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
-    accent.selected = 0;
-    group.addRow(accent);
-
-    const fontSize = new Adw.SpinRow();
-    fontSize.title = 'Font size';
-    fontSize.adjustment = { lower: 8, upper: 24 };
-    fontSize.value = 12;
-    group.addRow(fontSize);
+    group.addRow(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
+    group.addRow(new Adw.ComboRow({
+        title: 'Accent colour',
+        model: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'],
+        selected: 0,
+    }));
+    group.addRow(new Adw.SpinRow({
+        title: 'Font size',
+        adjustment: { lower: 8, upper: 24, value: 12, stepIncrement: 1 },
+    }));
 
     page.addGroup(group);
     dialog.add(page);

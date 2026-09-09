@@ -28,7 +28,10 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+follow its naming, and where one of them differs, its own window says so. Both ports answer
+`gi://Adw` and `gi://Gtk`, so a NativeScript snippet opens with the same import
+line as the Native TypeScript one beside it; `gjsify build --app nativescript
+--gi-renderer` is the opt-in that makes it resolve.
 
 :::note
 The previews run the browser port, so gestures Libadwaita drives natively
@@ -149,17 +152,16 @@ swaps between the two on a breakpoint.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
+    // namespace and keeps the package import.
+    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
-    const page = (icon: string, title: string, description: string): Adw.StatusPage => {
-        const status = new Adw.StatusPage();
-        status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
-        status.title = title;
-        status.description = description;
-        return status;
-    };
+    // An icon here is the SVG SOURCE, not a theme name.
+    const page = (icon: string, title: string, description: string): Adw.StatusPage =>
+        new Adw.StatusPage({ iconName: icon, title, description });
 
     const switcher = new Adw.ViewSwitcher();
     // Each view carries a title + icon (shown on the switcher button) and its content.
@@ -280,7 +282,7 @@ does not appear.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
@@ -290,9 +292,8 @@ does not appear.
         { name: 'starred', title: 'Starred', icon: starredSymbolic },
         { name: 'archive', title: 'Archive', icon: folderSymbolic },
     ]) {
-        const status = new Adw.StatusPage();
-        status.iconName = page.icon; // an Adwaita symbolic icon (SVG string)
-        status.title = page.title;
+        // An icon here is the SVG SOURCE, not a theme name.
+        const status = new Adw.StatusPage({ iconName: page.icon, title: page.title });
         stack.add(status, page.name, page.title, page.icon);
     }
 
@@ -377,16 +378,15 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
+    // namespace and keeps the package import.
+    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const page = (title: string, body: string): Adw.StatusPage => {
-        const status = new Adw.StatusPage();
-        status.iconName = viewGridSymbolic; // a real Adwaita symbolic icon (SVG string)
-        status.title = title;
-        status.description = body;
-        return status;
-    };
+    // `iconName` takes the SVG SOURCE, not a theme name.
+    const page = (title: string, body: string): Adw.StatusPage =>
+        new Adw.StatusPage({ iconName: viewGridSymbolic, title, description: body });
 
     const tabView = new Adw.TabView();
     tabView.setViews([
@@ -508,17 +508,16 @@ makes it fit a header bar or a tight toolbar.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
+    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
+    // namespace and keeps the package import.
+    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
     import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 
-    const page = (icon: string, title: string, body: string): Adw.StatusPage => {
-        const status = new Adw.StatusPage();
-        status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
-        status.title = title;
-        status.description = body;
-        return status;
-    };
+    // An icon here is the SVG SOURCE, not a theme name.
+    const page = (icon: string, title: string, body: string): Adw.StatusPage =>
+        new Adw.StatusPage({ iconName: icon, title, description: body });
 
     const switcher = new Adw.InlineViewSwitcher();
     // display mode "both": pass '' as the title for icons-only, omit icon for labels-only.
@@ -650,7 +649,7 @@ does.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { Adw } from '@gjsify/adwaita-nativescript';
+    import Adw from 'gi://Adw?version=1';
     import { Label, StackLayout, type View } from '@nativescript/core';
 
     const page = (title: string, accent: string): View => {
@@ -668,8 +667,7 @@ does.
         return card;
     };
 
-    const carousel = new Adw.Carousel();
-    carousel.pageWidth = 440;
+    const carousel = new Adw.Carousel({ pageWidth: 440 });
     carousel.addPage(page('Welcome', 'accent'));
     carousel.addPage(page('Discover', 'success'));
     carousel.addPage(page('Get started', 'warning'));
