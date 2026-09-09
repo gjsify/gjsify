@@ -2,6 +2,7 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
+import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 // Type position only — the descriptors pull Adw in for value use themselves.
@@ -72,6 +73,48 @@ export default async () => {
                 const box = createElement('GtkBox');
                 materialize(box);
                 expect(() => setProp(box, 'orientation', 'sideways')).toThrow('GtkOrientation');
+            });
+        });
+
+        await gated(diagnostics, 'portable values at the ParamSpec seam (ADR 0042, 0046, 0047)', async () => {
+            // The ParamSpec TYPE decides, never the property's NAME — the same keying as
+            // the enum branch above. What is pinned here is the premise each branch rests
+            // on and one read-back per value; the vectors that drive them row by row live
+            // in `list-model.spec.ts` and `adjustment.spec.ts`, beside `menu.spec.ts`.
+            await it('reads a Gio.ListModel property off the installed GTK, and what can hold it', async () => {
+                const el = createElement('adw-combo-row');
+                const spec = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype).get('model');
+                expect(spec === undefined).toBe(false);
+                const valueType = (spec as GObject.ParamSpec).value_type;
+                expect(GObject.type_is_a(valueType, Gio.ListModel.$gtype)).toBe(true);
+                expect(GObject.type_is_a(Gtk.StringList.$gtype, valueType)).toBe(true);
+            });
+
+            await it('reads a Gtk.Adjustment property off the installed GTK', async () => {
+                const el = createElement('adw-spin-row');
+                const spec = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype).get('adjustment');
+                expect(spec === undefined).toBe(false);
+                expect(GObject.type_name((spec as GObject.ParamSpec).value_type)).toBe('GtkAdjustment');
+            });
+
+            await it('turns an ARRAY into the model GTK stores, where the name alone would have mis-keyed', async () => {
+                const combo = createElement('adw-combo-row', { model: ['a', 'b'] });
+                const model = (materialize(combo) as unknown as Adw.ComboRow).model as Gtk.StringList;
+                expect(model instanceof Gtk.StringList).toBe(true);
+                expect(model.get_n_items()).toBe(2);
+                // The SAME name on a widget whose ParamSpec is a GtkSelectionModel: refused
+                // by name, naming what GTK wants, before anything is recorded.
+                const view = createElement('gtk-list-view');
+                expect(() => setProp(view, 'model', ['a', 'b'])).toThrow('GtkSelectionModel');
+            });
+
+            await it('turns an OBJECT into the adjustment GTK stores, and refuses a bare number', async () => {
+                const row = createElement('adw-spin-row', { adjustment: { lower: 0, upper: 10, value: 7 } });
+                const widget = materialize(row) as unknown as Adw.SpinRow;
+                expect(widget.adjustment instanceof Gtk.Adjustment).toBe(true);
+                expect(widget.adjustment.upper).toBe(10);
+                expect(widget.value).toBe(7);
+                expect(() => setProp(row, 'adjustment', 3)).toThrow('got a number');
             });
         });
 

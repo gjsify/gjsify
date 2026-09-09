@@ -25,6 +25,7 @@ import {
     type Placement,
 } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
+import { reconcileStringList } from './list-model.js';
 import { coerce, isConstructOnly, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
@@ -252,7 +253,11 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
 
     beginHostWrite(el.widget);
     try {
-        writeProperty(el.widget, name, value);
+        // A `Gtk.StringList` the seam built is spliced into the one the widget holds
+        // rather than written over it — `list-model.ts` has the measurement (replacing
+        // the model drops `selected`, splicing keeps it). Inside the same bracket as the
+        // write it stands in for, so what it emits is an echo by the same rule.
+        if (!reconcileStringList(el.widget, accessorName(name), value)) writeProperty(el.widget, name, value);
     } finally {
         endHostWrite();
     }

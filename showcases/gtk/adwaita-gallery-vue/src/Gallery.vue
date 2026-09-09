@@ -76,6 +76,20 @@
                 :css-classes="['suggested-action']"
             />
         </adw-preferences-group>
+        <adw-preferences-group>
+            <adw-combo-row
+                title="Accent colour"
+                subtitle="Used to highlight selected items"
+                :model="['Blue', 'Teal', 'Green', 'Orange', 'Purple']"
+                :selected="1"
+            />
+        </adw-preferences-group>
+        <adw-preferences-group>
+            <adw-spin-row
+                title="Font size"
+                :adjustment="{ lower: 0, upper: 100, value: 16, stepIncrement: 1 }"
+            />
+        </adw-preferences-group>
         <gtk-button :css-classes="['suggested-action', 'pill']">
             <adw-button-content
                 label="Download"
@@ -128,6 +142,11 @@
         <gtk-entry
             placeholder-text="Search files…"
             :width-request="280"
+        />
+        <gtk-drop-down
+            :model="['Automatic', 'Always', 'Never', 'When busy']"
+            :selected="0"
+            halign="center"
         />
         <adw-clamp
             :maximum-size="400"

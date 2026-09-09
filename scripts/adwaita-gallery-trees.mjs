@@ -50,7 +50,10 @@
  * @typedef {Object} TreeNode
  * @property {string} tag                            a `gtk-host` tag, e.g. 'adw-header-bar'
  * @property {string} [slot]                         placement in the parent's descriptor
- * @property {Record<string, string|number|boolean|string[]>} [props]
+ * @property {Record<string, string|number|boolean|string[]|object[]|Record<string, number>>} [props]
+ *                                                  an object array is a menu model (ADR 0042),
+ *                                                  a string or object array a list model (ADR 0046),
+ *                                                  a numeric object an adjustment (ADR 0047)
  * @property {TreeNode[]} [children]
  */
 
@@ -122,6 +125,53 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Adw.ComboRow',
+        page: 'boxed-lists',
+        // A REFUSAL UNTIL THE SEAM EXISTED. The model is the PORTABLE LIST MODEL (ADR 0046)
+        // — the value the browser and NativeScript renderers already took — and
+        // `coerce` turns it into a real `Gtk.StringList` at the ParamSpec seam (ADR 0046
+        // § Amendment), as it turns the split button's array into a `Gio.Menu`. The
+        // refusal that stood here named exactly that seam.
+        //
+        // `model` is authored BEFORE `selected`, and the order is load-bearing: the host
+        // writes props in author order, and a position written into a row that has no
+        // model yet is clamped away by `GtkSingleSelection`. The probe reads `selected`
+        // back, so the tree is held to it.
+        root: {
+            tag: 'adw-preferences-group',
+            children: [
+                {
+                    tag: 'adw-combo-row',
+                    props: {
+                        title: 'Accent colour',
+                        subtitle: 'Used to highlight selected items',
+                        model: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'],
+                        selected: 1,
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.SpinRow',
+        page: 'boxed-lists',
+        // The range is the PORTABLE ADJUSTMENT (ADR 0047), and `coerce` builds the real
+        // `Gtk.Adjustment` at the same seam (ADR 0047 § Amendment) — the third value on
+        // it. The `value` is INSIDE the adjustment, which is where the GJS and Blueprint
+        // tabs of this block put it too: the object is the whole adjustment, so a value
+        // written there survives a range change where a row property written beside it
+        // would be re-clamped against a range that arrived after it.
+        root: {
+            tag: 'adw-preferences-group',
+            children: [
+                {
+                    tag: 'adw-spin-row',
+                    props: { title: 'Font size', adjustment: { lower: 0, upper: 100, value: 16, stepIncrement: 1 } },
+                },
+            ],
+        },
+    },
     // ----------------------------------------------------------------- buttons
     {
         widget: 'Adw.ButtonContent',
@@ -189,6 +239,19 @@ export const ADWAITA_GALLERY_TREES = [
         widget: 'Gtk.Entry',
         page: 'controls',
         root: { tag: 'gtk-entry', props: { placeholderText: 'Search files…', widthRequest: 280 } },
+    },
+    {
+        widget: 'Gtk.DropDown',
+        page: 'controls',
+        // The same seam as `Adw.ComboRow` — `Gtk.DropDown:model` is the other
+        // `Gio.ListModel` property with a widget on every renderer — and the same order
+        // rule: `model` before `selected`. No `expression`, so no search field: the
+        // default factory draws a `Gtk.StringObject` on its own, which is what
+        // `Gtk.DropDown.new_from_strings` relies on too.
+        root: {
+            tag: 'gtk-drop-down',
+            props: { model: ['Automatic', 'Always', 'Never', 'When busy'], selected: 0, halign: 'center' },
+        },
     },
     // ------------------------------------------------------------------ layout
     {
@@ -562,20 +625,19 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     'Adw.InlineViewSwitcher':
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
-    'Adw.ComboRow':
-        'its model is a Gio.ListModel, and nothing turns the portable list form into one at the ParamSpec seam.',
-    'Adw.SpinRow': 'its range is a Gtk.Adjustment, a GObject that is not a widget.',
     // `Adw.SplitButton` and `Gtk.MenuButton` USED TO BE HERE — "its menu is a
     // Gio.MenuModel, built imperatively". ADR 0042 gave that model a portable value
     // form and `coerce` turns one into a real `Gio.Menu` at the ParamSpec seam, so both
     // blocks are trees above.
     //
-    // THE TWO LIST BLOCKS STAY, AND HALF THE REASON IS GONE. ADR 0046 gave the list its
-    // portable value form too — `AdwListModelInput`, the same one three renderers already
-    // took — so what is missing is no longer a VALUE but the seam: `coerce` has no branch
-    // turning a plain array into a `Gtk.StringList` the way it turns one into a `Gio.Menu`.
-    // That branch is a `@gjsify/gtk-host` change and is tracked in `status/open-todos.md`
-    // under "A portable list model reaches every renderer except GTK".
-    'Gtk.DropDown':
-        'its model is a Gtk.StringList, and nothing turns the portable list form into one at the ParamSpec seam.',
+    // `Adw.ComboRow`, `Gtk.DropDown` AND `Adw.SpinRow` WERE HERE AFTER THEM, for a
+    // release with half their reason gone: ADR 0046 and 0047 gave the list and the range
+    // their portable values and the refusals went on naming the SEAM — "nothing turns the
+    // portable list form into one at the ParamSpec seam", "a GObject that is not a
+    // widget" — until `coerce` gained the two branches (ADR 0046 § Amendment, ADR 0047 §
+    // Amendment). All three are trees above. What nothing read in the meantime was the
+    // refusal itself: 5b holds `uncurated-placement` against the descriptor table and had
+    // no eye on `props.ts`, so arm 5c of `check-generated-website-data.mjs` now holds
+    // every refusal that names a GType against the types `coerce` converts — measured
+    // failing on all three before the trees existed.
 };

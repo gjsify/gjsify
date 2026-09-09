@@ -4,8 +4,10 @@
 // that belongs to the FRAMEWORK rather than to GTK, and each member is here
 // because a measurement said the surface is unusable without it.
 
+import type Gio from '@girs/gio-2.0';
 import type GObject from '@girs/gobject-2.0';
-import type { AdwMenuInput } from '@gjsify/adwaita-core';
+import type Gtk from '@girs/gtk-4.0';
+import type { AdwAdjustmentInput, AdwListModelInput, AdwMenuInput } from '@gjsify/adwaita-core';
 
 import type { HostNode } from './types.js';
 
@@ -152,3 +154,59 @@ type MenuModelProp = 'menuModel' | 'menu-model' | 'extraMenu' | 'extra-menu' | '
 export type WithPortableMenu<T> = Omit<T, MenuModelProp> & {
     [K in MenuModelProp & keyof T]?: T[K] | AdwMenuInput;
 };
+
+/** `A` and `B` are the SAME type — assignable both ways, tuple-wrapped so a union does not distribute. */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/**
+ * The property name a list model travels under, and it is deliberately NOT enough on
+ * its own: `model` is also `Gtk.ListView`'s `Gtk.SelectionModel`, `Gtk.TreeView`'s
+ * `Gtk.TreeModel` and `Gtk.ColumnView`'s selection. The name picks the candidates; the
+ * declared TYPE decides, exactly as the runtime branch keys on the ParamSpec.
+ */
+type ListModelProp = 'model';
+
+/**
+ * A props interface with every `Gio.ListModel`-typed `model` widened to accept the
+ * PORTABLE list model as well (ADR 0046 § Amendment).
+ *
+ * Widened only where the declared type IS `Gio.ListModel` — both directions, so a
+ * `Gtk.SelectionModel` (which extends it) stays as generated. `type-tests/` holds
+ * `<gtk-list-view model={[…]}>` as a compile error, and `coerce` refuses the same
+ * write by name at runtime (`list-model-mismatch`): one keying, two layers.
+ */
+export type WithPortableList<T> = Omit<T, ListModelProp> & {
+    [K in ListModelProp & keyof T]?: Same<NonNullable<T[K]>, Gio.ListModel> extends true
+        ? T[K] | AdwListModelInput
+        : T[K];
+};
+
+/**
+ * The spellings an adjustment property has on the shipped table — `adjustment` on the
+ * widgets that hold one, `hadjustment`/`vadjustment` on `GtkScrollable` and
+ * `GtkScrolledWindow`. The name picks the candidates; the declared TYPE decides.
+ */
+type AdjustmentProp = 'adjustment' | 'hadjustment' | 'vadjustment';
+
+/**
+ * A props interface with every `Gtk.Adjustment`-typed property widened to accept the
+ * PORTABLE adjustment as well (ADR 0047 § Amendment).
+ *
+ * `AdwAdjustmentInput` is any SUBSET of the six numbers, so `{}` is legal (the shared
+ * defaults) and a bare number is not — ADR 0047 § 1's decision, held at compile time
+ * here and by name at runtime (`bad-adjustment`).
+ */
+export type WithPortableAdjustment<T> = Omit<T, AdjustmentProp> & {
+    [K in AdjustmentProp & keyof T]?: Same<NonNullable<T[K]>, Gtk.Adjustment> extends true
+        ? T[K] | AdwAdjustmentInput
+        : T[K];
+};
+
+/**
+ * All three portable values on one props interface — what every dialect surface applies.
+ *
+ * One name so the three surfaces cannot each apply a different subset of the
+ * widenings: the menu was on all three, and the list and the adjustment join it here
+ * rather than in three files.
+ */
+export type WithPortableValues<T> = WithPortableMenu<WithPortableList<WithPortableAdjustment<T>>>;

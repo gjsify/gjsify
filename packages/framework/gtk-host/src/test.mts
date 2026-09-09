@@ -1,6 +1,7 @@
 import { run } from '@gjsify/unit';
 
 import reactSuite from './adapters/react.spec.js';
+import adjustmentSuite from './adjustment.spec.js';
 import buildableSuite from './buildable.spec.js';
 import solidSuite from './adapters/solid.spec.js';
 import vueSuite from './adapters/vue.spec.js';
@@ -17,6 +18,7 @@ import propsSuite from './props.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
 import layoutSuite from './style/layout.spec.js';
+import listModelSuite from './list-model.spec.js';
 import listSuite from './list/list.spec.js';
 import paintSuite from './style/paint.spec.js';
 import sheetSuite from './style/sheet.spec.js';
@@ -39,6 +41,8 @@ run({
     fontsSuite,
     hostSuite,
     menuSuite,
+    listModelSuite,
+    adjustmentSuite,
     conformanceSuite,
     generatorSuite,
     generatedSuite,

@@ -51,6 +51,16 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- AdwButtonRow.vue — mount(AdwButtonRow, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-preferences-group>\n        <adw-button-row\n            title=\"Add account\"\n            start-icon-name=\"list-add-symbolic\"\n            :css-classes=\"['suggested-action']\"\n        />\n    </adw-preferences-group>\n</template>",
         react: "// createRoot(container).render(<AdwButtonRow />) — from '@gjsify/gtk-host/react'\nconst AdwButtonRow = () => (\n    <adw-preferences-group>\n        <adw-button-row\n            title=\"Add account\"\n            startIconName=\"list-add-symbolic\"\n            cssClasses={['suggested-action']}\n        />\n    </adw-preferences-group>\n);",
     },
+    'Adw.ComboRow': {
+        solid: "// mount(() => <AdwComboRow />, container) — from '@gjsify/gtk-host/solid'\nconst AdwComboRow = () => (\n    <adw-preferences-group>\n        <adw-combo-row\n            title=\"Accent colour\"\n            subtitle=\"Used to highlight selected items\"\n            model={['Blue', 'Teal', 'Green', 'Orange', 'Purple']}\n            selected={1}\n        />\n    </adw-preferences-group>\n);",
+        vue: "<!-- AdwComboRow.vue — mount(AdwComboRow, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-preferences-group>\n        <adw-combo-row\n            title=\"Accent colour\"\n            subtitle=\"Used to highlight selected items\"\n            :model=\"['Blue', 'Teal', 'Green', 'Orange', 'Purple']\"\n            :selected=\"1\"\n        />\n    </adw-preferences-group>\n</template>",
+        react: "// createRoot(container).render(<AdwComboRow />) — from '@gjsify/gtk-host/react'\nconst AdwComboRow = () => (\n    <adw-preferences-group>\n        <adw-combo-row\n            title=\"Accent colour\"\n            subtitle=\"Used to highlight selected items\"\n            model={['Blue', 'Teal', 'Green', 'Orange', 'Purple']}\n            selected={1}\n        />\n    </adw-preferences-group>\n);",
+    },
+    'Adw.SpinRow': {
+        solid: "// mount(() => <AdwSpinRow />, container) — from '@gjsify/gtk-host/solid'\nconst AdwSpinRow = () => (\n    <adw-preferences-group>\n        <adw-spin-row\n            title=\"Font size\"\n            adjustment={{ lower: 0, upper: 100, value: 16, stepIncrement: 1 }}\n        />\n    </adw-preferences-group>\n);",
+        vue: "<!-- AdwSpinRow.vue — mount(AdwSpinRow, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-preferences-group>\n        <adw-spin-row\n            title=\"Font size\"\n            :adjustment=\"{ lower: 0, upper: 100, value: 16, stepIncrement: 1 }\"\n        />\n    </adw-preferences-group>\n</template>",
+        react: "// createRoot(container).render(<AdwSpinRow />) — from '@gjsify/gtk-host/react'\nconst AdwSpinRow = () => (\n    <adw-preferences-group>\n        <adw-spin-row\n            title=\"Font size\"\n            adjustment={{ lower: 0, upper: 100, value: 16, stepIncrement: 1 }}\n        />\n    </adw-preferences-group>\n);",
+    },
     'Adw.ButtonContent': {
         solid: "// mount(() => <AdwButtonContent />, container) — from '@gjsify/gtk-host/solid'\nconst AdwButtonContent = () => (\n    <gtk-button cssClasses={['suggested-action', 'pill']}>\n        <adw-button-content\n            label=\"Download\"\n            iconName=\"folder-download-symbolic\"\n        />\n    </gtk-button>\n);",
         vue: "<!-- AdwButtonContent.vue — mount(AdwButtonContent, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-button :css-classes=\"['suggested-action', 'pill']\">\n        <adw-button-content\n            label=\"Download\"\n            icon-name=\"folder-download-symbolic\"\n        />\n    </gtk-button>\n</template>",
@@ -75,6 +85,11 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         solid: "// mount(() => <GtkEntry />, container) — from '@gjsify/gtk-host/solid'\nconst GtkEntry = () => (\n    <gtk-entry\n        placeholderText=\"Search files…\"\n        widthRequest={280}\n    />\n);",
         vue: "<!-- GtkEntry.vue — mount(GtkEntry, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-entry\n        placeholder-text=\"Search files…\"\n        :width-request=\"280\"\n    />\n</template>",
         react: "// createRoot(container).render(<GtkEntry />) — from '@gjsify/gtk-host/react'\nconst GtkEntry = () => (\n    <gtk-entry\n        placeholderText=\"Search files…\"\n        widthRequest={280}\n    />\n);",
+    },
+    'Gtk.DropDown': {
+        solid: "// mount(() => <GtkDropDown />, container) — from '@gjsify/gtk-host/solid'\nconst GtkDropDown = () => (\n    <gtk-drop-down\n        model={['Automatic', 'Always', 'Never', 'When busy']}\n        selected={0}\n        halign=\"center\"\n    />\n);",
+        vue: "<!-- GtkDropDown.vue — mount(GtkDropDown, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-drop-down\n        :model=\"['Automatic', 'Always', 'Never', 'When busy']\"\n        :selected=\"0\"\n        halign=\"center\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkDropDown />) — from '@gjsify/gtk-host/react'\nconst GtkDropDown = () => (\n    <gtk-drop-down\n        model={['Automatic', 'Always', 'Never', 'When busy']}\n        selected={0}\n        halign=\"center\"\n    />\n);",
     },
     'Adw.Clamp': {
         solid: "// mount(() => <AdwClamp />, container) — from '@gjsify/gtk-host/solid'\nconst AdwClamp = () => (\n    <adw-clamp\n        maximumSize={400}\n        tighteningThreshold={300}\n    >\n        <gtk-label\n            label=\"This content is clamped: it stops growing past the maximum size and stays centred.\"\n            wrap\n            xalign={0}\n            cssClasses={['card']}\n        />\n    </adw-clamp>\n);",
@@ -162,7 +177,4 @@ export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.AboutDialog': "a dialog is opened with present(), so a static tree renders nothing a reader would see.",
     'Adw.ViewSwitcherBar': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
     'Adw.InlineViewSwitcher': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
-    'Adw.ComboRow': "its model is a Gio.ListModel, and nothing turns the portable list form into one at the ParamSpec seam.",
-    'Adw.SpinRow': "its range is a Gtk.Adjustment, a GObject that is not a widget.",
-    'Gtk.DropDown': "its model is a Gtk.StringList, and nothing turns the portable list form into one at the ParamSpec seam.",
 };

@@ -104,6 +104,16 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'adw-button-row', gtype: 'AdwButtonRow', props: {"title":"Add account","startIconName":"list-add-symbolic","cssClasses":["suggested-action"]} }
             ] }
     },
+    { widget: 'Adw.ComboRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-combo-row', gtype: 'AdwComboRow', props: {"title":"Accent colour","subtitle":"Used to highlight selected items","model":["Blue","Teal","Green","Orange","Purple"],"selected":1} }
+            ] }
+    },
+    { widget: 'Adw.SpinRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-spin-row', gtype: 'AdwSpinRow', props: {"title":"Font size","adjustment":{"lower":0,"upper":100,"value":16,"stepIncrement":1}} }
+            ] }
+    },
     { widget: 'Adw.ButtonContent', root:
         { tag: 'gtk-button', gtype: 'GtkButton', props: {"cssClasses":["suggested-action","pill"]}, children: [
                 { tag: 'adw-button-content', gtype: 'AdwButtonContent', props: {"label":"Download","iconName":"folder-download-symbolic"} }
@@ -126,6 +136,9 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.Entry', root:
         { tag: 'gtk-entry', gtype: 'GtkEntry', props: {"placeholderText":"Search files…","widthRequest":280} }
+    },
+    { widget: 'Gtk.DropDown', root:
+        { tag: 'gtk-drop-down', gtype: 'GtkDropDown', props: {"model":["Automatic","Always","Never","When busy"],"selected":0,"halign":"center"} }
     },
     { widget: 'Adw.Clamp', root:
         { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
@@ -278,6 +291,42 @@ function menuMatches(actual: unknown, expected: unknown): boolean {
     return true;
 }
 
+/**
+ * A `Gio.ListModel` property against the portable list model the tree declares (ADR 0046).
+ *
+ * The declared value is an ARRAY and what the widget holds is a `Gtk.StringList`, so
+ * `!==` would fail every time. Compared item by item on the ONE string a
+ * `Gtk.StringObject` carries — the label, which is what the widget draws — so the
+ * assertion is that the array became a real model, not that it was accepted.
+ */
+function listMatches(actual: unknown, expected: unknown): boolean {
+    const model = actual as Gtk.StringList | null;
+    const declared = expected as Array<string | { label?: string; value?: string }>;
+    if (!(model instanceof Gtk.StringList)) return false;
+    if (model.get_n_items() !== declared.length) return false;
+    for (let i = 0; i < declared.length; i += 1) {
+        const item = declared[i];
+        const label = typeof item === 'string' ? item : (item.label ?? item.value);
+        if (model.get_string(i) !== label) return false;
+    }
+    return true;
+}
+
+/**
+ * A `Gtk.Adjustment` property against the portable adjustment the tree declares (ADR 0047).
+ *
+ * Every field the tree AUTHORED must read back off the real adjustment; a field it left
+ * out is the core's default and not the tree's claim.
+ */
+function adjustmentMatches(actual: unknown, expected: unknown): boolean {
+    if (!(actual instanceof Gtk.Adjustment)) return false;
+    const held = actual as unknown as Record<string, unknown>;
+    for (const [field, value] of Object.entries(expected as Record<string, number>)) {
+        if (held[field] !== value) return false;
+    }
+    return true;
+}
+
 /** Does the REAL widget carry every property the tree declares? */
 function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefined): boolean {
     for (const [name, expected] of Object.entries(props ?? {})) {
@@ -288,6 +337,14 @@ function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefin
         }
         if (name === 'menuModel') {
             if (!menuMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
+            continue;
+        }
+        if (name === 'model') {
+            if (!listMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
+            continue;
+        }
+        if (name === 'adjustment') {
+            if (!adjustmentMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
             continue;
         }
         const actual = (widget as unknown as Record<string, unknown>)[name];

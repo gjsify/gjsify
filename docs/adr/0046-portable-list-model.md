@@ -1,6 +1,7 @@
 # 46. A list is a value — but only for the widgets GTK gives a `model`
 
-- Status: **Proposed**
+- Status: **Proposed** — amended 2026-09-09, see § Amendment (the GTK seam § 7 left
+  unbuilt exists; `ListController.setRows` is deliberately not widened)
 - Date: 2026-09-04
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md), [ADR 0042 (portable menu model)](0042-portable-menu-model.md)
@@ -269,3 +270,104 @@ reaches every renderer except GTK", with what closes it.
 7. `scripts/check-adwaita-collection-reactivity.mjs` — the derived parser set, the receiver
    resolution with its one forwarding hop, the alias-aware list-setter test, the census.
 8. `scripts/check-vocabulary-alignment.mjs` — the two retired entries.
+
+## Amendment, 2026-09-09 — the seam exists, and `setRows` stays as it is
+
+§ 7 left the GTK half unbuilt and said why: `packages/framework/gtk-host/**` was being
+reworked by two concurrent changes, and a speculative edit there would have landed as a
+merge conflict rather than as a feature. Both changes have landed, and so has the branch.
+
+**What was built.** `coerce` in `packages/framework/gtk-host/src/props.ts` has the branch
+§ 7 described, beside ADR 0042 § 8's `GMenuModel` one, and it is keyed on the ParamSpec —
+never on the property's name — with TWO facts rather than one. The first is the one § 7
+anticipated: the property's type is a `Gio.ListModel`. The second was found by writing the
+vector for it: `Gtk.ListView:model` is a `Gtk.SelectionModel`, which IS a `Gio.ListModel`,
+so a branch keyed on list-ness alone builds a `Gtk.StringList` for it — and what GObject
+does with that was measured in review (GTK 4.22.4, GLib 2.88.3, gjs 1.88.1) rather than
+assumed, because the first draft of this paragraph said "a CRITICAL at exit 0" and no route
+produces one. `set_property`, the route a GObject value takes through the host, transforms
+the mismatched object into NULL and logs NOTHING: the view is empty at exit 0 and the
+diagnostics gate every spec installs sees nothing. Constructed with it, GJS throws a
+`TypeError` from inside `materialize` — after `el.props` has recorded the array a rebuild
+would replay. The branch therefore also asks whether the property can HOLD a
+`Gtk.StringList`, and where it cannot it refuses by name (`list-model-mismatch`) at the call
+that authored it, naming the type GTK wants; `list-model.spec.ts` pins the silent write on
+raw GTK so the refusal cannot be read as belt-and-braces. The type surface keys the same
+way: `WithPortableList<T>` widens `model` only where its declared type is exactly
+`Gio.ListModel`, and `type-tests/` holds `<gtk-list-view model={[…]}>` as a compile error.
+
+The construction is `gtk-host/src/list-model.ts`: a `Gtk.StringList` of the LABELS. Not a
+store of richer objects, because `Adw.ComboRow` and `Gtk.DropDown` draw a
+`Gtk.StringObject` with no factory and no expression, and a richer model would need an
+`expression` written beside it — a second property from one prop.
+
+**What does not cross, measured.** A `Gtk.StringObject` holds one string, so an item's
+`value` does not reach GTK; `fromStringList` answers each label as its own value, and
+`list-model.spec.ts` drives every `LIST_NORMALIZE_VECTORS` row through the builder and back
+and asserts exactly that. It is not a loss on this surface: GTK spells a selection as a
+POSITION (`AdwComboRow:selected`) and has no `selectedValue`, so the core's addressing
+vocabulary has no reader here. The other door that does not open is the markup one:
+`LIST_PARSE_VECTORS` are JSON strings, and a string on this seam is refused by name
+(`bad-list-model`) rather than parsed — the total parser would have answered an EMPTY
+list for four of the five rows without a word, which is the exit-0 shape this layer exists
+to refuse.
+
+**What it was measured against.** `packages/framework/gtk-host/src/list-model.spec.ts` and
+the ParamSpec block in `props.spec.ts`, on both CI legs (`test:gjs`, `test:gjs-on-node`)
+with the diagnostics gate on: the vectors above, the two widgets reading back a real
+`Gtk.StringList`, `selected` landing on the model it was authored with, a real
+`Gio.ListModel` passing through by identity, and the three refusals. And the gallery:
+`Adw.ComboRow` and `Gtk.DropDown` have their Solid, Vue and React snippets, compiled and
+asserted against the real tree by `showcases/gtk/adwaita-gallery-{solid,vue,react}`.
+
+**A list the seam built is updated in place, never replaced.** Found in review, as a
+design question before it was a vector: `coerce` builds a new `Gtk.StringList` per write,
+and `AdwComboRow:selected` is a POSITION into the model. Measured through a real
+`Adw.ComboRow` and a real `Gtk.DropDown` at selected 2 of `['a','b','c']`: replacing the
+model lands on 0 — with one label changed and with the same three strings alike — while
+`splice` on the list the widget already holds keeps it, a whole-list splice by position
+and a minimal one by ITEM (a prepend moves 2 → 3 under the same string). `coerce` stays
+pure and never sees the widget, so the update is `setProp`'s: it hands the freshly built
+list to `reconcileStringList` (`list-model.ts`), which splices the common-prefix/suffix
+difference into the held list and writes nothing for an equal array. Only a list the seam
+built is spliced; an application's own `Gtk.StringList` is replaced, as the imperative
+line would. The adjustment is deliberately NOT given the same treatment: its value is in
+the object, so re-handing it re-asserts that value by contract, and an in-place
+`configure` would land on the same six numbers a fresh object does (`adjustment.ts`).
+
+**The React Native arm hands the value through.** `combo-row.gtk.tsx` built the
+`Gtk.StringList` by hand — the "one package over" copy § 7 named — and now hands the
+authored array to the seam and imports no `gi://`. Its content-keyed memo is gone with it:
+it existed because a new model per render reset the selection, and the seam answers an
+equal array with no write now, so the workaround went home to the core;
+`preferences.gtk.spec.tsx` keeps the assertion the memo was for.
+
+**`ListController.setRows` is NOT widened, and the reason is structural.** "What this does
+NOT decide" made it part of this decision, so it is decided here: refused.
+`@gjsify/gtk-host/list` answers a different question from this seam. `setRows(rows)` takes
+KEYED rows — `Row extends ListRowKey` — because a key is what decides whether GTK has to
+hear about a change at all, and it serves a `Gtk.ListView`, whose rows are RENDERED by the
+dialect through a factory. An `AdwListModel` item has no key and no subtree: its `value` is
+not unique by contract (`['a', 'a']` normalises to two items), so a widened `setRows` would
+have to invent one — the index, which makes every row after an insertion change identity,
+the exact reason `rowKey` in `@gjsify/react-native` puts the index LAST; or the value,
+which collides. The one consumer of the subpath, `@gjsify/react-native`, hands it rows keyed
+by its own `keyExtractor` and never an `AdwListModel`. A consumer that wants a
+`Gtk.ListView` of strings maps the model to `{ key: value, … }` in one line at the call
+site, where uniqueness is its own knowledge. The seam this ADR built is for the widgets that
+draw a string list with no factory; the controller is for the ones that draw a subtree per
+row, and putting a model type on the second would be the GTK word on a value GTK does not
+have that § 1 refused for the method-built widgets.
+
+**A gate grew with it.** The three refusals stood for a release with half their reason
+gone, and nothing read them: arm 5b of `check-generated-website-data.mjs` holds
+`uncurated-placement` refusals against the descriptor table and had no eye on `props.ts`.
+Arm 5c now holds every refusal that names a GType against the types `coerce` converts —
+measured printing three failures with the branches present and the refusals still in the
+ledger, before the trees replacing them existed.
+
+**Deliberately left open.** `GtkListView`, `GtkGridView` and `GtkColumnView` keep their
+`Gtk.SelectionModel`-typed `model` un-widened; a portable SELECTION model is the layering
+"What this does NOT decide" declined and this amendment declines again. The method-built
+widgets are unchanged: `status/open-todos.md` carries them under "The list widgets GTK
+builds with a METHOD have no portable collection", and the seam is not the fix for them.

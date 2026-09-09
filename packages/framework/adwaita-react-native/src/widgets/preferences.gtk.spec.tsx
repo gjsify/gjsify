@@ -327,12 +327,14 @@ export default async () => {
             });
 
             await it('keeps the selection across an unrelated re-render', async () => {
-                // WHAT THE MEMO IN `combo-row.gtk.tsx` IS FOR, as an assertion rather than a
-                // paragraph. gtk-host writes a property only when the prop CHANGES, and a
-                // freshly constructed `Gtk.StringList` is a new value on every render — so
-                // without the memo an unrelated prop change rewrites `model`, and
-                // `adw_combo_row_set_model` takes the selection back to 0. Nothing else in
-                // this suite re-renders a combo row, so nothing else can see it.
+                // THE CONSUMER'S HALF of a measurement `@gjsify/gtk-host` owns. An inline
+                // `model={[…]}` literal is a new array on every render, and a new
+                // `Gtk.StringList` per render took the selection back to 0 through
+                // `adw_combo_row_set_model` — which `combo-row.gtk.tsx` used to hold off
+                // with a content-keyed memo. The seam splices a list it built and writes
+                // nothing for an equal array now (`gtk-host/src/list-model.ts`), so this
+                // asserts the same thing with no memo in the way. Nothing else in this
+                // suite re-renders a combo row, so nothing else can see it.
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
                         <AdwComboRow title="Style" model={['Light', 'Dark', 'System']} selected={2} />

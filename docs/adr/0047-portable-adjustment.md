@@ -1,6 +1,7 @@
 # 47. A numeric range is a value, and the value is `Gtk.Adjustment`
 
-- Status: **Proposed**
+- Status: **Proposed** — amended 2026-09-09, see § Amendment (the `coerce` branch § 7
+  named as open exists)
 - Date: 2026-09-05
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md), [ADR 0042 (portable menu model)](0042-portable-menu-model.md), [ADR 0046 (portable list model)](0046-portable-list-model.md)
@@ -239,3 +240,55 @@ waiting on it, and `status/open-todos.md` carries it.
   `update-policy`, `wrap` and `digits` are ROW properties rather than adjustment ones and
   are untouched; `snap-to-ticks` is present as arithmetic and not as a widget property,
   because no widget here exposes it.
+
+## Amendment, 2026-09-09 — the `coerce` branch exists, and the object is the whole adjustment
+
+§ 7 built the GTK edge in `spin-row.gtk.tsx` because that was the one file that could
+import `gi://` without a new dependency, and named the `coerce` branch as the open item.
+It exists: `packages/framework/gtk-host/src/props.ts` turns an authored OBJECT into a real
+`Gtk.Adjustment` for every property whose ParamSpec type is one — the seven interfaces of
+§ Context, keyed on the type and never on `adjustment`/`hadjustment`/`vadjustment` — and
+`gtk-host/src/adjustment.ts` is the construction. `WithPortableAdjustment<T>` is the type
+half, applied through `WithPortableValues<T>` on all three dialect surfaces.
+
+**A bare number is refused by name.** § 1 decided a number is not an adjustment because it
+would be the `value`, and `value` is its own property on every one of those widgets. The
+seam holds that at both layers: `<adw-spin-row adjustment={5}>` is a compile error in
+`type-tests/` and `bad-adjustment` at runtime, with the message naming the two spellings it
+would otherwise have made one write. A JSON string is refused the same way:
+`ADJUSTMENT_PARSE_VECTORS` are the browser element's attribute door, and on this seam every
+one of its string rows is a refusal, not a parse.
+
+**The object is the WHOLE adjustment, and that is a decision.** `normalizeAdjustment` fills
+the authored subset out to six numbers from `ADW_ADJUSTMENT_DEFAULTS`, and what it answers
+is what GTK gets — `ADJUSTMENT_AUTHORED_VECTORS` is driven verbatim through the builder, read
+back off the real `Gtk.Adjustment`, and written through a real `Adw.SpinRow`, so the core's
+answer and GTK's own clamp cannot disagree without a row naming the input. That is the
+READ of § 7's `spin-row.gtk.tsx` and NOT the read of `SpinState.configure` (§ 4), which
+keeps unwritten fields: a stateful surface has a state to keep them from, a props object
+has not — it is a complete description, the way `new Gtk.Adjustment({ lower, upper })` in a
+GJS application is. The consequence is that line's, and `adjustment.spec.ts` pins it:
+replacing a mounted widget's adjustment with an input naming no `value` lands the value on
+the LOWER bound. An author who wants the value to survive a range change writes it INSIDE
+the adjustment, which is where the GJS and Blueprint spellings of the gallery block already
+put it, and where the gallery's own framework tree puts it now.
+
+**What it was measured against.** `adjustment.spec.ts` on both CI legs with the
+diagnostics gate on: the authored vectors as above, four of the seven holders reading back
+a real `Gtk.Adjustment` (`AdwSpinRow`, `GtkSpinButton`, `GtkScale` for `GtkRange`,
+`GtkScrolledWindow:hadjustment`), a real `Gtk.Adjustment` passing through by identity, the
+ROW-property `value` landing after the adjustment (author order is write order in
+`materialize`), and the refusals. `Adw.SpinRow` has its Solid, Vue and React snippets in the
+gallery, compiled and asserted against the real tree — the refusal that stood there said "a
+GObject that is not a widget", which arm 5c of `check-generated-website-data.mjs` now reads
+as the stale claim it had become.
+
+**The React Native arm hands the value through.** `spin-row.gtk.tsx` no longer constructs
+the `Gtk.Adjustment`; it hands the seam ONE memoised object with the clamped value inside
+it and imports no `gi://`. The memo and the "value on the adjustment, not on the row" rule
+both stay, for the reasons the file gives.
+
+**Deliberately left open.** `GtkScaleButton` and `GtkScrollbar` go through the same branch
+and are not driven by a vector — a fifth and sixth identical row would prove nothing the
+`GtkRange` and `GtkScrolledWindow` rows do not. No widget here exposes `snap-to-ticks`, so
+`ADJUSTMENT_SNAP_VECTORS` stay a slider-arithmetic table and are not a seam matter.
