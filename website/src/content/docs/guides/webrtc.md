@@ -106,7 +106,7 @@ your source and injects the matching register module for you.
 would rather import them by hand.
 
 **It needs a running main loop, not a window.** WebRTC is driven by GLib main-context callbacks,
-so a headless `GLib.MainLoop` is enough — but without one the handshake never progresses.
+so a headless `GLib.MainLoop` is enough. Without one the handshake never progresses.
 
 **`addIceCandidate` returns a promise, and it rejects.** Server-reflexive candidates come back
 from a STUN server long after the local host candidates do, so on a short-lived connection they
@@ -149,16 +149,16 @@ apart exactly where you least want them to.
 `gstreamer1-plugins-good` puts `pulsesrc` on practically every Linux install, container images
 included, and `Gst.ElementFactory.make('pulsesrc')` succeeds there whether or not an audio
 daemon is listening. So on a headless server, inside a container, or in a sandboxed app without
-audio access, `getUserMedia` claimed a source that could never produce a buffer — and the
-synthetic fallback below it, the one source that *does* work on such a host, was unreachable
+audio access, `getUserMedia` claimed a source that could never produce a buffer. And the
+synthetic fallback below it, the one source that *does* work on such a host, was unreachable,
 because a broken `pulsesrc` was always claimed first.
 
 Nothing threw. You got a track, and the track was dead. The failure surfaced seconds later and
 somewhere else entirely: `addTrack` wired the dead source up, `webrtcbin` sent no RTP, and the
 remote peer's `track` event simply never fired. It reads as a WebRTC bug and it is not one.
 
-Now each candidate is started for real — in a throwaway `src ! <converter> ! fakesink`
-pipeline — and kept only if that does not fail. Candidates are tried in order:
+Now each candidate is started for real, in a throwaway `src ! <converter> ! fakesink`
+pipeline, and kept only if that does not fail. Candidates are tried in order:
 
 | Kind | Real sources, in order | Synthetic fallback |
 |---|---|---|
@@ -176,7 +176,7 @@ So colour bars instead of your face, or a sine tone instead of a room, is the pa
 that no real device opened. Treat it as a diagnosis. It is a far better one than silence, and
 `track.label` names the element that won.
 
-A source that is still starting up counts as a pass, not a failure — a live camera that has not
+A source that is still starting up counts as a pass, not a failure. A live camera that has not
 prerolled within half a second is slow, not broken.
 
 ### The probe runs once per process
@@ -215,17 +215,17 @@ const stream = await getUserMedia({
 ```
 
 `navigator.mediaDevices.getSupportedConstraints()` is the machine-readable version of that table.
-Everything it reports `false` for — `echoCancellation`, `noiseSuppression`, `autoGainControl`,
-`facingMode`, `aspectRatio`, `resizeMode`, `latency`, `groupId` — is accepted and ignored, the
-way a browser treats an unsupported non-required constraint. `deviceId` is accepted too, but it
-does not yet select the device: source selection is the probe order above, not your hint.
+Everything it reports `false` for is accepted and ignored, the way a browser treats an
+unsupported non-required constraint: `echoCancellation`, `noiseSuppression`, `autoGainControl`,
+`facingMode`, `aspectRatio`, `resizeMode`, `latency`, `groupId`. `deviceId` is accepted too, but
+it does not yet select the device: source selection is the probe order above, not your hint.
 
 ### enumerateDevices comes back empty in containers
 
 `navigator.mediaDevices.enumerateDevices()` returns an empty array when `CI` is set in the
 environment, or when neither `DISPLAY` nor `WAYLAND_DISPLAY` is. GStreamer's `DeviceMonitor` can
 crash inside native code on some GJS and GStreamer combinations in containers, and a native crash
-is not something a `try`/`catch` in JavaScript can rescue you from — so it is not attempted where
+is not something a `try`/`catch` in JavaScript can rescue you from, so it is not attempted where
 there are almost certainly no devices to find. Do not treat an empty list as "this machine has no
 microphone"; call `getUserMedia` and read `track.label`.
 
@@ -237,7 +237,7 @@ gap: capture once, and the following `enumerateDevices` fills the names in.
 
 ### Never send an empty string
 
-`channel.send('')` **closes the channel.** Not "drops the message" — closes it, and everything
+`channel.send('')` **closes the channel.** Not "drops the message": closes it, and everything
 you send afterwards is lost.
 
 It gives you no signal at the call site. `send` returns normally, throws nothing, and
@@ -252,12 +252,12 @@ readyState 1.5 s later:       closing
 ```
 
 That combination is what makes this so confusing in the field. Nothing fails where the mistake
-is, the data that vanishes is the data that came *after*, and the channel dies a beat later — so
+is, the data that vanishes is the data that came *after*, and the channel dies a beat later. So
 it reads as a race somewhere else in your protocol.
 
 This is an upstream defect in GStreamer 1.28.5, not something the package can work around.
 GStreamer's data channel builds a zero-length buffer for the empty-string path, where RFC 8831
-§ 6.6 requires one zero byte — SCTP cannot carry an empty user message at all, which is exactly
+§ 6.6 requires one zero byte. SCTP cannot carry an empty user message at all, which is exactly
 why the spec spends a byte on saying so.
 
 Guard the call site:
@@ -267,8 +267,8 @@ if (text.length > 0) channel.send(text);
 ```
 
 If an empty payload means something in your protocol, give it a one-byte encoding of its own
-rather than sending nothing — a single-character sentinel, or a JSON envelope such as
-`{"type":"ping"}`, both of which survive the trip.
+rather than sending nothing: a single-character sentinel, or a JSON envelope such as
+`{"type":"ping"}`. Both survive the trip.
 
 ### Large messages throw rather than vanish
 
@@ -284,7 +284,7 @@ max message size: 262144
 ```
 
 That value comes from the peer's `a=max-message-size` SDP attribute, and falls back to 262144
-bytes — as in the loopback above, where neither side advertises one. A `0` means unlimited.
+bytes, as in the loopback above, where neither side advertises one. A `0` means unlimited.
 Frame anything larger yourself.
 
 The throw is the feature. Before it existed an oversize `send` returned normally and the frame
@@ -297,12 +297,12 @@ to the browser's own native WebRTC, so one source file builds both ways and you 
 side by side and compare them line by line.
 
 There is no `--app node` build. The backend is a GStreamer pipeline reached through a typelib,
-which Node, Bun and Deno have no route to — so anything built on this package should declare
+which Node, Bun and Deno have no route to. So anything built on this package should declare
 `gjs` in its `gjsify.runtimes`, and a `--runtime node` request then fails with an explanation
 rather than a crash.
 
 ## Related
 
-- [WebRTC Loopback](/gjsify/showcases/webrtc-loopback/) — the data-channel handshake as a runnable showcase, in GJS and in the browser.
-- [WebRTC Video](/gjsify/showcases/webrtc-video/) — `getUserMedia` into a GTK 4 `Gtk.Picture` via `video.srcObject`.
-- [Web API packages](/gjsify/packages/web/) — what else `@gjsify/webrtc` covers and which GNOME libraries back it.
+- [WebRTC Loopback](/gjsify/showcases/webrtc-loopback/): the data-channel handshake as a runnable showcase, in GJS and in the browser.
+- [WebRTC Video](/gjsify/showcases/webrtc-video/): `getUserMedia` into a GTK 4 `Gtk.Picture` via `video.srcObject`.
+- [Web API packages](/gjsify/packages/web/): what else `@gjsify/webrtc` covers and which GNOME libraries back it.

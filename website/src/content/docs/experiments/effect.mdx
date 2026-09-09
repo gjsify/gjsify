@@ -1,6 +1,6 @@
 ---
 title: Effect
-description: An optional integration, not a recommended pattern. Effect's platform services over Gio.File and GLib - typed errors, cancellation that reaches GIO, and cleanup tied to a window. Most GNOME apps do not need it.
+description: "An optional integration, not a recommended pattern. Effect's platform services over Gio.File and GLib: typed errors, cancellation that reaches GIO, and cleanup tied to a window. Most GNOME apps do not need it."
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -8,10 +8,10 @@ import CommandTabs from '../../../components/CommandTabs.astro';
 :::caution[Read this first]
 This is an **experiment**, not part of the recommended way to build a GJSify app. Effect is a
 whole programming style, not a feature: adopting it changes how every function in your codebase
-is written, and nothing else on this site assumes you have.
+is written, and nothing else on this site assumes you have adopted it.
 
 **Most GNOME apps should skip it.** If you are here because something on this page sounds
-useful, check the cheaper answer first — it usually exists.
+useful, check the cheaper answer first. It usually exists.
 :::
 
 ## Should you use this?
@@ -26,7 +26,7 @@ a paradigm, and the next person reading your code will already know the language
 written in.
 
 **Possibly yes, if** your app runs a lot of I/O that can fail in ways you have to tell apart,
-that can be cancelled, and that overlaps — several services being reconciled against each
+that can be cancelled, and that overlaps: several services being reconciled against each
 other, a long import that a user may abandon halfway, a pipeline where "which step failed and
 why" is itself part of the domain. That is where `Effect<A, E, R>` starts giving back more
 than it costs, because the failure channel and the dependency set stop being conventions and
@@ -35,7 +35,7 @@ become types the compiler checks.
 **In either case it stays optional.** `@gjsify/effect-platform` is a bridge, not a foundation:
 nothing else in GJSify depends on it, and no other page assumes it.
 
-## What the bridge actually provides
+## What the bridge provides
 
 If you have decided Effect is right for your app, three things about GNOME are otherwise
 awkward, and this is what the package answers:
@@ -56,8 +56,8 @@ window stays exactly what it was; Effect runs the work behind it. See
 
 ## Install
 
-Effect itself runs on GJS unchanged — it is an ordinary npm dependency and needs nothing from
-us.
+Effect itself runs on GJS unchanged. It is an ordinary npm dependency and needs nothing from
+gjsify.
 
 <CommandTabs title="Install" group="pm">
   <Fragment slot="gjsify">
@@ -138,7 +138,7 @@ const outcome = Effect.gen(function* () {
 );
 ```
 
-The tags are Effect's, not ours, which is the point: the same code works against
+The tags are Effect's own rather than gjsify's, which is the point: the same code works against
 `@effect/platform-node`'s layer if you ever run it off GNOME.
 
 :::note[Why the domain matters]
@@ -151,7 +151,7 @@ original message rather than a plausible near miss.
 ## Stop work when the window closes
 
 This is the part that has no equivalent in a plain GJS app. Give the window a scope, start
-work inside it, and closing the window interrupts everything it started — including the read
+work inside it, and closing the window interrupts everything it started, including the read
 in flight, because the interrupt reaches GIO's own `Gio.Cancellable`.
 
 ```ts
@@ -187,12 +187,12 @@ export class MyWindow extends Adw.ApplicationWindow {
 ```
 
 A promise cannot be cancelled, so a `readDirectory` started with `await` runs to completion no
-matter what the user does. A fiber can, and here the cancellation is not just bookkeeping: the
-GIO call stops.
+matter what the user does. A fiber can, and the cancellation is not bookkeeping: the GIO call
+stops.
 
 :::caution[`destroy` is not when the window closes]
 `GtkWidget::destroy` is emitted from *dispose*, and your application holds a reference to its
-own window — so `window.destroy()` emits `unrealize` and no `destroy` at all. A scope hooked to
+own window, so `window.destroy()` emits `unrealize` and no `destroy` at all. A scope hooked to
 `destroy` alone keeps a closed window's work running.
 
 That is why there are two functions. `windowScope(window)` closes on `close-request` **or**
@@ -203,9 +203,9 @@ which is the later, stricter boundary: after it, touching the widget is a GJS er
 ## A signal as a stream
 
 `propertyStream` turns a GObject property into a stream of its values, starting with the one
-it has now. From there the usual stream operators apply — and `switchMap` gives you something
-that is real work to write by hand: each new value **interrupts** the work the previous one
-started.
+it has now. From there the usual stream operators apply. `switchMap` in particular gives you
+something that is real work to write by hand: each new value **interrupts** the work the
+previous one started.
 
 ```ts
 import { Duration, Effect, Stream } from 'effect';
@@ -229,7 +229,7 @@ guessing between them would be wrong some of the time.
 ### One rule: handlers stay synchronous
 
 A GTK signal handler runs synchronously, and some of them return a value GTK reads
-immediately — `Gtk.EventControllerKey::key-pressed` returns a boolean that decides whether the
+immediately. `Gtk.EventControllerKey::key-pressed` returns a boolean that decides whether the
 key propagates. An `async` handler returns a Promise, which is truthy, so it would swallow
 every key it was asked about.
 
@@ -267,7 +267,7 @@ const parent = await Effect.runPromise(Effect.provide(parentOf('~/Documents/note
 ```
 
 `join` is `g_build_filenamev`, `resolve` is `g_canonicalize_filename`, and the file-URL pair is
-`g_filename_{from,to}_uri` — the same encoding GIO round-trips. Everything else follows Node's
+`g_filename_{from,to}_uri`, the same encoding GIO round-trips. Everything else follows Node's
 `path.posix` rules exactly, and there is a test that compares the two implementations operation
 by operation to keep it that way.
 
@@ -309,21 +309,21 @@ Three more are implemented but **not interruptible**, because their async forms 
 from GJS: `copy`, `copyFile` and `rename` block the fiber while they run. Everything else can
 be cancelled.
 
-`watch` maps GIO's file-monitor events onto Effect's three `WatchEvent` shapes; a rename inside
-the watched directory currently surfaces as nothing, because GIO reports it as one `RENAMED`
+`watch` maps GIO's file-monitor events onto Effect's three `WatchEvent` shapes. A rename inside
+the watched directory currently shows up as nothing, because GIO reports it as one `RENAMED`
 event that has no counterpart.
 
 ## What it costs
 
 Importing Effect and running one effect adds about **25 KB** to a GJS bundle and **2 ms** to
 cold start. A real GTK window using these layers lands in the same size class as comparable
-windows that use no Effect at all — tree-shaking works, and you pay for what you import.
+windows that use no Effect at all. Tree-shaking works, and you pay for what you import.
 
 ## Where to look next
 
-- [effect.website](https://effect.website) for Effect itself — this page assumes nothing about
+- [effect.website](https://effect.website) for Effect itself. This page assumes nothing about
   it beyond `Effect.gen`, `Effect.provide` and `Stream`.
 - The [`effect-adw-services` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/effect-adw-services)
   is a complete window built this way, and every snippet above is taken from it.
 - [UI Frameworks](/gjsify/frameworks/) for the rendering half, which Effect deliberately does
-  not touch — and which, unlike this page, is part of the recommended path.
+  not touch, and which, unlike this page, is part of the recommended path.

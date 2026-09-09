@@ -7,14 +7,14 @@ import CommandTabs from '../../../components/CommandTabs.astro';
 
 Write your GTK 4 window in Solid, Vue or React, and get real `Gtk` and `Adw` widgets.
 
-GTK can already describe a window rather than assemble it — that is what Blueprint is for, and
-it does property bindings too. What a template cannot do is change its own shape: a `.blp` is
+GTK can already describe a window rather than assemble it. That is what Blueprint is for, and
+it does property bindings too. What a template cannot do is change its own shape. A `.blp` is
 instantiated once, so anything that appears, disappears or reorders while the app runs goes
 back into imperative code.
 
-Keeping a tree in sync with your state is exactly what a UI framework is for. Solid, Vue and
-React can all render somewhere other than a browser — they just need an object model to build
-against, and GTK's is not the DOM.
+Keeping a tree in sync with your state is what a UI framework is for. Solid, Vue and React can
+all render somewhere other than a browser. They need an object model to build against, and
+GTK's is not the DOM.
 
 [`@gjsify/gtk-host`](https://www.npmjs.com/package/@gjsify/gtk-host) is that object model.
 Nothing is hidden: every tag names a real GTK class, and you mount into a window your
@@ -22,7 +22,7 @@ application already built.
 
 :::tip[Blueprint is not replaced]
 The two answer different questions and mix well. Blueprint is the better choice for a window
-whose shape is fixed — and it is the only one of the two that `xgettext` can translate. Reach
+whose shape is fixed, and it is the only one of the two that `xgettext` can translate. Reach
 for a framework where the shape follows the data.
 :::
 
@@ -70,31 +70,37 @@ Your framework is a peer dependency and stays yours: `solid-js`, `@vue/runtime-c
 |---|---|---|---|
 | Solid | `@gjsify/gtk-host/solid` | `solid-js/universal`, 10 methods | [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) |
 | Vue | `@gjsify/gtk-host/vue` | `@vue/runtime-core`, 10 required + 4 optional | [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) |
-| React | `@gjsify/gtk-host/react` | `react-reconciler` HostConfig | none — TypeScript's own automatic runtime |
+| React | `@gjsify/gtk-host/react` | `react-reconciler` HostConfig | none, TypeScript's own automatic runtime does it |
 
 Pick one and the rest of this page is the same for all three. All three speak GTK's own tag
 vocabulary: `<gtk-box orientation="vertical">`, GTK property names, `css-classes` as a string
 array.
+
+None of the code on this page names a runtime. The host is plain TypeScript over `gi://`, so
+every example here builds and runs on GJS, Node.js, Bun and Deno from one source.
+[Runtimes](/gjsify/runtimes/) has that story, along with the two further targets the same widget
+names reach: a browser build, and an experimental NativeScript one for Android and iOS.
 
 ## Bringing a React Native app instead
 
 `<View>`, `<Text>`, `<Pressable>` and `className="flex-1 items-center"` are a *different*
 vocabulary, and it renders over the same host rather than beside it:
 
-- [React Native](/gjsify/frameworks/react-native/) — React Native's export surface on GTK 4, the
-  package a bundler aliases `react-native` to. Every name it does not implement is still exported
-  and refuses with a status and a reason, so a divergence is something you read rather than
-  something you find in a window.
-- [Styling on GTK](/gjsify/frameworks/styling/) — `@gjsify/gtk-host/style`, the framework-agnostic
-  half of that. `class="flex-1"` in a Vue template is the same question as `className="flex-1"` on
-  a React element, which is why it is a subpath of the host and not part of the React Native
-  package. It also carries the traps that make GTK styling fail *silently*, each one measured.
+- [React Native](/gjsify/frameworks/react-native/) puts React Native's exports on GTK 4. It is
+  the package a bundler aliases `react-native` to. Every name it does not implement is still
+  exported and refuses with a status and a reason, so you read a divergence instead of finding
+  it in a window.
+- [Styling on GTK](/gjsify/frameworks/styling/) is `@gjsify/gtk-host/style`, the
+  framework-agnostic half of that. `class="flex-1"` in a Vue template is the same question as
+  `className="flex-1"` on a React element, which is why it is a subpath of the host rather than
+  part of the React Native package. That page also carries the traps that make GTK styling fail
+  *silently*, each one measured.
 
 ## Solid JSX
 
-`registerBuiltinWidgets()` loads the generated table; after that the tags are available.
-Build with [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/), which is what turns
-the JSX into calls against the host.
+`registerBuiltinWidgets()` loads the generated table, and after that the tags are available.
+Build with [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/), which turns the JSX
+into calls against the host.
 
 ```tsx
 import Adw from 'gi://Adw?version=1';
@@ -211,11 +217,11 @@ app.connect('activate', () => {
 await app.runAsync([]);
 ```
 
-The Vue adapter exports `render`, `createApp`, `mount`, `adopt` and `widgetOf`. You will reach
-for the last one less often here than in Solid or React: you already hold the window you
-mounted into, and a widget *inside* the tree is what a `ref` on the element gives you, as in
-any Vue app. `widgetOf` is there for the case where what you hold is a host node rather than a
-component instance.
+The Vue adapter exports `render`, `createApp`, `mount`, `adopt` and `widgetOf`. You reach for
+the last one less often here than in Solid or React. You already hold the window you mounted
+into, and a `ref` on an element gives you a widget *inside* the tree, as in any Vue app.
+`widgetOf` is for the case where what you hold is a host node rather than a component
+instance.
 
 Both tag spellings work in a template. `<GtkLabel>` and `<gtk-label>` resolve to the same
 widget and to the same type-check key, so pick one and stay with it. The build needs
@@ -224,7 +230,7 @@ has the recipe and the reason.
 
 ## React
 
-React needs no compile plugin — its JSX is a runtime, and the adapter ships the automatic
+React needs no compile plugin. Its JSX is a runtime, and the adapter ships the automatic
 runtime TypeScript expects. Point `jsxImportSource` at the subpath, not at `react`:
 
 ```jsonc
@@ -255,8 +261,9 @@ scheduler, so an unflushed first render would leave the container empty and say 
 
 Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps every DOM tag
 `@types/react` pre-declares from type-checking clean against a GTK renderer. The build needs two
-flags instead of a plugin — `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`; the
-[React page](/gjsify/frameworks/react/) has both, with the reason each one exists.
+flags instead of a plugin, `--define 'process.env.NODE_ENV="production"'` and
+`--exclude-globals navigator`. The [React page](/gjsify/frameworks/react/) has both, with the
+reason each one exists.
 
 ## What the host refuses to do quietly
 
@@ -304,9 +311,9 @@ is measured per widget rather than inherited.
 ## A dialog is presented, not adopted
 
 One family of widgets takes none of the rules above, and the difference is not a degradation you
-can work around. An `Adw.Dialog` is **presented against** a parent and never parented by it, so
-its place in your tree and its place in the GTK tree are different places — a portal. Put one in
-a box and the process aborts.
+can work around. An `Adw.Dialog` is **presented against** a parent and never parented by it. Its
+place in your tree and its place in the GTK tree are two different places, a portal. Put one in a
+box and the process aborts.
 
 So a dialog declares that instead, and the host places it by calling `present()` on the dialog
 rather than an adder on the parent. Write it exactly where it belongs in your markup:
@@ -331,19 +338,19 @@ Three things follow, and they are the same in all three adapters because the rul
 
 - **the dialog is not a child of the box.** It takes no position in the box's child list, so the
   button above it is the box's only child and adding or removing the dialog never moves anything.
-- **rendering it opens it; unrendering it closes it.** There is no imperative `present` call to
-  make and no `close` to remember — the dialog is up for exactly as long as the element is in
-  your tree, and it is closed unconditionally when the element goes, whatever `can-close` says.
+- **rendering it opens it; unrendering it closes it.** You make no imperative `present` call and
+  remember no `close`. The dialog is up for exactly as long as the element is in your tree, and
+  it closes unconditionally when the element goes, whatever `can-close` says.
 - **it waits for a window.** Renderers build a subtree before they insert it, so at the moment
   your dialog is created its parent is usually not in a window yet. Presenting then would open a
   stray toplevel; the host waits until the tree is really inside one, and presents there.
 
 `AdwDialog`, `AdwAlertDialog`, `AdwAboutDialog`, `AdwPreferencesDialog` and `AdwShortcutsDialog`
 are placed this way. The four subclasses build their own contents from their own API
-(`add_response`, `add`) and inherit a `set_child` that would replace that, so each is a tag you
-can create, give properties and handlers, and present — while a child written **inside** one is
-refused by name rather than silently wiping the widget's own template. Put your own layout in an
-`<adw-dialog>`; fill a subclass through its API, off a `ref`.
+(`add_response`, `add`) and inherit a `set_child` that would replace that. So each one is a tag
+you can create, give properties and handlers, and present, while a child written **inside** one
+is refused by name rather than silently wiping the widget's own template. Put your own layout in
+an `<adw-dialog>`; fill a subclass through its API, off a `ref`.
 
 ## Long lists
 
@@ -454,25 +461,25 @@ another to the type checker:
 The spellings are measured, not chosen. A capitalised `JSX.IntrinsicElements` key is never
 consulted, because `<GtkBox/>` is `TS2304: Cannot find name 'GtkBox'`. Volar resolves a kebab
 template tag to either key spelling but a Pascal tag only to a Pascal key, so one GType key
-covers both — and that key is also the table key and the GtkBuilder XML key.
+covers both. That key is also the table key and the GtkBuilder XML key.
 
-`noImplicitAny: true` and `strictTemplates: true` are load-bearing in the same way: without
-them the checker accepts everything and you conclude the surface works. Each framework page
-names the exact trap for its pipeline.
+`noImplicitAny: true` and `strictTemplates: true` matter for the same reason. Without them the
+checker accepts everything and you conclude the types work. Each framework page names the exact
+trap for its pipeline.
 
 ## Read the source
 
 Four showcases build the same window four ways, and each asserts the resulting tree against
 the **real** widget tree on every launch:
 
-- [`adw-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adw-host-counter)
-  — imperative, straight through the host ops
-- [`solid-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/solid-host-counter)
-  — the same window as Solid JSX
-- [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter)
-  — the same window as a `.vue` single-file component
-- [`react-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/react-host-counter)
-  — the same window as React, with no compile plugin at all
+- [`adw-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adw-host-counter):
+  imperative, straight through the host ops
+- [`solid-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/solid-host-counter):
+  the same window as Solid JSX
+- [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter):
+  the same window as a `.vue` single-file component
+- [`react-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/react-host-counter):
+  the same window as React, with no compile plugin at all
 
 ## See also
 
@@ -483,9 +490,8 @@ the **real** widget tree on every launch:
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell you
   mount into
 - [GObject Classes](/gjsify/patterns/gobject-classes/) for the `registerClass` rules your own
-  widget subclasses follow — the host resolves a subclass through its nearest registered
-  ancestor
+  widget subclasses follow. The host resolves a subclass through its nearest registered ancestor
 - [Adwaita gallery](/gjsify/adwaita/) for the widgets themselves
-- [Effect](/gjsify/experiments/effect/) if you already write TypeScript in that style — an
-  optional, experimental integration for the non-rendering half. It is not part of the
-  recommended path and none of the above needs it
+- [Effect](/gjsify/experiments/effect/) if you already write TypeScript in that style. It is an
+  optional, experimental integration for the non-rendering half, it is not part of the
+  recommended path, and nothing above needs it

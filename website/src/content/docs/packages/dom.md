@@ -62,7 +62,7 @@ Same shape, different widget: `WebGLBridge` extends `Gtk.GLArea` and exposes Web
 
 `VideoBridge` takes a `MediaStream` through `srcObject` or a URL through `src`, and renders through GStreamer into a `Gtk.Picture`. `IFrameBridge` wraps a real `WebKit.WebView` and gives you `src`, `srcdoc`, navigation and `postMessage`. Both follow the same `onReady` pattern.
 
-For the full lifecycle, the resize behaviour and the traps worth knowing about ahead of time, read [Bridge Widgets](/gjsify/patterns/bridges/).
+For the full lifecycle, the resize behaviour and the traps worth knowing in advance, read [Bridge Widgets](/gjsify/patterns/bridges/).
 
 ## Which DOM element maps to which widget
 

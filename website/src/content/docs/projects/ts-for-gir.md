@@ -3,9 +3,9 @@ title: ts-for-gir
 description: The generator behind the @girs/* TypeScript types, so gi:// imports get autocomplete, jump-to-definition and type-checking across the GNOME stack.
 ---
 
-When you type `Gtk.Button` in a gjsify app and get autocomplete, a signal signature and jump-to-definition, that comes from [ts-for-gir](https://github.com/gjsify/ts-for-gir). It reads GObject Introspection `.gir` XML and emits `.d.ts` declarations for GLib, Gio, GTK, GStreamer, libadwaita, WebKit and around 700 other modules on the GNOME stack.
+When you type `Gtk.Button` in a gjsify app and get autocomplete, a signal signature and jump-to-definition, that comes from [ts-for-gir](https://github.com/gjsify/ts-for-gir). It reads GObject Introspection `.gir` XML and emits `.d.ts` declarations for GLib, Gio, GTK, GStreamer, libadwaita, WebKit and around 700 other modules on the GNOME stack. Most of the time you never run it: the declarations are published as the `@girs/*` npm packages, and `gjsify create` already puts the ones its templates need into your `package.json`.
 
-Most of the time you never run it. The declarations are published as the `@girs/*` npm packages, and `gjsify create` already puts the ones its templates need into your `package.json`. You come here for three reasons: the module you want has no published package, you are on a GNOME version the published types do not cover, or you want types generated from your own `.gir` files.
+You come here for three reasons: the module you want has no published package, you are on a GNOME version the published types do not cover, or you want types generated from your own `.gir` files.
 
 It is also usable on its own. Plenty of GJS projects that never touch gjsify install `@girs/*` for the types alone.
 
@@ -24,7 +24,7 @@ gjsify dlx @ts-for-gir/cli list
 gjsify dlx @ts-for-gir/cli generate Gtk-4.0
 ```
 
-`gjsify dlx` fetches the package into a content-addressed cache under `$XDG_CACHE_HOME/gjsify/dlx/`, runs its GJS bundle, and reuses the cache next time you ask for the same spec. The cache expires after seven days; pass `--cache-max-age 0` to force a refresh now.
+`gjsify dlx` fetches the package into a content-addressed cache under `$XDG_CACHE_HOME/gjsify/dlx/`, runs its GJS bundle, and reuses the cache next time you ask for the same spec. The cache expires after seven days. Pass `--cache-max-age 0` to force a refresh now.
 
 **Managed global install through the gjsify CLI:**
 
@@ -93,7 +93,7 @@ ts-for-gir analyze -f ./ts-for-gir-report.json
 ts-for-gir --help                            # the full surface
 ```
 
-`--reporter` writes a JSON file (`ts-for-gir-report.json` by default) listing every unresolved type, version conflict and skipped construct. `ts-for-gir analyze -f <report>` turns that into a readable summary, and it takes filters so you can narrow down:
+`--reporter` writes a JSON file (`ts-for-gir-report.json` by default) listing every unresolved type, version conflict and skipped construct. `ts-for-gir analyze -f <report>` turns that into a readable summary, and it takes filters:
 
 ```bash
 ts-for-gir analyze -f ./ts-for-gir-report.json --severity error critical
@@ -126,15 +126,15 @@ All of them are listed at [github.com/gjsify/types](https://github.com/gjsify/ty
 Two pages on this site document the idioms the generated declarations expect:
 
 - [GObject classes](/gjsify/patterns/gobject-classes/) covers the `GObject.registerClass()` forms, the static-block pattern, init-order rules, and the `static override $gtype` declaration that narrows the inherited `$gtype`.
-- [Bridge widgets](/gjsify/patterns/bridges/) covers how `Canvas2DBridge`, `WebGLBridge`, `IFrameBridge` and `VideoBridge` pair a polyfill DOM element with a real GTK widget, so browser-shaped code drives the GTK surface directly.
+- [Bridge widgets](/gjsify/patterns/bridges/) covers how `Canvas2DBridge`, `WebGLBridge`, `IFrameBridge` and `VideoBridge` pair a polyfill DOM element with a real GTK widget, so browser-shaped code drives the GTK widget directly.
 
 ## How the CLI itself is built
 
 `@ts-for-gir/cli` is built with gjsify, twice. `gjsify build --app node` produces the executable `bin/ts-for-gir` you get from npm, and `gjsify build --app gjs` produces `bin/ts-for-gir-gjs`, the GJS bundle that `gjsify dlx @ts-for-gir/cli` runs. That second bundle is why the Node-free install paths above work at all.
 
-The Node bundle keeps its heavier runtime dependencies (`typedoc`, `ejs`, `yargs`, `inquirer` and friends) external and installs them from npm as usual; the GJS bundle inlines everything, because there is no npm install step on that path.
+The Node bundle keeps its heavier runtime dependencies (`typedoc`, `ejs`, `yargs`, `inquirer` and friends) external and installs them from npm as usual. The GJS bundle inlines everything, because there is no npm install step on that path.
 
-Both are executable directly, with the shebang written by the build rather than by a wrapper script. If you are curious how a bundle keeps finding its own data files after a global install, that is covered in [How It Works](/gjsify/how-it-works/#location-independent-bundles).
+Both are executable directly, with the shebang written by the build rather than by a wrapper script. How a bundle keeps finding its own data files after a global install is covered in [How it works](/gjsify/how-it-works/#location-independent-bundles).
 
 ## What is in the repository
 

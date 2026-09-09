@@ -107,12 +107,12 @@ what you inspect is what a user installs.
 Every `.deb` carries `/usr/share/doc/<pkg>/changelog.Debian.gz`. Debian Policy
 § 4.4 makes it mandatory, `lintian` reports a missing one as an error
 (`E: no-changelog`), and neither `dpkg -i` nor `apt install` says a word about
-it — so a package without one installs perfectly and fails review.
+it. So a package without one installs perfectly and fails review.
 
 You write nothing for it. `gjsify ship` looks for your project's own
 `CHANGELOG.md` (then `CHANGELOG`, `CHANGELOG.txt`, `NEWS.md`, `NEWS`), beside
-the project and then up to the root of its repository — the same search the
-licence file gets, so one changelog at the top of a monorepo covers every
+the project and then up to the root of its repository. That is the same search
+the licence file gets, so one changelog at the top of a monorepo covers every
 package under it. Point `gjsify.ship.changelogFile` at another file to override
 it.
 
@@ -130,9 +130,9 @@ my-app (1.2.3-1) unstable; urgency=medium
 The bullets are the `*`/`-` lines your changelog lists under that version's
 heading, with Markdown links flattened to their text and long lines wrapped.
 The `## [1.2.3](…) (2026-09-03)` heading `release-it` and
-`conventional-changelog` write is understood, as is a bare `## 1.2.3`. If
-nothing there names this version — or you ship no changelog at all — the entry
-is one line naming the version and your `homepage`, which satisfies the policy
+`conventional-changelog` write is understood, as is a bare `## 1.2.3`. When
+nothing there names this version, or you ship no changelog at all, the entry is
+one line naming the version and your `homepage`, which satisfies the policy
 without inventing history.
 
 Two things are deliberate. It is ONE entry, not your whole history: this file
@@ -146,7 +146,7 @@ Debian archive to close its ITP bug, which a package built here never has, and
 `changelog-not-compressed-with-max-compression` asks for `gzip -9`, which the
 compression API available under GJS cannot request yet.
 
-### Two more details worth knowing
+### The bundle directory and the launcher
 
 **The whole bundle directory is staged.** `gjsify.main: "dist/gjs.js"` stages
 all of `dist/` into `lib/my-app/`. Keep build leftovers out of that directory,
@@ -230,22 +230,22 @@ catalogues are staged into `share/locale/` and the launcher exports
 
 ## Ship a brand typeface
 
-`gjsify.ship.fonts` — a directory of faces, or one face, defaulting to `data/fonts`
-when that exists — stages them at `share/fonts/<appId>/`.
+`gjsify.ship.fonts` takes a directory of faces or a single face, defaults to
+`data/fonts` when that exists, and stages what it finds at `share/fonts/<appId>/`.
 
 ```jsonc
 "gjsify": { "ship": { "fonts": "data/fonts" } }
 ```
 
-On Linux the toolkit gets there without you: the stock `fonts.conf` names
+On Linux the toolkit gets there without you. The stock `fonts.conf` names
 `/usr/share/fonts` unconditionally, which covers the `.deb` and the `.rpm`, and it
-expands `<dir prefix="xdg">fonts</dir>` over `XDG_DATA_DIRS` — which the launcher
+expands `<dir prefix="xdg">fonts</dir>` over `XDG_DATA_DIRS`, which the launcher
 already sets at the staged `share/` on every prefix, including Flatpak's `/app`.
 There is no `fc-cache` step; the cache is built lazily on first use.
 
-Neither macOS nor Windows gets there that way, so if your project also ships those,
-read [Ship your own fonts](/gjsify/guides/bundled-fonts/) — the one call it adds to
-your startup is redundant here and the only mechanism there is on Windows.
+Neither macOS nor Windows gets there that way. If your project also ships those,
+read [Ship your own fonts](/gjsify/guides/bundled-fonts/). The one call it adds to
+your startup is redundant here, and on Windows it is the only mechanism there is.
 
 ## The Flatpak bundle
 
@@ -421,13 +421,14 @@ Requires: nodejs(engine) >= 24   # rpm
 ```
 
 `gjsify ship` picks the interpreter from `gjsify.ship.app.linux`, falling back to
-`gjsify.app` — the same field your build already uses — and the launcher it writes
-execs that one and no other. A package therefore declares exactly one interpreter,
-and ship refuses to build one whose launcher and dependency disagree.
+`gjsify.app`, the same field your build already uses. The launcher it writes execs
+that one and no other, so a package declares exactly one interpreter, and ship
+refuses to build one whose launcher and dependency disagree.
 
 The per-target key is what keeps this section INDEPENDENT of the other two OSes.
-A macOS or Windows artifact has to run Node, and before that key existed saying so
-moved this dependency too: a working GJS `.deb` became one apt refuses everywhere.
+A macOS or Windows artifact has to run Node, and before that key existed, saying
+so moved this dependency too: a working GJS `.deb` became one apt refuses
+everywhere.
 
 The `>= 24` default excludes every current Debian stable and Ubuntu LTS:
 

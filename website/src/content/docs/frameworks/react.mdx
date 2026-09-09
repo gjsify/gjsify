@@ -5,9 +5,9 @@ description: Render React into GTK 4 widgets with @gjsify/gtk-host/react. Instal
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-Render React into real `Gtk` and `Adw` widgets. There is no compile plugin and no DOM, and
-`react-dom` is not involved. React's JSX is already a runtime, so two lines of `tsconfig.json`
-and two build flags are the whole setup.
+Render React into real `Gtk` and `Adw` widgets. There is no compile plugin, no DOM and no
+`react-dom`. React's JSX is already a runtime, so two lines of `tsconfig.json` and two build
+flags are the whole setup.
 
 You keep React. Components, hooks, context, error boundaries, `useState`, `useEffect` and
 Suspense behave the way they do anywhere else. What changes is the element vocabulary:
@@ -173,8 +173,8 @@ const root = createRoot(myWindow, {
 ```
 
 **Passing `onUncaughtError` turns the rethrow off.** That is the right trade for an application
-with its own error surface, but you then own reporting entirely. Pass it to take over reporting,
-not to add a log line.
+that reports its own errors, but you then own reporting entirely. Pass it to take over
+reporting, not to add a log line.
 
 ## Three differences from react-dom
 

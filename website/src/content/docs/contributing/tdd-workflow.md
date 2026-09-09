@@ -7,7 +7,7 @@ GJSify welcomes contributions! This page describes how we port new Node.js or We
 
 If you have not set up the monorepo yet, start with [Development Setup](/gjsify/contributing/development-setup/).
 
-## TDD Workflow
+## TDD workflow
 
 GJSify follows a test-driven development approach:
 
@@ -18,7 +18,7 @@ GJSify follows a test-driven development approach:
 5. **Implement**: use `@girs/*` types, consult `refs/{deno,bun,quickjs,workerd}/` for reference
 6. **Iterate**: until both platforms pass
 
-## Testing Rules
+## Testing rules
 
 - Tests must pass on **both Node.js and GJS**
 - **Never weaken tests** to accommodate GJS limitations. Fix the implementation instead
@@ -27,7 +27,7 @@ GJSify follows a test-driven development approach:
 - Use `@gjsify/unit` as the test framework; shared matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toContain`, `toMatch`, `toThrow`
 - Platform-specific test logic belongs in a separate `*.gjs.spec.ts` file or inside an `on('Gjs', …)` block, not sprinkled through the shared spec
 
-## Full Validation
+## Full validation
 
 Before opening a pull request, run the full validation sequence:
 

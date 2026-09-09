@@ -37,9 +37,9 @@ one payload under `ship/stage/`, and wraps that payload once per format into
 
 ## One command per operating system
 
-`gjsify ship <os>` names whose layout to assemble. A bare `gjsify ship`
-assembles the layout of the host you are sitting at, so name the operating
-system whenever you want one you are not on.
+`gjsify ship <os>` says which layout to assemble. A bare `gjsify ship` assembles
+the layout of the host you are on, so name the operating system when you want a
+different one.
 
 | Command | What lands in `ship/out/` | That target runs |
 |---|---|---|
@@ -47,15 +47,14 @@ system whenever you want one you are not on.
 | `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.arm64.zip` | `node` |
 | `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.x64.zip` | `node` |
 
-Each target's runtime is its own: `gjsify.ship.app.<os>`, keyed `linux`,
-`darwin`, `win32`, falling back to `gjsify.app`. So one project can be GJS on
-Linux and Node where no GJS exists, and stating the second half does not restate
-the first — before that key, asking for a `.app` moved the Linux package's
-`Depends:` with it.
+Each target picks its own runtime from `gjsify.ship.app.<os>`, keyed `linux`,
+`darwin` and `win32`, falling back to `gjsify.app`. So one project can be GJS on
+Linux and Node where no GJS exists. Before that key existed, asking for a `.app`
+moved the Linux package's `Depends:` with it.
 
 Assembling is never host-bound, so one workstation produces all three artifact
-sets. Packing is a different question, and two formats out of nine answer it
-differently. See [where each format can be packed](#where-each-format-can-be-packed).
+sets. Packing is another matter: two of the nine formats need a particular host.
+See [where each format can be packed](#where-each-format-can-be-packed).
 
 A Linux package declares its interpreter and its GTK libraries as dependencies
 and takes them from the distribution. The macOS bundle and the Windows program
@@ -145,12 +144,12 @@ gjsify ship darwin --stage --target macos-app,macos-app-zip,macos-app-dmg
 gjsify ship --from-stage ./stage --target macos-app-dmg
 ```
 
-`--stage` writes the payload and stops, plus `ship/stage/.gjsify-ship-stage.json`
-beside it. That file records the file modes, the pre-rendered licence overlays,
-the GI namespaces read out of your bundle and the build stamp, so a packing host
-needs nothing else. `--from-stage` reads no project at all. No `package.json`,
-no config, no built bundle. That is what lets one CI job assemble and another
-finish.
+`--stage` writes the payload and stops, leaving
+`ship/stage/.gjsify-ship-stage.json` beside it. That file records the file modes,
+the pre-rendered licence overlays, the GI namespaces read out of your bundle and
+the build stamp, so a packing host needs nothing else. `--from-stage` reads no
+project at all. No `package.json`, no config, no built bundle. That is what lets
+one CI job assemble and another finish.
 
 Name every format you intend to pack in the `--stage` run. Phase one renders one
 licence overlay per format, and a format the stage never saw is refused on the
@@ -211,10 +210,10 @@ feeds all of them.
 | No installation at all, run it straight from npm | publish a `dlx`-friendly package | [Run via dlx](/gjsify/guides/dlx-packaging/) |
 
 Choose `gjsify ship` when you want a user to install once and forget about it.
-Choose `gjsify flatpak init` on top of it when you are submitting to Flathub,
-which wants the manifest and the AppStream files committed in your repository.
-Choose the one-line installer while you are still iterating and your users are
-early adopters. Choose dlx for a tool nobody wants permanently installed.
+Add `gjsify flatpak init` on top when you are submitting to Flathub, which wants
+the manifest and the AppStream files committed in your repository. The one-line
+installer suits early adopters while you are still iterating, and dlx suits a
+tool nobody wants permanently installed.
 
 There is no AppImage target. The nearest thing that exists is the Flatpak
 bundle, which is also one file, needs no repository and works offline.

@@ -45,7 +45,7 @@ project on GJS:
 ```jsonc
 {
   "gjsify": {
-    "app": "gjs",                        // the project default — Linux keeps it
+    "app": "gjs",                        // the project default, Linux keeps it
     "ship": { "app": { "darwin": "node" } }  // and macOS does not
   }
 }
@@ -136,11 +136,10 @@ is why the darwin formats need `glib-compile-schemas` on the packaging host. A
 `.app` has no install step to compile them later, and GSettings aborts on a
 schema directory that holds only sources.
 
-Some of what a Linux package relies on its install step for has no macOS
-equivalent. The `.desktop` entry, the AppStream component and the shared MIME
-type document are carried and never read, because macOS reads none of them.
-`gjsify ship` lists every such file on each run, so the payload holds no
-surprise.
+Some of what a Linux package needs its install step for has no macOS equivalent.
+The `.desktop` entry, the AppStream component and the shared MIME type document
+are carried and never read, because macOS reads none of them. `gjsify ship` lists
+every such file on each run, so the payload holds no surprise.
 
 **Your icon does not become the bundle icon.** The `Info.plist` carries no
 `CFBundleIconFile`, so the Finder and the Dock show the generic application
@@ -151,19 +150,19 @@ GTK finds it for in-app use.
 
 `gjsify.ship.fonts` stages your faces into the bundle and adds an
 `ATSApplicationFontsPath` entry to `Contents/Info.plist`, so macOS activates them
-before any of your code runs. That is the reason for choosing the declarative route
-over a call: the CoreText font map has no re-scan path, and the OS gets there first.
+before any of your code runs. That is why the declarative route beats a call here:
+the CoreText font map has no re-scan path, and the OS gets there first.
 
-Two honest limits. The key is emitted from Apple's own documentation of it, and **no
-CI leg here starts an `.app`** — so that macOS then resolves the family is not
-something this project has measured, unlike the Linux and Windows halves. And a
-`.app` is the only macOS layout that carries fonts; there is no `.pkg` path.
+Two honest limits. The key is emitted from Apple's own documentation of it, and
+**no CI leg here starts an `.app`**, so whether macOS then resolves the family is
+not something this project has measured, unlike the Linux and Windows halves. And
+a `.app` is the only macOS layout that carries fonts; there is no `.pkg` path.
 
 The `initFonts()` call the [Windows](/gjsify/ship/windows/) row needs is still safe
 to leave in a shared codebase. Pango's CoreText font map implements no runtime
-registration, so the call answers `G_IO_ERROR_NOT_SUPPORTED`, the faces come back
-under `declined` rather than `failed`, and nothing is lost — the `Info.plist` key
-already activated the same directory before your code ran. So you need no
+registration, so the call answers `G_IO_ERROR_NOT_SUPPORTED` and the faces come
+back under `declined` rather than `failed`. Nothing is lost: the `Info.plist` key
+already activated the same directory before your code ran. You need no
 `process.platform` branch. [Ship your own fonts](/gjsify/guides/bundled-fonts/) has
 the detail, including what to check inside a running bundle.
 

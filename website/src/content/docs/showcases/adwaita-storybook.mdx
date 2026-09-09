@@ -7,7 +7,7 @@ import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
 A component browser for the Libadwaita widget set: a sidebar of stories, a live preview, and a controls panel wired to each story's arguments. The stories are grouped into nine categories, from Buttons and Boxed Lists to Navigation and View Switching.
 
-Two things to take from it. It is the fastest way to see what a Libadwaita widget looks like and how its properties behave before you commit to it. And it shows the story format gjsify uses: you describe a component once, in a file that imports no renderer, and get a native GTK preview and a browser preview from it.
+It is the fastest way to see what a Libadwaita widget looks like and how its properties behave before you commit to it. It also demonstrates gjsify's story format: describe a component once, in a file that imports no renderer, and you get a native GTK preview and a browser preview from it.
 
 ## Live demo
 
@@ -17,7 +17,7 @@ Pick a widget in the sidebar, change its controls, watch it update. This is the 
 
 ## Run it
 
-This showcase declares all four runtimes, so pick the one you already have:
+It declares all four runtimes, so pick the one you have:
 
 ```bash
 gjsify showcase adwaita-storybook --runtime gjs
@@ -28,7 +28,7 @@ gjsify showcase adwaita-storybook --runtime deno
 
 A native GTK 4 window opens with real `Adw.*` widgets: an `Adw.NavigationSplitView` for the sidebar, and an `Adw.Breakpoint` that folds it into single-pane navigation when the window gets narrow. The window is the same on all four.
 
-Under `gjs` the widgets come from GJS's native `gi://`. Under `node`, `bun` and `deno` they come through the [node-gi](/gjsify/projects/node-gi/) bridge, and one `--app node` bundle serves all three, so there is no per-runtime build and no third copy of a story. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
+Under `gjs` the widgets come from GJS's native `gi://`. Under `node`, `bun` and `deno` they come through the [node-gi](/gjsify/projects/node-gi/) bridge, and one `--app node` bundle serves all three, so there is no per-runtime build and no third copy of a story. Leave the flag off and [Choose the runtime](/gjsify/showcases/#choose-the-runtime) says what the CLI picks.
 
 From a checkout of the showcase, `gjsify storybook` does the same thing, and `gjsify storybook --watch` rebuilds and relaunches when you edit a story. It takes the same `--runtime` flag, and because it builds the bundle itself rather than fetching a published one, its default is whichever runtime the CLI is running on.
 
@@ -44,7 +44,7 @@ mount(document.getElementById('app')!, { title: 'Adwaita Storybook' });
 
 ## Add your own story
 
-A story is two small files plus one optional third, and the split is what lets one description drive several renderers.
+A story is two small files plus one optional third. That split is what lets one description drive several renderers.
 
 - `src/<category>/<name>.meta.ts` holds the `StoryMeta`: title, category, and the controls that drive it. It imports no renderer, and it is the single source of truth.
 - `src/<category>/<name>.story.ts` is the GTK twin. It spreads the meta and names the widget: `{ ...meta, component: Adw.X.$gtype }`.
@@ -52,7 +52,7 @@ A story is two small files plus one optional third, and the split is what lets o
 
 Because the controls are declared once, both targets expose the same knobs, and a native screenshot lines up with a browser screenshot. `src/browser/stories.ts` is the shared list that `main.ts` (standalone) and `embed.ts` (`mount()`) both read.
 
-`gjsify storybook` finds every `*.story.ts` on its own. There is no storybook app to maintain: the settings it needs (application id, window title, story directory) live in the `gjsify.storybook` block of `package.json`.
+`gjsify storybook` finds every `*.story.ts` on its own. There is no storybook app to maintain. The settings it needs (application id, window title, story directory) live in the `gjsify.storybook` block of `package.json`.
 
 ## What it uses
 

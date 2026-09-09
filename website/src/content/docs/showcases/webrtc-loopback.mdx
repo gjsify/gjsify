@@ -7,7 +7,7 @@ import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
 Two `RTCPeerConnection` instances in a single process exchange an SDP offer and answer, trickle ICE candidates at each other, open an `RTCDataChannel`, and echo a string and an `ArrayBuffer` back and forth. No signaling server and no remote peer.
 
-The demo shows that the W3C WebRTC API works on GJS, backed by GStreamer's `webrtcbin`. If your app needs peer-to-peer data or media, you write the same code you would write for a browser.
+The W3C WebRTC API works on GJS, backed by GStreamer's `webrtcbin`. If your app needs peer-to-peer data or media, you write the code you would write for a browser.
 
 ## Live demo
 
@@ -43,7 +43,7 @@ This is one of two showcases that declare `["gjs"]` rather than all four runtime
 gjsify showcase webrtc-loopback
 ```
 
-This one is a console program, not a window. It prints the handshake as it happens and exits when the round trip completes:
+This one is a console program rather than a window. It prints the handshake as it happens and exits when the round trip completes:
 
 ```
 [A] createOffer

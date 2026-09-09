@@ -78,8 +78,8 @@ await registerRootComponent(App, {
 });
 ```
 
-Everything in the rest of this page — `DumpTree`, `Screenshot`, `ActivateWidget` — then works
-against the rendered widget tree, not just against the application object.
+`DumpTree`, `Screenshot`, `ActivateWidget` and the rest of this page then work against the
+rendered widget tree, not only the application object.
 
 ### Options
 

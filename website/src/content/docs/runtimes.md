@@ -1,6 +1,6 @@
 ---
 title: Runtimes
-description: "Where your gjsify code can run: GJS, Node.js, Bun, Deno and the browser, and how to choose between them."
+description: "Where your gjsify code can run: GJS, Node.js, Bun, Deno, the browser and mobile, and how to choose between them."
 ---
 
 gjsify targets four JavaScript runtimes, and one flag decides which build you
@@ -14,6 +14,17 @@ gjsify build src/index.ts --app browser  # a web build of the same source
 
 Your source stays the same. What changes is which implementation each import
 resolves to.
+
+Every code sample on this site follows that rule, so read them as runtime-neutral
+even where they name one. The TypeScript in the [widget gallery](/gjsify/adwaita/)
+is written for GJS, and it runs unchanged on Node.js, Bun and Deno. `gi://Adw` is
+the same import on all four.
+
+Two further targets answer those same `Adw.*` and `Gtk.*` names from a port rather
+than from libadwaita. Add `--gi-renderer` to the build, and `--app browser`
+resolves `gi://Adw` out of `@gjsify/adwaita-web`, `--app nativescript` out of
+`@gjsify/adwaita-nativescript`, on a phone. So the widget you learn once keeps its
+name in five places. What changes is the host around it.
 
 Start from the runtime you already have:
 
@@ -46,7 +57,7 @@ is. [Platform Support](/gjsify/platform-support/) has that picture.
 
 GJS is GNOME's own JavaScript runtime, SpiderMonkey plus GObject introspection.
 It resolves `gi://Gtk?version=4.0` itself, so a GTK call from your code enters
-libgtk with nothing bridging in between, and GNOME ships GJS, so a GNOME desktop
+libgtk with nothing bridging in between. GNOME ships GJS, so a GNOME desktop
 already has the runtime installed.
 
 The build rewrites `node:*` imports and Web globals to gjsify's implementations,
@@ -58,14 +69,13 @@ gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js
 gjsify run dist/index.gjs.js
 ```
 
-You need `gjs` 1.86 or newer. Linux distributions ship it; on macOS it comes
-from Homebrew, where only part of the surface is verified; there is no GJS build
-for Windows.
-[Packages](/gjsify/packages/overview/) lists what is implemented.
+You need `gjs` 1.86 or newer. Linux distributions ship it. On macOS it comes
+from Homebrew, where only part of it is verified, and there is no GJS build for
+Windows. [Packages](/gjsify/packages/overview/) lists what is implemented.
 
 Two things are specific to this target. A `.deb` or `.rpm` built from a GJS app
 depends on the distribution's own `gjs (>= 1.86)` rather than carrying an
-interpreter, which is what keeps those packages small — see
+interpreter, which is what keeps those packages small; see
 [Ship your app](/gjsify/ship/). And a showcase's published artifact is its
 `--app gjs` bundle (`gjsify.main`), which is why `gjsify showcase` runs on GJS
 when a `gjs` binary is on PATH and follows the host runtime when there is none.
@@ -95,7 +105,7 @@ Homebrew GTK to install first.
 What differs between the three:
 
 - **Node.js** is the one with a declared engine floor: `@gjsify/node-gi` asks for
-  Node 20 or newer. It is also the widest tested of the three — on Linux it
+  Node 20 or newer. It is also the widest tested of the three. On Linux it
   carries the full GTK, Adwaita, windowing, widget, GtkSourceView and template
   checks.
 - **Bun** installs with `bun add` and writes its own module layout. Tracked at
@@ -134,7 +144,7 @@ there is no bridge and no engine floor to check. Every package declares what it
 provides here in its `gjsify.runtimes.browser` slot, the same way it declares its
 `gjs`, `node` and `nativescript` slots, and that declaration is held against what
 the source actually imports rather than taken on trust. The bundles themselves
-are driven on Firefox, which shares the SpiderMonkey engine with GJS; what that
+are driven on Firefox, which shares the SpiderMonkey engine with GJS. What that
 checks is our implementation claims against the real browser platform, not our
 GJS packages inside a browser.
 
@@ -143,22 +153,27 @@ GJS packages inside a browser.
 `gjsify build --app nativescript` produces bundles for the NativeScript
 toolchain, and `@gjsify/adwaita-nativescript` implements the Adwaita widget set,
 the storybook renderer and the devtools agent as real native Android and iOS
-views (not a WebView). The widget packages ship with every gjsify release; the
+views, not a WebView. The widget packages ship with every gjsify release. The
 runtime target itself is still experimental, so treat it as something to try
 rather than something to ship.
 
-## What keeps the four in step
+## What keeps the runtimes in step
 
 The same small `gi://` programs are run unchanged on gjs, node, bun and deno, and
 every runtime's output has to match GJS's byte for byte. GJS is the reference
 because it is the one implementation we did not write: a drift on either side
 fails the release, whether it came from the bridge or from a GJS change. Nothing
-is quietly excluded — the combinations known not to match are written down,
-by name, with the reason.
+is quietly excluded. The combinations known not to match are written down, by
+name, with the reason.
 
 Above that, each package's own test bundle is built once, engine-agnostic, and
 run as that same file on Node, Bun and Deno. The three cannot drift apart without
 the release stopping.
+
+The web and NativeScript ports are held a second way, because they are ports
+rather than the same code: they share one behaviour layer with each other, and
+both assert against the same recorded vectors, so a fix to a toast queue or a
+spin-button clamp lands in both at once.
 
 ## Pick a runtime for a single command
 
@@ -197,8 +212,8 @@ that usually decide it:
   and Deno it goes through `@gjsify/node-gi`, which means a native addon in your
   dependency tree and a prebuilt binary per platform.
 - **Distribution.** `gjsify ship` turns a built app into an installable artifact
-  with no packaging files in your repo — Linux packages from a GJS build, and
-  macOS and Windows artifacts from a `--app node` one, since those two carry
+  with no packaging files in your repo. Linux packages come from a GJS build, and
+  the macOS and Windows artifacts from a `--app node` one, since those two carry
   their own interpreter and GTK. [Ship your app](/gjsify/ship/) has the formats.
 - **The web.** `--app browser` drops native code entirely, which is what makes it
   portable and also what rules out the GNOME libraries: anything backed by GTK,
@@ -214,7 +229,7 @@ that usually decide it:
 
 - [Platform Support](/gjsify/platform-support/): Linux, macOS and Windows, per target
 - [Packages](/gjsify/packages/overview/): what is implemented on each runtime
-- [Coverage](/gjsify/coverage/): live dashboards of the implemented surface
+- [Coverage](/gjsify/coverage/): live dashboards of what is implemented
 - [node-gi](/gjsify/projects/node-gi/): the bridge that puts GObject on Node.js
 - [napi](/gjsify/projects/napi/): the other direction, native `.node` addons inside GJS
 - [How It Works](/gjsify/how-it-works/): the build pipeline behind the `--app` flag

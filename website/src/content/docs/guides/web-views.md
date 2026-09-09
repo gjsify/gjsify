@@ -1,16 +1,15 @@
 ---
 title: Web Views
-description: Embed real web content in a native app with @gjsify/iframe — the same code on Linux, macOS and Windows, plus the Windows caveats you will hit.
+description: Embed real web content in a native app with @gjsify/iframe. The same code on Linux, macOS and Windows, plus the Windows caveats you will hit.
 ---
 
-`@gjsify/iframe` puts a real browser engine inside your app. You write against
-`HTMLIFrameElement` the way you would on a web page — `src`, `srcdoc`,
-`contentWindow.postMessage()`, `addEventListener('message')` — and what renders is a full
-web view with cookies, JavaScript, CSS and developer tools behind it. An HTML report, a
-help page, an OAuth flow, a third-party widget, a Markdown preview: this is the package for
-all of them.
+`@gjsify/iframe` puts a real browser engine inside your app: an HTML report, a help page,
+an OAuth flow, a third-party widget, a Markdown preview. It works on Linux, macOS and
+Windows, and **your source does not branch for any of them**.
 
-It works on Linux, macOS and Windows, and **your source does not branch for any of them**.
+You write against `HTMLIFrameElement` the way you would on a web page: `src`, `srcdoc`,
+`contentWindow.postMessage()`, `addEventListener('message')`. What renders is a full web
+view with cookies, JavaScript, CSS and developer tools behind it.
 
 ## Install
 
@@ -18,7 +17,7 @@ It works on Linux, macOS and Windows, and **your source does not branch for any 
 gjsify install @gjsify/iframe
 ```
 
-On Linux you also need WebKitGTK 6.0 from your distribution — `gjsify system-check` tells
+On Linux you also need WebKitGTK 6.0 from your distribution; `gjsify system-check` tells
 you whether it is there. On macOS and Windows the engine comes with the package, with one
 proviso on Windows: your users need the WebView2 runtime, which
 [has its own section](#the-webview2-runtime-has-to-be-on-the-users-machine) below.
@@ -26,8 +25,8 @@ proviso on Windows: your users need the WebView2 runtime, which
 
 ## A window with a web view
 
-`IFrameBridge` is a `Gtk.Widget` — it extends `WebKit.WebView` — so it goes wherever a
-widget goes. This is a complete program:
+`IFrameBridge` extends `WebKit.WebView`, so it is a `Gtk.Widget` and goes wherever a widget
+goes. This is a complete program:
 
 ```ts
 import Adw from 'gi://Adw?version=1';
@@ -102,11 +101,11 @@ Prefer `loadUri(url)` and `loadHtml(html, baseUri?)` over setting `src` and `src
 directly: they keep the engine and the iframe element's attributes in step.
 
 Two things to watch. `contentWindow` is `null` until the first navigation finishes, and
-`onReady()` is drained per load — so re-attach your message listener from `onReady()` after
-each load. (A browser `<iframe>` keeps `contentWindow` across navigations, so a browser
-build does not need this.) And `pageTitle` is still empty inside `onReady()`: the engine
-reports the document title a moment after the load finishes. If you mirror the title into a
-header bar, watch for it instead of reading it once:
+`onReady()` is drained per load, so re-attach your message listener from `onReady()` after
+each load. A browser `<iframe>` keeps `contentWindow` across navigations, so a browser build
+does not need this. And `pageTitle` is still empty inside `onReady()`: the engine reports
+the document title a moment after the load finishes. If you mirror the title into a header
+bar, watch for it instead of reading it once:
 
 ```ts
 view.connect('notify::title', () => {
@@ -115,30 +114,29 @@ view.connect('notify::title', () => {
 ```
 
 If your code calls `document.createElement('iframe')` or names `HTMLIFrameElement`
-directly, `gjsify build` sees the reference and wires up the DOM surface for you — that is
-what `--globals auto` (the default) does. `new IFrameBridge()` needs none of it and works
-under `--globals none`; when you want the global installed unconditionally, the bridge has
+directly, `gjsify build` sees the reference and wires up the DOM APIs for you. That is what
+`--globals auto`, the default, does. `new IFrameBridge()` needs none of it and works under
+`--globals none`; when you want the global installed unconditionally, the bridge has
 `installGlobals()`.
 
 ## Driving the page
 
-Beyond loading, the bridge is a small automation surface — the same calls whether the app
-is on screen or running headless in a test:
+These calls work the same whether the app is on screen or running headless in a test:
 
 | Call | What it does |
 |---|---|
 | `evaluateJavaScript(expr)` | Evaluate an *expression* in the page and get its value back. Wrap multi-statement logic in an IIFE that returns something. |
 | `queryDom(selector, limit?)` | Metadata for every element matching a CSS selector. |
 | `getLinks()` | Every `<a href>` on the page: resolved href, trimmed text, title. |
-| `clickElement(selectorOrText)` | Click the first match — a CSS selector, or an `<a>` matched by its exact text. |
+| `clickElement(selectorOrText)` | Click the first match: a CSS selector, or an `<a>` matched by its exact text. |
 | `waitForNavigation(timeoutMs?)` | Resolve on the next finished load. Register it *before* the click that triggers one. |
 | `takeScreenshot('full' \| 'visible')` | The rendered page as PNG bytes. |
 | `getConsoleLogs()` / `onConsole(cb)` | The page's own `console.*` output, with `new IFrameBridge({ captureConsole: true })`. |
 | `getViewportSize()` / `setViewportSize(w, h)` | Read the realised content size; request a different one. |
 
-Values from `evaluateJavaScript` round-trip through JSON, so anything that is not
-JSON-serialisable — a DOM node, a function, a circular object — comes back as `undefined`,
-and a thrown page error rejects the promise.
+Values from `evaluateJavaScript` round-trip through JSON. Anything that is not
+JSON-serialisable comes back as `undefined`: a DOM node, a function, a circular object. A
+thrown page error rejects the promise.
 
 ## One API, three engines
 
@@ -153,34 +151,34 @@ is on. Which engine answers to that name is decided by packaging:
 
 The Windows row is the interesting one. WebView2 is Chromium, and it is deliberately
 presented under the `WebKit-6.0` namespace anyway: the namespace names the API *shape*, not
-the engine. What that buys you is the whole point — **no backend seam, and no `if (os ===
-…)` anywhere in your code.** The same `new IFrameBridge()`, the same `loadUri()`, the same
+the engine. That is the whole point. **No backend seam, and no `if (os === …)` anywhere in
+your code.** The same `new IFrameBridge()`, the same `loadUri()`, the same
 `evaluateJavaScript()`, on all three.
 
 Both shims are ordinary dependencies of `@gjsify/iframe` and contain no JavaScript. Each
 one's binaries arrive through per-platform optional dependencies, which your package manager
-installs only on the matching platform and skips silently everywhere else — so a Linux
-install pulls in two empty packages and no binaries at all.
+installs only on the matching platform and skips silently everywhere else. A Linux install
+pulls in two empty packages and no binaries at all.
 
-Where the engines genuinely differ, the differences are below, and each one announces
-itself at the call site rather than failing quietly.
+Where the engines genuinely differ, the differences are below. Each one announces itself at
+the call site rather than failing quietly.
 
 ## Windows: the view is an overlay
 
 On Windows the web content is a child window the OS composites on top of your app. It is
-not a node in GTK's scene graph, which buys you input, focus and accessibility straight
-from the OS — and costs you clipping. An ancestor cannot cut the page to shape, nothing can
-be drawn over it, and opacity and transforms do not reach it.
+not a node in GTK's scene graph. That buys you input, focus and accessibility straight from
+the OS, and costs you clipping: an ancestor cannot cut the page to shape, nothing can be
+drawn over it, and opacity and transforms do not reach it.
 
 So these arrangements will not do what you expect:
 
-- **inside a `Gtk.ScrolledWindow` or `Gtk.Viewport`** — the scrolled window scrolls the
+- **inside a `Gtk.ScrolledWindow` or `Gtk.Viewport`**: the scrolled window scrolls the
   widget, not the page, and the content is not clipped to the viewport;
-- **as the main child of a `Gtk.Overlay`** — anything you overlay is drawn *under* the web
+- **as the main child of a `Gtk.Overlay`**: anything you overlay is drawn *under* the web
   content instead of over it;
-- **inside a `Gtk.Popover`** — the popover's rounded, clipped surface is not followed;
-- **with an opacity below 1**, on the view or on any ancestor — it is not applied to the
-  web content.
+- **inside a `Gtk.Popover`**: the popover's rounded, clipped surface is not followed;
+- **with an opacity below 1**, on the view or on any ancestor: it is not applied to the web
+  content.
 
 gjsify warns once per finding, naming the ancestor, rather than letting it look like a bug
 in your layout. The view also keeps the list:
@@ -190,12 +188,12 @@ view.get_hosting_mode();        // WebKit.HostingMode.OVERLAY
 view.get_overlay_constraints(); // the arrangements it cannot honour, as readable strings
 ```
 
-Those two names exist on the Windows backend only — they describe a condition Linux and
-macOS do not have — so guard the call or keep it to Windows-specific diagnostics.
+Those two names exist on the Windows backend only, because they describe a condition Linux
+and macOS do not have. Guard the call, or keep it to Windows-specific diagnostics.
 
-What the detector cannot see is a CSS `border-radius` that reaches the widget — that is not
-readable from GTK's public API — so treat the list as the arrangements that have been
-reported, not as proof there are no others.
+What the detector cannot see is a CSS `border-radius` that reaches the widget, which is not
+readable from GTK's public API. Treat the list as the arrangements that have been reported,
+not as proof there are no others.
 
 Design around it the same way you would around a video overlay: give the web view its own
 rectangle in the window. A full-page document under a header bar is the shape that works.
@@ -210,8 +208,8 @@ something else:
   a block list exists to prevent, so it narrows in the safe direction.
 - **Named script worlds are ignored.** There is no public isolated-world API to map them
   onto. `user_script_new_for_world()` still exists so your call site stays portable, and it
-  tells you what it did — worth knowing because macOS *does* honour the same argument, so
-  the identical call is isolated there and not here.
+  tells you what it did. Worth knowing, because macOS *does* honour the same argument: the
+  identical call is isolated there and not here.
 - **A full-document snapshot returns the viewport.** `takeScreenshot('full')` captures what
   is laid out, not the whole scrollable document. Snapshot options other than the default
   are ignored too.
@@ -222,8 +220,8 @@ something else:
   `evaluateJavaScript()` is unaffected: it already serialises inside the page.
 - **End-of-document script injection is approximated** by a document-start script that
   defers itself to `DOMContentLoaded`.
-- **Console forwarding to stdout is not honoured** — use the bridge's own
-  `captureConsole` option, which works on every platform.
+- **Console forwarding to stdout is not honoured.** Use the bridge's own `captureConsole`
+  option, which works on every platform.
 - **`allow-file-access-from-file-urls` is not offered as a setting**, because the
   equivalent is a process-wide switch rather than a per-view one. An absent property warns
   at the call; a present one that quietly did nothing would not.
@@ -232,10 +230,10 @@ something else:
 ### What else has to be on the machine
 
 The Windows backend links GTK, GLib and GObject, and Windows has no system copy of any of
-them, so install `@gjsify/gtk-runtime-win32-x64` alongside it — the same bundle every
-Windows gjsify app already uses to reach `gi://` at all. It is deliberately not pulled in
-for you: a second copy of those DLLs on the process's search path is a worse failure than
-the one it would solve.
+them. Install `@gjsify/gtk-runtime-win32-x64` alongside it, the same bundle every Windows
+gjsify app already uses to reach `gi://` at all. It is deliberately not pulled in for you: a
+second copy of those DLLs on the process's search path is a worse failure than the one it
+would solve.
 
 ### The WebView2 runtime has to be on the user's machine
 
@@ -253,8 +251,8 @@ have. The generated installer does not do this for you yet.
 Evergreen runtime's client key lives only under
 `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\…`; the 64-bit view of the same path
 does not have it. A detector that checks only the 64-bit path reports "not installed" on a
-machine that has the runtime — a check that looks green everywhere it is tested and is
-wrong at the user. Read both views, or call
+machine that has the runtime: a check that looks green everywhere it is tested and is wrong
+at the user. Read both views, or call
 `GetAvailableCoreWebView2BrowserVersionString`, which is view-independent.
 
 ### What is proven on Windows, and what is not
@@ -267,7 +265,7 @@ texture, and the page's own `postMessage` arrives on the app side.
 What has not been verified is the same view re-parented under a real application window:
 tracking its bounds as the window moves and resizes, hiding when the widget is unmapped,
 and input and focus arriving from the OS. If you are deciding whether to depend on the
-Windows web view today, that is the line — the engine, the loading, the scripting and the
+Windows web view today, that is the line. The engine, the loading, the scripting and the
 snapshots are demonstrated; the widget-in-a-window behaviour is not yet.
 
 ## macOS notes
@@ -294,9 +292,9 @@ The minimum deployment target is macOS 11.
 
 ## Related
 
-- [Bridge Widgets](/gjsify/patterns/bridges/#embed-a-web-page) — where `IFrameBridge` sits
+- [Bridge Widgets](/gjsify/patterns/bridges/#embed-a-web-page): where `IFrameBridge` sits
   next to the canvas, WebGL and video bridges, and when to reach for each
-- [Minimalist Browser](/gjsify/showcases/minimalist-browser/) — a URL bar, history and
+- [Minimalist Browser](/gjsify/showcases/minimalist-browser/): a URL bar, history and
   `postMessage`, in one small app
-- [Platform Support](/gjsify/platform-support/) — what reaches your operating system
-- [Ship your app](/gjsify/ship/) — packaging for Linux, macOS and Windows
+- [Platform Support](/gjsify/platform-support/): what reaches your operating system
+- [Ship your app](/gjsify/ship/): packaging for Linux, macOS and Windows

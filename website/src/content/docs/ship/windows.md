@@ -37,16 +37,16 @@ on GJS:
 ```jsonc
 {
   "gjsify": {
-    "app": "gjs",                       // the project default — Linux keeps it
+    "app": "gjs",                       // the project default, Linux keeps it
     "ship": { "app": { "win32": "node" } }  // and Windows does not
   }
 }
 ```
 
-The key is `win32`, the `process.platform` spelling — not `windows`, the
-spelling the command positional takes. A key nothing reads would leave the
-target on the project default with nothing to say so, so `gjsify ship` and the
-manifest audit both refuse it by name.
+The key is `win32`, the `process.platform` spelling, not `windows`, which is what
+the command positional takes. A key nothing reads would leave the target on the
+project default with nothing to say so, so `gjsify ship` and the manifest audit
+both refuse it by name.
 
 Setting `gjsify.app` to `"node"` works too and moves every target with it,
 including the Linux `.deb`'s `Depends:`.
@@ -74,7 +74,6 @@ machine that runs it.
   }
 }
 ```
-
 
 `GJSIFY_GTK_RUNTIME` overrides the GTK lookup with a directory holding `bin/`
 and `girepository-1.0/`. When either package is missing, ship names it and still
@@ -133,7 +132,7 @@ That produces `ship/out/my-app-1.2.3-1.x64.msi` beside the other two artifacts.
 The installed tree is the tree the zip expands to. Nothing about the payload
 changes.
 
-What the installer adds is the three things a directory cannot do on its own:
+The installer adds three things a directory cannot do on its own:
 
 - It lays the program directory under `%ProgramFiles%\My App`, which
   `msiexec INSTALLDIR=…` overrides.
@@ -186,7 +185,7 @@ targets for prerelease builds.
 `gjsify.ship.fonts` stages your faces into `share/fonts/<appId>/` and the launcher
 exports `GJSIFY_FONT_DIR` pointing at it. On Windows that is where the command's job
 ends: `pangocairo` selects the win32 backend, which populates from DirectWrite alone,
-so a fontconfig directory is inert here. Measured — a config naming your staged
+so a fontconfig directory is inert here. Measured: a config naming your staged
 directory moves the default font map by zero families even when it is the only one
 loaded.
 
@@ -201,21 +200,21 @@ initFonts();
 
 It reads `GJSIFY_FONT_DIR` itself, hands every face it finds to
 `PangoCairo.FontMap.get_default().add_font_file()`, never throws, and does nothing
-when the payload carries no font — so the same line goes in your Linux and macOS
+when the payload carries no font. So the same line goes in your Linux and macOS
 builds with no OS branch around it. Skip it on Windows and Pango falls back to a
-system face, silently: the app merely looks wrong, with no error and no exit code,
+system face silently: the app merely looks wrong, with no error and no exit code,
 which is why this section exists rather than a warning at build time.
 
 [Ship your own fonts](/gjsify/guides/bundled-fonts/) has the staging key, where in
 `startup` the call belongs, and a check that tells a registered family apart from a
 substituted one.
 
-## One thing to know before you hand it to a user
+## The console window stays open
 
 `node.exe` is a console-subsystem program and the Node release ships no windowed
-variant, so starting the app leaves a console window open behind it. That
-applies to the `.cmd` launcher and to the shortcut the `.msi` writes. Nothing
-here hides it.
+variant, so starting the app leaves a console window open behind it. That applies
+to the `.cmd` launcher and to the shortcut the `.msi` writes. Nothing here hides
+it.
 
 ## Signing is optional here in a way it is not on macOS
 
@@ -246,9 +245,9 @@ gjsify ship windows \
 ```
 
 Step 1 is a `devDependency` because the packaging host needs those two, not the
-shipped app. To point the lookup somewhere else -- a patched interpreter, or a
-build you produced yourself -- set `GJSIFY_NODE_RUNTIME` to a directory holding
-`node.exe` and its `LICENSE`.
+shipped app. To point the lookup at a patched interpreter, or at a build you
+produced yourself, set `GJSIFY_NODE_RUNTIME` to a directory holding `node.exe`
+and its `LICENSE`.
 
 To split the work instead, assemble here and pack on Windows:
 
