@@ -499,10 +499,13 @@ const bundledLeaves = new Set(bundled.keys());
 // `docs/prebuilds.md` states the same rule for `stage-prebuild.mjs`; this is the second
 // stager finally getting it.
 //
-// The default is EMPTY, and the payload is what makes that safe rather than bold: no image
-// in it has an `@rpath/` dependency, so no image needs a search path to resolve a link, and
-// `docs/prebuilds.md` gives the reason not to hand out ones nobody needs — a Mach-O whose
-// linker left no header pad cannot take another load command at all.
+// The default is EMPTY, because an image whose references were all rewritten to
+// `@loader_path/…` has nothing left for a search path to resolve, and `docs/prebuilds.md`
+// gives the reason not to hand out entries nobody needs — a Mach-O whose linker left no
+// header pad cannot take another load command at all. That is a claim about the payload, so
+// it is CHECKED rather than trusted: `bundle-search-paths`' second half fails any image left
+// holding an `@rpath/` dependency with no self-relative entry, which is exactly what an
+// over-eager empty default would produce.
 function relocate(libPath, { id, depPrefix = '@loader_path', rpaths = [] } = {}) {
     // Own id — a no-op on a Mach-O BUNDLE that carries no LC_ID_DYLIB (ten of the
     // thirteen pixbuf loaders), and load-bearing on the ones that do: librsvg's loader
