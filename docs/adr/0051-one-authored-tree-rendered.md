@@ -348,28 +348,43 @@ at all, and the reason each reaches none is a measurement rather than an omissio
 
 Stage 5 asked for the gallery's `preview` fence to be emitted from
 `ADWAITA_GALLERY_SHARED_TREES` "instead of authoring it per block". Measured against
-the fences on `main` at `5a8895898d`, doing that would DELETE documentation, and the
-reason is structural rather than a matter of how much of the corpus has grown.
+the fences on `main` at `5a8895898d`, doing that would DELETE documentation from two of
+the seven shared blocks, and for a reason no amount of corpus growth removes: what a
+`SharedNode` can NAME is a GIR class, and those two fences teach with markup that has no
+GIR class to be named by.
 
-Three of the seven shared blocks — `Adw.ExpanderRow`, `Adw.Banner`, `Adw.WindowTitle` —
-already read exactly as the corpus would emit them. The other four each carry something
-the corpus cannot express, and none of the four is an authoring accident:
+The measurement is a throwaway emitter over `ADWAITA_GALLERY_SHARED_TREES`, diffed per
+block against the fence with the generated gloss lines set aside. **Five of the seven
+shared blocks already read exactly as the corpus would emit them** — `Adw.SwitchRow`,
+`Adw.EntryRow`, `Adw.ExpanderRow`, `Adw.Banner`, `Adw.WindowTitle`. Two do not, and
+neither is an authoring accident:
 
-- **`Adw.PreferencesGroup`** documents a `<button slot="header-suffix">` and an
-  `<adw-combo-row model='[…]'>`. The corpus uses no `slot` at all — the divergence
-  ledger says why, the two renderers spell slots differently and a block joins only
-  when it needs no alias — and a `Gio.ListModel` is one of the portable values ADRs
-  0042/0046/0047 gave the framework trees and a `SharedNode` deliberately cannot
-  author. Emitting this fence would drop both.
-- **`Adw.ShortcutLabel`** documents five accelerators side by side in a flex `<div>`,
-  including the empty-with-`disabled-text` case. A tree driver builds ONE tree, so the
-  corpus holds one node. Emitting this fence would drop four examples and the wrapper.
-- **`Adw.SwitchRow` and `Adw.EntryRow`** carry a generated gloss line
-  (`<!-- active: … -->`), which `generate-adwaita-attribute-comments.mjs` writes from
-  the GIR and arm 12 holds. A second emitter would be writing into a region a generator
-  already owns, from a source that does not know the GIR.
+- **`Adw.PreferencesGroup`** documents a `<button slot="header-suffix" class="adw-button
+  flat">Sign out</button>` and an `<adw-combo-row model='[…]'>`. A `SharedNode` names its
+  tag with a GIR class name — `hostTagOf` throws on anything else — and carries no text
+  content, so a CSS-classed HTML button is not a node it has any way to be. The combo row
+  is expressible as markup but not as a shared node: its framework sibling authors `model`
+  as a JS ARRAY (one of the portable values ADRs 0042/0046/0047 gave those trees) against
+  the fence's JSON string, which is the same one-value-two-doors split the `Adw.SpinRow`
+  ledger entry records. Emitting this fence would drop both children.
+- **`Adw.ShortcutLabel`** documents five accelerators side by side in a
+  `<div style="display:flex…">`, including the empty-with-`disabled-text` case. The
+  wrapper is the blocker and the count is not: a shared tree has one ROOT, not one node,
+  so five sibling labels are authorable — under a GIR container that would emit as
+  `<gtk-box>`, which is different markup from the one the block shows. Emitting this
+  fence would replace the wrapper and drop four examples.
 
-Behind the four there is one argument, and this ADR's own Risks section already stated
+**What is NOT a blocker, and was claimed as one.** `Adw.SwitchRow` and `Adw.EntryRow`
+differ from the corpus emission by exactly one line each, a generated gloss
+(`<!-- active: … -->`) that `generate-adwaita-attribute-comments.mjs` writes from the GIR
+and arm 12 holds. That is a region another generator owns, but the two compose rather than
+collide: `stripGenerated` removes every generated comment line and `rewriteFence` puts
+them back on every run — "so a rewrite is idempotent", in its own words — over markup it
+does not author. Measured by deleting the gloss line from the fence and re-running
+`applyMeanings`: it comes back. So the count of blocks a corpus emitter would damage is
+two, not four, and the case below rests on those two.
+
+Behind the two there is one argument, and this ADR's own Risks section already stated
 half of it: *"a block joins the shared source only when it needs no alias, so the corpus
 is selected for the property being tested"*. A corpus selected for AGREEMENT is exactly
 the wrong source for documentation, because what it drops is precisely what the two
@@ -386,12 +401,23 @@ today on the whole corpus, and it closes the hole arm 11 structurally cannot see
 while both describe a UI the block stopped showing. The ledger records that drift
 having happened once already, block by block, found by hand.
 
-Two transforms carry it and there is still no third: `hostTagOf`, and the
-camelCase→kebab attribute rule the `adwaita-web` driver already builds with. Entity
-decoding is markup's own escaping rather than a vocabulary mapping, and an entity the
-arm does not know FAILS rather than passing through — an undecoded value reports a
-mismatch between two strings that render identically, which is a worse failure than the
-missing entity it really is.
+**Why not emit the five and author the two**, now that the damage is measured at two
+blocks rather than four. Because the emitter is what stage 5 costs, and it is the same
+whether it serves five blocks or seven: turning a `SharedNode` into markup needs a
+quoting and entity-ENCODING rule, and nothing would hold that rule against the
+quote-aware reader the fences are already read with — one direction generated, the other
+checked, agreeing with each other by construction. A per-block opt-in also puts the
+authority in two places at once, which is what `content` in the divergence ledger was
+decided against. Containment needs no emitter and makes the same drift loud.
+
+Two transforms carry it and there is still no third: `hostTagOf`, and `attributeOf`,
+the camelCase→kebab attribute rule. Both are exported from
+`adwaita-gallery-shared-trees.mjs` and IMPORTED by the `adwaita-web` driver and by arm 13
+rather than restated in either, so the check cannot end up agreeing with its own copy of a
+rule instead of with the renderer it makes a claim about. Entity decoding is markup's own
+escaping rather than a vocabulary mapping, and an entity the arm does not know FAILS
+rather than passing through — an undecoded value reports a mismatch between two strings
+that render identically, which is a worse failure than the missing entity it really is.
 
 **What this does not decide.** Whether the corpus should GROW to carry slots and
 portable values is untouched and stays a corpus question, with the ledger as its
