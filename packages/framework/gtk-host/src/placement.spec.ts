@@ -75,6 +75,7 @@ const SIGABRT = 6;
  */
 const GJS = GLib.find_program_in_path('gjs');
 
+
 interface ChildOutcome {
     /** True when the child was killed by a signal rather than exiting. */
     signalled: boolean;
@@ -635,6 +636,28 @@ export default async () => {
                 expect(window.visibleDialog).toBe(null);
             });
 
+            await it('survives the same remove-then-insert MOVE, because its close is reversible', async () => {
+                // THE OTHER HALF OF THE PAIR, and the reason this arm never showed
+                // the defect its neighbour shipped with: measured, `force_close()`
+                // followed by `present(parent)` re-hosts against the SAME parent
+                // with no diagnostic, where `destroy()` followed by `present()` is
+                // `Gtk-WARNING **: A window is shown after it has been destroyed`.
+                // Asserting it here is what keeps "the arms differ in reversibility"
+                // a measurement rather than a sentence in an ADR.
+                const first = rooted();
+                const second = rooted();
+                const dialog = createElement('AdwDialog');
+                insert(dialog, first.parent);
+                expect(first.window.visibleDialog !== null).toBe(true);
+
+                remove(dialog);
+                expect(first.window.visibleDialog).toBe(null);
+
+                insert(dialog, second.parent);
+                expect(second.window.visibleDialog === (widgetOf(dialog) as unknown as Adw.Dialog)).toBe(true);
+                destroy(dialog);
+            });
+
             await it('moves between two parents in the same window', async () => {
                 const { window, box } = rooted();
                 const left = new Gtk.Box();
@@ -697,7 +720,57 @@ export default async () => {
                 destroy(win);
             });
 
-            await it('takes the window down on unmount, and the forced call is the one used', async () => {
+            await it('survives the MOVE that remove() documents itself as', async () => {
+                // `remove` promises a DETACH: "Frameworks move nodes; `remove` must
+                // not destroy one". Running the declared close there — which for
+                // this arm is `destroy()`, measured terminal — made a move present
+                // the corpse: `Gtk-WARNING **: A window is shown after it has been
+                // destroyed`, at exit 0, caught only because the gate was watching.
+                // Solid's `removeNode` calls `remove(node)` directly, so this is the
+                // ordinary reorder path and not an edge case.
+                const first = rooted();
+                const second = rooted();
+                const win = createElement('GtkWindow');
+                insert(win, first.parent);
+                const widget = widgetOf(win) as unknown as Gtk.Window;
+                expect(widget.get_visible()).toBe(true);
+
+                remove(win);
+                expect(widget.get_visible()).toBe(false);
+                // A DETACH AND NOT A TEARDOWN, and the toplevel list is what tells
+                // them apart: measured, a hidden window is still in it and a
+                // destroyed one is not.
+                expect(Gtk.Window.list_toplevels().includes(widget)).toBe(true);
+
+                insert(win, second.parent);
+                expect(widgetOf(win) === widget).toBe(true);
+                expect(widget.get_visible()).toBe(true);
+                destroy(win);
+            });
+
+            await it('runs the declared retraction ONCE across remove() then destroy()', async () => {
+                // The other order of the defect the node leg found. `remove` unlinks
+                // the node, so the `destroy` after it sees `parent === null` and
+                // takes the no-parent arm — which used to be the terminal one, so it
+                // fired twice. The `unmap` count cannot see that (the second call is
+                // on an already-hidden window), which is why this counts the CALL.
+                const { parent } = rooted();
+                const win = createElement('GtkWindow');
+                insert(win, parent);
+                const widget = widgetOf(win) as unknown as Gtk.Window;
+                let retractions = 0;
+                const realDestroy = (widget.destroy as () => void).bind(widget);
+                (widget as unknown as Record<string, unknown>).destroy = () => {
+                    retractions += 1;
+                    realDestroy();
+                };
+                remove(win);
+                destroy(win);
+                expect(retractions).toBe(1);
+                expect(Gtk.Window.list_toplevels().includes(widget)).toBe(false);
+            });
+
+            await it('destroy uses the FORCED call, where remove used the reversible one', async () => {
                 // `destroy` and not `close`: MEASURED on GTK 4.22.4, a
                 // `close-request` handler returning true leaves `close()`'s window
                 // mapped and visible. An unmount is not a user request, which is the
@@ -726,17 +799,20 @@ export default async () => {
                 expect(unmapped).toBe(0);
                 expect(widget.get_visible()).toBe(true);
 
-                remove(win);
+                destroy(win);
 
-                // THE EFFECT, NOT THE STATE. Measured, `destroy()` emits `unmap`
-                // once and never asks `close-request`. Reading a property back off
-                // the widget afterwards is what a vector must NOT do here: on gjs
-                // the wrapper keeps the object alive and answers `false`, and on
-                // node-gi `gtk_window_destroy()` drops GTK's reference and the same
-                // read is `TypeError: invalid GObject handle` — a divergence the
-                // node leg found and `status/open-todos.md` carries.
+                // THE EFFECT, NOT THE STATE. Measured, the hide emits `unmap` once,
+                // the `destroy()` after it adds none, and neither asks
+                // `close-request`. Reading a property back off the widget afterwards
+                // is what a vector must NOT do here: on gjs the wrapper keeps the
+                // object alive and answers `false`, and on node-gi
+                // `gtk_window_destroy()` drops GTK's reference and the same read is
+                // `TypeError: invalid GObject handle` — a divergence the node leg
+                // found and `status/open-todos.md` carries. The toplevel list is
+                // read off `Gtk.Window`, not off the corpse.
                 expect(unmapped).toBe(1);
                 expect(vetoed).toBe(1);
+                expect(Gtk.Window.list_toplevels().includes(widget)).toBe(false);
             });
 
             await it('comes down even when it never had a parent to be removed from', async () => {
@@ -755,6 +831,27 @@ export default async () => {
                 expect(widget.get_visible()).toBe(true);
                 destroy(win);
                 expect(unmapped).toBe(1);
+                expect(Gtk.Window.list_toplevels().includes(widget)).toBe(false);
+            });
+
+            await it('rebuilds through a construct-only write without leaking the old window', async () => {
+                // `rebuild` DISCARDS `el.widget`, which is the one caller of
+                // `removeChild` that wants the terminal call rather than the
+                // reversible one — a toplevel is held by GTK's own list, not by a
+                // parent, so a detach there leaks a hidden window per write.
+                const { parent } = rooted();
+                const win = createElement('GtkWindow');
+                insert(win, parent);
+                const before = widgetOf(win) as unknown as Gtk.Window;
+                const toplevelsBefore = Gtk.Window.list_toplevels().length;
+                // `css-name` is construct-only on every GtkWidget.
+                setProp(win, 'css-name', 'secondary');
+                const after = widgetOf(win) as unknown as Gtk.Window;
+                expect(after === before).toBe(false);
+                expect(Gtk.Window.list_toplevels().includes(before)).toBe(false);
+                expect(Gtk.Window.list_toplevels().length).toBe(toplevelsBefore);
+                expect(after.get_visible()).toBe(true);
+                destroy(win);
             });
 
             await it('does not shift the siblings that follow it', async () => {

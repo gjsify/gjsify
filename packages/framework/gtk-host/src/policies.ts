@@ -433,7 +433,7 @@ export function presentToplevel(child: HostElement, placement: Extract<NodePlace
 }
 
 /**
- * Take a toplevel back down — the FORCED call, and it is terminal.
+ * Take a toplevel back down — the FORCED call, and it is TERMINAL.
  *
  * `destroy` and not `close`, measured on GTK 4.22.4: `gtk_window_close()` emits
  * `close-request`, and an application handler returning TRUE leaves the window
@@ -443,22 +443,58 @@ export function presentToplevel(child: HostElement, placement: Extract<NodePlace
  *
  * Unconditional for the same reason too: measured, `destroy()` on a window that
  * was never presented is silent, so no "is it up?" probe is needed. What differs
- * from the portal is that there is no way back — measured, `present()` after a
+ * from the portal is that there IS no way back — measured, `present()` after a
  * destroy (or after a `close()`, whose default handler destroys) answers
- * `Gtk-WARNING **: A window is shown after it has been destroyed`. A re-mount
- * therefore has to be a fresh widget, which is what `rebuild` already produces.
+ * `Gtk-WARNING **: A window is shown after it has been destroyed`.
+ *
+ * SO THIS IS `destroy`'s CALL AND NOT `remove`'s, which is the whole reason
+ * `detachToplevel` exists next door. `remove` documents itself as reversible.
  */
-export function retractToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): void {
+export function closeToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): void {
     if (!child.widget) return;
     placementMethod(child, placement, placement.close, 'close').call(child.widget);
 }
 
 /**
+ * Take a toplevel OFF SCREEN, reversibly — `remove`'s call.
+ *
+ * `remove` is documented as a detach that a later `insert` undoes ("Frameworks
+ * move nodes; `remove` must not destroy one"), and Solid takes it literally: its
+ * `removeNode` calls `remove(node)` for a move and reaches `destroy` only through
+ * the root disposer. Running the declared, TERMINAL close there made a move
+ * `destroy()` the window and then present the corpse —
+ * `Gtk-WARNING **: A window is shown after it has been destroyed`, at exit 0,
+ * visible only because `installDiagnosticsGate()` was watching.
+ *
+ * A PROPERTY WRITE AND NOT A DECLARED METHOD, and that is the honest shape rather
+ * than a shortcut: a window's presence on screen IS its `visible` property — which
+ * is why `presentToplevel` already reads it — so every toplevel detaches the same
+ * way and a per-row name would be eighteen identical strings. The portal arm needs
+ * no counterpart at all, because its declared close is ALREADY reversible.
+ *
+ * MEASURED on GTK 4.22.4, one window, in order: `set_visible(false)` leaves it
+ * `visible` false with one `unmap`, emits NO `close-request`, and keeps it in
+ * `Gtk.Window.list_toplevels()` — so it is a detach and not a teardown; `present()`
+ * afterwards maps it again with no diagnostic at all; a second `set_visible(false)`
+ * is a no-op; and `destroy()` on the hidden window adds no `unmap` and DOES drop it
+ * from the toplevel list. `set_visible` rather than the deprecated `hide()`, which
+ * is the same call one rename older.
+ *
+ * Unbracketed, unlike `writeVisible`'s host writes: this is not bookkeeping around
+ * a libadwaita defect that the consumer's model never mentions — the window really
+ * did leave the screen, and a bound `notify::visible` is entitled to hear it.
+ */
+export function detachToplevel(child: HostElement): void {
+    const node = child.widget as unknown as Gtk.Widget | null;
+    if (node) node.set_visible(false);
+}
+
+/**
  * Place a node that does NOT go into its parent's child list, and say whether GTK took it.
  *
- * The ONE dispatch over the non-parented arms. Both callers in `host.ts` reach the
- * axis through this and through `retractOutsideParent`, so a fourth placement kind
- * is two `never` arms away from compiling rather than a search through the host.
+ * The ONE dispatch over the non-parented arms. Every caller in `host.ts` reaches
+ * the axis through this and its two twins below, so a fourth placement kind is
+ * three `never` arms away from compiling rather than a search through the host.
  */
 export function placeOutsideParent(parent: HostElement, child: HostElement, placement: OutsideParent): boolean {
     switch (placement.kind) {
@@ -471,13 +507,42 @@ export function placeOutsideParent(parent: HostElement, child: HostElement, plac
     }
 }
 
-/** `placeOutsideParent`'s twin: take the node back down the way its placement put it up. */
-export function retractOutsideParent(child: HostElement, placement: OutsideParent): void {
+/**
+ * The REVERSIBLE take-down — what `remove` means, per arm.
+ *
+ * THE TWO ARMS DIFFER HERE AND NOWHERE ELSE, which is why one function could not
+ * serve both: measured, `force_close()` followed by `present(parent)` re-hosts a
+ * dialog against the SAME parent with no diagnostic, while `destroy()` followed by
+ * `present()` is `Gtk-WARNING **: A window is shown after it has been destroyed`.
+ * The portal arm therefore never showed this defect and the toplevel arm shipped
+ * with it: a single `retractOutsideParent` treated a reversible verb and a terminal
+ * one as the same thing.
+ */
+export function detachOutsideParent(child: HostElement, placement: OutsideParent): void {
     switch (placement.kind) {
         case 'portal':
             return retractPortal(child, placement);
         case 'toplevel':
-            return retractToplevel(child, placement);
+            return detachToplevel(child);
+        default:
+            return unhandledPlacement(placement);
+    }
+}
+
+/**
+ * The TERMINAL take-down — what `destroy` means, and what discards a widget.
+ *
+ * Its other caller is `rebuild`, which drops `el.widget` and builds a fresh one: a
+ * toplevel is held by GTK's own list rather than by a parent (measured,
+ * `list_toplevels()` still contains a hidden window and loses it on `destroy`), so
+ * merely detaching there would leak one window per construct-only write.
+ */
+export function closeOutsideParent(child: HostElement, placement: OutsideParent): void {
+    switch (placement.kind) {
+        case 'portal':
+            return retractPortal(child, placement);
+        case 'toplevel':
+            return closeToplevel(child, placement);
         default:
             return unhandledPlacement(placement);
     }
@@ -819,8 +884,13 @@ export function removeChild(parent: HostElement, child: HostElement): void {
     // never took. There is nothing of the parent's to call — and `attached` is
     // false for a portal still waiting for a toplevel, which is exactly the state
     // whose subscription has to be disconnected.
+    //
+    // The REVERSIBLE half, because five of this function's six call sites are a
+    // move: `remove`, `replaceAt`, `materialize`'s rollback and `rebuild`'s child
+    // sweep all re-attach the same widget afterwards. The sixth is `rebuild`
+    // discarding `el` itself, and it says so with its own `closeOutsideParent`.
     const outside = outsideParentOf(child.descriptor);
-    if (outside) return retractOutsideParent(child, outside);
+    if (outside) return detachOutsideParent(child, outside);
     const host = parent.widget as unknown as AnyWidget;
     if (!host) return;
     // Never ask GTK to remove what it never adopted. A node can be linked in the

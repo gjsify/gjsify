@@ -17,10 +17,11 @@ import {
     makeDetachedContainer,
     makeWrapper,
     outsideParentOf,
+    closeOutsideParent,
+    detachOutsideParent,
     placeOutsideParent,
     refuseUnparentable,
     removeChild,
-    retractOutsideParent,
     setterSlotOf,
     setterSlots,
     slotOccupant,
@@ -485,6 +486,14 @@ function rebuild(el: HostElement, key?: string, previous?: unknown): void {
             }
         }
         if (parent) removeChild(parent, el);
+        // AND THE WIDGET ITSELF, for a node no parent holds. `removeChild` detaches
+        // reversibly — right for the five call sites that re-attach the same widget
+        // — but the next line discards this one, and a toplevel is held by GTK's own
+        // list rather than by a parent: measured, `Gtk.Window.list_toplevels()`
+        // still contains a hidden window and loses it only on `destroy`. Without
+        // this, every construct-only write on a `<gtk-window>` leaked one.
+        const outside = outsideParentOf(el.descriptor);
+        if (outside) closeOutsideParent(el, outside);
     }
     el.widget = null;
     el.wrapper = null;
@@ -1030,9 +1039,10 @@ export function remove(node: HostNode): void {
     if (!parent && node.kind === 'element' && node.widget) {
         // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and
         // that is the whole asymmetry the placement axis introduces: `removeChild`
-        // below is the only retraction path, and it is reached through a parent —
-        // which a toplevel may never have had. Silent on a node that was never
-        // shown (measured, both arms), so this costs nothing on the ordinary path.
+        // below is the only detach path, and it is reached through a parent — which
+        // a toplevel may never have had. Idempotent and silent on a node that is
+        // already off screen (measured, both arms), so this costs nothing on the
+        // ordinary path and nothing when `destroy` reaches it a second time.
         //
         // ONE PLACE, and it has to be: `destroy` used to call `widget.destroy()`
         // itself for exactly this case, so a toplevel WITH a parent was retracted
@@ -1041,7 +1051,10 @@ export function remove(node: HostNode): void {
         // `gtk_window_destroy()` drops GTK's own reference and the handle goes with
         // it. The node leg is what said so.
         const outside = outsideParentOf(node.descriptor);
-        if (outside) retractOutsideParent(node, outside);
+        if (outside) {
+            detachOutsideParent(node, outside);
+            node.attached = false;
+        }
     }
     if (parent && node.kind === 'element') {
         removeChild(parent, node);
@@ -1116,14 +1129,19 @@ export function destroy(node: HostNode): void {
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
+        // THE TERMINAL HALF, and `remove` above deliberately did not run it: that
+        // call is documented as reversible and Solid uses it for a move, so the arm
+        // whose close is `destroy()` had to stop doing it there. Here is where a
+        // node really is being torn down, and it happens ONCE — `remove` detached,
+        // this closes.
+        if (outside && node.widget) closeOutsideParent(node, outside);
         if (
-            // NOT A SECOND TIME for a node whose PLACEMENT already took it down.
-            // `remove` above ran the declared, forced retraction — with a parent and
-            // without — and this branch predates there being a name for that: the
-            // only widgets in GTK4 with a `destroy` method are `Gtk.Window`s, i.e.
-            // exactly the declared toplevels. What is left for it is a window a
-            // consumer deliberately declared `parented`, which is asking for a child
-            // and gets the child teardown.
+            // NOT for a node whose PLACEMENT just took it down, one line up. This
+            // branch predates there being a name for that: the only widgets in GTK4
+            // with a `destroy` method are `Gtk.Window`s, i.e. exactly the declared
+            // toplevels. What is left for it is a window a consumer deliberately
+            // declared `parented`, which is asking for a child and gets the child
+            // teardown.
             !outside &&
             widget &&
             typeof widget.destroy === 'function' &&
