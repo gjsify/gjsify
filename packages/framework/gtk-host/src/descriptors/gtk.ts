@@ -17,19 +17,21 @@ import type { NodePlacement, WidgetDescriptor } from '../types.js';
  * `destroy` over `close` (a vetoed `close-request` leaves the window up) and that
  * make the retraction terminal are on `NodePlacement`'s toplevel arm in `types.ts`.
  *
- * THIRTEEN ROWS HERE and five in `adw.ts`, because a toplevel is a fact about the
- * TYPE and `Gtk.Root` has eighteen presentable implementations in the shipped
- * table (measured with `GObject.type_is_a`). They are NAMED rather than inherited
- * for the reason the dialog family is: registration is exact, so
- * `lookupWidget('GtkMessageDialog')` answers the GENERATED row and an inherited
- * placement would never be looked up. `is declared by every registered Gtk.Root`
- * in `placement.spec.ts` is what keeps the list complete.
+ * SHARED WITH `adw.ts`, which imports it: a toplevel is a fact about the TYPE, and
+ * `Gtk.Root`'s presentable implementations are split across the two libraries by
+ * nothing but who owns the class (measured with `GObject.type_is_a`). They are
+ * NAMED rather than inherited for the reason the dialog family is: registration is
+ * exact, so `lookupWidget('GtkMessageDialog')` answers the GENERATED row and an
+ * inherited placement would never be looked up. `is declared by every registered
+ * Gtk.Root` in `placement.spec.ts` is what keeps the list complete, and it holds
+ * the count so no comment has to.
  *
- * `GtkDragIcon` is the nineteenth `Gtk.Root` and is deliberately absent: measured,
- * it has no `present`, no `close` and no `destroy` — GTK creates one for a drag
- * operation and nothing else ever shows one. It is refused at the insert by
- * `refuseUnparentable` instead, which is the honest answer for a root that cannot
- * present itself.
+ * `GtkDragIcon` is the one `Gtk.Root` deliberately absent: measured, it has no
+ * `present`, no `close` and no `destroy` — GTK creates one for a drag operation and
+ * nothing else ever shows one. It is refused at the insert by `refuseUnparentable`
+ * instead, which is the honest answer for a root that cannot present itself, and
+ * the spec NAMES it so a second such class is a decision rather than a bumped
+ * number.
  *
  * CHILDREN STAY UNCURATED on every row that had no policy before this. A window
  * takes `set_child`, but `GtkDialog` and its five chooser subclasses put children

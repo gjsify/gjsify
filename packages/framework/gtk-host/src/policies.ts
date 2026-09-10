@@ -495,22 +495,23 @@ const PRESENT = 'present';
  *
  * STRUCTURAL, never a name. ADR 0027 rule 1 forbids widget knowledge in the host,
  * and a list of gtypes here would be exactly that — so the class is asked two
- * questions it answers itself, each measured across all 164 rows of the shipped
- * table on GTK 4.22.4 / libadwaita 1.9.3:
+ * questions it answers itself. Both were measured over the WHOLE shipped table on
+ * GTK 4.22.4 / libadwaita 1.9.3 rather than over a sample, which is what makes the
+ * second one a partition and not an observation:
  *
- *  - `Gtk.Root` is GTK's OWN word for "this widget is a toplevel". 19 classes in
- *    the table implement it, from `GtkWindow` to `GtkPrintUnixDialog`, and none of
- *    them can legally have a parent.
+ *  - `Gtk.Root` is GTK's OWN word for "this widget is a toplevel", and every class
+ *    in the table implementing it — `GtkWindow` through `GtkPrintUnixDialog` — is
+ *    one no parent may legally take.
  *  - A `present()` that TAKES AN ARGUMENT is a node presented AGAINST something.
- *    Exactly five classes in the table have one, and they are exactly the five
- *    `Adw.Dialog` descendants — the ones whose `root` vfunc calls `g_error()`.
+ *    In the table that set is EXACTLY the `Adw.Dialog` descendants and nothing
+ *    else — the ones whose `root` vfunc calls `g_error()`.
  *    `Gtk.Popover.present()` is the discriminator that makes the ARITY part of the
  *    question rather than the name: it exists, it takes 0 arguments, and a popover
  *    is parented with `set_parent()` like any other child.
  *
- * The order matters and is not alphabetical: every `Gtk.Root` in the table also
- * has a 0-argument `present`, and `GtkDragIcon` has no `present` at all, so the
- * root test has to come first and cannot be replaced by an arity test.
+ * The order matters and is not alphabetical: every `Gtk.Root` in the table that has
+ * a `present` at all has a 0-argument one, and `GtkDragIcon` has none — so the root
+ * test has to come first and cannot be replaced by an arity test.
  *
  * @param gtype the class's GType — `type_is_a` walks interfaces as well as parents
  * @param present the class's own `present`, or the value found on an instance

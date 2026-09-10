@@ -130,7 +130,7 @@ export function classPlacementKind(gtype, present): 'portal' | 'toplevel' | null
 
 A list of gtypes in `policies.ts` would be exactly the widget knowledge ADR 0027 rule 1
 forbids, and it would be wrong for a consumer's own subclass anyway. Both questions are
-measured across all 164 rows of the shipped table:
+measured across all 169 rows of the shipped table (`tableProvenance().total`), not a sample:
 
 - `Gtk.Root` is GTK's own word for "this widget is a toplevel", and it is the boundary
   the library itself uses.

@@ -183,10 +183,10 @@ export type NodePlacement =
      * arities, so the two arms cannot be swapped by a copy/paste.
      *
      * MEMBERSHIP IS `Gtk.Root`, measured with `GObject.type_is_a` and not read
-     * from documentation — 19 classes in the shipped table, from `GtkWindow` and
-     * `AdwApplicationWindow` down to `GtkPrintUnixDialog`. It is GTK's own word
-     * for "this widget is a toplevel", which is why the generic code asks it
-     * instead of forming a second opinion.
+     * from documentation — `GtkWindow` and `AdwApplicationWindow` down to
+     * `GtkPrintUnixDialog`. It is GTK's own word for "this widget is a toplevel",
+     * which is why the generic code asks it instead of forming a second opinion,
+     * and `placement.spec.ts` is where the membership is walked and counted.
      *
      * `close: 'destroy'` IS THE FORCED ONE, the same choice the portal arm makes
      * and for the same measured reason. On GTK 4.22.4: `gtk_window_close()` emits
