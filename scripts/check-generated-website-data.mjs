@@ -1407,7 +1407,7 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
 // The corpus can legitimately be empty (arm 11 says why), but an arm that walked no
 // node proved nothing, and the fences are what would have gone missing.
 if (ADWAITA_GALLERY_SHARED_TREES.length > 0 && containedNodes === 0) {
-    failures.push('no shared node was matched against a preview fence at all — arm 13 proved nothing');
+    failures.push('no shared node was matched against a fence at all — arm 13 proved nothing');
 }
 // MATCHING A NODE IS NOT COMPARING A VALUE, and the node count cannot tell the two
 // apart: with the property loop neutered, every node still matches, the note still
