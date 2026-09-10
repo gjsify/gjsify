@@ -35,8 +35,18 @@
 // refusal stands and this file does not weaken it.
 //
 // A block joins this file only when its tree needs NO alias at all: the same widget
-// names, the same property names, the same values, in the same order. The single
-// transform is {@link hostTagOf}, which turns the GIR class name a block is authored
+// names, the same property names, the same values, in the same order. And what it
+// authors must be CONTAINED in that block's own `preview` fence — same elements,
+// attributes and values, in the same order — which arm 13 of
+// `check-generated-website-data.mjs` holds, because a corpus two renderers are tested
+// against proves nothing about a UI the page stopped showing.
+//
+// CONTAINMENT, and in that direction. The fence is the authority (see the `content`
+// kind in {@link ADWAITA_GALLERY_TREE_DIVERGENCES}) and is free to teach more than a
+// `SharedNode` can express; ADR 0051 § Amendment 2 measured, block by block, what
+// emitting the fence FROM here would have deleted.
+//
+// The single transform is {@link hostTagOf}, which turns the GIR class name a block is authored
 // in into the `gtk-host` tag — `AdwPreferencesGroup` -> `adw-preferences-group`, a
 // deterministic case rule and not a semantic mapping. It is `gtk-host`'s OWN rule
 // (`tagOf` in `packages/framework/gtk-host/src/tags.ts`), and arm 11 runs it against

@@ -597,7 +597,7 @@ const commentRanges = (markup) => {
 
 /**
  * Every `adw-*` / `gtk-*` opening tag in `markup`, in source order, with the offset of
- * its `<` and the attributes that instance sets.
+ * its `<`, the attributes that instance sets and the value each one carries.
  *
  * PER INSTANCE, which is the difference from the union the deleted attribute pane
  * showed: /adwaita/buttons/ paints five `<gtk-button>`s, one per style, and a comment
@@ -606,6 +606,13 @@ const commentRanges = (markup) => {
  *
  * A QUOTE-AWARE walk rather than `/<tag[^>]*>/`, because an attribute value may hold a
  * `>` — `<gtk-drop-down>`'s `model` carries JSON. Comments are skipped.
+ *
+ * `values` is a Map beside the `attributes` list rather than a second walk of the same
+ * markup: arm 13 of `check-generated-website-data.mjs` needs what a fence SETS and this
+ * loop already parses it. `null` is a bare attribute (`active`), which is a different
+ * fact from the empty string (`accelerator=""`) and stays distinguishable. Values are
+ * the fence's own bytes, entities included — decoding is the caller's, because only the
+ * caller knows which vocabulary it is decoding INTO.
  */
 export function markupElements(markup) {
     const comments = commentRanges(markup);
@@ -622,14 +629,17 @@ export function markupElements(markup) {
             at += 1;
         }
         const attributes = [];
+        const values = new Map();
         const inside = markup.slice(open.index + open[0].length, at);
         for (const found of inside.matchAll(
             /([a-zA-Z_:][\w:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g,
         )) {
             const name = found[1].toLowerCase();
-            if (!attributes.includes(name)) attributes.push(name);
+            if (attributes.includes(name)) continue;
+            attributes.push(name);
+            values.set(name, found[2] ?? found[3] ?? found[4] ?? null);
         }
-        elements.push({ tag: open[1], start: open.index, attributes });
+        elements.push({ tag: open[1], start: open.index, attributes, values });
     }
     return elements;
 }
