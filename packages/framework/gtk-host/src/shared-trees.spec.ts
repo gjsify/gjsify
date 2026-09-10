@@ -19,6 +19,12 @@
 // makes a failure attributable to the renderer. What a tree driver structurally cannot
 // reach, and why, is in that module's header.
 //
+// EVERYTHING THAT IS NOT ABOUT THIS RENDERER IS ELSEWHERE. Which tables the corpus reaches,
+// which block is declared to reach none, and whether an expectation's address exists at all
+// are facts about the CORPUS: they are asserted once, in `adwaita-core`'s own suite, which
+// runs on Node as well. Asserting them here too would be the same claim in three places,
+// two of which need a display.
+//
 // THE READERS GO THROUGH THE REAL GTK TREE (`descendants`, `findDescendant`), never the
 // host's shadow links: a renderer asserting against its own bookkeeping agrees with itself
 // while the window is wrong.
@@ -30,10 +36,7 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
-    SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
-    SHARED_TREE_TABLES,
     authoredNodes,
-    reachedTables,
     sharedTreeExpectations,
     type SharedTreeExpectation,
     type SharedTreeNode,
@@ -156,32 +159,7 @@ export default async () => {
                         expect(read(expectation, subject)).toBe(expectation.expected);
                     });
                 }
-
-                const declared = SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS[widget] !== undefined;
-                if (expectations.length === 0) {
-                    // ADR 0051 § 4: a block that proves nothing has to SAY so, or the pass
-                    // count above reads as coverage this corpus does not have.
-                    await it(`${widget} reaches no vector, and says why`, () => {
-                        expect(declared).toBe(true);
-                    });
-                } else if (declared) {
-                    // Self-retiring, the shape arm 11 already uses for a converged
-                    // divergence: a declaration that has stopped being true fails.
-                    await it(`${widget} is declared vector-free, and is not`, () => {
-                        expect(expectations.map((one) => one.table)).toStrictEqual([]);
-                    });
-                }
             }
-        });
-
-        await it('every table the tree driver claims is one the corpus reaches', () => {
-            // The counterweight to `SHARED_TREE_TABLES`, which
-            // `check-adwaita-conformance-drivers.mjs` reads as this driver's coverage. A
-            // table listed there and reached by no corpus node would be a coverage claim
-            // with nothing behind it — the exact class that gate's three incidents are.
-            expect(reachedTables(ADWAITA_GALLERY_SHARED_TREES.map((tree) => tree.root))).toStrictEqual([
-                ...SHARED_TREE_TABLES,
-            ]);
         });
     });
 };

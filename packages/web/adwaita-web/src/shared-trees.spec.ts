@@ -19,14 +19,16 @@
 // The readers below go through the REAL DOM the element rendered, never a state object of
 // its own: an element asserting against its own bookkeeping agrees with itself while the
 // page is wrong.
+//
+// What is NOT here is everything that is not about this renderer — which tables the corpus
+// reaches, which block is declared to reach none, whether an expectation's address exists.
+// Those are facts about the CORPUS and are asserted once, in `adwaita-core`'s own suite,
+// which runs on Node as well as in a browser.
 
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
-    SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
-    SHARED_TREE_TABLES,
     authoredNodes,
-    reachedTables,
     sharedTreeExpectations,
     type SharedTreeExpectation,
     type SharedTreeNode,
@@ -132,25 +134,6 @@ export const AdwSharedTreesTest = async () => {
                     host.remove();
                 });
             }
-
-            const declared = SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS[block.widget] !== undefined;
-            if (expectations.length === 0) {
-                // ADR 0051 § 4: a block that proves nothing has to SAY so.
-                await it(`${block.widget} reaches no vector, and says why`, () => {
-                    expect(declared).toBe(true);
-                });
-            } else if (declared) {
-                // Self-retiring: a declaration that has stopped being true fails.
-                await it(`${block.widget} is declared vector-free, and is not`, () => {
-                    expect(expectations.map((one) => one.table)).toStrictEqual([]);
-                });
-            }
         }
-    });
-
-    await describe('the tree driver claims no table the corpus misses', async () => {
-        await it('SHARED_TREE_TABLES is exactly what the corpus reaches', () => {
-            expect(reachedTables(authored.map((block) => block.root))).toStrictEqual([...SHARED_TREE_TABLES]);
-        });
     });
 };
