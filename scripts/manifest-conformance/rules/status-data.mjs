@@ -61,7 +61,7 @@ import { RENDER_PATH, collectPackageFacts, loadStatusData } from '../../generate
 import { readIndexPaths } from '../git-index.mjs';
 
 /**
- * The render as a staged path, or `null` when it is not staged.
+ * Whether the render is staged.
  *
  * Reads the index as a FILE — `windows-suites.yml` runs this same `--check` with no
  * `git` binary on PATH, and a rule that shelled out died there reporting nothing. No
@@ -70,10 +70,10 @@ import { readIndexPaths } from '../git-index.mjs';
  * index is a broken one rather than a synthetic one.
  *
  * @param {string} root
- * @returns {string | null}
+ * @returns {boolean}
  */
-function stagedRender(root) {
-    return readIndexPaths(root).has(RENDER_PATH) ? RENDER_PATH : null;
+function isRenderStaged(root) {
+    return readIndexPaths(root).has(RENDER_PATH);
 }
 
 export const statusDataRule = defineRule({
@@ -85,25 +85,25 @@ export const statusDataRule = defineRule({
         const facts = collectPackageFacts(ctx.root);
         const { failures } = loadStatusData(ctx.root, facts);
         const published = facts.filter((f) => !f.private).length;
-        const tracked = stagedRender(ctx.root);
-        if (tracked !== null) {
+        if (isRenderStaged(ctx.root)) {
             failures.push(
-                `${tracked} is staged in the git index. It is the GENERATED render of the authored data under ` +
+                `${RENDER_PATH} is staged in the git index. It is the GENERATED render of the authored data under ` +
                     'status/ (ADR 0016 amendment) and .gitignore already names it — but an ignore rule suppresses ' +
                     'UNTRACKED files only, so a tracked copy never shows up dirty, never gets regenerated, and is ' +
-                    `handed to every clone by \`git checkout\` anyway. Run \`git rm --cached ${tracked}\`: the file ` +
-                    'stays on disk and `npm run status:generate` rewrites it whenever you want the tables.',
+                    `handed to every clone by \`git checkout\` anyway. Run \`git rm --cached ${RENDER_PATH}\`: the ` +
+                    'file stays on disk and `npm run status:generate` rewrites it whenever you want the tables.',
             );
         }
         return {
             failures,
-            stats: { packages: facts.length, published, renderTracked: tracked !== null },
-            // The index half of the summary reports what was MEASURED. A fixed
-            // "…is not in the index" would have been a sentence this rule prints
-            // while its own finding says otherwise — the shape it exists to catch.
+            stats: { packages: facts.length, published },
+            // Stated flat, not branched on the measurement: a `summary` is printed
+            // only on a PASSING run — `report.mjs` and `audit-runtimes.mjs` both
+            // guard theirs with `if (run.ok)` — so a rule can never print one
+            // beside its own finding, and the other arm would be unreachable.
             summary:
-                `status-data: ${failures.length === 0 ? 'OK' : 'FAILED'}. status/ validates against ${published} ` +
-                `published package(s); ${RENDER_PATH} is ${tracked === null ? 'not ' : ''}in the index.`,
+                `status-data: OK. status/ validates against ${published} published package(s); ` +
+                `${RENDER_PATH} is not in the index.`,
         };
     },
 });
