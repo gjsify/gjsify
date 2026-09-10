@@ -28,8 +28,9 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
-    authoredNodes,
+    authoredTags,
     sharedTreeExpectations,
+    subjectIndexOf,
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
@@ -59,13 +60,22 @@ function build(node: SharedTreeNode): HTMLElement {
     return el;
 }
 
-/** The element the authored root becomes, connected — these elements build on connect. */
-function mount(node: SharedTreeNode): { root: HTMLElement; host: HTMLElement } {
+/**
+ * Connect the authored root — these elements build on connect — run, and take it down again.
+ *
+ * The teardown is in a `finally` because a RED test must not leave a mounted tree behind:
+ * the next test would then be reading a document two blocks deep, and the failure it
+ * reported would name the wrong renderer.
+ */
+function mounted<T>(node: SharedTreeNode, use: (root: Element) => T): T {
     const host = document.createElement('div');
-    const root = build(node);
-    host.append(root);
+    host.append(build(node));
     document.body.append(host);
-    return { root, host };
+    try {
+        return use(host.firstElementChild!);
+    } finally {
+        host.remove();
+    }
 }
 
 const bannerButton = (banner: Element) => banner.querySelector<HTMLButtonElement>('.adw-banner-button');
@@ -82,56 +92,53 @@ function read(expectation: SharedTreeExpectation, el: Element): string | number 
             return (el as unknown as { textLength: number }).textLength;
         case 'switch-row-active':
             return (el as unknown as { active: boolean }).active;
-        case 'banner-button-visible':
-            return bannerButton(el) ? !bannerButton(el)!.hidden : false;
+        case 'banner-button-visible': {
+            const button = bannerButton(el);
+            return button ? !button.hidden : false;
+        }
         case 'banner-button-text':
             return bannerButton(el)?.textContent ?? '';
     }
 }
 
-/** Depth-first, root first — the DOM's own document order, the same walk GTK's is. */
-function descendants(root: Element): Element[] {
-    return [root, ...[...root.children].flatMap((child) => descendants(child))];
+/**
+ * The realised tree, depth-first in document order and filtered to the authored element
+ * names: the parts an element renders for itself (a listbox, a revealer, a title span) are
+ * not the renderer's promise; the ORDER and the NESTING of what was authored is.
+ */
+function realised(root: Element, wanted: readonly string[]): Element[] {
+    const set = new Set(wanted);
+    return [root, ...root.querySelectorAll('*')].filter((el) => set.has(el.tagName.toLowerCase()));
 }
 
 export const AdwSharedTreesTest = async () => {
-    const authored = ADWAITA_GALLERY_SHARED_TREES;
-
     await describe('the shared corpus builds through adwaita-web', async () => {
-        for (const block of authored) {
+        for (const block of ADWAITA_GALLERY_SHARED_TREES) {
             await it(`${block.widget} builds, and the REAL DOM carries the authored nodes in order`, () => {
-                const { root, host } = mount(block.root);
+                const wanted = authoredTags(block.root, hostTagOf);
 
-                const wanted = authoredNodes(block.root).map(({ node }) => hostTagOf(node.tag));
-                const set = new Set(wanted);
-                // Filtered to the authored element names: the parts an element renders for
-                // itself (a listbox, a revealer, a title span) are not the renderer's
-                // promise; the ORDER and the NESTING of what was authored is.
-                const built = descendants(root)
-                    .map((el) => el.tagName.toLowerCase())
-                    .filter((name) => set.has(name));
-
-                expect(built).toStrictEqual(wanted);
-                host.remove();
+                mounted(block.root, (root) => {
+                    const built = realised(root, wanted).map((el) => el.tagName.toLowerCase());
+                    expect(built).toStrictEqual(wanted);
+                });
             });
         }
     });
 
     await describe('the shared corpus against the adwaita-core vectors it reaches', async () => {
-        for (const block of authored) {
-            const expectations = sharedTreeExpectations(block.root);
-
-            for (const expectation of expectations) {
+        for (const block of ADWAITA_GALLERY_SHARED_TREES) {
+            for (const expectation of sharedTreeExpectations(block.root)) {
                 await it(`${block.widget} — ${expectation.path}: ${expectation.table} — ${expectation.rule}`, () => {
-                    const { root, host } = mount(block.root);
-                    const nodes = authoredNodes(block.root);
-                    const set = new Set(nodes.map(({ node }) => hostTagOf(node.tag)));
-                    const built = descendants(root).filter((el) => set.has(el.tagName.toLowerCase()));
-                    const subject = built[nodes.findIndex(({ path }) => path === expectation.path)]!;
-                    expect(subject.tagName.toLowerCase()).toBe(hostTagOf(expectation.gtype));
+                    mounted(block.root, (root) => {
+                        // The SAME filtered walk the shape test asserts, so the element an
+                        // expectation is read off is the one at the authored ADDRESS rather
+                        // than the first of its name the DOM happens to contain.
+                        const built = realised(root, authoredTags(block.root, hostTagOf));
+                        const subject = built[subjectIndexOf(block.root, expectation.path)]!;
+                        expect(subject.tagName.toLowerCase()).toBe(hostTagOf(expectation.gtype));
 
-                    expect(read(expectation, subject)).toBe(expectation.expected);
-                    host.remove();
+                        expect(read(expectation, subject)).toBe(expectation.expected);
+                    });
                 });
             }
         }
