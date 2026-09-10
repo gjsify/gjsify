@@ -57,6 +57,56 @@ Two facts about that plugin decide this ADR:
    Homebrew's libsoup by construction — and Homebrew's libsoup carries Homebrew's glib family in
    its own link closure, which is the second type registry.
 
+### The loader, asked directly
+
+The inference above was then put to dyld itself, on a macOS 15.7.9 / x86_64 host with Homebrew
+`glib 2.88.2`, `libsoup 3.6.6`, `gstreamer 1.28.5` — the reporter's configuration.
+`DYLD_PRINT_SEARCHING=1` over `gst-inspect-1.0 souphttpsrc` prints the search for the bare leaf in
+dyld's own words:
+
+```
+find path "libsoup-3.0.0.dylib"
+  possible path(original path on disk): "libsoup-3.0.0.dylib"
+  possible path(cryptex prefix): "/System/Volumes/Preboot/Cryptexes/OSlibsoup-3.0.0.dylib"
+  LC_RPATH '/usr/local/opt/libsoup/lib' from '…/gstreamer-1.0/libgstsoup.dylib'
+  possible path(leaf name using rpath): "/usr/local/opt/libsoup/lib/libsoup-3.0.0.dylib"
+  possible path(default fallback): "/usr/lib/libsoup-3.0.0.dylib"
+  found: dylib-from-disk: "/usr/local/opt/libsoup/lib/libsoup-3.0.0.dylib"
+```
+
+Three things are settled by that block, and two of them contradict what this ADR assumed before it
+was measured:
+
+- **dyld expands a BARE LEAF against the calling image's `LC_RPATH`.** Its own phrase for it is
+  `leaf name using rpath`. A `g_module_open` with no slash in it is therefore not beyond the reach
+  of a load command, which is what "no `install_name` rewrite anywhere can influence it" in #1536
+  reasonably but wrongly assumed.
+- **The rpath is tried BEFORE the default fallback.**
+- **The default fallback for a leaf `dlopen` is `/usr/lib` alone** — not
+  `$HOME/lib:/usr/local/lib:/usr/lib`. So `/usr/local/lib`, where Homebrew symlinks every keg, is
+  never consulted for this lookup at all.
+
+Together those mean the plugin's own `LC_RPATH` is not *a* route to Homebrew's libsoup. It is the
+**only** one.
+
+### The repair, measured the same way
+
+The same host, with the plugin's rpath list replaced (`-delete_rpath` the keg, `-add_rpath`, ad-hoc
+re-sign) and a copy of libsoup placed where the new entry points. The probe tree puts the plugin
+and the library one directory apart, so its entry reads `@loader_path/../lib`; in the payload the
+plugin sits in `lib/gstreamer-1.0/` and the library in `lib/`, which is `@loader_path/..` — the
+same expansion at the payload's own depth:
+
+```
+LC_RPATH '@loader_path/../lib' from '…/plugins/libgstsoup.dylib'
+possible path(leaf name using rpath): "…/plugins/../lib/libsoup-3.0.0.dylib"
+found: dylib-from-disk: "…/plugins/../lib/libsoup-3.0.0.dylib"
+```
+
+Homebrew's prefix does not appear in the search at all, and `souphttpsrc` still resolves. The
+repair is a load-command edit, it is the one the builder can make, and it was verified against the
+loader rather than argued from the format.
+
 ### Why every existing gate is blind to it
 
 **`relocate()` never touches `LC_RPATH`.** `build-gtk-runtime-darwin.mjs` rewrites the image's own
@@ -143,24 +193,26 @@ a library outside the bundle has to be caught while it is built, not while it pl
 
 ## What this does NOT decide
 
-**Whether § 2 and § 3 together are SUFFICIENT for the leaf-name lookup is unmeasured.** A bare
-leaf reaches dyld through two routes that are both outside the bundle today: the calling image's
-`LC_RPATH`, and `DYLD_FALLBACK_LIBRARY_PATH`, whose default (`$HOME/lib:/usr/local/lib:/usr/lib`)
-contains the Intel Homebrew prefix outright. This ADR removes the first and says nothing about
-which one dyld consults first, because that was not measured — the macOS host needed for
-`DYLD_PRINT_SEARCHING` was not available while it was written.
+**The end-to-end darwin-x64 bundle run.** § "The repair, measured the same way" drives the
+mechanism with `gst-inspect-1.0` over a plugin whose rpath was rewritten by hand, which proves the
+loader behaviour and the repair. It is not the same thing as a bundle built by the fixed builder
+and exercised through node-gi: that needs a darwin runner to produce the artifact, and the leg
+that would see it needs the opposite precondition to the batteries-included ones — **a darwin host
+WITH Homebrew glib present**, which #1536 already identifies as one runner setting and the only
+configuration in which the assertion means anything. Until such a bundle is published, the rule in
+§ 4 is what stands between this defect and a user, and it fails the currently published artifact.
 
-What it does settle is that the artifact stops *offering* the route, and that the offer is now
-refused at build time on every future bundle. If a measurement later shows the fallback path is
-the deciding one, the remaining work is in node-gi's bootstrap (`maybeReexecForGtkRuntime()`
-already sets `DYLD_FALLBACK_LIBRARY_PATH` to the bundle's libdirs, and setting it REPLACES the
-default) — a bootstrap question, not a bundle-contents one, and #1120's lesson forbids answering
-it with a new preference.
+**The Windows half is unmeasured**, as #1536 records: `soup-3.0-0.dll` is reached by the same
+leaf-name `g_module_open`, and Windows resolves a DLL from the loading module's directory first, so
+it may well be immune. A PE image has no `LC_RPATH`, so § 4's Mach-O half does not apply there
+rather than reporting a false clean — the win32 payload needs its own question, not this one's
+answer.
 
-**The Windows half is unmeasured too**, as #1536 records: `soup-3.0-0.dll` is reached by the same
-leaf-name `g_module_open`, and Windows resolves a DLL from the loading module's directory first,
-so it may well be immune. A PE image has no `LC_RPATH`, so the rule's Mach-O half simply does not
-apply there rather than reporting a false clean.
+**`DYLD_FALLBACK_LIBRARY_PATH` turned out not to be part of this.** It was the obvious second
+suspect, and the measurement removed it: the default fallback for a leaf `dlopen` is `/usr/lib`
+alone. node-gi's `maybeReexecForGtkRuntime()` still sets it, and that remains correct for the
+lookups it does cover; it is simply not what decided #1536, and a fix aimed there would have
+changed nothing while looking like a repair.
 
 ## Consequences
 
