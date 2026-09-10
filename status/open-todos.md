@@ -314,6 +314,36 @@ Widening the rule before they are fixed lands a check with a 31-entry exemption 
 which the rule's own header argues against having shipped once already. Fix the 21
 published-package ones, then add the pattern.
 
+### node-gi invalidates a handle `gtk_window_destroy()` drops, where gjs keeps the object
+
+MEASURED on this machine (gjs 1.88.1 / node 24.19.0 / GTK 4.22.4), the same corpus on
+both legs of `@gjsify/gtk-host` (ADR 0030), which is what made it attributable:
+
+    const w = new Gtk.Window();
+    w.present();
+    w.destroy();
+    w.get_visible();     // gjs: false        node-gi: TypeError: invalid GObject handle
+
+`gtk_window_destroy()` drops the reference GTK holds on a toplevel. On gjs the JS
+wrapper still holds one, so the object goes on living at rc=1 and answers every
+accessor — measured, a second `destroy()` on it is silent too. On node-gi the handle
+is gone with GTK's reference and the proxy raises from `gi.js`'s accessor path
+(`Proxy.get_parent`, `gi.js:1470`).
+
+It surfaced through ADR 0054's toplevel placement, where seven vectors were green on
+gjs and red on node — and the first six were OUR defect, not this one: `destroy()`
+retracted a toplevel a second time after `remove()` had already run the declared
+`destroy`, which gjs swallows. That is fixed (the retraction has one owner now). The
+seventh vector was reading a property back off a destroyed window, and it is written
+against the EFFECT instead — `unmap` fires once, measured on both.
+
+What is undecided is whose defect the divergence is. A JS variable naming a GObject
+keeping that object alive is what gjs does and what a caller expects; node-gi's model
+may be deliberate for objects whose lifetime GTK owns. Deciding it means reading
+`node_gi.node`'s reference handling for a `GtkWindow`, not patching a call site. Until
+then the rule for host code is the one that repaired the six: **a retraction has one
+owner, and nothing reads a widget after it.**
+
 ### node-gi: two callable shapes diverge from gjs in calling convention, and their arity with it
 
 Found by the `callable-arity` conformance probe while closing the gtk-host node

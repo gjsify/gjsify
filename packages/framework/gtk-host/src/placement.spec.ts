@@ -706,10 +706,55 @@ export default async () => {
                 const win = createElement('GtkWindow');
                 insert(win, parent);
                 const widget = widgetOf(win) as unknown as Gtk.Window;
-                widget.connect('close-request', () => true);
+                let vetoed = 0;
+                let unmapped = 0;
+                widget.connect('close-request', () => {
+                    vetoed += 1;
+                    return true;
+                });
+                widget.connect('unmap', () => {
+                    unmapped += 1;
+                });
+
+                // The POSITIVE CONTROL, and without it the assertion below cannot
+                // tell the forced call from the conditional one: the veto has to be
+                // shown to work before its absence means anything. Measured,
+                // `close()` here emits `close-request`, the handler stops it, and
+                // the window stays visible.
+                widget.close();
+                expect(vetoed).toBe(1);
+                expect(unmapped).toBe(0);
                 expect(widget.get_visible()).toBe(true);
+
                 remove(win);
-                expect(widget.get_visible()).toBe(false);
+
+                // THE EFFECT, NOT THE STATE. Measured, `destroy()` emits `unmap`
+                // once and never asks `close-request`. Reading a property back off
+                // the widget afterwards is what a vector must NOT do here: on gjs
+                // the wrapper keeps the object alive and answers `false`, and on
+                // node-gi `gtk_window_destroy()` drops GTK's reference and the same
+                // read is `TypeError: invalid GObject handle` — a divergence the
+                // node leg found and `status/open-todos.md` carries.
+                expect(unmapped).toBe(1);
+                expect(vetoed).toBe(1);
+            });
+
+            await it('comes down even when it never had a parent to be removed from', async () => {
+                // The asymmetry a toplevel introduces: `removeChild` is reached
+                // through a PARENT, and a window may never have had one. Before
+                // this, `destroy` closed that gap with a `widget.destroy()` of its
+                // own — so a toplevel WITH a parent was retracted twice, which gjs
+                // swallows and node-gi answers with an invalid handle.
+                const win = createElement('GtkWindow');
+                const widget = widgetOf(win) as unknown as Gtk.Window;
+                let unmapped = 0;
+                widget.connect('unmap', () => {
+                    unmapped += 1;
+                });
+                widget.present();
+                expect(widget.get_visible()).toBe(true);
+                destroy(win);
+                expect(unmapped).toBe(1);
             });
 
             await it('does not shift the siblings that follow it', async () => {

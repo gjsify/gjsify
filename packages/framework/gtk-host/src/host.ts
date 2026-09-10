@@ -20,6 +20,7 @@ import {
     placeOutsideParent,
     refuseUnparentable,
     removeChild,
+    retractOutsideParent,
     setterSlotOf,
     setterSlots,
     slotOccupant,
@@ -597,8 +598,7 @@ function* setterSlotChildren(el: HostElement): Generator<HostElement> {
         // reads the PARENT's policy, so it answers `set_child` for a portal or
         // toplevel child that is not in the slot and never was — and a text write
         // would then record that GTK had unparented it.
-        if (child.kind === 'element' && child.attached && !isUnparented(child) && setterSlotOf(el, child))
-            yield child;
+        if (child.kind === 'element' && child.attached && !isUnparented(child) && setterSlotOf(el, child)) yield child;
     }
 }
 
@@ -1027,6 +1027,22 @@ function restoreTextSink(el: HostElement): void {
 /** Detach only — reversible. Frameworks move nodes; `remove` must not destroy one. */
 export function remove(node: HostNode): void {
     const parent = node.parent;
+    if (!parent && node.kind === 'element' && node.widget) {
+        // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and
+        // that is the whole asymmetry the placement axis introduces: `removeChild`
+        // below is the only retraction path, and it is reached through a parent —
+        // which a toplevel may never have had. Silent on a node that was never
+        // shown (measured, both arms), so this costs nothing on the ordinary path.
+        //
+        // ONE PLACE, and it has to be: `destroy` used to call `widget.destroy()`
+        // itself for exactly this case, so a toplevel WITH a parent was retracted
+        // twice. Harmless on gjs, where the JS wrapper keeps the object alive; on
+        // node-gi the second call is `TypeError: invalid GObject handle`, because
+        // `gtk_window_destroy()` drops GTK's own reference and the handle goes with
+        // it. The node leg is what said so.
+        const outside = outsideParentOf(node.descriptor);
+        if (outside) retractOutsideParent(node, outside);
+    }
     if (parent && node.kind === 'element') {
         removeChild(parent, node);
         node.attached = false;
@@ -1095,10 +1111,20 @@ export function destroy(node: HostNode): void {
         clearHandlers(node);
         node.listeners.clear();
     }
+    // BEFORE `remove`, which unlinks the node and takes the answer with it.
+    const outside = node.kind === 'element' ? outsideParentOf(node.descriptor) : null;
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
         if (
+            // NOT A SECOND TIME for a node whose PLACEMENT already took it down.
+            // `remove` above ran the declared, forced retraction — with a parent and
+            // without — and this branch predates there being a name for that: the
+            // only widgets in GTK4 with a `destroy` method are `Gtk.Window`s, i.e.
+            // exactly the declared toplevels. What is left for it is a window a
+            // consumer deliberately declared `parented`, which is asking for a child
+            // and gets the child teardown.
+            !outside &&
             widget &&
             typeof widget.destroy === 'function' &&
             typeof widget.get_parent === 'function' &&
