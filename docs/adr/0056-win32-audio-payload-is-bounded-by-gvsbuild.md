@@ -1,6 +1,6 @@
 # 56. What the Windows runtime bundle decodes is bounded by gvsbuild's project list
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-09-10
 - Deciders: Pascal Garber
 - Related: [ADR 0037 (the bundles carry the URI source)](0037-gtk-runtime-bundles-carry-the-uri-source.md), [ADR 0055 (a declared media contract)](0055-declared-media-capabilities.md), [ADR 0023 (which GTK a node-gi process uses)](0023-gtk-source-precedence.md)
@@ -161,13 +161,16 @@ corpus has already answered.
   § 2 carries the cause. That run is also what makes the difference between the two halves of
   this ADR concrete: the project LIST is readable from Linux and settled MP3 and FLAC, while
   whether a listed project BUILDS is a Windows fact and nothing here could have predicted it.
-- **This ADR stays `Proposed` until a Windows leg is green on it.** Still unmeasured: that
-  `gstvorbis.dll` builds with the policy flag, that it loads, and that `vorbisdec` registers.
-  The first is the prefix assertion, the second and third are `gst-elements.test.mjs` on the
-  target — which asks for exactly the elements this bundle's manifest claims, so the claim
-  added here is what puts `vorbisdec` in its question. Promote on the first green win32
-  windowing-bundle run carrying both; if the flag does not take, the honest end is the one § 3
-  already describes for MP3 and FLAC, one format wider.
+- **Accepted on run 34530994036, which carried both halves it asked for.** The bundle build
+  is green with the policy flag and the named assertion satisfied; the artifact was then read
+  off the wire rather than off the log — `lib/gstreamer-1.0/gstvorbis.dll` present,
+  `windowingData.gstPlugins` 22, `licenses/libvorbis/COPYING` in the tarball, and no vorbis or
+  ogg DLL in `bin/`, which is the static-CMake reading § 5 added its licence-family entry
+  against. On the target, `gst-elements.test.mjs` passed 8 of 8 on `windows-latest` with no
+  gvsbuild on the host: it asks the running registry for exactly the elements this manifest
+  claims, so `vorbisdec` resolving is what its green means, and `a declared decoder gap is
+  still a gap` says `mpg123audiodec` and `flacdec` are still null there. The file and the
+  element are different questions and both are now answered.
 
 ## What this does NOT decide
 
