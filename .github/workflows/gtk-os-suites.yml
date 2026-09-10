@@ -470,8 +470,19 @@ jobs:
       # disagrees in one legitimate direction: a PR that widens the audio contract ahead
       # of the release carrying the plugin is red here until that release ships. That is
       # the honest answer to "does the artifact a stranger downloads keep this promise"
-      # and not a flaw in the check — the repair is to land the payload first, exactly as
-      # `GST_PLUGIN_GAPS` already asks a builder to declare an absence before shipping it.
+      # and not a flaw in the check.
+      #
+      # WHAT THE REPAIR IS NOT, measured by the first widening to arrive (#1626, win32
+      # gaining Ogg/Vorbis). This line used to say "land the payload first". You cannot:
+      # the builder refuses to let the two travel separately, in both directions. Move
+      # the format out of `gaps` without claiming it and the coverage pass fails, because
+      # the sibling bundles declare an answer for it and this one would say nothing; leave
+      # it in `gaps` while the prefix grows the plugin and `missingBundledGstPlugins`
+      # reports a RETIRED gap and exits 1. The declaration and the payload change in one
+      # commit by construction, so a widening is red HERE for exactly one release cycle
+      # and goes green with the release that publishes the plugin. This leg is advisory
+      # (path-filtered, never a required check) precisely so that window is a readable
+      # state rather than a blocked merge — read the finding, do not silence it.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \

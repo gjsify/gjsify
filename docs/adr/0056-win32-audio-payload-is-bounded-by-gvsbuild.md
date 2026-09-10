@@ -110,6 +110,15 @@ corpus has already answered.
   key the gvsbuild prefix cache on the project set they build. Adding a project without moving
   the key is a cache hit that skips the build and produces the bundle from before the change —
   which then fails as an undeclared absence rather than shipping.
+- **One advisory leg is red for exactly one release cycle, and that is the design.**
+  `gtk-os-suites.yml` stages the PUBLISHED tarball and audits this tree's declaration against
+  it — the artifact a stranger downloads, per ADR 0024 § 4. A widening therefore disagrees with
+  the last release until the next one carries the plugin, and its own comment already called
+  that the honest direction. What it called the repair — "land the payload first" — is not
+  available: the builder refuses to let declaration and payload travel separately in EITHER
+  direction (a format out of `gaps` and unclaimed fails the coverage pass; a gap whose plugin
+  arrived fails as RETIRED). They move in one commit by construction. The leg is path-filtered
+  and never a required check, which is what makes that window readable instead of blocking.
 - **This ADR is `Proposed` until a Windows leg has run it.** What is measured today is a file
   list and a project list, both read from Linux. What is not: that `gstvorbis.dll` builds, that
   it loads, and that `vorbisdec` registers. The first is the prefix assertion, the second and
