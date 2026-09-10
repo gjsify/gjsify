@@ -182,14 +182,25 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const declined: string[] = [];
     const failed: FontFaceFailure[] = [];
     const expected = options.expectedFamilies ?? [];
+
+    // Nothing staged and nothing asked about: answer without touching Pango at all. Reading the
+    // default font map INSTANTIATES it, and an application that ships no faces and names no family
+    // must not pay for that — `GJSIFY_FONT_DIR` is unset unless `gjsify ship` staged a directory,
+    // so this is the ordinary case and the one this call promises to pass through quietly.
+    //
+    // The condition is `expectedFamilies` as well as `dir`, not `dir` alone: "is the family this
+    // application asks for actually here" is a fair question even when the application staged
+    // nothing, which is the macOS shape — a shipped `.app` had the OS activate the directory
+    // declaratively, before any of this ran.
+    if (dir === undefined && expected.length === 0) {
+        return { dir, registered, declined, failed, families: [], matches: [] };
+    }
+
     const fontMap = PangoCairo.FontMap.get_default();
 
-    // The BEFORE half of the diff, taken only when there is something to register — a family list
-    // is a walk over every family the map knows (82 on a Windows host, 187 on a Mac) and an
-    // application that ships no faces must not pay for it. There is one early return below and it
-    // still answers `expectedFamilies`, because "is the family this application asks for actually
-    // here" is a fair question even when the application staged nothing: on macOS the `.app` did
-    // the staging declaratively, before any of this ran.
+    // The BEFORE half of the diff, taken only when there is something to register: a family list
+    // is a walk over every family the map knows, and with no directory there is nothing to
+    // attribute to this call anyway.
     const before = dir === undefined ? [] : familyNames(fontMap);
 
     if (dir !== undefined) {
@@ -222,7 +233,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // tidy: with no font directory named there is no `before`, so subtracting an empty list from
     // a live one would report every family on the host as having been added by a call that
     // registered nothing — a field whose whole purpose is to say what THIS call contributed.
-    const after = dir === undefined && expected.length === 0 ? [] : familyNames(fontMap);
+    const after = familyNames(fontMap);
     const families = dir === undefined ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
 
