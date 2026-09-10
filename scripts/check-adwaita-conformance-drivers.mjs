@@ -560,9 +560,9 @@ const treeTables = new Set();
         // list that no import backs is a coverage claim with nothing behind it, and a table
         // imported but left off the list makes this arm under-credit the renderers driving
         // it. Import clauses and not every occurrence, because a DECLARATION naming the
-        // table it cannot reach ("its only table, SHORTCUT_LABEL_VECTORS, spells keycaps in
-        // English") is the opposite of a join, and reading it as one accused the honest
-        // wording — the same shape the CLAUSE_TURN split exists for one arm over.
+        // table it does NOT join ("SHORTCUT_LABEL_VECTORS is deliberately off
+        // SHARED_TREE_TABLES") is the opposite of a join, and reading it as one accused the
+        // honest wording — the same shape the CLAUSE_TURN split exists for one arm over.
         const read = new Set(
             [...code.matchAll(/import\s*\{([^}]*)\}\s*from/g)].flatMap(([, clause]) =>
                 [...clause.matchAll(/\b([A-Z][A-Z0-9_]*_VECTORS)\b/g)].map(([, name]) => name),

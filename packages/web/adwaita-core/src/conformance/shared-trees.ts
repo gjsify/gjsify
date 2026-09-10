@@ -110,12 +110,20 @@ export const SHARED_TREE_TABLES = [
  * A block in the corpus that proves nothing must SAY so, or the pass count reads as
  * coverage it does not have. Self-retiring: a driver fails on a declared block that has
  * started reaching a row, the same shape as arm 11's stale-divergence rule.
+ *
+ * A reason has to name the mechanism, not a consequence of it: the two below reach nothing
+ * for DIFFERENT reasons — one table is not joined, the other's rows do not match the
+ * authored values — and a declaration that blurs them is a silence nobody can retire.
  */
 export const SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS: Readonly<Record<string, string>> = {
     'Adw.ShortcutLabel':
-        'its only table, SHORTCUT_LABEL_VECTORS, spells keycaps in English while the widget renders ' +
-        'gtk_accelerator_get_label, which is translated — see the header. The browser renderer drives ' +
-        'the table from its own spec, where nothing translates.',
+        'a CHOICE, not an impossibility: SHORTCUT_LABEL_VECTORS is deliberately off SHARED_TREE_TABLES, ' +
+        'because the row this block would instantiate is unreadable on a translated host — see the header. ' +
+        'What that costs is one-sided. `adwaita-web` drives the table from its own spec and would pass the ' +
+        "row here too; `gtk-host` drives it from NO spec, so libadwaita's own keycap rendering is the one " +
+        'thing this declaration leaves unchecked. Joining it wants `it.failing(…, { when: <translated host> })` ' +
+        'per tests/AGENTS.md rule 6 — a tolerated failure on a de_DE desk, a REAL assertion anywhere the host ' +
+        'is untranslated, which no workflow here opts out of.',
     'Adw.WindowTitle':
         'WINDOW_TITLE_VECTORS is a STEP table over a fresh widget and its rows spell their own titles; ' +
         'the authored "Inbox"/"3 unread messages" is no row\'s input, and LABEL_VISIBILITY_VECTORS keys ' +
