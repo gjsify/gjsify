@@ -5846,3 +5846,74 @@ icon anywhere** — no `icon-name` in any `.ts` or `.blp`. Adding the dependency
 ship 26.5 KiB and a startup call to apps with no icons. The day a template draws one, the
 change is one line: `runAdwaitaApp` already defaults this on, and a hand-built application
 calls `installBundledIconTheme()`.
+
+### Blueprint reaches the build through a binary two of three runners lack
+
+`@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`. Finding it takes 268
+lines (`packages/infra/vite-plugin-blueprint/src/resolve-compiler.ts`) plus a 237-line spec,
+against a plugin whose work is 75: Windows has only an MSYS2 route that installs the tool as a
+shebang script Windows cannot execute, whose typelibs then collide with the gjsify GTK runtime
+bundle's own. The consequences are measured rather than predicted: eleven `.blp` exist in the
+tree and none is in a library package; `packages/framework/adwaita-app/src/loading-stack.ts`
+carries a `.blp` that was written and reverted, and with it the repo's single
+`oxlint-disable gjsify/prefer-blueprint-template`; `packages/framework/storybook/src/window.ts`
+builds its window programmatically for the same reason; `scripts/check-doc-fences.mjs` returns
+`blueprint-compiler is not on PATH` (`:368-369`) and skips the whole fence class wherever the
+binary is missing.
+
+ADR 0053 decides the shape: an in-repo TypeScript parser that parses INTO `SharedNode` — the node
+shape ADR 0051's renderers already consume — run in shadow beside `blueprint-compiler` until it
+reports no divergence, and only then authoritative. Its subset is grown by the shadow run and an
+unrecognised construct is a hard error naming its line.
+
+Two pieces of that are not yet measured and should be built before anything else. First, the
+claim that Blueprint and `SharedNode` describe the same tree is a READING of the two notations,
+not a measurement: of the constructs the eleven files actually use (`using` 22, `template` 13,
+`[start]`/`[end]` 23, `styles` 5, `bind` 6, and zero signal handlers, menus or inline
+adjustments), everything but `template` and `bind` appears to map, but nothing has run it. ADR
+0053 clause 2 makes a hand-written `SharedNode` expectation per corpus file the proof, and the
+honest expectation is that the first suite moves at least one row of that table. Second, the
+first PR carries the written corpus and the shadow harness, NOT a parser already claiming a
+subset — a harness with nothing to compare reports green while proving nothing.
+
+Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec, the
+`oxlint-disable`, the programmatic storybook window, the `not on PATH` skip, and the MSYS2 branch
+of `gjsify system-check`.
+
+### Does the shared corpus want a second authored notation?
+
+ADR 0051 authors the shared trees as `SharedNode` in GIR class names, because that spelling is
+the one both renderers already carry and authoring in either renderer's markup would make one of
+them the reference and the other a translation. ADR 0053 adds a Blueprint READER over the same
+shape but explicitly does not propose replacing the authored form.
+
+What is left open is whether it should — and the question is now narrower than it looks, because
+the two notations sit on the same level. GIR is the vocabulary; Blueprint and `SharedNode` are
+both notations over it; `adw-*` elements and GtkBuilder XML are the runtime formats underneath.
+Blueprint compiles to GtkBuilder XML rather than being it, so 0051's argument about a renderer's
+markup does not reach it directly. Against that: `template` and `bind` have no `SharedNode`
+spelling, and `SharedNode.props` admits `string | number | boolean` only, so none of the portable
+values from ADRs 0042, 0046 and 0047 can be written in a shared tree at all while Blueprint
+writes all three as inline objects. Neither notation contains the other, which is why this is a
+real question and not a preference.
+
+The opposite direction costs less and is also unclaimed: `.blp` as a fourth EMITTED dialect of
+the corpus beside `gtkHostTree()` and `nativeScriptTree()`, which needs no parser and leaves
+0051's reasoning untouched. Either could land first. Deciding it belongs to whoever brings a
+measurement — a supersession of 0051 needs more than an argument about levels.
+
+### A developer who picks Vue gets the desktop and nothing else
+
+`packages/framework/gtk-host/src/adapters/` holds React, Solid and Vue over one widget table no
+adapter may duplicate, and all three reach GTK only. `@gjsify/adwaita-web` ships its custom
+elements and `@gjsify/adwaita-nativescript` its widgets, and neither has a framework binding: on
+those surfaces a tree is written against the DOM API or as NativeScript XML by hand.
+
+This is recorded as a GAP, not as a proposal. ADR 0051 Decision 5 already sets the policy —
+nothing more is extracted than the second driver needs, and "extract a `host-core` package first,
+then find a consumer" is explicitly rejected — and 0051 also measured that the adapters carry no
+runtime `gi://` imports at all, so a second renderer would be a parameterisation of the node type
+rather than a rewrite. The cheapest evidence, if anyone wants it, is the web leg: custom elements
+are the best-supported interop target in the browser, so Vue or Solid against `adw-*` is mostly
+an `isCustomElement` predicate plus type declarations rather than a reconciler. A consumer that
+needs it is what would start this, per the policy above.
