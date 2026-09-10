@@ -16,7 +16,15 @@ import GObject from 'gi://GObject?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 
 import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';
-import { addressOf, adderSlots, isPortal, placementOf, unhandledPlacement, unhandledPolicy } from '../policies.js';
+import {
+    addressOf,
+    adderSlots,
+    classPlacementKind,
+    isUnparented,
+    placementOf,
+    unhandledPlacement,
+    unhandledPolicy,
+} from '../policies.js';
 import type { ChildPolicy, HostElement, NodePlacement, WidgetDescriptor } from '../types.js';
 
 /** Every method name a policy names, so the check does not have to know the shapes. */
@@ -60,7 +68,30 @@ export function placementMethodsOf(placement: NodePlacement): string[] {
         case 'parented':
             return [];
         case 'portal':
+        case 'toplevel':
             return [placement.present, placement.close];
+        default:
+            return unhandledPlacement(placement);
+    }
+}
+
+/**
+ * How many arguments this placement's `present` must take, or null when it names none.
+ *
+ * THE ARITY IS THE DISCRIMINATOR between the two non-parented arms, measured on
+ * GTK 4.22.4 / libadwaita 1.9.3: `adw_dialog_present` takes 1 and
+ * `gtk_window_present` takes 0. A zero-argument `present` called with a widget
+ * ignores it silently and opens a window of its own; a one-argument one called
+ * with nothing has no host to reach. Both are exit 0, so the check is here.
+ */
+export function presentArityOf(placement: NodePlacement): number | null {
+    switch (placement.kind) {
+        case 'parented':
+            return null;
+        case 'portal':
+            return 1;
+        case 'toplevel':
+            return 0;
         default:
             return unhandledPlacement(placement);
     }
@@ -120,20 +151,46 @@ export function descriptorProblems(
                 });
             }
         }
-        // A portal's `present` TAKES THE PARENT — that is what makes it a portal
-        // rather than a toplevel, and the arity is where the two are told apart:
-        // measured, `adw_dialog_present` is 1 and `gtk_window_present` is 0. A
-        // zero-argument `present` called with a widget would ignore it silently and
-        // open a window of its own, which is the exact defect the seam exists to
-        // stop.
-        if (placement.kind === 'portal') {
+        // A portal's `present` TAKES THE PARENT and a toplevel's takes nothing —
+        // measured, `adw_dialog_present` is 1 and `gtk_window_present` is 0 — so
+        // the arity is where the two arms are told apart. Swapping them is exit 0
+        // twice over: a zero-argument `present` handed a widget ignores it and
+        // opens a window of its own, and a one-argument one called with nothing
+        // finds no host to reach.
+        const wantedArity = presentArityOf(placement);
+        if (wantedArity !== null && placement.kind !== 'parented') {
             const present = (Klass.prototype as Record<string, unknown>)[placement.present];
-            if (typeof present === 'function' && present.length !== 1) {
+            if (typeof present === 'function' && present.length !== wantedArity) {
                 problems.push({
                     gtype: d.gtype,
-                    problem: `placement.${placement.present}() takes ${present.length} argument(s) on ${actual}, and a portal is presented AGAINST a parent, which is exactly one`,
+                    problem: `placement.${placement.present}() takes ${present.length} argument(s) on ${actual}, and a ${placement.kind} is presented with exactly ${wantedArity}`,
                 });
             }
+        }
+        // AND THE DECLARATION HAS TO EXIST AT ALL where the class demands one
+        // (ADR 0054). Every check above holds a WRITTEN claim against the installed
+        // class; this one holds the class against the ABSENCE of a claim, which is
+        // the direction the whole abort class arrived through. The oracle is
+        // `policies.ts`'s, so the table check and the runtime refusal cannot drift
+        // into two opinions.
+        const present = (Klass.prototype as Record<string, unknown>).present;
+        const native = classPlacementKind(Klass.$gtype, present);
+        // A CLASS THAT CANNOT NAME THE METHODS IS NOT ASKED FOR THEM. `GtkDragIcon`
+        // is a `Gtk.Root` with no `present`, no `close` and no `destroy` (measured)
+        // — GTK builds one for a drag operation and nothing else ever shows one — so
+        // there is no placement it could declare, and demanding one would make this
+        // check unsatisfiable for it. `refuseUnparentable` is its answer instead, and
+        // `is declared by every registered Gtk.Root that can present itself` in
+        // `placement.spec.ts` NAMES it, so a second such class is a decision to take
+        // rather than a silent exemption.
+        if (native && placement.kind === 'parented' && typeof present === 'function') {
+            problems.push({
+                gtype: d.gtype,
+                problem:
+                    native === 'toplevel'
+                        ? `implements Gtk.Root and declares no placement, so a parent would take it as an ordinary child — which GTK accepts at exit 0, leaving a root with a parent; it needs placement: { kind: 'toplevel', … }`
+                        : `has a present() that takes a parent and declares no placement, so a parent would call its adder on it — which is g_error() and aborts the process; it needs placement: { kind: 'portal', … }`,
+            });
         }
         if (d.textSink) {
             const specs = (Klass as unknown as { list_properties(): GObject.ParamSpec[] }).list_properties();
@@ -281,15 +338,15 @@ export { descendants, dumpTree, findDescendant, gtkChildTypes, gtkChildren } fro
 /**
  * The addresses a host element's element-children occupy, in shadow order.
  *
- * A PORTAL child occupies none — it is presented against this element and lives
- * under the toplevel's dialog host — so including it would make every vector that
- * compares this against the real child list disagree by one node that is not
- * there.
+ * A NON-PARENTED child occupies none — a portal is presented against this element
+ * and lives under the toplevel's dialog host, a toplevel is its own root — so
+ * including either would make every vector that compares this against the real
+ * child list disagree by a node that is not there.
  */
 export function addressesOf(el: HostElement): Gtk.Widget[] {
     const out: Gtk.Widget[] = [];
     for (let n = el.first; n; n = n.next) {
-        if (n.kind === 'element' && n.widget && !isPortal(n)) out.push(addressOf(n));
+        if (n.kind === 'element' && n.widget && !isUnparented(n)) out.push(addressOf(n));
     }
     return out;
 }

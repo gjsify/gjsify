@@ -159,3 +159,34 @@ keycaps, so a shortcut rendering can only be asserted where nothing translates.
 `@gjsify/vite-plugin-gettext` refuses to gut a catalog rather than writing an empty one;
 `@gjsify/gtk-host` quotes a font family GTK would otherwise refuse, and clears a nullable
 property for real; and the `.deb` package carries a changelog.
+
+### A window in a child list is not a smaller version of a dialog in one
+
+`@gjsify/gtk-host` learned last release that an `Adw.Dialog` cannot be a child: appending
+one to a box that sits in a window is `g_error()`, which means SIGABRT and a core dump
+rather than an exception. The same probe measured the case next door and the result looked
+harmless — `box.append(new Gtk.Window())` is exit 0 with nothing logged.
+
+It is the same defect. Afterwards the window's parent is the box and its root is *itself*:
+a toplevel with a parent, drawn as a window and simultaneously measured and laid out by a
+container. One kind shouts, its neighbour says nothing, and only the shouting one had an
+answer.
+
+Both have one now. A `Gtk.Root` is presented as its own window and destroyed on unmount,
+declared by the eighteen classes in the table that can present themselves — and the two
+arms are told apart by something the libraries state rather than by a list of names:
+`adw_dialog_present()` takes a parent, `gtk_window_present()` takes none. That same
+question is what the host asks of any widget whose descriptor says nothing at all, so a
+class that cannot be a child is now refused at the insert with a catchable error naming
+the tag, instead of aborting the process or being taken in silence.
+
+One thing the two kinds do not share is how they come back down. A dialog's forced close is
+reversible — present it again and it re-hosts — while destroying a window is final, so
+`remove`, which the host documents as a detach a later insert undoes, now takes a window off
+screen instead of destroying it. Destroying is what `destroy` is for — and so is every place
+the host throws a widget away, including the rollback after a rejected build, which used to
+leave a window GTK still held and nothing could reach.
+
+Verifying it needed a shape worth naming: an abort is invisible to the process it kills, so
+"this no longer aborts" cannot be asserted where it used to happen. The negative control is
+a child process, and what the suite reads is its exit signal.

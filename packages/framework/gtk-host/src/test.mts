@@ -12,7 +12,7 @@ import generatedSuite from './generated.spec.js';
 import generatorSuite from './generator.spec.js';
 import hostSuite from './host.spec.js';
 import menuSuite from './menu.spec.js';
-import portalSuite from './portal.spec.js';
+import placementSuite from './placement.spec.js';
 import probeSuite from './probe.spec.js';
 import propsSuite from './props.spec.js';
 import sharedTreesSuite from './shared-trees.spec.js';
@@ -36,7 +36,7 @@ run({
     gtkPropsSuite,
     buildableSuite,
     propsSuite,
-    portalSuite,
+    placementSuite,
     probeSuite,
     fontDirSuite,
     fontsSuite,

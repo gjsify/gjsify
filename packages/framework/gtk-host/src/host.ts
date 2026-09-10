@@ -13,11 +13,14 @@ import { err, GtkHostError } from './errors.js';
 import {
     addressOf,
     insertChild,
-    isPortal,
+    isUnparented,
     makeDetachedContainer,
     makeWrapper,
-    portalOf,
-    presentPortal,
+    outsideParentOf,
+    closeOutsideParent,
+    detachOutsideParent,
+    placeOutsideParent,
+    refuseUnparentable,
     removeChild,
     setterSlotOf,
     setterSlots,
@@ -90,6 +93,28 @@ export const createAnchor = (data = ''): HostAnchor => ({
 export const isText = (node: HostNode): node is HostText => node.kind === 'text';
 
 /**
+ * Drop the host's reference to a widget — and CLOSE it first if nobody else holds it.
+ *
+ * THE THREE PLACES THAT DISCARD `el.widget` ARE THE WHOLE POPULATION, and the rule
+ * is the same in all three: a parented widget is held by its parent and dies with
+ * it, while a non-parented one is held by GTK itself. Measured, a `Gtk.Window` is in
+ * `Gtk.Window.list_toplevels()` from CONSTRUCTION — before any `present()` — and
+ * leaves it only on `destroy()`; dropping the JS reference and collecting does not
+ * remove it, because GTK holds its own. So a discard without a close is a window
+ * nothing can ever reach again.
+ *
+ * `detachOutsideParent` is deliberately NOT what runs here: that verb is the
+ * reversible one `remove` promises, and there is nothing left to reverse into once
+ * the reference is gone.
+ */
+function releaseWidget(el: HostElement): void {
+    const outside = el.widget ? outsideParentOf(el.descriptor) : null;
+    if (outside) closeOutsideParent(el, outside);
+    el.widget = null;
+    el.wrapper = null;
+}
+
+/**
  * Build the GObject. Deferred until the widget is actually needed, because
  * construct-only properties must all be known at `g_object_new` time — and
  * Solid's `createElement(tag)` contract hands over no properties at all.
@@ -139,8 +164,12 @@ export function materialize(el: HostElement): GObject.Object {
                 child.attached = false;
             }
         }
-        el.widget = null;
-        el.wrapper = null;
+        // A DISCARD AND NOT A DETACH, which is why it is `releaseWidget` and not the
+        // bare assignment it used to be: the widget on the line above is the one this
+        // function just built, and for a `Gtk.Root` GTK is already holding it. A
+        // half-built `<gtk-dialog>` — one child its uncurated policy refuses is
+        // enough — left a window in `list_toplevels()` that nothing could reach.
+        releaseWidget(el);
         throw e;
     }
     return el.widget;
@@ -482,10 +511,17 @@ function rebuild(el: HostElement, key?: string, previous?: unknown): void {
                 child.attached = false;
             }
         }
-        if (parent) removeChild(parent, el);
+        // PARENT-SIDE WORK ONLY, and a non-parented node has none: `removeChild`
+        // would do nothing for one but run its arm's DETACH, and `releaseWidget`
+        // below runs its CLOSE — which on the portal arm is the same method twice.
+        // One retraction per operation, and a discard's retraction is the close.
+        if (parent && !outsideParentOf(el.descriptor)) removeChild(parent, el);
     }
-    el.widget = null;
-    el.wrapper = null;
+    // A DISCARD: `removeChild` above detaches reversibly, which is right for every
+    // caller that re-attaches the same widget afterwards, and this one does not —
+    // `materialize` below builds a fresh instance. `releaseWidget` is where that
+    // difference is decided, for all three discard sites at once.
+    releaseWidget(el);
     el.attached = false;
     // `materialize` replays the whole child list itself; a second pass here
     // attached everything twice and made the remove-all policy re-append a tail
@@ -592,11 +628,11 @@ function flushText(el: HostElement): void {
  */
 function* setterSlotChildren(el: HostElement): Generator<HostElement> {
     for (const child of siblingsFrom(el.first, el)) {
-        // `isPortal` for the reason `holdsOursInSlot` carries: `setterSlotOf` reads
-        // the PARENT's policy, so it answers `set_child` for a portal child that is
-        // not in the slot and never was — and a text write would then record that
-        // GTK had unparented it.
-        if (child.kind === 'element' && child.attached && !isPortal(child) && setterSlotOf(el, child)) yield child;
+        // `isUnparented` for the reason `holdsOursInSlot` carries: `setterSlotOf`
+        // reads the PARENT's policy, so it answers `set_child` for a portal or
+        // toplevel child that is not in the slot and never was — and a text write
+        // would then record that GTK had unparented it.
+        if (child.kind === 'element' && child.attached && !isUnparented(child) && setterSlotOf(el, child)) yield child;
     }
 }
 
@@ -730,18 +766,25 @@ function attach(parent: HostElement, child: HostElement): void {
     if (!parent.widget) return;
     materialize(child);
 
-    // A PORTAL leaves before any of it (ADR 0045). None of the four steps below
-    // applies to a node the parent never adopts: there is no wrapper row for a
-    // node no container addresses, no slot for it to occupy, and no index or tail
-    // for it to take part in. `attached` is what `presentPortal` answers, because
-    // a portal inserted before its parent is in a window is claimed by the host
-    // and NOT yet taken by GTK — the two facts this host keeps apart everywhere
-    // else.
-    const portal = portalOf(child.descriptor);
-    if (portal) {
-        child.attached = presentPortal(parent, child, portal);
+    // A NON-PARENTED NODE LEAVES BEFORE ANY OF IT (ADR 0045, ADR 0054). None of
+    // the four steps below applies to a node the parent never adopts: there is no
+    // wrapper row for a node no container addresses, no slot for it to occupy, and
+    // no index or tail for it to take part in. `attached` is what the placement
+    // answers, because a portal inserted before its parent is in a window is
+    // claimed by the host and NOT yet taken by GTK — the two facts this host keeps
+    // apart everywhere else.
+    const outside = outsideParentOf(child.descriptor);
+    if (outside) {
+        child.attached = placeOutsideParent(parent, child, outside);
         return;
     }
+
+    // AND A NODE THAT SHOULD HAVE HAD ONE IS REFUSED HERE, before `ensureWrapper`
+    // rather than inside `insertChild`. A wrapper row's `set_child` is silent on a
+    // detached row (measured), so putting the check further down would build the
+    // row and only then refuse — and for the dialog family there is no "further
+    // down": the append is `g_error()` and the process is gone.
+    refuseUnparentable(parent, child);
 
     ensureWrapper(parent, child);
 
@@ -766,21 +809,22 @@ function attach(parent: HostElement, child: HostElement): void {
 
     let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
     let index = priorChildren.length;
-    // A PORTAL SIBLING COUNTS FOR NOTHING, and it is the same rule an anchor
+    // A NON-PARENTED SIBLING COUNTS FOR NOTHING, and it is the same rule an anchor
     // already gets one line up: it owns no address in this container, so counting
     // it shifts every later child by one and rotating it would call the parent's
-    // adder on a node the parent must never touch (`g_error`, § the portal arm of
-    // `NodePlacement`). `attached` is true for a presented portal — GTK has taken
-    // it — so `attached` alone is not the question here.
+    // adder on a node the parent must never touch — `g_error` for the portal arm,
+    // a silently parented root for the toplevel one (§ `NodePlacement`).
+    // `attached` is true for a presented portal and for every toplevel — GTK has
+    // taken them — so `attached` alone is not the question here.
     for (const n of siblingsFrom(parent.first, parent)) {
         if (n === child) break;
-        if (n.kind !== 'element' || !n.attached || isPortal(n)) continue;
+        if (n.kind !== 'element' || !n.attached || isUnparented(n)) continue;
         prevWidget = addressOf(n);
         index += 1;
     }
     const following: HostElement[] = [];
     for (const n of siblingsFrom(child.next, parent)) {
-        if (n.kind === 'element' && n.attached && !isPortal(n)) following.push(n);
+        if (n.kind === 'element' && n.attached && !isUnparented(n)) following.push(n);
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
@@ -826,12 +870,13 @@ function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
  */
 function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
     for (const n of siblingsFrom(parent.first, parent)) {
-        // A portal is not IN a slot — it never entered the parent — and a portal
-        // child carries `slot === null` like everything unslotted, so without this
-        // a `<Modal>` inside a one-child container would answer for the slot its
-        // sibling actually holds. Both readers of this care about the same thing:
-        // is the parent's single slot occupied by one of ours.
-        if (n.kind === 'element' && n.attached && n.slot === slot && !isPortal(n)) return true;
+        // A portal or a toplevel is not IN a slot — neither ever entered the
+        // parent — and such a child carries `slot === null` like everything
+        // unslotted, so without this a `<Modal>` inside a one-child container
+        // would answer for the slot its sibling actually holds. Both readers of
+        // this care about the same thing: is the parent's single slot occupied by
+        // one of ours.
+        if (n.kind === 'element' && n.attached && n.slot === slot && !isUnparented(n)) return true;
     }
     return false;
 }
@@ -1016,6 +1061,26 @@ function restoreTextSink(el: HostElement): void {
 /** Detach only — reversible. Frameworks move nodes; `remove` must not destroy one. */
 export function remove(node: HostNode): void {
     const parent = node.parent;
+    if (!parent && node.kind === 'element') {
+        // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and
+        // that is the whole asymmetry the placement axis introduces: `removeChild`
+        // below is the only detach path, and it is reached through a parent — which
+        // a toplevel may never have had. No `node.widget` guard: both arms' detaches
+        // are no-ops without one, and a node whose widget a DISCARD already released
+        // still has to stop claiming it is attached.
+        //
+        // ONE PLACE, and it has to be: `destroy` used to call `widget.destroy()`
+        // itself for exactly this case, so a toplevel WITH a parent was retracted
+        // twice. Harmless on gjs, where the JS wrapper keeps the object alive; on
+        // node-gi the second call is `TypeError: invalid GObject handle`, because
+        // `gtk_window_destroy()` drops GTK's own reference and the handle goes with
+        // it. The node leg is what said so.
+        const outside = outsideParentOf(node.descriptor);
+        if (outside) {
+            detachOutsideParent(node, outside);
+            node.attached = false;
+        }
+    }
     if (parent && node.kind === 'element') {
         removeChild(parent, node);
         node.attached = false;
@@ -1084,10 +1149,32 @@ export function destroy(node: HostNode): void {
         clearHandlers(node);
         node.listeners.clear();
     }
+    // BEFORE `remove`, which unlinks the node and takes the answer with it.
+    const outside = node.kind === 'element' ? outsideParentOf(node.descriptor) : null;
+    // AND THE CLOSE GOES BEFORE IT TOO, for a non-parented node. `remove` runs the
+    // arm's DETACH, and a teardown's one retraction is the CLOSE — so letting the
+    // detach happen first called `force_close` twice on the portal arm, where both
+    // verbs name the same method. Ordered rather than skipped: `releaseWidget` nulls
+    // the widget, so the detach inside `remove` finds nothing to retract and still
+    // drops the portal's `notify::root` subscription, which has to happen either way.
+    //
+    // Only for a non-parented node. An ordinary child is unparented BY `removeChild`
+    // through an address read off `el.widget`, so releasing it first would leave the
+    // widget in its GTK parent for ever.
+    if (outside) releaseWidget(node as HostElement);
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
         if (
+            // NOT for a node with a PLACEMENT: `releaseWidget` below runs that arm's
+            // terminal close, and `remove` above ran only the reversible detach —
+            // the half `destroy` deliberately left to here, because that call is
+            // documented as a move. This branch predates there being a name for any
+            // of it: the only widgets in GTK4 with a `destroy` method are
+            // `Gtk.Window`s, i.e. exactly the declared toplevels. What is left for
+            // it is a window a consumer deliberately declared `parented`, which is
+            // asking for a child and gets the child teardown.
+            !outside &&
             widget &&
             typeof widget.destroy === 'function' &&
             typeof widget.get_parent === 'function' &&
@@ -1095,8 +1182,7 @@ export function destroy(node: HostNode): void {
         ) {
             widget.destroy();
         }
-        node.widget = null;
-        node.wrapper = null;
+        releaseWidget(node);
         // A destroyed node keeps no authored state: `props` and `layout` exist so
         // a REBUILD can restate the same intent, and there is nothing left to
         // rebuild. Leaving them made a destroyed element look re-materialisable.

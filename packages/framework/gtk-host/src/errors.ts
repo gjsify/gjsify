@@ -239,20 +239,48 @@ export const err = {
                 `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
         ),
     /**
-     * A portal descriptor naming a method the installed class does not have.
+     * A placement naming a method the installed class does not have.
      *
      * `descriptorProblems()` rejects this shape up front, so a BUILT-IN descriptor
      * can never reach here — an application-registered one is checked by nobody,
      * and the alternative is `TypeError: widget[placement.present] is not a
      * function` thrown from inside an insert, naming neither the tag nor the axis.
      */
-    portalMethodMissing: (tag: string, method: string, role: 'present' | 'close') =>
+    placementMethodMissing: (tag: string, kind: string, method: string, role: 'present' | 'close') =>
         new GtkHostError(
-            'portal-method-missing',
-            `<${tag}> declares placement: { kind: 'portal', ${role}: '${method}' } and the installed class has ` +
-                `no ${method}(). A portal is placed by calling that method on the node itself — nothing goes ` +
-                `into the parent — so without it the node can never reach the screen and never leave it. ` +
-                `Fix the descriptor, or drop the portal placement and give the widget an ordinary child policy.`,
+            'placement-method-missing',
+            `<${tag}> declares placement: { kind: '${kind}', ${role}: '${method}' } and the installed class has ` +
+                `no ${method}(). A node with this placement is placed by calling that method on the node itself — ` +
+                `nothing goes into the parent — so without it the node can never reach the screen and never leave it. ` +
+                `Fix the descriptor, or drop the placement and give the widget an ordinary child policy.`,
+        ),
+    /**
+     * A child GTK will not take, refused BEFORE the parent's adder is called.
+     *
+     * THE ONLY REFUSAL IN THIS FILE THAT EXISTS TO PREVENT A PROCESS ABORT rather
+     * than a wrong window. `adw_dialog_root()` answers a parented dialog with
+     * `g_error()` — SIGABRT, exit 134, a core dump — which no `try` catches and no
+     * diagnostics gate counts, so a message can only be produced while there is
+     * still a process to produce it (ADR 0054). Its neighbour is the opposite and
+     * just as wrong: a `GtkRoot` appended to a rooted box is accepted at exit 0
+     * with nothing logged, leaving a toplevel with a parent.
+     *
+     * The class is asked STRUCTURALLY and never by name — `Gtk.Root` for a
+     * toplevel, a `present()` that takes a parent for a portal — so a consumer's
+     * own subclass is refused exactly like a shipped one. A widget that trips the
+     * oracle and really is a child says so with an explicit
+     * `placement: { kind: 'parented' }`.
+     */
+    unparentableChild: (parentTag: string, childTag: string, kind: string, why: string) =>
+        new GtkHostError(
+            'unparentable-child',
+            `<${parentTag}> cannot adopt <${childTag}>: ${why}. In the installed libraries placing it anyway is ` +
+                `not an exception — it is either a g_error() that ABORTS the process (SIGABRT, exit 134, no catch, ` +
+                `no diagnostic) or an acceptance at exit 0 that leaves a root inside a child list — so the host ` +
+                `refuses here while a refusal is still reportable. Declare ` +
+                `placement: { kind: '${kind}', … } on the descriptor for <${childTag}> so the host places it the ` +
+                `way the library does, or, if this widget really is an ordinary child, say so with ` +
+                `placement: { kind: 'parented' }.`,
         ),
     notAnElement: (kind: string) =>
         new GtkHostError(
