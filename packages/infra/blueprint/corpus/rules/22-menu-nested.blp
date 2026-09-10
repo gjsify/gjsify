@@ -1,0 +1,16 @@
+using Gtk 4.0;
+
+menu nestedMenu {
+  section {
+    submenu {
+      label: _("More");
+
+      item ("Deep", "app.deep")
+      item (_("Marked"), "app.marked")
+    }
+  }
+}
+
+Gtk.MenuButton {
+  menu-model: nestedMenu;
+}
