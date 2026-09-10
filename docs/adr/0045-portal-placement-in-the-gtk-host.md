@@ -3,7 +3,7 @@
 - **Status:** Accepted (2026-09-04)
 - **Scope:** `@gjsify/gtk-host`'s element model — a second declaration on `WidgetDescriptor`, orthogonal to `ChildPolicy`, read by exactly one file (`src/policies.ts`). Extends [ADR 0027](0027-gtk-host-layer.md) (one host, adapters on top) and [ADR 0028](0028-widget-table-provenance.md) (a placement fact is CURATED and measured, never generated). It settles nothing about which framework renders — the seam is below all three adapters, which is the whole point.
 - **Consumer:** `@gjsify/react-native`'s `<Modal>`, which is what forced the question and what the seam is measured against. The layer's own decisions are [ADR 0032](0032-react-native-on-the-gtk-host.md) and [ADR 0039](0039-react-native-prop-surface.md).
-- **Written after the measurements.** Every number below was produced by running the case on this machine — gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, Fedora 44, Wayland — and the reproducers are the vectors in `packages/framework/gtk-host/src/portal.spec.ts`.
+- **Written after the measurements.** Every number below was produced by running the case on this machine — gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, Fedora 44, Wayland — and the reproducers are the vectors in `packages/framework/gtk-host/src/placement.spec.ts`.
 
 ## Context
 
@@ -176,7 +176,7 @@ Five rows declare the portal placement — `AdwDialog`, `AdwAboutDialog`,
 **They are named rather than inherited, and a spec is what keeps the list complete.**
 Registration is exact: `lookupWidget('AdwAlertDialog')` answers the GENERATED row, not
 `AdwDialog`'s, so an inherited placement would never be looked up and
-`<adw-alert-dialog>` under a rooted box would abort the process. `portal.spec.ts` walks
+`<adw-alert-dialog>` under a rooted box would abort the process. `placement.spec.ts` walks
 every registered descriptor, resolves its class, and asserts that everything descending
 from `Adw.Dialog` declares a portal — so the day libadwaita adds a sixth subclass the
 suite fails instead of a user's application aborting. The four subclasses carry
@@ -234,9 +234,24 @@ per case. Source read at `refs/libadwaita/src/adw-dialog.c` — `adw_dialog_root
 | M | `Adw.Dialog` subclasses by `type_is_a` | `AboutDialog`, `AlertDialog`, `PreferencesDialog`, `ShortcutsDialog`; `MessageDialog` is not one |
 | N | `map` / `unmap` on a presented dialog | `map` 0 on `present()` against an unshown window, **1** after the window's own `present()`; `unmap` 1 on close |
 
-Case K was measured and is deliberately NOT acted on: a `Gtk.Window` appended to a
+Case K was measured and is deliberately NOT acted on HERE: a `Gtk.Window` appended to a
 rooted `Gtk.Box` is accepted **silently** (`win.get_parent()` is the box, exit 0). That
 is a different defect from this one — a toplevel in a child list, not an abort — and it
 belongs to whoever owns window chrome. It is recorded in `status/open-todos.md` rather
 than fixed here, because acting on it means deciding what a `<Window>` element is, which
 is a routing decision this ADR has no business making.
+
+## Amendment (2026-09-10) — case K is the same question, and it is answered
+
+[ADR 0054](0054-toplevel-placement-and-the-unparentable-refusal.md) takes case K up and
+disagrees with the paragraph above on one point: showing a window by presenting it is a
+PLACEMENT decision, not a routing one — which of several windows a router shows is the
+routing part, and that stays open. `NodePlacement` therefore has a third kind,
+`toplevel`, declared by the 18 `Gtk.Root` classes in the table that can present
+themselves; the arity argument in § Membership is what keeps it a separate arm rather
+than making `Gtk.Window` a portal.
+
+The consequence for THIS ADR's text: the four sibling walks in § 5 ask `isUnparented`
+rather than `isPortal`, because every one of them is the same defect for a toplevel;
+`portal.spec.ts` is `placement.spec.ts`; and the `never` arms § 2 relies on are what
+made adding the kind a compile error in each reader rather than a search.

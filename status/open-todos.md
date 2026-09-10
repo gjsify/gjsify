@@ -104,34 +104,6 @@ either class is a published-contract change (`@gjsify/xmlhttprequest` is tier 1)
 them is a decision about which package OWNS the API, not a refactor. Establish that first.
 
 
-### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
-
-ADR 0045 gave `@gjsify/gtk-host` a placement axis because `box.append(dialog)` is `g_error()` —
-SIGABRT, exit 134 — once the box is rooted in a window. The same probe measured the neighbouring
-case and it does NOT abort:
-
-    const outer = new Adw.Window();
-    const box = new Gtk.Box();
-    outer.set_content(box);            // box is rooted
-    box.append(new Gtk.Window());      // exit 0, win.get_parent() === box
-
-A toplevel sitting inside a child list is wrong in the same way a parented dialog is — it is a
-`GtkRoot` with a parent — and GTK says nothing at all about it. So it is the quieter half of the
-same class, arriving through the door this repository pays most for.
-
-It is NOT fixed by the portal placement, and the reason is a decision rather than an omission:
-`gtk_window_present()` takes NO argument (measured, arity 0, against `adw_dialog_present`'s 1), so
-a window is not *presented against* anything. It is a root, not a node with two positions in the
-tree, and the portal arm's whole content is the parent that joins those two positions —
-`descriptorProblems()` now refuses a zero-argument `present` as a portal for exactly that reason.
-
-What is undecided, and why this is an entry rather than a fix: whether a `<GtkWindow>` element
-should be renderable at all, and if so what its placement means. That is the window-chrome and
-router layer's question (`@gjsify/react-native`'s `router/chrome.ts`, ADR 0043's application
-handle), not the widget table's — and answering it inside a placement ADR would have been a
-routing decision taken in the wrong file. Whoever takes it up: the measurement above is the
-starting point, and a third `NodePlacement` kind is four `never` arms away.
-
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
@@ -5152,18 +5124,63 @@ What closes it is whatever eventually lets a NativeScript widget module be
 evaluated in the suite — the `ns-core.d.ts` ambient slice is the type-level half of
 that problem and does not run anything.
 
-### 138 of 164 generated widgets have no measured placement rule
+### No window in this repository needs a curated placement rule
 
 The generated table names every concrete GtkWidget descendant; the curated table
-measures placement for 26. The rest are `children: { kind: 'uncurated' }` — they
-can be created, given properties and given handlers, and inserting a child raises
-an error naming the tag that needs a policy.
+measures a CHILD policy for a fraction of them. The rest are
+`children: { kind: 'uncurated' }` — they can be created, given properties and given
+handlers, and inserting a child raises an error naming the tag that needs a policy.
 
 This is the honest state rather than a defect: guessing an adder is what the
 `uncurated` kind exists to refuse, because `add`, `append` and `set_child` all
 exist somewhere in GTK and calling the wrong one is a warning at exit 0. Curating
 more should be driven by a real window that needs one, with its vector, not by
 walking the list alphabetically.
+
+**So the drive was measured, and it came back EMPTY.** Every tree in this repository
+that renders through `@gjsify/gtk-host` was swept for both tag spellings — the four
+`showcases/gtk/*-host-counter` apps, the three `adwaita-gallery-*` showcases,
+`examples/`, `packages/framework/react-native` (incl. `src/primitives/table.ts` and
+`src/lists`), `packages/framework/adwaita-react-native/src/widgets`,
+`packages/nativescript-bridge`, `scripts/adwaita-gallery-*.mjs` and `website/`:
+
+- **0** uncurated widgets are given a materialised child anywhere.
+- **19** are used, and every one of them as a LEAF: `AdwAvatar`, `AdwBanner`,
+  `AdwButtonContent`, `AdwButtonRow`, `AdwComboRow`, `AdwEntryRow`,
+  `AdwPasswordEntryRow`, `AdwShortcutLabel`, `AdwSpinner`, `AdwSpinRow`,
+  `AdwSplitButton`, `AdwSwitchRow`, `AdwViewSwitcher`, `AdwViewSwitcherBar`,
+  `AdwWindowTitle`, `GtkDropDown`, `GtkListView`, `GtkMenuButton`, `GtkPicture`,
+  `GtkTextView`. A leaf needs no policy at all.
+- **6** are ATTEMPTED as a parent and refused on purpose, all in one place:
+  `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`, which probes
+  `AdwBottomSheet`, `AdwCarousel`, `AdwSidebar`, `AdwTabView`, `AdwToggleGroup` and
+  `AdwViewSwitcher` and asserts the refusal is still true.
+- Everything else in the trees that wraps children routes the wrap through an
+  already-curated container (`GtkBox`, `AdwToolbarView`'s slots, `AdwHeaderBar`'s).
+
+Two sweep trees turned out not to be consumers at all, which is worth writing down
+because both LOOK like ones: `packages/nativescript-bridge` writes its own
+NativeScript `View` subclasses resolved through XML namespaces, and the `html`
+preview fences under `website/src/content/docs/adwaita/` are `@gjsify/adwaita-web`
+custom elements — a neighbouring vocabulary, several of whose tags
+(`adw-sidebar-item`, `adw-tab-page`, `adw-carousel-indicator-dots`) have no gtk-host
+row at all.
+
+**What that leaves as the next step, and it is not "curate the list".** The six
+probed refusals are the only measured demand, and the GIR says what each would need:
+`AdwBottomSheet` is `slotted` over `set_content`/`set_sheet`/`set_bottom_bar`;
+`AdwCarousel` is `indexed` over `insert(child, position)`/`remove`; `AdwToggleGroup`
+is `ordered` over `add`/`remove` and takes only `AdwToggle`; `AdwSidebar` the same
+over `insert`/`remove` and takes only `AdwSidebarSection`; `AdwViewSwitcher` has NO
+child-taking method at all and is honestly `children: { kind: 'none' }`, not
+`uncurated`; `AdwTabView` is the one with no clean pair, because `insert` hands back
+an `AdwTabPage` and removal is `close_page(page)`.
+
+Curating any of them is a GALLERY change, not a table change: `ADWAITA_GALLERY_REFUSALS`
+in `scripts/adwaita-gallery-trees.mjs` and arm 5b of `check-generated-website-data.mjs`
+hold the refusal list against the descriptor directory in both directions, so a
+descriptor landing without its authored gallery tree fails the check — by design. The
+vector each one needs is that tree.
 
 ### Nothing checks that a published `lib/` holds no test output
 
