@@ -1,6 +1,8 @@
 # 51. One authored tree, rendered: ADR 0027 § 9's criterion becomes a suite
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-09-10) — amended, see § Amendment 1: the second driver is
+  `adwaita-web` and not the NativeScript port, because the port has no widget an
+  off-device suite can build. What was actually built is § What landed.
 - Date: 2026-09-09
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0030 (one corpus, GJS as oracle)](0030-one-corpus-gjs-as-oracle.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md)
@@ -216,7 +218,7 @@ Each stage is independently useful and breaks nothing that ships.
 | # | stage | what goes red if it is wrong |
 |---|---|---|
 | 1 | A tree driver for `gtk-host`: build `gtkHostTree(widget)` for each corpus block into real widgets, with `installDiagnosticsGate()` on, and assert the `adwaita-core` vectors the tree reaches. | a block that cannot be built; a GTK diagnostic during a build; a vector that disagrees; a block reaching no vector and not declared |
-| 2 | The same for the NativeScript port over `nativeScriptTree(widget)`, off-device against the port's own classes, the way the port's specs already run on GJS and Node. | the same four, plus a block whose two drivers disagree — which is the finding the whole ADR exists to produce |
+| 2 | ~~The same for the NativeScript port over `nativeScriptTree(widget)`~~ — **withdrawn, see § Amendment 1.** The port's widget classes extend `@nativescript/core` bases that no runtime here has, so there is no off-device tree to build. The second driver is `adwaita-web`, over the same corpus. | the same four, plus a block whose two drivers disagree — which is the finding the whole ADR exists to produce |
 | 3 | Teach `check-adwaita-conformance-drivers.mjs` the tree driver, so a table driven only from a tree is not read as undriven, and a tree claiming a table it does not reach fails. | a false coverage claim — the exact class that gate's three incidents are about |
 | 4 | Print the distance: blocks in the corpus, blocks reaching a vector, blocks declared, per renderer. Derived every run; no count in a header or in prose. | any figure that is written down rather than derived |
 | 5 | Put `adwaita-web` on the corpus: emit the gallery `preview` fence from `ADWAITA_GALLERY_SHARED_TREES` instead of authoring it per block, then drive it in `tests/browser`. This is the stage that closes § 9 in its own words. | a preview fence that is not what the shared tree emits; a web tree that fails a vector its two siblings pass |
@@ -226,3 +228,100 @@ touches the website's authored fences, and it is last because the two stages bef
 what make its result readable.
 
 Follow-up is tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+
+## Amendment 1 — the second driver is `adwaita-web`, and stage 2 as written cannot exist
+
+Stage 2 asked for the NativeScript port "off-device against the port's own classes, the way
+the port's specs already run on GJS and Node". The measurement says the second half of that
+sentence is not what the port's specs do, and the first half is not available at all.
+
+Every widget module under `packages/nativescript-bridge/adwaita/src/widgets/` opens with a
+bare `@nativescript/core` import at module scope (`import { Button, GridLayout, ItemSpec,
+Label } from '@nativescript/core'` in `adw-banner.ts`, and the same shape in each sibling),
+because each class EXTENDS an NS view. `@nativescript/core` is an OPTIONAL peer dependency
+and the workspace install does not bring it in — `node_modules/@nativescript` holds
+`types`, `types-android` and `types-ios` and nothing else — so the specifier is
+unresolvable on GJS and on Node. The port's own suites say so in their headers and act on
+it: *"this file must NOT import `./widgets/adw-banner.js` (nor the package root) … the
+behaviour is exercised through `./widgets/chrome.js`, the pure sibling the widget
+composes"*. So what runs off-device is the port's PURE derivations, never its widgets, and a
+"tree driver" over those would build no tree at all — it would compare data to data, which
+is arm 11 and is precisely what this ADR exists to go past.
+
+A device would not repair that. An Android emulator can host the real classes, but a driver
+that needs one is not a CI guard: it cannot be the check that fails a PR, which is the only
+thing this rung is for. So the second driver is `adwaita-web` — the renderer § 9 named
+before this ADR re-aimed it — and the § "One correction to § 9's own wording" above is
+withdrawn. The correction it made is still true about the CORPUS: `gtk-host` and the
+NativeScript port are the two the gallery authors from one source. It was wrong to carry
+that fact over into the choice of DRIVER, because who authors a gallery block and who can
+build a tree in a test are two different questions.
+
+Stage 5's remaining half — emitting the gallery `preview` fence from
+`ADWAITA_GALLERY_SHARED_TREES` — is untouched and stays open: this amendment moves
+`adwaita-web` into the DRIVER position, not the website's authored fences.
+
+## What landed
+
+- **The corpus is read, never transcribed.** Both drivers import
+  `ADWAITA_GALLERY_SHARED_TREES` from `scripts/adwaita-gallery-shared-trees.mjs` itself. A
+  hand-written `scripts/adwaita-gallery-shared-trees.d.mts` beside it is what lets a
+  TypeScript spec do that without the corpus moving: `tsc` resolves the declaration and
+  never puts the `.mjs` in its program, so no package's `rootDir` is crossed, and each test
+  bundler inlines the module like any other relative import. The corpus stays where its two
+  plain-Node generators can reach it in a CI job with no `node_modules`.
+- **The join is renderer-free** — `packages/web/adwaita-core/src/conformance/shared-trees.ts`,
+  exported from `@gjsify/adwaita-core/conformance`. `sharedTreeExpectations(root)` returns
+  the vector ROWS an authored node instantiates, by matching the authored value against the
+  row's own input. It writes no expected value, which is decision 3 made structural rather
+  than promised.
+- **Two drivers.** `packages/framework/gtk-host/src/shared-trees.spec.ts` builds each block
+  through `createElement`/`setProp`/`insert` with `installDiagnosticsGate()` on;
+  `packages/web/adwaita-web/src/shared-trees.spec.ts` builds it out of custom elements in
+  Firefox. Each asserts, on the REAL tree its renderer produced, that the authored nodes
+  appear in the authored order — the libadwaita revealers and listboxes between them are the
+  renderer's business, the nesting is not — and then reads the reached rows off them.
+- **Each driver has exactly ONE seam**, a `read(expectation, node)` over a closed observable
+  vocabulary. Everything above it is shared; the per-surface transforms are `hostTagOf` on
+  both sides plus a camelCase→kebab ATTRIBUTE rule on the web, both total over the corpus.
+  There is no per-block branch on either side, which is the half of § 9's criterion that a
+  reviewer has to be able to see rather than be told.
+- **The gate learned the tree driver** (stage 3). `check-adwaita-conformance-drivers.mjs`
+  reads the join's table list out of its CODE, refuses a listed table no import backs and an
+  imported table left off the list, refuses a driver spec no entry hands to `run({…})`, and
+  refuses a binding no live suite drives. The one half it cannot decide statically — a
+  listed table no corpus node REACHES — the drivers assert themselves against
+  `reachedTables`, derived from the trees.
+- **The distance is printed and not written down** (stage 4): the gate reports the live tree
+  drivers and the joined tables, arm 11 still reports the partition, and the drivers name
+  every block that reaches no row.
+
+## What the drivers measured, that nothing else had
+
+Three limits are structural, and each is a fact about the criterion rather than a backlog
+item. They are in the binding's header where a reader of it will look; here is why they
+matter to the decision.
+
+- **A `GParamSpec` default is not a constructed default, and a tree driver reads the second
+  one.** `BANNER_DEFAULT_VECTORS` states that `AdwBanner:use-markup` defaults to TRUE, and
+  the pspec agrees: `Adw.Banner.find_property('use-markup').get_default_value()` is `true`
+  on libadwaita 1.9.3. A freshly constructed `Adw.Banner` answers FALSE — `get_use_markup()`
+  and `get_property('use-markup')` agree with each other. `gtk-host`'s README already names
+  that class (construction and the pspec disagree in a hundred-odd places) and the host's own
+  contract sides with construction. Both Adwaita ports implement the pspec default, so the
+  same authored banner is markup-on in the browser and markup-off in GTK. A tree driver
+  therefore cannot read a pspec-default table off a built widget, and the divergence it
+  exposes belongs to the ports rather than to this suite.
+- **A localized rendering is a fact about the runner.** `SHORTCUT_LABEL_VECTORS` spells
+  `<Control>C` as `[Ctrl][C]`; `Adw.ShortcutLabel` draws `gtk_accelerator_get_label`, which
+  is translated — measured as `["Strg","C"]` on this de_DE host and `["Ctrl","C"]` under
+  `LC_ALL=C`. The locale cannot be moved from inside the process: `GLib.setenv('LANGUAGE')`
+  and `GLib.setenv('LC_ALL')` after `Gtk.init` change neither. So the GTK renderer cannot be
+  held to that table by a tree driver at all, which is why `Adw.ShortcutLabel` is a declared
+  block rather than a passing one.
+- **A notify table's `emitted` half has nowhere to come from.** An authored tree writes a
+  property; it cannot attach a listener before the write. Only the END STATE of such a row is
+  reachable, and the binding takes only that.
+
+The consequence for decision 4 is the one worth keeping: two of the seven blocks reach no row
+at all, and the reason each reaches none is a measurement rather than an omission.

@@ -466,12 +466,13 @@ and nothing here asserts that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
-same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. The
-"same authored tree" half now exists for part of the gallery and is measured — see *The
-gallery's two authored trees agree on 7 blocks of 23* below.
-Until that is measured the goal stays a direction, not a claim — and the longer
-horizon it points at (NativeScript and browser builds from one native-authored
-source) needs its own ADR.
+same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Both
+halves now exist for part of the gallery: the "same authored tree" half is measured by
+arm 11, and the BEHAVIOUR half by the two tree drivers ADR 0051 landed — see *The gallery's
+two authored trees agree on 7 blocks of 23* below for what they cover and what they do not.
+The goal is a claim about seven blocks and a direction past them — and the longer horizon it
+points at (NativeScript and browser builds from one native-authored source) still needs its
+own ADR.
 
 Two things the slot work left for whoever picks this up. **Ten of the 23 re-homing
 elements are deliberately not converted**: eight consume typed children into a state
@@ -571,20 +572,32 @@ seven were corrected here. It is worth keeping because of WHERE it hid: seven of
 copies agreed, so every majority-wins reading of the gallery would have propagated the
 typo, and no arm compares a chip label to anything at all.
 
-**What this does NOT close.** Two authored trees agreeing is not two renderers behaving the
-same, and the shared source is compared as DATA rather than as a rendered tree. The
-criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one authored tree
-through both renderers; the seven blocks here are what such a suite would have to start
-from, and the ledger says what would have to converge before it could grow past them.
+**What this does NOT close, now that the suite exists.**
+[ADR 0051](../docs/adr/0051-one-authored-tree-rendered.md) is Accepted and the corpus is
+BUILT by two renderers — `packages/framework/gtk-host/src/shared-trees.spec.ts` on GJS and
+`packages/web/adwaita-web/src/shared-trees.spec.ts` in the browser, joined to the vectors by
+`adwaita-core/src/conformance/shared-trees.ts`. What is still open is the CORPUS, not the
+driver, and the ledger above is the backlog: the suite proves what it proves about seven
+blocks, four vector tables and six rows, and that denominator is printed by the drivers
+rather than written here.
 
-**[ADR 0051](../docs/adr/0051-one-authored-tree-rendered.md) proposes that suite** — one
-corpus and a driver per renderer in ADR 0030's shape, the expectations staying
-`adwaita-core`'s so a failure is attributable to the renderer rather than to a freshly
-written assertion, the remainder declared per block and self-retiring, and a fifth stage
-putting `adwaita-web` on the same corpus by emitting the gallery `preview` fence from it.
-It also carries the correction this entry implies and § 9 does not: § 9 names `adwaita-web`
-as the second renderer, and the corpus that exists pairs `gtk-host` with the NativeScript
-port, because those are the two the gallery authors from one source.
+Three limits are structural rather than backlog, and each is measured in the binding's own
+header: a `GParamSpec`-default table cannot be read off a CONSTRUCTED widget (`AdwBanner`'s
+`use-markup` pspec default is TRUE and a fresh `AdwBanner` answers FALSE on libadwaita
+1.9.3); a table whose expectation is a LOCALIZED rendering asserts a fact about the runner
+(`<Control>C` draws `["Strg","C"]` on a de_DE host, and the locale cannot be moved from
+inside the process); and the `emitted` half of a notify table needs a listener an authored
+tree has nowhere to put.
+
+**The NativeScript port is not the second driver, and cannot be one off-device.** ADR 0051
+proposed it and the measurement overturned that: every widget module under
+`packages/nativescript-bridge/adwaita/src/widgets/` evaluates a bare `@nativescript/core`
+specifier at module scope, `@nativescript/core` is an OPTIONAL peer that the workspace
+install never brings in, and the port's own specs say in their headers that they must not
+import those modules — they drive the pure siblings instead. So the port has no widget to
+build a tree out of in any runtime this repo tests in. A device-bound driver would not be a
+CI guard, which is why the second driver is `adwaita-web`: the renderer ADR 0027 § 9 named
+in the first place.
 
 ### The gallery's two authored PANES are now measured too, and five of forty are one text
 

@@ -132,6 +132,28 @@ A recurring theme, and this release closes another set of them:
 - On Windows, `C:\images\logo.png` was refused as a URI: a drive letter satisfies RFC 3986's
   scheme grammar exactly, and the only OS with drive letters is the one that failed.
 
+### One authored widget tree, built by two renderers
+
+The gallery has widget trees that are written once and drawn by more than one renderer. Until
+now two generators compared them as DATA — the same tags, the same properties — which says
+nothing about the two renderers BEHAVING the same on them. They are now BUILT: the GTK host
+turns each tree into real libadwaita widgets under a diagnostics gate, `@gjsify/adwaita-web`
+turns the same tree into custom elements in Firefox, and both are held to the
+`@gjsify/adwaita-core` conformance rows the tree's own authored values instantiate. Neither
+driver writes an expected value of its own, so a red test names the renderer rather than the
+assertion.
+
+It found what a per-widget suite structurally cannot. Breaking the DECLARATIVE path of
+`<adw-switch-row>` — the attribute read that runs when an element is built from markup, as
+opposed to the property set the existing suite drives — failed exactly the two tree tests
+and left the other 1 670 browser tests green.
+
+Two facts came out of the GTK side and are worth knowing if you write Adwaita for more than
+one surface. A `GParamSpec` default is not a constructed default: `AdwBanner:use-markup`
+declares `TRUE` and a freshly constructed banner answers `FALSE`, so the same authored banner
+is markup-on in the browser and markup-off in GTK. And `Adw.ShortcutLabel` draws TRANSLATED
+keycaps, so a shortcut rendering can only be asserted where nothing translates.
+
 ### Also in this release
 
 `@gjsify/vite-plugin-gettext` refuses to gut a catalog rather than writing an empty one;
