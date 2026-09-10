@@ -179,6 +179,26 @@ export declare const headlessRule: Rule;
 export declare const portableScriptsRule: Rule;
 export declare const fieldCoverageRule: Rule;
 export declare const repositoryDirectoryRule: Rule;
+export declare const bundleSearchPathsRule: Rule;
+
+/** One way a payload image reaches past the bundle it ships in. */
+export interface BundleSearchPathFinding {
+    /** Path relative to the directory the payload sits in. */
+    file: string;
+    /** `escape` — a build-host search path; `unresolvable` — an `@rpath/` dep with nothing to resolve it. */
+    kind: 'escape' | 'unresolvable';
+    /** The offending load-command strings, exactly as recorded. */
+    detail: string[];
+}
+
+/**
+ * Read every Mach-O under `<root>/gtk` and report the images that search outside
+ * it. `null` when the payload directory is not present — an ABSENT payload is
+ * the ordinary state of a checkout and is deliberately not an empty one.
+ */
+export declare function auditPayloadSearchPaths(
+    root: string,
+): { images: number; findings: BundleSearchPathFinding[] } | null;
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];

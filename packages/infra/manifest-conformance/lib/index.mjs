@@ -99,6 +99,12 @@ export { storybookRule, auditStorybook, countStoryFiles } from './rules/storyboo
 export { shipRule, auditShip } from './rules/ship.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';
 export {
+    bundleSearchPathsRule,
+    auditRuntimeBundles,
+    auditPayloadSearchPaths,
+    collectRuntimeBundles,
+} from './rules/bundle-search-paths.mjs';
+export {
     nativescriptPlatformsRule,
     auditNativescriptPlatforms,
     collectPlatformVariants,
