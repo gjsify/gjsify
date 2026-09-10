@@ -98,6 +98,7 @@ const REAL_DIR = join(CORPUS, 'real');
 
 const { ORACLE, CORPUS_RULES, CORPUS_REAL_FILES } = await import(`file://${join(CORPUS, 'manifest.mjs')}`);
 const { RULE_EXPECTATIONS } = await import(`file://${join(CORPUS, 'expectations.mjs')}`);
+const { SHADOW_DIVERGENCES } = await import(`file://${join(CORPUS, 'divergences.mjs')}`);
 const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectations.mjs')}`);
 
 // Kept in step with the `LossKind` typedef in `corpus/expectations.mjs` by hand, because
@@ -459,7 +460,173 @@ if (havecompiler) {
     }
 }
 
+// ---------------------------------------------------------------- stage C
+
+// The SHADOW RUN of ADR 0053 clause 5: the in-repo parser reads every corpus file, the
+// emitter writes GtkBuilder XML from the AST, and the result is diffed against the golden
+// the reference compiler produced. `blueprint-compiler` stays authoritative for the build
+// until this stage is silent.
+//
+// It needs no compiler, only the committed goldens — so unlike stage B it runs on EVERY
+// runner, which is the whole reason the goldens are committed at all.
+//
+// The skip has one cause and it is checkable: there is no parser in this tree yet. Once
+// `src/parser.mjs` exists there is no skip path, so this cannot become the shape stage B
+// nearly became — a gate that reports green because it could not run.
+const PARSER = join(CORPUS, '..', 'src', 'parser.mjs');
+const EMITTER = join(CORPUS, '..', 'src', 'emit-xml.mjs');
+const haveParser = existsSync(PARSER) && existsSync(EMITTER);
+
+let byteEqual = 0;
+let ledgered = 0;
+if (haveParser) {
+    const { parseBlueprint } = await import(`file://${PARSER}`);
+    const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+
+    const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
+    for (const entry of SHADOW_DIVERGENCES) {
+        if (typeof entry.kind !== 'string' || entry.kind.length === 0) {
+            problems.push(`corpus/divergences.mjs: the entry for "${entry.file}" has no kind.`);
+        }
+        if (typeof entry.reason !== 'string' || entry.reason.length < 20) {
+            problems.push(
+                `corpus/divergences.mjs: "${entry.file}" is tolerated with no reason worth reading. ` +
+                    'An entry here is the only record that the disagreement was a decision.',
+            );
+        }
+    }
+
+    const shadowJobs = [
+        ...CORPUS_RULES.map((r) => ({
+            key: `rules/${r.file}`,
+            source: join(RULES_DIR, r.file),
+            golden: join(RULES_DIR, r.file.replace(/\.blp$/, '.ui')),
+        })),
+        ...CORPUS_REAL_FILES.map((p) => ({
+            key: p.source,
+            source: join(root, p.source),
+            golden: join(REAL_DIR, `${p.slug}.ui`),
+        })),
+    ];
+
+    for (const job of shadowJobs) {
+        if (!existsSync(job.source) || !existsSync(job.golden)) continue; // stage A said so
+        const golden = readFileSync(job.golden, 'utf8');
+        let emitted;
+        try {
+            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+        } catch (error) {
+            // Never ledgerable. Clause 3 makes an unreadable construct a hard error naming its
+            // line, so a corpus file the parser refuses is a gap in the parser or a file that
+            // does not belong in the corpus — not a disagreement to tolerate.
+            problems.push(`${job.key}: the parser refused it — ${error.message}`);
+            continue;
+        }
+        const entry = known.get(job.key);
+        if (emitted === golden) {
+            byteEqual += 1;
+            if (entry) {
+                problems.push(
+                    `${job.key} is byte-equal and still listed in corpus/divergences.mjs as "${entry.kind}". ` +
+                        'Delete the entry — a ledger that only grows describes a parser nobody improved.',
+                );
+            }
+            continue;
+        }
+        const a = golden.split('\n');
+        const b = emitted.split('\n');
+        const i = a.findIndex((line, n) => line !== b[n]);
+        if (!entry) {
+            problems.push(
+                `${job.key}: the in-repo emitter does not reproduce the golden, and no entry in ` +
+                    `corpus/divergences.mjs says why. First difference on line ${i + 1}:\n` +
+                    `      golden:   ${JSON.stringify(a[i])}\n      in-repo:  ${JSON.stringify(b[i])}`,
+            );
+            continue;
+        }
+        ledgered += 1;
+    }
+}
+
+// ---------------------------------------------------------------- stage D
+
+// The 36 hand-written `SharedNode` trees, run rather than read.
+//
+// Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
+// says nothing about whether they are RIGHT. They were written by reading each `.blp`
+// before a parser existed, which is what makes them worth having and also what makes them
+// unverified: the most expensive artefact in this corpus was, until this stage, a claim.
+//
+// So the projection of ADR 0053 clause 1 runs over the same files and the two are compared.
+// The direction matters: a mismatch is reported as the EXPECTATION disagreeing with the
+// projection, because either one can be wrong and the file a human wrote is the one worth
+// re-reading first.
+//
+// `detail` is not compared — it is prose for a reader, and a machine cannot be right about
+// it. `comment` losses are dropped before comparing: comments never reach the AST, so the
+// projection has nothing to lose, while the expectation declares the loss from the reader's
+// side. Both halves are correct and they are not comparable.
+const PROJECTOR = join(CORPUS, '..', 'src', 'project.mjs');
+let projected = 0;
+if (haveParser && existsSync(PROJECTOR)) {
+    const { parseBlueprint } = await import(`file://${PARSER}`);
+    const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
+
+    const jobs = [
+        ...RULE_EXPECTATIONS.map((e) => ({ key: `rules/${e.file}`, source: join(RULES_DIR, e.file), expectation: e })),
+        ...REAL_EXPECTATIONS.map((e) => ({ key: e.file, source: join(root, e.file), expectation: e })),
+    ];
+    for (const job of jobs) {
+        if (!existsSync(job.source)) continue;
+        let result;
+        try {
+            result = projectToSharedNode(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+        } catch (error) {
+            problems.push(`${job.key}: the projection failed — ${error.message}`);
+            continue;
+        }
+        projected += 1;
+        const want = JSON.stringify(job.expectation.node, null, 2);
+        const got = JSON.stringify(result.node, null, 2);
+        if (want !== got) {
+            const a = want.split('\n');
+            const b = got.split('\n');
+            const i = a.findIndex((line, n) => line !== b[n]);
+            problems.push(
+                `${job.key}: the hand-written SharedNode tree and the projection disagree. ` +
+                    `First difference on line ${i + 1} of the tree:\n` +
+                    `      expectation: ${JSON.stringify(a[i])}\n      projection:  ${JSON.stringify(b[i])}`,
+            );
+        }
+        const key = (loss) => `${loss.kind}:${loss.line}`;
+        const wantLost = (job.expectation.lost ?? [])
+            .filter((l) => l.kind !== 'comment')
+            .map(key)
+            .sort();
+        const gotLost = result.lost.map(key).sort();
+        if (wantLost.join(',') !== gotLost.join(',')) {
+            const missing = wantLost.filter((k) => !gotLost.includes(k));
+            const extra = gotLost.filter((k) => !wantLost.includes(k));
+            problems.push(
+                `${job.key}: declared losses and projected losses disagree — ` +
+                    `declared and not taken: [${missing.join(', ')}]; taken and not declared: [${extra.join(', ')}].`,
+            );
+        }
+    }
+}
+
 if (problems.length > 0) fail();
+
+const kinds = new Set(SHADOW_DIVERGENCES.map((entry) => entry.kind));
+const stageC = haveParser
+    ? `stage C ran the in-repo parser over all ${byteEqual + ledgered} corpus file(s): ` +
+      `${byteEqual} byte-equal, ${ledgered} ledgered across ${kinds.size} cause(s)`
+    : 'stage C SKIPPED — there is no parser in this tree yet, which is the only reason it can be';
+
+const stageD =
+    projected > 0
+        ? `stage D held ${projected} hand-written SharedNode tree(s) against the projection`
+        : 'stage D SKIPPED — no projection in this tree yet';
 
 const stageB = havecompiler
     ? write
@@ -479,5 +646,5 @@ const losses = everyExpectation.reduce((n, e) => n + (e.lost ?? []).length, 0);
 console.log(
     `check-blueprint-corpus: stage A verified ${CORPUS_RULES.length} rule(s) and ` +
         `${CORPUS_REAL_FILES.length} reality probe(s), each with a hand-written expectation ` +
-        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}.`,
+        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}.`,
 );
