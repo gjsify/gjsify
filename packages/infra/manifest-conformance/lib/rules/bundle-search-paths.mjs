@@ -134,27 +134,49 @@ function filesUnder(dir) {
  * Hold every Mach-O image in a payload against the two ways it can reach out of
  * the bundle.
  *
+ * `foreign` counts images of a format this rule deliberately does not answer for
+ * — a PE has no `LC_RPATH` at all, so the win32 payload is a DIFFERENT question
+ * (ADR 0057, "the Windows half is unmeasured") rather than one this reader may
+ * call clean or empty.
+ *
  * @param {string} root the directory the payload's `gtk/` sits in
- * @returns {{images: number, findings: {file: string, kind: 'escape'|'unresolvable', detail: string[]}[]} | null}
+ * @returns {{images: number, foreign: number, findings: {file: string, kind: 'escape'|'unresolvable'|'unreadable', detail: string[]}[]} | null}
  */
 export function auditPayloadSearchPaths(root) {
     const files = filesUnder(join(root, PAYLOAD_DIR));
     if (files === null) return null;
     let images = 0;
+    let foreign = 0;
     const findings = [];
     for (const file of files) {
         /** @type {import('../binary.mjs').LibInfo} */
         let info;
         try {
             info = readLibrary(file);
-        } catch {
-            // Every payload carries icons, schemas, locale data and typelibs.
-            // A file this parser cannot read is data, not a defective image —
-            // and a fat Mach-O, which it refuses BY DESIGN, is reported by the
-            // readers that own that question rather than smuggled in here.
+        } catch (err) {
+            // NOT the same class as an icon, and the first draft treated it as
+            // one. `readLibrary` answers `null` for a file whose magic it does
+            // not know — that is the schema, the locale data, the typelib, and
+            // it falls through below. It THROWS only when it recognised the
+            // format family and refused the image: a universal (fat) Mach-O, a
+            // 32-bit one, load commands it could not walk. Swallowing that is
+            // the shape this whole rule exists against — measured here, a fat
+            // wrapper around the #1536 plugin makes the audit report zero
+            // findings over an image whose only search path is a Homebrew keg.
+            // An image the reader cannot read is an image this gate cannot
+            // clear, so it is a finding and not a `continue`.
+            findings.push({
+                file: file.slice(root.length + 1),
+                kind: 'unreadable',
+                detail: [err instanceof Error ? err.message : String(err)],
+            });
             continue;
         }
-        if (!info || info.format !== 'macho') continue;
+        if (!info) continue;
+        if (info.format !== 'macho') {
+            foreign++;
+            continue;
+        }
         images++;
         const rel = file.slice(root.length + 1);
 
@@ -175,7 +197,7 @@ export function auditPayloadSearchPaths(root) {
             findings.push({ file: rel, kind: 'unresolvable', detail: rpathDeps });
         }
     }
-    return { images, findings };
+    return { images, foreign, findings };
 }
 
 /**
@@ -205,9 +227,25 @@ export function auditRuntimeBundles(bundles, options = {}) {
         }
         inspected++;
         images += audit.images;
+        // A payload of a format this reader does not answer for is a NON-ANSWER, printed.
+        // `@gjsify/gtk-runtime-win32-x64` ships the same `gtk/` directory name and a tree of
+        // PE images, and a PE has no `LC_RPATH` — so the win32 half of #1536 (`soup-3.0-0.dll`
+        // is reached by the same leaf-name `g_module_open`) needs its own question, which
+        // Windows' own directory-first DLL search may well already answer. Saying so is the
+        // point: before this line the same tree fell into the "holds no Mach-O image at all"
+        // failure below, so the rule reported a DEFECT on a bundle it simply cannot read.
+        if (audit.images === 0 && audit.foreign > 0) {
+            notes.push(
+                `${bundle.name}: payload NOT ANSWERED FOR — ${audit.foreign} image(s), none of them Mach-O. This ` +
+                    'rule reads `LC_RPATH`, which only a Mach-O has; a PE resolves its DLLs by search path at ' +
+                    'LoadLibrary time and needs its own check rather than this one reporting a clean bill ' +
+                    '(ADR 0057, "the Windows half is unmeasured").',
+            );
+            continue;
+        }
         if (audit.images === 0) {
             failures.push(
-                `${bundle.name} (${bundle.path}): ${join(root, PAYLOAD_DIR)} exists and holds no Mach-O image at ` +
+                `${bundle.name} (${bundle.path}): ${join(root, PAYLOAD_DIR)} exists and holds no image at ` +
                     'all. An empty payload satisfies every count-shaped gate and loads nothing.',
             );
             continue;
@@ -225,13 +263,21 @@ export function auditRuntimeBundles(bundles, options = {}) {
                         'something (a plugin reaching a sibling by leaf name needs one), none where it does not. ' +
                         'See ADR 0057 § 1.',
                 );
-            } else {
+            } else if (finding.kind === 'unresolvable') {
                 failures.push(
                     `${bundle.name} (${bundle.path}): \`${finding.file}\` depends on ${finding.detail.join(', ')} ` +
                         'and carries no `@loader_path`/`@executable_path` search path to resolve it. dyld has ' +
                         'nowhere to look, so this fails at load with "Library not loaded" on every host — ' +
                         'including the one that built it. Give the image the payload-relative rpath its ' +
                         'dependencies are written against.',
+                );
+            } else {
+                failures.push(
+                    `${bundle.name} (${bundle.path}): \`${finding.file}\` is an image this reader recognised and ` +
+                        `refused — ${finding.detail.join(', ')}. Its load commands were never read, so nothing here ` +
+                        'says whether it searches outside the bundle; a fat or 32-bit image carrying a Homebrew keg ' +
+                        'rpath passes every count in this rule while doing exactly what #1536 did. Ship a thin ' +
+                        '64-bit image, or teach `binary.mjs` the format and this rule follows.',
                 );
             }
         }

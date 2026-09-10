@@ -76,6 +76,47 @@ export function machO(commands, { arch = 'x64' } = {}) {
     return Buffer.concat([header, ...blocks]);
 }
 
+// ── The two shapes a reader RECOGNISES and REFUSES ───────────────────────────
+//
+// Not variants of {@link machO} but its complement: they carry the same load
+// commands and are deliberately unreadable, so a check can be asked what it does
+// with an image it cannot parse. The answer that matters is the one it must NOT
+// give — silently treating it as data and reporting a clean payload, which is how
+// a fat wrapper around #1536's plugin passed `bundle-search-paths` while its only
+// search path was a Homebrew keg.
+
+/**
+ * `fat_header` + one `fat_arch`, big-endian on disk as the format requires.
+ *
+ * @param {Buffer} thin the image to wrap
+ * @param {{ arch?: 'x64' | 'arm64', offset?: number }} [options]
+ */
+export function fatMachO(thin, { arch = 'x64', offset = 4096 } = {}) {
+    const head = Buffer.alloc(offset);
+    head.writeUInt32BE(0xcafebabe, 0); // FAT_MAGIC
+    head.writeUInt32BE(1, 4); // nfat_arch
+    head.writeUInt32BE(CPU_TYPE[arch], 8);
+    head.writeUInt32BE(3, 12); // cpusubtype
+    head.writeUInt32BE(offset, 16);
+    head.writeUInt32BE(thin.length, 20);
+    head.writeUInt32BE(12, 24); // align
+    return Buffer.concat([head, thin]);
+}
+
+/**
+ * A 32-bit Mach-O: `MH_MAGIC` over an otherwise 64-bit body. Nothing reads past
+ * the magic — the point is the DISPATCH, which fell through every format
+ * `readLibrary` knows and answered "not a shared library at all".
+ *
+ * @param {Array<{cmd: number, str?: string}>} commands
+ * @param {{ arch?: 'x64' | 'arm64' }} [options]
+ */
+export function machO32(commands, options) {
+    const thin = machO(commands, options);
+    thin.writeUInt32LE(0xfeedface, 0);
+    return thin;
+}
+
 // ── A SIGNED image, for the comparator that reads a re-sign back ─────────────
 //
 // {@link machO} above answers "which load commands does this image carry", which

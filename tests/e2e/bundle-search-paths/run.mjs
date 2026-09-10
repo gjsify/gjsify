@@ -33,7 +33,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { machO, LC_ID_DYLIB, LC_LOAD_DYLIB, LC_RPATH, SYSTEM_DYLIB } from '../macho.mjs';
+import { fatMachO, machO, machO32, LC_ID_DYLIB, LC_LOAD_DYLIB, LC_RPATH, SYSTEM_DYLIB } from '../macho.mjs';
+import { pe } from '../pe.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
@@ -64,13 +65,25 @@ after(() => {
     if (tmp) rmSync(tmp, { recursive: true, force: true });
 });
 
-/** Write `<root>/gtk/<rel>` as a Mach-O carrying `commands`. */
-function image(root, rel, commands) {
+/** Write `<root>/gtk/<rel>` verbatim. */
+function rawImage(root, rel, bytes) {
     const abs = join(root, 'gtk', rel);
     mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, machO(commands));
+    writeFileSync(abs, bytes);
     return abs;
 }
+
+/** Write `<root>/gtk/<rel>` as a Mach-O carrying `commands`. */
+function image(root, rel, commands) {
+    return rawImage(root, rel, machO(commands));
+}
+
+/** The #1536 shape, as load commands: the keg rpath and no libsoup among the deps. */
+const SOUP_PLUGIN_COMMANDS = [
+    { cmd: LC_ID_DYLIB, str: '@loader_path/libgstsoup.dylib' },
+    { cmd: LC_RPATH, str: '/usr/local/opt/libsoup/lib' },
+    SYSTEM_DYLIB,
+];
 
 /** A payload root under the suite's tmp dir. */
 function payload(name) {
@@ -192,6 +205,38 @@ describe('bundle-search-paths: a payload image may not search outside the bundle
         assert.equal(audit.findings[0].file, 'gtk/lib/librsvg-2.2.dylib');
     });
 
+    it('refuses an image it cannot READ, instead of counting it as data', () => {
+        // The green-that-checked-nothing shape, one field over from the one the GJS
+        // leg already found. `readLibrary` answers `null` for a file whose magic it
+        // does not know — a schema, an icon, a typelib — and THROWS for an image it
+        // recognised and refused. Treating both as "not an image" means a fat or
+        // 32-bit wrapper around exactly the #1536 plugin makes the audit report zero
+        // findings over an image whose only search path is a Homebrew keg. Measured:
+        // before this, `images=1 findings=0` for both shapes.
+        for (const [name, bytes] of [
+            ['fat', fatMachO(machO(SOUP_PLUGIN_COMMANDS))],
+            ['macho32', machO32(SOUP_PLUGIN_COMMANDS)],
+        ]) {
+            const root = payload(`refused-${name}`);
+            writeCleanImages(root);
+            rawImage(root, 'lib/gstreamer-1.0/libgstsoup.dylib', bytes);
+            const audit = auditPayloadSearchPaths(root);
+            assert.equal(audit.findings.length, 1, `${name} must be reported, not skipped`);
+            assert.equal(audit.findings[0].kind, 'unreadable');
+            assert.equal(audit.findings[0].file, 'gtk/lib/gstreamer-1.0/libgstsoup.dylib');
+        }
+
+        // The discriminator: the SAME load commands in a thin 64-bit image are read,
+        // and reported as the escape they are. Without this line the assertions above
+        // would also pass over a reader that refused every image in the payload.
+        const readable = payload('refused-discriminator');
+        writeCleanImages(readable);
+        image(readable, 'lib/gstreamer-1.0/libgstsoup.dylib', SOUP_PLUGIN_COMMANDS);
+        const audit = auditPayloadSearchPaths(readable);
+        assert.equal(audit.findings.length, 1);
+        assert.equal(audit.findings[0].kind, 'escape');
+    });
+
     it('distinguishes an ABSENT payload from an empty one', () => {
         // They read alike from a `findings.length === 0` test, and conflating them
         // is how a check over an artifact that is not there reports a clean bundle.
@@ -236,7 +281,26 @@ describe('bundle-search-paths: what the rule does with those findings', () => {
         const root = payload('rule-empty');
         const result = auditRuntimeBundles(bundle('gtk-runtime-darwin-x64', root));
         assert.equal(result.failures.length, 1);
-        assert.match(result.failures[0], /no Mach-O image at all/);
+        assert.match(result.failures[0], /no image at all/);
+    });
+
+    it('does not answer for a PE payload — and does not call it empty either', () => {
+        // `@gjsify/gtk-runtime-win32-x64` declares the SAME `files: ["gtk"]`, so it is
+        // collected by this rule and its payload is a tree of PE images. A PE has no
+        // `LC_RPATH`; the win32 half of #1536 (`soup-3.0-0.dll` reached by the same
+        // leaf-name `g_module_open`) is a different question, and Windows' own
+        // directory-first DLL search may already answer it. Before this, the payload
+        // fell into "holds no Mach-O image at all" — the rule reported a DEFECT on a
+        // bundle it cannot read, which is worse than the false clean it was written
+        // against because it fails a correct artifact.
+        const root = payload('rule-win32');
+        for (const rel of ['bin/libgtk-4-1.dll', 'bin/gjs.exe', 'bin/soup-3.0-0.dll']) {
+            rawImage(root, rel, pe({ arch: 'x64', dll: rel.endsWith('.dll') }));
+        }
+        const result = auditRuntimeBundles(bundle('gtk-runtime-win32-x64', root));
+        assert.deepEqual(result.failures, [], 'a PE payload is not a defect this rule may report');
+        assert.match(result.notes.join('\n'), /NOT ANSWERED FOR/);
+        assert.equal(result.stats.images, 0, 'and it is not counted as Mach-O coverage either');
     });
 
     it('does not fail an absent payload — it says it did not look', () => {

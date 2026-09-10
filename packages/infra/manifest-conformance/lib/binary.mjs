@@ -85,6 +85,15 @@ const OWN_LIB_PREFIX = 'libgjsify';
 
 const MH_MAGIC_64 = 0xfeedfacf;
 const MH_CIGAM_64 = 0xcffaedfe;
+/**
+ * The 32-bit Mach-O magics. Recognised only so `readMachO` can REFUSE them by
+ * name: without these two the dispatcher falls through every format it knows and
+ * answers `null`, i.e. "not a shared library at all" — so a 32-bit image reads
+ * like an icon and every caller skips it silently. `readMachO` has always had the
+ * error text for this case; it was simply unreachable.
+ */
+const MH_MAGIC = 0xfeedface;
+const MH_CIGAM = 0xcefaedfe;
 const FAT_MAGIC = 0xcafebabe;
 const FAT_CIGAM = 0xbebafeca;
 
@@ -394,7 +403,14 @@ export function readLibrary(file) {
     const data = readFileSync(file);
     if (data.length < 64) return null;
     const magic = data.readUInt32LE(0);
-    if (magic === MH_MAGIC_64 || magic === MH_CIGAM_64 || magic === FAT_MAGIC || magic === FAT_CIGAM) {
+    if (
+        magic === MH_MAGIC_64 ||
+        magic === MH_CIGAM_64 ||
+        magic === MH_MAGIC ||
+        magic === MH_CIGAM ||
+        magic === FAT_MAGIC ||
+        magic === FAT_CIGAM
+    ) {
         return readMachO(data);
     }
     if (data.readUInt32BE(0) === ELF_MAGIC) return readElf(data);
