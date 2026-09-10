@@ -73,6 +73,7 @@ the TODO records the *what's left*.
 | [0050](0050-effect-platform-services-for-gnome.md) | Effect's platform services for GNOME are a platform package, not a renderer | Accepted |
 | [0051](0051-one-authored-tree-rendered.md) | One authored tree, rendered: ADR 0027 § 9's criterion becomes a suite | Proposed |
 | [0052](0052-attribute-meaning-in-the-fence.md) | An attribute's meaning is a generated comment in the fence a reader copies | Proposed |
+| [0054](0054-toplevel-placement-and-the-unparentable-refusal.md) | The quiet half of the abort class: `toplevel` placement and a structural refusal | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
