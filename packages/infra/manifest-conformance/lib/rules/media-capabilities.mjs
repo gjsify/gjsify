@@ -59,8 +59,14 @@ import { defineRule } from '../registry.mjs';
  */
 const PAYLOAD_DIR = 'gtk';
 
+/** Does this `files` list ship the payload directory itself? */
+function shipsPayload(files) {
+    return files.some((f) => String(f).replace(/\/+$/, '') === PAYLOAD_DIR);
+}
+
 /**
- * Every package whose `files` ship a `gtk/` payload, with its media declaration.
+ * Every package this rule answers for: one whose `files` ship a `gtk/` payload,
+ * OR one that declares `gjsify.mediaCapabilities` while shipping no such entry.
  *
  * `files` and not the filesystem, for `bundled-license`'s reason: the payload is
  * gitignored and assembled on a runner, so the directory is absent in a checkout
@@ -68,13 +74,24 @@ const PAYLOAD_DIR = 'gtk';
  * Whether the payload happens to be reachable HERE is a separate question, asked
  * once per package below and reported either way.
  *
+ * THE SECOND HALF IS WHAT KEEPS THE TRIGGER FROM BEING AN ESCAPE HATCH, and it
+ * is not hypothetical: `files` is an ordinary edit. Narrowing the win32 bundle's
+ * to `gtk/bin` + `gtk/lib` + `gtk/share` — a plausible way to trim a tarball —
+ * drops the package out of the trigger, and the audit then reports `2 bundle(s)`
+ * at exit 0 with the whole MP3 declaration still in the tarball, the coverage
+ * pass green because the only bundle speaking about a gap is gone, and
+ * `bundled-license` silently down one package too. `field-coverage` cannot see
+ * it either: it matches KEY NAMES across the tree, so one package keeping the
+ * key satisfies coverage for every other. A declaration nobody checks is what
+ * this registry exists against, so carrying one with no trigger is a finding.
+ *
  * @param {import('../context.mjs').ConformanceContext} ctx
  */
 export function collectMediaBundles(ctx) {
     const out = [];
     for (const pkg of ctx.allPackages) {
         const files = Array.isArray(pkg.manifest.files) ? pkg.manifest.files : [];
-        if (!files.some((f) => String(f).replace(/\/+$/, '') === PAYLOAD_DIR)) continue;
+        if (!shipsPayload(files) && pkg.gjsify.mediaCapabilities === undefined) continue;
         out.push({
             name: pkg.manifest.name ?? pkg.rel,
             path: pkg.rel,
@@ -120,6 +137,21 @@ export function auditMediaCapabilities(bundles, options = {}) {
 
     for (const bundle of bundles) {
         const caps = bundle.capabilities;
+        // The trigger, held against itself. Everything below reads a package that
+        // `files` says ships the payload; one that declares an audio contract and does
+        // NOT is a claim in a tarball with no rule behind it — see `collectMediaBundles`
+        // for the measurement. Skipped afterwards, so a package outside the trigger
+        // cannot oblige the real bundles to answer for formats it names.
+        if (!shipsPayload(bundle.files)) {
+            failures.push(
+                `${bundle.name} (${bundle.path}): declares \`gjsify.mediaCapabilities\` and its \`files\` ship no ` +
+                    `\`${PAYLOAD_DIR}/\` payload directory (\`files\`: ${bundle.files.join(', ') || '(none)'}). ` +
+                    'This rule keys on that entry, so the declaration would travel in the tarball with nothing ' +
+                    'holding it — and `field-coverage` cannot notice, because it matches key NAMES across the ' +
+                    `tree rather than per package. Ship \`${PAYLOAD_DIR}\` in \`files\`, or delete the declaration.`,
+            );
+            continue;
+        }
         if (caps === undefined) {
             failures.push(
                 `${bundle.name} (${bundle.path}): ships a \`${PAYLOAD_DIR}/\` runtime payload and declares no ` +

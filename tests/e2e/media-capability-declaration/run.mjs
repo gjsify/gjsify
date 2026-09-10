@@ -106,6 +106,36 @@ describe('media-capabilities — the declaration is checked with no payload at a
         assert.match(text(result), /declares no `gjsify\.mediaCapabilities`/);
     });
 
+    it('fails a declaration whose package no longer ships the payload the trigger keys on', () => {
+        // THE TRIGGER, HELD AGAINST ITSELF. `files` is an ordinary edit, and narrowing the real
+        // win32 bundle's to `gtk/bin` + `gtk/lib` + `gtk/share` took it out of this rule AND out
+        // of `bundled-license` at exit 0, with the whole MP3 declaration still in the tarball —
+        // measured, the audit reporting two bundles where the repository publishes three.
+        // `field-coverage` cannot see it: it matches key NAMES across the tree, so the bundles
+        // that stayed satisfied coverage for the one that left.
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('untriggered'), capabilities(), [
+                'index.js',
+                'gtk/bin',
+                'gtk/lib',
+            ]),
+        ]);
+        assert.match(text(result), /ship no `gtk\/` payload directory/);
+    });
+
+    it('does not let an untriggered package oblige the real bundles to answer for it', () => {
+        // A package outside the trigger is a finding on its own and must not become a second one
+        // on every bundle that never heard of its formats — a failure naming innocent packages is
+        // how a check gets read as noise and then switched off.
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('speaks3'), capabilities({ decode: [WAV] })),
+            bundleRecord('@gjsify/rogue', scratch('rogue'), capabilities({ decode: [WAV, MP3] }), ['index.js']),
+        ]);
+        assert.equal(result.failures.length, 1);
+        assert.match(text(result), /@gjsify\/rogue/);
+        assert.doesNotMatch(text(result), /says nothing about MP3/);
+    });
+
     it('fails a declaration that claims nothing and excuses nothing', () => {
         // An empty declaration reads as a present one to every consumer and is what a check
         // iterating it would report as clean.
