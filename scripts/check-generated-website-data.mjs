@@ -90,7 +90,7 @@
 //      ledgered block whose two trees have BECOME identical fails, the same
 //      self-retiring shape as (5b). (4)-(9) each hold ONE tree against ONE renderer,
 //      which is why they were all green while one block drew two different widgets.
-//  13. Every node of a shared tree occurs in that block's `preview` fence — same
+//  13. Every node of a shared tree occurs in the fence its block shows a reader — same
 //      element, same attributes, same values, in the same order. (11) compares the two
 //      authored trees to EACH OTHER, and they can agree while both describe a UI the
 //      block stopped showing; the fence is what a reader copies, and the divergence
@@ -1247,8 +1247,13 @@ notes.push(
 // ---------------------------------------------------------------------------
 
 /**
- * Every node of a shared tree occurs in that block's `preview` fence, same element,
- * same attributes, same values, in the same order.
+ * Every node of a shared tree occurs in the fence its block SHOWS A READER, same
+ * element, same attributes, same values, in the same order.
+ *
+ * WHICH FENCE is {@link galleryFences}'s decision and not a second one taken here — the
+ * `web` fragment where a block has one, `preview` otherwise. Every shared block resolves
+ * to `preview` today, and every message below names the slot it actually read rather than
+ * assuming that stays true.
  *
  * WHY CONTAINMENT AND NOT EQUALITY, which is the direction ADR 0051 § 5 proposed and
  * this arm is the measured answer to. The fence is the RICHER artifact and the ledger
@@ -1262,7 +1267,7 @@ notes.push(
  *
  * THE MATCH IS GREEDY on the element name, in document order, and a matched element
  * must then agree on every authored value. Searching on for a later instance that fits
- * would turn a drifted value into a silent re-anchor — the fence draws five
+ * would turn a drifted value into a silent re-anchor — one block draws a row of
  * `<adw-shortcut-label>`s, so "found one that matches" is available and worthless.
  *
  * WHAT IT CATCHES that arm 11 cannot. Arm 11 compares the two authored TREES to each
@@ -1302,7 +1307,7 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
     const fence = fenceByTitle.get(tree.widget);
     if (fence === undefined) {
         failures.push(
-            `${tree.widget} is a shared tree with no preview fence on any gallery page, so the corpus describes ` +
+            `${tree.widget} is a shared tree with no fence on any gallery page, so the corpus describes ` +
                 'a UI the site does not show. Either the block was renamed or it was removed from the gallery ' +
                 'while its tree stayed in the shared source.',
         );
@@ -1397,7 +1402,7 @@ if (containedNodes > 0 && comparedValues === 0) {
 
 notes.push(
     `${containedNodes} shared node(s) and ${comparedValues} authored value(s) from ` +
-        `${ADWAITA_GALLERY_SHARED_TREES.length} tree(s) found in ${fenceElements} preview element(s) — the corpus ` +
+        `${ADWAITA_GALLERY_SHARED_TREES.length} tree(s) found in ${fenceElements} fence element(s) — the corpus ` +
         'is that far inside what the gallery documents',
 );
 

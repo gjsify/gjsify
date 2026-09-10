@@ -36,7 +36,7 @@
 //
 // A block joins this file only when its tree needs NO alias at all: the same widget
 // names, the same property names, the same values, in the same order. And what it
-// authors must be CONTAINED in that block's own `preview` fence — same elements,
+// authors must be CONTAINED in the fence its block shows a reader — same elements,
 // attributes and values, in the same order — which arm 13 of
 // `check-generated-website-data.mjs` holds, because a corpus two renderers are tested
 // against proves nothing about a UI the page stopped showing.
