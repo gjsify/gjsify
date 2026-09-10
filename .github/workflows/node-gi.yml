@@ -1396,6 +1396,20 @@ jobs:
           echo "--- relocated addon load commands ---"
           otool -l packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node | grep -A2 LC_RPATH || true
 
+      # THE ONE JOB WHERE THE PAYLOAD EXISTS, which is what makes this a check rather
+      # than a formality. `bundle-search-paths` reads the finished payload's Mach-O
+      # load commands, and its subject is gitignored — so everywhere else the audit
+      # runs it prints NOT INSPECTED and passes, honestly and vacuously. Here the
+      # bundle was written four steps ago at exactly the path the rule derives from
+      # the package's own `files`, so the same command finally reads something.
+      #
+      # Not a second copy of the builder's `verifyRelocation()`: that gate sees the
+      # image LIST the builder handed it, this one walks the payload as it will be
+      # packed. Runs with no install, the way `audit-runtimes.yml` does — the script
+      # is pure Node.
+      - name: Conformance audit over the payload just built (ADR 0057 § 4)
+        run: node scripts/audit-runtimes.mjs --check
+
       - name: Upload GTK runtime bundle
         uses: actions/upload-artifact@v4
         with:
