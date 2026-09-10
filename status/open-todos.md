@@ -594,12 +594,13 @@ tree has nowhere to put.
 **The NativeScript port is not the second driver, and cannot be one off-device.** ADR 0051
 proposed it and the measurement overturned that: every widget module under
 `packages/nativescript-bridge/adwaita/src/widgets/` evaluates a bare `@nativescript/core`
-specifier at module scope, `@nativescript/core` is an OPTIONAL peer that the workspace
-install never brings in, and the port's own specs say in their headers that they must not
-import those modules — they drive the pure siblings instead. So the port has no widget to
-build a tree out of in any runtime this repo tests in. A device-bound driver would not be a
-CI guard, which is why the second driver is `adwaita-web`: the renderer ADR 0027 § 9 named
-in the first place.
+specifier at module scope, and the port's own specs say in their headers that they must not
+import those modules — they drive the pure siblings instead. Installing the optional peer
+would not help: `@nativescript/core` ships a widget class only as `index.android.js` /
+`index.ios.js`, never a platform-neutral `index.js`, so the base class those widgets extend
+does not resolve outside a device — the measurement is in the ADR's Amendment 1. A
+device-bound driver would not be a CI guard, which is why the second driver is
+`adwaita-web`: the renderer ADR 0027 § 9 named in the first place.
 
 ### A constructed `Adw.Banner` does not interpret markup, and both ports say it does
 

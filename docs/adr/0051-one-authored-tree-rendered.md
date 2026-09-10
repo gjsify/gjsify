@@ -248,9 +248,20 @@ composes"*. So what runs off-device is the port's PURE derivations, never its wi
 "tree driver" over those would build no tree at all — it would compare data to data, which
 is arm 11 and is precisely what this ADR exists to go past.
 
-A device would not repair that. An Android emulator can host the real classes, but a driver
-that needs one is not a CI guard: it cannot be the check that fails a PR, which is the only
-thing this rung is for. So the second driver is `adwaita-web` — the renderer § 9 named
+**Installing the peer would not repair it either, and that is the part worth writing down:
+the absence is structural, not a state of this checkout.** `@nativescript/core` ships no
+platform-neutral module for a widget class at all. In 9.1.1, `ui/label/`, `ui/core/view/`
+and `ui/layouts/grid-layout/` each hold `index.android.js`, `index.ios.js` and a
+`*-common.js` — and no `index.js`. Choosing between the two flavours is NativeScript's own
+platform-aware module resolution, not Node's and not a bundler's; a plain
+`import('@nativescript/core/ui/label/index.js')` fails with `Cannot find module`, and the
+package root fails one step earlier still, on a directory specifier ESM does not resolve.
+So `class AdwBanner extends GridLayout` has no base class to extend in any runtime that is
+not a device, whatever the manifest says. Adding the devDependency buys nothing.
+
+A device would not repair it from the other side. An Android emulator can host the real
+classes, but a driver that needs one is not a CI guard: it cannot be the check that fails a
+PR, which is the only thing this rung is for. So the second driver is `adwaita-web` — the renderer § 9 named
 before this ADR re-aimed it — and the § "One correction to § 9's own wording" above is
 withdrawn. The correction it made is still true about the CORPUS: `gtk-host` and the
 NativeScript port are the two the gallery authors from one source. It was wrong to carry
