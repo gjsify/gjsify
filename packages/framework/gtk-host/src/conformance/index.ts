@@ -173,8 +173,17 @@ export function descriptorProblems(
         // the direction the whole abort class arrived through. The oracle is
         // `policies.ts`'s, so the table check and the runtime refusal cannot drift
         // into two opinions.
-        const native = classPlacementKind(Klass.$gtype, (Klass.prototype as Record<string, unknown>).present);
-        if (native && placement.kind === 'parented') {
+        const present = (Klass.prototype as Record<string, unknown>).present;
+        const native = classPlacementKind(Klass.$gtype, present);
+        // A CLASS THAT CANNOT NAME THE METHODS IS NOT ASKED FOR THEM. `GtkDragIcon`
+        // is a `Gtk.Root` with no `present`, no `close` and no `destroy` (measured)
+        // — GTK builds one for a drag operation and nothing else ever shows one — so
+        // there is no placement it could declare, and demanding one would make this
+        // check unsatisfiable for it. `refuseUnparentable` is its answer instead, and
+        // `is declared by every registered Gtk.Root that can present itself` in
+        // `placement.spec.ts` NAMES it, so a second such class is a decision to take
+        // rather than a silent exemption.
+        if (native && placement.kind === 'parented' && typeof present === 'function') {
             problems.push({
                 gtype: d.gtype,
                 problem:

@@ -211,7 +211,7 @@ export default async () => {
                     } catch (error) {
                         caught = error;
                     }
-                    expect((caught as GtkHostError)?.code).toBe('portal-method-missing');
+                    expect((caught as GtkHostError)?.code).toBe('placement-method-missing');
                     expect(broken.portalWatch).toBe(null);
                 } finally {
                     // Put the real table back: the registry is module-global and
