@@ -8,7 +8,39 @@
 
 import Gtk from 'gi://Gtk?version=4.0';
 
-import type { WidgetDescriptor } from '../types.js';
+import type { NodePlacement, WidgetDescriptor } from '../types.js';
+
+/**
+ * The placement every `Gtk.Root` shares — ADR 0054.
+ *
+ * `present` and `destroy` are measured on GTK 4.22.4; the measurements that pick
+ * `destroy` over `close` (a vetoed `close-request` leaves the window up) and that
+ * make the retraction terminal are on `NodePlacement`'s toplevel arm in `types.ts`.
+ *
+ * SHARED WITH `adw.ts`, which imports it: a toplevel is a fact about the TYPE, and
+ * `Gtk.Root`'s presentable implementations are split across the two libraries by
+ * nothing but who owns the class (measured with `GObject.type_is_a`). They are
+ * NAMED rather than inherited for the reason the dialog family is: registration is
+ * exact, so `lookupWidget('GtkMessageDialog')` answers the GENERATED row and an
+ * inherited placement would never be looked up. `is declared by every registered
+ * Gtk.Root` in `placement.spec.ts` is what keeps the list complete, and it holds
+ * the count so no comment has to.
+ *
+ * `GtkDragIcon` is the one `Gtk.Root` deliberately absent: measured, it has no
+ * `present`, no `close` and no `destroy` — GTK creates one for a drag operation and
+ * nothing else ever shows one. It is refused at the insert by `refuseUnparentable`
+ * instead, which is the honest answer for a root that cannot present itself, and
+ * the spec NAMES it so a second such class is a decision rather than a bumped
+ * number.
+ *
+ * CHILDREN STAY UNCURATED on every row that had no policy before this. A window
+ * takes `set_child`, but `GtkDialog` and its five chooser subclasses put children
+ * into a content area (`get_content_area`) that `set_child` would REPLACE, and
+ * `GtkAssistant` addresses pages by index — the `AdwAlertDialog` trap one axis
+ * over. Guessing here buys a warning at exit 0; the tags are creatable,
+ * propertyable and presentable, and a child in one is a named refusal.
+ */
+export const TOPLEVEL: NodePlacement = { kind: 'toplevel', present: 'present', close: 'destroy' };
 
 export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     {
@@ -27,11 +59,64 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         gtype: 'GtkWindow',
         ctor: () => Gtk.Window,
         children: { kind: 'single', set: 'set_child' },
+        placement: TOPLEVEL,
     },
     {
         gtype: 'GtkApplicationWindow',
         ctor: () => Gtk.ApplicationWindow,
         children: { kind: 'single', set: 'set_child' },
+        placement: TOPLEVEL,
+    },
+    // The remaining GTK toplevels. `uncurated` children, per the constant above.
+    { gtype: 'GtkDialog', ctor: () => Gtk.Dialog, children: { kind: 'uncurated' }, placement: TOPLEVEL },
+    { gtype: 'GtkAboutDialog', ctor: () => Gtk.AboutDialog, children: { kind: 'uncurated' }, placement: TOPLEVEL },
+    { gtype: 'GtkMessageDialog', ctor: () => Gtk.MessageDialog, children: { kind: 'uncurated' }, placement: TOPLEVEL },
+    { gtype: 'GtkAssistant', ctor: () => Gtk.Assistant, children: { kind: 'uncurated' }, placement: TOPLEVEL },
+    {
+        gtype: 'GtkAppChooserDialog',
+        ctor: () => Gtk.AppChooserDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'GtkColorChooserDialog',
+        ctor: () => Gtk.ColorChooserDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'GtkFileChooserDialog',
+        ctor: () => Gtk.FileChooserDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'GtkFontChooserDialog',
+        ctor: () => Gtk.FontChooserDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'GtkShortcutsWindow',
+        ctor: () => Gtk.ShortcutsWindow,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    // The two Unix-only ones. `ctor()` answers `undefined` where the typelib has no
+    // such class, and `descriptorProblems()` skips a row it cannot resolve — which
+    // is why declaring them costs nothing off Linux and refusing to declare them
+    // would cost an abort-adjacent silence on it.
+    {
+        gtype: 'GtkPageSetupUnixDialog',
+        ctor: () => Gtk.PageSetupUnixDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'GtkPrintUnixDialog',
+        ctor: () => Gtk.PrintUnixDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
     },
     {
         // HOW AN APPLICATION SPELLS "as tall as it is wide" ON THIS HOST, and that is

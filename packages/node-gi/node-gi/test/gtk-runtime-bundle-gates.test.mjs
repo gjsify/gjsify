@@ -1396,7 +1396,7 @@ test('every claimed format names a decoder, and every declared gap names a real 
     for (const target of Object.keys(GST_PLUGIN_GAPS)) {
         for (const row of gstAudioDecoders(target)) {
             // The SHARED predicate, not a second regex: this one read `^[a-z0-9]+$`, under
-            // which `avdec_aac` — the element ADR 0053 names as the one that would close the
+            // which `avdec_aac` — the element ADR 0055 names as the one that would close the
             // AAC gap — was legal in the manifest and illegal here.
             assert.ok(isGstElementName(row.element), `${target} ${row.format} names no decoder element`);
             // The plugin behind a claimed format must be one the builders actually copy.

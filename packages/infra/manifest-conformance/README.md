@@ -20,7 +20,7 @@ the same shape of question, each written in reaction to a separate incident:
 | An emulated build ran on the runner's own architecture | machine-vs-directory |
 | A stale `.tsbuildinfo` made `gjsify tsc` a silent no-op (#67) | declared outputs exist |
 | `@gjsify/canvas2d-core` documented itself headless and imported `gi://Gdk` | headless contract (ADR 0015) |
-| A runtime bundle shipped a GStreamer payload with no MP3 decoder while its siblings had one | declared media capabilities (ADR 0053) |
+| A runtime bundle shipped a GStreamer payload with no MP3 decoder while its siblings had one | declared media capabilities (ADR 0055) |
 
 The collection grew; it was never designed. Nothing connected *"we added a field
 to the manifest contract"* to *"therefore something must verify it"* — so a new

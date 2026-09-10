@@ -53,7 +53,7 @@ the TODO records the *what's left*.
 | [0030](0030-one-corpus-gjs-as-oracle.md) | One test corpus per claim, parameterised by runtime; GJS is the oracle | Accepted |
 | [0031](0031-node-gi-napi-outside-the-workspace.md) | `node-gi` and `napi` stay outside the npm workspace | Accepted |
 | [0032](0032-react-native-on-the-gtk-host.md) | A React Native view layer over the GTK host, split so every binding can use the shared half | Proposed |
-| [0033](0033-declarative-templates-preferred.md) | A widget tree is declared in a template file; TypeScript holds the behaviour | Proposed |
+| [0033](0033-declarative-templates-preferred.md) | A widget tree is declared in a template file; TypeScript holds the behaviour | Accepted |
 | [0034](0034-widget-vocabulary-convergence.md) | Every widget surface: named from the GIR, exported as a namespace, remainder declared | Proposed |
 | [0035](0035-web-view-on-win32.md) | A web view on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace | Accepted |
 | [0036](0036-third-party-react-native-surfaces.md) | Third-party React Native surfaces: one registry, one package, one subpath each | Proposed |
@@ -73,7 +73,9 @@ the TODO records the *what's left*.
 | [0050](0050-effect-platform-services-for-gnome.md) | Effect's platform services for GNOME are a platform package, not a renderer | Accepted |
 | [0051](0051-one-authored-tree-rendered.md) | One authored tree, rendered: ADR 0027 § 9's criterion becomes a suite | Accepted |
 | [0052](0052-attribute-meaning-in-the-fence.md) | An attribute's meaning is a generated comment in the fence a reader copies | Proposed |
-| [0053](0053-declared-media-capabilities.md) | A runtime bundle declares the media formats it decodes, and the declaration names its own evidence | Proposed |
+| [0053](0053-blueprint-parsed-in-repo.md) | Blueprint is parsed in-repo, into the node shape ADR 0051 already renders | Accepted |
+| [0054](0054-toplevel-placement-and-the-unparentable-refusal.md) | The quiet half of the abort class: `toplevel` placement and a structural refusal | Accepted |
+| [0055](0055-declared-media-capabilities.md) | A runtime bundle declares the media formats it decodes, and the declaration names its own evidence | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

@@ -52,7 +52,7 @@ export function isGstPluginFile(fileName) {
  * ONE predicate, because two disagreeing ones are worse than none: the conformance
  * rule validates every declared `element` and the bundle-gate test asserted the
  * same thing with a stricter regex of its own, under which `avdec_aac` — the
- * element ADR 0053 names as the one that would close the AAC gap — was legal in
+ * element ADR 0055 names as the one that would close the AAC gap — was legal in
  * the manifest and illegal in the test.
  *
  * Underscore included for that reason; no dot and no dash, which no factory in

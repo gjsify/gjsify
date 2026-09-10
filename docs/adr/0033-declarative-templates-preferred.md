@@ -1,9 +1,9 @@
 # 33. A widget tree is declared in a template file; TypeScript holds the behaviour
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-08-28
 - Deciders: Pascal Garber
-- Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0032 (React Native on the GTK host)](0032-react-native-on-the-gtk-host.md)
+- Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0032 (React Native on the GTK host)](0032-react-native-on-the-gtk-host.md), [ADR 0053 (Blueprint parsed in-repo)](0053-blueprint-parsed-in-repo.md)
 
 ## Context
 

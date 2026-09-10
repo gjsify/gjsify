@@ -52,8 +52,25 @@ export interface DiagnosticsGate {
  * every `Vulkan:` record originates inside GSK/GDK bringing up the display. A
  * mis-parented widget, a refused property, a bad CSS rule — the whole class this
  * module was written for — never surfaces under this prefix.
+ *
+ * `gdk_surface_thaw_updates:` is the second entry, and it does NOT rest on the
+ * argument that first justified it. "We have zero call sites for `thaw_updates`"
+ * does not clear this codebase — the assertion says somebody thawed once too often,
+ * and our own call sequence could have been what walked GDK into it. Widening this
+ * list on that reasoning is how a real defect goes quiet.
+ *
+ * MEASURED instead, on a macOS darwin-x64 host, in a bare `gjs` script with no
+ * gjsify in the process: `present()`, `set_visible(false)`, `present()` reproduces
+ * it, `set_visible` alone reproduces it, and a first present, a doubled one and a
+ * hide with no re-show are silent — so the trigger is re-showing a hidden surface,
+ * which is what a MOVE of a `toplevel`-placed node is (ADR 0054 § 6). The extra thaw
+ * is inside `_gdk_macos_toplevel_surface_present`. Loud and not harmful: one record
+ * per re-show, no accumulation, identical render either side. ADR 0054 has the rows.
+ *
+ * NOT DROPPED, in either case: an environment record is counted and `assertQuiet`
+ * names the count, so a leg that produces one is still saying so.
  */
-const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: '];
+const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: ', 'gdk_surface_thaw_updates: '];
 
 /** Whether `message` describes the host's graphics stack rather than the tree. */
 export function isEnvironmentDiagnostic(message: string): boolean {

@@ -193,11 +193,82 @@ exactly the distinction that flag exists to keep.
 Membership is the `Adw.Dialog` family and nothing else: `AdwDialog` plus
 `AdwAboutDialog`, `AdwAlertDialog`, `AdwPreferencesDialog` and `AdwShortcutsDialog`,
 each **named** rather than inherited because descriptor lookup is exact — and
-`portal.spec.ts` walks `GObject.type_is_a(…, Adw.Dialog)` over the registered table,
-so libadwaita's next dialog subclass fails the suite instead of aborting somebody's
-application. A `Gtk.Window` is deliberately not one: `gtk_window_present()` takes no
-argument, so there is nothing to present it *against*, and `descriptorProblems()`
-refuses a zero-argument `present` as a portal.
+`placement.spec.ts` walks `GObject.type_is_a(…, Adw.Dialog)` over the registered
+table, so libadwaita's next dialog subclass fails the suite instead of aborting
+somebody's application.
+
+### The quiet half — `toplevel`
+
+A `Gtk.Window` is not a portal, and the arity is the reason: `gtk_window_present()`
+takes no argument, so there is nothing to present it *against*. It is a root, with
+one position in the tree rather than two. That made it the OTHER wrong answer to the
+same question, and for a release it was simply not answered
+([ADR 0054](../../../docs/adr/0054-toplevel-placement-and-the-unparentable-refusal.md)):
+
+| case | result |
+|---|---|
+| `box.append(new Gtk.Window())`, box **rooted in a window** | **exit 0, silent** — `get_parent()` is the box, `get_root()` is the window ITSELF |
+| the same window, then `present()` | mapped and visible, **and still in the box's child list** |
+| `close-request` handler returns `true`, then `close()` | window **still mapped and visible** |
+| then `destroy()` | down, silent |
+| `close()` / `destroy()` on a window never presented | **silent**, both |
+| `present()` after either | `Gtk-WARNING **: A window is shown after it has been destroyed` |
+
+So the second arm is `{ kind: 'toplevel', present: 'present', close: 'destroy' }`:
+the forced call again, terminal this time; presented eagerly, because there is no
+second position to wait for; honouring an authored `visible: false` rather than
+overruling it. Membership is `Gtk.Root` — 19 classes in the table, 18 of which can
+present themselves. `GtkDragIcon` is the one that cannot and carries no declaration;
+`AdwMessageDialog` is here rather than in the portal family, because it is a
+`GtkWindow`.
+
+**Terminal is why the axis has TWO retraction verbs.** `remove` promises a detach a
+later `insert` undoes, and Solid's `removeNode` takes it literally — so running the
+declared close there destroyed the window and presented the corpse. `remove` calls
+`detachOutsideParent`, `destroy` calls `closeOutsideParent`, and the arms differ only
+here: measured, `force_close()` → `present(parent)` re-hosts a dialog with no
+diagnostic, so for a portal both verbs are the same call. A toplevel detaches with
+`set_visible(false)` — measured reversible, one `unmap`, no `close-request`, and the
+window stays in `Gtk.Window.list_toplevels()`, which is what makes it a detach rather
+than a teardown. What wants the terminal verb is a DISCARD, not a particular caller:
+`materialize`'s rollback, `rebuild` and `destroy` are the three places that drop
+`el.widget`, they share one `releaseWidget`, and it closes first — measured, a window
+is in `list_toplevels()` from construction, so dropping the reference alone leaks one
+per construct-only write and one per half-built element a rejected replay rolls back.
+
+**ONE RETRACTION PER OPERATION, and the ordering is what delivers it.** `remove` runs the
+detach once; a discard runs the close once; neither runs the other's. That needs a teardown
+NOT to detach first — on the portal arm both verbs name the same method, so `destroy` was
+calling `force_close` twice (counted: 1 → 2, and 2 → 3 after an explicit `remove`). Benign,
+because `force_close` on a node that is not presented is silent and drops no GTK reference,
+which is precisely why nothing could see it: no diagnostic, no effect on screen. So
+`destroy` releases the widget BEFORE it removes, and `rebuild` skips the `removeChild` that
+would do nothing else for a non-parented node. Nothing changes on screen for a toplevel —
+measured, `destroy()` alone is the same single `unmap` as hide-then-destroy — and both arms
+carry a vector counting the calls, because the asymmetry is what hid the defect the first
+time.
+
+### A class that declares neither
+
+Both arms are a DECLARATION, and `registerWidget` takes descriptors from applications
+that nothing checks. So the host asks the CLASS —
+`GObject.type_is_a(…, Gtk.Root)` for a toplevel, a `present()` that TAKES AN ARGUMENT
+for a portal, measured over the whole table to be exactly the five `Adw.Dialog`
+descendants. (`Gtk.Popover.present()` exists and takes 0, which is why the arity is
+part of the question and a bare method name is not.)
+
+`descriptorProblems()` reports such a class wherever the descriptor is silent, and
+`refuseUnparentable` refuses the child at the insert with a named, catchable error —
+which for the portal arm is the only report that can exist at all, because after the
+append there is no process left to report from. It fires only where `placement` is
+absent, so an explicit `{ kind: 'parented' }` is the way back for a consumer widget
+the oracle reads wrong.
+
+And because an abort cannot be observed by the process it kills, three vectors in
+`placement.spec.ts` run in a CHILD process and read its exit signal: the raw append
+is **SIGABRT**, the placement the host uses instead is exit 0, and the toplevel half
+is exit 0 with an empty stderr. The first is the negative control that makes the
+other assertions in the file falsifiable at all.
 
 ## Lists — `@gjsify/gtk-host/list`
 

@@ -1,4 +1,4 @@
-# 53. A runtime bundle declares the media formats it decodes, and the declaration names its own evidence
+# 55. A runtime bundle declares the media formats it decodes, and the declaration names its own evidence
 
 - Status: **Proposed**
 - Date: 2026-09-10

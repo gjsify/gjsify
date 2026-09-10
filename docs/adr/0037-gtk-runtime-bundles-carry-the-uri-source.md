@@ -272,7 +272,7 @@ closure § Decision drivers refuses), so it is a redistribution decision rather 
 and it now sits in `GST_FORMAT_GAPS`, where it is a promise not made instead of a sentence that
 claims coverage.
 
-## Amendment, 2026-09-10 — the claim moves into the artifact ([ADR 0053](0053-declared-media-capabilities.md))
+## Amendment, 2026-09-10 — the claim moves into the artifact ([ADR 0055](0055-declared-media-capabilities.md))
 
 The amendment above put the format claim in `GST_AUDIO_DECODERS` and the per-target absences
 in `GST_PLUGIN_GAPS`, both in `packages/node-gi/scripts/gst-plugins.mjs`. That closed the
