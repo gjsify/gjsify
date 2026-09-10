@@ -122,6 +122,17 @@
 //      cannot outlive what it was recorded for. The partition and the DISTANCE are
 //      PRINTED on every run and written down nowhere: a count in a header is the
 //      drift this gallery has already paid for twice.
+//  13. Every TAB slot is filled on every block, or it is ledgered in
+//      {@link PARTIAL_TAB_SLOTS} with the reason it stays per-page. Arms 5 and 6 are
+//      each satisfied by ONE block writing a slot, so a tab on 3 of 40 blocks and a tab
+//      on all 40 are the same shape to them — and that shape has now got in three
+//      times: the `nativescript` XML template as a slot on 4 of 40 until #1502, the
+//      hand-written attribute pane (110 of its attributes named on their page, 54 not),
+//      and the `react-native` tab on 3 of 40, all three on one page. A port that cannot
+//      express every widget has a home that says so on every block, which is a data
+//      GROUP with a refusal pane; the ledger is for a tab that is genuinely per-page,
+//      and it is empty. The coverage is PRINTED, because each of the three had to be
+//      measured by hand before anyone could see it.
 //   9. The reader meets the RUNNING WIDGET before any source, and the markup that
 //      paints it is shown. Read out of both component files, because the claim now
 //      spans them: the live pane and the markup tab are ONE source (the pane mounts the
@@ -420,6 +431,19 @@ const MARKUP_OVERRIDE_LEDGER = {
     'Adw.Toast':
         "`<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
 };
+
+/**
+ * TAB slots filled on SOME blocks and not all, with the reason each one may stay a
+ * tab — arm 13's input, and empty, which is the state it is meant to keep.
+ *
+ * A tab is a per-page fence: forty pages have to write it, and the ones that do not
+ * are silent. Arms 5 and 6 are both satisfied by ONE block writing it, so a footnote
+ * and a port look identical to them, which is how the same shape got in three times
+ * (see arm 13). A port that genuinely cannot express every widget already has a home
+ * that says so on every block: a data GROUP with a refusal pane ({@link PaneGroup}).
+ * That is the fix an entry here is competing with, and it is why the bar is high.
+ */
+const PARTIAL_TAB_SLOTS = {};
 
 /**
  * The window model `AdwWidget` renders: each window's id, title, tab slots, data
@@ -1167,6 +1191,8 @@ if (blocks.length === 0) {
 }
 
 const provided = new Set();
+/** slot → the blocks that write it, by title. Arm 13 reads the SIZES. */
+const providedBy = new Map();
 /** Every slot ANY block writes, rendered or not — the corpus half of arm 6 reads this. */
 const authored = new Set();
 /** The blocks that override the preview window's markup tab — arm 8's input. */
@@ -1176,6 +1202,8 @@ for (const block of blocks) {
         authored.add(slot);
         if (ports.has(slot)) {
             provided.add(slot);
+            if (!providedBy.has(slot)) providedBy.set(slot, new Set());
+            providedBy.get(slot).add(`${block.page} ${block.title}`);
             continue;
         }
         if (slot === override) {
@@ -1252,6 +1280,64 @@ for (const window of windows) {
         `${WIDGET_COMPONENT} declares the window "${window.id}" (${window.slots.join(', ')}), and no\n` +
             `    <AdwWidget> block under ${GALLERY} provides any of its tabs. The window renders nowhere:\n` +
             '    a kind of implementation announced to every reader of the component and shown to none.',
+    );
+}
+
+// --- arm 13: a TAB is a pane on EVERY block, or the ledger says why not ---
+//
+// THE INCIDENT, three times, which is what makes it a class rather than a habit. A tab
+// is a fence forty pages have to write, and the pages that do not write it say nothing.
+//
+//   · the `nativescript` XML template was a SLOT until #1502, filled on 4 blocks of 40
+//   · the attribute pane was written by hand once per page: of the attributes its
+//     elements observe, 110 were named somewhere on their page and 54 were not
+//   · the `react-native` tab was filled on 3 blocks of 40, all three on `layout.mdx`,
+//     against 28 blocks carrying a `react` snippet
+//
+// Nothing said so in any of the three cases, and arms 5 and 6 cannot: 5 refuses a page
+// naming a slot the component has not got, 6 refuses a component naming a slot NO page
+// has got, and ONE page is enough for both. A footnote and a port are the same shape to
+// them. So the coverage is held here and PRINTED on every run, which is the half that
+// stops the next one needing to be noticed by hand.
+//
+// The remedy an entry here competes with is not "write 37 more fences". A port that
+// cannot express every widget gets a data GROUP with a refusal pane, which puts a pane
+// on every block and says WHY where there is no snippet — see {@link PaneGroup}, and
+// see the two groups the frameworks window already carries. The ledger is for a tab
+// that is genuinely per-page, and it is empty.
+//
+// SELF-RETIRING, like arm 12's: an entry naming a slot that has since reached every
+// block fails here, so a reason cannot outlive what it was recorded for.
+
+for (const [slot, blocksWithIt] of providedBy) {
+    const reason = PARTIAL_TAB_SLOTS[slot];
+    if (blocksWithIt.size === blocks.length) {
+        if (reason === undefined) continue;
+        failures.push(
+            `${slot}: ledgered in PARTIAL_TAB_SLOTS as a tab that cannot be filled everywhere, and it is\n` +
+                `    now on all ${blocks.length} blocks. A stale exemption reads as considered when it is merely\n` +
+                '    forgotten, and this one would license the next three-block tab. Delete the entry.',
+        );
+        continue;
+    }
+    if (reason !== undefined) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} renders the tab "${slot}", and only ${blocksWithIt.size} of ${blocks.length}\n` +
+            `    <AdwWidget> blocks under ${GALLERY} write that fragment. The other ` +
+            `${blocks.length - blocksWithIt.size} draw the\n` +
+            '    window without it and say nothing, which is how a footnote comes to hold a window pane —\n' +
+            '    three times so far. Fill it everywhere, give the port a data GROUP with a refusal pane so\n' +
+            `    every block carries one, or add "${slot}" to PARTIAL_TAB_SLOTS in this script with the reason\n` +
+            '    it has to stay per-page.',
+    );
+}
+
+for (const slot of Object.keys(PARTIAL_TAB_SLOTS)) {
+    if (providedBy.has(slot)) continue;
+    failures.push(
+        `${slot}: ledgered in PARTIAL_TAB_SLOTS, and no window of ${WIDGET_COMPONENT} renders a tab of\n` +
+            '    that name on any block. Arm 13 polices nothing for it, so the entry is a reason recorded\n' +
+            '    against a tab that is not there.',
     );
 }
 
@@ -1535,6 +1621,16 @@ console.log(
             ', ',
         )}), ${overriding.size} block(s) override the markup tab, all ledgered, and the widget is mounted ` +
         `once, outside ${WINDOW_COMPONENT}'s tab view, ahead of the window that shows its markup.`,
+);
+
+// Arm 13, printed rather than counted by hand every few months: three panes have now
+// been written per page and left unwritten on most of them, and each time the coverage
+// was a thing somebody had to go and measure.
+const tabSlots = windows.flatMap((window) => window.slots);
+console.log(
+    `check-website-adwaita-gallery: ${tabSlots.length} tab slot(s) — ` +
+        tabSlots.map((slot) => `${slot} ${providedBy.get(slot)?.size ?? 0}/${blocks.length}`).join(', ') +
+        ` — each on every block or ledgered as per-page, ${Object.keys(PARTIAL_TAB_SLOTS).length} ledgered.`,
 );
 
 /** The ledger's own partition, by kind, so a run says what the remaining work IS. */
