@@ -165,6 +165,18 @@ export const WIN32_LICENSE_FAMILIES = [
     { components: ['orc'], pattern: /^orc-\d+\.\d+-\d+\.dll$/i },
     { components: ['opus'], pattern: /^opus-\d+\.dll$/i },
     { components: ['ogg'], pattern: /^ogg-\d+\.dll$/i },
+    {
+        components: ['libvorbis'],
+        pattern: /^vorbis(enc|file)?(-\d+)?\.dll$/i,
+        why:
+            'declared before anything matches it, which the `ogg` entry above already is, and for the ' +
+            'same measured reason: gvsbuild builds both with CMake and CMake defaults to a STATIC ' +
+            'library, so the win32 bin/ carries `opus-0.dll` (opus is a meson project, hence shared) ' +
+            'and no ogg DLL at all. A gvsbuild bump that flips libvorbis to shared would otherwise ' +
+            'fail the release on a binary belonging to no family — a red build over a licence question ' +
+            "already answered. The terms travel either way: gvsbuild installs the project's COPYING " +
+            'into share/doc/libvorbis, and the prefix-wide corpus reads that whether a DLL ships or not',
+    },
     { components: ['gstreamer'], pattern: /^gst(reamer|base|controller|net|check)-1\.0-\d+\.dll$/i },
     {
         components: ['gst-plugins-base'],

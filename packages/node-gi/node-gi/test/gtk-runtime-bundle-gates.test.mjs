@@ -759,6 +759,14 @@ test('every binary the win32 bundle ships belongs to a declared license family',
     assert.equal(familyOf('libcrypto-3-x64.dll'), 'openssl');
     assert.equal(familyOf('pixbufloader_svg.dll'), 'librsvg');
     assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
+    assert.equal(familyOf('gstvorbis.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
+    // The library BEHIND that plugin, claimed ahead of any binary matching it. libvorbis is
+    // a CMake project in gvsbuild and CMake defaults to static, so today it links into the
+    // plugin and ships no DLL of its own — measured on the prefix, where `opus-0.dll` (meson)
+    // is present and no ogg DLL is. A bump flipping it to shared must not be a red release
+    // over terms the corpus already carries.
+    assert.equal(familyOf('vorbis-0.dll'), 'libvorbis');
+    assert.equal(familyOf('vorbisenc.dll'), 'libvorbis');
     assert.equal(familyOf('gst-plugin-scanner.exe'), 'gstreamer', 'the bundle ships one .exe and it is gstreamer`s');
     // TWO leaves, TWO projects. glib 2.80 took girepository-2.0 in; gobject-introspection
     // still builds the 1.0 library and gvsbuild still installs it, so one pattern for both
@@ -1324,6 +1332,13 @@ test('the operator message names the leaves and refuses the tempting repair', ()
 // the declaration against what was copied, which is a set difference — and it is
 // unit-tested here for the reason every gate in this file is: it runs on a macOS or
 // Windows runner and on no machine a developer has.
+//
+// One of the four has since been repaired at the SOURCE rather than declared: gvsbuild
+// defines a `libvorbis` project, the win32 GStreamer build now names it, and Ogg/Vorbis
+// is a claim instead of a gap (#1626). The other three stay gaps because gvsbuild
+// defines no project for libmpg123 or libFLAC and `wasapi2` costs no format. Which
+// direction a plugin moves is the whole difference the set difference has to keep
+// seeing, so both are asserted below.
 
 const winPlugins = (names) => names.map((n) => `libgst${n}.dll`);
 
@@ -1355,16 +1370,32 @@ test('a plugin the archive never contained is a finding, not a silence', () => {
         'wasapi2',
         'directsound',
     ]);
-    // The payload as it actually shipped: the four that were never in the prefix.
-    const asShipped = complete.filter((f) => !/mpg123|vorbis|flac|wasapi2/.test(f));
-    const gaps = missingBundledGstPlugins(asShipped, 'win32-x64');
+    // The payload the win32 build produces now that gvsbuild is asked for `libvorbis`:
+    // three absences left, each of them declared.
+    const asBuilt = complete.filter((f) => !/mpg123|flac|wasapi2/.test(f));
+    const gaps = missingBundledGstPlugins(asBuilt, 'win32-x64');
     assert.deepEqual(gaps.undeclared, [], 'every absence on win32 is declared today');
     assert.deepEqual(
         gaps.declared.map((gap) => gap.plugin),
-        ['mpg123', 'vorbis', 'flac', 'wasapi2'],
-        'the four #1544 measured are reported, with their reason',
+        ['mpg123', 'flac', 'wasapi2'],
+        'the absences #1544 measured that are still absences are reported, with their reason',
     );
     for (const gap of gaps.declared) assert.ok(gap.why.length > 20, `${gap.plugin} carries no reason`);
+});
+
+test('the vorbis claim is held against the payload, in the direction that can be wrong', () => {
+    // The win32 bundle now CLAIMS Ogg/Vorbis, and the only evidence for that claim is a
+    // meson `auto` feature switching on because `libvorbis` reached the gvsbuild prefix.
+    // An `auto` feature that does not is silent — a green -base with no gstvorbis.dll —
+    // which is exactly the shape #1544 cost. So the payload as it shipped BEFORE the build
+    // named libvorbis must now read as an UNDECLARED absence, not as a tolerated one.
+    const withoutVorbis = winPlugins(['coreelements', 'app', 'playback', 'soup', 'opus', 'wavparse', 'alaw', 'mulaw']);
+    const gaps = missingBundledGstPlugins(withoutVorbis, 'win32-x64');
+    assert.ok(gaps.undeclared.includes('vorbis'), 'a claimed format whose plugin is absent must fail the build');
+    assert.ok(
+        !gaps.declared.some((gap) => gap.plugin === 'vorbis'),
+        'vorbis is a claim now, not a gap — leaving both would let the bundle have it either way',
+    );
 });
 
 test('an UNdeclared absence fails, which is the whole point', () => {
@@ -1375,9 +1406,9 @@ test('an UNdeclared absence fails, which is the whole point', () => {
 });
 
 test('a declared gap whose plugin arrived is reported, so the entry cannot outlive its cause', () => {
-    const complete = winPlugins(['mpg123', 'vorbis', 'flac', 'wasapi2', 'app', 'playback', 'soup']);
+    const complete = winPlugins(['mpg123', 'flac', 'wasapi2', 'app', 'playback', 'soup']);
     const gaps = missingBundledGstPlugins(complete, 'win32-x64');
-    assert.deepEqual(gaps.retired.sort(), ['flac', 'mpg123', 'vorbis', 'wasapi2']);
+    assert.deepEqual(gaps.retired.sort(), ['flac', 'mpg123', 'wasapi2']);
 });
 
 test("the other platform's sink is not this platform's gap", () => {

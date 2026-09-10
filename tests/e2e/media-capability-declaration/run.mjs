@@ -362,10 +362,10 @@ describe('media-capabilities — the three published bundles, in this tree', () 
     });
 
     it('records the measured platform asymmetry, by name and in both directions', () => {
-        // Measured on the published 0.48.0 tarballs from Linux: darwin-x64 and darwin-arm64
-        // carry 24 plugins, win32-x64 carries 21, and the three missing are all decoders.
-        // Asserted by NAME rather than structurally, because a version of this file that
-        // compared each declaration to itself would pass while measuring nothing.
+        // Measured on the published 0.48.0 tarballs from Linux: the darwin bundles carried
+        // `mpg123`, `vorbis` and `flac` and the win32 one carried none of the three, all
+        // decoders. Asserted by NAME rather than structurally, because a version of this
+        // file that compared each declaration to itself would pass while measuring nothing.
         const formats = (name) => byName.get(name).capabilities.audioDecode.map((row) => row.format);
         const gapFormats = (name) => byName.get(name).capabilities.gaps.map((gap) => gap.format);
 
@@ -373,6 +373,16 @@ describe('media-capabilities — the three published bundles, in this tree', () 
         assert.ok(formats('@gjsify/gtk-runtime-darwin-x64').includes('MP3'));
         assert.ok(!formats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
         assert.ok(gapFormats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
+
+        // Ogg/Vorbis is the third of that asymmetry that CLOSED, and it closed because the
+        // library was available and nothing had asked for it: gvsbuild defines a `libvorbis`
+        // project, the win32 GStreamer build now names it, and the format left `gaps` for the
+        // claim. Held in both directions across every bundle, so a build that stops naming it
+        // cannot reopen the gap by deleting one array entry (#1626).
+        for (const name of BUNDLE_PACKAGES) {
+            assert.ok(formats(name).includes('Ogg / Vorbis'), `${name} no longer claims Ogg / Vorbis`);
+            assert.ok(!gapFormats(name).includes('Ogg / Vorbis'), `${name} declares Ogg / Vorbis as a gap again`);
+        }
 
         // AAC is the gap every bundle has, and it is the one with no `plugin`: nothing was
         // ever going to be copied, so no file's arrival can retire it.

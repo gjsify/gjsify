@@ -2457,7 +2457,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-gst-soup-gi-${{ env.GVSBUILD_VERSION }}-x64-v3
+          key: gvsbuild-gtk4-gst-soup-vorbis-gi-${{ env.GVSBUILD_VERSION }}-x64-v4
 
       # Build-time closure SOURCE only. Verbatim from the `windows` job.
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
@@ -2539,8 +2539,12 @@ jobs:
           # `x86_64-win64-vs18` target; on windows-2022 it gets further and dies
           # moving `x64/vpxmd.lib`. GStreamer's meson features default to `auto`, so
           # an absent libvpx simply disables the vpx plugin — which is the state we
-          # want anyway. -good is still built, for the parsers and decoders the audio
-          # path genuinely needs: wavparse, flac, mpg123, autodetect.
+          # want anyway. -good is still built, for the parsers, the sinks and the
+          # decoders the audio path genuinely needs: wavparse, alaw, mulaw,
+          # autodetect, directsound. NOT flac and mpg123, which this line used to
+          # name: those elements link libFLAC and libmpg123, gvsbuild defines a
+          # project for neither library, so -good builds green without them and the
+          # bundle declares both formats as gaps instead (#1626).
           # `--enable-gi` IS THE WHOLE POINT and defaults to FALSE. gvsbuild's
           # gstreamer projects gate introspection on it — without it they pass
           # `-Dintrospection=disabled`, so the build succeeds and produces no
@@ -2561,7 +2565,13 @@ jobs:
           # Windows the soup plugin LINKS libsoup (ext/soup/meson.build takes the
           # `host_system == 'windows'` branch instead of the dlopen loader), so an
           # https URL would still fail on the missing module alone.
-          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build glib-networking libsoup3
+          # `libvorbis` rides in the same invocation for the same reason, one format
+          # over. gst-plugins-base's `vorbis` feature is meson `auto` and -base does
+          # not DECLARE libvorbis as a gvsbuild dependency either, so a prefix without
+          # it builds green with no gstvorbis.dll — which is how win32 came to ship an
+          # `ogg` demuxer with nothing behind it to decode the Vorbis stream inside
+          # the container (#1626). gvsbuild HAS the project; nothing had asked for it.
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build glib-networking libsoup3 libvorbis
           gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
@@ -2577,14 +2587,20 @@ jobs:
           $plugins = Get-ChildItem "$env:GTK_PREFIX\lib\gstreamer-1.0" -Filter *.dll -ErrorAction SilentlyContinue
           if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
           Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
-          # NAMED, not counted. `gstsoup.dll` is the one plugin whose absence the build
-          # above produces SILENTLY (a meson `message()`, then a green -good), and a
-          # count of 80-odd plugins says nothing about which one is missing. Same
-          # reason gst-elements.test.mjs names its elements. The GIO module beside it
-          # is what makes the https half work at all.
-          $soup = Join-Path $env:GTK_PREFIX 'lib\gstreamer-1.0\gstsoup.dll'
-          if (-not (Test-Path $soup)) {
-            Write-Host "MISSING $soup — gst-plugins-good was built without libsoup in the prefix"; exit 1
+          # NAMED, not counted. These two are the plugins whose absence the build above
+          # produces SILENTLY — a meson `message()` or an `auto` feature that simply
+          # switches off, then a green build — and a count of 80-odd plugins says
+          # nothing about which one is missing. Same reason gst-elements.test.mjs names
+          # its elements. `gstsoup.dll` is the https half; the GIO module beside it is
+          # what makes that work at all. `gstvorbis.dll` is the format the bundle now
+          # claims to decode, so its absence must stop the build here rather than reach
+          # the payload gate as a declaration nothing backs.
+          foreach ($named in @(
+            @{ leaf = 'gstsoup.dll'; why = 'gst-plugins-good was built without libsoup in the prefix' },
+            @{ leaf = 'gstvorbis.dll'; why = 'gst-plugins-base was built without libvorbis in the prefix' }
+          )) {
+            $p = Join-Path $env:GTK_PREFIX "lib\gstreamer-1.0\$($named.leaf)"
+            if (-not (Test-Path $p)) { Write-Host "MISSING $p — $($named.why)"; exit 1 }
           }
           $gioModules = Get-ChildItem "$env:GTK_PREFIX\lib\gio\modules" -Filter *.dll -ErrorAction SilentlyContinue
           if (-not $gioModules) { Write-Host "no GIO module in the prefix — glib-networking did not build"; exit 1 }
