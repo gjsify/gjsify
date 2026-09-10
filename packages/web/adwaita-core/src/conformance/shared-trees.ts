@@ -108,7 +108,7 @@ export const SHARED_TREE_TABLES = [
  * coverage it does not have. Self-retiring: a driver fails on a declared block that has
  * started reaching a row, the same shape as arm 11's stale-divergence rule.
  */
-export const SHARED_TREE_BLOCKS_WITHOUT_VECTORS: Readonly<Record<string, string>> = {
+export const SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS: Readonly<Record<string, string>> = {
     'Adw.ShortcutLabel':
         'its only table, SHORTCUT_LABEL_VECTORS, spells keycaps in English while the widget renders ' +
         'gtk_accelerator_get_label, which is translated — see the header. The browser renderer drives ' +

@@ -55,7 +55,21 @@
 //   5. renderer-driven AND still carrying `CORE-ONLY:`                     → FAIL
 //
 // "Driven" = a LIVE renderer `*.spec.ts` names the table OUTSIDE a comment — the naming
-// is `namedPerSpec`, the liveness `suiteDrivers`.
+// is `namedPerSpec`, the liveness `suiteDrivers`. OR, since ADR 0051, driven through a TREE.
+//
+// TREE arm — a third kind of driver, and the one that names no table in its own source.
+// It builds an AUTHORED TREE neither renderer wrote and reads the rows that tree
+// instantiates; the join lives in `adwaita-core/src/conformance/shared-trees.ts`:
+//  13. a name in `SHARED_TREE_TABLES` that no conformance file declares          → FAIL
+//  14. a name in `SHARED_TREE_TABLES` no IMPORT of that file backs — a coverage
+//      claim with nothing behind it, the class this gate's three incidents are   → FAIL
+//  15. a table the binding IMPORTS and leaves off the list, which would silently
+//      under-credit every renderer driving it through a tree                     → FAIL
+//  16. a spec calling the join that no test entry hands to `run({…})`            → FAIL
+//  17. a binding that joins tables while NO live suite drives it                 → FAIL
+// The other half — a listed table no corpus node actually REACHES — is not statically
+// decidable here, because it needs the corpus evaluated. The drivers assert it themselves
+// against `reachedTables`, derived from the trees rather than written down.
 //
 // CLAIM arm — every comment CLAUSE in the core or either renderer that names a
 // vector table is resolved against reality (clause, not sentence — see clausesIn):
@@ -138,6 +152,36 @@ const RENDERERS = [
     { label: 'nativescript', dir: join(ROOT, 'packages/nativescript-bridge/adwaita/src') },
 ];
 const OPEN_TODOS = join(ROOT, 'status/open-todos.md');
+
+/**
+ * THE THIRD KIND OF DRIVER — a TREE driver (ADR 0051).
+ *
+ * The two above drive a table from a renderer's own spec, on a widget that spec constructs.
+ * A tree driver builds an AUTHORED TREE neither renderer wrote — the gallery blocks in
+ * `scripts/adwaita-gallery-shared-trees.mjs` — and reads the rows that tree instantiates off
+ * the widgets its renderer produced. It therefore names no table in its own source: the join
+ * lives in {@link TREE_BINDING}, and a table driven only that way would read as undriven
+ * here, which is the blindness this arm removes.
+ *
+ * It is derived, never claimed. The binding's table list is read from its CODE, held against
+ * the tables it actually imports, and credited only to a driver whose suite RUNS — the same
+ * three refusals the rest of this gate is built out of.
+ */
+const TREE_BINDING = join(CONFORMANCE_DIR, 'shared-trees.ts');
+/** The exported join a tree driver calls. Naming it is what makes a spec a tree driver. */
+const TREE_ENTRY = 'sharedTreeExpectations';
+/**
+ * Where a tree driver may live.
+ *
+ * `gtk-host` is on the list and is deliberately NOT a renderer: it is the GTK host rather
+ * than an Adwaita port, so a table only IT drives stays core-only for the table arm — the
+ * same treatment the OUTSIDE_DRIVER arm gives `@gjsify/gtk-host`'s menu suite. Being on this
+ * list still buys the honest half: if its driver stops running, this gate says so.
+ */
+const TREE_DRIVER_DIRS = [
+    ...RENDERERS.map((renderer) => ({ ...renderer, renderer: true })),
+    { label: 'gtk-host', dir: join(ROOT, 'packages/framework/gtk-host/src'), renderer: false },
+];
 
 /** The marker a core-only table must carry, in its own header. */
 const CORE_ONLY_MARKER = 'CORE-ONLY:';
@@ -493,7 +537,98 @@ const resolved = {
     specs: 0,
     promises: 0,
     outside: 0,
+    tree: 0,
 };
+
+// TREE arm. Runs BEFORE the table arm, because it decides which tables are driven.
+const treeTables = new Set();
+{
+    let source = null;
+    try {
+        source = readFileSync(TREE_BINDING, 'utf8');
+    } catch {
+        failures.push(
+            `${rel(ROOT, TREE_BINDING)}: the tree binding is gone, so nothing joins an authored tree to a ` +
+                'vector row and this arm credits nobody. Restore it, or delete the arm with it.',
+        );
+    }
+    if (source !== null) {
+        const code = stripComments(source);
+        const listed = /export const SHARED_TREE_TABLES\s*=\s*\[([\s\S]*?)\]/.exec(code)?.[1] ?? '';
+        for (const [, name] of listed.matchAll(/'([A-Z][A-Z0-9_]*_VECTORS)'/g)) treeTables.add(name);
+        // What the binding actually IMPORTS FOR VALUE. The two must agree: a name in the
+        // list that no import backs is a coverage claim with nothing behind it, and a table
+        // imported but left off the list makes this arm under-credit the renderers driving
+        // it. Import clauses and not every occurrence, because a DECLARATION naming the
+        // table it cannot reach ("its only table, SHORTCUT_LABEL_VECTORS, spells keycaps in
+        // English") is the opposite of a join, and reading it as one accused the honest
+        // wording — the same shape the CLAUSE_TURN split exists for one arm over.
+        const read = new Set(
+            [...code.matchAll(/import\s*\{([^}]*)\}\s*from/g)].flatMap(([, clause]) =>
+                [...clause.matchAll(/\b([A-Z][A-Z0-9_]*_VECTORS)\b/g)].map(([, name]) => name),
+            ),
+        );
+        for (const name of treeTables) {
+            if (!declared.has(name)) {
+                failures.push(`${rel(ROOT, TREE_BINDING)}: lists ${name}, which no conformance file declares.`);
+            } else if (!read.has(name)) {
+                failures.push(
+                    `${rel(ROOT, TREE_BINDING)}: lists ${name} as tree-driven while nothing in the file reads ` +
+                        'it, so no authored tree can reach a row of it. Join it, or drop it from the list.',
+                );
+            }
+        }
+        for (const name of read) {
+            if (declared.has(name) && !treeTables.has(name)) {
+                failures.push(
+                    `${rel(ROOT, TREE_BINDING)}: joins ${name} to the tree without listing it in ` +
+                        'SHARED_TREE_TABLES, so every renderer driving it through a tree goes uncredited here.',
+                );
+            }
+        }
+        if (treeTables.size === 0) {
+            failures.push(
+                `${rel(ROOT, TREE_BINDING)}: SHARED_TREE_TABLES is empty — the scan is broken, or the binding ` +
+                    'no longer reaches any table.',
+            );
+        }
+    }
+
+    // Which suites RUN a tree driver. Liveness comes from `suite-registration.mjs` for the
+    // same reason the SUITE arm's does: naming is not running, and the cheap second
+    // derivation of that fact is what opened #1365.
+    const treeDrivers = [];
+    for (const { label, dir, renderer } of TREE_DRIVER_DIRS) {
+        const { live } = readSuiteRegistration(dirname(dir));
+        for (const file of walk(dir)) {
+            if (!file.endsWith('.spec.ts') || !new RegExp(`\\b${TREE_ENTRY}\\b`).test(withoutComments(readFileSync(file, 'utf8')))) continue;
+            if (!live.has(file)) {
+                failures.push(
+                    `${rel(ROOT, file)}: drives the shared authored tree, but no test entry of ${label} hands ` +
+                        `its suite to \`run({…})\` — so it runs NOWHERE. Register it, or delete it.`,
+                );
+                continue;
+            }
+            treeDrivers.push({ label, renderer });
+        }
+    }
+    resolved.tree = treeDrivers.length;
+    if (treeTables.size > 0 && treeDrivers.length === 0) {
+        failures.push(
+            `${rel(ROOT, TREE_BINDING)}: joins ${treeTables.size} table(s) to the authored corpus and no live ` +
+                'suite drives it. ADR 0051 exists because a corpus nothing builds proves nothing.',
+        );
+    }
+    // A renderer that RUNS a tree driver drives every table the binding joins — which is the
+    // credit this arm exists to give. `gtk-host` is on the driver list and off this one.
+    for (const { label, renderer } of treeDrivers) {
+        if (!renderer) continue;
+        for (const name of treeTables) {
+            byLabel.get(label).add(name);
+            byRenderer.add(name);
+        }
+    }
+}
 
 // SUITE arm. The arms below key off which tables are driven, so a spec that names a table
 // while running nowhere would otherwise surface one step downstream, as "driven only by the
@@ -748,7 +883,8 @@ if (failures.length > 0) {
 
 console.log(
     `check-adwaita-conformance-drivers: ${tables.length} vector tables driven from ${resolved.specs} live ` +
-        `spec(s), ${resolved.exempted} core-only, ` +
+        `spec(s) and ${resolved.tree} live tree driver(s) over ${treeTables.size} joined table(s), ` +
+        `${resolved.exempted} core-only, ` +
         `${resolved.chains} coverage chain(s) walked to a driver. Read ${resolved.citations} prose citation(s), ` +
         `of which ${resolved.both} both-renderer claim(s), ${resolved.suite} single-suite claim(s) and ` +
         `${resolved.counted} counted glob(s) were resolved against the tree, and read the header of ` +

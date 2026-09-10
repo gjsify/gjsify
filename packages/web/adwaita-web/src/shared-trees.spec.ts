@@ -23,7 +23,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
-    SHARED_TREE_BLOCKS_WITHOUT_VECTORS,
+    SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
     SHARED_TREE_TABLES,
     authoredNodes,
     reachedTables,
@@ -133,7 +133,7 @@ export const AdwSharedTreesTest = async () => {
                 });
             }
 
-            const declared = Object.hasOwn(SHARED_TREE_BLOCKS_WITHOUT_VECTORS, block.widget);
+            const declared = SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS[block.widget] !== undefined;
             if (expectations.length === 0) {
                 // ADR 0051 § 4: a block that proves nothing has to SAY so.
                 await it(`${block.widget} reaches no vector, and says why`, () => {

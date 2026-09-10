@@ -572,7 +572,7 @@ export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWid
 
 // --- Which vectors an AUTHORED WIDGET TREE reaches (ADR 0051) — no table of its own ---
 export {
-    SHARED_TREE_BLOCKS_WITHOUT_VECTORS,
+    SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
     SHARED_TREE_TABLES,
     authoredNodes,
     reachedTables,

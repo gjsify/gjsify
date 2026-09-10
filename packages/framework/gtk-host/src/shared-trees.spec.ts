@@ -30,7 +30,7 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
-    SHARED_TREE_BLOCKS_WITHOUT_VECTORS,
+    SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
     SHARED_TREE_TABLES,
     authoredNodes,
     reachedTables,
@@ -63,7 +63,8 @@ function build(node: SharedTreeNode): HostElement {
 }
 
 const widgetOf = (el: HostElement) => materialize(el) as unknown as Gtk.Widget;
-const typeName = (widget: Gtk.Widget) => GObject.type_name(widget.constructor.$gtype) ?? '';
+const typeName = (widget: Gtk.Widget) =>
+    GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ?? '';
 
 /**
  * Read one observable off the widget this renderer built.
@@ -156,7 +157,7 @@ export default async () => {
                     });
                 }
 
-                const declared = Object.hasOwn(SHARED_TREE_BLOCKS_WITHOUT_VECTORS, widget);
+                const declared = SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS[widget] !== undefined;
                 if (expectations.length === 0) {
                     // ADR 0051 § 4: a block that proves nothing has to SAY so, or the pass
                     // count above reads as coverage this corpus does not have.
