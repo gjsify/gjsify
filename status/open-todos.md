@@ -5915,19 +5915,25 @@ the enum member and writes `<property name="orientation">1</property>`, and `hal
 as `3` (`corpus/rules/03-property-enum.ui`). Emission needs introspection, not only validation,
 and the ADR's cost estimate does not include it.
 
-The obvious source is the wrong one. `@girs/gtk-4.0`'s `.d.ts` declares `enum Orientation {
-HORIZONTAL, VERTICAL }` with no initialisers, so its members carry POSITIONAL values — right
-for `Orientation` by accident, wrong wherever the GIR is not `0,1,2…`: `Gtk.ResponseType.NONE`
-is `-1` in the GIR and `0` in the `.d.ts`. Nothing is broken by that today, because TypeScript
-does not inline members of a non-const ambient enum and GJS reads the real value off the gi
-module at runtime — but an emitter that read the published types for its enum table would be
-wrong on the first non-sequential enum, and silently.
+The first version of this entry said the obvious source is the wrong one — that `@girs`
+declares `enum Orientation { HORIZONTAL, VERTICAL }` with no initialisers, so its members
+carry POSITIONAL values. That was measured on `node_modules/@girs/gtk-4.0`, which sits at
+**4.1.0** while `gjsify-lock.json` pins **4.6.0**, and it is wrong for the pinned version:
+from `@girs` 4.5.0 the `.d.ts` carries the GIR's own numbers, so `Gtk.ResponseType.NONE` is
+`-1` there as it is in the GIR. An independent review reached the same wrong answer from the
+same stale file. Two readings of one out-of-date artefact agree with each other and not with
+the tree, which is worth more than the claim they agreed on.
 
-`scripts/generate-enum-values.mjs` already reads enum values from the installed typelib
-through GIRepository for `gtk-host`, so the mechanism exists; what is open is whether the
-parser depends on that ARTEFACT (a generated table, committed, no GIR at build time) or on a
-typelib of its own. The artefact keeps the toolchain-independence the ADR is for; the typelib
-does not.
+What is genuinely missing is the RUNTIME half. `@girs/<ns>/vocabulary` gives `ENUM_NICKS` —
+the names, in declaration order — and no numbers, which is why
+`scripts/generate-enum-values.mjs` reads them from the installed typelib through GIRepository
+instead, and why that artefact carries two provenances: nicks from the GIR the vocabulary was
+generated against, values from whatever GTK the maintainer had. That is fixed upstream rather
+than here — ts-for-gir now emits `ENUM_VALUES`, `ENUM_DEPRECATED` and a declared unreadable
+remainder from the same GIR as the nicks. What stays open on this side is what to do when it
+releases: the generator's own header says its INPUT changes and its output does not, so the
+committed table survives and the GJS-only generation step, the `ENUM_VALUES_UNAVAILABLE`
+entries and one of the two provenances can go.
 
 Also measured, and smaller: values are normalised rather than copied through. `xalign: 1.0`
 comes out as `1` while `0.25` and `0.5` come out unchanged

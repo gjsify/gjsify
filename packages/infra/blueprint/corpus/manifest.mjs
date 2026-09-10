@@ -28,7 +28,7 @@
 //
 // Three facts the plan did not have, each reproducible from a `.ui` file in here and
 // each written up once, in this package's README: emission needs introspection and not
-// only a parse, the published `@girs` types are not the source for it, and values are
+// only a parse, `@girs` can supply what it needs once the install is not stale, and values are
 // normalised rather than copied through. They are in the README and not here because
 // they are findings about the corpus rather than facts about this table, and a second
 // copy of them beside the data is what would drift.
@@ -36,12 +36,16 @@
 // WHAT THE ELEVEN REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "eleven real
-// files" as coverage would be wrong twice over. They exercise five of the loss kinds:
-// `signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list` and
-// `sibling-object` appear in none of them, and are held only by the rules above — the
-// half of the corpus written by whoever writes the parser. And eleven files are about
-// six distinct SHAPES: the three `templates/*/src/main-window.blp` differ in one title
-// string, and fireworks and pixel differ in a window title and four row titles.
+// files" as coverage would be wrong twice over. They exercise six of the thirteen loss
+// kinds — `template`, `object-id`, `translatable`, `binding`, `breakpoint`, `styles`.
+// The other seven (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
+// `sibling-object`) are declared by no real expectation and are held only by the rules
+// above — the half of the corpus written by whoever writes the parser. (`comment` is the
+// one to read carefully: three real files DO carry comments, and the convention in
+// `expectations.mjs` is that comments are never listed per entry.) And eleven files are
+// about six distinct SHAPES: the three `templates/*/src/main-window.blp` differ in one
+// title string, and fireworks and pixel differ only in the template class name, the
+// window title, a group title, four row titles and five object ids.
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
@@ -120,14 +124,20 @@ export const CORPUS_RULES = [
     {
         file: '13-binding.blp',
         isolates: 'a property bound to a property of another object',
-        surprise: 'the compiler adds `bind-flags="sync-create"` that the source never wrote',
+        surprise:
+            'the compiler adds `bind-flags="sync-create"` that the source never wrote — but NOT unconditionally: measured on 0.20.4, `no-sync-create` drops the attribute entirely and other flags emit `|`-joined in the compiler\'s own order (`bind-flags="invert-boolean|bidirectional"`). No file here shows either, so a parser that hardcodes `sync-create` passes this corpus and is wrong',
     },
     {
         file: '14-breakpoint.blp',
         isolates: '`Adw.Breakpoint` with `condition` and `setters`',
         surprise: 'the condition is element TEXT and each setter its own `<setter>`',
     },
-    { file: '15-comments.blp', isolates: 'line and block comments in every position they are legal' },
+    {
+        file: '15-comments.blp',
+        isolates: 'line and block comments in four of the positions where they are legal',
+        surprise:
+            'three further positions are legal and unexercised — after a `[slot]` bracket, between a property `:` and its value, and inside a list literal; the note on this file in `expectations.mjs` names them',
+    },
     {
         file: '16-string-escapes.blp',
         isolates: 'escapes inside a string literal',
@@ -138,7 +148,12 @@ export const CORPUS_RULES = [
         isolates: 'integer, negative and fractional numbers',
         surprise: '`1.0` is normalised to `1`; `0.25` and `0.5` are not',
     },
-    { file: '18-multiple-imports.blp', isolates: 'two `using` imports, both used' },
+    {
+        file: '18-multiple-imports.blp',
+        isolates: 'two `using` imports, both used',
+        surprise:
+            'only ONE of the two reaches the XML: `<requires lib="gtk" version="4.0"/>` and nothing for `Adw`. All 36 goldens carry exactly that one line, the seventeen files with `using Adw 1;` included',
+    },
     { file: '19-layout.blp', isolates: 'a `layout { }` block of layout-child properties' },
     { file: '20-accessibility.blp', isolates: 'an `accessibility { }` block' },
     {
@@ -149,12 +164,14 @@ export const CORPUS_RULES = [
     {
         file: '22-menu-nested.blp',
         isolates: 'a `submenu` and the two-argument `item (label, action)` shorthand',
-        surprise: 'the shorthand is NOT translatable, while the long form on a `label:` line is',
+        surprise:
+            'translatability follows `_()` and NOT the form — the shorthand takes `_()` too, and an unmarked `label:` line stays untranslatable',
     },
     {
         file: '24-unqualified-type.blp',
         isolates: 'a type name written without its namespace',
-        surprise: 'the `using` lines are what resolve it — `Box` is `GtkBox` only because line 1 said so',
+        surprise:
+            'an unqualified name resolves against Gtk ALONE — measured on 0.20.4, `using Adw 1;` does not make a bare `Bin` legal ("Namespace Gtk does not contain a type called Bin"), and every file must start with `using Gtk`',
     },
     {
         file: '25-bracket-breakpoint.blp',

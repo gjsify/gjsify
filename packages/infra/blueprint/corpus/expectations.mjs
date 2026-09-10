@@ -25,15 +25,23 @@
 //     — a placement on the child wrapper — and `content:` is `<property
 //     name="content">` — an object as a property value. `SharedNode` has one field
 //     for both, so the projection cannot be inverted: from `slot: 'content'` alone
-//     nothing says which of the two constructs to emit. Round-tripping Blueprint
-//     through `SharedNode` is therefore not available without a shape change, and no
-//     ADR had said so.
+//     nothing says which of the two constructs to emit. ADR 0053 § Context has the two
+//     halves of this in adjacent rows of its mapping table — `[start]` and `content:`
+//     both land on `slot` — but draws no consequence from it: round-tripping Blueprint
+//     through `SharedNode` is not available without a shape change, and no ADR had said
+//     so.
 //
-//  2. `styles [...]` HAS NOWHERE TO GO. ADR 0049 decided style classes are a LIST,
-//     and `SharedNode['props']` is `Record<string, string | number | boolean>`. A
-//     space-joined string would be a lie about the shape 0049 chose, so this file
-//     records a loss instead — which is evidence for, not an answer to, the open
-//     question ADR 0053 leaves about whether `SharedNode` grows to hold the portable
+//  2. `styles [...]` HAS NOWHERE TO GO, AND THAT MOVES A ROW OF THE ADR. ADR 0049
+//     decided style classes are a LIST, and `SharedNode['props']` is `Record<string,
+//     string | number | boolean>`. A space-joined string would be a lie about the shape
+//     0049 chose, so this file records a loss instead. Note precisely what that
+//     refutes: ADR 0053 § Context's table maps `styles ["flat"]` to `cssClasses:
+//     ['flat']` and calls it GIR-derived — a field `SharedNode` does not have, holding
+//     a value its `props` cannot hold. That row is the one 0053 § Consequences said to
+//     expect ("the honest expectation is that the first suite moves at least one row of
+//     it"), and this is it, moved. `layout { }` and `accessibility { }` are the same
+//     shape and were in no row at all. All of it is evidence for, not an answer to, the
+//     open question 0053 leaves about whether `SharedNode` grows to hold the portable
 //     values of ADRs 0042 / 0046 / 0047.
 //
 //  3. AN ID REFERENCE SURVIVES AS A PLAIN STRING. `menu-model: mainMenu` projects to
@@ -225,11 +233,11 @@ export const RULE_EXPECTATIONS = [
         file: '14-breakpoint.blp',
         node: { tag: 'AdwWindow', children: [{ tag: 'AdwBin', slot: 'content' }] },
         lost: [
-            { kind: 'object-id', line: 5, detail: 'the id `binOne`, which the setter on line 12 needs' },
+            { kind: 'object-id', line: 5, detail: 'the id `binOne`, which both setters (lines 12-13) need' },
             {
                 kind: 'breakpoint',
                 line: 8,
-                detail: 'the whole `Adw.Breakpoint` child: its `condition ("max-width: 400px")` and its one setter',
+                detail: 'the whole `Adw.Breakpoint` child: its `condition ("max-width: 400px")` and both of its setters',
             },
         ],
     },
@@ -241,7 +249,7 @@ export const RULE_EXPECTATIONS = [
             children: [{ tag: 'GtkLabel', props: { label: 'commented' } }],
         },
         lost: [{ kind: 'comment', line: 3, detail: 'five comments in four positions; none reaches either exit' }],
-        note: 'Listed here and nowhere else. The rule under test is that a comment in ANY legal position changes neither exit — including the two that sit between a property and the line of its value.',
+        note: 'Listed here and nowhere else. The rule under test is that a comment changes neither exit, in the four positions this file reaches: before the object, before a property, trailing after one, and before a child. Three further positions are legal and NOT here — between a `[slot]` bracket and the object it labels, between a property `:` and its value, and inside a `styles [ … ]` list — so "any legal position" is not what this file proves.',
     },
     {
         file: '16-string-escapes.blp',
@@ -264,6 +272,7 @@ export const RULE_EXPECTATIONS = [
             children: [
                 { tag: 'GtkLabel', props: { xalign: 1, 'margin-top': 12 } },
                 { tag: 'GtkLabel', props: { xalign: 0.5, 'width-chars': -1 } },
+                { tag: 'GtkLabel', props: { xalign: 0.25 } },
             ],
         },
         lost: [],
@@ -276,7 +285,7 @@ export const RULE_EXPECTATIONS = [
             children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'from two namespaces' } }],
         },
         lost: [],
-        note: 'The `using` lines project to nothing, and are still consumed: they are what resolves a name to a namespace. `24-unqualified-type.blp` is where that shows.',
+        note: 'The `using` lines project to nothing, and they do not reach the XML symmetrically either: the golden carries `<requires lib="gtk" version="4.0"/>` and nothing for `Adw`. What they ARE consumed for is qualified-name lookup; the UNqualified case is narrower than it looks and `24-unqualified-type.blp` states it.',
     },
     {
         file: '19-layout.blp',
@@ -319,10 +328,10 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'menu',
                 line: 3,
-                detail: 'the whole menu, one level deeper than in `12` and with an item written in the `item (label, action)` shorthand',
+                detail: 'the whole menu, one level deeper than in `12` and with two items written in the `item (label, action)` shorthand',
             },
         ],
-        note: 'The shorthand is where the two menu forms stop agreeing: the golden marks the long form translatable and the shorthand not, so a parser that treats them as sugar for each other diverges on `translatable="yes"`.',
+        note: 'The two shorthand items differ only in `_()`, and the golden marks exactly the marked one. So the shorthand IS sugar for the long form, and `translatable="yes"` follows the marking and never the form — a parser that ties the attribute to the form is wrong in both directions.',
     },
     {
         file: '23-widget-reference-list.blp',
@@ -331,11 +340,11 @@ export const RULE_EXPECTATIONS = [
             children: [{ tag: 'GtkLabel' }, { tag: 'GtkLabel' }],
         },
         lost: [
-            { kind: 'object-id', line: 4, detail: 'the id `labelA`, which the list on line 12 points at' },
-            { kind: 'object-id', line: 7, detail: 'the id `labelB`, which the list on line 13 points at' },
+            { kind: 'object-id', line: 4, detail: 'the id `labelA`, which the list on line 12 points at from line 13' },
+            { kind: 'object-id', line: 7, detail: 'the id `labelB`, which the same list points at from line 14' },
             {
                 kind: 'sibling-object',
-                line: 10,
+                line: 11,
                 detail: 'the whole `Gtk.SizeGroup` — a second top-level object, and `SharedNode` is one tree, so the projection keeps the widget one',
             },
         ],
@@ -345,7 +354,7 @@ export const RULE_EXPECTATIONS = [
         file: '24-unqualified-type.blp',
         node: { tag: 'GtkBox', children: [{ tag: 'GtkToggleButton', props: { label: 'unqualified' } }] },
         lost: [],
-        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution in the header of `manifest.mjs`.',
+        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects.',
     },
     {
         file: '25-bracket-breakpoint.blp',

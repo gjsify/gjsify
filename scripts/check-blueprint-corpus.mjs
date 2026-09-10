@@ -12,25 +12,39 @@
 //
 // TWO STAGES, AND THE REPORT SAYS WHICH ONE RAN
 //
-//   A. COMPLETENESS — runs everywhere, needs no binary. Every rule file is listed,
-//      goldened and given a hand-written `SharedNode` expectation; every expectation
-//      is structurally a `SharedNode`; every loss names a line that exists; and every
-//      `.blp` tracked anywhere in this repo is either a corpus rule or a reality
-//      probe. That last one is what stops the probe from quietly falling behind the
-//      tree: a twelfth `.blp` added to a showcase fails this until it is listed.
+//   A. COMPLETENESS — runs everywhere, needs no binary. Every rule file is listed
+//      exactly once, goldened and given a hand-written `SharedNode` expectation; every
+//      expectation is structurally a `SharedNode` and projects as many objects as the
+//      golden holds; every loss names a line that exists; and every `.blp` tracked
+//      anywhere in this repo is either a corpus rule or a reality probe. That last one
+//      is what stops the probe from quietly falling behind the tree: a twelfth `.blp`
+//      added to a showcase fails this until it is listed.
 //
-//   B. ORACLE — runs only where `blueprint-compiler` is on PATH. Recompiles all 31
-//      files and diffs against the committed goldens.
+//   B. ORACLE — runs only where `blueprint-compiler` is on PATH. Recompiles all 36
+//      files (25 rules + 11 reality probes) and diffs against the committed goldens.
 //
 // Stage B is skipped, loudly and by name, wherever the binary is absent. That is the
 // same two-stage shape ADR 0053 clause 7 asks of `check-doc-fences.mjs`, and it is the
 // only shape that is honest here: the corpus must be complete on every runner, and the
-// oracle cannot be.
+// oracle cannot be. Note what the two stages measure: stage A is BOOKKEEPING over the
+// corpus, and only stage B reads the language.
 //
-// In CI stage B runs in `tree-checks` — the one job whose image bakes
-// `blueprint-compiler` and which carries no classifier gate, so a docs-only PR runs it
-// too. It reads `git ls-files`, so it runs as `testuser` there and not as root, or git
-// refuses the tree as dubiously owned.
+// …WHICH IS WHY THE SKIP IS A FAILURE WHERE THE BINARY IS PROMISED
+//
+// An announced skip is honest on a laptop and a hole in CI. `blueprint-compiler` is
+// installed unpinned in `.docker/ci-fedora.Dockerfile`, so a rebuild can take it away —
+// and this script would then print "stage B SKIPPED" into a 3000-line log and stay
+// green, with every golden in the tree unverified from that day on. That is the failure
+// class ADR 0053 names about `check-doc-fences.mjs` itself: "every other run of that
+// script proves nothing about the fences". So the caller that KNOWS the binary must be
+// there says so with `--require-oracle`, and its absence is then red rather than beige.
+//
+// In CI stage B runs in `tree-checks` — the one job that carries no classifier gate and
+// whose image bakes `blueprint-compiler`, so a docs-only PR runs it too. Nine other jobs
+// share that image and every one of them is gated on `changes.outputs.skip-all`; being
+// the gate-free one is what makes this the right home, not the image alone. It reads
+// `git ls-files`, so it runs as `testuser` there and not as root, or git refuses the
+// tree as dubiously owned.
 //
 // A VERSION MISMATCH IS A FAILURE, NOT A NUISANCE
 //
@@ -39,8 +53,19 @@
 // version fails with both numbers named, and the fix is a deliberate `--write` plus a
 // look at what moved — never a silent re-record.
 //
-// Usage: node scripts/check-blueprint-corpus.mjs [--write] [--root <dir>]
-//        --write  re-derive every golden from the reference compiler (needs the binary)
+// `--write` therefore does the WHOLE of what that failure asks for, rather than the
+// first third of it: it names the version change, lists every golden whose bytes
+// actually moved, and moves `ORACLE.version` itself, so the re-recorded goldens and the
+// version they came from land in one commit. Writing them and leaving the manifest
+// behind would clear the diff — the only evidence of the upgrade — while leaving the
+// tree failing with a message that has become untrue ("the goldens were recorded with
+// <old>" when they were recorded seconds ago with <new>).
+//
+// Usage: node scripts/check-blueprint-corpus.mjs [--write] [--require-oracle] [--root <dir>]
+//        --write           re-derive every golden from the reference compiler, and record
+//                          which version produced them (needs the binary)
+//        --require-oracle  fail instead of skipping when the binary is absent — for any
+//                          caller whose environment promises it, CI first among them
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -49,10 +74,25 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
+const requireOracle = args.includes('--require-oracle');
 const rootFlag = args.indexOf('--root');
 const root = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
+// A mistyped flag must not read as its own absence. `--require-oracles` silently
+// disabling the requirement is the same class of defect this script exists to catch,
+// one level up: a gate whose teeth were removed by a typo nobody sees.
+const KNOWN_FLAGS = new Set(['--write', '--require-oracle', '--root']);
+const stray = args.filter((a, i) => !(rootFlag !== -1 && i === rootFlag + 1) && !KNOWN_FLAGS.has(a));
+if (stray.length > 0 || (rootFlag !== -1 && typeof root !== 'string')) {
+    console.error(
+        `check-blueprint-corpus: ${stray.length > 0 ? `unknown argument(s): ${stray.join(', ')}` : '--root needs a directory'}\n` +
+            '  usage: node scripts/check-blueprint-corpus.mjs [--write] [--require-oracle] [--root <dir>]',
+    );
+    process.exit(2);
+}
+
 const CORPUS = join(root, 'packages/infra/blueprint/corpus');
+const MANIFEST = join(CORPUS, 'manifest.mjs');
 const RULES_DIR = join(CORPUS, 'rules');
 const REAL_DIR = join(CORPUS, 'real');
 
@@ -134,7 +174,53 @@ const validateNode = (node, where) => {
 
 const countNodes = (node) => 1 + (node.children ?? []).reduce((n, c) => n + countNodes(c), 0);
 
+/**
+ * How many GtkBuilder OBJECTS the reference compiler emitted for a file. `<template>` is
+ * the root object of a composite template and counts as one; `<menu>` is a `GMenuModel`
+ * and not an object at all, which is why a `menu` loss does not appear below.
+ */
+const goldenObjects = (xml) => (xml.match(/<object /g) ?? []).length + (xml.match(/<template /g) ?? []).length;
+
+/**
+ * The loss kinds that drop a whole OBJECT rather than an attribute of one. Measured
+ * against all 36 goldens, not assumed: `breakpoint` (an `Adw.Breakpoint` is an
+ * `<object>` that `SharedNode` has no tag for) and `sibling-object` (a second top-level
+ * object the one-tree projection has to leave behind). Every other kind drops something
+ * inside an object that still projects.
+ */
+const OBJECT_SHAPED_LOSSES = new Set(['breakpoint', 'sibling-object']);
+
+/** A file's source line count, not counting the phantom element a trailing newline splits off. */
+const lineCount = (text) => (text.length === 0 ? 0 : text.replace(/\n$/, '').split('\n').length);
+
 // ---------------------------------------------------------------- stage A
+
+/**
+ * The corpus tables are LISTS, so a duplicate entry is expressible — and it passes every
+ * other check here while inflating the two counts the report prints. That matters
+ * because those counts are the only thing standing between a shrinking corpus and a
+ * green run (see the note above the final `console.log`): delete a rule, list a
+ * surviving one twice, and the headline is byte-identical to a healthy tree.
+ *
+ * @param {readonly object[]} entries @param {string} key @param {string} label
+ */
+const refuseDuplicates = (entries, key, label) => {
+    const seen = new Set();
+    for (const entry of entries) {
+        const value = entry[key];
+        if (seen.has(value)) {
+            problems.push(
+                `${label} lists "${value}" twice. A duplicate entry raises the count this run reports without ` +
+                    'adding a file, which is exactly how a corpus shrinks behind an unchanged headline.',
+            );
+        }
+        seen.add(value);
+    }
+};
+
+refuseDuplicates(CORPUS_RULES, 'file', 'CORPUS_RULES');
+refuseDuplicates(CORPUS_REAL_FILES, 'source', 'CORPUS_REAL_FILES');
+refuseDuplicates(CORPUS_REAL_FILES, 'slug', 'CORPUS_REAL_FILES (slug)');
 
 const onDisk = existsSync(RULES_DIR)
     ? readdirSync(RULES_DIR)
@@ -155,7 +241,9 @@ for (const rule of CORPUS_RULES) {
         problems.push(`CORPUS_RULES lists "${rule.file}", which is not in corpus/rules/.`);
         continue;
     }
-    if (!existsSync(join(RULES_DIR, rule.file.replace(/\.blp$/, '.ui')))) {
+    // Not under `--write`, which is on its way to creating exactly this file: reporting
+    // "run this with --write" from the run that WAS `--write` reads as a broken fix.
+    if (!write && !existsSync(join(RULES_DIR, rule.file.replace(/\.blp$/, '.ui')))) {
         problems.push(
             `corpus/rules/${rule.file} has no committed golden. Run this with --write where the compiler is installed.`,
         );
@@ -169,7 +257,7 @@ for (const probe of CORPUS_REAL_FILES) {
     if (!existsSync(join(root, probe.source))) {
         problems.push(`CORPUS_REAL_FILES points at ${probe.source}, which does not exist.`);
     }
-    if (!existsSync(join(REAL_DIR, `${probe.slug}.ui`))) {
+    if (!write && !existsSync(join(REAL_DIR, `${probe.slug}.ui`))) {
         problems.push(`corpus/real/${probe.slug}.ui is missing for ${probe.source}.`);
     }
 }
@@ -177,7 +265,7 @@ for (const probe of CORPUS_REAL_FILES) {
 // Every expectation lines up with a corpus file, and every corpus file with one
 // expectation. ADR 0053 clause 2 wants a hand-written tree per file, and a file whose
 // expectation was forgotten is exactly the one a parser would be graded on last.
-const checkExpectations = (expectations, keys, label) => {
+const checkExpectations = (expectations, keys, label, goldenFor) => {
     const seen = new Set();
     for (const exp of expectations) {
         if (!keys.includes(exp.file)) {
@@ -186,12 +274,37 @@ const checkExpectations = (expectations, keys, label) => {
         }
         if (seen.has(exp.file)) problems.push(`${label} has two entries for "${exp.file}".`);
         seen.add(exp.file);
+        const before = problems.length;
         validateNode(exp.node, `${label} "${exp.file}"`);
+        // The SIZE of the claim, against the only measurement available without a
+        // parser: the committed golden's own object count. Structural validity says a
+        // one-node stub is a well-formed `SharedNode`, and a 14-node expectation
+        // collapsed to `{ tag: 'AdwApplicationWindow' }` passed everything else here —
+        // that is the shape of an expectation refactored away rather than written.
+        //
+        // NOT a claim that the two files are views of the same VALUES: they are not, and
+        // `expectations.mjs` says so (`orientation: vertical` projects as the string and
+        // emits `1`). This counts objects, which both notations agree on once the losses
+        // that drop a whole object are added back.
+        if (problems.length === before) {
+            const goldenPath = goldenFor(exp.file);
+            const golden = existsSync(goldenPath) ? readFileSync(goldenPath, 'utf8') : null;
+            const dropped = (exp.lost ?? []).filter((l) => OBJECT_SHAPED_LOSSES.has(l.kind)).length;
+            const projected = countNodes(exp.node) + dropped;
+            if (golden !== null && goldenObjects(golden) !== projected) {
+                problems.push(
+                    `${label} "${exp.file}": the golden emits ${goldenObjects(golden)} object(s) and the ` +
+                        `expectation accounts for ${projected} (${countNodes(exp.node)} node(s) + ${dropped} ` +
+                        'object-shaped loss(es)). Either the tree is missing nodes or an object it drops is ' +
+                        'not declared as a loss.',
+                );
+            }
+        }
         const source = join(
             root,
             label === 'RULE_EXPECTATIONS' ? join('packages/infra/blueprint/corpus/rules', exp.file) : exp.file,
         );
-        const lines = existsSync(source) ? readFileSync(source, 'utf8').split('\n').length : 0;
+        const lines = existsSync(source) ? lineCount(readFileSync(source, 'utf8')) : 0;
         for (const loss of exp.lost ?? []) {
             if (!LOSS_KINDS.has(loss.kind)) {
                 problems.push(`${label} "${exp.file}": loss kind "${loss.kind}" is not in the declared vocabulary.`);
@@ -212,11 +325,16 @@ const checkExpectations = (expectations, keys, label) => {
     }
 };
 
-checkExpectations(RULE_EXPECTATIONS, listed, 'RULE_EXPECTATIONS');
+const slugFor = new Map(CORPUS_REAL_FILES.map((p) => [p.source, p.slug]));
+
+checkExpectations(RULE_EXPECTATIONS, listed, 'RULE_EXPECTATIONS', (file) =>
+    join(RULES_DIR, file.replace(/\.blp$/, '.ui')),
+);
 checkExpectations(
     REAL_EXPECTATIONS,
     CORPUS_REAL_FILES.map((p) => p.source),
     'REAL_EXPECTATIONS',
+    (file) => join(REAL_DIR, `${slugFor.get(file)}.ui`),
 );
 
 // The probe must not fall behind the tree it probes.
@@ -245,7 +363,20 @@ const version = spawnSync('blueprint-compiler', ['--version'], { encoding: 'utf8
 const havecompiler = version.status === 0;
 const installed = havecompiler ? version.stdout.trim() : null;
 
+if (!havecompiler && requireOracle) {
+    const why = version.error ? version.error.message : (version.stderr ?? '').trim() || `exit ${version.status}`;
+    problems.push(
+        `--require-oracle was passed and \`${ORACLE.tool}\` did not answer, so stage B checked nothing: ${why}. ` +
+            'Every golden in the tree is unverified on this run. In CI that means the ci-fedora image lost the ' +
+            'package it installs unpinned in `.docker/ci-fedora.Dockerfile`.',
+    );
+}
+if (!havecompiler && write) {
+    problems.push(`--write needs \`${ORACLE.tool}\` on PATH, and nothing was re-derived.`);
+}
+
 let compared = 0;
+let rewritten = 0;
 if (havecompiler) {
     if (installed !== ORACLE.version && !write) {
         problems.push(
@@ -277,6 +408,14 @@ if (havecompiler) {
             continue;
         }
         if (write) {
+            // Read before writing: "read the diff" is the middle third of what the
+            // version-mismatch failure asks for, and it is the third that disappears the
+            // moment the bytes are overwritten. Naming the files here puts it in the run.
+            const had = existsSync(job.golden) ? readFileSync(job.golden, 'utf8') : null;
+            if (had !== run.stdout) {
+                rewritten += 1;
+                console.log(`  re-recorded ${job.name}${had === null ? ' (new)' : ''}`);
+            }
             writeFileSync(job.golden, run.stdout);
             continue;
         }
@@ -293,19 +432,46 @@ if (havecompiler) {
             );
         }
     }
+
+    // The version bump travels WITH the goldens or the tree is left in a state that
+    // fails while describing itself wrongly — "recorded with <old>" about files this run
+    // recorded with <new>. ADR 0053 clause 5 wants the upgrade visible; after a `--write`
+    // the goldens no longer differ, so the manifest line is the only place left for it to
+    // be visible, and a human editing it by hand afterwards is a step that gets skipped.
+    if (write && installed !== ORACLE.version) {
+        const before = readFileSync(MANIFEST, 'utf8');
+        const after = before
+            .replace(/(\n\s*version: ')[^']*(',)/, `$1${installed}$2`)
+            .replace(/(\n\s*recordedOn: ')[^']*(',)/, `$1${new Date().toISOString().slice(0, 10)}$2`);
+        if (after === before) {
+            problems.push(
+                `the goldens were re-derived with ${ORACLE.tool} ${installed} but ORACLE.version could not be ` +
+                    `moved off ${ORACLE.version} in corpus/manifest.mjs — edit it by hand before committing.`,
+            );
+        } else {
+            writeFileSync(MANIFEST, after);
+            console.log(
+                `  ORACLE.version ${ORACLE.version} -> ${installed} in corpus/manifest.mjs; ` +
+                    `${rewritten} golden(s) moved. READ THAT DIFF — it is the upgrade notice, and it is the ` +
+                    'whole reason a version mismatch is a failure rather than an auto-update.',
+            );
+        }
+    }
 }
 
 if (problems.length > 0) fail();
 
 const stageB = havecompiler
     ? write
-        ? `stage B re-derived every golden with ${ORACLE.tool} ${installed}`
+        ? `stage B re-derived every golden with ${ORACLE.tool} ${installed} (${rewritten} changed)`
         : `stage B compared ${compared} golden(s) against ${ORACLE.tool} ${installed}`
     : 'stage B SKIPPED — blueprint-compiler is not on PATH, so no golden was re-derived here';
 
 // Printed every run so the SIZE of the claim is visible in the log, not just its
-// colour: a refactor that quietly drops half the expectations still exits 0 today,
-// and these two numbers are where that shows.
+// colour. The rule and probe counts are now load-bearing rather than decorative —
+// `refuseDuplicates` above stops a shrinking corpus from holding them steady — but the
+// node and loss totals are still only a signal: nothing pins them to a number, and a
+// deliberate deletion of a rule and its expectation together is still a green run.
 const everyExpectation = [...RULE_EXPECTATIONS, ...REAL_EXPECTATIONS];
 const nodes = everyExpectation.reduce((n, e) => n + countNodes(e.node), 0);
 const losses = everyExpectation.reduce((n, e) => n + (e.lost ?? []).length, 0);

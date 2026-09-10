@@ -461,8 +461,16 @@ jobs:
       # in this image and nowhere else in CI. As `testuser`, because it reads `git
       # ls-files` to prove no `.blp` in the tree is unprobed, and git refuses a tree owned
       # by someone else when this runs as root.
+      #
+      # `--require-oracle` because a skip is honest on a laptop and a hole HERE. The image
+      # installs `blueprint-compiler` unpinned (`.docker/ci-fedora.Dockerfile`), so a
+      # rebuild can take it away — and without the flag this step would print "stage B
+      # SKIPPED" and stay green with every golden in the tree unverified from that day
+      # on. That is exactly what ADR 0053 holds against `check-doc-fences.mjs`'s own skip:
+      # "every other run of that script proves nothing about the fences". The flag is what
+      # makes this the run that does prove something, or red.
       - name: Check the Blueprint corpus and its goldens
-        run: su testuser -c 'node scripts/check-blueprint-corpus.mjs'
+        run: su testuser -c 'node scripts/check-blueprint-corpus.mjs --require-oracle'
 
       - name: Check dependency consistency
         run: >

@@ -14,6 +14,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <object class="AdwBreakpoint">
         <condition>max-width: 400px</condition>
         <setter object="binOne" property="visible">false</setter>
+        <setter object="binOne" property="opacity">0.5</setter>
       </object>
     </child>
   </object>

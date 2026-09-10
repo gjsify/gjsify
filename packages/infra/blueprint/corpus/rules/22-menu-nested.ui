@@ -14,6 +14,10 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
           <attribute name="label">Deep</attribute>
           <attribute name="action">app.deep</attribute>
         </item>
+        <item>
+          <attribute name="label" translatable="yes">Marked</attribute>
+          <attribute name="action">app.marked</attribute>
+        </item>
       </submenu>
     </section>
   </menu>

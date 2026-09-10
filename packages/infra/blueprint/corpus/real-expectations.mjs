@@ -28,12 +28,14 @@
 //
 // Those four hold here and are not repeated per entry. Four more only real files show:
 //
-//  1. A BARE TYPE NAME NEEDS THE `using` LINES TO RESOLVE. Three files write
+//  1. A BARE TYPE NAME RESOLVES AGAINST Gtk, AND ONLY Gtk. Three files write
 //     `ToggleButton sidebarToggleButton {` with no namespace, and the tag here is
-//     `GtkToggleButton`. The `using` lines project to nothing — GIR class names carry
-//     their namespace already — and are still CONSUMED: a projection that reads only the
-//     token cannot produce the tag. `24-unqualified-type.blp` was written for this after
-//     the eleven turned it up, and the note on `18-multiple-imports.blp` was corrected.
+//     `GtkToggleButton`. So a projection that reads only the token cannot produce the
+//     tag: it needs the GIR. What it does NOT need is the import list. Measured on
+//     0.20.4: a bare `Bin` is refused as "Namespace Gtk does not contain a type called
+//     Bin" even with `using Adw 1;` in the file, and every file must open with `using
+//     Gtk` anyway. `24-unqualified-type.blp` was written for this after the eleven
+//     turned it up.
 //
 //  2. TWO SIBLINGS CAN CARRY THE SAME `slot`. `[end]` appears twice under one
 //     `Adw.HeaderBar` and `[start]` twice under one `Gtk.ActionBar`, while `content:`
@@ -54,6 +56,14 @@
 //     sidebarToggleButton.active` — and neither property is written any other way, so
 //     nothing is missing from the projected tree and the toggle button controls
 //     nothing. A loss that leaves no gap is the one no reader of the tree will notice.
+//
+// AND ONE NUMBER OF ADR 0053'S CENSUS IS OFF
+//
+// Its § Context row for object ids reads "41 of those". The `object-id` losses declared
+// below are 47, counted one per `Type id {` line plus the three ids written on a
+// property-assigned object (`content: Gtk.Box canvasContainer {`, which a grep for a
+// leading type token misses). 47 is the number to carry: it is the one an entry here
+// names line by line, so it is the one that fails loudly when a file changes.
 //
 // The two conventions both files follow — which line a loss names, and that `children`
 // is in source order — are stated once, in the header of `expectations.mjs`.
@@ -232,7 +242,7 @@ export const REAL_EXPECTATIONS = [
             { kind: 'object-id', line: 19, detail: 'the id `audioButton`' },
             { kind: 'object-id', line: 25, detail: 'the id `canvasContainer`' },
         ],
-        note: 'The two buttons both carry `slot: end` and their ORDER is what puts pause left of audio — see finding 2 in the header of this file.',
+        note: 'The two buttons both carry `slot: end` and their ORDER is load-bearing — measured on libadwaita 1.9, `AdwHeaderBar` PREPENDS into its end box, so the second `[end]` child (audio) sits LEFT of the first (pause). See finding 2 in the header of this file.',
     },
     {
         file: 'showcases/dom/three-geometry-teapot/src/gjs/teapot-window.blp',
@@ -698,7 +708,7 @@ export const REAL_EXPECTATIONS = [
             { kind: 'translatable', line: 48, detail: 'the `_()` marking on `Share`' },
             { kind: 'styles', line: 50, detail: 'the style class `flat` on the share button' },
         ],
-        note: 'Three slot spellings under `AdwToolbarView` — `top`, `content`, `bottom` — of which only `content` came from a property, and four more under the action bar below it. Nothing in the projected tree says which came from a bracket.',
+        note: 'Three slot spellings under `AdwToolbarView` — `top`, `content`, `bottom` — of which only `content` came from a property, and four more slotted children under the action bar below it (`start` twice, `center`, `end`). Nothing in the projected tree says which came from a bracket.',
     },
     {
         file: 'showcases/gtk/effect-adw-services/src/window.blp',
