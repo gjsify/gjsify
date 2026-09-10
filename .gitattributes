@@ -50,3 +50,15 @@ packages/infra/tsc/lib/** -text
 *.typelib -text binary
 *.so -text binary
 *.dylib -text binary
+
+# The Blueprint corpus and its goldens. `scripts/check-blueprint-corpus.mjs`
+# recompiles every `.blp` with the reference compiler and compares the RESULT TO
+# THE FILE ON DISK — the same byte-for-byte shape as the bundles above, and the
+# same failure mode on a CRLF checkout: `blueprint-compiler` writes LF, so on a
+# Windows clone every golden would differ for files nobody touched. ADR 0053
+# makes that diff the oracle the in-repo parser is measured against, so it has to
+# survive the checkout. The pattern is repo-wide and not scoped to the corpus:
+# the 11 `.blp` files under `showcases/` and `templates/` are compiled by the
+# build and are goldened here, so a converted checkout would break them too.
+*.blp -text
+*.ui -text

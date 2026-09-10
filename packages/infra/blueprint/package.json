@@ -1,0 +1,36 @@
+{
+    "name": "@gjsify/blueprint",
+    "version": "0.48.0",
+    "description": "The GNOME Blueprint corpus and its reference-compiler goldens — the oracle ADR 0053 measures an in-repo parser against. Holds no parser yet. NOT published to npm.",
+    "private": true,
+    "type": "module",
+    "main": "corpus/manifest.mjs",
+    "exports": {
+        ".": "./corpus/manifest.mjs",
+        "./corpus/expectations": "./corpus/expectations.mjs",
+        "./corpus/real-expectations": "./corpus/real-expectations.mjs"
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'no TypeScript sources to check'",
+        "test": "node ../../../scripts/check-blueprint-corpus.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/blueprint"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/blueprint#readme",
+    "keywords": [
+        "blueprint",
+        "blp",
+        "gtk",
+        "gnome",
+        "gtkbuilder",
+        "corpus"
+    ],
+    "license": "MIT"
+}

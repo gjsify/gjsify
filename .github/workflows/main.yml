@@ -450,6 +450,20 @@ jobs:
       - name: Check every Adwaita attribute gloss is the GIR's
         run: node scripts/generate-adwaita-attribute-comments.mjs --check
 
+      # The Blueprint corpus ADR 0053 puts before any parser: 25 one-rule `.blp` files
+      # and the 11 the build already compiles, each with the GtkBuilder XML the reference
+      # compiler produces and a hand-written `SharedNode` expectation. Stage A (complete
+      # corpus, valid expectations, no tracked `.blp` left unprobed) runs on every runner;
+      # stage B re-derives every golden and diffs it, and needs the binary.
+      #
+      # HERE for the same reason `check-doc-fences.mjs` is here and not in
+      # `audit-runtimes.yml`: stage B is the whole point and `blueprint-compiler` exists
+      # in this image and nowhere else in CI. As `testuser`, because it reads `git
+      # ls-files` to prove no `.blp` in the tree is unprobed, and git refuses a tree owned
+      # by someone else when this runs as root.
+      - name: Check the Blueprint corpus and its goldens
+        run: su testuser -c 'node scripts/check-blueprint-corpus.mjs'
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

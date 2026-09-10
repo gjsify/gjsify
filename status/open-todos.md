@@ -5904,3 +5904,65 @@ same ops would be a parameterisation of the node type rather than a rewrite. A c
 this, per the policy above. No estimate of the web leg's cost belongs here until someone
 measures one: a browser binding that resolved custom elements directly would bypass the
 gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
+
+### Byte-equal GtkBuilder XML needs the GIR, not only a parse
+
+ADR 0053 clause 4 makes `blueprint-compiler` the oracle for the emitted XML and reserves the
+installed typelib for VALIDATION — "a parser reading into a tree does not perform" a ParamSpec
+lookup. The corpus in `packages/infra/blueprint/corpus/` shows the reservation is too narrow.
+`orientation: vertical` does not reach the XML as `vertical`; the reference compiler resolves
+the enum member and writes `<property name="orientation">1</property>`, and `halign: center`
+as `3` (`corpus/rules/03-property-enum.ui`). Emission needs introspection, not only validation,
+and the ADR's cost estimate does not include it.
+
+The obvious source is the wrong one. `@girs/gtk-4.0`'s `.d.ts` declares `enum Orientation {
+HORIZONTAL, VERTICAL }` with no initialisers, so its members carry POSITIONAL values — right
+for `Orientation` by accident, wrong wherever the GIR is not `0,1,2…`: `Gtk.ResponseType.NONE`
+is `-1` in the GIR and `0` in the `.d.ts`. Nothing is broken by that today, because TypeScript
+does not inline members of a non-const ambient enum and GJS reads the real value off the gi
+module at runtime — but an emitter that read the published types for its enum table would be
+wrong on the first non-sequential enum, and silently.
+
+`scripts/generate-enum-values.mjs` already reads enum values from the installed typelib
+through GIRepository for `gtk-host`, so the mechanism exists; what is open is whether the
+parser depends on that ARTEFACT (a generated table, committed, no GIR at build time) or on a
+typelib of its own. The artefact keeps the toolchain-independence the ADR is for; the typelib
+does not.
+
+Also measured, and smaller: values are normalised rather than copied through. `xalign: 1.0`
+comes out as `1` while `0.25` and `0.5` come out unchanged
+(`corpus/rules/17-numeric-forms.ui`).
+
+### The Blueprint projection cannot be inverted, and three losses have no `SharedNode` spelling
+
+Writing the hand-written expectations ADR 0053 clause 2 asks for turned up four things the
+census of the eleven real files could not, because a corpus written per LANGUAGE RULE reaches
+constructs no real file happens to use.
+
+`slot` conflates two GtkBuilder constructs. `[start]` is `<child type="start">`, a placement on
+the child wrapper; `content:` is `<property name="content">`, an object as a property value.
+`SharedNode` has one field for both, so from `slot: 'content'` alone nothing says which to
+emit. Round-tripping Blueprint through `SharedNode` is therefore not available without a shape
+change — which no ADR had said, and which matters the day `.blp` is considered as an EMITTED
+dialect (the cheaper direction already recorded above).
+
+`styles [...]` has nowhere to go: ADR 0049 decided style classes are a LIST and
+`SharedNode['props']` is `Record<string, string | number | boolean>`. A space-joined string
+would be a lie about the shape 0049 chose, so the corpus records a loss. Same for `layout { }`
+and `accessibility { }`, neither of which has a field. That is evidence for — not an answer to
+— the open question 0053 leaves about whether `SharedNode` grows to hold the portable values
+of ADRs 0042 / 0046 / 0047.
+
+An id REFERENCE survives as a plain string. `menu-model: mainMenu` projects to `props: {
+'menu-model': 'mainMenu' }`, indistinguishable from the literal string `"mainMenu"` — the
+reference is kept and its reference-ness is lost, together with the object it names.
+
+And where `SharedNode` must live is still open, deliberately.
+`scripts/adwaita-gallery-shared-trees.d.mts` is a hand-written declaration whose own header refuses
+a second transcript, and the corpus reads it the way every other consumer does. The question
+becomes forced — not sooner — by the first PR that PUBLISHES a package producing the projection:
+`@gjsify/vite-plugin-blueprint` is published and would depend on the parser, so the parser package
+cannot stay private forever and cannot export a type from a path outside its own tarball. The two
+candidate answers are a type-only package both sides import, and a declaration in the parser that a
+compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
+with a working projection in hand than without one.
