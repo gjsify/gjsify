@@ -7,6 +7,7 @@ import solidSuite from './adapters/solid.spec.js';
 import vueSuite from './adapters/vue.spec.js';
 import conformanceSuite from './conformance.spec.js';
 import fontDirSuite from './font-dir.spec.js';
+import fontFamiliesSuite from './font-families.spec.js';
 import fontsSuite from './fonts.spec.js';
 import generatedSuite from './generated.spec.js';
 import generatorSuite from './generator.spec.js';
@@ -39,6 +40,7 @@ run({
     portalSuite,
     probeSuite,
     fontDirSuite,
+    fontFamiliesSuite,
     fontsSuite,
     hostSuite,
     menuSuite,

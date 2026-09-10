@@ -17,7 +17,7 @@ import Gio from 'gi://Gio?version=2.0';
 import Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
-import { initFonts, isUnsupportedByFontMap } from './fonts.js';
+import { initFonts, isUnsupportedByFontMap, matchFontFamily } from './fonts.js';
 
 /**
  * A real face whose family is on no host, borrowed from the showcase exactly as
@@ -142,6 +142,19 @@ export default async () => {
             expect(result.registered.length).toBe(0);
             expect(result.declined.length).toBe(0);
             expect(result.failed.length).toBe(0);
+            expect(result.families.length).toBe(0);
+            expect(result.matches.length).toBe(0);
+        });
+
+        await it('still answers `expectedFamilies` when it staged nothing', async () => {
+            // The macOS shape, where the `.app` activated the directory declaratively before any
+            // of this code ran: nothing to register, and "is the family this application asks for
+            // actually here" is still a fair question. The invented family is the discriminator —
+            // a check that answered `exact` for everything would satisfy the first line alone.
+            const result = initFonts({ fontDir: '', expectedFamilies: [INVENTED_FAMILY] });
+            expect(result.matches.length).toBe(1);
+            expect(result.matches[0]?.kind).toBe('absent');
+            expect(result.matches[0]?.family).toBeUndefined();
         });
 
         await it('reports a named directory that cannot be read, rather than swallowing it', async () => {
@@ -267,6 +280,43 @@ export default async () => {
             { when: !REGISTRATION_SUPPORTED },
         );
 
+        await it.failing(
+            'reports the FAMILY NAME the registration added, not only the file',
+            async () => {
+                // #1542: `initFonts` reported the FILES, and a caller can act on none of them.
+                // `set_family()` takes a family NAME, the name comes out of the font's naming
+                // table, and which name you get depends on which font stack read it — the same
+                // byte-identical face registers as `Merriweather` under fontconfig and
+                // `Merriweather 18pt` under gvsbuild. Only the call that registered it is in a
+                // position to take this diff.
+                //
+                // The face is ALREADY on the map by the time this runs (the suite above
+                // registered it), so this call adds nothing and `families` is empty — which is
+                // the honest answer and not the interesting one. The interesting one is a
+                // registration into a map that does not have it yet, below.
+                const dir = makeTempDir('familydiff');
+                copyFace(source, dir, 'Round9x13.ttf');
+                const before = families();
+                const result = initFonts({ fontDir: dir, expectedFamilies: [FACE_FAMILY, INVENTED_FAMILY] });
+
+                // What the call ADDED is a subset of what the map holds, always — a diff that
+                // reported a name the map does not have would be arithmetic rather than a
+                // measurement.
+                for (const family of result.families) expect(families()).toContain(family);
+                expect(before.length).toBeGreaterThan(0);
+
+                // The actionable half, and the reason the field exists: the declared name
+                // resolves, the invented one does not, and the two are told apart by NAME rather
+                // than by a count that is `registered: 1, failed: 0` either way.
+                expect(result.matches.map((match) => match.declared)).toStrictEqual([FACE_FAMILY, INVENTED_FAMILY]);
+                expect(result.matches[0]?.family).toBe(FACE_FAMILY);
+                expect(result.matches[1]?.kind).toBe('absent');
+                removeTree(dir);
+            },
+            NO_REGISTRATION_REASON,
+            { when: !REGISTRATION_SUPPORTED },
+        );
+
         await it('cleans up its fixtures', async () => {
             for (const dir of [outside, inside, empty]) removeTree(dir);
             for (const dir of [outside, inside, empty]) {
@@ -314,6 +364,44 @@ export default async () => {
             // A map that registers NOTHING never reaches the assertion — `add_font_file` throws
             // first. The ordering rule still binds every caller; it is only unobservable where
             // registration itself is.
+            NO_REGISTRATION_REASON,
+            { when: !REGISTRATION_SUPPORTED },
+        );
+    });
+
+    await describe('the family diff is a DIFF, on a map that did not have the family', async () => {
+        const source = findFaceSource();
+        if (source === undefined) return;
+        const REGISTRATION_SUPPORTED = probeRegistrationSupport(source);
+
+        await it.failing(
+            'names the family that arrived, and names nothing when nothing arrives',
+            async () => {
+                // On a SCRATCH map, for the reason the ordering suite gives: the default map has
+                // had this family since the discriminator suite ran, so a diff against it is
+                // legitimately empty and would prove nothing. Here the family is genuinely absent
+                // first, which is what makes the answer a measurement.
+                //
+                // `initFonts` registers into the DEFAULT map by design, so this drives the same
+                // two steps by hand — `add_font_file` then the family list — and asserts the
+                // relation `initFonts` computes. A scratch-map variant of `initFonts` would be a
+                // second implementation, and the thing under test is the relation.
+                const scratch = PangoCairo.FontMap.new();
+                const before = scratch.list_families().map((f) => f.get_name());
+                expect(before).not.toContain(FACE_FAMILY);
+                expect(matchFontFamily(FACE_FAMILY, before).kind).toBe('absent');
+
+                const dir = makeTempDir('freshmap');
+                scratch.add_font_file(copyFace(source, dir, 'Round9x13.ttf'));
+
+                const after = scratch.list_families().map((f) => f.get_name());
+                const gained = after.filter((name) => !before.includes(name));
+                expect(gained).toContain(FACE_FAMILY);
+                // And the resolution flips with it: absent before, resolvable after, from the
+                // same declared name. That pair is what a caller needs and could not get.
+                expect(matchFontFamily(FACE_FAMILY, after).family).toBe(FACE_FAMILY);
+                removeTree(dir);
+            },
             NO_REGISTRATION_REASON,
             { when: !REGISTRATION_SUPPORTED },
         );
