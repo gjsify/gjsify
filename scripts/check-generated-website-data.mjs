@@ -1295,6 +1295,7 @@ const depthFirst = (node, out = []) => {
 
 const fenceByTitle = new Map(applied.fences.map((fence) => [fence.title, fence]));
 let containedNodes = 0;
+let comparedValues = 0;
 let fenceElements = 0;
 for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
     const fence = fenceByTitle.get(tree.widget);
@@ -1326,6 +1327,7 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
         for (const [prop, value] of Object.entries(node.props ?? {})) {
             const attribute = prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
             const present = element.values.has(attribute);
+            comparedValues += 1;
             // A BOOLEAN IS THE ATTRIBUTE'S PRESENCE, which is the rule `adwaita-web`'s
             // driver builds with (`toggleAttribute`) and the elements read back with
             // `hasAttribute`. So `false` is the attribute being ABSENT, and the test
@@ -1384,10 +1386,18 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
 if (ADWAITA_GALLERY_SHARED_TREES.length > 0 && containedNodes === 0) {
     failures.push('no shared node was matched against a preview fence at all — arm 13 proved nothing');
 }
+// MATCHING A NODE IS NOT COMPARING A VALUE, and the node count cannot tell the two
+// apart: with the property loop neutered, every node still matches, the note still
+// prints the same figure and the arm is green having compared nothing. Measured by
+// doing exactly that, which is the only way to learn what a guard does not cover.
+if (containedNodes > 0 && comparedValues === 0) {
+    failures.push('arm 13 matched shared nodes but compared no authored value — it proved only that tags line up');
+}
 
 notes.push(
-    `${containedNodes} shared node(s) from ${ADWAITA_GALLERY_SHARED_TREES.length} authored tree(s) found in ` +
-        `${fenceElements} preview element(s) — the corpus is that far inside what the gallery documents`,
+    `${containedNodes} shared node(s) and ${comparedValues} authored value(s) from ` +
+        `${ADWAITA_GALLERY_SHARED_TREES.length} tree(s) found in ${fenceElements} preview element(s) — the corpus ` +
+        'is that far inside what the gallery documents',
 );
 
 // A scan whose corpus is empty reports green while proving nothing.
