@@ -93,6 +93,28 @@ export const createAnchor = (data = ''): HostAnchor => ({
 export const isText = (node: HostNode): node is HostText => node.kind === 'text';
 
 /**
+ * Drop the host's reference to a widget — and CLOSE it first if nobody else holds it.
+ *
+ * THE THREE PLACES THAT DISCARD `el.widget` ARE THE WHOLE POPULATION, and the rule
+ * is the same in all three: a parented widget is held by its parent and dies with
+ * it, while a non-parented one is held by GTK itself. Measured, a `Gtk.Window` is in
+ * `Gtk.Window.list_toplevels()` from CONSTRUCTION — before any `present()` — and
+ * leaves it only on `destroy()`; dropping the JS reference and collecting does not
+ * remove it, because GTK holds its own. So a discard without a close is a window
+ * nothing can ever reach again.
+ *
+ * `detachOutsideParent` is deliberately NOT what runs here: that verb is the
+ * reversible one `remove` promises, and there is nothing left to reverse into once
+ * the reference is gone.
+ */
+function releaseWidget(el: HostElement): void {
+    const outside = el.widget ? outsideParentOf(el.descriptor) : null;
+    if (outside) closeOutsideParent(el, outside);
+    el.widget = null;
+    el.wrapper = null;
+}
+
+/**
  * Build the GObject. Deferred until the widget is actually needed, because
  * construct-only properties must all be known at `g_object_new` time — and
  * Solid's `createElement(tag)` contract hands over no properties at all.
@@ -142,8 +164,12 @@ export function materialize(el: HostElement): GObject.Object {
                 child.attached = false;
             }
         }
-        el.widget = null;
-        el.wrapper = null;
+        // A DISCARD AND NOT A DETACH, which is why it is `releaseWidget` and not the
+        // bare assignment it used to be: the widget on the line above is the one this
+        // function just built, and for a `Gtk.Root` GTK is already holding it. A
+        // half-built `<gtk-dialog>` — one child its uncurated policy refuses is
+        // enough — left a window in `list_toplevels()` that nothing could reach.
+        releaseWidget(el);
         throw e;
     }
     return el.widget;
@@ -486,17 +512,12 @@ function rebuild(el: HostElement, key?: string, previous?: unknown): void {
             }
         }
         if (parent) removeChild(parent, el);
-        // AND THE WIDGET ITSELF, for a node no parent holds. `removeChild` detaches
-        // reversibly — right for the five call sites that re-attach the same widget
-        // — but the next line discards this one, and a toplevel is held by GTK's own
-        // list rather than by a parent: measured, `Gtk.Window.list_toplevels()`
-        // still contains a hidden window and loses it only on `destroy`. Without
-        // this, every construct-only write on a `<gtk-window>` leaked one.
-        const outside = outsideParentOf(el.descriptor);
-        if (outside) closeOutsideParent(el, outside);
     }
-    el.widget = null;
-    el.wrapper = null;
+    // A DISCARD: `removeChild` above detaches reversibly, which is right for every
+    // caller that re-attaches the same widget afterwards, and this one does not —
+    // `materialize` below builds a fresh instance. `releaseWidget` is where that
+    // difference is decided, for all three discard sites at once.
+    releaseWidget(el);
     el.attached = false;
     // `materialize` replays the whole child list itself; a second pass here
     // attached everything twice and made the remove-all policy re-append a tail
@@ -1129,19 +1150,15 @@ export function destroy(node: HostNode): void {
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
-        // THE TERMINAL HALF, and `remove` above deliberately did not run it: that
-        // call is documented as reversible and Solid uses it for a move, so the arm
-        // whose close is `destroy()` had to stop doing it there. Here is where a
-        // node really is being torn down, and it happens ONCE — `remove` detached,
-        // this closes.
-        if (outside && node.widget) closeOutsideParent(node, outside);
         if (
-            // NOT for a node whose PLACEMENT just took it down, one line up. This
-            // branch predates there being a name for that: the only widgets in GTK4
-            // with a `destroy` method are `Gtk.Window`s, i.e. exactly the declared
-            // toplevels. What is left for it is a window a consumer deliberately
-            // declared `parented`, which is asking for a child and gets the child
-            // teardown.
+            // NOT for a node with a PLACEMENT: `releaseWidget` below runs that arm's
+            // terminal close, and `remove` above ran only the reversible detach —
+            // the half `destroy` deliberately left to here, because that call is
+            // documented as a move. This branch predates there being a name for any
+            // of it: the only widgets in GTK4 with a `destroy` method are
+            // `Gtk.Window`s, i.e. exactly the declared toplevels. What is left for
+            // it is a window a consumer deliberately declared `parented`, which is
+            // asking for a child and gets the child teardown.
             !outside &&
             widget &&
             typeof widget.destroy === 'function' &&
@@ -1150,8 +1167,7 @@ export function destroy(node: HostNode): void {
         ) {
             widget.destroy();
         }
-        node.widget = null;
-        node.wrapper = null;
+        releaseWidget(node);
         // A destroyed node keeps no authored state: `props` and `layout` exist so
         // a REBUILD can restate the same intent, and there is nothing left to
         // rebuild. Leaving them made a destroyed element look re-materialisable.

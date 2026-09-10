@@ -469,8 +469,8 @@ export function closeToplevel(child: HostElement, placement: Extract<NodePlaceme
  * A PROPERTY WRITE AND NOT A DECLARED METHOD, and that is the honest shape rather
  * than a shortcut: a window's presence on screen IS its `visible` property — which
  * is why `presentToplevel` already reads it — so every toplevel detaches the same
- * way and a per-row name would be eighteen identical strings. The portal arm needs
- * no counterpart at all, because its declared close is ALREADY reversible.
+ * way and a per-row name would be the same string once per declared row. The portal
+ * arm needs no counterpart at all, because its declared close is ALREADY reversible.
  *
  * MEASURED on GTK 4.22.4, one window, in order: `set_visible(false)` leaves it
  * `visible` false with one `unmap`, emits NO `close-request`, and keeps it in
@@ -530,12 +530,13 @@ export function detachOutsideParent(child: HostElement, placement: OutsideParent
 }
 
 /**
- * The TERMINAL take-down — what `destroy` means, and what discards a widget.
+ * The TERMINAL take-down — what `destroy` means, and what a DISCARD means.
  *
- * Its other caller is `rebuild`, which drops `el.widget` and builds a fresh one: a
- * toplevel is held by GTK's own list rather than by a parent (measured,
- * `list_toplevels()` still contains a hidden window and loses it on `destroy`), so
- * merely detaching there would leak one window per construct-only write.
+ * Its one caller is `releaseWidget` in `host.ts`, which is every place the host
+ * drops `el.widget`: a toplevel is held by GTK's own list rather than by a parent
+ * (measured, `list_toplevels()` holds a window from CONSTRUCTION and loses it only
+ * on `destroy`), so a discard that merely detached would leak one window each time
+ * — per construct-only write, and per half-built element a failed replay rolls back.
  */
 export function closeOutsideParent(child: HostElement, placement: OutsideParent): void {
     switch (placement.kind) {
@@ -885,10 +886,11 @@ export function removeChild(parent: HostElement, child: HostElement): void {
     // false for a portal still waiting for a toplevel, which is exactly the state
     // whose subscription has to be disconnected.
     //
-    // The REVERSIBLE half, because five of this function's six call sites are a
-    // move: `remove`, `replaceAt`, `materialize`'s rollback and `rebuild`'s child
-    // sweep all re-attach the same widget afterwards. The sixth is `rebuild`
-    // discarding `el` itself, and it says so with its own `closeOutsideParent`.
+    // The REVERSIBLE half, because every caller of this function keeps the widget:
+    // `remove` by contract, and `replaceAt`, `materialize`'s rollback and
+    // `rebuild`'s child sweep because each re-attaches the same instance afterwards.
+    // DISCARDING one is a different verb in a different place — `releaseWidget` in
+    // `host.ts`, which owns all three sites that drop `el.widget`.
     const outside = outsideParentOf(child.descriptor);
     if (outside) return detachOutsideParent(child, outside);
     const host = parent.widget as unknown as AnyWidget;

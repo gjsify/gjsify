@@ -855,10 +855,10 @@ export default async () => {
             });
 
             await it('rebuilds through a construct-only write without leaking the old window', async () => {
-                // `rebuild` DISCARDS `el.widget`, which is the one caller of
-                // `removeChild` that wants the terminal call rather than the
-                // reversible one — a toplevel is held by GTK's own list, not by a
-                // parent, so a detach there leaks a hidden window per write.
+                // `rebuild` DISCARDS `el.widget`, and a discard wants the terminal
+                // call rather than the reversible one — a toplevel is held by GTK's
+                // own list, not by a parent, so a detach here leaks a hidden window
+                // per write. `releaseWidget` is where every discard decides that.
                 const { parent } = rooted();
                 const win = createElement('GtkWindow');
                 insert(win, parent);
@@ -872,6 +872,29 @@ export default async () => {
                 expect(Gtk.Window.list_toplevels().length).toBe(toplevelsBefore);
                 expect(after.get_visible()).toBe(true);
                 destroy(win);
+            });
+
+            await it('a rolled-back materialize does not leak the window it built', async () => {
+                // THE OTHER DISCARD, and the reason `releaseWidget` is one function
+                // rather than a line repeated at `rebuild`: `materialize` publishes
+                // `el.widget` before replaying into it, so a rejected replay has to
+                // UNPUBLISH — and for a `Gtk.Root` the reference it drops is not the
+                // only one. Measured: `new Gtk.Window()` is in `list_toplevels()`
+                // from construction, before any `present()`, and dropping the JS
+                // reference plus a GC does NOT remove it. `GtkDialog` is the cheapest
+                // reachable rejection: uncurated children, so one child is enough.
+                const before = Gtk.Window.list_toplevels().length;
+                const dialog = createElement('GtkDialog');
+                insert(createElement('GtkButton'), dialog);
+                let caught: unknown;
+                try {
+                    materialize(dialog);
+                } catch (e) {
+                    caught = e;
+                }
+                expect((caught as GtkHostError)?.code).toBe('uncurated-placement');
+                expect(dialog.widget).toBe(null);
+                expect(Gtk.Window.list_toplevels().length).toBe(before);
             });
 
             await it('does not shift the siblings that follow it', async () => {

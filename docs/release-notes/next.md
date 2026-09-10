@@ -161,7 +161,9 @@ the tag, instead of aborting the process or being taken in silence.
 One thing the two kinds do not share is how they come back down. A dialog's forced close is
 reversible — present it again and it re-hosts — while destroying a window is final, so
 `remove`, which the host documents as a detach a later insert undoes, now takes a window off
-screen instead of destroying it. Destroying is what `destroy` is for.
+screen instead of destroying it. Destroying is what `destroy` is for — and so is every place
+the host throws a widget away, including the rollback after a rejected build, which used to
+leave a window GTK still held and nothing could reach.
 
 Verifying it needed a shape worth naming: an abort is invisible to the process it kills, so
 "this no longer aborts" cannot be asserted where it used to happen. The negative control is

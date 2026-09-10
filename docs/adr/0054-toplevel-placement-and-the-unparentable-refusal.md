@@ -208,11 +208,22 @@ per-row name would be eighteen identical strings, the argument ADR 0045 § 2 alr
 for making `placement` optional. `set_visible(false)` and not the deprecated `hide()`,
 which is the same call one rename older.
 
-**`rebuild` is the one caller that wants the terminal verb**, and it says so itself. Five
-of `removeChild`'s six call sites re-attach the same widget afterwards — `remove`,
-`replaceAt`, `materialize`'s rollback, `rebuild`'s child sweep. The sixth is `rebuild`
-discarding `el.widget`, and a toplevel is held by GTK's list rather than by a parent
-(measurement O), so detaching there leaked one hidden window per construct-only write.
+**A DISCARD wants the terminal verb, and `removeChild` is the wrong population to ask
+it of.** Every caller of `removeChild` keeps the widget — `remove` by contract, and
+`replaceAt`, `materialize`'s rollback and `rebuild`'s child sweep because each
+re-attaches the same instance afterwards. The question that decides the verb is which
+code DROPS `el.widget`, and the answer is `materialize`'s rollback, `rebuild` and
+`destroy`. They call one function for it, `releaseWidget`, which closes first.
+
+Measurement U is why a discard cannot simply drop the reference: a `Gtk.Window` is in
+`Gtk.Window.list_toplevels()` from CONSTRUCTION, before any `present()`, and dropping
+the JS reference plus a `system.gc()` does not remove it, because GTK holds its own.
+So `rebuild` leaked one hidden window per construct-only write, and `materialize`'s
+rollback leaked one per half-built element whose replay was rejected — a `<gtk-dialog>`
+handed a child its uncurated policy refuses is the cheapest reachable case. Naming the
+population is what makes a FOURTH discard site a decision rather than an oversight;
+the first framing of this section counted `removeChild`'s callers instead, said six
+where there are five, and would have left the rollback leaking.
 
 **What this changes for a consumer**: unmounting a `<gtk-window>` in Solid takes it off
 screen at `removeNode` and destroys it when the root disposer runs `destroyChildren`,
@@ -317,3 +328,4 @@ case. Source read at `refs/libadwaita/src/adw-dialog.c` (`adw_dialog_root` at 79
 | R | `destroy()` on the hidden window | no further `unmap`, leaves `list_toplevels()` |
 | S | `force_close()` then `present(box)` against the same parent | re-hosted, `visibleDialog` set, no diagnostic |
 | T | the child spawn under `prlimit --core=0` | `signalled=true term=6`, `COREFILE: none` against `present 2.8M` bare |
+| U | `new Gtk.Window()`, never presented | already in `list_toplevels()`; dropping the JS reference + `system.gc()` leaves it there, `destroy()` removes it |

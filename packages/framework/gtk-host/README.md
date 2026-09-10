@@ -230,9 +230,11 @@ here: measured, `force_close()` → `present(parent)` re-hosts a dialog with no
 diagnostic, so for a portal both verbs are the same call. A toplevel detaches with
 `set_visible(false)` — measured reversible, one `unmap`, no `close-request`, and the
 window stays in `Gtk.Window.list_toplevels()`, which is what makes it a detach rather
-than a teardown. `rebuild` is the one caller that wants the terminal verb, because it
-discards the widget and GTK's list would otherwise keep a hidden window per
-construct-only write.
+than a teardown. What wants the terminal verb is a DISCARD, not a particular caller:
+`materialize`'s rollback, `rebuild` and `destroy` are the three places that drop
+`el.widget`, they share one `releaseWidget`, and it closes first — measured, a window
+is in `list_toplevels()` from construction, so dropping the reference alone leaks one
+per construct-only write and one per half-built element a rejected replay rolls back.
 
 ### A class that declares neither
 
