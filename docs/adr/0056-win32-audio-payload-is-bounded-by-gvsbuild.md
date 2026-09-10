@@ -29,9 +29,9 @@ Windows GStreamer is built from source into that same prefix, by us, from gvsbui
 project definitions. **The project list is ours; the projects are not.**
 
 **What gvsbuild has.** Read from the pinned tag (`wingtk/gvsbuild@2026.6.0`,
-`gvsbuild/projects/`): 95 project files, among them `ogg.py` and `libvorbis.py`. There is no
+`gvsbuild/projects/`): `ogg.py` and `libvorbis.py` are among the files there. There is no
 `flac.py`, no `mpg123.py`, no `mad`, `lame` or `twolame`, and gvsbuild offers no mechanism for
-loading a project definition from outside its own package. Homebrew has all three libraries,
+loading a project definition from outside its own package — the directory IS the catalogue. Homebrew has all three libraries,
 which is the entire origin of the asymmetry: the darwin builder copies from a prefix that
 happens to hold them.
 
@@ -98,13 +98,18 @@ corpus has already answered.
 - **`npm view` answers the payload question, and now answers it with a repair.** A gap's `why`
   names the upstream file that would close it instead of describing a prefix nobody outside
   this repository can see.
-- **The argument list is duplicated and stays duplicated** — `node-gi.yml` builds it on a PR,
-  `release.yml` builds it for the tag, and a change to one that misses the other means the leg
-  that proved the payload is not the leg that shipped it. Both were changed here; a reader
-  changing them next should change both in the same commit.
-- **A cache key is part of the decision.** Both workflows key the gvsbuild prefix cache on the
-  project set they build, so adding a project without moving the key is a cache hit that skips
-  the build entirely and produces a bundle identical to the one before the change.
+- **The argument list is duplicated and stays duplicated, with no new check over it.**
+  `node-gi.yml` builds it on a PR and `release.yml` builds it for the tag, and the temptation
+  is a guard holding the two texts equal. There already is one, and it is the declaration: a
+  prefix missing a plugin the manifest CLAIMS makes `missingBundledGstPlugins` report an
+  UNDECLARED absence and the builder exit 1, naming it. A second check would watch a mechanism
+  that works. What the duplication does cost is WHEN — the leg that proves the payload is not
+  the leg that ships it, so a change to one that misses the other is a red release rather than
+  a red pull request. Change both in the same commit.
+- **A cache key is part of the decision, and is covered by the same mechanism.** Both workflows
+  key the gvsbuild prefix cache on the project set they build. Adding a project without moving
+  the key is a cache hit that skips the build and produces the bundle from before the change —
+  which then fails as an undeclared absence rather than shipping.
 - **This ADR is `Proposed` until a Windows leg has run it.** What is measured today is a file
   list and a project list, both read from Linux. What is not: that `gstvorbis.dll` builds, that
   it loads, and that `vorbisdec` registers. The first is the prefix assertion, the second and
