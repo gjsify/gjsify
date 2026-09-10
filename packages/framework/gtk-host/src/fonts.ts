@@ -217,10 +217,13 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // `matches` is what the caller's own names resolve to on the map as it now stands — which is
     // deliberately NOT restricted to the diff, because a family the platform activated
     // declaratively is on the map and did not arrive here.
+    //
+    // The diff is taken ONLY where a BEFORE was taken, and the guard is load-bearing rather than
+    // tidy: with no font directory named there is no `before`, so subtracting an empty list from
+    // a live one would report every family on the host as having been added by a call that
+    // registered nothing — a field whose whole purpose is to say what THIS call contributed.
     const after = dir === undefined && expected.length === 0 ? [] : familyNames(fontMap);
-    const gained = new Set(after);
-    for (const name of before) gained.delete(name);
-    const families = [...gained].sort();
+    const families = dir === undefined ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
 
     for (const failure of failed) {

@@ -155,6 +155,11 @@ export default async () => {
             expect(result.matches.length).toBe(1);
             expect(result.matches[0]?.kind).toBe('absent');
             expect(result.matches[0]?.family).toBeUndefined();
+            // And `families` stays EMPTY. Reading the map to answer the question above means
+            // there is an `after` and no `before` — subtracting one from the other would credit
+            // this call with every family on the host, which is the opposite of what it reports.
+            expect(result.families.length).toBe(0);
+            expect(result.dir).toBeUndefined();
         });
 
         await it('reports a named directory that cannot be read, rather than swallowing it', async () => {
