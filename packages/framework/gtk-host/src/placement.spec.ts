@@ -26,7 +26,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 
 import { descriptorProblems, gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
-import { GtkHostError } from './errors.js';
+import type { GtkHostError } from './errors.js';
 import { adopt, createElement, destroy, insert, materialize, remove, setProp } from './host.js';
 import { isPortal, isUnparented, outsideParentOf, placementOf, portalOf } from './policies.js';
 import { lookupWidget, registerWidget, registerWidgets } from './registry.js';
