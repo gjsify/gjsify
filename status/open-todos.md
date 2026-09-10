@@ -5846,3 +5846,61 @@ icon anywhere** — no `icon-name` in any `.ts` or `.blp`. Adding the dependency
 ship 26.5 KiB and a startup call to apps with no icons. The day a template draws one, the
 change is one line: `runAdwaitaApp` already defaults this on, and a hand-built application
 calls `installBundledIconTheme()`.
+
+### Blueprint reaches the build through a binary two of three runners lack
+
+`@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
+neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
+decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
+beside the compiler until it reports no divergence. What is left here is the order of the work.
+
+The first PR carries the WRITTEN corpus, the hand-written `SharedNode` expectation per corpus
+file (clause 2) and the shadow harness — NOT a parser already claiming a subset, because a
+harness with nothing to compare reports green while proving nothing. The subset then grows one
+shadow divergence at a time.
+
+Two things that suite has to settle before anything is claimed. The equivalence of the two
+notations is a READING and nothing has run it, so the honest expectation is that the first suite
+moves at least one row of the ADR's mapping table. And six construct classes have no `SharedNode`
+spelling at all — `template`, object ids, `_()`, `bind`, and `Adw.Breakpoint`'s `condition` and
+`setters`. The translatable marker is the one that costs: a caption parsed into a plain string
+loses exactly the attribute ADR 0033 prefers a template for.
+
+Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
+one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
+skip in `check-doc-fences.mjs`, and the MSYS2 branch of `gjsify system-check`.
+
+### Does the shared corpus want a second authored notation?
+
+ADR 0051 authors the shared trees as `SharedNode` in GIR class names, because that spelling is
+the one both renderers already carry and authoring in either renderer's markup would make one of
+them the reference and the other a translation. ADR 0053 adds a Blueprint READER over the same
+shape and explicitly does not propose replacing the authored form. Whether it should is open,
+and 0053 § Context has the level argument that makes it a real question rather than a
+preference: neither notation contains the other. Against a move, concretely — six Blueprint
+constructs have no `SharedNode` spelling, and `SharedNode.props` is `string | number | boolean`,
+so none of ADRs 0042, 0046 and 0047's portable values can be written in a shared tree at all,
+while Blueprint writes all three as inline objects.
+
+The opposite direction costs less and is also unclaimed: `.blp` as a third EMITTED dialect of
+the corpus beside `gtkHostTree()` and `nativeScriptTree()`. It needs no parser, it leaves 0051's
+reasoning untouched, and it is the shape ADR 0034 § 8 already names as this repository's answer
+to the neighbouring translator question — write the tree once in the vocabulary that runs and
+emit the dialects. Either could land first. Deciding the authored form belongs to whoever brings
+a measurement: a supersession of 0051 needs more than an argument about levels.
+
+### A developer who picks Vue gets the desktop and nothing else
+
+`packages/framework/gtk-host/src/adapters/` holds React, Solid and Vue over one widget table no
+adapter may duplicate, and all three reach GTK only. `@gjsify/adwaita-web` ships its custom
+elements and `@gjsify/adwaita-nativescript` its widgets, and neither has a framework binding: on
+those surfaces a tree is written against the DOM API or as NativeScript XML by hand.
+
+This is recorded as a GAP, not as a proposal. ADR 0051 Decision 5 already sets the policy —
+nothing more is extracted than the second driver needs — and its rejected alternatives name the
+inverse outright: "extract a `host-core` package first, then find a consumer". 0051 also measured
+that the three adapters carry no runtime `gi://` import at all, so a second renderer behind the
+same ops would be a parameterisation of the node type rather than a rewrite. A consumer that needs it is what would start
+this, per the policy above. No estimate of the web leg's cost belongs here until someone
+measures one: a browser binding that resolved custom elements directly would bypass the
+gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
