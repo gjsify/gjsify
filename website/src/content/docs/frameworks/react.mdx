@@ -36,8 +36,7 @@ of wrong at exit 0, with every widget present and every row a column.
 `Adw.Clamp` holds long-form content at a readable width. The Adwaita element is identical on
 both paths, down to the property names:
 
-```tsx
-// @gjsify/gtk-host/react
+```tsx title="@gjsify/gtk-host/react"
 export function ReadingColumn() {
     return (
         <adw-clamp maximumSize={400} tighteningThreshold={300}>
@@ -52,8 +51,7 @@ export function ReadingColumn() {
 }
 ```
 
-```tsx
-// @gjsify/react-native
+```tsx title="@gjsify/react-native"
 import { Text, View } from 'react-native';
 
 import { configureStyle } from '@gjsify/react-native';
