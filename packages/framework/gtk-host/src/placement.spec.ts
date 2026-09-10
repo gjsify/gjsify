@@ -74,7 +74,26 @@ const SIGABRT = 6;
  * gjs stops reproducing the abort.
  */
 const GJS = GLib.find_program_in_path('gjs');
-
+/**
+ * An argv prefix that keeps the abort and drops the 2.8 MB it writes.
+ *
+ * THE SIGNAL IS THE ASSERTION AND THE CORE FILE IS THE COST. Measured on this
+ * machine: the raw case writes a `gjs-console` SIGABRT dump of 2.8 MB on every run
+ * of this suite, and CI pays it on every run too. Under `prlimit --core=0` the very
+ * same spawn still answers `signalled=true, term=6` with `Adwaita-ERROR` on stderr,
+ * and `coredumpctl` lists the abort with `COREFILE: none` — the two rows sit next
+ * to each other in one run, which is the control for the claim.
+ *
+ * AN ARGV PREFIX AND NOT A SHELL: `prlimit` execs the program, so `waitpid` still
+ * reports the CHILD's signal rather than a shell's `128 + n` exit code, and there
+ * is no command line to interpolate a path into.
+ *
+ * PROBED, because `prlimit` is util-linux and this suite also runs on darwin and
+ * win32 (`gtk-os-suites.yml`). A host without it spawns exactly as before and the
+ * vectors assert exactly the same things — it only pays the dump. That is a
+ * capability probe on an external tool, not a platform guard on a test.
+ */
+const CORE_FREE = GLib.find_program_in_path('prlimit');
 
 interface ChildOutcome {
     /** True when the child was killed by a signal rather than exiting. */
@@ -108,8 +127,9 @@ function runInChild(body: string): ChildOutcome {
     const path = `${dir}/case.js`;
     GLib.file_set_contents(path, new TextEncoder().encode(source));
     try {
+        const run = [GJS as string, '-m', path];
         const proc = Gio.Subprocess.new(
-            [GJS as string, '-m', path],
+            CORE_FREE ? [CORE_FREE, '--core=0', ...run] : run,
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         );
         const [, stdout, stderr] = proc.communicate_utf8(null, null);
