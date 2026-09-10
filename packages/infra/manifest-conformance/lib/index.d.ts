@@ -179,6 +179,33 @@ export declare const headlessRule: Rule;
 export declare const portableScriptsRule: Rule;
 export declare const fieldCoverageRule: Rule;
 export declare const repositoryDirectoryRule: Rule;
+export declare const bundleSearchPathsRule: Rule;
+
+/** One way a payload image reaches past the bundle it ships in. */
+export interface BundleSearchPathFinding {
+    /** Path relative to the directory the payload sits in. */
+    file: string;
+    /**
+     * `escape` — a build-host search path; `unresolvable` — an `@rpath/` dep with
+     * nothing to resolve it; `unreadable` — an image the parser recognised and
+     * refused, whose load commands were therefore never read at all.
+     */
+    kind: 'escape' | 'unresolvable' | 'unreadable';
+    /** The offending load-command strings, exactly as recorded. */
+    detail: string[];
+}
+
+/**
+ * Read every Mach-O under `<root>/gtk` and report the images that search outside
+ * it. `null` when the payload directory is not present — an ABSENT payload is
+ * the ordinary state of a checkout and is deliberately not an empty one.
+ *
+ * `foreign` counts images of a format that has no `LC_RPATH` to read (a PE), for
+ * which this rule reports a non-answer rather than a clean bill or a defect.
+ */
+export declare function auditPayloadSearchPaths(
+    root: string,
+): { images: number; foreign: number; findings: BundleSearchPathFinding[] } | null;
 export declare const mediaCapabilitiesRule: Rule;
 
 /** A GStreamer plugin FILE name → its plugin name: no `libgst`/`gst` prefix, no extension, lower-cased. */

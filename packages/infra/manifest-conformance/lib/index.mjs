@@ -101,6 +101,12 @@ export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from
 export { mediaCapabilitiesRule, auditMediaCapabilities, collectMediaBundles } from './rules/media-capabilities.mjs';
 export { gstPluginBaseName, isGstElementName, isGstPluginFile, readGstPluginDir } from './gst-payload.mjs';
 export {
+    bundleSearchPathsRule,
+    auditRuntimeBundles,
+    auditPayloadSearchPaths,
+    collectRuntimeBundles,
+} from './rules/bundle-search-paths.mjs';
+export {
     nativescriptPlatformsRule,
     auditNativescriptPlatforms,
     collectPlatformVariants,

@@ -1588,6 +1588,16 @@ const CHECK_RULES = [
     // libraries — the notice files were already correct, and the one machine-readable
     // field was not.
     'bundled-license',
+    // Reads `files` to find the runtime bundles, then the Mach-O load commands of the
+    // payload each one ships. Registered but NOT selected is exactly the state this rule
+    // arrived in, and it is the third instance of the omission the two comments further
+    // down record for `platform-packages` and `bundled-license`: `--rules` listed it, field
+    // coverage counted its `files`, and no gate ever ran it — while ADR 0057 § 4 said it
+    // failed the audit. In a checkout the payload is gitignored, so what it prints on every
+    // PR is a NOT INSPECTED note per bundle; that is the honest answer and it takes being
+    // SELECTED to give it. Where a payload IS on disk — node-gi.yml's macOS bundle job, a
+    // locally built or npm-staged tarball — the same run reads the images.
+    'bundle-search-paths',
     // Reads `gjsify.mediaCapabilities` + `files` out of each manifest, and the shipped
     // plugin FILES when a built or staged payload is reachable — which in this job it is
     // not, so what runs on a PR is the declaration half: its shape, and whether every
@@ -1759,6 +1769,9 @@ async function main() {
         // accountant — which labels its findings a REPORTER bug rather than a licence
         // drift. Being caught by the safety net is not the same as being reported.
         const bundledLicense = byId.get('bundled-license');
+        // Fetched here AND printed in both branches in the same edit, which is the contract
+        // the three comments around this one were each paid for.
+        const bundleSearchPaths = byId.get('bundle-search-paths');
         // Fetched, summarised and PRINTED-ON-FAILURE in the same edit — the two comments
         // above are what the other order cost twice.
         const mediaCapabilities = byId.get('media-capabilities');
@@ -1784,6 +1797,7 @@ async function main() {
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
+            console.log(bundleSearchPaths.summary);
             console.log(mediaCapabilities.summary);
             console.log(stylesheetFontFamilies.summary);
             console.log(bundlerPlugins.summary);
@@ -2104,6 +2118,21 @@ async function main() {
                     'declare a bare SPDX id: `license` must point at the notice file the builder emitted ' +
                     '(`SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md`), and `files` must carry it. Both are produced by ' +
                     'the bundle build — re-run it rather than hand-editing the field a scanner reads.',
+            );
+            console.error('');
+        }
+        if ((bundleSearchPaths.failures ?? []).length > 0) {
+            console.error(`BUNDLE-SEARCH-PATH FAILURES on ${bundleSearchPaths.failures.length} finding(s):`);
+            for (const line of bundleSearchPaths.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A runtime bundle ships its own copy of every library it needs, so an image inside it that names a ' +
+                    'search path OUTSIDE it has a second source for one of them — and for a type-registering library ' +
+                    'a second copy is two GObject type registries in one process (ADR 0023 § 4, #1536). The repair is ' +
+                    "in the builder, not the manifest: `relocate()` replaces an image's whole rpath list, giving it a " +
+                    'payload-relative entry only where something resolves through one.',
             );
             console.error('');
         }

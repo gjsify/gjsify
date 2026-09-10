@@ -1375,26 +1375,38 @@ jobs:
             --addon "$PWD/addon/node_gi.node" \
             --stage packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
 
-      # The build step is already the hard gate on relocation (build-gtk-runtime-darwin
-      # exits non-zero on any surviving reference into the brew prefix, for the dylibs
-      # AND the addon). This step is the log-visible echo of that claim — and it derives
-      # the prefix rather than hardcoding `/opt/homebrew`, which is the Apple-silicon
-      # prefix only: on this job's Intel leg the prefix is /usr/local, so the literal
-      # would have matched nothing and "clean" would have meant nothing.
-      - name: Report bundle size + relocation sanity
+      # DIAGNOSTICS, and only that. The relocation ASSERTION is `verifyRelocation()` in
+      # the build step above and the audit below; what used to stand here as well was
+      # `otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"`, and #1536 is the bill for
+      # reading its "clean — no Homebrew references" line as coverage. It could not see
+      # the defect twice over: `lib/*.dylib` does not descend into `lib/gstreamer-1.0/`
+      # where the offending plugin sits, and `otool -L` lists DEPENDENCIES, so an
+      # `LC_RPATH` is invisible to it whatever it is pointed at. A weaker copy of a
+      # check that also prints a verdict is worse than no copy — it is the line a reader
+      # trusts. What remains is what a log is for: the manifest, the size, and the
+      # addon's own search paths.
+      - name: Report bundle size + addon load commands
         run: |
           B=packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
-          BREW_PREFIX="$(brew --prefix)"
           cat "$B/manifest.json"
           echo "--- bundle size ---"
           du -sh "$B"
-          echo "--- assert NO $BREW_PREFIX refs remain in the bundle ---"
-          if otool -L "$B"/lib/*.dylib | grep -F "$BREW_PREFIX"; then
-            echo "RELOCATION FAILED: bundled dylibs still reference $BREW_PREFIX"; exit 1
-          fi
-          echo "clean — no Homebrew references"
           echo "--- relocated addon load commands ---"
           otool -l packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/node_gi.node | grep -A2 LC_RPATH || true
+
+      # THE ONE JOB WHERE THE PAYLOAD EXISTS, which is what makes this a check rather
+      # than a formality. `bundle-search-paths` reads the finished payload's Mach-O
+      # load commands, and its subject is gitignored — so everywhere else the audit
+      # runs it prints NOT INSPECTED and passes, honestly and vacuously. Here the
+      # bundle was written four steps ago at exactly the path the rule derives from
+      # the package's own `files`, so the same command finally reads something.
+      #
+      # Not a second copy of the builder's `verifyRelocation()`: that gate sees the
+      # image LIST the builder handed it, this one walks the payload as it will be
+      # packed. Runs with no install, the way `audit-runtimes.yml` does — the script
+      # is pure Node.
+      - name: Conformance audit over the payload just built (ADR 0057 § 4)
+        run: node scripts/audit-runtimes.mjs --check
 
       - name: Upload GTK runtime bundle
         uses: actions/upload-artifact@v4

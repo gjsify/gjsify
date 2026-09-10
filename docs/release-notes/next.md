@@ -218,3 +218,25 @@ leave a window GTK still held and nothing could reach.
 Verifying it needed a shape worth naming: an abort is invisible to the process it kills, so
 "this no longer aborts" cannot be asserted where it used to happen. The negative control is
 a child process, and what the suite reads is its exit signal.
+
+A macOS bundle could play an audio file it shipped and go silent on a stream. Not a missing
+element — the plugin that reads a URL was there and resolved. What was missing was any reason
+for it to use the libsoup sitting next to it in the bundle rather than the one Homebrew had
+installed, and it used Homebrew's. That library brings its own GLib, so a process that had
+already loaded the bundle's ended up with two GObject type systems: from then on a type
+registered in one and looked up through the other, which surfaces as an object plainly lacking
+a property it obviously has, and as a stream that reports no error and never starts.
+
+The route was one line in the artifact. A GStreamer plugin does not link libsoup; it opens it
+at runtime by bare name, and the bundle's copy of the plugin had kept the search path its
+Homebrew build was given — pointing straight back into Homebrew. Asking dyld directly settled
+what had until then been argued from the file format: it expands a bare name against exactly
+that search path, and reaches it before anything else it would try. There was no second route.
+Pointing the entry inside the bundle makes the same lookup land on the shipped library.
+
+Why it survived: the builder rewrote every reference an image makes to another library and
+never touched its search paths, and the check that verified the result read only the references.
+Both now cover both, and a new conformance rule reads the finished payload from any machine —
+a Linux workstation can inspect a macOS bundle's load commands without a Mac — refusing an image
+that can reach outside the bundle, and equally one left with a dependency it can no longer
+resolve.
