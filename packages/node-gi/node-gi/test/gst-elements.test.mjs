@@ -22,7 +22,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { requireGi } from '../gi.js';
-import { GST_AUDIO_DECODERS, GST_PLUGIN_GAPS } from '../../scripts/gst-plugins.mjs';
+import { GST_PLUGIN_GAPS, gstAudioDecoders } from '../../scripts/gst-plugins.mjs';
 import { resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
@@ -68,12 +68,12 @@ test('the GStreamer registry resolves the audio-path elements', { skip }, () => 
  * Is the GStreamer this process talks to the BUNDLE's, or the host's?
  *
  * The whole format claim is about the bundle: `GST_AUDIO_PLUGINS` is what the builders
- * copy, and `GST_PLUGIN_GAPS` says which of those a platform's archive did not have. A
- * host GStreamer answers a different question, and asking it this one is wrong in both
- * directions — a Fedora container with thin plugins would fail a claim it never made,
- * and a Windows box with MSYS2's GStreamer would report a DECLARED gap as retired while
- * the bundle it is about still has it (measured shape: #1544's own win11 VM has mpg123
- * through MSYS2 and the published bundle does not).
+ * copy, and the bundle's own `gjsify.mediaCapabilities` says which formats came out the
+ * other end. A host GStreamer answers a different question, and asking it this one is
+ * wrong in both directions — a Fedora container with thin plugins would fail a claim it
+ * never made, and a Windows box with MSYS2's GStreamer would report a DECLARED gap as
+ * retired while the bundle it is about still has it (measured shape: #1544's own win11 VM
+ * has mpg123 through MSYS2 and the published bundle does not).
  *
  * `resolveGtkRuntimeBundle()` is the same answer node-gi itself acts on when it points
  * `GST_PLUGIN_SYSTEM_PATH` at the bundle, so the two cannot disagree about which
@@ -84,17 +84,35 @@ const bundleSkip =
     skip || (bundle === null ? 'no @gjsify/gtk-runtime bundle resolves here — this asks about the BUNDLE' : false);
 
 /**
+ * The host target's declared audio contract, read only where a bundle resolved.
+ *
+ * READ LAZILY, because there is no bundle package for `linux-*` by design (Linux takes GTK
+ * from the system) and the reader REFUSES an unknown target rather than answering an empty
+ * one. Reading it eagerly would therefore throw at import on the platform where these
+ * tests are meant to skip — turning "nothing to ask here" into a broken suite.
+ *
+ * From the CHECKOUT's manifest, which is the same source the gap list came from before it
+ * moved into the packages, and consistent with what `gtk-os-suites.yml` measures: the
+ * PAYLOAD is the published tarball, everything else is this tree. A claim this tree has
+ * added and no release has shipped is a real finding there, not noise — it is the same
+ * distinction that file's own table draws about node-gi's JS.
+ */
+const claim = bundleSkip === false ? gstAudioDecoders(`${process.platform}-${process.arch}`) : [];
+
+/**
  * The decoder gaps this platform has DECLARED, as element names.
  *
- * A gap is a promise not made, and it is written once — in `gst-plugins.mjs`, next to the
- * plugin it is about. Reading it here rather than restating it is what makes the entry
- * self-retiring in BOTH places: the builder fails when a declared gap's plugin arrives,
- * and this test starts asking for the element the moment the same entry is deleted.
+ * A gap is a promise not made, and it is written once — in the bundle package's own
+ * `gjsify.mediaCapabilities`, where whoever receives the tarball can also read it. Reading
+ * it here rather than restating it is what makes the entry self-retiring in THREE places:
+ * the builder fails when a declared gap's plugin arrives, `media-capabilities` fails when
+ * the shipped payload carries it, and this test starts asking the registry for the element
+ * the moment the entry is deleted.
  */
 const declaredGapElements = new Set(
-    (GST_PLUGIN_GAPS[`${process.platform}-${process.arch}`] ?? []).flatMap((gap) =>
-        GST_AUDIO_DECODERS.filter((row) => row.plugin === gap.plugin).map((row) => row.element),
-    ),
+    (bundleSkip === false ? (GST_PLUGIN_GAPS[`${process.platform}-${process.arch}`] ?? []) : [])
+        .map((gap) => gap.element)
+        .filter(Boolean),
 );
 
 test('every format the audio path claims has a decoder in the registry', { skip: bundleSkip }, () => {
@@ -107,10 +125,13 @@ test('every format the audio path claims has a decoder in the registry', { skip:
     // mp3 stream failed — the second one as `Internal data stream error`, which reads like
     // a missing TLS backend and was not (#1544).
     const missing = [];
-    for (const { format, element, plugin } of GST_AUDIO_DECODERS) {
-        if (declaredGapElements.has(element)) continue;
+    for (const { format, element, plugin } of claim) {
         if (Gst.ElementFactory.make(element, null) === null) missing.push(`${format}: ${element} (${plugin})`);
     }
+    // A claim that iterates NOTHING is green and measures nothing — the vacuity this whole
+    // area is about, one level up from a seed that matched nothing. Every bundle declares at
+    // least WAV, so an empty claim here means the declaration was not read.
+    assert.ok(claim.length > 0, 'this bundle declares no decodable format at all, so the loop above proved nothing');
     assert.deepEqual(
         missing,
         [],
@@ -118,8 +139,9 @@ test('every format the audio path claims has a decoder in the registry', { skip:
             'Each is a format gst-plugins.mjs says the audio path takes. A format with no decoder ' +
             'fails in the application as "missing a plug-in" for a local file, and as "Internal ' +
             'data stream error" for a stream — the second of which reads like something else ' +
-            'entirely. If the platform genuinely cannot carry it, declare it in GST_PLUGIN_GAPS ' +
-            'with what it costs; the builder and this test both read that list.',
+            'entirely. If the platform genuinely cannot carry it, move the format into this ' +
+            "bundle package's `gjsify.mediaCapabilities.gaps` with what it costs; the builder, " +
+            'the conformance rule and this test all read that one declaration.',
     );
 });
 
@@ -131,7 +153,7 @@ test('a declared decoder gap is still a gap', { skip: bundleSkip }, () => {
     assert.deepEqual(
         arrived,
         [],
-        `GST_PLUGIN_GAPS declares no decoder for ${arrived.join(', ')} on this platform, and the ` +
+        `this bundle's \`gjsify.mediaCapabilities.gaps\` declares no decoder for ${arrived.join(', ')}, and the ` +
             'registry has one. Delete the entry — the bundle now keeps a promise its own ' +
             'declaration still refuses.',
     );

@@ -39,7 +39,7 @@
 //   --platforms the OS × native-package matrix: which `<os>-<arch>` prebuild each
 //               native package declares, ships and is built for in CI
 //   --rules     list every registered rule, its scope and the fields it governs
-//   --media-payload <pkg>=<dir>
+//   --media-payload=<pkg>=<dir>
 //               inspect a runtime bundle's SHIPPED plugin files, from a directory that
 //               stands in for the package root (repeatable). Without it the payload is
 //               absent in a checkout and `media-capabilities` says so rather than
@@ -138,7 +138,7 @@ const STRICT = args.has('--strict') && !QUICK;
 const RULES_LIST = args.has('--rules');
 
 /**
- * `--media-payload <package>=<dir>` — point `media-capabilities` at a runtime bundle's
+ * `--media-payload=<package>=<dir>` — point `media-capabilities` at a runtime bundle's
  * payload that is not in the package's own directory. Repeatable.
  *
  * The payload of a `@gjsify/gtk-runtime-*` package is gitignored and assembled on a

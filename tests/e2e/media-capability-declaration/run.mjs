@@ -1,0 +1,357 @@
+// E2E test for the `media-capabilities` conformance rule — "a runtime bundle that
+// promises to decode a format ships the plugin behind it, and a format it does NOT
+// decode is written down".
+//
+// WHY IT EXISTS. `@gjsify/gtk-runtime-win32-x64` shipped a GStreamer payload with no MP3
+// decoder in it while both darwin bundles carried one, and a person running an
+// application on Windows is what found it. Every gate on the way to npm was green: the
+// bundle's own `gtk/manifest.json` records `windowingData.gstPlugins`, a COUNT, and a
+// count cannot be wrong about WHICH.
+//
+// WHY SYNTHETIC FIXTURES. The payload of a real bundle is 80-130 MB, gitignored, and
+// assembled on a macOS or Windows runner — so it is absent from every checkout and from
+// this Linux CI leg. What the rule READS of it is the set of file NAMES in one directory,
+// so an empty file named `libgstmpg123.dylib` is a faithful fixture for the question
+// being asked and a misleading one for any other. The suite says which question that is
+// on every assertion: file presence is a NECESSARY condition for a decoder and not a
+// sufficient one, and the sufficient half is asked of the running registry, on the target
+// OS, by `packages/node-gi/node-gi/test/gst-elements.test.mjs`.
+//
+// AND THE REAL TREE IS ASSERTED TOO, at the end. A rule driven only by fixtures it wrote
+// itself is a rule that can be correct about nothing: the last suite holds the three
+// published bundle packages, by name, against the shape this file spends its length
+// checking — so deleting a declaration, or a bundle package quietly losing one, is a red
+// run here and not merely a red run somewhere a payload happens to exist.
+
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
+const CONFORMANCE = join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'index.mjs');
+
+const { auditMediaCapabilities, collectMediaBundles, createContext, gstPluginBaseName, readGstPluginDir } =
+    await import(`file://${CONFORMANCE}`);
+
+/** The three published bundles, spelled once. */
+const BUNDLE_PACKAGES = [
+    '@gjsify/gtk-runtime-darwin-arm64',
+    '@gjsify/gtk-runtime-darwin-x64',
+    '@gjsify/gtk-runtime-win32-x64',
+];
+
+/** Where a bundle keeps its plugins, in every one of the three. */
+const PLUGIN_DIR = 'gtk/lib/gstreamer-1.0';
+
+const WAV = { format: 'WAV / PCM', plugin: 'wavparse', element: 'wavparse' };
+const MP3 = { format: 'MP3', plugin: 'mpg123', element: 'mpg123audiodec' };
+
+/**
+ * A bundle record in the shape `collectMediaBundles` produces, so the audit is driven with
+ * exactly what the rule hands it and no adapter sits between the two.
+ */
+function bundleRecord(name, dir, capabilities, files = ['index.js', 'gtk']) {
+    return { name, path: `packages/node-gi/${name.replace('@gjsify/', '')}`, dir, files, capabilities };
+}
+
+/** A declaration in the shape the three real packages carry. */
+function capabilities({ decode = [WAV], gaps = [], gstPluginDir = PLUGIN_DIR } = {}) {
+    return { gstPluginDir, audioDecode: decode, gaps };
+}
+
+/**
+ * Lay down a payload directory holding one file per plugin, in a real archive spelling.
+ *
+ * `libgst<name>.dylib` on purpose rather than a single canonical form: the prefix and the
+ * extension are exactly what a previous reader got wrong, skipping all 83 plugins of a
+ * bundle at exit 0 because a `^libgst` strip left the Windows leaf unmatched.
+ */
+function stagePayload(root, plugins, { spelling = (name) => `libgst${name}.dylib` } = {}) {
+    const dir = join(root, PLUGIN_DIR);
+    mkdirSync(dir, { recursive: true });
+    for (const plugin of plugins) writeFileSync(join(dir, spelling(plugin)), '');
+    return root;
+}
+
+function scratch(tag) {
+    return mkdtempSync(join(tmpdir(), `gjsify-media-${tag}-`));
+}
+
+/** Every failure line, joined — asserted on by substring, never by index. */
+const text = (result) => result.failures.join('\n');
+
+describe('media-capabilities — the declaration is checked with no payload at all', () => {
+    it('passes a well-formed declaration and SAYS it inspected no artifact', () => {
+        const dir = scratch('nopayload');
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', dir, capabilities({ decode: [WAV, MP3] })),
+        ]);
+        assert.deepEqual(result.failures, []);
+        assert.equal(result.stats.inspected, 0);
+        // The vacuity guard, and the reason it is an assertion rather than a comment: a rule
+        // that quietly reports "clean" over an artifact it never opened is the shape every
+        // check in this area exists to remove. It has to SAY so on a PASSING run.
+        assert.match(result.notes.join('\n'), /payload NOT INSPECTED/);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('fails a bundle that ships a payload and declares nothing', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('undeclared'), undefined),
+        ]);
+        assert.match(text(result), /declares no `gjsify\.mediaCapabilities`/);
+    });
+
+    it('fails a declaration that claims nothing and excuses nothing', () => {
+        // An empty declaration reads as a present one to every consumer and is what a check
+        // iterating it would report as clean.
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('empty'), capabilities({ decode: [], gaps: [] })),
+        ]);
+        assert.match(text(result), /claims nothing and declares no gap/);
+    });
+
+    it('fails a gap with no reason, because the reason is the whole of it', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord(
+                '@gjsify/gtk-runtime-a',
+                scratch('nowhy'),
+                capabilities({ gaps: [{ format: 'MP3', plugin: 'mpg123', element: 'mpg123audiodec' }] }),
+            ),
+        ]);
+        assert.match(text(result), /gaps\[0\]: no `why`/);
+    });
+
+    it('fails a gap that names neither a plugin nor a format, since nothing could retire it', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('vaguegap'), capabilities({ gaps: [{ why: 'reasons' }] })),
+        ]);
+        assert.match(text(result), /names neither a `plugin` nor a `format`/);
+    });
+
+    it('fails a format declared as both taken and not taken', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord(
+                '@gjsify/gtk-runtime-a',
+                scratch('both'),
+                capabilities({ decode: [MP3], gaps: [{ ...MP3, why: 'and also not' }] }),
+            ),
+        ]);
+        assert.match(text(result), /already declared in `audioDecode`/);
+    });
+
+    it('fails a claim missing the plugin or the element — half an oracle is not one', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord(
+                '@gjsify/gtk-runtime-a',
+                scratch('half'),
+                capabilities({ decode: [{ format: 'MP3', element: 'mpg123audiodec' }] }),
+            ),
+        ]);
+        // The plugin is the half a Linux host can check; the element is the half only the
+        // target OS can. Dropping either leaves a claim nothing anywhere can refute.
+        assert.match(text(result), /audioDecode\[0\]: `plugin` is missing/);
+    });
+
+    it('fails a `gstPluginDir` the tarball does not ship, or one that leaves the package', () => {
+        const unshipped = auditMediaCapabilities([
+            bundleRecord(
+                '@gjsify/gtk-runtime-a',
+                scratch('unshipped'),
+                capabilities({ gstPluginDir: 'build/gstreamer-1.0' }),
+            ),
+        ]);
+        assert.match(text(unshipped), /which no `files` entry ships/);
+
+        const escaping = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('escaping'), capabilities({ gstPluginDir: '/usr/lib/gst' })),
+        ]);
+        assert.match(text(escaping), /not a path inside the package/);
+    });
+});
+
+describe('media-capabilities — one bundle answers for every format another speaks about', () => {
+    // THE PASS THAT WOULD HAVE CAUGHT IT. The win32 payload lost three decoders and nothing
+    // was wrong anywhere: the builder copied what the archive had, the manifest counted what
+    // was copied, and no artifact was ever obliged to answer for another's claims.
+    it('fails the bundle that simply says nothing about a format', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('speaks'), capabilities({ decode: [WAV, MP3] })),
+            bundleRecord('@gjsify/gtk-runtime-b', scratch('silent'), capabilities({ decode: [WAV] })),
+        ]);
+        assert.match(text(result), /@gjsify\/gtk-runtime-b: says nothing about MP3/);
+    });
+
+    it('accepts the same asymmetry once it is written down as a gap', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('speaks2'), capabilities({ decode: [WAV, MP3] })),
+            bundleRecord(
+                '@gjsify/gtk-runtime-b',
+                scratch('declared'),
+                capabilities({ decode: [WAV], gaps: [{ ...MP3, why: 'the archive carries no libmpg123' }] }),
+            ),
+        ]);
+        assert.deepEqual(result.failures, []);
+    });
+
+    it('names WHO claims the format, so the failure is actionable from the line alone', () => {
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', scratch('who1'), capabilities({ decode: [WAV, MP3] })),
+            bundleRecord('@gjsify/gtk-runtime-b', scratch('who2'), capabilities({ decode: [WAV] })),
+        ]);
+        assert.match(text(result), /which @gjsify\/gtk-runtime-a declares an answer for/);
+    });
+});
+
+describe('media-capabilities — the declaration against the shipped files', () => {
+    it('passes when every claimed plugin is in the payload', () => {
+        const dir = stagePayload(scratch('good'), ['wavparse', 'mpg123', 'coreelements']);
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', dir, capabilities({ decode: [WAV, MP3] })),
+        ]);
+        assert.deepEqual(result.failures, []);
+        assert.equal(result.stats.inspected, 1);
+        // What it did NOT check has to survive into a PASSING run, or the green line
+        // overstates the coverage.
+        assert.match(result.notes.join('\n'), /necessary condition and not a sufficient one/);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('FAILS the defect itself: a claimed format whose plugin never shipped', () => {
+        const dir = stagePayload(scratch('nompg'), ['wavparse', 'opus', 'coreelements']);
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', dir, capabilities({ decode: [WAV, MP3] })),
+        ]);
+        assert.match(text(result), /declares it decodes MP3, and the plugin behind it \(`mpg123`\) is not in/);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('FAILS a declared gap whose plugin has arrived, so an entry cannot outlive its cause', () => {
+        const dir = stagePayload(scratch('retired'), ['wavparse', 'mpg123']);
+        const result = auditMediaCapabilities([
+            bundleRecord(
+                '@gjsify/gtk-runtime-a',
+                dir,
+                capabilities({ gaps: [{ ...MP3, why: 'the archive carries no libmpg123' }] }),
+            ),
+        ]);
+        assert.match(text(result), /declares a gap for `mpg123` \(MP3\), and the payload carries it/);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('FAILS a payload directory that exists and holds no plugin at all', () => {
+        // An empty directory satisfies every count-shaped gate and decodes nothing. It also
+        // reads identically to an ABSENT one from a `length === 0` test, which is why the
+        // reader distinguishes the two rather than the caller.
+        const dir = stagePayload(scratch('emptydir'), []);
+        const result = auditMediaCapabilities([
+            bundleRecord('@gjsify/gtk-runtime-a', dir, capabilities({ decode: [WAV] })),
+        ]);
+        assert.match(text(result), /exists and holds no GStreamer plugin at all/);
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('reads a plugin file in every spelling the two archives produce', () => {
+        // The parser this rule and the two builders now share. A `^libgst` strip leaves the
+        // Windows leaf as `gstcoreelements`, matches nothing, and skips every plugin at exit 0.
+        for (const spelling of [
+            (name) => `libgst${name}.dylib`,
+            (name) => `gst${name}.dll`,
+            (name) => `libgst${name}.so`,
+            (name) => `LIBGST${name.toUpperCase()}.DLL`,
+            (name) => `libgst${name}.so.0`,
+        ]) {
+            const dir = stagePayload(scratch('spelling'), ['wavparse'], { spelling });
+            const result = auditMediaCapabilities([
+                bundleRecord('@gjsify/gtk-runtime-a', dir, capabilities({ decode: [WAV] })),
+            ]);
+            assert.deepEqual(result.failures, [], `${spelling('wavparse')} did not read as the wavparse plugin`);
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('takes a payload from a directory that is not the package — the staged-tarball route', () => {
+        // How a bundle downloaded from npm is audited: `stage-published-gtk-runtime.mjs` writes
+        // `<dest>/gtk`, so `<dest>` stands in for the package root. Without this the only host
+        // that could ever compare a claim to an artifact would be the one that built it.
+        const staged = stagePayload(scratch('staged'), ['wavparse']);
+        const pkgDir = scratch('pkg');
+        const result = auditMediaCapabilities(
+            [bundleRecord('@gjsify/gtk-runtime-a', pkgDir, capabilities({ decode: [WAV] }))],
+            { payloads: { '@gjsify/gtk-runtime-a': staged } },
+        );
+        assert.deepEqual(result.failures, []);
+        assert.equal(result.stats.inspected, 1);
+        rmSync(staged, { recursive: true, force: true });
+        rmSync(pkgDir, { recursive: true, force: true });
+    });
+
+    it('distinguishes an absent payload from an empty one', () => {
+        assert.equal(readGstPluginDir(join(scratch('absent'), 'nope')), null);
+        assert.deepEqual(readGstPluginDir(join(stagePayload(scratch('empty2'), []), PLUGIN_DIR)).files, []);
+    });
+
+    it('parses a plugin file name the same way in every spelling', () => {
+        assert.equal(gstPluginBaseName('libgstmpg123.dylib'), 'mpg123');
+        assert.equal(gstPluginBaseName('gstmpg123.dll'), 'mpg123');
+        assert.equal(gstPluginBaseName('LIBGSTMPG123.DLL'), 'mpg123');
+        assert.equal(gstPluginBaseName('/a/b/libgstmpg123.so.0'), 'mpg123');
+    });
+});
+
+describe('media-capabilities — the three published bundles, in this tree', () => {
+    const ctx = createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] });
+    const bundles = collectMediaBundles(ctx);
+    const byName = new Map(bundles.map((bundle) => [bundle.name, bundle]));
+
+    it('finds every bundle package, so nothing above was checked over an empty list', () => {
+        // The positive fact. Every assertion in this suite is about a set the rule DERIVES,
+        // and a derivation that comes back empty passes every one of them.
+        assert.deepEqual(
+            bundles.map((bundle) => bundle.name).sort(),
+            BUNDLE_PACKAGES,
+            'the bundle packages this repository publishes are not the ones the rule found',
+        );
+    });
+
+    it('holds them all — the same audit `audit-runtimes --check` runs on every PR', () => {
+        assert.deepEqual(auditMediaCapabilities(bundles).failures, []);
+    });
+
+    it('records the measured platform asymmetry, by name and in both directions', () => {
+        // Measured on the published 0.48.0 tarballs from Linux: darwin-x64 and darwin-arm64
+        // carry 24 plugins, win32-x64 carries 21, and the three missing are all decoders.
+        // Asserted by NAME rather than structurally, because a version of this file that
+        // compared each declaration to itself would pass while measuring nothing.
+        const formats = (name) => byName.get(name).capabilities.audioDecode.map((row) => row.format);
+        const gapFormats = (name) => byName.get(name).capabilities.gaps.map((gap) => gap.format);
+
+        assert.ok(formats('@gjsify/gtk-runtime-darwin-arm64').includes('MP3'));
+        assert.ok(formats('@gjsify/gtk-runtime-darwin-x64').includes('MP3'));
+        assert.ok(!formats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
+        assert.ok(gapFormats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
+
+        // AAC is the gap every bundle has, and it is the one with no `plugin`: nothing was
+        // ever going to be copied, so no file's arrival can retire it.
+        for (const name of BUNDLE_PACKAGES) {
+            const aac = byName.get(name).capabilities.gaps.find((gap) => gap.format?.startsWith('AAC'));
+            assert.ok(aac, `${name} declares no AAC gap`);
+            assert.equal(aac.plugin, undefined, `${name}'s AAC gap names a plugin, which nothing ships`);
+        }
+    });
+
+    it('gives every gap a reason long enough to be one', () => {
+        for (const bundle of bundles) {
+            for (const gap of bundle.capabilities.gaps) {
+                assert.ok(
+                    gap.why.length > 40,
+                    `${bundle.name}: the gap for ${gap.plugin ?? gap.format} carries no usable reason`,
+                );
+            }
+        }
+    });
+});

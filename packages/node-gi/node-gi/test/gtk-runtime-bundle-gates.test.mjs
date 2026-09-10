@@ -46,9 +46,10 @@ import {
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
 import {
-    GST_AUDIO_DECODERS,
     GST_PLUGIN_GAPS,
     expectedGstPlugins,
+    gstAudioDecoders,
+    gstFormatGaps,
     missingBundledGstPlugins,
 } from '../../scripts/gst-plugins.mjs';
 import {
@@ -1388,28 +1389,65 @@ test("the other platform's sink is not this platform's gap", () => {
 });
 
 test('every claimed format names a decoder, and every declared gap names a real plugin', () => {
-    // The two halves of the claim, held against each other: a format the audio path says
-    // it takes must name the element that decodes it — `decodebin` resolving is not that —
-    // and a gap must be about a plugin the list actually declares, or it silences nothing.
-    for (const row of GST_AUDIO_DECODERS) {
-        assert.match(row.element, /^[a-z0-9]+$/, `${row.format} names no decoder element`);
-        // The plugin behind a claimed format must be one the bundle actually carries.
-        // Written with an `|| row.plugin === 'mpg123'` escape at first, which decided
-        // nothing — `mpg123` IS in the list — so deleting it from GST_AUDIO_PLUGINS
-        // would have left this assertion green: the exact regression it guards.
-        assert.ok(
-            expectedGstPlugins('darwin-arm64').includes(row.plugin),
-            `${row.format} names the plugin ${row.plugin}, which GST_AUDIO_PLUGINS does not carry`,
-        );
-    }
-    for (const [target, gaps] of Object.entries(GST_PLUGIN_GAPS)) {
-        for (const gap of gaps) {
+    // The two halves of the claim, held against each other: a format a bundle says it takes
+    // must name the element that decodes it — `decodebin` resolving is not that — and a gap
+    // must be about a plugin the SEED list actually asks for, or it silences nothing.
+    for (const target of Object.keys(GST_PLUGIN_GAPS)) {
+        for (const row of gstAudioDecoders(target)) {
+            assert.match(row.element, /^[a-z0-9]+$/, `${target} ${row.format} names no decoder element`);
+            // The plugin behind a claimed format must be one the builders actually copy.
+            // Written with an `|| row.plugin === 'mpg123'` escape at first, which decided
+            // nothing — `mpg123` IS in the list — so deleting it from GST_AUDIO_PLUGINS
+            // would have left this assertion green: the exact regression it guards.
+            assert.ok(
+                expectedGstPlugins(target).includes(row.plugin),
+                `${target} claims ${row.format} through ${row.plugin}, which GST_AUDIO_PLUGINS does not seed`,
+            );
+        }
+        for (const gap of GST_PLUGIN_GAPS[target]) {
             assert.ok(
                 expectedGstPlugins(target).includes(gap.plugin),
                 `${target} declares a gap for ${gap.plugin}, which this platform never expected`,
             );
         }
     }
+});
+
+test('the per-target claim is per-target, and every target answers for every format', () => {
+    // The move this file's subject made: one shared decoder table read as "the audio path takes
+    // these seven formats", true of darwin and false of win32 by three of the seven. Held here
+    // rather than only in `media-capabilities` because THIS is where the builders' view of the
+    // tables lives — a manifest edit that made the two disagree would otherwise be visible only
+    // in the conformance run.
+    const targets = Object.keys(GST_PLUGIN_GAPS);
+    assert.ok(targets.length >= 3, `expected the three published bundles, found ${targets.join(', ') || 'none'}`);
+
+    const spoken = new Set();
+    for (const target of targets) {
+        for (const row of gstAudioDecoders(target)) spoken.add(row.format);
+        for (const gap of gstFormatGaps(target)) spoken.add(gap.format);
+        for (const gap of GST_PLUGIN_GAPS[target]) assert.ok(gap.why.length > 20, `${target} ${gap.plugin}: no why`);
+    }
+    assert.ok(spoken.has('MP3'), 'MP3 is the format the asymmetry was found through; it must be spoken about');
+
+    for (const target of targets) {
+        const answered = new Set([
+            ...gstAudioDecoders(target).map((row) => row.format),
+            ...GST_PLUGIN_GAPS[target].map((gap) => gap.format).filter(Boolean),
+            ...gstFormatGaps(target).map((gap) => gap.format),
+        ]);
+        for (const format of spoken) {
+            assert.ok(answered.has(format), `${target} says nothing about ${format}, which another bundle claims`);
+        }
+    }
+
+    // The asymmetry itself, asserted by NAME rather than only structurally: a version of this
+    // file that derived both sides from the same array would pass the loop above while measuring
+    // nothing about the platforms.
+    const win = gstAudioDecoders('win32-x64').map((row) => row.format);
+    const mac = gstAudioDecoders('darwin-arm64').map((row) => row.format);
+    assert.ok(mac.includes('MP3'), 'darwin carries mpg123 and must claim MP3');
+    assert.ok(!win.includes('MP3'), 'win32 carries no mpg123 and must not claim MP3');
 });
 
 test('a file name the archive spells differently is still read as its plugin', () => {

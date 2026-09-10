@@ -13,6 +13,67 @@
 // to whoever ships the product. The builders LOG every skip with its count; a plugin silently
 // missing from the payload is the failure this area exists to prevent.
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The ONE parser of a plugin FILE name, in `@gjsify/manifest-conformance` — the package that
+// also holds the conformance rule reading these same directories. It lived here first and was
+// wrong twice in the same way: the extension strip carried `/i` while the prefix strip did not,
+// so `LIBGSTAPP.DLL` (an archive's spelling, not ours) kept its prefix and read as an unknown
+// plugin, as did a versioned `libgstapp.so.0`. A second copy of that parser is a second place
+// for the same bug, and the builders and the audit must not disagree about what a file is.
+import { gstPluginBaseName } from '../../infra/manifest-conformance/lib/rules/media-capabilities.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+/** `packages/node-gi`, the parent of every `gtk-runtime-<target>` package. */
+const NODE_GI_DIR = dirname(HERE);
+
+/**
+ * Every bundle package's `gjsify.mediaCapabilities`, keyed by `<os>-<arch>`.
+ *
+ * DERIVED FROM THE DIRECTORIES, never listed: a fourth bundle is picked up the day it exists,
+ * which is the same reason `field-coverage` derives the declared field set instead of holding a
+ * list of fields somebody remembered to extend.
+ *
+ * THE CLAIM LIVES IN THE MANIFEST, and that is the whole point of the move. What a bundle can
+ * decode differs per platform — the win32 payload carries no MP3 decoder while both darwin ones
+ * do — and while that difference lived in THIS file it was invisible to everybody outside this
+ * repository: a build script is not published, and a consumer choosing a package can read only
+ * what npm hands them. So each bundle now states its own audio contract, `@gjsify/manifest-conformance`'s
+ * `media-capabilities` rule holds it against the shipped plugin files, and the two readers below
+ * (the builders, and `gst-elements.test.mjs` against the running registry) read that one
+ * declaration rather than a second copy of it.
+ */
+function readMediaCapabilities() {
+    const out = {};
+    for (const entry of readdirSync(NODE_GI_DIR, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !entry.name.startsWith('gtk-runtime-')) continue;
+        const target = entry.name.slice('gtk-runtime-'.length);
+        const manifestPath = join(NODE_GI_DIR, entry.name, 'package.json');
+        let manifest;
+        try {
+            manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+        } catch (error) {
+            // A bundle directory with no readable manifest cannot be answered for, and answering
+            // `{}` would make every gap below silently empty — a payload check that requires
+            // nothing. Loud, at import time, where the cause is one line away.
+            throw new Error(`gst-plugins: cannot read ${manifestPath}: ${error.message}`);
+        }
+        const caps = manifest.gjsify?.mediaCapabilities;
+        if (caps === undefined) {
+            throw new Error(
+                `gst-plugins: ${manifest.name} declares no \`gjsify.mediaCapabilities\`. Every bundle owes its own ` +
+                    'audio contract — see `media-capabilities` in @gjsify/manifest-conformance, which fails on this too.',
+            );
+        }
+        out[target] = caps;
+    }
+    return out;
+}
+
+const MEDIA_CAPABILITIES = readMediaCapabilities();
+
 /**
  * Plugin base names (no `libgst` prefix, no extension) the bundles ship, grouped by the reason
  * each is here. Names are GStreamer's plugin names, identical on every platform — the builders
@@ -28,14 +89,20 @@ export const GST_AUDIO_PLUGINS = [
     // decodebin/uridecodebin itself.
     'typefindfunctions',
     'playback',
-    // Parsers, then decoders. What is COVERED is WAV, MP3, Ogg/Vorbis, Opus and FLAC, and the
-    // list of formats with the element that decodes each is `GST_AUDIO_DECODERS` below — the
-    // registry is asked for those, because `decodebin` resolving says nothing about what it can
-    // autoplug. `audioparsers` supplies the mp3/aac/flac parsers decodebin reaches for.
+    // Parsers, then decoders — what this list SEEDS the copy with, which is not the same as what
+    // any one bundle ends up carrying. The list of formats a target actually claims, with the
+    // element that decodes each, is that bundle's own `gjsify.mediaCapabilities` ({@link
+    // gstAudioDecoders}): the registry is asked for those, because `decodebin` resolving says
+    // nothing about what it can autoplug. `audioparsers` supplies the mp3/aac/flac parsers
+    // decodebin reaches for.
     //
-    // AAC-in-M4A is NOT covered, and this sentence used to say it was: `isomp4` demuxes the
-    // container and `aacparse` parses the stream, after which nothing decodes it. The gap is
-    // stated in `GST_FORMAT_GAPS` with the licensing reason rather than left in a claim.
+    // Seeding a plugin here is a request, not a promise. `mpg123`, `vorbis` and `flac` are seeded
+    // and the win32 archive has none of them, which is exactly why the CLAIM cannot live in this
+    // file: a seed that matched nothing is byte-identical to a seed that matched (#1544).
+    //
+    // AAC-in-M4A is NOT covered anywhere, and a sentence here used to say it was: `isomp4`
+    // demuxes the container and `aacparse` parses the stream, after which nothing decodes it.
+    // Every bundle states that gap in its own manifest, with the licensing reason.
     'audioparsers',
     'wavparse',
     'isomp4',
@@ -125,24 +192,6 @@ export function isBundledGstPlugin(fileName) {
 }
 
 /**
- * The list above's spelling of a plugin file: no `libgst`/`gst` prefix, no extension, lowercase.
- *
- * CASE-INSENSITIVE THROUGHOUT, and it was not: the extension strip carried `/i` while the prefix
- * strip did not, so `LIBGSTAPP.DLL` — the archive's spelling, not ours — kept its prefix and read
- * as an unknown plugin. Same for a versioned `libgstapp.so.0`. No caller reaches either shape
- * today, and both would now REPORT rather than mis-parse, which is the direction that ends in a
- * red build instead of a silent one.
- */
-function gstPluginBaseName(fileName) {
-    return fileName
-        .replace(/^.*[\\/]/, '')
-        .replace(/^(lib)?gst/i, '')
-        .replace(/\.(dylib|dll)$/i, '')
-        .replace(/\.so(\.\d+)*$/i, '')
-        .toLowerCase();
-}
-
-/**
  * The plugins whose ABSENCE is a build failure rather than a counted skip.
  *
  * Without `app` there is no JS boundary, without `playback` there is no decodebin, and without
@@ -161,7 +210,7 @@ function gstPluginBaseName(fileName) {
 export const GST_REQUIRED_PLUGINS = ['app', 'playback', 'soup'];
 
 /**
- * The DECODER behind each format the audio path claims to take, keyed by format.
+ * The DECODER behind each format a TARGET's bundle claims to take.
  *
  * A plugin list is the payload; this is the CLAIM, and they are not the same question. `decodebin`
  * resolving says nothing about whether anything can decode what it autoplugs — measured on win32,
@@ -169,40 +218,54 @@ export const GST_REQUIRED_PLUGINS = ['app', 'playback', 'soup'];
  * was null. So the running registry is asked for the element that actually decodes, one per
  * format, and `gst-elements.test.mjs` is where that question is put.
  *
- * The header of this file lists the formats "a browser's decodeAudioData is expected to take". AAC
- * is in that sentence and has never been in the list: `isomp4` demuxes the container and
- * `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two
- * elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose
- * whole closure this file refuses one screen up), so it is a licensing decision rather than an
- * oversight — and it belongs in {@link GST_FORMAT_GAPS} where it is stated, not in a sentence that
- * claims coverage.
+ * PER TARGET, and it never was. One list for every bundle read as "the audio path takes these
+ * seven formats", which is true of the darwin bundles and false of the win32 one by three of the
+ * seven — the asymmetry only became visible through `GST_PLUGIN_GAPS`, i.e. through a second list
+ * a reader had to remember to consult. Reading the claim out of the bundle's own manifest removes
+ * that second step: a target's answer is one array, and a format missing from BOTH arrays is a
+ * conformance failure rather than a silence.
+ *
+ * @param {string} target `<os>-<arch>`
+ * @returns {{format: string, element: string, plugin: string}[]}
  */
-export const GST_AUDIO_DECODERS = [
-    { format: 'WAV / PCM', element: 'wavparse', plugin: 'wavparse' },
-    { format: 'MP3', element: 'mpg123audiodec', plugin: 'mpg123' },
-    { format: 'Ogg / Vorbis', element: 'vorbisdec', plugin: 'vorbis' },
-    { format: 'Opus', element: 'opusdec', plugin: 'opus' },
-    { format: 'FLAC', element: 'flacdec', plugin: 'flac' },
-    { format: 'A-law', element: 'alawdec', plugin: 'alaw' },
-    { format: 'µ-law', element: 'mulawdec', plugin: 'mulaw' },
-];
+export function gstAudioDecoders(target) {
+    return capabilitiesFor(target).audioDecode.map(({ format, element, plugin }) => ({ format, element, plugin }));
+}
 
 /**
- * Formats the audio path does NOT take, with the reason — declared so the claim is one place.
+ * Formats a target's bundle does NOT take, with the reason — a promise NOT made.
  *
- * An entry here is a promise NOT made. It is not an exemption from a check: nothing in
- * `GST_AUDIO_DECODERS` names these, so no probe looks for them, and this list exists so the
- * header's sentence about what a browser takes cannot quietly cover more than the payload does.
+ * An entry here is not an exemption from a check: nothing in {@link gstAudioDecoders} names these,
+ * so no probe looks for them, and the list exists so a sentence about what the audio path takes
+ * cannot quietly cover more than the payload does. AAC is the standing one on every target
+ * (`isomp4` demuxes, `aacparse` parses, nothing decodes; `faad` is GPL and `avdec_aac` brings the
+ * libav closure the header refuses), and it has no `plugin` at all — nothing was ever going to be
+ * copied, so there is no file whose arrival could retire it.
+ *
+ * @param {string} target `<os>-<arch>`
  */
-export const GST_FORMAT_GAPS = [
-    {
-        format: 'AAC (in M4A)',
-        why:
-            '`isomp4` demuxes the container and `aacparse` parses the stream; nothing decodes it. ' +
-            '`faad` is GPL and `avdec_aac` brings the libav closure this file refuses — both are a ' +
-            "redistribution decision for whoever ships the product, not this script's.",
-    },
-];
+export function gstFormatGaps(target) {
+    return capabilitiesFor(target).gaps.filter((gap) => gap.format !== undefined && gap.plugin === undefined);
+}
+
+/**
+ * One target's `gjsify.mediaCapabilities`, or a refusal naming the target.
+ *
+ * REFUSES A TARGET IT DOES NOT KNOW rather than answering `{}` — the same reason
+ * {@link expectedGstPlugins} refuses an unknown OS. An empty answer makes every gap vacuous and
+ * every claim unmade, so a typo in a target string would RELAX both checks instead of failing
+ * them, in a file whose own subject is a seed that matched nothing.
+ */
+function capabilitiesFor(target) {
+    const caps = MEDIA_CAPABILITIES[target];
+    if (caps === undefined) {
+        throw new Error(
+            `gst-plugins: no bundle package declares media capabilities for "${target}". Known: ` +
+                `${Object.keys(MEDIA_CAPABILITIES).join(', ')} — one per packages/node-gi/gtk-runtime-<target>/.`,
+        );
+    }
+    return caps;
+}
 
 /**
  * Plugins a platform's source archive does not contain, DECLARED, with what it costs.
@@ -212,29 +275,21 @@ export const GST_FORMAT_GAPS = [
  * (what #1544 measured) or a red build for a payload decision nobody has taken yet — and the first
  * is how a runtime advertises a format it cannot play.
  *
+ * Derived from the bundles' own manifests, which is where the declaration is READABLE by whoever
+ * receives the tarball. The entries are the subset naming a `plugin`: a gap with only a format
+ * (AAC) is about something that was never going to be copied, and holding the payload against it
+ * would ask for a file no builder ever walks.
+ *
  * `retires` is not decoration: {@link missingBundledGstPlugins} reports a gap whose plugin DID
- * arrive as a problem of its own, so an entry cannot outlive the archive that justified it.
+ * arrive as a problem of its own, so an entry cannot outlive the archive that justified it — and
+ * `media-capabilities` reports the same thing about the shipped tarball.
  */
-export const GST_PLUGIN_GAPS = {
-    'win32-x64': [
-        {
-            plugin: 'mpg123',
-            why: 'no MP3 decoding. gvsbuild carries the plugin only if libmpg123 was built, and it was not — measured on @gjsify/gtk-runtime-win32-x64@0.47.0, where a bundled mp3 asset and an mp3 stream both failed (#1544).',
-        },
-        {
-            plugin: 'vorbis',
-            why: 'no Ogg/Vorbis decoding: `ogg` demuxes the container and nothing decodes the stream inside it.',
-        },
-        {
-            plugin: 'flac',
-            why: 'no FLAC decoding. Same upstream cause as the two above: the gst-plugins-good element links libFLAC, and a gvsbuild prefix carries it only if that library was built.',
-        },
-        {
-            plugin: 'wasapi2',
-            why: 'the modern Windows sink. Costs nothing today: `directsound` ships and `autoaudiosink` resolves to it — listed because it is the same silent absence, not because it breaks anything.',
-        },
-    ],
-};
+export const GST_PLUGIN_GAPS = Object.fromEntries(
+    Object.entries(MEDIA_CAPABILITIES).map(([target, caps]) => [
+        target,
+        caps.gaps.filter((gap) => gap.plugin !== undefined),
+    ]),
+);
 
 /**
  * The output sinks that belong to ONE platform, so the other's absence is not a gap.
