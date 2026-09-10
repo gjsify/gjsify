@@ -112,6 +112,7 @@ import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adw
 import {
     ADWAITA_GALLERY_SHARED_TREES,
     ADWAITA_GALLERY_TREE_DIVERGENCES,
+    attributeOf,
     hostTagOf,
 } from './adwaita-gallery-shared-trees.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
@@ -1325,7 +1326,7 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
         cursor += 1;
         containedNodes += 1;
         for (const [prop, value] of Object.entries(node.props ?? {})) {
-            const attribute = prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
+            const attribute = attributeOf(prop);
             const present = element.values.has(attribute);
             comparedValues += 1;
             // A BOOLEAN IS THE ATTRIBUTE'S PRESENCE, which is the rule `adwaita-web`'s

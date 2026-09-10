@@ -221,6 +221,24 @@ export const hostTagOf = (gtype) => {
     return out.join('');
 };
 
+/**
+ * `buttonLabel` -> `button-label`, the second and last transform.
+ *
+ * AUTHORED HERE BECAUSE TWO PLACES NEED THE SAME ONE, which is the short version of the
+ * lesson {@link hostTagOf} spells out above. `adwaita-web`'s tree driver
+ * (`packages/web/adwaita-web/src/shared-trees.spec.ts`) turns an authored prop into a DOM
+ * attribute with this rule, and arm 13 of `check-generated-website-data.mjs` reads a
+ * fence's attributes back through it. A one-liner restated in the checker would make the
+ * checker agree with its own copy rather than with the renderer it is a claim about, and
+ * nothing would hold the two spellings together the way arm 11 holds `hostTagOf` against
+ * `gtk-host`'s generated table. The driver already imports this module for the corpus
+ * itself, so one export is the whole cost.
+ *
+ * NOT AN ALIAS TABLE and not a third transform: a case rule over the authored NAME, with
+ * no entry to give a name it does not recognise.
+ */
+export const attributeOf = (prop) => prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
+
 const SHARED_BY_WIDGET = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));
 
 const entryFor = (widget) => {
