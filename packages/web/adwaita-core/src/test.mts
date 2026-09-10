@@ -1,5 +1,6 @@
 import { run } from '@gjsify/unit';
 
+import sharedTreesTestSuite from './shared-trees.spec.js';
 import viewStackTestSuite from './view-stack.spec.js';
 import navigationViewTestSuite from './navigation-view.spec.js';
 import sidebarTestSuite from './sidebar.spec.js';
@@ -38,6 +39,7 @@ import scrollingTestSuite from './scrolling.spec.js';
 import swipeTestSuite from './swipe.spec.js';
 
 run({
+    sharedTreesTestSuite,
     aboutDialogTestSuite,
     adjustmentTestSuite,
     bannerTestSuite,
