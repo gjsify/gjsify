@@ -450,6 +450,28 @@ jobs:
       - name: Check every Adwaita attribute gloss is the GIR's
         run: node scripts/generate-adwaita-attribute-comments.mjs --check
 
+      # The Blueprint corpus ADR 0053 puts before any parser: 25 one-rule `.blp` files
+      # and the 11 the build already compiles, each with the GtkBuilder XML the reference
+      # compiler produces and a hand-written `SharedNode` expectation. Stage A (complete
+      # corpus, valid expectations, no tracked `.blp` left unprobed) runs on every runner;
+      # stage B re-derives every golden and diffs it, and needs the binary.
+      #
+      # HERE for the same reason `check-doc-fences.mjs` is here and not in
+      # `audit-runtimes.yml`: stage B is the whole point and `blueprint-compiler` exists
+      # in this image and nowhere else in CI. As `testuser`, because it reads `git
+      # ls-files` to prove no `.blp` in the tree is unprobed, and git refuses a tree owned
+      # by someone else when this runs as root.
+      #
+      # `--require-oracle` because a skip is honest on a laptop and a hole HERE. The image
+      # installs `blueprint-compiler` unpinned (`.docker/ci-fedora.Dockerfile`), so a
+      # rebuild can take it away — and without the flag this step would print "stage B
+      # SKIPPED" and stay green with every golden in the tree unverified from that day
+      # on. That is exactly what ADR 0053 holds against `check-doc-fences.mjs`'s own skip:
+      # "every other run of that script proves nothing about the fences". The flag is what
+      # makes this the run that does prove something, or red.
+      - name: Check the Blueprint corpus and its goldens
+        run: su testuser -c 'node scripts/check-blueprint-corpus.mjs --require-oracle'
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

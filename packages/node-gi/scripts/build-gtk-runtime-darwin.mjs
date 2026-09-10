@@ -314,6 +314,45 @@ function otoolDeps(libPath) {
     return deps;
 }
 
+/**
+ * The image's `LC_RPATH` entries, in the order dyld will try them.
+ *
+ * `otool -l` rather than `-L`, because the two commands answer different questions and only
+ * the first one has ever answered THIS one: `-L` lists dependencies, and an rpath is not a
+ * dependency. That distinction is the whole of #1536 — `verifyRelocation` read `-L`, found
+ * every reference correctly rewritten, and printed a clean bill over a plugin whose only
+ * search path was a Homebrew keg.
+ *
+ * The output shape is a `cmd LC_RPATH` line followed by a `path <value> (offset N)` line, so
+ * the reader is a small state machine rather than a regex over the whole blob — a `path`
+ * key also appears under other load commands, and matching it without knowing which command
+ * it belongs to would collect them too.
+ *
+ * A failing `otool` THROWS here, unlike in `otoolDeps` where it means "this candidate is not
+ * a Mach-O" during the closure walk. Every caller of this function hands it an image the
+ * builder has already copied and relocated, so a failure is a failed MEASUREMENT — and
+ * answering it with `[]` would make `relocate()` delete nothing and `verifyRelocation()`
+ * report no search path outside the bundle, which is #1536's exact silence one layer up.
+ * @param {string} libPath
+ * @returns {string[]} rpath values, in load-command order
+ */
+function otoolRpaths(libPath) {
+    const out = sh('otool', ['-l', libPath]);
+    const rpaths = [];
+    let inRpath = false;
+    for (const line of out.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('cmd ')) {
+            inRpath = trimmed === 'cmd LC_RPATH';
+            continue;
+        }
+        if (!inRpath || !trimmed.startsWith('path ')) continue;
+        rpaths.push(trimmed.slice('path '.length).replace(/ \(offset \d+\)$/, ''));
+        inRpath = false;
+    }
+    return rpaths;
+}
+
 // Resolve a dependency's leaf to the real Homebrew file (following symlinks),
 // or null when it is not a Homebrew library we bundle.
 function resolveInBrew(leaf) {
@@ -453,7 +492,22 @@ const bundledLeaves = new Set(bundled.keys());
 // for anything nested. A gdk-pixbuf loader (§ 2b) sits at
 // lib/gdk-pixbuf-2.0/2.10.0/loaders/, three levels below lib/, so its refs must climb
 // back — the default keeps every existing call meaning exactly what it did.
-function relocate(libPath, { id, depPrefix = '@loader_path' } = {}) {
+// `rpaths` is the image's COMPLETE search-path list after relocation, in the order dyld will
+// try it — never an addition to whatever the upstream link line baked in. Deleting only the
+// unwanted entries is a different operation and is what shipped #1536: `install_name_tool
+// -add_rpath` APPENDS, so a surviving entry keeps its position and any addition lands behind
+// it, which makes precedence a property of Homebrew's build rather than of ADR 0023's policy.
+// `docs/prebuilds.md` states the same rule for `stage-prebuild.mjs`; this is the second
+// stager finally getting it.
+//
+// The default is EMPTY, because an image whose references were all rewritten to
+// `@loader_path/…` has nothing left for a search path to resolve, and `docs/prebuilds.md`
+// gives the reason not to hand out entries nobody needs — a Mach-O whose linker left no
+// header pad cannot take another load command at all. That is a claim about the payload, so
+// it is CHECKED rather than trusted: `bundle-search-paths`' second half fails any image left
+// holding an `@rpath/` dependency with no self-relative entry, which is exactly what an
+// over-eager empty default would produce.
+function relocate(libPath, { id, depPrefix = '@loader_path', rpaths = [] } = {}) {
     // Own id — a no-op on a Mach-O BUNDLE that carries no LC_ID_DYLIB (ten of the
     // thirteen pixbuf loaders), and load-bearing on the ones that do: librsvg's loader
     // ids itself as an absolute keg path, which § 3 rejects as a build-host leak.
@@ -467,6 +521,17 @@ function relocate(libPath, { id, depPrefix = '@loader_path' } = {}) {
         if (bundledLeaves.has(basename(dep))) {
             execFileSync('install_name_tool', ['-change', dep, `${depPrefix}/${basename(dep)}`, libPath]);
         }
+    }
+    // The search paths, replaced as a whole. An upstream entry is deleted even when it looks
+    // harmless: a version-PINNED Cellar path makes two CI runs of one commit differ, and a
+    // keg path names a library the bundle itself ships, which is a SECOND source for it
+    // rather than a fallback — ADR 0057 § 1, and ADR 0023 § 4 for what a second copy of a
+    // type-registering library costs.
+    for (const existing of otoolRpaths(libPath)) {
+        execFileSync('install_name_tool', ['-delete_rpath', existing, libPath]);
+    }
+    for (const wanted of rpaths) {
+        execFileSync('install_name_tool', ['-add_rpath', wanted, libPath]);
     }
     // Ad-hoc re-sign — install_name_tool invalidated the signature (arm64 hard req).
     execFileSync('codesign', ['--force', '--sign', '-', libPath]);
@@ -638,8 +703,16 @@ if (WINDOWING) {
             gstPluginImages.push(dest);
             recordBinarySource(gstPluginSources, f, src);
         }
+        // THE ONE PLACE A PAYLOAD IMAGE GETS AN RPATH, and the reason is the one
+        // `GST_AUDIO_PLUGINS`' soup entry already gives for the payload existing at all: a
+        // plugin can reach a library by `g_module_open` with a BARE LEAF, which no link walk
+        // and no `@rpath/` dependency can see. `relocate`'s default of "no rpath" keys on
+        // linked references and is blind in exactly that direction, so a plugin that resolves
+        // a sibling at runtime is handed the payload's own `lib/` — the entry the Homebrew
+        // copy of the plugin carried, pointed inside the bundle instead of at a keg. ADR 0057
+        // § 3.
         for (const image of gstPluginImages) {
-            relocate(image, { id: true, depPrefix: '@loader_path/..' });
+            relocate(image, { id: true, depPrefix: '@loader_path/..', rpaths: ['@loader_path/..'] });
         }
 
         // The scanner, which GStreamer FORKS to inspect each plugin out of process so
@@ -801,7 +874,23 @@ if (WINDOWING) {
 // Non-system absolute deps we did NOT bundle (e.g. an /opt/X11 leaf) are REPORTED,
 // never failed: the bundle deliberately leaves OS-provided libraries alone, and
 // turning "unbundled" into an error would refuse a correct bundle.
-function verifyRelocation(paths) {
+//
+// An absolute SEARCH path is failed rather than reported, which is the opposite of what
+// `checkPrebuildDir` decides about the same load command — deliberately, and ADR 0057 § 1
+// is the distinction. There a Homebrew entry sits LAST behind entries that reach the bundle
+// and can only resolve what the bundle does not carry, which makes it a fallback that
+// strands nobody. In a payload image it is the ONLY entry and it names a leaf the bundle
+// itself ships, which makes it a second source for a library that already has one — and for
+// a type-registering library that is ADR 0023 § 4's one-registry invariant, broken.
+//
+// `searchPaths` is what keeps that distinction honest at the CALL, because this function has
+// two kinds of subject. The payload images are held to the bundle rule. The node-gi ADDON
+// (§ 6) is a PREBUILD, and `stage-prebuild.mjs` gives it `<brew prefix>/lib` last on purpose
+// — ADR 0057 § 1 blesses exactly that entry, and `node-gi/test/darwin-prebuild-rpaths.test.mjs`
+// asserts the list ORDER that makes it a fallback. Reading the payload rule over it would fail
+// every darwin bundle build and every release publish on the one entry the policy requires.
+/** @param {string[]} paths @param {{searchPaths?: boolean}} [options] */
+function verifyRelocation(paths, { searchPaths = true } = {}) {
     const failures = [];
     const externals = new Set();
     for (const p of paths) {
@@ -813,6 +902,18 @@ function verifyRelocation(paths) {
                 externals.add(dep);
             }
         }
+        if (!searchPaths) continue;
+        // The SEARCH paths, which this gate could not see until #1536 (ADR 0057). An rpath is
+        // not a dependency, so `otool -L` never carried it and the summary line below could
+        // report a self-contained bundle over an image whose only route led to a Homebrew
+        // keg. Absolute-and-not-a-system-path is the same DERIVED predicate `binary.mjs`
+        // uses: a `/opt/homebrew` literal is vacuously absent on an Intel runner and vice
+        // versa, so a hardcoded pair passes on both arches while proving nothing about
+        // either.
+        for (const rpath of otoolRpaths(p)) {
+            if (!rpath.startsWith('/') || isSystemPath(rpath)) continue;
+            failures.push(`${basename(p)} → LC_RPATH ${rpath}`);
+        }
     }
     if (externals.size > 0) {
         console.log(`build-gtk-runtime: ${externals.size} OS-provided dep(s) left unbundled: ${[...externals].sort()}`);
@@ -821,13 +922,22 @@ function verifyRelocation(paths) {
         console.error(
             `build-gtk-runtime: RELOCATION FAILED — ${failures.length} reference(s) still point outside the bundle ` +
                 `(brew prefix ${brewPrefix}):\n  ${failures.join('\n  ')}\n` +
-                'Two causes: a leaf we DID bundle whose reference was not rewritten (an install_name_tool bug), or a ' +
+                'Three causes: a leaf we DID bundle whose reference was not rewritten (an install_name_tool bug), a ' +
                 `dependency under ${brewPrefix} that never entered the closure because it is not symlinked into ` +
-                `${brewLib} — add it to the seed patterns or resolve it through its keg.`,
+                `${brewLib} — add it to the seed patterns or resolve it through its keg — or, for an \`LC_RPATH\` ` +
+                'line, an upstream search path that `relocate()` was not asked to replace: pass the payload-relative ' +
+                'entry the image needs in its `rpaths`, or none where it resolves nothing.',
         );
         process.exit(1);
     }
-    console.log(`build-gtk-runtime: relocation verified — ${paths.length} image(s), 0 refs outside the bundle`);
+    // The summary says which of the two questions were asked, because the sentence it
+    // replaced ("0 refs outside the bundle") was read as covering both for eight releases
+    // while one half was never evaluated — which is the whole of #1536's blind spot.
+    console.log(
+        `build-gtk-runtime: relocation verified — ${paths.length} image(s), 0 refs` +
+            `${searchPaths ? ' and 0 search paths' : ''} outside the bundle` +
+            `${searchPaths ? '' : ' (search paths NOT read — prebuild rpath policy, ADR 0057 § 1)'}`,
+    );
 }
 // The nested pixbuf loaders (§ 2b) go through the SAME gate as the flat dylibs: their
 // relocation is the harder one (a ../../.. prefix, plus an `@rpath` ref and an absolute
@@ -1161,16 +1271,22 @@ if (ADDON) {
             execFileSync('install_name_tool', ['-change', dep, `@rpath/${basename(dep)}`, addonDest]);
         }
     }
-    try {
+    // ASKED rather than attempted-and-swallowed. `stage-prebuild.mjs` already writes this
+    // entry, so the add usually fails with "would duplicate path" — and the catch that
+    // absorbed it absorbed the other failure too: `install_name_tool` refuses with "larger
+    // updated load commands do not fit" on an image whose linker left no header pad, which
+    // is unrepairable after the fact and must not read as "already present". `otoolRpaths`
+    // exists now, so the question can be asked instead of guessed.
+    if (!otoolRpaths(addonDest).includes('@loader_path/gtk/lib')) {
         execFileSync('install_name_tool', ['-add_rpath', '@loader_path/gtk/lib', addonDest]);
-    } catch {
-        // rpath already present — fine.
     }
     execFileSync('codesign', ['--force', '--sign', '-', addonDest]);
-    // The addon gets the SAME assertion as the dylibs: a surviving absolute ref to a
-    // bundled leaf is the "loads on the build host, resolves nothing elsewhere" bug,
-    // and until now only the dylibs were checked for it.
-    verifyRelocation([addonDest]);
+    // The addon gets the dependency half of the dylibs' assertion: a surviving absolute ref
+    // to a bundled leaf is the "loads on the build host, resolves nothing elsewhere" bug,
+    // and until now only the dylibs were checked for it. NOT the search-path half — the
+    // addon is a prebuild and keeps its Homebrew fallback LAST by policy; see
+    // `verifyRelocation`'s header and `node-gi/test/darwin-prebuild-rpaths.test.mjs`.
+    verifyRelocation([addonDest], { searchPaths: false });
     console.log(`build-gtk-runtime: relocated addon → ${addonDest} (rpath @loader_path/gtk/lib)`);
 }
 

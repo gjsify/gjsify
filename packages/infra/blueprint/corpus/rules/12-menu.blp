@@ -1,0 +1,14 @@
+using Gtk 4.0;
+
+menu mainMenu {
+  section {
+    item {
+      label: _("Preferences");
+      action: "app.preferences";
+    }
+  }
+}
+
+Gtk.MenuButton {
+  menu-model: mainMenu;
+}
