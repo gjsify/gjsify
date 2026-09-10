@@ -151,6 +151,15 @@ So: **no image in a runtime bundle payload may carry a build-host absolute `LC_R
 predicate is `isBuildHostAbsolutePath` — derived, never a `/opt/homebrew` grep, for the reason
 that function already documents.
 
+**And the two rules are told apart by the SUBJECT, at the call.** `build-gtk-runtime-darwin.mjs`
+also relocates a copy of the node-gi ADDON (§ 6), and that addon is a prebuild: `stage-prebuild.mjs`
+gives it `<brew prefix>/lib` last, on purpose, and `darwin-prebuild-rpaths.test.mjs` asserts the
+ORDER that makes it a fallback. Reading the payload rule over it fails on the one entry this
+section's own reasoning requires — measured from Linux, `darwinAddonRpaths('darwin-x64')` ends in
+`/usr/local/lib` — so `verifyRelocation()` takes the search-path half as an argument and the addon
+call passes `false`. A distinction stated in an ADR and not expressed at the call site is a
+distinction the next builder edit loses.
+
 ### 2. `relocate()` replaces the whole rpath list, order included
 
 The same sentence `docs/prebuilds.md` writes for `stage-prebuild.mjs`, now true of both stagers.
@@ -178,18 +187,35 @@ copy of the plugin had, pointed inside the bundle instead of at a keg.
 ### 4. The check reads the artifact, from any host
 
 `bundle-search-paths`, a portable `@gjsify/manifest-conformance` rule. It reads the payload's
-Mach-O load commands and fails on (a) any build-host absolute `LC_RPATH`, and (b) an `@rpath/`
+Mach-O load commands and fails on (a) any build-host absolute `LC_RPATH`, (b) an `@rpath/`
 dependency with no in-bundle search path to resolve it — the complementary half, so an image that
-*does* need rpath resolution cannot silently lose it to § 2's full-list replace.
+*does* need rpath resolution cannot silently lose it to § 2's full-list replace — and (c) an image
+it RECOGNISED and could not read.
+
+(c) is not tidiness. `readLibrary` answers `null` for a file whose magic it does not know, which is
+most of a payload — icons, schemas, locale data — and it THROWS for a Mach-O it refuses: a
+universal (fat) one, a 32-bit one, load commands it cannot walk. Treating both as "not an image"
+made a fat wrapper around the very plugin this ADR is about report zero findings while its only
+search path was a Homebrew keg. An image the reader could not read is an image this gate did not
+clear, and saying so is the difference between a check and a count.
+
+**Whether the rule is SELECTED is part of the decision, not an implementation detail.** A
+`@gjsify/manifest-conformance` rule that is registered but not in `audit-runtimes.mjs`'
+`CHECK_RULES` is listed by `--rules`, counted by field coverage, and never run — which is the state
+this rule shipped in, and the third time that omission has cost this repository a silent gate. It
+is selected. In a checkout the payload is gitignored, so what it prints is a NOT INSPECTED note per
+bundle; that note IS the answer, and it takes running to give it.
 
 Portable, and deliberately so: **a Linux workstation reads a darwin bundle's load commands without
 a Mac**, which is how every number in this ADR was measured. That is the same asymmetry ADR 0024
 § A3 turned into a required field — a reader that runs where the artifact is not built is worth
 more than one that does not.
 
-It is a build-time gate on both sides: `verifyRelocation()` fails the darwin build on the runner,
-and the rule fails the audit and the publish gate from anywhere. **A bundle whose plugin resolves
-a library outside the bundle has to be caught while it is built, not while it plays.**
+Two gates, each where its subject is: `verifyRelocation()` fails the darwin build on the runner —
+which is also the release publish path, since that job runs the same builder — and the rule fails
+the audit wherever a payload is on disk, which in CI is node-gi.yml's macOS bundle job and on a
+workstation is any built or npm-staged tarball. **A bundle whose plugin resolves a library outside
+the bundle has to be caught while it is built, not while it plays.**
 
 ## What this does NOT decide
 
@@ -204,9 +230,15 @@ configuration in which the assertion means anything. Until such a bundle is publ
 
 **The Windows half is unmeasured**, as #1536 records: `soup-3.0-0.dll` is reached by the same
 leaf-name `g_module_open`, and Windows resolves a DLL from the loading module's directory first, so
-it may well be immune. A PE image has no `LC_RPATH`, so § 4's Mach-O half does not apply there
-rather than reporting a false clean — the win32 payload needs its own question, not this one's
-answer.
+it may well be immune. A PE image has no `LC_RPATH`, so § 4's Mach-O half does not apply there —
+the win32 payload needs its own question, not this one's answer.
+
+Saying that took a second edit, because the first shape of the rule said it the wrong way round.
+`@gjsify/gtk-runtime-win32-x64` declares the same `files: ["gtk"]` and is therefore collected, and
+a payload of PE images satisfied *"exists and holds no Mach-O image at all"* — so the rule would
+have reported a DEFECT on a correct bundle the moment its payload was on disk, which is worse than
+the false clean it was written against: a false clean lets a good artifact through, a false defect
+refuses one. A payload with images and no Mach-O among them is a printed **non-answer**.
 
 **`DYLD_FALLBACK_LIBRARY_PATH` turned out not to be part of this.** It was the obvious second
 suspect, and the measurement removed it: the default fallback for a leaf `dlopen` is `/usr/lib`
@@ -224,6 +256,13 @@ changed nothing while looking like a repair.
   written against a real artifact that really carries the defect, and the first thing it did was
   go red on it. It stays red until a bundle built by the fixed builder is published.
 - `verifyRelocation()`'s summary line stops being able to say "0 refs outside the bundle" while an
-  image points out of it, which is what it was always read as meaning.
+  image points out of it, which is what it was always read as meaning. It now names WHICH of the
+  two questions it asked, because that sentence was read as covering both for eight releases while
+  one half was never evaluated.
 - Nothing changes for prebuilds. `checkPrebuildDir()`'s note keeps its wording and its reason; § 1
-  states why the two artifacts are held to different rules rather than quietly changing one.
+  states why the two artifacts are held to different rules rather than quietly changing one — and
+  why `verifyRelocation()` takes the distinction as an argument instead of leaving it to prose.
+- The bundled GStreamer plugins can take the new load command: measured on the published 0.48.0
+  payload from Linux, all 24 carry between 6 and 17 KiB of Mach-O header pad against the 32 bytes
+  an `@loader_path/..` `LC_RPATH` costs, so § 3 does not run into the *"larger updated load
+  commands do not fit"* wall § 2 names.
