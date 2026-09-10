@@ -575,7 +575,9 @@ export {
     SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
     SHARED_TREE_TABLES,
     authoredNodes,
+    authoredTags,
     reachedTables,
     sharedTreeExpectations,
+    subjectIndexOf,
 } from './shared-trees.js';
 export type { SharedTreeExpectation, SharedTreeNode, SharedTreeObservable } from './shared-trees.js';

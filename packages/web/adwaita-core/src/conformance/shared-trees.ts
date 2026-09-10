@@ -180,6 +180,31 @@ export function authoredNodes(root: SharedTreeNode): { node: SharedTreeNode; pat
     return found;
 }
 
+/**
+ * The authored classes a realised tree must carry, in authored order.
+ *
+ * `tagOf` is the renderer's own spelling of a GIR class name — `hostTagOf` on the web, the
+ * GIR name itself in GTK. Both drivers filter their real tree down to this list and compare
+ * against it, so it lives here rather than in each of them: a driver deriving it privately
+ * is a second walk, free to disagree with the one {@link subjectIndexOf} addresses into.
+ */
+export function authoredTags(root: SharedTreeNode, tagOf: (gtype: string) => string = (gtype) => gtype): string[] {
+    return authoredNodes(root).map(({ node }) => tagOf(node.tag));
+}
+
+/**
+ * Where the node an expectation is about sits in that filtered walk.
+ *
+ * The pre-order addresses are unique and the filter preserves them, so this index into
+ * {@link authoredTags} is also the index into the realised tree — which is why a driver may
+ * pick its subject by position instead of by hunting for the first widget of the class. Both
+ * halves of that are asserted on Node in `shared-trees.spec.ts`, before either renderer
+ * relies on them.
+ */
+export function subjectIndexOf(root: SharedTreeNode, path: string): number {
+    return authoredNodes(root).findIndex((node) => node.path === path);
+}
+
 /** Every vector row the tree rooted at `root` instantiates, in pre-order. */
 export function sharedTreeExpectations(root: SharedTreeNode): SharedTreeExpectation[] {
     const found: SharedTreeExpectation[] = [];

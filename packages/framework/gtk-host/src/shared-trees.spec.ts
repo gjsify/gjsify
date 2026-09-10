@@ -36,8 +36,9 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
-    authoredNodes,
+    authoredTags,
     sharedTreeExpectations,
+    subjectIndexOf,
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
@@ -60,12 +61,15 @@ import type { HostElement } from './types.js';
  */
 function build(node: SharedTreeNode): HostElement {
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
+    // Before the children: `insert` parents a REALISED widget, and a construct-only
+    // property that never arrives reaches `g_error()` rather than failing a test.
     materialize(el);
     for (const child of node.children ?? []) insert(build(child), el);
     return el;
 }
 
-const widgetOf = (el: HostElement) => materialize(el) as unknown as Gtk.Widget;
+/** `build` has materialised every node on the way down, so the widget is already there. */
+const widgetOf = (el: HostElement) => el.widget as unknown as Gtk.Widget;
 const typeName = (widget: Gtk.Widget) =>
     GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ?? '';
 
@@ -111,49 +115,47 @@ export default async () => {
         // while GTK prints a critical, which is the entire class this driver exists to see.
         const diagnostics = installDiagnosticsGate();
 
-        const blocks = ADWAITA_GALLERY_SHARED_TREES.map((tree) => gtkHostTree(tree.widget));
-        // Authored GIR names, because the shape assertion below reads GTypes off the real
-        // tree; `gtkHostTree` has already turned the tags into this renderer's spelling.
-        const authored = ADWAITA_GALLERY_SHARED_TREES.map((tree) => tree.root);
+        const blocks = ADWAITA_GALLERY_SHARED_TREES.map((tree) => ({
+            widget: tree.widget,
+            // `gtkHostTree` has already turned the tags into this renderer's spelling; the
+            // AUTHORED tree keeps the GIR names, which is what the walks below compare
+            // against because they read GTypes off the real tree.
+            host: gtkHostTree(tree.widget).root,
+            authored: tree.root,
+        }));
+
+        /**
+         * Depth-first over the real tree, filtered to the authored classes: the libadwaita
+         * internals between them (a revealer, a listbox, a gizmo) are not the renderer's
+         * promise, the ORDER and the NESTING of what was authored is. Exact type names, so a
+         * subclass cannot stand in.
+         */
+        const realised = (root: Gtk.Widget, wanted: readonly string[]) => {
+            const set = new Set(wanted);
+            return descendants(root).filter((candidate) => set.has(typeName(candidate)));
+        };
 
         await gated(diagnostics, 'the shared corpus builds through gtk-host', async () => {
-            for (const [index, block] of blocks.entries()) {
-                const widget = ADWAITA_GALLERY_SHARED_TREES[index]!.widget;
+            for (const block of blocks) {
+                await it(`${block.widget} builds, and the REAL tree carries the authored nodes in order`, () => {
+                    const root = widgetOf(build(block.host));
+                    const wanted = authoredTags(block.authored);
 
-                await it(`${widget} builds, and the REAL tree carries the authored nodes in order`, () => {
-                    const root = widgetOf(build(block.root));
-
-                    // The authored GTypes, in the order the authored tree names them.
-                    const wanted = authoredNodes(authored[index]!).map(({ node }) => node.tag);
-                    const set = new Set(wanted);
-                    // Depth-first over the real tree, filtered to the authored classes: the
-                    // libadwaita internals between them (a revealer, a listbox, a gizmo) are
-                    // not the renderer's promise, the ORDER and the NESTING of what was
-                    // authored is. Exact type names, so a subclass cannot stand in.
-                    const built = descendants(root)
-                        .map(typeName)
-                        .filter((name) => set.has(name));
-
-                    expect(built).toStrictEqual(wanted);
+                    expect(realised(root, wanted).map(typeName)).toStrictEqual(wanted);
                 });
             }
         });
 
         await gated(diagnostics, 'the shared corpus against the adwaita-core vectors it reaches', async () => {
-            for (const [index, block] of blocks.entries()) {
-                const widget = ADWAITA_GALLERY_SHARED_TREES[index]!.widget;
-                const expectations = sharedTreeExpectations(authored[index]!);
-
-                for (const expectation of expectations) {
-                    await it(`${widget} — ${expectation.path}: ${expectation.table} — ${expectation.rule}`, () => {
-                        const root = widgetOf(build(block.root));
-                        const nodes = authoredNodes(authored[index]!);
+            for (const block of blocks) {
+                for (const expectation of sharedTreeExpectations(block.authored)) {
+                    await it(`${block.widget} — ${expectation.path}: ${expectation.table} — ${expectation.rule}`, () => {
+                        const root = widgetOf(build(block.host));
                         // The SAME filtered walk the shape test asserts, so the widget an
                         // expectation is read off is the one at the authored ADDRESS rather
                         // than the first of its class the tree happens to contain.
-                        const set = new Set(nodes.map(({ node }) => node.tag));
-                        const built = descendants(root).filter((candidate) => set.has(typeName(candidate)));
-                        const subject = built[nodes.findIndex(({ path }) => path === expectation.path)]!;
+                        const built = realised(root, authoredTags(block.authored));
+                        const subject = built[subjectIndexOf(block.authored, expectation.path)]!;
                         expect(typeName(subject)).toBe(expectation.gtype);
 
                         expect(read(expectation, subject)).toBe(expectation.expected);
