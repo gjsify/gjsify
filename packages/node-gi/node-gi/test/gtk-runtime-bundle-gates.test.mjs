@@ -52,6 +52,7 @@ import {
     gstFormatGaps,
     missingBundledGstPlugins,
 } from '../../scripts/gst-plugins.mjs';
+import { isGstElementName } from '../../../infra/manifest-conformance/lib/gst-payload.mjs';
 import {
     WINDOWING_DATA_SETS,
     copyTreeDereferenced,
@@ -1394,7 +1395,10 @@ test('every claimed format names a decoder, and every declared gap names a real 
     // must be about a plugin the SEED list actually asks for, or it silences nothing.
     for (const target of Object.keys(GST_PLUGIN_GAPS)) {
         for (const row of gstAudioDecoders(target)) {
-            assert.match(row.element, /^[a-z0-9]+$/, `${target} ${row.format} names no decoder element`);
+            // The SHARED predicate, not a second regex: this one read `^[a-z0-9]+$`, under
+            // which `avdec_aac` — the element ADR 0053 names as the one that would close the
+            // AAC gap — was legal in the manifest and illegal here.
+            assert.ok(isGstElementName(row.element), `${target} ${row.format} names no decoder element`);
             // The plugin behind a claimed format must be one the builders actually copy.
             // Written with an `|| row.plugin === 'mpg123'` escape at first, which decided
             // nothing — `mpg123` IS in the list — so deleting it from GST_AUDIO_PLUGINS

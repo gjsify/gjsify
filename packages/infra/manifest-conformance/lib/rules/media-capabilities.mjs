@@ -46,9 +46,9 @@
  * GStreamer's catalogue or about this repository.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
+import { isGstElementName, readGstPluginDir } from '../gst-payload.mjs';
 import { defineRule } from '../registry.mjs';
 
 /**
@@ -58,34 +58,6 @@ import { defineRule } from '../registry.mjs';
  * to extend a set.
  */
 const PAYLOAD_DIR = 'gtk';
-
-/**
- * The list above's spelling of a plugin FILE: no `libgst`/`gst` prefix, no
- * extension, lower-cased.
- *
- * CASE-INSENSITIVE AND PREFIX-OPTIONAL, because both bit already. GStreamer
- * names a plugin `libgstcoreelements.dylib` on darwin and `gstcoreelements.dll`
- * on Windows, so a `^libgst` strip leaves the Windows leaf as `gstcoreelements`
- * — which matched nothing and skipped all 83 plugins of a bundle at exit 0. And
- * an archive that spells its own file `LIBGSTAPP.DLL` must still read as `app`.
- * A versioned `libgstapp.so.0` is the third spelling.
- *
- * @param {string} fileName
- * @returns {string}
- */
-export function gstPluginBaseName(fileName) {
-    return fileName
-        .replace(/^.*[\\/]/, '')
-        .replace(/^(lib)?gst/i, '')
-        .replace(/\.(dylib|dll)$/i, '')
-        .replace(/\.so(\.\d+)*$/i, '')
-        .toLowerCase();
-}
-
-/** Is this file name a GStreamer plugin at all, in any of the three spellings? */
-function isPluginFile(fileName) {
-    return /^(lib)?gst.+\.(dylib|dll|so(\.\d+)*)$/i.test(fileName.replace(/^.*[\\/]/, ''));
-}
 
 /**
  * Every package whose `files` ship a `gtk/` payload, with its media declaration.
@@ -116,23 +88,6 @@ export function collectMediaBundles(ctx) {
 
 /** A non-empty string, which is what every field of this declaration must be. */
 const filled = (value) => typeof value === 'string' && value.trim().length > 0;
-
-/**
- * Read the plugin base names present in a payload directory.
- *
- * `null` when the directory is not here — deliberately distinguished from an
- * EMPTY directory, which is a finding. The two read alike from a `length === 0`
- * test, and conflating them is how a check over an absent artifact reports a
- * clean bundle.
- *
- * @param {string} dir
- * @returns {{ plugins: Set<string>, files: string[] } | null}
- */
-export function readGstPluginDir(dir) {
-    if (!existsSync(dir) || !statSync(dir).isDirectory()) return null;
-    const files = readdirSync(dir).filter(isPluginFile);
-    return { plugins: new Set(files.map(gstPluginBaseName)), files };
-}
 
 /**
  * @typedef {object} MediaAuditOptions
@@ -239,7 +194,7 @@ export function auditMediaCapabilities(bundles, options = {}) {
                 failures.push(`${where}: \`format\` is present but empty.`);
                 return undefined;
             }
-            if (entry.element !== undefined && !/^[a-z0-9_]+$/.test(String(entry.element))) {
+            if (entry.element !== undefined && !isGstElementName(entry.element)) {
                 failures.push(
                     `${where}: \`element\` is "${entry.element}", which is not a GStreamer element-factory name. ` +
                         'It is the name the running registry is asked for on the target OS; a name no factory can ' +

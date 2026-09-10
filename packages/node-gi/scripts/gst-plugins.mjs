@@ -23,7 +23,12 @@ import { fileURLToPath } from 'node:url';
 // so `LIBGSTAPP.DLL` (an archive's spelling, not ours) kept its prefix and read as an unknown
 // plugin, as did a versioned `libgstapp.so.0`. A second copy of that parser is a second place
 // for the same bug, and the builders and the audit must not disagree about what a file is.
-import { gstPluginBaseName } from '../../infra/manifest-conformance/lib/rules/media-capabilities.mjs';
+//
+// From the PARSER module and not from the rule that is its other caller: `defineRule` registers
+// at module scope, so importing the rule would enrol `media-capabilities` in the conformance
+// registry of every process that only wanted to know what a file is called — both bundle
+// builders among them. Same arrangement as `binary.mjs` and `check-prebuild-loader-path.mjs`.
+import { gstPluginBaseName } from '../../infra/manifest-conformance/lib/gst-payload.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `packages/node-gi`, the parent of every `gtk-runtime-<target>` package. */
