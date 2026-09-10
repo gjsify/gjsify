@@ -84,9 +84,14 @@ const GJS = GLib.find_program_in_path('gjs');
  * and `coredumpctl` lists the abort with `COREFILE: none` — the two rows sit next
  * to each other in one run, which is the control for the claim.
  *
- * AN ARGV PREFIX AND NOT A SHELL: `prlimit` execs the program, so `waitpid` still
- * reports the CHILD's signal rather than a shell's `128 + n` exit code, and there
- * is no command line to interpolate a path into.
+ * AN ARGV PREFIX AND NOT A SHELL — for the reasons that MEASURE true, which are not
+ * the ones this comment first gave. Both shell forms were run as controls and both
+ * also report the child's signal: `sh -c 'ulimit -c 0; exec gjs …'` because `exec`
+ * replaces the shell, and `sh -c 'ulimit -c 0; gjs …'` because a POSIX shell execs
+ * the last command of a `-c` string anyway. "A shell would report `128 + n`" is
+ * simply false. What survives: an argv array has no command line to interpolate a
+ * path into, it does not rest on that tail-call behaviour being true of every `sh`,
+ * and it needs no shell at all — which matters, because this suite runs on win32.
  *
  * PROBED, because `prlimit` is util-linux and this suite also runs on darwin and
  * win32 (`gtk-os-suites.yml`). A host without it spawns exactly as before and the
@@ -120,6 +125,12 @@ interface ChildOutcome {
  * a case reads as the three or four GTK calls it is about.
  */
 function runInChild(body: string): ChildOutcome {
+    // NAMED, rather than handing `Gio.Subprocess` a null argv[0]. Measured on the
+    // darwin legs of `gtk-os-suites.yml`, which carry no `gjs`: the spawn answered
+    // `g_subprocess_newv: assertion 'argv != NULL && argv[0] != NULL && …' failed`
+    // three times before throwing — a GLib critical inside a gated describe, from
+    // the very cases whose `when` had already declared this host cannot run them.
+    if (!GJS) throw new Error('the child cases need a gjs interpreter on PATH, and this host has none');
     const source = `import Adw from 'gi://Adw?version=1';\nimport Gtk from 'gi://Gtk?version=4.0';\nGtk.init();\n${body}\n`;
     // A DIRECTORY rather than `GLib.file_open_tmp`, which hands back an open file
     // DESCRIPTOR that GJS gives no way to close — one leaked fd per case.

@@ -87,6 +87,16 @@ export default async () => {
                         'in ICD /usr/lib64/libvulkan_powervr_mesa.so failed with error code -3',
                 ),
             ).toBe(true);
+            // The second prefix, verbatim from the darwin legs of
+            // `gtk-os-suites.yml` — both arches, while win32 and Linux stay silent.
+            // GDK's own surface bookkeeping: this codebase has zero call sites for
+            // `freeze_updates`, `thaw_updates` or `update_freeze`, so a record under
+            // this prefix cannot be about our tree.
+            expect(
+                isEnvironmentDiagnostic(
+                    "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed",
+                ),
+            ).toBe(true);
             // The control side, which is the half that makes the vector worth
             // anything: the messages this module was written to catch are NOT
             // environment, and a message that merely mentions Vulkan is not either —
@@ -96,6 +106,10 @@ export default async () => {
                 'Adwaita-ERROR **: AdwDialog can only be used inside a window',
                 'GLib-GObject-WARNING **: unable to set property text from value of type gchararray',
                 'a message mentioning Vulkan: in the middle',
+                // Not the prefix: a GDK surface message that is NOT the thaw
+                // assertion stays a failure, so the second entry widens the gate by
+                // one function and not by a namespace.
+                "gdk_surface_freeze_updates: assertion 'GDK_IS_SURFACE (surface)' failed",
                 '',
             ]) {
                 expect(isEnvironmentDiagnostic(message)).toBe(false);

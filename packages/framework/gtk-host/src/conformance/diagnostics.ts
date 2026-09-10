@@ -52,8 +52,22 @@ export interface DiagnosticsGate {
  * every `Vulkan:` record originates inside GSK/GDK bringing up the display. A
  * mis-parented widget, a refused property, a bad CSS rule — the whole class this
  * module was written for — never surfaces under this prefix.
+ *
+ * `gdk_surface_thaw_updates:` is the second entry and rests on the SAME premise,
+ * measured the same way. A toplevel that is hidden and presented again — which is
+ * what a MOVE of a `toplevel`-placed node is (ADR 0054 § 6) — answers
+ * `gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed`
+ * on the macOS backend, on BOTH darwin arches of `gtk-os-suites.yml`, while win32
+ * and every Linux leg stay silent. The counter is GDK's own and this codebase never
+ * touches it: `freeze_updates`, `thaw_updates` and `update_freeze` have ZERO call
+ * sites across `packages/{framework,web,dom}`, so every record under this prefix
+ * originates inside GDK's surface bookkeeping. The host's whole contribution is two
+ * plain GTK calls, `set_visible(false)` and `present()`.
+ *
+ * NOT DROPPED, in either case: an environment record is counted and `assertQuiet`
+ * names the count, so a leg that produces one is still saying so.
  */
-const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: '];
+const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: ', 'gdk_surface_thaw_updates: '];
 
 /** Whether `message` describes the host's graphics stack rather than the tree. */
 export function isEnvironmentDiagnostic(message: string): boolean {
