@@ -12,8 +12,7 @@
 //      declaration: two FILES of one program, against the REAL libadwaita widget.
 //   3. UI FRAMEWORKS — the same widget reached through an ELEMENT MODEL instead of
 //      the GObject API: the markup the first window is painted from, the three
-//      `@gjsify/gtk-host` dialects, React Native on GTK, and the NativeScript XML
-//      template.
+//      `@gjsify/gtk-host` dialects, and the NativeScript XML template.
 //
 // It used to be ONE window with all of those as sibling tabs, and siblings cannot
 // say any of it: `gjs`/`blueprint` ARE libadwaita, `preview` and `nativescript` are
@@ -46,24 +45,31 @@
 // scanner it fed still runs: `check-website-attr-samples.mjs` holds every preview
 // fence against the element it names.
 //
-// TWO CLAIMS THE CHROME NO LONGER MAKES, both load-bearing, both still said:
+// ONE CLAIM THE CHROME NO LONGER MAKES, load-bearing, still said. The GJS window's
+// tab was once labelled "GJS · Node · Bun · Deno" and its window "Native TypeScript",
+// both to avoid naming one runtime: naming GJS made the pane read as "the GJS
+// variant", i.e. as if the other three needed a different program. They do not, and
+// that is the claim the whole site rests on. It is now made ONCE, on the pages that
+// are about runtimes (getting-started, runtimes, the frameworks index), instead of in
+// an intro paragraph under all 40 blocks and again in a window subtitle. So the window
+// can be titled for what it runs, which is the shortest true name it has.
 //
-//   · The GJS window's tab was once labelled "GJS · Node · Bun · Deno" and its
-//     window "Native TypeScript", both to avoid naming one runtime: naming GJS made
-//     the pane read as "the GJS variant", i.e. as if the other three needed a
-//     different program. They do not, and that is the claim the whole site rests on.
-//     It is now made ONCE, on the pages that are about runtimes (getting-started,
-//     runtimes, the frameworks index), instead of in an intro paragraph under all 40
-//     blocks and again in a window subtitle. So the window can be titled for what it
-//     runs, which is the shortest true name it has.
-//   · "React Native on GTK" carried its qualifier in the tab LABEL, because a plain
-//     "React Native" standing beside NativeScript would have read as the port that
-//     runs on a phone — which is not what that pane renders. (That reason once read
-//     "code it has not written"; `@gjsify/adwaita-react-native` was written in #1380,
-//     and the qualifier survives it, because what is at stake is what THIS pane
-//     shows, not what exists elsewhere in the tree.) The qualifier is now the page's:
-//     `layout.mdx`, the only page with that pane, says it renders a GTK window and
-//     not a phone screen.
+// THE `react-native` TAB IS GONE AND ITS REASONING IS NOT. It was filled on 3 blocks
+// of 40, all on `layout.mdx`, against 28 blocks carrying a `react` snippet: a footnote
+// holding a window pane. What those three showed — an Adwaita element with React
+// Native children, and the token step the children need — `layout.mdx` now says once
+// in prose, and `frameworks/react-native.mdx` shows in full.
+//
+// Its LABEL carried a qualifier ("React Native on GTK") because a plain "React Native"
+// standing beside NativeScript reads as the port that runs on a phone, which is not
+// what that pane rendered. That reason once rested on there being no Adwaita widget
+// set built out of React Native primitives; #1380 wrote one
+// (`@gjsify/adwaita-react-native`) and the conclusion survived on other grounds, since
+// what was at stake is what THAT PANE showed and not what exists elsewhere in the
+// tree. Both halves are written down where a reader meets them: the direction argument
+// in `frameworks/react-native.mdx` § "What this is not", the general shape in
+// docs/code-anti-patterns.md § "A rule whose premise died and whose conclusion did
+// not". Read those before putting the tab back.
 //
 // So the header bar carries a title and nothing else. Whatever a header bar sits on
 // is what the reader takes the window to be about: it once held the widget TITLE over
@@ -376,21 +382,14 @@ const WINDOWS: readonly {
     {
         id: 'frameworks',
         // Every rendering of this widget that goes through an ELEMENT MODEL rather
-        // than through the GObject API: markup, three host dialects, React Native,
-        // and the XML template.
+        // than through the GObject API: markup, three host dialects, and the XML
+        // template.
         //
-        // `@gjsify/react-native` renders React Native components onto GTK 4
-        // IN-PROCESS, so that pane does not run on a phone, and `layout.mdx` — the
-        // only page that fills it — says it renders a GTK window and not a phone
-        // screen. This note used to give a different reason ("there is no Adwaita
-        // widget set built out of React Native primitives, SO nothing under this
-        // window runs on a phone") and that premise died with
-        // `@gjsify/adwaita-react-native` (#1380), which is exactly such a set. The
-        // `so` means the absence really was load-bearing as written; what survives
-        // is the CONCLUSION, on other grounds. What fills that pane is direction A,
-        // and a direction-B package existing elsewhere in the tree does not put a
-        // phone in it. It would take a PANE that renders one — which the XML
-        // template beside it now is, and which is why it is labelled for the port.
+        // A `react-native` tab stood here until it was measured: 3 blocks of 40, all
+        // on one page. See the header for what it claimed and where that claim
+        // lives now, and read that before adding it back. The XML template is the
+        // only pane under this title that runs on a phone, which is why it is
+        // labelled for the port.
         title: 'UI frameworks',
         tabs: [
             // The markup the FIRST window is painted from, shown here because a
@@ -398,7 +397,6 @@ const WINDOWS: readonly {
             // fence is read for the mount whether or not this tab renders, so arm 9
             // holds that the fence a reader can copy is actually shown somewhere.
             { slot: MARKUP_SLOT, label: 'HTML Web Components' },
-            { slot: 'react-native', label: 'React Native' },
         ],
         // Filled on all 40 blocks, snippet or recorded reason — see {@link PaneGroup}.
         groups: [FRAMEWORK_GROUP, NATIVESCRIPT_GROUP],

@@ -1,6 +1,6 @@
 ---
 title: React
-description: Render React into GTK 4 widgets with @gjsify/gtk-host/react. Install, configure, render, build.
+description: One React on GTK 4, two element vocabularies. Pick between @gjsify/gtk-host/react and @gjsify/react-native, then install, configure, render, build.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -10,8 +10,92 @@ Render React into real `Gtk` and `Adw` widgets. There is no compile plugin, no D
 flags are the whole setup.
 
 You keep React. Components, hooks, context, error boundaries, `useState`, `useEffect` and
-Suspense behave the way they do anywhere else. What changes is the element vocabulary:
-`<gtk-box>` instead of `<div>`.
+Suspense behave the way they do anywhere else. What changes is the element vocabulary, and
+gjsify has two of them.
+
+## Two vocabularies, one React
+
+Both packages run the same React 19 reconciler against the same host layer, and both produce
+real GTK widgets in the same window. They differ in what you type for leaves and for layout.
+
+| | [`@gjsify/gtk-host/react`](#install) | [`@gjsify/react-native`](/gjsify/frameworks/react-native/) |
+|---|---|---|
+| Leaves | `<gtk-label>`, `<gtk-button>`, one tag per GTK class | `<Text>`, `<Pressable>`, React Native's own props |
+| Layout | GTK containers, so `<gtk-box orientation="vertical">` | `<View>` and Yoga flexbox |
+| Styling | `cssClasses={['card']}` and GTK CSS | `className="flex-col gap-m"` over token scales you declare |
+| Adwaita widgets | 168 generated tags, 63 of them `Adw` | the same tags, in the same tree |
+| Reach for it | when the GTK window is the app you are writing | when you are bringing React Native or Expo code to the desktop |
+
+The two element sets stay in separate packages, and separate is the right answer. A `Gtk.Box`
+with no orientation is horizontal and a React Native `View` is a column, so one name over both
+would have to pick a default that is wrong for half of what it renders. GTK reports that kind
+of wrong at exit 0, with every widget present and every row a column.
+
+## The same window, written both ways
+
+`Adw.Clamp` holds long-form content at a readable width. The Adwaita element is identical on
+both paths, down to the property names:
+
+```tsx title="@gjsify/gtk-host/react"
+export function ReadingColumn() {
+    return (
+        <adw-clamp maximumSize={400} tighteningThreshold={300}>
+            <gtk-label
+                label="It stops growing past the maximum size and stays centred."
+                wrap
+                xalign={0}
+                cssClasses={['card']}
+            />
+        </adw-clamp>
+    );
+}
+```
+
+```tsx title="@gjsify/react-native"
+import { Text, View } from 'react-native';
+
+import { configureStyle } from '@gjsify/react-native';
+
+// The class VALUES are your project's. The layer's default spacing scale holds `0` and `px`
+// only, so a class naming a token you have not declared throws out of the render. React
+// unmounts the tree, the window is empty, and the process exits 0 with no GTK diagnostic.
+configureStyle({ tokens: { spacing: { m: '12px' }, fontSize: { title: '18px' } } });
+
+export function ReadingColumn() {
+    return (
+        <adw-clamp maximumSize={400} tighteningThreshold={300}>
+            <View className="flex-col gap-m p-m">
+                <Text className="text-title">Clamped</Text>
+                <Text>It stops growing past the maximum size and stays centred.</Text>
+            </View>
+        </adw-clamp>
+    );
+}
+```
+
+Two things follow from that pair. The Adwaita and GTK tags are available on both paths, because
+both point `jsxImportSource` at `@gjsify/gtk-host/react`, so a React Native tree reaches a
+clamp, a header bar or a toolbar view without leaving React Native. And the token step is the
+one line the second path adds that has no counterpart on the first. Style your GTK tags with
+`cssClasses` and there is nothing to declare up front.
+
+## Which one to pick
+
+**Have React Native or Expo code already?** Take
+[`@gjsify/react-native`](/gjsify/frameworks/react-native/). It is the package a bundler aliases
+`react-native` to, so your files keep the imports they have, and every name it does not
+implement is still exported and refuses with a status and a reason. That page carries the
+per-name support answers, the routing, and the prop table you can assert against before a
+window exists.
+
+**Starting fresh on GTK?** Take `@gjsify/gtk-host/react`, which is the rest of this page. One
+tag per GTK class, GTK property names, no style system to configure, and a type error rather
+than a runtime refusal when you name something that does not exist.
+
+**Neither of them runs on a phone.** Both render in-process onto GTK 4, so both need libadwaita
+on the machine. The opposite direction, Adwaita's widgets rebuilt on React Native's primitives,
+is [`@gjsify/adwaita-react-native`](https://github.com/gjsify/gjsify/blob/main/packages/framework/adwaita-react-native/README.md),
+and it is a walking skeleton that has never run on a device.
 
 ## Install
 
@@ -205,8 +289,8 @@ Here that reaches your tree only and never touches chrome your application put t
 
 - [Getting started](/gjsify/getting-started/) if you do not have a gjsify project yet
 - [UI Frameworks](/gjsify/frameworks/) for the host, the widget table and the placement rules
-- [React Native](/gjsify/frameworks/react-native/) if your components are written with `View`
-  and `Text` rather than `<gtk-box>`
+- [React Native](/gjsify/frameworks/react-native/) for the other vocabulary, if you are bringing
+  code written with `View` and `Text`
 - [Styling on GTK](/gjsify/frameworks/styling/) for class names and token scales
 - [`react-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/react-host-counter)
   for a complete window that asserts its own widget tree on every launch

@@ -76,6 +76,10 @@ Pick one and the rest of this page is the same for all three. All three speak GT
 vocabulary: `<gtk-box orientation="vertical">`, GTK property names, `css-classes` as a string
 array.
 
+React reaches this host through two element vocabularies rather than one, the GTK tags above and
+React Native's primitives. The [React page](/gjsify/frameworks/react/) puts the two side by side
+and says how to pick; the section below is the short version.
+
 None of the code on this page names a runtime. The host is plain TypeScript over `gi://`, so
 every example here builds and runs on GJS, Node.js, Bun and Deno from one source.
 [Runtimes](/gjsify/runtimes/) has that story, along with the two further targets the same widget
@@ -84,7 +88,9 @@ names reach: a browser build, and an experimental NativeScript one for Android a
 ## Bringing a React Native app instead
 
 `<View>`, `<Text>`, `<Pressable>` and `className="flex-1 items-center"` are a *different*
-vocabulary, and it renders over the same host rather than beside it:
+vocabulary, and it renders over the same host rather than beside it. It is not a fourth adapter.
+React Native code goes through the React adapter above, with different leaves and a different
+layout model:
 
 - [React Native](/gjsify/frameworks/react-native/) puts React Native's exports on GTK 4. It is
   the package a bundler aliases `react-native` to. Every name it does not implement is still
@@ -486,7 +492,9 @@ the **real** widget tree on every launch:
 - [Solid JSX](/gjsify/frameworks/solid/) for the compile step a `.tsx` entry needs
 - [Vue SFCs](/gjsify/frameworks/vue/) for the compile step a `.vue` entry needs
 - [React](/gjsify/frameworks/react/) for the `jsxImportSource` and build defines a `.tsx` entry
-  needs instead of a compile step
+  needs instead of a compile step, and for the choice between its two element vocabularies
+- [React Native on GTK](/gjsify/frameworks/react-native/) for the second of those, if you are
+  porting an app rather than starting one
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell you
   mount into
 - [GObject Classes](/gjsify/patterns/gobject-classes/) for the `registerClass` rules your own

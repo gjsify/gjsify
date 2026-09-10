@@ -1,6 +1,6 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. A live preview with its markup, plus the TypeScript, Blueprint, React Native on GTK and NativeScript code."
+description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -40,12 +40,6 @@ is added to the layout anyway.
 
 The Solid, Vue and React tabs go through
 [`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host).
-The clamp, the header bar and the toolbar view carry a
-[`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab as well, the only three
-blocks on the site that do. That tab renders a GTK window, not a phone screen, which
-is why it is not the NativeScript one; the [React Native
-page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
-exist there.
 
 The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
 `AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a
@@ -53,12 +47,17 @@ renderer guessing the policy would call `add`, `append` or `set_child` and be wr
 exit 0. The policy is now curated against libadwaita, so the block has a tree like the
 other three.
 
-Two of the three host dialects style with `className`, and both configure their token
-scales on the way in. That line is not decoration. The values behind a class name come
-from the project, the layer's default scales are deliberately small (spacing holds `0`
-and `px` alone), and a class naming an undeclared token throws out of the render,
-leaving an empty window at exit 0 with nothing in the log. The header bar's snippet
-names no class and needs no such line.
+React Native primitives go inside these containers too, through
+[`@gjsify/react-native`](/gjsify/frameworks/react-native/). The Adwaita element is the
+same one the React tab shows, and a `<View>` or `<Text>` sits in its default slot. The
+clamp, the header bar and the toolbar view carried a tab for that pairing, and they were
+the only three blocks on the site with one, so the [React Native
+page](/gjsify/frameworks/react-native/#adwaita-widgets) carries it in full instead. Two
+facts from there are worth having before you try it. The primitives need their token
+scales installed with `configureStyle({ tokens })` before the first render, because a
+class naming a token you have not declared throws out of the render and leaves an empty
+window at exit 0 with nothing in the log. And such a tree is a GTK window rather than a
+phone screen, which is why it was never the NativeScript tab.
 
 Libadwaita is the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
@@ -133,29 +132,6 @@ at a comfortable measure on a large display without wasting room on a small one.
 
         styles ["card"]
       };
-    }
-    ```
-  </Fragment>
-  <Fragment slot="react-native">
-    ```tsx
-    import { Text, View } from 'react-native';
-    import { configureStyle } from '@gjsify/react-native';
-
-    // The class VALUES are the project's. The layer's default spacing scale holds `0`
-    // and `px` only, so a class naming a token you have not declared throws out of the
-    // render — the window is then empty at exit 0, with no GTK diagnostic.
-    configureStyle({ tokens: { spacing: { m: '12px' }, fontSize: { title: '18px' } } });
-
-    export function ReadingColumn() {
-        return (
-            <adw-clamp maximumSize={400} tighteningThreshold={300}>
-                {/* One child: `AdwClamp`'s policy is `set_child`, measured. */}
-                <View className="flex-col gap-m p-m">
-                    <Text className="text-title">Clamped</Text>
-                    <Text>It stops growing past the maximum size and stays centred.</Text>
-                </View>
-            </adw-clamp>
-        );
     }
     ```
   </Fragment>
@@ -240,26 +216,6 @@ the trailing one.
 
         styles ["flat"]
       }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="react-native">
-    ```tsx
-    import { Pressable, Text } from 'react-native';
-
-    export function EditorHeader({ onBack }: { onBack: () => void }) {
-        return (
-            <adw-header-bar>
-                {/* A header bar's default slot is `start`, and a React Native
-                    primitive can only go in a default slot: `slot` is not one of
-                    its props, and an unlisted prop is refused by name. */}
-                <Pressable onPress={onBack}>
-                    <Text>Back</Text>
-                </Pressable>
-                <adw-window-title slot="title" title="Text Editor" subtitle="notes.md" />
-                <gtk-button slot="end" iconName="open-menu-symbolic" cssClasses={['flat']} />
-            </adw-header-bar>
-        );
     }
     ```
   </Fragment>
@@ -395,44 +351,6 @@ the view moves.
           styles ["flat"]
         }
       }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="react-native">
-    ```tsx
-    import { Pressable, Text, View } from 'react-native';
-    import { configureStyle } from '@gjsify/react-native';
-
-    // Before the first render, and not optional: `gap-s`, `p-xl`, `text-title` and
-    // `text-caption` are this project's names. Without the scales the first one
-    // throws, React unmounts the tree, and the window is empty at exit 0.
-    configureStyle({
-        tokens: { spacing: { s: '8px', xl: '24px' }, fontSize: { caption: '11px', title: '18px' } },
-    });
-
-    export function Documents({ onAdd }: { onAdd: () => void }) {
-        return (
-            <adw-toolbar-view>
-                <adw-header-bar slot="top">
-                    <adw-window-title slot="title" title="Documents" subtitle="12 items" />
-                </adw-header-bar>
-
-                {/* The default slot is the content, and the content is React Native's. */}
-                <View className="flex-col items-center justify-center gap-s p-xl">
-                    <Text className="text-title">Your library</Text>
-                    <Text className="text-caption">Content sits between the toolbars.</Text>
-                </View>
-
-                {/* A box with the `toolbar` style class, not a Gtk.ActionBar: the
-                    action bar is in gtk-host's generated table, which knows the tag
-                    but not how it adopts a child, so it refuses one. */}
-                <gtk-box slot="bottom" cssClasses={['toolbar']}>
-                    <Pressable onPress={onAdd}>
-                        <Text>Add</Text>
-                    </Pressable>
-                </gtk-box>
-            </adw-toolbar-view>
-        );
     }
     ```
   </Fragment>

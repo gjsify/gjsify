@@ -1,13 +1,18 @@
 ---
-title: React Native
-description: Run React Native components on GTK 4. Primitives, lists, routing, styling, Adwaita containers, and the one build flag that turns it on.
+title: React Native on GTK
+description: Bring an existing React Native or Expo view layer onto GTK 4. Primitives, lists, routing, styling, Adwaita containers, and the one build flag that turns it on.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-Write `<View>`, `<Text>` and `<Pressable>` and get real GTK widgets. If you already have an
-Expo or React Native app, its view layer is the part that ports, and the aim is that it ports
-without a rename per file.
+Write `<View>`, `<Text>` and `<Pressable>` and get real GTK widgets. `@gjsify/react-native` is
+the package a bundler aliases `react-native` to, so an Expo or React Native app keeps the
+imports its files were written with. Its view layer is the part that ports, and the aim is that
+it ports without a rename per file.
+
+This page is for code you already have. If you are writing a GTK app from scratch, the
+[React page](/gjsify/frameworks/react/) carries the other element vocabulary and the comparison
+between the two.
 
 There is no bridge and no native module host. This renders in-process onto GTK, so
 `NativeModules`, `TurboModuleRegistry` and `findNodeHandle` are not available and say so when you
@@ -355,16 +360,25 @@ Three rules hold there, and the layer states each of them by refusing rather tha
   `tableProvenance()` from `@gjsify/gtk-host` for the live figure; this count has now drifted
   three times.
 
-The [Layout page](/gjsify/adwaita/layout/) of the Adwaita gallery carries this as a **React
-Native on GTK** tab beside the GJS, Blueprint, web and NativeScript ones: on the clamp, the
-header bar and the toolbar view, and not on the wrap box, whose policy is still missing.
+The [Layout page](/gjsify/adwaita/layout/) of the Adwaita gallery shows the clamp, the header
+bar and the toolbar view from every other angle: the live widget, its markup, the GJS program,
+the Blueprint declaration and the NativeScript template. It carried a tab for this pairing too,
+on those three blocks and nowhere else, which is why the pairing is documented here instead.
 
 ### What this is not
 
 **This layer does not put Adwaita on a phone.** `<adw-toolbar-view>` above is
 `Adw.ToolbarView`: a GTK 4 widget, in a GTK 4 window, on a machine where libadwaita is
-installed. Nothing on this page runs on Android or iOS, and no tab in the gallery claims
-otherwise.
+installed. Nothing on this page runs on Android or iOS.
+
+The gallery used to make that claim in a tab label, which read **React Native on GTK** rather
+than **React Native**, because a plain one beside the NativeScript tab would have been taken for
+the port that runs on a device. The tab is gone and the qualifier is this page's title now,
+because the label went and its reason did not. Worth knowing what that reason is not: it was
+once written down as *there is no Adwaita widget set built out of React Native primitives, so
+nothing here runs on a phone*, and #1380 wrote exactly such a set. The premise died and the
+conclusion held, because what settles it is the direction below and not what exists elsewhere in
+the tree.
 
 The distinction is a direction rather than a boundary. This layer takes React Native's
 *components* to GTK. The opposite direction, Adwaita's *components* rebuilt on React Native's
@@ -576,7 +590,8 @@ reasons under the row they belong to.
 ## Related
 
 - [Getting started](/gjsify/getting-started/) if you do not have a gjsify project yet
-- [React](/gjsify/frameworks/react/) for the adapter underneath, and the build flags in full
+- [React](/gjsify/frameworks/react/) for the choice between the two element vocabularies, the
+  adapter underneath, and the build flags in full
 - [Styling on GTK](/gjsify/frameworks/styling/) for the class families and token scales
 - [Package README](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/README.md)
   for the generated per-name support listing
