@@ -128,7 +128,7 @@ tests, integration tests — are [tests/](tests/AGENTS.md). The three that get b
 
 ## Commit conventions
 
-Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subject; commitlint enforces on every PR. **All types surface in CHANGELOG.md** (`.release-it.json` `types`) — use the best fit, none is dropped: `feat` `fix` `perf` `revert` `docs` `refactor` `build` `ci` `chore` `test`; `style` hidden. Scope = lowercase package name without `@gjsify/` (`fix(rolldown-plugin-gjsify): …`), `(e2e)` for e2e suites, omit when crossing packages.
+Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subject — HOUSE STYLE, not machine-held: `commitlint.config.cjs` overrides only `type-enum`, so what the required `Lint commit messages` check actually enforces is config-conventional's `header-max-length` of 100 — which is the ceiling the SQUASH subject `<title> (#N)` needs. Measured, 85% of `main`'s last 300 subjects are over 50, so tightening the rule reds every open PR at once; keep the 50 yourself. **All types surface in CHANGELOG.md** (`.release-it.json` `types`) — use the best fit, none is dropped: `feat` `fix` `perf` `revert` `docs` `refactor` `build` `ci` `chore` `test`; `style` hidden. Scope = lowercase package name without `@gjsify/` (`fix(rolldown-plugin-gjsify): …`), `(e2e)` for e2e suites, omit when crossing packages.
 
 ## PR size — prefer few large ones
 
