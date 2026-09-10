@@ -255,3 +255,11 @@ The consequence for THIS ADR's text: the four sibling walks in § 5 ask `isUnpar
 rather than `isPortal`, because every one of them is the same defect for a toplevel;
 `portal.spec.ts` is `placement.spec.ts`; and the `never` arms § 2 relies on are what
 made adding the kind a compile error in each reader rather than a search.
+
+One decision of this ADR turned out to be load-bearing in a way it did not claim: § 3
+picks `force_close` because an unmount is not a user request, and that call is also
+REVERSIBLE — measured, `force_close()` followed by `present(parent)` re-hosts against the
+same parent with no diagnostic. `remove` documents itself as a detach, so the portal arm
+satisfied that contract by accident and the toplevel arm, whose close is `destroy()`, did
+not. ADR 0054 § 6 splits the retraction into a reversible verb and a terminal one; for
+this arm both remain `force_close`, so nothing here changes behaviour.

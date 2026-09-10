@@ -158,6 +158,11 @@ question is what the host asks of any widget whose descriptor says nothing at al
 class that cannot be a child is now refused at the insert with a catchable error naming
 the tag, instead of aborting the process or being taken in silence.
 
+One thing the two kinds do not share is how they come back down. A dialog's forced close is
+reversible — present it again and it re-hosts — while destroying a window is final, so
+`remove`, which the host documents as a detach a later insert undoes, now takes a window off
+screen instead of destroying it. Destroying is what `destroy` is for.
+
 Verifying it needed a shape worth naming: an abort is invisible to the process it kills, so
 "this no longer aborts" cannot be asserted where it used to happen. The negative control is
 a child process, and what the suite reads is its exit signal.

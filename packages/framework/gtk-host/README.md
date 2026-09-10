@@ -222,6 +222,18 @@ present themselves. `GtkDragIcon` is the one that cannot and carries no declarat
 `AdwMessageDialog` is here rather than in the portal family, because it is a
 `GtkWindow`.
 
+**Terminal is why the axis has TWO retraction verbs.** `remove` promises a detach a
+later `insert` undoes, and Solid's `removeNode` takes it literally — so running the
+declared close there destroyed the window and presented the corpse. `remove` calls
+`detachOutsideParent`, `destroy` calls `closeOutsideParent`, and the arms differ only
+here: measured, `force_close()` → `present(parent)` re-hosts a dialog with no
+diagnostic, so for a portal both verbs are the same call. A toplevel detaches with
+`set_visible(false)` — measured reversible, one `unmap`, no `close-request`, and the
+window stays in `Gtk.Window.list_toplevels()`, which is what makes it a detach rather
+than a teardown. `rebuild` is the one caller that wants the terminal verb, because it
+discards the widget and GTK's list would otherwise keep a hidden window per
+construct-only write.
+
 ### A class that declares neither
 
 Both arms are a DECLARATION, and `registerWidget` takes descriptors from applications
