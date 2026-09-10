@@ -288,18 +288,35 @@ function readStyledClasses() {
  *
  * The fences on these pages are INDENTED, inside `<Fragment slot="…">`, so an
  * anchored `^```` finds 10 of the 340 that are there.
+ *
+ * THE META IS READ, and it is read because not reading it did not skip one fence, it
+ * shifted the whole page. A `txt title="hello-gjsify"` opener matched nothing, so it was
+ * dropped and its CLOSING fence became the next opener: from there every fence on the
+ * page was off by one, and the one swallowed as the phantom's body was a fence no arm
+ * then read. Measured on `getting-started.mdx`, the one page in the tree with a fence
+ * attribute: 54 markers, 27 fences, and this reader came back with 26 plus a phantom of
+ * no language. At exit 0, because no arm reads a language it cannot name, which is this
+ * whole file's own failure mode one layer down.
+ *
+ * {@link fenceParseProblem} is the floor under that: markers and fences are held
+ * against each other per source, so the next shape this reader cannot parse is reported
+ * rather than absorbed.
  */
 function fences(text) {
     const lines = text.split('\n');
     const out = [];
     let open = null;
     for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(/^(\s*)```(\w*)\s*$/);
+        const m = lines[i].match(/^(\s*)```([\w-]*)(.*)$/);
         if (!m) {
             if (open) open.body.push(lines[i]);
             continue;
         }
-        if (open && m[1].length === open.indent && m[2] === '') {
+        // A CLOSER is a bare fence: no language and nothing after it. An opener carrying
+        // meta and no language would read as one, and the count guard is where that
+        // would surface instead of shifting the page.
+        const bare = m[2] === '' && m[3].trim() === '';
+        if (open && m[1].length === open.indent && bare) {
             out.push({ lang: open.lang, line: open.line, body: open.body.join('\n') });
             open = null;
         } else if (!open) {
@@ -309,6 +326,24 @@ function fences(text) {
         }
     }
     return out;
+}
+
+/**
+ * A source whose fence MARKERS and fence BLOCKS disagree.
+ *
+ * Every fence is two markers and no page in this tree nests one, so `markers / 2` is
+ * what a correct read returns. An off-by-one here is the shape described above: some
+ * opener was not recognised, and from there the page is read shifted, silently.
+ */
+function fenceParseProblem(text, blocks) {
+    const markers = text.split('\n').filter((line) => /^\s*```/.test(line)).length;
+    if (markers === 2 * blocks.length) return null;
+    return (
+        `${markers} fence marker(s) on this page and ${blocks.length} fence(s) read, so ${markers / 2} were ` +
+        'there. An opener this reader cannot classify is not skipped: its closing fence becomes the next ' +
+        'opener, every fence after it is off by one, and a real one is swallowed as the body of a phantom ' +
+        'whose language no arm reads. Teach `fences()` the shape, or unnest the fence.'
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -913,6 +948,8 @@ try {
         }
         const text = readFileSync(abs, 'utf8');
         const list = fences(text);
+        const parse = fenceParseProblem(text, list);
+        if (parse !== null) fail(rel, parse);
         const slots = slotAtLine(text.split('\n'));
         for (const fence of list) {
             if (fence.lang !== 'ts') continue;
@@ -1253,9 +1290,12 @@ if (!existsSync(TSC_ENTRY)) {
             .split(sep)
             .join('/');
         const text = readFileSync(abs, 'utf8');
+        const pageFences = fences(text);
+        const parse = fenceParseProblem(text, pageFences);
+        if (parse !== null) fail(rel, parse);
         const page = [];
         let anyTsx = false;
-        for (const fence of fences(text)) {
+        for (const fence of pageFences) {
             const lang = fence.lang.toLowerCase();
             if (!SNIPPET_LANGS.has(lang)) continue;
             snippetFences += 1;
