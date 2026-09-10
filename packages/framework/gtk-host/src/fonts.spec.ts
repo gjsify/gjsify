@@ -313,9 +313,18 @@ export default async () => {
                 // The actionable half, and the reason the field exists: the declared name
                 // resolves, the invented one does not, and the two are told apart by NAME rather
                 // than by a count that is `registered: 1, failed: 0` either way.
+                //
+                // The RESOLVED SPELLING is deliberately not pinned, and pinning it would
+                // contradict the feature: which name a face ends up under is what differs
+                // between font stacks (#1542 — one file, `Merriweather` here and
+                // `Merriweather 18pt` under gvsbuild). What must hold on every host is that the
+                // declared name resolves to SOMETHING the map has, and that an invented one
+                // does not.
                 expect(result.matches.map((match) => match.declared)).toStrictEqual([FACE_FAMILY, INVENTED_FAMILY]);
-                expect(result.matches[0]?.family).toBe(FACE_FAMILY);
+                expect(result.matches[0]?.kind).not.toBe('absent');
+                expect(families()).toContain(result.matches[0]?.family);
                 expect(result.matches[1]?.kind).toBe('absent');
+                expect(result.matches[1]?.family).toBeUndefined();
                 removeTree(dir);
             },
             NO_REGISTRATION_REASON,
@@ -401,10 +410,13 @@ export default async () => {
 
                 const after = scratch.list_families().map((f) => f.get_name());
                 const gained = after.filter((name) => !before.includes(name));
-                expect(gained).toContain(FACE_FAMILY);
-                // And the resolution flips with it: absent before, resolvable after, from the
-                // same declared name. That pair is what a caller needs and could not get.
-                expect(matchFontFamily(FACE_FAMILY, after).family).toBe(FACE_FAMILY);
+                expect(gained.length).toBeGreaterThan(0);
+                // And the resolution FLIPS with it: absent before, resolvable after, from the
+                // same declared name. That pair is what a caller needs and could not get — and
+                // it is asserted as a flip rather than as a spelling, because the spelling is
+                // the thing that differs per platform.
+                expect(matchFontFamily(FACE_FAMILY, after).kind).not.toBe('absent');
+                expect(gained).toContain(matchFontFamily(FACE_FAMILY, after).family);
                 removeTree(dir);
             },
             NO_REGISTRATION_REASON,
