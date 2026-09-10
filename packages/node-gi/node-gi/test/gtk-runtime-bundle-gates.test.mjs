@@ -760,13 +760,22 @@ test('every binary the win32 bundle ships belongs to a declared license family',
     assert.equal(familyOf('pixbufloader_svg.dll'), 'librsvg');
     assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
     assert.equal(familyOf('gstvorbis.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
-    // The library BEHIND that plugin, claimed ahead of any binary matching it. libvorbis is
-    // a CMake project in gvsbuild and CMake defaults to static, so today it links into the
-    // plugin and ships no DLL of its own — measured on the prefix, where `opus-0.dll` (meson)
-    // is present and no ogg DLL is. A bump flipping it to shared must not be a red release
-    // over terms the corpus already carries.
+    // The libraries BEHIND those plugins, claimed ahead of any binary matching them. ogg and
+    // libvorbis are CMake projects in gvsbuild and CMake defaults to static, so today they link
+    // into the plugin and ship no DLL of their own — measured on the prefix, where `opus-0.dll`
+    // (meson) is present and no ogg DLL is. A bump flipping either to shared must not be a red
+    // release over terms the corpus already carries.
+    //
+    // BOTH SPELLINGS, and the CMake one is the spelling that would actually arrive: meson puts
+    // the soversion in the leaf, CMake on Windows puts VERSION/SOVERSION in the image-version
+    // RESOURCE and leaves the file `ogg.dll`. The `ogg` entry carried only the meson spelling —
+    // so the entry written to prevent a red release could not have prevented one.
+    assert.equal(familyOf('ogg.dll'), 'ogg', 'a shared CMake libogg is `ogg.dll`, with no soversion in the leaf');
+    assert.equal(familyOf('ogg-0.dll'), 'ogg');
+    assert.equal(familyOf('vorbis.dll'), 'libvorbis');
     assert.equal(familyOf('vorbis-0.dll'), 'libvorbis');
     assert.equal(familyOf('vorbisenc.dll'), 'libvorbis');
+    assert.equal(familyOf('vorbisfile.dll'), 'libvorbis', 'libvorbis builds three libraries, not one');
     assert.equal(familyOf('gst-plugin-scanner.exe'), 'gstreamer', 'the bundle ships one .exe and it is gstreamer`s');
     // TWO leaves, TWO projects. glib 2.80 took girepository-2.0 in; gobject-introspection
     // still builds the 1.0 library and gvsbuild still installs it, so one pattern for both
