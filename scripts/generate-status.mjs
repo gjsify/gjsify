@@ -1229,6 +1229,17 @@ export function renderStatus(root, facts, data) {
 // ─── Public entry points ────────────────────────────────────────────────────
 
 /**
+ * Where the render lands, repo-relative, in the git index's own spelling
+ * (forward slashes on every platform).
+ *
+ * Exported so the `status-data` rule can refuse this path in the index without
+ * spelling it a second time. The two would not have drifted quietly — a rule
+ * naming a path the generator no longer writes reports nothing forever, which
+ * is the shape of every incident in that rule's header.
+ */
+export const RENDER_PATH = 'STATUS.md';
+
+/**
  * Validate + render. Returns `{ content, failures }`; `content` is `null` when
  * validation failed (rendering from invalid data would mask the failure).
  *
@@ -1276,7 +1287,7 @@ if (IS_ENTRY) {
     // There is deliberately NO `--check` mode: a freshness comparison only has
     // meaning for a committed artifact, and reintroducing one would re-import
     // the parallel-PR serialisation this file's header describes.
-    const statusPath = join(root, 'STATUS.md');
+    const statusPath = join(root, RENDER_PATH);
     const current = existsSync(statusPath) ? readFileSync(statusPath, 'utf8') : '';
     if (current === content) {
         console.log('generate-status: STATUS.md already up to date.');
