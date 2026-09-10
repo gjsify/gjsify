@@ -117,8 +117,21 @@ corpus has already answered.
   that the honest direction. What it called the repair — "land the payload first" — is not
   available: the builder refuses to let declaration and payload travel separately in EITHER
   direction (a format out of `gaps` and unclaimed fails the coverage pass; a gap whose plugin
-  arrived fails as RETIRED). They move in one commit by construction. The leg is path-filtered
-  and never a required check, which is what makes that window readable instead of blocking.
+  arrived fails as RETIRED). They move in one commit by construction. Both doors were run, not
+  argued: the unclaimed format reports *"says nothing about Ogg / Vorbis, which
+  @gjsify/gtk-runtime-darwin-arm64, @gjsify/gtk-runtime-darwin-x64 declare an answer for"*, and
+  the kept gap reports `retired: ["vorbis"]` into a `process.exit(1)`.
+- **What that window costs is attention, and it is not path-filtered.** `gtk-os-suites.yml`
+  carries no `paths:` at all — every pull request, every push to `main`, nightly at 06:30 — so
+  a widening reds that job on `main` and on every unrelated PR until the release ships, not
+  only on the PR that widened. Never a required check is the true half: nothing is blocked. The
+  cost accepted here is that one named check reads red for a cycle, and the risk accepted with
+  it is the mirror of this repository's usual one — a reader who learns to skip it misses the
+  NEXT finding on the same leg. If a future window is longer than one cycle, the tool is
+  already in that file and adjacent to this step: `continue-on-error` + an `id` +
+  `report-probe-outcome.mjs`, retirement condition naming a RELEASE. Only the `--media-payload`
+  half would lose gating to it, because `audit-runtimes.yml` runs `--check --strict` on every
+  pull request with no paths filter of its own.
 - **This ADR is `Proposed` until a Windows leg has run it.** What is measured today is a file
   list and a project list, both read from Linux. What is not: that `gstvorbis.dll` builds, that
   it loads, and that `vorbisdec` registers. The first is the prefix assertion, the second and

@@ -480,9 +480,21 @@ jobs:
       # it in `gaps` while the prefix grows the plugin and `missingBundledGstPlugins`
       # reports a RETIRED gap and exits 1. The declaration and the payload change in one
       # commit by construction, so a widening is red HERE for exactly one release cycle
-      # and goes green with the release that publishes the plugin. This leg is advisory
-      # (path-filtered, never a required check) precisely so that window is a readable
-      # state rather than a blocked merge — read the finding, do not silence it.
+      # and goes green with the release that publishes the plugin.
+      #
+      # AND THAT WINDOW IS WIDER THAN "this PR", which the line before this one got
+      # wrong by calling the leg path-filtered. It is not: this workflow carries no
+      # `paths:` at all, so it runs on every pull request, on every push to `main` and
+      # nightly. A widening therefore reds this job on `main` and on every unrelated
+      # contributor's PR until the release ships — the state that teaches a reader to
+      # skip a check and lose the NEXT finding on it. Never a required check is the
+      # true half, so nothing is blocked; the cost is attention, not merges.
+      #
+      # If a window ever gets long enough to pay for, the tool is already in this file
+      # 40 lines up — `continue-on-error` + an `id` + `report-probe-outcome.mjs`, with a
+      # retirement condition naming a RELEASE — and only the `--media-payload` half of
+      # this step would lose gating to it: `audit-runtimes.yml` runs `--check --strict`
+      # on every pull request with no paths filter, so the os-axis half is already held.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \
