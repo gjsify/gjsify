@@ -1256,7 +1256,7 @@ notes.push(
  * no alias, so everything the two renderers disagree about is exactly what the corpus
  * cannot carry — and that is content the DOCS are entitled to teach. Measured over the
  * shared blocks, emitting the fence from the corpus would delete a `slot=` child and a
- * `Gio.ListModel` row from one block and four of five examples from another. The
+ * `Gio.ListModel` row from one block and all but one of the examples from another. The
  * corpus is a subset of the documentation; asserting that is a claim that can be true.
  *
  * THE MATCH IS GREEDY on the element name, in document order, and a matched element
@@ -1350,8 +1350,8 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
             const got = decodeEntities(raw ?? '', (entity) =>
                 failures.push(
                     `${fence.rel}: <${wanted} ${attribute}> carries the entity ${entity}, which arm 13 cannot ` +
-                        'decode. Add it to ENTITIES beside the five already there — comparing it undecoded ' +
-                        'reports a mismatch between two strings that render the same.',
+                        `decode. Add it to the ${Object.keys(ENTITIES).length} already in ENTITIES — comparing it ` +
+                        'undecoded reports a mismatch between two strings that render the same.',
                 ),
             );
             if (got === String(value)) continue;

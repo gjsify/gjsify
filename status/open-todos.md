@@ -613,9 +613,10 @@ device-bound driver would not be a CI guard, which is why the second driver is
 
 **The `preview` fence is NOT emitted from the corpus, and the direction is settled the
 other way.** ADR 0051's last open stage asked for exactly that, and the measurement
-overturned it — ADR 0051 § Amendment 2 carries it block by block. Three shared blocks
-already read as the corpus would emit them; the other four each document something a
-`SharedNode` cannot author, and not one of the four is an accident: a `slot=` child and a
+overturned it — ADR 0051 § Amendment 2 carries it block by block, and the count is left
+there with its commit rather than copied here. Some shared blocks already read as the
+corpus would emit them; the rest each document something a `SharedNode` cannot author, and
+not one of those is an accident: a `slot=` child and a
 `Gio.ListModel` row (the corpus uses no slot at all, and ADRs 0042/0046/0047's portable
 values have no shared spelling), four further examples of one widget beside a flex wrapper
 (a tree driver builds ONE tree), and a generated gloss line that
