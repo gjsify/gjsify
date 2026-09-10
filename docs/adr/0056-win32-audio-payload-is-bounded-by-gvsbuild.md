@@ -110,7 +110,8 @@ corpus has already answered.
   key the gvsbuild prefix cache on the project set they build. Adding a project without moving
   the key is a cache hit that skips the build and produces the bundle from before the change —
   which then fails as an undeclared absence rather than shipping.
-- **One advisory leg is red for exactly one release cycle, and that is the design.**
+- **A widening cannot be split across two commits, so the win32 leg becomes a probe for one
+  release cycle.**
   `gtk-os-suites.yml` stages the PUBLISHED tarball and audits this tree's declaration against
   it — the artifact a stranger downloads, per ADR 0024 § 4. A widening therefore disagrees with
   the last release until the next one carries the plugin, and its own comment already called
@@ -121,17 +122,25 @@ corpus has already answered.
   argued: the unclaimed format reports *"says nothing about Ogg / Vorbis, which
   @gjsify/gtk-runtime-darwin-arm64, @gjsify/gtk-runtime-darwin-x64 declare an answer for"*, and
   the kept gap reports `retired: ["vorbis"]` into a `process.exit(1)`.
-- **What that window costs is attention, and it is not path-filtered.** `gtk-os-suites.yml`
-  carries no `paths:` at all — every pull request, every push to `main`, nightly at 06:30 — so
-  a widening reds that job on `main` and on every unrelated PR until the release ships, not
-  only on the PR that widened. Never a required check is the true half: nothing is blocked. The
-  cost accepted here is that one named check reads red for a cycle, and the risk accepted with
-  it is the mirror of this repository's usual one — a reader who learns to skip it misses the
-  NEXT finding on the same leg. If a future window is longer than one cycle, the tool is
-  already in that file and adjacent to this step: `continue-on-error` + an `id` +
-  `report-probe-outcome.mjs`, retirement condition naming a RELEASE. Only the `--media-payload`
-  half would lose gating to it, because `audit-runtimes.yml` runs `--check --strict` on every
-  pull request with no paths filter of its own.
+- **Gating that window was rejected, because it is not path-filtered.** An earlier draft of this
+  decision kept the leg red and defended it as "advisory (path-filtered, never a required
+  check)". Only the second half is true: `gtk-os-suites.yml` carries no `paths:` at all — every
+  pull request, every push to `main`, nightly at 06:30 — so a red widening reds that job on
+  `main` and on every unrelated contributor's PR until the release ships, for something they did
+  not cause. That is this repository's own lesson in the other direction: a guard that cannot
+  fail is worthless, and a guard that is knowingly failing spends the same coin, because the
+  next real finding on it lands on a job people have learned to skip.
+- **So the win32 step is a PROBE, which reports rather than silences.** `continue-on-error` + an
+  `id` + `report-probe-outcome.mjs` — the shape `rn-probe-win32` in the same job already uses,
+  for the same cause (a leg that cannot see a fix until a release ships). The audit still runs
+  and still prints the finding; the reporter emits a `::warning::` on the PR and a job-summary
+  line stating the job is green ONLY because of the flag; `check-probe-outcomes-read.mjs`
+  refuses a probe whose outcome nothing reads. Almost nothing stops gating: `audit-runtimes.yml`
+  runs `--check --strict` on every pull request with no paths filter of its own, so only the
+  `--media-payload` comparison — the half that legitimately disagrees during a widening — is
+  advisory. The darwin leg keeps gating. **Retirement is a RELEASE, not an issue:** delete
+  `continue-on-error`, both step ids and the note on the first run after a published
+  `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`.
 - **This ADR is `Proposed` until a Windows leg has run it.** What is measured today is a file
   list and a project list, both read from Linux. What is not: that `gstvorbis.dll` builds, that
   it loads, and that `vorbisdec` registers. The first is the prefix assertion, the second and

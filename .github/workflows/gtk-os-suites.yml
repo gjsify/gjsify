@@ -490,11 +490,16 @@ jobs:
       # skip a check and lose the NEXT finding on it. Never a required check is the
       # true half, so nothing is blocked; the cost is attention, not merges.
       #
-      # If a window ever gets long enough to pay for, the tool is already in this file
-      # 40 lines up — `continue-on-error` + an `id` + `report-probe-outcome.mjs`, with a
-      # retirement condition naming a RELEASE — and only the `--media-payload` half of
-      # this step would lose gating to it: `audit-runtimes.yml` runs `--check --strict`
-      # on every pull request with no paths filter, so the os-axis half is already held.
+      # So the leg IN the window is a PROBE and not a gate — `continue-on-error` + an `id`
+      # + `report-probe-outcome.mjs`, the shape this file already uses 40 lines up, with a
+      # retirement condition naming a RELEASE. It reports rather than silences: the audit
+      # still prints the finding, and the reporter puts a `::warning::` on the PR saying the
+      # job is green ONLY because of the flag. THIS step, on darwin, keeps gating — its
+      # declaration and the published payload agree — and the win32 copy carries the probe
+      # with the reason written beside it. Little is given up there either way: only the
+      # `--media-payload` comparison goes advisory, because `audit-runtimes.yml` runs
+      # `--check --strict` on every pull request with no paths filter, so the os-axis half
+      # is already held.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \
@@ -649,5 +654,37 @@ jobs:
       # `--media-payload` as on the darwin leg above, where the reasoning is written out:
       # the win32 payload is the one whose declared audio contract this closes, since it is
       # the bundle that carries no MP3 decoder while both darwin ones do.
+      #
+      # A PROBE, for the widening window the darwin comment describes and only while it
+      # lasts. This tree claims Ogg/Vorbis and the PUBLISHED payload has no `gstvorbis.dll`
+      # until the next release carries it — and THIS WORKFLOW HAS NO `paths:` FILTER, so
+      # gating that disagreement reds this job on `main`, on the nightly and on every
+      # unrelated contributor's PR for the whole window. A check knowingly red for weeks is
+      # one people learn to skip, and the next real win32 media finding then lands on a job
+      # nobody opens. That is the same currency as a guard that cannot fail.
+      #
+      # NOT SILENCED, which is the only thing that makes this better than the red: the audit
+      # still runs and still prints the finding, and the reporter puts a `::warning::` on the
+      # PR plus a summary line saying the job is green ONLY because of this flag.
+      # `check-probe-outcomes-read.mjs` refuses a probe whose outcome nothing reads.
+      #
+      # AND ALMOST NOTHING STOPS GATING. `audit-runtimes.yml` runs `--check --strict` on
+      # every pull request with no paths filter of its own, so the os-axis half is already
+      # held there; what becomes advisory here is the `--media-payload` comparison alone —
+      # the one half that legitimately disagrees during a widening. The darwin leg keeps
+      # gating, because its declaration and the published payload agree.
+      #
+      # RETIREMENT CONDITION, a RELEASE and not an issue number — the mistake the
+      # react-native probe above records paying for: delete `continue-on-error`, both ids
+      # and this note on the first run after a published `@gjsify/gtk-runtime-win32-x64`
+      # carries `gstvorbis.dll` (#1626).
       - name: Conformance audit (os-axis + the staged bundle's media claim)
+        id: conformance-win32
+        continue-on-error: true
         run: node scripts\audit-runtimes.mjs --check "--media-payload=@gjsify/gtk-runtime-%TARGET%=packages\node-gi\node-gi\prebuilds\%TARGET%"
+      - name: 'Probe outcome: conformance audit'
+        if: always()
+        env:
+          PROBE_LABEL: 'Conformance audit — win32 media claim vs the PUBLISHED payload (red until the release carrying gstvorbis.dll, #1626)'
+          PROBE_OUTCOME: ${{ steps.conformance-win32.outcome }}
+        run: node scripts/report-probe-outcome.mjs
