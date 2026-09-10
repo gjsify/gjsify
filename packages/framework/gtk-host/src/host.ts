@@ -511,7 +511,11 @@ function rebuild(el: HostElement, key?: string, previous?: unknown): void {
                 child.attached = false;
             }
         }
-        if (parent) removeChild(parent, el);
+        // PARENT-SIDE WORK ONLY, and a non-parented node has none: `removeChild`
+        // would do nothing for one but run its arm's DETACH, and `releaseWidget`
+        // below runs its CLOSE — which on the portal arm is the same method twice.
+        // One retraction per operation, and a discard's retraction is the close.
+        if (parent && !outsideParentOf(el.descriptor)) removeChild(parent, el);
     }
     // A DISCARD: `removeChild` above detaches reversibly, which is right for every
     // caller that re-attaches the same widget afterwards, and this one does not —
@@ -1057,13 +1061,13 @@ function restoreTextSink(el: HostElement): void {
 /** Detach only — reversible. Frameworks move nodes; `remove` must not destroy one. */
 export function remove(node: HostNode): void {
     const parent = node.parent;
-    if (!parent && node.kind === 'element' && node.widget) {
+    if (!parent && node.kind === 'element') {
         // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and
         // that is the whole asymmetry the placement axis introduces: `removeChild`
         // below is the only detach path, and it is reached through a parent — which
-        // a toplevel may never have had. Idempotent and silent on a node that is
-        // already off screen (measured, both arms), so this costs nothing on the
-        // ordinary path and nothing when `destroy` reaches it a second time.
+        // a toplevel may never have had. No `node.widget` guard: both arms' detaches
+        // are no-ops without one, and a node whose widget a DISCARD already released
+        // still has to stop claiming it is attached.
         //
         // ONE PLACE, and it has to be: `destroy` used to call `widget.destroy()`
         // itself for exactly this case, so a toplevel WITH a parent was retracted
@@ -1147,6 +1151,17 @@ export function destroy(node: HostNode): void {
     }
     // BEFORE `remove`, which unlinks the node and takes the answer with it.
     const outside = node.kind === 'element' ? outsideParentOf(node.descriptor) : null;
+    // AND THE CLOSE GOES BEFORE IT TOO, for a non-parented node. `remove` runs the
+    // arm's DETACH, and a teardown's one retraction is the CLOSE — so letting the
+    // detach happen first called `force_close` twice on the portal arm, where both
+    // verbs name the same method. Ordered rather than skipped: `releaseWidget` nulls
+    // the widget, so the detach inside `remove` finds nothing to retract and still
+    // drops the portal's `notify::root` subscription, which has to happen either way.
+    //
+    // Only for a non-parented node. An ordinary child is unparented BY `removeChild`
+    // through an address read off `el.widget`, so releasing it first would leave the
+    // widget in its GTK parent for ever.
+    if (outside) releaseWidget(node as HostElement);
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;

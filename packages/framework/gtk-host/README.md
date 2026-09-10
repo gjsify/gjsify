@@ -236,6 +236,18 @@ than a teardown. What wants the terminal verb is a DISCARD, not a particular cal
 is in `list_toplevels()` from construction, so dropping the reference alone leaks one
 per construct-only write and one per half-built element a rejected replay rolls back.
 
+**ONE RETRACTION PER OPERATION, and the ordering is what delivers it.** `remove` runs the
+detach once; a discard runs the close once; neither runs the other's. That needs a teardown
+NOT to detach first — on the portal arm both verbs name the same method, so `destroy` was
+calling `force_close` twice (counted: 1 → 2, and 2 → 3 after an explicit `remove`). Benign,
+because `force_close` on a node that is not presented is silent and drops no GTK reference,
+which is precisely why nothing could see it: no diagnostic, no effect on screen. So
+`destroy` releases the widget BEFORE it removes, and `rebuild` skips the `removeChild` that
+would do nothing else for a non-parented node. Nothing changes on screen for a toplevel —
+measured, `destroy()` alone is the same single `unmap` as hide-then-destroy — and both arms
+carry a vector counting the calls, because the asymmetry is what hid the defect the first
+time.
+
 ### A class that declares neither
 
 Both arms are a DECLARATION, and `registerWidget` takes descriptors from applications

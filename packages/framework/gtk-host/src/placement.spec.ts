@@ -656,6 +656,44 @@ export default async () => {
                 expect(window.visibleDialog).toBe(null);
             });
 
+            await it('runs the declared retraction ONCE per operation, like its neighbour', async () => {
+                // THE SAME PROPERTY, ON THE OTHER ARM — and it is here because its
+                // absence is what hid the defect the first time: the toplevel arm
+                // had the vector and this one had none, so a teardown calling
+                // `force_close` twice went unmeasured for a release. Benign
+                // (measured, `force_close` on a node that is not presented is silent
+                // and drops no GTK reference), which is exactly why only a COUNTED
+                // call can see it — the diagnostics gate cannot, and neither can any
+                // effect on screen.
+                const { parent } = rooted();
+                const counted = (el: HostElement): (() => number) => {
+                    const widget = widgetOf(el) as unknown as Adw.Dialog;
+                    let calls = 0;
+                    const real = (widget.force_close as () => void).bind(widget);
+                    (widget as unknown as Record<string, unknown>).force_close = () => {
+                        calls += 1;
+                        real();
+                    };
+                    return () => calls;
+                };
+
+                const plain = createElement('AdwDialog');
+                insert(plain, parent);
+                const plainCalls = counted(plain);
+                destroy(plain);
+                expect(plainCalls()).toBe(1);
+
+                // ONE PER OPERATION rather than one per node: an explicit `remove` is
+                // a retraction of its own, so it legitimately adds a call. The
+                // toplevel arm reads the same way — a hide, then one `destroy()`.
+                const moved = createElement('AdwDialog');
+                insert(moved, parent);
+                const movedCalls = counted(moved);
+                remove(moved);
+                destroy(moved);
+                expect(movedCalls()).toBe(2);
+            });
+
             await it('survives the same remove-then-insert MOVE, because its close is reversible', async () => {
                 // THE OTHER HALF OF THE PAIR, and the reason this arm never showed
                 // the defect its neighbour shipped with: measured, `force_close()`

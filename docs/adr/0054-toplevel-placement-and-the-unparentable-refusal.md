@@ -164,7 +164,17 @@ one-argument `present()` that really is a child says so in one line. That escape
 demonstrated in the spec on the SILENT half deliberately: showing it with a dialog would
 abort the test process rather than document anything.
 
-Both are about INSERTION. Retraction needed a second decision, and it is § 6.
+Both are about INSERTION. Retraction needed a second decision, and it is § 6 below.
+
+### 5. The four sibling walks ask the AXIS, not the arm
+
+`isPortal` in `attach`'s index arithmetic, its `following` list, `holdsOursInSlot`,
+`setterSlotChildren` and `conformance/addressesOf` becomes `isUnparented`. ADR 0045 § 5
+listed each as a real defect if it did not skip a portal; every one of them is the same
+defect for a toplevel, and each was correct only while `portal` was the only non-parented
+kind. That is the shape a union arm added later leaves behind, and it is why
+`outsideParentOf` returns the ARM rather than a boolean — a caller switches over it and
+its `never` arm stops compiling when a fourth kind lands.
 
 ### 6. `remove` detaches, `destroy` closes — and the two arms differ only here
 
@@ -231,6 +241,16 @@ which is `destroy` and not `remove` — so the teardown still happens, one step 
 a reorder no longer costs the window. Nothing changes for React or Vue, whose `remove`
 IS a teardown followed by no re-insert.
 
+**The alternative was to let `insert` REBUILD a retracted toplevel**, and it was rejected
+on identity. A rebuild hands back a different `Gtk.Window` after a move, and the host's own
+suites assert that a move does not do that — `solid.spec.ts`'s `<For> keeps widget identity
+across a reorder`, with `vue.spec.ts` and `react.spec.ts` holding the same claim for their
+own reconcilers. (Not `conformance/vectors.mts`, which excludes shape reconciliation by
+construction and says so: identity assertions only mean something per framework.) Solid is
+the framework that would have paid for it, since its `removeNode` calls `remove` directly,
+so its spec is the one the decision answers to. A consumer holding a `ref` across a reorder
+would have been looking at a dead window.
+
 **And it closes the second order of the same defect.** `remove` unlinks the node, so a
 `destroy` after it takes the no-parent arm and used to run the terminal call a second
 time — silent on gjs, `TypeError: invalid GObject handle` on node-gi. The `unmap` count
@@ -238,15 +258,43 @@ cannot see that (the second call lands on an already-hidden window), so the vect
 the CALL rather than its effect. Effect-based assertions are the right default and this
 is where the default does not reach.
 
-### 5. The four sibling walks ask the AXIS, not the arm
+**ONE RETRACTION PER OPERATION, on both arms — which took a second pass to get right.**
+The first cut of this section stated that property and delivered it on the toplevel arm
+only: `destroy` ran `remove`'s DETACH and then the CLOSE, and on the portal arm those name
+the same method, so a teardown called `force_close` twice. Counted through a wrapped
+method:
 
-`isPortal` in `attach`'s index arithmetic, its `following` list, `holdsOursInSlot`,
-`setterSlotChildren` and `conformance/addressesOf` becomes `isUnparented`. ADR 0045 § 5
-listed each as a real defect if it did not skip a portal; every one of them is the same
-defect for a toplevel, and each was correct only while `portal` was the only non-parented
-kind. That is the shape a union arm added later leaves behind, and it is why
-`outsideParentOf` returns the ARM rather than a boolean — a caller switches over it and
-its `never` arm stops compiling when a fourth kind lands.
+| | before § 6 | § 6, first cut | now |
+|---|---|---|---|
+| `destroy(dialog)` | 1 | **2** | 1 |
+| `remove(dialog)` then `destroy(dialog)` | 2 | **3** | 2 |
+
+Benign — measured, `force_close` on a node that is not presented is silent, the
+diagnostics gate stays clean, and unlike `gtk_window_destroy()` it drops no GTK reference,
+so there is no node-gi handle to invalidate. That is exactly why nothing could see it: no
+diagnostic, no effect on screen, and the guarding vector existed on one arm only. **The
+asymmetry is the defect**; it is the same shape as the finding that produced this section,
+one round later.
+
+**Two shapes were available and the ordering is the one taken.** The alternative was a
+`detachIsClose(placement)` predicate letting `destroy` skip a close its own detach already
+ran — rejected because the predicate is a second source for a fact the two dispatch
+switches already state, and because it cannot answer at `releaseWidget`'s other two sites,
+where no detach has run at all. Instead a teardown simply does not detach first: `destroy`
+calls `releaseWidget` BEFORE `remove` for a non-parented node, and `rebuild` skips the
+`removeChild` that would do nothing else for one. `releaseWidget` nulls the widget, so the
+detach that follows finds nothing to retract and still drops the portal's `notify::root`
+subscription, which has to happen either way. Ordering rather than a flag, and the invariant
+is then structural: **`remove` runs the arm's detach once; a discard runs the arm's close
+once; neither runs the other's.**
+
+Nothing changes on screen for the toplevel arm — measured, `destroy()` alone on a presented
+window is the same single `unmap` and the same departure from `list_toplevels()` as
+hide-then-destroy — so the cost of the ordering is one call rather than any behaviour.
+
+**Both arms carry the vector now.** `runs the declared retraction ONCE across remove() then
+destroy()` on the toplevel arm, `runs the declared retraction ONCE per operation, like its
+neighbour` on the portal arm. Reverting the ordering reds exactly the second one, 1 of 633.
 
 ## Verification — an abort has to be SEEN to be denied
 
@@ -274,14 +322,24 @@ such a host stops reproducing the abort.
 
 **The abort is deliberate and its 2.8 MB core dump is not.** Every run of this suite wrote
 one `gjs-console` SIGABRT dump; CI pays it per run. The child is spawned under a
-`prlimit --core=0` argv PREFIX — not a shell, so it execs and `waitpid` still reports the
-CHILD's signal rather than a shell's `128 + n`, and there is no command line to
-interpolate a path into. Measured side by side in one run: bare spawn
+`prlimit --core=0` argv PREFIX. Measured side by side in one run: bare spawn
 `COREFILE: present 2.8M`, prefixed spawn `COREFILE: none`, both `signalled=true term=6`
-with `Adwaita-ERROR` on stderr. `ulimit -c 0` would suppress the same file, and the point
-is that neither suppresses the SIGNAL — the assertion is unchanged. The prefix is PROBED
-(`prlimit` is util-linux and this suite also runs on darwin and win32); a host without it
-spawns exactly as before.
+with `Adwaita-ERROR` on stderr — so the FILE is gone and the SIGNAL, which is the whole
+assertion, is not.
+
+**Why the prefix and not `ulimit -c 0` in a shell — and the reason it is NOT the one that
+first suggested itself.** Both shell forms were run as controls, and both also report the
+child's signal: `sh -c 'ulimit -c 0; exec gjs …'` because `exec` replaces the shell, and
+`sh -c 'ulimit -c 0; gjs …'` because a POSIX shell execs the last command of a `-c` string
+anyway. "A shell would have reported `128 + n`" is simply false, and it was written here
+before it was measured. What survives measurement is narrower and still decisive: an argv
+array has no command line to interpolate a path into, it does not rest on that tail-call
+behaviour being true of every `sh`, and it needs no shell at all — which matters, because
+this suite also runs on win32.
+
+The prefix is PROBED with `GLib.find_program_in_path` (`prlimit` is util-linux, and darwin
+and win32 have none), never on `process.platform`: a host without it spawns the identical
+argv and asserts the identical things, and only pays the dump.
 
 ## Consequences
 
@@ -328,4 +386,6 @@ case. Source read at `refs/libadwaita/src/adw-dialog.c` (`adw_dialog_root` at 79
 | R | `destroy()` on the hidden window | no further `unmap`, leaves `list_toplevels()` |
 | S | `force_close()` then `present(box)` against the same parent | re-hosted, `visibleDialog` set, no diagnostic |
 | T | the child spawn under `prlimit --core=0` | `signalled=true term=6`, `COREFILE: none` against `present 2.8M` bare |
+| V | `force_close` counted through a wrapper: `destroy(dialog)` / `remove` then `destroy` | 1 / 2 with the ordering, **2 / 3** without |
+| W | `sh -c 'ulimit -c 0; exec gjs …'` and the same without `exec`, as controls | BOTH report the child's signal — a shell does not turn it into `128 + n` |
 | U | `new Gtk.Window()`, never presented | already in `list_toplevels()`; dropping the JS reference + `system.gc()` leaves it there, `destroy()` removes it |
