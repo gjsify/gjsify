@@ -75,6 +75,7 @@ the TODO records the *what's left*.
 | [0052](0052-attribute-meaning-in-the-fence.md) | An attribute's meaning is a generated comment in the fence a reader copies | Proposed |
 | [0053](0053-blueprint-parsed-in-repo.md) | Blueprint is parsed in-repo, into the node shape ADR 0051 already renders | Accepted |
 | [0054](0054-toplevel-placement-and-the-unparentable-refusal.md) | The quiet half of the abort class: `toplevel` placement and a structural refusal | Accepted |
+| [0057](0057-bundle-images-do-not-search-outside-the-bundle.md) | A runtime bundle's images do not search outside the bundle: an absolute `LC_RPATH` is a redirect, not a fallback | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
