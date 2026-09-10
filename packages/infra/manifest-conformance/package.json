@@ -15,6 +15,7 @@
         "./registry": "./lib/registry.mjs",
         "./context": "./lib/context.mjs",
         "./binary": "./lib/binary.mjs",
+        "./gst-payload": "./lib/gst-payload.mjs",
         "./package.json": "./package.json"
     },
     "files": [

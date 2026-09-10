@@ -39,6 +39,11 @@
 //   --platforms the OS × native-package matrix: which `<os>-<arch>` prebuild each
 //               native package declares, ships and is built for in CI
 //   --rules     list every registered rule, its scope and the fields it governs
+//   --media-payload=<pkg>=<dir>
+//               inspect a runtime bundle's SHIPPED plugin files, from a directory that
+//               stands in for the package root (repeatable). Without it the payload is
+//               absent in a checkout and `media-capabilities` says so rather than
+//               reporting a bundle it never opened.
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -131,6 +136,42 @@ const PLATFORMS = args.has('--platforms');
 const STRICT = args.has('--strict') && !QUICK;
 /** `--rules` lists the registry instead of running anything. */
 const RULES_LIST = args.has('--rules');
+
+/**
+ * `--media-payload=<package>=<dir>` — point `media-capabilities` at a runtime bundle's
+ * payload that is not in the package's own directory. Repeatable.
+ *
+ * The payload of a `@gjsify/gtk-runtime-*` package is gitignored and assembled on a
+ * runner, so in this checkout there is nothing to inspect and the rule says so on every
+ * run. The two places a payload DOES exist are the builder (which writes into the
+ * package) and a leg that STAGED the published tarball —
+ * `stage-published-gtk-runtime.mjs` puts it at `<dest>/gtk`, so `<dest>` is the value.
+ * That is the only route by which the shipped bytes, rather than the intent to ship
+ * them, are ever compared to the declaration.
+ *
+ * Read out of `process.argv` rather than out of `args`, because the flag takes a VALUE
+ * and `args` is a Set built for boolean switches.
+ */
+const MEDIA_PAYLOADS = Object.fromEntries(
+    process.argv
+        .slice(2)
+        .filter((arg) => arg.startsWith('--media-payload='))
+        .map((arg) => arg.slice('--media-payload='.length))
+        .map((pair) => {
+            const at = pair.indexOf('=');
+            if (at <= 0) {
+                // Refused rather than silently ignored: a mistyped pair would leave the
+                // rule reporting "payload NOT INSPECTED" on a run whose whole purpose was
+                // to inspect one, and that reads exactly like the ordinary checkout.
+                console.error(
+                    `audit-runtimes: --media-payload=${pair} is not <package>=<dir>. ` +
+                        'Example: --media-payload=@gjsify/gtk-runtime-win32-x64=packages/node-gi/node-gi/prebuilds/win32-x64',
+                );
+                process.exit(2);
+            }
+            return [pair.slice(0, at), resolve(ROOT, pair.slice(at + 1))];
+        }),
+);
 
 // ─── Source-tree probes ─────────────────────────────────────────────────────
 
@@ -1547,6 +1588,15 @@ const CHECK_RULES = [
     // libraries — the notice files were already correct, and the one machine-readable
     // field was not.
     'bundled-license',
+    // Reads `gjsify.mediaCapabilities` + `files` out of each manifest, and the shipped
+    // plugin FILES when a built or staged payload is reachable — which in this job it is
+    // not, so what runs on a PR is the declaration half: its shape, and whether every
+    // bundle answers for every format any bundle speaks about. That second pass is the one
+    // worth having on a single-OS runner, because the defect it exists for is an ASYMMETRY
+    // between targets and an asymmetry is visible from anywhere. The payload half runs
+    // where a payload exists — the two builders, and `gtk-os-suites.yml`, which passes
+    // `--media-payload` at the bundle it staged from npm.
+    'media-capabilities',
     // Guards the apps EXCLUDED from `workspaces` — the set no other check can see.
     'release-train',
     // Reads `.github/workflows/*.yml` and nothing else, so it needs no install and no
@@ -1607,6 +1657,11 @@ function repoContext() {
         extra: {
             fieldCoverage: 'enforce',
             uncheckedFields: UNCHECKED_FIELDS,
+            // Empty unless `--media-payload` was passed, which is the ordinary state and
+            // the reason `media-capabilities` reports what it did NOT inspect: the
+            // bundles' payloads are gitignored, so a run that found none has checked the
+            // declaration and not the artifact.
+            mediaPayloads: MEDIA_PAYLOADS,
             // No `prebuildGirGaps` here, and that is a state rather than an omission: the
             // ledger module this injected drained to zero once every `.gir` arrived through
             // `commit-prebuilds`, and an empty ledger is a corpse by this repo's own rule,
@@ -1704,6 +1759,9 @@ async function main() {
         // accountant — which labels its findings a REPORTER bug rather than a licence
         // drift. Being caught by the safety net is not the same as being reported.
         const bundledLicense = byId.get('bundled-license');
+        // Fetched, summarised and PRINTED-ON-FAILURE in the same edit — the two comments
+        // above are what the other order cost twice.
+        const mediaCapabilities = byId.get('media-capabilities');
         const stylesheetFontFamilies = byId.get('stylesheet-font-families');
         // Fetched AND printed in both branches in the same edit — the two comments above
         // are what the other order cost twice.
@@ -1726,6 +1784,7 @@ async function main() {
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
+            console.log(mediaCapabilities.summary);
             console.log(stylesheetFontFamilies.summary);
             console.log(bundlerPlugins.summary);
             console.log(repositoryDirectory.summary);
@@ -2048,6 +2107,23 @@ async function main() {
             );
             console.error('');
         }
+        if ((mediaCapabilities.failures ?? []).length > 0) {
+            console.error(`MEDIA-CAPABILITY FAILURES on ${mediaCapabilities.failures.length} finding(s):`);
+            for (const line of mediaCapabilities.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A runtime bundle says what it can DECODE, per format, with the plugin file that backs it and the ' +
+                    'element the target OS resolves. What one bundle claims, every bundle answers for — a format ' +
+                    'one target plays and another silently does not is the whole defect, and the silence is what ' +
+                    'ships. Fix by one of: (a) put the plugin in the payload; (b) move the format into `gaps` with ' +
+                    'what its absence costs a consumer; (c) delete a gap whose plugin has arrived. Notes above say ' +
+                    'which bundles had a payload to inspect here — a declaration checked against no artifact is ' +
+                    'checked for shape only, and `--media-payload=<pkg>=<dir>` is how a staged bundle is offered.',
+            );
+            console.error('');
+        }
         if ((stylesheetFontFamilies.failures ?? []).length > 0) {
             console.error(`STYLESHEET-FONT-FAMILY FAILURES on ${stylesheetFontFamilies.failures.length} finding(s):`);
             for (const line of stylesheetFontFamilies.failures) {
@@ -2197,6 +2273,7 @@ async function main() {
             'status-data',
             'platform-packages',
             'bundled-license',
+            'media-capabilities',
             'pr-trigger-parity',
             'workflow-rev-pin',
             'stylesheet-font-families',

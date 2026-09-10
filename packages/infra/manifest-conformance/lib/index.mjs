@@ -98,6 +98,8 @@ export { portableScriptsRule, unportableCommands } from './rules/portable-script
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { shipRule, auditShip } from './rules/ship.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';
+export { mediaCapabilitiesRule, auditMediaCapabilities, collectMediaBundles } from './rules/media-capabilities.mjs';
+export { gstPluginBaseName, isGstElementName, isGstPluginFile, readGstPluginDir } from './gst-payload.mjs';
 export {
     nativescriptPlatformsRule,
     auditNativescriptPlatforms,
