@@ -308,3 +308,41 @@ emitted CSS — a selector matching nothing, on a pane that still rendered, so t
 page looked unstyled rather than broken and nothing in the build said a word.
 Astro strips `:global()` only in a SCOPED style block, where it is the escape
 hatch; in a global one there is nothing to escape from.
+
+## A rule whose premise died and whose conclusion did not
+
+**Rule: when a recorded reason says "X, SO Y" and X stops being true, RE-DERIVE Y in
+writing. Deleting the reason keeps a rule nobody can defend; deleting the rule
+because its premise expired throws away a conclusion that may still hold on other
+grounds. Either way the next reader "simplifies" the rule back into the bug.**
+
+Measured on the website's Adwaita gallery. Its React Native pane was labelled
+"React Native on GTK" rather than "React Native", and the label's recorded reason
+was: *there is no Adwaita widget set built out of React Native primitives, SO
+nothing under this window runs on a phone*. The qualifier existed so a reader
+meeting that pane beside the NativeScript one would not take it for the port that
+runs on a device.
+
+#1380 landed `@gjsify/adwaita-react-native`, which is exactly such a widget set.
+The premise was gone, and the `so` says it was load-bearing as written, so nothing
+in the note carried the label any more. The conclusion survived anyway, on a
+different ground: what is at stake is what THAT PANE renders, and it renders
+`@gjsify/react-native`, which takes React Native's components to GTK 4 in-process.
+A package running the other direction, elsewhere in the tree, does not put a phone
+in a pane. Had the reason simply been deleted, the qualifier would have read as
+decoration at the next edit; had the qualifier been dropped with its premise, the
+pane would have claimed a device it cannot reach.
+
+The pane itself is gone now, for an unrelated and smaller reason: it was filled on
+3 of 40 blocks, all on one page, against 28 blocks carrying a `react` snippet, so it
+was a footnote holding a window pane. The claim outlived it, which is the point.
+`website/src/content/docs/adwaita/layout.mdx` says in prose what those three
+snippets showed, and
+`website/src/content/docs/frameworks/react-native.mdx` § "What this is not" carries
+the direction argument for readers who need it.
+
+ADR 0034's stage 1 is the same shape and was resolved the same way: the stage was
+ordered first because adopting the vocabulary clauses on
+`@gjsify/adwaita-react-native` was free before its first publish, the package then
+published at 0.44.0, and the row is left as written because deleting the premise
+deletes the ordering argument. Two instances make it a class, not a one-off.
