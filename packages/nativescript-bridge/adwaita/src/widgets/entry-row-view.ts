@@ -16,7 +16,6 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { EntryRowRenderState, PasswordEntryRowRenderState } from '@gjsify/adwaita-core';
-import { viewConcealSymbolic, viewRevealSymbolic } from '@gjsify/adwaita-icons/actions';
 
 /** The two NS visibility values the Adwaita widgets use — `collapse` takes no space. */
 export type NsVisibility = 'visible' | 'collapse';
@@ -53,7 +52,7 @@ export interface EntryRowViews {
 export interface PasswordEntryRowViews {
     /** The masked field. */
     field: { secure: boolean };
-    /** The peek toggle, whose `icon` takes an Adwaita symbolic SVG string. */
+    /** The peek toggle, whose `iconName` takes an Adwaita icon name or SVG source. */
     peekButton: { iconName: string };
 }
 
@@ -128,18 +127,16 @@ export function applyEntryRowState(views: EntryRowViews, state: EntryRowRenderSt
 }
 
 /**
- * The Adwaita symbolic SVG for a canonical peek icon name.
+ * Paint one password-entry-row render snapshot — `notify_visibility_cb` (C:62-81).
  *
- * The core names the icon the way the C does (`view-reveal-symbolic` /
- * `view-conceal-symbolic`, adw-password-entry-row.c:68,73); this is the one
- * place that maps a name onto the asset `@gjsify/adwaita-icons` ships.
+ * The peek icon goes through UNTRANSLATED. The core names it the way the C does
+ * (`view-reveal-symbolic` / `view-conceal-symbolic`, adw-password-entry-row.c:68,73),
+ * and since `icon-theme.ts` this port resolves that name at the widget — so the
+ * `peekIconSvg` that used to sit here, mapping the two names onto two imported
+ * documents, was one of four hand-rolled registries and is gone. Its whole body was
+ * the substitution the registry now performs for every name at once.
  */
-export function peekIconSvg(iconName: PasswordEntryRowRenderState['peekIconName']): string {
-    return iconName === 'view-conceal-symbolic' ? viewConcealSymbolic : viewRevealSymbolic;
-}
-
-/** Paint one password-entry-row render snapshot — `notify_visibility_cb` (C:62-81). */
 export function applyPasswordEntryRowState(views: PasswordEntryRowViews, state: PasswordEntryRowRenderState): void {
     views.field.secure = !state.revealed;
-    views.peekButton.iconName = peekIconSvg(state.peekIconName);
+    views.peekButton.iconName = state.peekIconName;
 }

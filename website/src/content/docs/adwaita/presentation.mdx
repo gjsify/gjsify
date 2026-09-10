@@ -80,16 +80,12 @@ it from an inline list glyph up to a full profile header.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
     const avatar = new Adw.Avatar({
         size: 96,
         text: 'Ada Lovelace',
         showInitials: true,
-        // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
-        // resolves one, so the fallback glyph is handed in. Left empty it is the same
-        // Adwaita person icon, and `showInitials: false` is what shows it.
-        iconName: avatarDefaultSymbolic,
+        iconName: 'avatar-default-symbolic',
     });
     ```
   </Fragment>
@@ -343,7 +339,6 @@ give the user a way out, such as a button that creates their first document.
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
-    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
     const button = new Gtk.Button({
         text: 'New Document',
@@ -351,8 +346,7 @@ give the user a way out, such as a button that creates their first document.
     });
 
     const statusPage = new Adw.StatusPage({
-        // `iconName` takes the SVG SOURCE here, not a theme name.
-        iconName: folderSymbolic,
+        iconName: 'folder-symbolic',
         title: 'No Documents',
         description: 'Documents you create or open will appear here.',
     });

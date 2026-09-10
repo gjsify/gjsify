@@ -51,7 +51,6 @@ import {
     applyViewSwitcherVisibility,
     createViewSwitcherBarState,
     createViewSwitcherState,
-    nsIconSvg,
     pageVisibilities,
     switcherButtonVisible,
     viewSwitcherNotifyPayload,
@@ -59,6 +58,7 @@ import {
     type AdwViewPage,
     type NsPageVisibility,
 } from './widgets/view-switcher-model.js';
+import { resolveIconSource } from './widgets/icon-theme.js';
 
 /**
  * A stand-in for a page's content view. Only `visibility` is ever touched by a
@@ -296,17 +296,26 @@ export const AdwViewSwitcherNsTest = async () => {
         }
 
         await it('resolves the fallback SENTINEL to a real symbolic document', () => {
-            // On the browser side `image-missing` becomes a CSS mask class; here
-            // it has to become the SVG itself, because GtkImage rasterises path
-            // data and would render nothing for a bare name.
-            const svg = nsIconSvg(viewSwitcherIconName(null));
+            // On the browser side `image-missing` becomes a CSS mask class; here it has
+            // to become the SVG itself, because GtkImage rasterises path data. That used
+            // to be a one-name substitution in `view-switcher-model.ts` (`nsIconSvg`);
+            // the icon theme resolves the sentinel like any other name now, so the model
+            // hands the NAME straight to the widget and this asserts the lookup instead.
+            const svg = resolveIconSource(viewSwitcherIconName(null));
             expect(svg).not.toBe(VIEW_SWITCHER_FALLBACK_ICON);
             expect(svg.startsWith('<svg')).toBe(true);
         });
 
-        await it('passes a real icon through untouched', () => {
+        await it('passes a real SVG source through untouched', () => {
             const svg = '<svg viewBox="0 0 16 16"><path d="M0 0"/></svg>';
-            expect(nsIconSvg(viewSwitcherIconName(svg))).toBe(svg);
+            expect(resolveIconSource(viewSwitcherIconName(svg))).toBe(svg);
+        });
+
+        await it('resolves a theme NAME a switcher page carries', () => {
+            expect(resolveIconSource(viewSwitcherIconName('starred-symbolic')).startsWith('<svg')).toBe(true);
+            expect(resolveIconSource(viewSwitcherIconName('starred-symbolic'))).not.toBe(
+                resolveIconSource(VIEW_SWITCHER_FALLBACK_ICON),
+            );
         });
     });
 

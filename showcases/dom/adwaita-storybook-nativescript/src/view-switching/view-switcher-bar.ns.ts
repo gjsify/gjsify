@@ -2,18 +2,14 @@
 // view-switcher-bar.story.ts and browser view-switcher-bar.web.ts (imported from
 // the GTK showcase's renderer-agnostic *.meta.ts barrel).
 
+// The story's `iconName` control offers THEME NAMES, and since `icon-theme.ts` the port
+// resolves one — so the local name-to-SVG map that used to sit here is gone. Seven of
+// these existed across this showcase, each re-implementing the `-symbolic` strip and a
+// switch over three or four names, each with its own fallback.
+
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
-import { folderSymbolic } from '@gjsify/adwaita-icons/places';
-import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { VIEW_SWITCHER_BAR_PAGES, viewSwitcherBarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
-
-// The GTK icon NAME the meta carries, resolved to the SVG string this renderer draws.
-const ICONS: Record<string, string> = {
-    'mail-unread-symbolic': mailUnreadSymbolic,
-    'starred-symbolic': starredSymbolic,
-    'folder-symbolic': folderSymbolic,
-};
 
 export class ViewSwitcherBarNsStory extends StoryView {
     private _bar: Adw.ViewSwitcherBar | null = null;
@@ -30,10 +26,10 @@ export class ViewSwitcherBarNsStory extends StoryView {
         const stack = new Adw.ViewStack();
         for (const page of VIEW_SWITCHER_BAR_PAGES) {
             const status = new Adw.StatusPage();
-            status.iconName = ICONS[page.icon] ?? '';
+            status.iconName = page.icon;
             status.title = page.title;
             status.description = `The ${page.title.toLowerCase()} page.`;
-            stack.add(status, page.name, page.title, ICONS[page.icon]);
+            stack.add(status, page.name, page.title, page.icon);
         }
 
         const bar = new Adw.ViewSwitcherBar();

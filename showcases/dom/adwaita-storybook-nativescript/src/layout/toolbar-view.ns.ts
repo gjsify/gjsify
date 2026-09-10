@@ -4,8 +4,6 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw, AdwImageButton } from '@gjsify/adwaita-nativescript';
-import { listAddSymbolic, listRemoveSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
-import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { toolbarViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ToolbarViewNsStory extends StoryView {
@@ -36,7 +34,7 @@ export class ToolbarViewNsStory extends StoryView {
 
         // Content — a status page sits between the toolbars.
         const content = new Adw.StatusPage();
-        content.iconName = folderSymbolic;
+        content.iconName = 'folder-symbolic';
         content.title = 'Your library';
         content.description = 'Content sits between the toolbars and scrolls independently of them.';
         view.set_content(content);
@@ -48,11 +46,11 @@ export class ToolbarViewNsStory extends StoryView {
         const bottomBar = new Adw.HeaderBar();
 
         const addButton = new AdwImageButton();
-        addButton.iconName = listAddSymbolic;
+        addButton.iconName = 'list-add-symbolic';
         bottomBar.pack_start(addButton);
 
         const removeButton = new AdwImageButton();
-        removeButton.iconName = listRemoveSymbolic;
+        removeButton.iconName = 'list-remove-symbolic';
         bottomBar.pack_start(removeButton);
 
         const selectionLabel = new Adw.WindowTitle();
@@ -60,7 +58,7 @@ export class ToolbarViewNsStory extends StoryView {
         bottomBar.set_title_widget(selectionLabel);
 
         const shareButton = new AdwImageButton();
-        shareButton.iconName = sendToSymbolic;
+        shareButton.iconName = 'send-to-symbolic';
         bottomBar.pack_end(shareButton);
 
         view.add_bottom_bar(bottomBar);

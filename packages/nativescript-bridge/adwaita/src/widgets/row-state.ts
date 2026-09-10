@@ -86,7 +86,7 @@ export interface NsButtonRowIconVisuals {
  * title through a second state object would give one label two sources of truth.
  * {@link rowLabelVisuals} paints it.
  *
- * The icon payload is the symbolic SVG SOURCE, not GTK's icon name, because `GtkImage`
+ * The icon payload is whatever the caller set — a name or the symbolic SVG source, because `GtkImage`
  * renders SVG rather than resolving a name. `ButtonRowState` is indifferent: its rule
  * is `string_is_not_empty`, which reads the first byte.
  */

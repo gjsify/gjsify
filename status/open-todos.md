@@ -622,10 +622,13 @@ reads.
 
 **What is left, with its price.**
 
-- *The `glyph` entries are one renderer decision.* Every icon property on the port takes an
-  SVG SOURCE rather than a theme name, so those panes import a glyph from
-  `@gjsify/adwaita-icons` where the GJS pane writes `'folder-symbolic'`. Nothing on that
-  runtime resolves a theme name today; a resolver would close a whole kind at once.
+- *The `glyph` entries are CLOSED, and closing them was one renderer decision.* Every icon
+  property on the port took an SVG SOURCE, so those panes imported a glyph from
+  `@gjsify/adwaita-icons` where the GJS pane writes `'folder-symbolic'`. ADR 0034
+  § Amendment 18 gave the port `icon-theme.ts` — a compiled subset plus a `registerIcon()`
+  door, the shape `@gjsify/adwaita-web`'s `icon-registry.ts` already had — and the whole
+  kind went at once: `glyph` is 0, eighteen panes lost an import line, and the printed
+  distance fell from 481 to 445. The SVG-source door stayed open.
 - *The `composition` entries split two ways.* Four are the `layout.mdx` blocks, where the
   NativeScript window is an XML template plus a loader and the TypeScript pane is therefore a
   `~/adw` barrel and a `Builder.load()` — not a widget construction at all, and not a
@@ -685,13 +688,17 @@ claim.) Of the 95:
 
 The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
 page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
-`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number). The five it does not are
-one family: `GtkImage.iconName`, `AdwStatusPage.iconName`, `AdwButtonContent.iconName`,
-`AdwButtonRow.startIconName` and `AdwButtonRow.endIconName` — an icon-theme NAME on the GIR
-side, an Adwaita symbolic SVG SOURCE on the port. The undecidable one is
-`AdwPreferencesPage.iconName`: the port stores the string and nothing renders it, so no
-evidence in the tree says which kind it is. It is recorded as undetermined rather than
-counted on either side.
+`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number).
+
+**The five it does not have RESOLVED** (ADR 0034 § Amendment 18), and they are worth keeping
+here for the shape of the answer. They were one family — `GtkImage.iconName`,
+`AdwStatusPage.iconName`, `AdwButtonContent.iconName`, `AdwButtonRow.startIconName` and
+`AdwButtonRow.endIconName` — an icon-theme NAME on the GIR side, an Adwaita symbolic SVG
+SOURCE on the port. `icon-theme.ts` made every one of them take the GIR kind as well as the
+port's, so the disagreement is gone rather than declared: the two grammars are disjoint, a
+name is one CSS token and a document starts with `<`, and one function decides which.
+`AdwPreferencesPage.iconName` is still the undecidable one — the port stores the string and
+nothing renders it, so no evidence in the tree says which kind it is.
 
 **Why this is an entry and not an arm, measured rather than assumed.**
 
@@ -717,11 +724,16 @@ parameter `svg`, two assign `this._iconSvg`, and `AdwButtonRow` delegates to
 
 **What a checker would have to read to be honest**: not the name, not the TypeScript type
 and not the prose, but where the value GOES — whether the string reaches an SVG asset
-resolver or an icon-theme lookup. That is a call-graph question over the port's setters,
-and it is the same question one level up from `gtk-host`'s own `coerce` seam. Until
-something can answer it, the five are recorded here and `NS_PROPERTY_ALIGNMENT` is
-unchanged: adding them to a table that exists to explain names would file a value-kind
-divergence under the heading that already counts it as agreement.
+resolver or an icon-theme lookup. That is a call-graph question over the port's setters, and
+it is the same question one level up from `gtk-host`'s own `coerce` seam.
+
+*Nothing had to answer it in the end, and that is the more interesting outcome.* The five
+were closed by making the answer BOTH, so the question a checker could not decide stopped
+being a question about those setters. What replaced the checker is
+`check-nativescript-icon-names.mjs`, which asks something a script CAN read: not which kind
+a value is, but whether every name a surface emits is one the port compiles a glyph for —
+and, in the other direction, whether every glyph it compiles is one some surface emits.
+`NS_PROPERTY_ALIGNMENT` is still unchanged, now because there is nothing to declare.
 
 ### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 
@@ -1024,11 +1036,13 @@ Because the case the brief for this work names is exactly the one the declaratio
 decide. `Adw.ButtonRow:start-icon-name` is `string | null` and `AdwButtonRow.startIconName`
 is `string`: the gate above and this census both call that agreement, and GTK holds an
 icon-theme NAME while the port holds a rendered symbolic SVG. Nine of the 42 string/string
-rows are icon slots of that shape, and only four say so in a way a machine can see (the
-setter parameter is literally named `svg`). ADR 0034 § Amendment 7 already ruled on it —
-*"A string is a string whether it is a theme name or an SVG source"* — so it is a recorded
-decision rather than an undetected defect, and what closes the class is not a type
-comparison but ADR 0027 § 9's conformance vectors.
+rows were icon slots of that shape, and only four said so in a way a machine could see (the
+setter parameter was literally named `svg`). ADR 0034 § Amendment 7 already ruled on it —
+*"A string is a string whether it is a theme name or an SVG source"* — so it was a recorded
+decision rather than an undetected defect. § Amendment 18 then dissolved the case the brief
+names: the port takes the theme name too, so those rows are agreement on the VALUE as well
+as on the type. The census's point survives its example — a declaration comparison still
+cannot see a value-kind divergence, and the next one will not announce itself either.
 
 ### The vocabulary gate's port-side reader stops at the class body, and two base classes fall out of it
 

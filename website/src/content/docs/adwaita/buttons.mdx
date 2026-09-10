@@ -88,13 +88,13 @@ short.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
     import { StackLayout } from '@nativescript/core';
 
     const content = new Adw.ButtonContent({
         label: 'Download',
-        // `iconName` takes the SVG SOURCE here, not a theme name.
-        iconName: folderDownloadSymbolic,
+        iconName: 'folder-download-symbolic',
+        // The bitmap is pre-coloured, so a suggested button's white icon is pinned here
+        // rather than inherited from the stylesheet the way GTK inherits `color`.
         iconColor: '#ffffff',
     });
 
@@ -176,12 +176,10 @@ header bar or toolbar, where a raised button looks too heavy.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { documentSaveSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const button = new Adw.SplitButton({
         menuModel: ['Save as…', 'Export', 'Print'], // or items, sections, submenus — ADR 0042
-        // `iconName` takes the SVG SOURCE here, not a theme name.
-        iconName: documentSaveSymbolic,
+        iconName: 'document-save-symbolic',
     });
     // With no icon set, the label drives the action half: button.label = 'Save';
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
@@ -265,13 +263,16 @@ once set", and the only setter is class-level.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const group = new Adw.ToggleGroup();
+    // There is no Adw.Toggle widget here: setToggles() takes plain descriptors.
+    // `view-columns-symbolic` is in no icon theme (the paragraph above says so), so this
+    // pane names one that resolves rather than drawing the image-missing fallback the
+    // GJS pane's third toggle gets.
     group.setToggles([
-        { label: 'List', icon: viewListSymbolic },     // Adwaita symbolic icons (SVG strings)
-        { label: 'Grid', icon: viewGridSymbolic },
-        { label: 'Columns', icon: viewPagedSymbolic },
+        { label: 'List', icon: 'view-list-symbolic' },
+        { label: 'Grid', icon: 'view-grid-symbolic' },
+        { label: 'Columns', icon: 'view-paged-symbolic' },
     ]);
     group.active = 0;
     ```

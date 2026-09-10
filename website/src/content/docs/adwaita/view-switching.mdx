@@ -155,19 +155,17 @@ swaps between the two on a breakpoint.
     // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
     // namespace and keeps the package import.
     import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
-    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
-    import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
-    // An icon here is the SVG SOURCE, not a theme name.
     const page = (icon: string, title: string, description: string): Adw.StatusPage =>
         new Adw.StatusPage({ iconName: icon, title, description });
 
     const switcher = new Adw.ViewSwitcher();
-    // Each view carries a title + icon (shown on the switcher button) and its content.
+    // There is no Adw.ViewStack page API behind the switcher here: each view carries its
+    // title, icon and content together.
     switcher.setViews([
-        { title: 'Inbox', icon: mailUnreadSymbolic, content: page(mailUnreadSymbolic, 'Inbox', 'You have three unread conversations.') },
-        { title: 'Starred', icon: starredSymbolic, content: page(starredSymbolic, 'Starred', 'Messages you have marked as important.') },
-        { title: 'Archive', icon: folderSymbolic, content: page(folderSymbolic, 'Archive', 'Older conversations kept for reference.') },
+        { title: 'Inbox', icon: 'mail-unread-symbolic', content: page('mail-unread-symbolic', 'Inbox', 'You have three unread conversations.') },
+        { title: 'Starred', icon: 'starred-symbolic', content: page('starred-symbolic', 'Starred', 'Messages you have marked as important.') },
+        { title: 'Archive', icon: 'folder-symbolic', content: page('folder-symbolic', 'Archive', 'Older conversations kept for reference.') },
     ] satisfies AdwViewPage[]);
     ```
   </Fragment>
@@ -283,16 +281,13 @@ does not appear.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { folderSymbolic } from '@gjsify/adwaita-icons/places';
-    import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
     const stack = new Adw.ViewStack();
     for (const page of [
-        { name: 'inbox', title: 'Inbox', icon: mailUnreadSymbolic },
-        { name: 'starred', title: 'Starred', icon: starredSymbolic },
-        { name: 'archive', title: 'Archive', icon: folderSymbolic },
+        { name: 'inbox', title: 'Inbox', icon: 'mail-unread-symbolic' },
+        { name: 'starred', title: 'Starred', icon: 'starred-symbolic' },
+        { name: 'archive', title: 'Archive', icon: 'folder-symbolic' },
     ]) {
-        // An icon here is the SVG SOURCE, not a theme name.
         const status = new Adw.StatusPage({ iconName: page.icon, title: page.title });
         stack.add(status, page.name, page.title, page.icon);
     }
@@ -382,11 +377,9 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
     // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
     // namespace and keeps the package import.
     import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
-    import { viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    // `iconName` takes the SVG SOURCE, not a theme name.
     const page = (title: string, body: string): Adw.StatusPage =>
-        new Adw.StatusPage({ iconName: viewGridSymbolic, title, description: body });
+        new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body });
 
     const tabView = new Adw.TabView();
     tabView.setViews([
@@ -512,19 +505,17 @@ makes it fit a header bar or a tight toolbar.
     // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
     // namespace and keeps the package import.
     import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
-    import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
-    import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 
-    // An icon here is the SVG SOURCE, not a theme name.
     const page = (icon: string, title: string, body: string): Adw.StatusPage =>
         new Adw.StatusPage({ iconName: icon, title, description: body });
 
     const switcher = new Adw.InlineViewSwitcher();
-    // display mode "both": pass '' as the title for icons-only, omit icon for labels-only.
+    // There is no displayMode enum: pass '' as the title for icons-only, omit the icon
+    // for labels-only.
     switcher.setViews([
-        { title: 'Overview', icon: viewGridSymbolic, content: page(viewGridSymbolic, 'Overview', 'A quick summary of your project.') },
-        { title: 'Activity', icon: documentEditSymbolic, content: page(documentEditSymbolic, 'Activity', 'Recent edits and changes.') },
-        { title: 'Settings', icon: preferencesSystemSymbolic, content: page(preferencesSystemSymbolic, 'Settings', 'Configure how things behave.') },
+        { title: 'Overview', icon: 'view-grid-symbolic', content: page('view-grid-symbolic', 'Overview', 'A quick summary of your project.') },
+        { title: 'Activity', icon: 'document-edit-symbolic', content: page('document-edit-symbolic', 'Activity', 'Recent edits and changes.') },
+        { title: 'Settings', icon: 'emblem-system-symbolic', content: page('emblem-system-symbolic', 'Settings', 'Configure how things behave.') },
     ] satisfies AdwViewPage[]);
     ```
   </Fragment>

@@ -4,7 +4,6 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
-import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 import { navigationViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class NavigationViewNsStory extends StoryView {
@@ -32,7 +31,7 @@ export class NavigationViewNsStory extends StoryView {
         this._detailHeader.title = detailTitle;
 
         this._detailStatus = new Adw.StatusPage();
-        this._detailStatus.iconName = avatarDefaultSymbolic;
+        this._detailStatus.iconName = 'avatar-default-symbolic';
         this._detailStatus.title = detailTitle;
         this._detailStatus.description = 'Mathematician and writer, the first computer programmer.';
 

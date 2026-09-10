@@ -13,8 +13,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { View } from '@nativescript/core';
-import { imageMissingSymbolic } from '@gjsify/adwaita-icons/status';
-import { VIEW_SWITCHER_FALLBACK_ICON, ViewSwitcherBarState, ViewSwitcherState } from '@gjsify/adwaita-core';
+import { ViewSwitcherBarState, ViewSwitcherState } from '@gjsify/adwaita-core';
 import type { AdwViewSwitcherPageInit, ViewSwitcherStateChange } from '@gjsify/adwaita-core';
 
 /**
@@ -26,7 +25,7 @@ import type { AdwViewSwitcherPageInit, ViewSwitcherStateChange } from '@gjsify/a
  *
  * `icon` is an Adwaita symbolic SVG DOCUMENT here, not a GTK icon name: `GtkImage`
  * rasterises the path data natively. The core treats the field as an opaque
- * handle and only ever interprets "absent or empty"; {@link nsIconSvg} resolves
+ * handle and only ever interprets "absent or empty"; `icon-theme.ts` resolves
  * the fallback sentinel it hands back.
  */
 export interface AdwViewPage {
@@ -34,7 +33,7 @@ export interface AdwViewPage {
     title?: string;
     /** The page content view, shown when this page is selected. */
     content: View;
-    /** Adwaita symbolic SVG shown on the switcher button; absent means none. */
+    /** The icon shown on the switcher button — a NAME or SVG source; absent means none. */
     icon?: string;
     /** Stable id used by `visible-child-name`; defaults to the page's position. */
     name?: string;
@@ -83,18 +82,6 @@ export function viewSwitcherPageSpec(page: AdwViewPage, index: number): AdwViewS
 /** {@link viewSwitcherPageSpec} over a whole page list. */
 export function viewSwitcherPageSpecs(pages: readonly AdwViewPage[]): AdwViewSwitcherPageInit[] {
     return pages.map((page, index) => viewSwitcherPageSpec(page, index));
-}
-
-/**
- * Resolve the core's icon slot to something `GtkImage` can rasterise.
- *
- * The core substitutes the NAME `image-missing` for an absent icon. On the browser
- * side that name becomes a CSS mask class; here it has to become the actual
- * symbolic document, so the sentinel is swapped for the vendored
- * `image-missing-symbolic` SVG. Anything else is already an SVG and passes through.
- */
-export function nsIconSvg(iconName: string): string {
-    return iconName === VIEW_SWITCHER_FALLBACK_ICON ? imageMissingSymbolic : iconName;
 }
 
 /**

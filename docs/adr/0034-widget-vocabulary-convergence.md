@@ -38,6 +38,11 @@
   surface: the `nativescript` fence stops being a rendered TAB and becomes a CORPUS, authored
   on all 40 blocks and read only by arm 12, because the end state of this convergence is that
   the two panes are one text and showing both is the redundancy that end state predicts.
+  § Amendment 18, 2026-09-09, closes the `glyph` kind § Amendment 14 printed: the
+  NativeScript port resolves Adwaita theme NAMES through a compiled subset plus a
+  `registerIcon()` door, the shape the web pillar already had, with the bundle cost measured
+  rather than asserted; eleven hand-rolled name-to-glyph maps go, the SVG-source door stays,
+  and a second gate holds the subset in both directions now that no compiler can.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -2850,3 +2855,148 @@ variant", as if Node, Bun and Deno needed a different program), and it paid for 
 requiring every gallery intro to carry the four-runtime sentence. The sentence is now made
 once, on the pages that are about runtimes. ADR 0033's consequence names the window by its old
 title and has been updated to name it by its new one.
+## Amendment 18, 2026-09-09 — the glyph kind, closed by naming the thing
+
+§ Amendment 14 measured the two snippets and left a printed distance behind, with four
+buckets and one sentence about the cheapest of them: *"The `glyph` kind is one decision —
+the port resolves no theme name, so every icon pane imports its glyph — and would close a
+whole bucket at once."* This amendment makes that decision. It is the smallest of the four
+in code and the largest in reach, because it is the only one whose whole bucket was a
+single missing capability rather than a per-widget gap.
+
+### What was actually missing, and what was not
+
+The premise everybody repeated — including four widget headers, a template generator, a
+gate's scope paragraph and this ADR — was that *NativeScript's `Image` decodes no SVG*.
+That is TRUE and it is not the thing that was missing. The port already rasterised the
+document itself (`icons.android.ts` walks the path data onto a `Bitmap` with
+`androidx.core.graphics.PathParser`, `icons.ios.ts` replays it into a `UIBezierPath`), so
+the RENDERER was never the obstacle. What was missing was the half in FRONT of it: a name
+to look the document up by. The port had a rasteriser and no theme.
+
+The tell that this was a lookup and not a renderer problem was sitting in the tree in four
+places. `avatarIconSvg` mapped one absent value onto one default glyph. `nsIconSvg` mapped
+one sentinel, `image-missing`, onto one document. `peekIconSvg` mapped the C's two
+canonical password-row names onto two documents. `buttonContentIconSvg` mapped the empty
+slot onto `image-missing`. Four hand-rolled registries of one or two names each, none of
+them able to see the others, every one of them written because the port could not resolve
+a name — which is what a missing mechanism looks like from the inside. Seven MORE lived in
+the NativeScript storybook showcase, each re-implementing the `-symbolic` strip and a
+switch over three or four names with its own fallback. Eleven in total, and the eleventh
+had a case for `edit-delete`, a name its own story control does not offer, so picking
+"Trash" in that story drew nothing at all. Nothing could have found that before, because
+there was nothing to compare a name against.
+
+### The shape is the web pillar's, and the constraint is why
+
+`packages/web/adwaita-web/src/icon-registry.ts` had already answered this question for the
+browser: a COMPILED SUBSET of `@gjsify/adwaita-icons` inlined by the build, plus a
+`registerIcon()` door for anything outside it. Its header carries the reason as a
+measurement — inlining every icon that package exports costs ~1.07 MB of data-URI, about
+five times the stylesheet it would sit in. `packages/nativescript-bridge/adwaita/src/
+widgets/icon-theme.ts` is the same shape for the same reason, one target over, where the
+argument is a phone download rather than a stylesheet.
+
+Measured over `packages/web/adwaita-icons/*.ts` by summing the template literals each
+module exports:
+
+| | glyphs | bytes of SVG source | |
+|---|---|---|---|
+| the whole barrel | 644 | 732 371 | 715.2 KiB |
+| the compiled subset | 31 | 27 851 | 27.2 KiB |
+| what the subset ADDS | 25 | 24 133 | 23.6 KiB |
+
+The third row is the one to quote. Six of the thirty-one were already imported by a widget
+in that directory for its own chrome, so a NativeScript bundle grows by the other
+twenty-five — **3.3 % of the barrel**. An entry is paid for by every app that touches the
+module, because a bundler cannot tree-shake a property out of an object literal; the map is
+all-or-nothing exactly as the web pillar's stylesheet is, and saying so where the map lives
+is the difference between a chosen trade and an unnoticed one.
+
+### One normalisation, or the two renderers mean different things by one name
+
+Resolution goes through `normalizeIconName` from `@gjsify/adwaita-core` — the same function
+`<gtk-image>` resolves through — so `list-add-symbolic` and `list-add` are one glyph on both
+renderers, and a key the map cannot reach is a key no caller can either (a spec arm refuses
+one). That is the whole cross-renderer guarantee, and it is a shared function rather than a
+shared table on purpose: a second table is the copy that drifts.
+
+**The SVG-source door stays open**, and that is a rule rather than a courtesy: a consumer
+with their own icon set never needed a release, and `registerIcon()` now makes such a glyph
+resolvable BY NAME for everything downstream. `iconValueKind` is the entire
+discrimination and it decides nothing by guessing — the two grammars are disjoint, an icon
+name being one CSS token and an SVG document starting with `<`. A string that is neither is
+read as a NAME, so it draws `image-missing` rather than handing the rasteriser something
+with no path data; an EMPTY value stays empty, because libadwaita's answer to a NULL
+`icon-name` is the widget's own fallback and substituting here would take that away.
+
+### What the gate had to become, because the compiler stopped helping
+
+`check-adwaita-icon-masks.mjs` listed this port among the things deliberately out of its
+scope, and gave a reason: *"its `GtkImage` takes SVG SOURCE, not a name, so a missing icon
+there is a missing import the compiler already rejects."* That reason died with this change.
+A name is a string; no compiler inspects it; an unresolvable one draws `image-missing`,
+which is visible and still not what the snippet promised.
+
+`check-nativescript-icon-names.mjs` is the replacement, over eight surfaces — the port, the
+NS storybook renderer, the two shipping NS apps, the XML templates' one source, the
+renderer-neutral names in `@gjsify/adwaita-core`, the story metas whose icon controls all
+three renderers read, and the website's `nativescript` fences ONLY. That last restriction is
+the point of the whole gate: a GJS pane on the same page names icons `Gtk.IconTheme` resolves
+against the system theme, and judging every slot against one subset is exactly how the web
+pillar's own incident shipped.
+
+Three arms in both directions, plus a fourth the web pillar cannot afford: **a key's glyph
+must be the export the key DERIVES** (`list-add` → `listAddSymbolic`, the icon generator's
+own rule). Arms 1 and 2 are blind to a key pointing at some other icon — it resolves, it
+reports available, and it draws the wrong picture. That is not hypothetical on either
+renderer: the browser storybook drew `view-grid` for `view-paged-symbolic` under a comment
+blaming the icons package for a glyph it exports, and putting the two panes side by side
+found the same substitution twice more in this port's own snippets (`Adw.TabView` drawing
+`view-grid`, `Adw.InlineViewSwitcher` drawing `preferences-system` for
+`emblem-system-symbolic`). Both now name what their GJS twin names.
+
+Every arm was broken on purpose and reverted, including the shape tally — the observable
+that separates "this spelling is absent from the tree" from "this reader is broken", which
+the web gate learned the expensive way when a renamed helper left one of its arms scanning
+nothing at exit 0.
+
+### The number, and the one substitution that is now declared rather than silent
+
+Printed on every run, written down nowhere else: 40 pairs, **5 identical and a distance of
+481 before; 6 identical and 445 after, with `glyph` at 0 from 4**. The remaining 34 are
+`vocabulary` 5, `property` 19, `composition` 10.
+
+Fourteen ledger entries were rewritten to name only what is left, and three of them were
+carrying a clause that had ALREADY gone stale — `Adw.ActionRow` still claimed `add_prefix`
+and `add_suffix` are `setPrefix`/`setSuffix`, which stopped being true when § Amendment 15
+converged the method axis. A self-retiring ledger catches an entry whose whole reason
+closes; it cannot catch one clause of four going quietly wrong, and that is worth knowing
+about the mechanism rather than about these three entries.
+
+`Adw.ToggleGroup` keeps a substitution and now DECLARES it. `view-columns-symbolic` is in no
+icon theme at all, so its GJS twin draws GTK's broken-image paintable and only the web
+pillar hand-draws a glyph; the NativeScript pane names `view-paged-symbolic`, which
+resolves. The alternative was parity bought by making both panes worse, which is the trade
+`status/adwaita-web-icon-masks.json` already refuses in the other direction.
+
+### What is deliberately left open
+
+- **The XML templates still omit their icons.** Four entries in
+  `scripts/adwaita-gallery-ns-templates.mjs` say why in prose — *"No `iconName`: it is an
+  SVG source string"* — and that reason is now false: a name carries through an XML
+  attribute untouched, because `setPropertyValue` ends in `instance[name] = value` for a
+  plain accessor. Filling them in would put icons on the website's XML tab and let
+  `Adw.ToolbarView`'s pane drop its loader lines. It is not done here because the generated
+  trees are asserted by a probe that inflates them through NativeScript's own `Builder` on
+  a real Android device, and this change was made on a machine with no device attached.
+- **`Adw.AboutDialog.applicationIcon` still takes a text glyph.** It paints a `Label`, not
+  a `GtkImage`, so a theme name there is a widget change rather than a lookup — the entry
+  stays `property` either way, and its reason now says which.
+- **`AdwPreferencesPage.iconName` is still unrendered.** The port stores the string and
+  nothing draws it, which is why `status/open-todos.md` records its value kind as
+  undetermined rather than counting it on either side.
+- **Nothing here runs a pane on a phone.** The panes are compared as text, their properties
+  are held against the port's source, and the resolution they depend on is covered by 40
+  new assertions in `icon-theme.spec.ts` on GJS and Node. That a converged pane renders the
+  same tree on a device is still the open question § Amendment 14 left, in the same words.

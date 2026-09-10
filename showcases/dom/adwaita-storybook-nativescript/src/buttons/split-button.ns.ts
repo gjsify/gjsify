@@ -8,35 +8,18 @@
 // native/browser twins show only the icon when one is set, so here the symbolic
 // name maps to a REAL Adwaita symbolic SVG set as the action icon.
 
+// The story's `iconName` control offers THEME NAMES, and since `icon-theme.ts` the port
+// resolves one — so the local name-to-SVG map that used to sit here is gone. Seven of
+// these existed across this showcase, each re-implementing the `-symbolic` strip and a
+// switch over three or four names, each with its own fallback.
+
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
-import {
-    documentEditSymbolic,
-    documentOpenSymbolic,
-    documentSaveSymbolic,
-    listAddSymbolic,
-    mailReplySenderSymbolic,
-    mailSendSymbolic,
-} from '@gjsify/adwaita-icons/actions';
 import { splitButtonFlatMeta, splitButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The shared dropdown menu — the NS twin of buildMenu() in the GTK story / the
 // MENU model in the browser story. NS Adw.SplitButton.menu is a plain label list.
 const MENU = ['Save as…', 'Export', 'Print'];
-
-// GTK symbolic icon name → a REAL Adwaita symbolic SVG string.
-const ICON_SVGS: Record<string, string> = {
-    'document-save-symbolic': documentSaveSymbolic,
-    'mail-send-symbolic': mailSendSymbolic,
-    'list-add-symbolic': listAddSymbolic,
-    'mail-reply-sender-symbolic': mailReplySenderSymbolic,
-    'document-edit-symbolic': documentEditSymbolic,
-    'document-open-symbolic': documentOpenSymbolic,
-};
-
-function iconSvg(symbolic: string): string {
-    return ICON_SVGS[symbolic] ?? '';
-}
 
 abstract class SplitButtonNsStoryBase extends StoryView {
     protected _widget: Adw.SplitButton | null = null;
@@ -58,11 +41,11 @@ abstract class SplitButtonNsStoryBase extends StoryView {
 
     private _syncWidget(): void {
         if (!this._widget) return;
-        const svg = iconSvg(this.args.iconName as string);
+        const icon = this.args.iconName as string;
         // Mirror the twins: with an icon set, show only the icon; otherwise the
         // label drives the action half.
-        this._widget.iconName = svg;
-        if (!svg) this._widget.label = this.args.label as string;
+        this._widget.iconName = icon;
+        if (!icon) this._widget.label = this.args.label as string;
     }
 }
 

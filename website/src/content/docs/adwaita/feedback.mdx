@@ -418,14 +418,12 @@ the web port renders them stacked instead.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 
     const dialog = new Adw.PreferencesDialog({ title: 'Preferences' });
 
     const page = new Adw.PreferencesPage({
         title: 'General',
-        // `iconName` takes the SVG SOURCE here, not a theme name.
-        iconName: preferencesSystemSymbolic,
+        iconName: 'preferences-system-symbolic',
     });
 
     const group = new Adw.PreferencesGroup({

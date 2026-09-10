@@ -37,7 +37,7 @@ export class AdwStatusPage extends withSignals(GridLayout) {
     protected readonly _stack: StackLayout;
     /** The large symbolic icon (shown when an `icon` SVG is set). */
     protected readonly _icon: GtkImage;
-    private _iconSvg = '';
+    private _iconName = '';
     /** The large glyph label (shown when `iconText` is set — the legacy fallback). */
     protected readonly _iconLabel: Label;
     private _iconGlyph = '';
@@ -75,7 +75,7 @@ export class AdwStatusPage extends withSignals(GridLayout) {
         icon.horizontalAlignment = 'center';
         icon.iconColor = DEFAULT_STATUS_ICON_COLOR;
         icon.iconSize = DEFAULT_STATUS_ICON_SIZE;
-        icon.visibility = statusPageIconVisibility(this._iconSvg);
+        icon.visibility = statusPageIconVisibility(this._iconName);
         this._icon = icon;
 
         const iconLabel = new Label();
@@ -104,19 +104,20 @@ export class AdwStatusPage extends withSignals(GridLayout) {
     }
 
     /**
-     * A large Adwaita symbolic SVG string shown above the title (e.g.
+     * The large icon shown above the title — an Adwaita icon NAME
+     * (`'folder-symbolic'`) or a symbolic SVG SOURCE string (e.g.
      * `folderSymbolic`). Setting a non-empty value shows the symbolic icon; empty
      * hides it. Matches `Adw.StatusPage`'s themed icon. Mutually exclusive with
      * {@link iconText} — whichever was set last wins.
      */
     get iconName(): string {
-        return this._iconSvg;
+        return this._iconName;
     }
 
     set iconName(value: string) {
-        this._iconSvg = value ?? '';
-        this._icon.iconName = this._iconSvg;
-        this._icon.visibility = statusPageIconVisibility(this._iconSvg);
+        this._iconName = value ?? '';
+        this._icon.iconName = this._iconName;
+        this._icon.visibility = statusPageIconVisibility(this._iconName);
         // Last one set wins: showing the SVG hides the glyph, and clearing it
         // leaves the page with no icon rather than falling back to a stale glyph.
         this._iconLabel.visibility = 'collapse';

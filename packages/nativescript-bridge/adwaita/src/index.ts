@@ -96,6 +96,15 @@ export {
     GTK_ALIGN,
     // Interaction + icon helpers
     attachRowPressFeedback,
+    // Icon theme: a NAME resolves through the compiled subset; `registerIcon` adds one.
+    ICON_FALLBACK_NAME,
+    compiledIconNames,
+    iconValueKind,
+    isIconAvailable,
+    registerIcon,
+    registeredIconNames,
+    resolveIconSource,
+    unregisterIcon,
     renderSymbolicIcon,
     extractIconPaths,
     extractPathData,
@@ -173,6 +182,7 @@ export type {
     // Construct properties
     ConstructProps,
     // Icon helpers
+    IconValueKind,
     SymbolicIconOptions,
     IconPath,
     // Color scheme

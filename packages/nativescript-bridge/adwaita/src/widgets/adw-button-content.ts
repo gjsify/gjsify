@@ -30,7 +30,7 @@ import {
     buttonContentClassName,
     buttonContentEllipsize,
     buttonContentIconIsFallback,
-    buttonContentIconSvg,
+    buttonContentIcon,
     buttonContentLabelText,
     buttonContentLabelVisibility,
     buttonContentRootedParentClassName,
@@ -61,7 +61,7 @@ export class AdwButtonContent extends withSignals(StackLayout) {
         const icon = new GtkImage();
         icon.className = `${icon.className} adw-button-content-icon`.trim();
         icon.verticalAlignment = 'middle';
-        icon.iconName = buttonContentIconSvg('');
+        icon.iconName = buttonContentIcon('');
         this.addChild(icon);
         this._icon = icon;
 
@@ -99,11 +99,12 @@ export class AdwButtonContent extends withSignals(StackLayout) {
     }
 
     /**
-     * A leading Adwaita symbolic SVG string (e.g. `folderDownloadSymbolic`).
+     * The leading icon — an Adwaita icon NAME (`'folder-download-symbolic'`) or a
+     * symbolic SVG SOURCE string (e.g. `folderDownloadSymbolic`).
      *
      * An empty value shows the `image-missing` asset rather than hiding the icon:
      * the C sets that fallback (:355-356) and never hides `self->icon`. The doc
-     * comments at :228/:343 say otherwise — see `buttonContentIconSvg`.
+     * comments at :228/:343 say otherwise — see `buttonContentIcon`.
      */
     get iconName(): string {
         return this._props.iconName;
@@ -111,7 +112,7 @@ export class AdwButtonContent extends withSignals(StackLayout) {
 
     set iconName(svg: string) {
         this._props.iconName = svg ?? '';
-        this._icon.iconName = buttonContentIconSvg(this._props.iconName);
+        this._icon.iconName = buttonContentIcon(this._props.iconName);
     }
 
     /** Whether the icon currently shown is the empty-slot fallback. */

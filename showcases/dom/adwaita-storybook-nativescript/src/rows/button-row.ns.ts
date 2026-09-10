@@ -2,9 +2,13 @@
 // button-row.story.ts and browser button-row.web.ts (imported from the GTK
 // showcase's renderer-agnostic *.meta.ts barrel).
 
+// The story's `iconName` control offers THEME NAMES, and since `icon-theme.ts` the port
+// resolves one — so the local name-to-SVG map that used to sit here is gone. Seven of
+// these existed across this showcase, each re-implementing the `-symbolic` strip and a
+// switch over three or four names, each with its own fallback.
+
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
-import { documentSaveSymbolic, editDeleteSymbolic, listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 import { buttonRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /** The Adwaita style classes this story can toggle on the row. */
@@ -16,21 +20,6 @@ const BASE_CLASS = 'adw-row adw-action-row adw-button-row';
 /** Adwaita accent + destructive colours (the start icon is pre-coloured, not CSS). */
 const ADW_ACCENT = '#3584e4';
 const ADW_DESTRUCTIVE = '#e01b24';
-
-/** GTK symbolic name (e.g. "list-add-symbolic") → a real Adwaita symbolic SVG string. */
-function iconSvg(gtkName: string): string {
-    const base = (gtkName ?? '').replace(/-symbolic$/, '');
-    switch (base) {
-        case 'list-add':
-            return listAddSymbolic;
-        case 'document-save':
-            return documentSaveSymbolic;
-        case 'edit-delete':
-            return editDeleteSymbolic;
-        default:
-            return '';
-    }
-}
 
 export class ButtonRowNsStory extends StoryView {
     private _row: Adw.ButtonRow | null = null;
@@ -64,7 +53,7 @@ export class ButtonRowNsStory extends StoryView {
     private _syncRow(): void {
         if (!this._row) return;
         this._row.title = this.args.title as string;
-        this._row.startIconName = iconSvg(this.args.startIconName as string);
+        this._row.startIconName = this.args.startIconName as string;
         this._applyStyle(this.args.style as string);
     }
 

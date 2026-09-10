@@ -7,11 +7,11 @@
 //
 // WHY THE PORT SHOWED INITIALS AND NOTHING ELSE. The widget carried `text` and `size` and
 // no third property, on the stated grounds that "the CSS-subset widget has no icon-theme
-// lookup". It has none — and never needed one: six widgets in this directory already took
-// an Adwaita symbolic as an SVG SOURCE under the GTK property name, as `split-button.ts`
-// states outright ("The SVG string IS the icon identity on NativeScript, so it goes where
-// GTK puts the icon NAME"). The missing lookup was real, the conclusion drawn from it was
-// not.
+// lookup". It had none — and never needed one to have the PROPERTY: six widgets in this
+// directory already took an Adwaita symbolic as an SVG SOURCE under the GTK property
+// name. The missing lookup was real, the conclusion drawn from it was not — and the
+// lookup itself landed later, in `icon-theme.ts`, which is why the default below is a
+// NAME again rather than a document.
 //
 // THE DEFAULT ICON IS THE ICON THEME'S, NOT LIBADWAITA'S. C falls back to
 // `adw-avatar-default-symbolic` (refs/libadwaita/src/adw-avatar.c:192-195#adw-avatar-default-symbolic),
@@ -28,14 +28,13 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { type AdwAvatarMode, avatarMode } from '@gjsify/adwaita-core';
-import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
 import { type NsVisibility, nsVisibility } from './row-state.js';
 
 export type { AdwAvatarMode };
 
-/** The fallback glyph, exported because it is a SUBSTITUTION a caller can see. */
-export const AVATAR_DEFAULT_ICON = avatarDefaultSymbolic;
+/** The fallback icon NAME, exported because it is a SUBSTITUTION a caller can see. */
+export const AVATAR_DEFAULT_ICON = 'avatar-default-symbolic';
 
 /**
  * `update_icon`: the caller's icon, or the default when none was set.
@@ -43,7 +42,7 @@ export const AVATAR_DEFAULT_ICON = avatarDefaultSymbolic;
  * The emptiness test is the port's, not the C's — C keys on `icon_name != NULL`, and a
  * NativeScript setter has no null to tell from `''`. Same reading `AdwStatusPage` takes.
  */
-export function avatarIconSvg(iconName: string | null | undefined): string {
+export function avatarIcon(iconName: string | null | undefined): string {
     return iconName ? iconName : AVATAR_DEFAULT_ICON;
 }
 
@@ -74,8 +73,13 @@ export function avatarVisibilities(mode: AdwAvatarMode): AvatarVisibilities {
 export interface AvatarViewState extends AvatarVisibilities {
     /** The mode `update_visibility` picked. */
     mode: AdwAvatarMode;
-    /** The SVG the icon child renders — the default when the caller set none. */
-    iconSvg: string;
+    /**
+     * The icon the icon child renders — the default when the caller set none.
+     *
+     * NOT `icon`: {@link AvatarVisibilities} already owns that key for the child's
+     * `visibility`, and one interface cannot hold both.
+     */
+    iconName: string;
 }
 
 /**
@@ -92,5 +96,5 @@ export interface AvatarViewState extends AvatarVisibilities {
  */
 export function avatarViewState(input: { showInitials: boolean; text: string; iconName: string }): AvatarViewState {
     const mode = avatarMode({ hasCustomImage: false, showInitials: input.showInitials, text: input.text });
-    return { mode, ...avatarVisibilities(mode), iconSvg: avatarIconSvg(input.iconName) };
+    return { mode, ...avatarVisibilities(mode), iconName: avatarIcon(input.iconName) };
 }

@@ -34,7 +34,6 @@ import { attachRowPressFeedback } from './row-press.js';
 import {
     applyViewSwitcherVisibility,
     createViewSwitcherState,
-    nsIconSvg,
     switcherButtonVisible,
     viewSwitcherNotifyPayload,
     viewSwitcherPageSpecs,
@@ -251,7 +250,7 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
                 : 'collapse';
             nodes.button.orientation = model.orientation === 'horizontal' ? 'horizontal' : 'vertical';
             nodes.button.className = model.selected ? `${this.buttonClass} active` : this.buttonClass;
-            nodes.icon.iconName = nsIconSvg(model.iconName);
+            nodes.icon.iconName = model.iconName;
             nodes.icon.visibility = showIcon ? 'visible' : 'collapse';
             nodes.label.text = model.label;
             nodes.label.visibility = showLabel ? 'visible' : 'collapse';

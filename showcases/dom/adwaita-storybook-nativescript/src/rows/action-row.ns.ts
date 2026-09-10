@@ -2,28 +2,14 @@
 // action-row.story.ts and browser action-row.web.ts (imported from the GTK
 // showcase's renderer-agnostic *.meta.ts barrel).
 
+// The story's `iconName` control offers THEME NAMES, and since `icon-theme.ts` the port
+// resolves one — so the local name-to-SVG map that used to sit here is gone. Seven of
+// these existed across this showcase, each re-implementing the `-symbolic` strip and a
+// switch over three or four names, each with its own fallback.
+
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
-import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
-import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
-import { folderSymbolic } from '@gjsify/adwaita-icons/places';
-import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { actionRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
-
-/** GTK symbolic name (e.g. "folder-symbolic") → a real Adwaita symbolic SVG string. */
-function iconSvg(gtkName: string): string {
-    const base = (gtkName ?? '').replace(/-symbolic$/, '');
-    switch (base) {
-        case 'network-wireless':
-            return networkWirelessSymbolic;
-        case 'folder':
-            return folderSymbolic;
-        case 'starred':
-            return starredSymbolic;
-        default:
-            return networkWirelessSymbolic;
-    }
-}
 
 export class ActionRowNsStory extends StoryView {
     private _row: Adw.ActionRow | null = null;
@@ -43,13 +29,13 @@ export class ActionRowNsStory extends StoryView {
         // Leading PREFIX: a REAL Adwaita symbolic icon (rasterised natively via
         // PathParser), matching Adw.ActionRow's prefix icon — not an emoji glyph.
         this._icon = new Gtk.Image();
-        this._icon.iconName = iconSvg(this.args.iconName as string);
+        this._icon.iconName = this.args.iconName as string;
         this._row.add_prefix(this._icon);
 
         // Trailing SUFFIX: the go-next chevron as a symbolic icon (the activatable
         // arrow), matching the browser/GTK twin.
         const chevron = new Gtk.Image();
-        chevron.iconName = goNextSymbolic;
+        chevron.iconName = 'go-next-symbolic';
         this._row.add_suffix(chevron);
 
         this._syncRow();
@@ -66,7 +52,7 @@ export class ActionRowNsStory extends StoryView {
 
     updateArgs(_args: StoryArgs): void {
         this._syncRow();
-        if (this._icon) this._icon.iconName = iconSvg(this.args.iconName as string);
+        if (this._icon) this._icon.iconName = this.args.iconName as string;
     }
 
     private _syncRow(): void {
