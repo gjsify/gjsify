@@ -99,6 +99,13 @@ export { storybookRule, auditStorybook, countStoryFiles } from './rules/storyboo
 export { shipRule, auditShip } from './rules/ship.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';
 export {
+    mediaCapabilitiesRule,
+    auditMediaCapabilities,
+    collectMediaBundles,
+    gstPluginBaseName,
+    readGstPluginDir,
+} from './rules/media-capabilities.mjs';
+export {
     nativescriptPlatformsRule,
     auditNativescriptPlatforms,
     collectPlatformVariants,

@@ -179,6 +179,10 @@ export declare const headlessRule: Rule;
 export declare const portableScriptsRule: Rule;
 export declare const fieldCoverageRule: Rule;
 export declare const repositoryDirectoryRule: Rule;
+export declare const mediaCapabilitiesRule: Rule;
+
+/** A GStreamer plugin FILE name → its plugin name: no `libgst`/`gst` prefix, no extension, lower-cased. */
+export declare function gstPluginBaseName(fileName: string): string;
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];

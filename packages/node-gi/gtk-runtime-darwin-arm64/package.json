@@ -32,7 +32,53 @@
       "browser": "none",
       "nativescript": "none"
     },
-    "tier": 3
+    "tier": 3,
+    "mediaCapabilities": {
+      "gstPluginDir": "gtk/lib/gstreamer-1.0",
+      "audioDecode": [
+        {
+          "format": "WAV / PCM",
+          "plugin": "wavparse",
+          "element": "wavparse"
+        },
+        {
+          "format": "MP3",
+          "plugin": "mpg123",
+          "element": "mpg123audiodec"
+        },
+        {
+          "format": "Ogg / Vorbis",
+          "plugin": "vorbis",
+          "element": "vorbisdec"
+        },
+        {
+          "format": "Opus",
+          "plugin": "opus",
+          "element": "opusdec"
+        },
+        {
+          "format": "FLAC",
+          "plugin": "flac",
+          "element": "flacdec"
+        },
+        {
+          "format": "A-law",
+          "plugin": "alaw",
+          "element": "alawdec"
+        },
+        {
+          "format": "µ-law",
+          "plugin": "mulaw",
+          "element": "mulawdec"
+        }
+      ],
+      "gaps": [
+        {
+          "format": "AAC (in M4A)",
+          "why": "`isomp4` demuxes the container and `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's."
+        }
+      ]
+    }
   },
   "scripts": {
     "build:bundle": "node ../scripts/build-gtk-runtime-darwin.mjs"
