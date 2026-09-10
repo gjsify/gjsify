@@ -146,7 +146,7 @@ assertion.
 It found what a per-widget suite structurally cannot. Breaking the DECLARATIVE path of
 `<adw-switch-row>` — the attribute read that runs when an element is built from markup, as
 opposed to the property set the existing suite drives — failed exactly the two tree tests
-and left the other 1 670 browser tests green.
+and left every other browser test in the package green.
 
 Two facts came out of the GTK side and are worth knowing if you write Adwaita for more than
 one surface. A `GParamSpec` default is not a constructed default: `AdwBanner:use-markup`
