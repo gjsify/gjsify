@@ -206,6 +206,19 @@ export interface BundleSearchPathFinding {
 export declare function auditPayloadSearchPaths(
     root: string,
 ): { images: number; foreign: number; findings: BundleSearchPathFinding[] } | null;
+export declare const mediaCapabilitiesRule: Rule;
+
+/** A GStreamer plugin FILE name → its plugin name: no `libgst`/`gst` prefix, no extension, lower-cased. */
+export declare function gstPluginBaseName(fileName: string): string;
+
+/** Is this file name a GStreamer plugin at all, in any of the three archive spellings? */
+export declare function isGstPluginFile(fileName: string): boolean;
+
+/** Could this be a GStreamer element-factory name? The ONE predicate the rule and the gates share. */
+export declare function isGstElementName(name: unknown): boolean;
+
+/** Plugin base names in a payload directory; `null` when it is not here, never an empty answer. */
+export declare function readGstPluginDir(dir: string): { plugins: Set<string>; files: string[] } | null;
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];

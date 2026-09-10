@@ -1,0 +1,15 @@
+using Gtk 4.0;
+
+// a line comment before the object
+
+/* a block comment
+   spanning two lines */
+Gtk.Box {
+  // a line comment before a property
+  orientation: vertical; // and one after it
+
+  /* and a block comment before a child */
+  Gtk.Label {
+    label: "commented";
+  }
+}

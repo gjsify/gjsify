@@ -42,12 +42,37 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
+import type Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
+import { describeFontFamilyMatch, matchFontFamilies, type FontFamilyMatch } from './font-families.js';
 import { isFontFace, resolveFontDir, type ResolveFontDirOptions } from './font-dir.js';
 
+// The resolution half of this module's subject, re-exported so a caller that has to ask "what do
+// I actually put in `font-family`" reaches it from the same entry point as `initFonts` — there is
+// no useful order in which somebody needs one and not the other.
+export {
+    describeFontFamilyMatch,
+    matchFontFamilies,
+    matchFontFamily,
+    type FontFamilyMatch,
+    type FontFamilyMatchKind,
+} from './font-families.js';
+
 /** Everything {@link resolveFontDir} takes except the environment, which {@link initFonts} reads. */
-export type InitFontsOptions = Omit<ResolveFontDirOptions, 'env'>;
+export interface InitFontsOptions extends Omit<ResolveFontDirOptions, 'env'> {
+    /**
+     * The family names this application will ASK FOR — checked against the map once registration
+     * is done, and reported in {@link InitFontsResult.matches}.
+     *
+     * Optional, and the reason to pass it is that nothing downstream can. A `font-family`
+     * declaration cannot know which file was supposed to back it, and `list_families()` alone
+     * cannot say which of 84 names arrived from the staged directory; this call is the one moment
+     * that has both. Every name that does not resolve is WARNED about here, which is the only
+     * place a missing family is ever loud — Pango substitutes silently and the window renders.
+     */
+    readonly expectedFamilies?: readonly string[];
+}
 
 /** A face the font map would not take, and why. */
 export interface FontFaceFailure {
@@ -65,6 +90,36 @@ export interface InitFontsResult {
     readonly declined: readonly string[];
     /** Faces that failed for any other reason. Each was warned about; none threw. */
     readonly failed: readonly FontFaceFailure[];
+    /**
+     * The family names the default font map GAINED across this call, sorted.
+     *
+     * THE FIELD #1542 IS ABOUT, and the reason it is a diff rather than a list: a caller can act
+     * only on a family NAME, the name is not derivable from the file, and no caller can take this
+     * measurement afterwards — `list_families()` alone cannot say which of 84 names arrived from
+     * the staged directory. Only the call that registered them is in a position to know.
+     *
+     * NOT a file → family map, and that is a limit rather than a shortcut: Pango exposes no link
+     * from a registered file back to the family it produced, and attributing families by
+     * registering one file at a time would credit a family to whichever of its faces happened to
+     * be registered first — five staged faces of two families would report three files as having
+     * contributed nothing, which reads exactly like three failures.
+     *
+     * EMPTY IS NOT FAILURE, on two live paths: a map that declines runtime registration (macOS,
+     * where a shipped `.app` has already activated the directory through
+     * `ATSApplicationFontsPath` before any code runs) gains nothing here and is CORRECT, and a
+     * face whose family the map already holds adds no new name. {@link matches} is what tells
+     * those apart from nothing having worked, because it asks what the map holds NOW.
+     */
+    readonly families: readonly string[];
+    /**
+     * What each of {@link InitFontsOptions.expectedFamilies} resolves to on the map, in the order
+     * declared. Empty when the caller declared none.
+     *
+     * This is the answer to the darwin row of #1542, where `declined: 5` is consistent BOTH with
+     * everything working and with nothing working: the only thing that separates the two is what
+     * the map holds afterwards, which is what a match reads.
+     */
+    readonly matches: readonly FontFamilyMatch[];
 }
 
 /** Attributes the walk needs, and no more — a name and a type per entry. */
@@ -126,27 +181,61 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const registered: string[] = [];
     const declined: string[] = [];
     const failed: FontFaceFailure[] = [];
-    if (dir === undefined) return { dir, registered, declined, failed };
+    const expected = options.expectedFamilies ?? [];
 
-    const faces: string[] = [];
-    collectFaces(Gio.File.new_for_path(dir), faces, failed);
+    // Nothing staged and nothing asked about: answer without touching Pango at all. Reading the
+    // default font map INSTANTIATES it, and an application that ships no faces and names no family
+    // must not pay for that — `GJSIFY_FONT_DIR` is unset unless `gjsify ship` staged a directory,
+    // so this is the ordinary case and the one this call promises to pass through quietly.
+    //
+    // The condition is `expectedFamilies` as well as `dir`, not `dir` alone: "is the family this
+    // application asks for actually here" is a fair question even when the application staged
+    // nothing, which is the macOS shape — a shipped `.app` had the OS activate the directory
+    // declaratively, before any of this ran.
+    if (dir === undefined && expected.length === 0) {
+        return { dir, registered, declined, failed, families: [], matches: [] };
+    }
 
     const fontMap = PangoCairo.FontMap.get_default();
-    for (const path of faces.sort()) {
-        try {
-            fontMap.add_font_file(path);
-            registered.push(path);
-        } catch (error) {
-            // `add_font_file` is `throws="1"` in `Pango-1.0.gir` (since 1.56), and both arms are
-            // live: a map that does no runtime registration answers NOT_SUPPORTED, and a file that
-            // FreeType cannot open answers something else.
-            if (isUnsupportedByFontMap(error)) {
-                declined.push(path);
-                continue;
+
+    // The BEFORE half of the diff, taken only when there is something to register: a family list
+    // is a walk over every family the map knows, and with no directory there is nothing to
+    // attribute to this call anyway.
+    const before = dir === undefined ? [] : familyNames(fontMap);
+
+    if (dir !== undefined) {
+        const faces: string[] = [];
+        collectFaces(Gio.File.new_for_path(dir), faces, failed);
+
+        for (const path of faces.sort()) {
+            try {
+                fontMap.add_font_file(path);
+                registered.push(path);
+            } catch (error) {
+                // `add_font_file` is `throws="1"` in `Pango-1.0.gir` (since 1.56), and both arms
+                // are live: a map that does no runtime registration answers NOT_SUPPORTED, and a
+                // file that FreeType cannot open answers something else.
+                if (isUnsupportedByFontMap(error)) {
+                    declined.push(path);
+                    continue;
+                }
+                failed.push({ path, message: messageOf(error) });
             }
-            failed.push({ path, message: messageOf(error) });
         }
     }
+
+    // AFTER, and it is read once for both questions. `families` is what this call added;
+    // `matches` is what the caller's own names resolve to on the map as it now stands — which is
+    // deliberately NOT restricted to the diff, because a family the platform activated
+    // declaratively is on the map and did not arrive here.
+    //
+    // The diff is taken ONLY where a BEFORE was taken, and the guard is load-bearing rather than
+    // tidy: with no font directory named there is no `before`, so subtracting an empty list from
+    // a live one would report every family on the host as having been added by a call that
+    // registered nothing — a field whose whole purpose is to say what THIS call contributed.
+    const after = familyNames(fontMap);
+    const families = dir === undefined ? [] : after.filter((name) => !before.includes(name)).sort();
+    const matches = matchFontFamilies(expected, after);
 
     for (const failure of failed) {
         console.warn(
@@ -155,7 +244,30 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         );
     }
 
-    return { dir, registered, declined, failed };
+    // The loud line #1542 asked for, and the reason it is a warning rather than a throw: the
+    // report `registered: 5, declined: 0, failed: 0` was ACCURATE while the declared family was
+    // absent from the map and Pango substituted Tahoma. A result that says nothing failed while
+    // the font is unusable is worse than no result. `optical` is warned about too — it is the
+    // case that renders a window and is still wrong, because the name the application wrote
+    // resolves to nothing.
+    for (const match of matches) {
+        if (match.kind === 'exact') continue;
+        console.warn(`initFonts: ${describeFontFamilyMatch(match)}`);
+    }
+
+    return { dir, registered, declined, failed, families, matches };
+}
+
+/**
+ * The family names a font map currently holds.
+ *
+ * Typed `Pango.FontMap` and not `PangoCairo.FontMap`, which is what the caller has:
+ * `pango_cairo_font_map_get_default()` is declared to RETURN the base type, and the four members
+ * the cairo subtype adds are ones this walk has no use for. Narrowing the parameter to the
+ * subtype makes the one live call site a type error.
+ */
+function familyNames(fontMap: Pango.FontMap): string[] {
+    return fontMap.list_families().map((family) => family.get_name());
 }
 
 /**

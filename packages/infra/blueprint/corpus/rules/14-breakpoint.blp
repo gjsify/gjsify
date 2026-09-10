@@ -1,0 +1,16 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Window {
+  content: Adw.Bin binOne {
+  };
+
+  Adw.Breakpoint {
+    condition ("max-width: 400px")
+
+    setters {
+      binOne.visible: false;
+      binOne.opacity: 0.5;
+    }
+  }
+}

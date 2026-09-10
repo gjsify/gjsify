@@ -1,0 +1,11 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Switch switchOne {
+  }
+
+  Gtk.Label {
+    visible: bind switchOne.active;
+    label: "bound visibility";
+  }
+}

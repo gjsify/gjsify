@@ -271,3 +271,28 @@ and nothing decodes it. The two elements that would are `faad` (GPL) and `avdec_
 closure § Decision drivers refuses), so it is a redistribution decision rather than an oversight —
 and it now sits in `GST_FORMAT_GAPS`, where it is a promise not made instead of a sentence that
 claims coverage.
+
+## Amendment, 2026-09-10 — the claim moves into the artifact ([ADR 0055](0055-declared-media-capabilities.md))
+
+The amendment above put the format claim in `GST_AUDIO_DECODERS` and the per-target absences
+in `GST_PLUGIN_GAPS`, both in `packages/node-gi/scripts/gst-plugins.mjs`. That closed the
+builder's blind spot and left the audience wrong: **a build script is not published.** The one
+difference that matters to somebody choosing a package — the win32 bundle decodes no MP3 while
+both darwin ones do — was readable only inside this repository, and only by consulting a second
+list keyed by target.
+
+Measured again on the published `0.48.0` tarballs, from Linux, so the asymmetry is a fact about
+what shipped rather than about what the tables say: `darwin-x64` and `darwin-arm64` carry 24
+plugins each and `win32-x64` carries 21, the difference being `flac`, `mpg123` and `vorbis`
+(decoders) plus each platform's own sink. The payload question is #1626.
+
+So each bundle package now declares its own `gjsify.mediaCapabilities` — every format it
+decodes with the plugin FILE behind it and the ELEMENT that decodes it, and every format it
+does not with a mandatory reason. `gst-plugins.mjs` derives the three tables from those
+manifests, so the builders and `gst-elements.test.mjs` read the one declaration a consumer also
+receives; `@gjsify/manifest-conformance`'s `media-capabilities` holds it against the shipped
+plugin files and, on every PR with no payload in reach, against the OTHER bundles' claims —
+which is the pass that turns this asymmetry from a silence into a red build.
+
+`GST_AUDIO_PLUGINS` stays here, unchanged and in this file's own terms: it is the SEED of the
+copy, a request rather than a promise, and #1544 is exactly the distance between the two.

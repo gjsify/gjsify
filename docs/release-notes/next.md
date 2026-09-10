@@ -154,6 +154,34 @@ declares `TRUE` and a freshly constructed banner answers `FALSE`, so the same au
 is markup-on in the browser and markup-off in GTK. And `Adw.ShortcutLabel` draws TRANSLATED
 keycaps, so a shortcut rendering can only be asserted where nothing translates.
 
+### A runtime bundle now says what it can play, and which font name to ask for
+
+Two things an application could only find out by shipping and waiting.
+
+**`@gjsify/gtk-runtime-<os>-<arch>` declares its own audio contract.** These bundles carry
+GStreamer, so they decide what your application can decode — and that answer differs per
+platform. Measured on the published 0.48.0 tarballs: the two darwin bundles carry 24 plugins,
+the win32 one carries 21, and the three that are missing are the MP3, Ogg/Vorbis and FLAC
+decoders. Nothing said so: the bundle's own manifest recorded a plugin COUNT, and a count
+cannot be wrong about which. Each package now carries
+`package.json#gjsify.mediaCapabilities` — every format it decodes, with the plugin file behind
+it and the element that decodes it, and every format it does not, with the reason. So
+`npm view @gjsify/gtk-runtime-win32-x64` answers the question that previously needed a Windows
+machine. A conformance rule holds the declaration against the shipped plugin files, and — with
+no payload in reach at all — against the other bundles' claims, so a format one target plays
+and another silently does not is a red build rather than a difference nobody wrote down. The
+win32 payload itself is #1626.
+
+**`initFonts()` reports family NAMES.** It reported the files it registered, and a caller can
+act on none of them: `font-family` takes a family name, the name comes out of the font's naming
+table, and which name you get depends on which font stack read it. The same byte-identical
+Merriweather face registers as `Merriweather` under fontconfig and `Merriweather 18pt` under
+the Windows bundle — and `initFonts()` answered `registered: 5, failed: 0` on both while
+Windows rendered Tahoma. The result now carries `families` (what the call added to the map) and,
+when you pass `expectedFamilies`, a `matches` entry per name saying whether it resolves, resolves
+under an optical-size alias, or is simply not there — warned about on the spot, because Pango
+substitutes silently and nothing else ever will.
+
 ### Also in this release
 
 `@gjsify/vite-plugin-gettext` refuses to gut a catalog rather than writing an empty one;
