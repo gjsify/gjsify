@@ -213,7 +213,14 @@ export function auditMediaCapabilities(bundles, options = {}) {
                     'inside the package. It is read relative to the package root on every host that inspects the ' +
                     'tarball, so an absolute or escaping path is a claim about the checking machine.',
             );
-        } else if (!bundle.files.some((f) => caps.gstPluginDir.startsWith(String(f).replace(/\/+$/, '')))) {
+        } else if (
+            // Segment-wise, never a bare `startsWith`: `files: ["gtkfoo"]` would otherwise ship
+            // `gtkfoobar/plugins`. Same comparison `bundled-license` makes about the notice file.
+            !bundle.files.some((f) => {
+                const entry = String(f).replace(/\/+$/, '');
+                return caps.gstPluginDir === entry || caps.gstPluginDir.startsWith(`${entry}/`);
+            })
+        ) {
             failures.push(
                 `${bundle.name} (${bundle.path}): \`gstPluginDir\` is "${caps.gstPluginDir}", which no \`files\` entry ` +
                     `ships (\`files\`: ${bundle.files.join(', ')}). A consumer receives a declaration pointing into ` +
