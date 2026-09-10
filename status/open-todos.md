@@ -577,9 +577,11 @@ typo, and no arm compares a chip label to anything at all.
 BUILT by two renderers — `packages/framework/gtk-host/src/shared-trees.spec.ts` on GJS and
 `packages/web/adwaita-web/src/shared-trees.spec.ts` in the browser, joined to the vectors by
 `adwaita-core/src/conformance/shared-trees.ts`. What is still open is the CORPUS, not the
-driver, and the ledger above is the backlog: the suite proves what it proves about seven
-blocks, four vector tables and six rows, and that denominator is printed by the drivers
-rather than written here.
+driver, and the ledger above is the backlog: the suite proves what it proves about the
+blocks in the shared source and the vector rows their authored values instantiate. That
+denominator is not written here on purpose — `check-adwaita-conformance-drivers.mjs` prints
+the joined tables and arm 11 the partition, every run, and a figure copied into this file
+would be right until the next row lands.
 
 Three limits are structural rather than backlog, and each is measured in the binding's own
 header: a `GParamSpec`-default table cannot be read off a CONSTRUCTED widget (`AdwBanner`'s
