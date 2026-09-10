@@ -9,8 +9,15 @@ Your app wants to render in a face nobody's machine has. Put the `.ttf` in the p
 Two steps, because staging a file and having the toolkit *know about* it are different
 things. The gap between them is the quietest failure in GTK: Pango does not report a missing
 family. `set_family('Brand')` against a font map that has never heard of `Brand` resolves to
-the default sans, the window draws, the process exits 0 and nothing anywhere says a word.
-Your app is just wearing the wrong typeface.
+the default sans, the window draws and the process exits 0. Your app is just wearing the
+wrong typeface.
+
+Measured, and the detail matters because it is the only thing that ever tells you: the
+**win32** backend does print `couldn't load font "Brand …", falling back to "Sans …"` at
+layout time, while the fontconfig host printed nothing at all for the same invented family.
+A line on stderr on one platform, silence on the other, and neither is a value your code can
+branch on — which is why `initFonts()` returns the answer instead (§ [Check that it
+worked](#check-that-it-worked)).
 
 ## 1. Stage the faces
 
@@ -69,8 +76,24 @@ interface InitFontsResult {
     declined: readonly string[];
     /** Faces that failed for any other reason. Each one was also warned about on stderr. */
     failed: readonly { path: string; message: string }[];
+    /** The family NAMES the map gained across this call, sorted. See below. */
+    families: readonly string[];
+    /** What each `expectedFamilies` name resolves to on the map. Empty when you declared none. */
+    matches: readonly FontFamilyMatch[];
 }
 ```
+
+`registered` is a list of FILES, and no `font-family` declaration takes one. The last two
+fields are the ones you act on: `families` is a diff of `list_families()` across the call —
+which only the registering call is in a position to take — and `matches` answers your own
+names against the map. Pass them in:
+
+```ts
+const fonts = initFonts({ expectedFamilies: ['Merriweather', 'Source Sans 3'] });
+```
+
+Every name that does not resolve exactly is warned about on stderr on the spot, which is the
+one place a missing family is ever loud.
 
 It never throws. A face that will not open costs you one stderr line and one entry in
 `failed`; taking the app down over a decorative typeface would be worse than drawing it in
@@ -83,8 +106,9 @@ Text asking for a family this application ships will render in a substituted one
 ```
 
 It is also safe in an app that ships no fonts. The launcher exports `GJSIFY_FONT_DIR` only
-when it actually staged a face, so an unset variable gives you `dir: undefined` and three
-empty arrays.
+when it actually staged a face, so an unset variable gives you `dir: undefined` and empty
+arrays — and with no `expectedFamilies` either, the call returns without reading the font map
+at all, so nothing about it is a cost you pay for shipping no faces.
 
 ### Running from your source tree
 
@@ -186,6 +210,28 @@ is why there is no `process.platform` check anywhere in this API. The decision i
 the error the font map returns, so it stays right whichever backend a host actually
 compiled in.
 
+### The family NAME can differ per platform too
+
+Not just whether the face arrives — what it is then **called**. The family name comes out of
+the font's naming table, and the two font stacks do not read it the same way. The same
+byte-identical `Merriweather_400Regular.ttf` from Google Fonts, SHA-256-verified on both
+machines and handed to `add_font_file` by one script:
+
+| host | font stack | the map gained |
+|---|---|---|
+| Fedora 44, GJS | fontconfig | `Merriweather` |
+| Windows 11, `@gjsify/gtk-runtime-win32-x64` | gvsbuild | **`Merriweather 18pt`** |
+
+Google Fonts ships Merriweather as an optical-size family, and the readers disagree about
+whether the size axis belongs in the name. `Source Sans 3`, from the same staging run, has
+no size axis and reads identically on both.
+
+So `font-family: Merriweather` renders in Merriweather on Linux and in Tahoma on Windows,
+from one payload and one call that reported success on both. `matches` is the answer:
+`exact` is the name you wrote, `optical` hands you the name to ask for instead,
+`ambiguous` means the map has several optical sizes and which one to set at which point
+size is your design decision, and `absent` is the family nothing has.
+
 ## Check that it worked
 
 Do not take `registered.length` as proof. It says the call did not fail; it does not say
@@ -200,12 +246,17 @@ import { initFonts } from '@gjsify/gtk-host/fonts';
 const FAMILY = 'Round9x13';            // the family name your face carries
 const CONTROL = 'ZzzNoSuchFamily';     // a family that cannot exist
 
-const fonts = initFonts();
+const fonts = initFonts({ expectedFamilies: [FAMILY, CONTROL] });
 print(`dir=${fonts.dir}`);
 print(`registered=${fonts.registered.length} declined=${fonts.declined.length} failed=${fonts.failed.length}`);
 
+// `matches` in place of a hand-rolled `list_families()` scan, and it is not the same check:
+// it accepts the optical-size alias the Windows stack makes of the name (`match.family` is
+// then what you put in `font-family`) and refuses to guess between several of them.
+const listed = (family: string) =>
+    fonts.matches.find((match) => match.declared === family)?.kind !== 'absent';
+
 const map = PangoCairo.FontMap.get_default();
-const listed = (family: string) => map.list_families().some((f) => f.get_name() === family);
 
 const measure = (family: string) => {
     const description = new Pango.FontDescription();
@@ -223,8 +274,14 @@ print(`${FAMILY}=${measure(FAMILY)} vs ${CONTROL}=${measure(CONTROL)}`);
 
 Two things have to be true, and the second is the one that discriminates:
 
-- the family appears in `list_families()`, **and**
+- the declared name resolves — `matches` says anything but `absent`, **and**
 - it measures *differently* from the control.
+
+The first is now the call's own answer rather than yours to compute, and `fonts.families`
+tells you which names this call put there. The second still has to be measured, because a
+resolved name and a rendered face are not the same claim: registration is not retroactive
+(§ [Call it before you build any UI](#3-call-it-before-you-build-any-ui)), so a family can be
+on the map and still measure as the fallback.
 
 With the face staged and `GJSIFY_FONT_DIR` pointing at it:
 
@@ -276,6 +333,8 @@ ordering above is exactly the thing that has to stay yours.
 | `declined` holds your faces, anywhere else | this process resolved a font map that does no runtime registration; check `PANGOCAIRO_BACKEND` |
 | `initFonts: … could not be read as an application font` | FreeType would not open that file: truncated, corrupt, or something wearing a face extension |
 | the family is listed but text is unchanged | something laid out text before `initFonts()`. Move the call earlier |
+| `initFonts: X: on the font map as "X 18pt"` | this font stack keeps the optical-size axis in the family name. Ask for the name on the right — `match.family` |
+| `initFonts: X: NOT on the font map` | the face never arrived under that name. Check `families` for what did |
 | `gjsify ship: … is a web-font wrapper` | replace the `.woff2` with the desktop face it was made from |
 | `gjsify ship: … holds no font face` | the configured directory has no `.ttf`/`.otf`/`.ttc`/`.otc` in it |
 
