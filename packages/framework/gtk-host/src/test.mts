@@ -15,6 +15,7 @@ import menuSuite from './menu.spec.js';
 import portalSuite from './portal.spec.js';
 import probeSuite from './probe.spec.js';
 import propsSuite from './props.spec.js';
+import sharedTreesSuite from './shared-trees.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
 import layoutSuite from './style/layout.spec.js';
@@ -44,6 +45,7 @@ run({
     listModelSuite,
     adjustmentSuite,
     conformanceSuite,
+    sharedTreesSuite,
     generatorSuite,
     generatedSuite,
     listSuite,

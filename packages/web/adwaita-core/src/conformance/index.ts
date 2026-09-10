@@ -569,3 +569,13 @@ export {
     HEADER_BAR_TITLE_WIDGET_VECTORS,
 } from './header-bar.js';
 export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWidgetVector } from './header-bar.js';
+
+// --- Which vectors an AUTHORED WIDGET TREE reaches (ADR 0051) — no table of its own ---
+export {
+    SHARED_TREE_BLOCKS_WITHOUT_VECTORS,
+    SHARED_TREE_TABLES,
+    authoredNodes,
+    reachedTables,
+    sharedTreeExpectations,
+} from './shared-trees.js';
+export type { SharedTreeExpectation, SharedTreeNode, SharedTreeObservable } from './shared-trees.js';
