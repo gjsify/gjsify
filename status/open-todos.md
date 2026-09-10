@@ -471,10 +471,10 @@ authored tree, rendered through the GTK host and through `adwaita-web`, satisfie
 same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Both
 halves now exist for part of the gallery: the "same authored tree" half is measured by
 arm 11, and the BEHAVIOUR half by the two tree drivers ADR 0051 landed — see *The gallery's
-two authored trees agree on 7 blocks of 23* below for what they cover and what they do not.
-The goal is a claim about seven blocks and a direction past them — and the longer horizon it
-points at (NativeScript and browser builds from one native-authored source) still needs its
-own ADR.
+two authored trees agree on a minority of blocks* below for what they cover and what they
+do not. The goal is a claim about the shared blocks and a direction past them — and the
+longer horizon it points at (NativeScript and browser builds from one native-authored
+source) still needs its own ADR.
 
 Two things the slot work left for whoever picks this up. **Ten of the 23 re-homing
 elements are deliberately not converted**: eight consume typed children into a state
@@ -555,11 +555,12 @@ and a plain `title` property on the port, so `Adw.OverlaySplitView` and `Adw.Too
 carry two nodes more on one side than the other. Converging them means deciding which
 renderer is wrong, which is an ADR 0034 question and not a gallery one.
 
-*The `content` ones are the ones nobody has an excuse for*, and two of them are left as
-measured rather than fixed because closing the LIST would not move either into the shared
-source: both also carry a `cssClasses` against the port's style-class property, and that half does
-not close by renaming. `@nativescript/core`'s `ViewBase` already owns the name — its
-constructor assigns `this.cssClasses = new Set()`, its `ClassSelector.match` reads
+*The `content` ones are the ones nobody has an excuse for*, and `Adw.WrapBox` and
+`Gtk.Button` are left as measured rather than fixed because closing the LIST would not move
+either into the shared source: each also carries a `cssClasses` against the port's
+style-class property, and that half does not close by renaming. `@nativescript/core`'s
+`ViewBase` already owns the name — its constructor assigns `this.cssClasses = new Set()`,
+its `ClassSelector.match` reads
 `node.cssClasses.has(…)` and its `className` setter clears and refills the same Set — so
 taking the name means shadowing that field with an accessor pair that still hands the CSS
 engine a live mutable Set, and the value kinds differ besides (`string[]` against
@@ -572,7 +573,7 @@ so does the value KIND, which does not close by matching the numbers — an adju
 OBJECT a JSX expression carries on one side and the JSON STRING its XML door parses on the
 other (ADR 0047 § 5). The rule that settles the LIST half is the one `Adw.WrapBox`'s own
 tree already states — a gallery block is one widget written several ways, so its `preview`
-fragment is the authority — and in all three cases it is the NativeScript template that
+fragment is the authority — and in every case here it is the NativeScript template that
 drifted from it.
 
 The census also found the `Adw.WrapBox` chip list spelled `Typescript` in seven authored
