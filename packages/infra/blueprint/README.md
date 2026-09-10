@@ -2,7 +2,7 @@
 
 The Blueprint corpus and the GtkBuilder XML the reference compiler produces from it.
 
-**There is no parser here yet, and that is the point.** [ADR
+**The parser is here now, and the corpus came first — that was the point.** [ADR
 0053](../../../docs/adr/0053-blueprint-parsed-in-repo.md) decided that Blueprint is parsed in
 this repository and that `blueprint-compiler` stops being a build dependency and becomes the
 oracle a parser is measured against — and its § Implementation puts this package first,
@@ -18,6 +18,11 @@ because *"a harness with nothing to compare reports green while proving nothing"
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
 | `corpus/real-expectations.mjs` | the same for the 11 real files |
+| `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
+| `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
+| `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
+| `src/emit-xml.mjs` | AST → GtkBuilder XML |
+| `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
 
 The real files are listed **by path** and read from where they live. A copy would be a second
 transcript that drifts from the file the build actually compiles, and it would keep passing
@@ -38,6 +43,18 @@ anywhere. Stage B recompiles all 36 files and diffs them, and needs `blueprint-c
 both stages run in `tree-checks` — the one job with no classifier gate, on the image that
 bakes the compiler — and with `--require-oracle`, because an announced skip is honest on a
 laptop and a hole in the one run that is supposed to prove something.
+
+Stage C runs the in-repo parser and emitter over all 36 files and diffs the result against the
+goldens — **25 byte-equal today, 11 ledgered under one cause across 23 named lines**. A
+disagreement fails unless `corpus/divergences.mjs` says why, and it says why per LINE: an entry
+excuses the lines it lists and every other line of that file is held to the golden. An entry
+for a file that no longer disagrees fails too, and so does a listed line that now agrees, so
+the ledger cannot only grow. Stage D runs the projection over the same files and holds the 36
+hand-written `SharedNode` trees and their 119 declared losses against it, which is what turns
+them from a claim into an oracle. Neither stage needs a compiler — only the committed goldens —
+so both run on every runner, and neither has a skip path: the parser, the emitter and the
+projection live in this repository, so a missing one is a deletion and fails rather than
+skipping.
 
 If stage B fails on a version mismatch, that is not noise. [ADR 0053 clause
 5](../../../docs/adr/0053-blueprint-parsed-in-repo.md): after an upstream release, a run that

@@ -373,4 +373,20 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'Written to settle a case `14-breakpoint.blp` leaves open: a bracket and a refused construct on the same child. The bracket wins nothing — the child goes, and its slot goes with it.',
     },
+    {
+        file: '26-one-line-members.blp',
+        node: {
+            tag: 'GtkButton',
+            props: { label: 'on one line', 'margin-top': 4 },
+            children: [{ tag: 'GtkLabel' }],
+        },
+        lost: [
+            {
+                kind: 'signal',
+                line: 6,
+                detail: 'the handler binding `clicked => $onClicked()`, which shares its line with the property beside it',
+            },
+        ],
+        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 4 and the signal before the property on line 6, and sorting by line alone cannot produce that. `SharedNode` has no signal, so the projection sees only half of what this file pins.',
+    },
 ];

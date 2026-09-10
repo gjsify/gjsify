@@ -98,6 +98,7 @@ const REAL_DIR = join(CORPUS, 'real');
 
 const { ORACLE, CORPUS_RULES, CORPUS_REAL_FILES } = await import(`file://${join(CORPUS, 'manifest.mjs')}`);
 const { RULE_EXPECTATIONS } = await import(`file://${join(CORPUS, 'expectations.mjs')}`);
+const { SHADOW_DIVERGENCES } = await import(`file://${join(CORPUS, 'divergences.mjs')}`);
 const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectations.mjs')}`);
 
 // Kept in step with the `LossKind` typedef in `corpus/expectations.mjs` by hand, because
@@ -459,7 +460,282 @@ if (havecompiler) {
     }
 }
 
+// ---------------------------------------------------------------- stage C
+
+// The SHADOW RUN of ADR 0053 clause 5: the in-repo parser reads every corpus file, the
+// emitter writes GtkBuilder XML from the AST, and the result is diffed against the golden
+// the reference compiler produced. `blueprint-compiler` stays authoritative for the build
+// until this stage is silent.
+//
+// It needs no compiler, only the committed goldens — so unlike stage B it runs on EVERY
+// runner, which is the whole reason the goldens are committed at all.
+//
+// THERE IS NO SKIP PATH, AND THERE WAS ONE
+//
+// This stage arrived with `haveParser = existsSync(PARSER) && existsSync(EMITTER)` and a
+// comment saying that once `src/parser.mjs` exists there is no skip path. Both halves of the
+// conjunction had to hold, so deleting `src/emit-xml.mjs` alone printed "stage C SKIPPED —
+// there is no parser in this tree yet, which is the only reason it can be" and exited 0, with
+// `parser.mjs` sitting right beside it; deleting `src/project.mjs` did the same to stage D.
+// That is precisely the shape `--require-oracle` was added to stage B to close, one stage
+// over: a gate reporting green because it could not run, in a message that was not true.
+//
+// So the three files are REQUIRED. Unlike `blueprint-compiler` they are in this repository,
+// which means their absence is never an environment and always a deletion, and no flag needs
+// to be passed to say so.
+const PARSER = join(CORPUS, '..', 'src', 'parser.mjs');
+const EMITTER = join(CORPUS, '..', 'src', 'emit-xml.mjs');
+const PROJECTOR = join(CORPUS, '..', 'src', 'project.mjs');
+
+for (const [what, path] of [
+    ['parser', PARSER],
+    ['emitter', EMITTER],
+    ['projection', PROJECTOR],
+]) {
+    if (!existsSync(path)) {
+        problems.push(
+            `the ${what} is missing at ${path.slice(root.length + 1)}, so the stage that runs it checked ` +
+                'nothing. It lives in this repository, so this is a deletion and not an environment — ' +
+                'restore it or delete the stage deliberately.',
+        );
+    }
+}
+
+const haveParser = existsSync(PARSER) && existsSync(EMITTER);
+
+let byteEqual = 0;
+let ledgered = 0;
+if (haveParser) {
+    const { parseBlueprint } = await import(`file://${PARSER}`);
+    const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+
+    const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
+    for (const entry of SHADOW_DIVERGENCES) {
+        if (typeof entry.kind !== 'string' || entry.kind.length === 0) {
+            problems.push(`corpus/divergences.mjs: the entry for "${entry.file}" has no kind.`);
+        }
+        if (typeof entry.reason !== 'string' || entry.reason.length < 20) {
+            problems.push(
+                `corpus/divergences.mjs: "${entry.file}" is tolerated with no reason worth reading. ` +
+                    'An entry here is the only record that the disagreement was a decision.',
+            );
+        }
+        // Without this an entry excused the whole FILE. Measured: an emitter taught to write
+        // `<property name="THIS-IS-NOT-A-PROPERTY">SABOTAGE</property>` for every
+        // `hscrollbar-policy` — five ledgered files, no byte-equal one — passed with the
+        // headline unchanged. An exemption that does not name what it excuses is not data,
+        // it is an off switch.
+        if (!Array.isArray(entry.lines) || entry.lines.length === 0) {
+            problems.push(
+                `corpus/divergences.mjs: "${entry.file}" names no lines. An entry without \`lines\` excuses ` +
+                    'every byte the file emits, which is the whole file unchecked behind one slug.',
+            );
+            continue;
+        }
+        for (const row of entry.lines) {
+            if (!Number.isInteger(row?.line) || row.line < 1) {
+                problems.push(`corpus/divergences.mjs: "${entry.file}" has a tolerated line that is not a line.`);
+            }
+            if (typeof row?.golden !== 'string' || typeof row?.inRepo !== 'string') {
+                problems.push(
+                    `corpus/divergences.mjs: "${entry.file}" line ${row?.line} does not say what stands on it. ` +
+                        'Both sides are named so the diff is readable without running anything.',
+                );
+            }
+        }
+    }
+
+    const shadowJobs = [
+        ...CORPUS_RULES.map((r) => ({
+            key: `rules/${r.file}`,
+            source: join(RULES_DIR, r.file),
+            golden: join(RULES_DIR, r.file.replace(/\.blp$/, '.ui')),
+        })),
+        ...CORPUS_REAL_FILES.map((p) => ({
+            key: p.source,
+            source: join(root, p.source),
+            golden: join(REAL_DIR, `${p.slug}.ui`),
+        })),
+    ];
+
+    for (const job of shadowJobs) {
+        if (!existsSync(job.source) || !existsSync(job.golden)) continue; // stage A said so
+        const golden = readFileSync(job.golden, 'utf8');
+        let emitted;
+        try {
+            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+        } catch (error) {
+            // Never ledgerable. Clause 3 makes an unreadable construct a hard error naming its
+            // line, so a corpus file the parser refuses is a gap in the parser or a file that
+            // does not belong in the corpus — not a disagreement to tolerate.
+            problems.push(`${job.key}: the parser refused it — ${error.message}`);
+            continue;
+        }
+        const entry = known.get(job.key);
+        if (emitted === golden) {
+            byteEqual += 1;
+            if (entry) {
+                problems.push(
+                    `${job.key} is byte-equal and still listed in corpus/divergences.mjs as "${entry.kind}". ` +
+                        'Delete the entry — a ledger that only grows describes a parser nobody improved.',
+                );
+            }
+            continue;
+        }
+        const a = golden.split('\n');
+        const b = emitted.split('\n');
+        // `findIndex` returns -1 when every line of the golden matches and the emitter merely
+        // wrote MORE, so the first difference is the first line the golden does not have.
+        const firstDiff = a.findIndex((line, n) => line !== b[n]);
+        const i = firstDiff === -1 ? a.length : firstDiff;
+        if (!entry) {
+            problems.push(
+                `${job.key}: the in-repo emitter does not reproduce the golden, and no entry in ` +
+                    `corpus/divergences.mjs says why. First difference on line ${i + 1}:\n` +
+                    `      golden:   ${JSON.stringify(a[i])}\n      in-repo:  ${JSON.stringify(b[i])}`,
+            );
+            continue;
+        }
+
+        // The entry excuses the lines it NAMES and nothing else. Two directions, both real: a
+        // difference the ledger does not name is an unrecorded divergence, and a line the
+        // ledger names that no longer differs is a claim that stopped being true.
+        if (a.length !== b.length) {
+            problems.push(
+                `${job.key}: the emitter wrote ${b.length} line(s) where the golden has ${a.length}. A ` +
+                    'ledger entry excuses named lines, and a length change moves every line after it — ' +
+                    'so this is never one of them.',
+            );
+            continue;
+        }
+        const excused = new Map(entry.lines.map((row) => [row.line, row]));
+        let honoured = 0;
+        for (let n = 0; n < a.length; n += 1) {
+            if (a[n] === b[n]) continue;
+            const row = excused.get(n + 1);
+            if (row === undefined) {
+                problems.push(
+                    `${job.key}: line ${n + 1} differs and corpus/divergences.mjs does not name it. The entry ` +
+                        `is "${entry.kind}", which excuses [${entry.lines.map((r) => r.line).join(', ')}] and ` +
+                        `nothing else:\n      golden:   ${JSON.stringify(a[n])}\n      in-repo:  ${JSON.stringify(b[n])}`,
+                );
+                continue;
+            }
+            honoured += 1;
+            // Indentation is compared on its own so the stored text can stay readable without
+            // the comparison becoming loose: a divergence that is ONLY leading whitespace is
+            // still a divergence, and a trimmed compare would call it tolerated.
+            const indent = (line) => line.slice(0, line.length - line.trimStart().length);
+            if (indent(a[n]) !== indent(b[n])) {
+                problems.push(
+                    `${job.key}: line ${row.line} is tolerated for its TEXT and the indentation moved — ` +
+                        `${indent(a[n]).length} space(s) in the golden, ${indent(b[n]).length} emitted. ` +
+                        'That is a separate divergence and this entry does not excuse it.',
+                );
+            } else if (a[n].trim() !== row.golden || b[n].trim() !== row.inRepo) {
+                problems.push(
+                    `${job.key}: line ${row.line} is tolerated, but not for what stands there now.\n` +
+                        `      ledger golden:  ${JSON.stringify(row.golden)}\n      actual golden:  ${JSON.stringify(a[n].trim())}\n` +
+                        `      ledger in-repo: ${JSON.stringify(row.inRepo)}\n      actual in-repo: ${JSON.stringify(b[n].trim())}`,
+                );
+            }
+        }
+        if (honoured !== entry.lines.length) {
+            const taken = new Set(a.map((line, n) => (line === b[n] ? 0 : n + 1)));
+            problems.push(
+                `${job.key}: corpus/divergences.mjs excuses ${entry.lines.length} line(s) and only ${honoured} ` +
+                    `still differ — [${entry.lines
+                        .map((r) => r.line)
+                        .filter((n) => !taken.has(n))
+                        .join(', ')}] agree with the golden now. Delete them; a ledger that only grows ` +
+                    'describes a parser nobody improved.',
+            );
+        }
+        ledgered += 1;
+    }
+}
+
+// ---------------------------------------------------------------- stage D
+
+// The 36 hand-written `SharedNode` trees, run rather than read.
+//
+// Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
+// says nothing about whether they are RIGHT. They were written by reading each `.blp`
+// before a parser existed, which is what makes them worth having and also what makes them
+// unverified: the most expensive artefact in this corpus was, until this stage, a claim.
+//
+// So the projection of ADR 0053 clause 1 runs over the same files and the two are compared.
+// The direction matters: a mismatch is reported as the EXPECTATION disagreeing with the
+// projection, because either one can be wrong and the file a human wrote is the one worth
+// re-reading first.
+//
+// `detail` is not compared — it is prose for a reader, and a machine cannot be right about
+// it. `comment` losses are dropped before comparing: comments never reach the AST, so the
+// projection has nothing to lose, while the expectation declares the loss from the reader's
+// side. Both halves are correct and they are not comparable.
+//
+// `PROJECTOR` is declared beside the parser above and is REQUIRED there — deleting it used to
+// print "stage D SKIPPED — no projection in this tree yet" and exit 0.
+let projected = 0;
+if (haveParser && existsSync(PROJECTOR)) {
+    const { parseBlueprint } = await import(`file://${PARSER}`);
+    const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
+
+    const jobs = [
+        ...RULE_EXPECTATIONS.map((e) => ({ key: `rules/${e.file}`, source: join(RULES_DIR, e.file), expectation: e })),
+        ...REAL_EXPECTATIONS.map((e) => ({ key: e.file, source: join(root, e.file), expectation: e })),
+    ];
+    for (const job of jobs) {
+        if (!existsSync(job.source)) continue;
+        let result;
+        try {
+            result = projectToSharedNode(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+        } catch (error) {
+            problems.push(`${job.key}: the projection failed — ${error.message}`);
+            continue;
+        }
+        projected += 1;
+        const want = JSON.stringify(job.expectation.node, null, 2);
+        const got = JSON.stringify(result.node, null, 2);
+        if (want !== got) {
+            const a = want.split('\n');
+            const b = got.split('\n');
+            const i = a.findIndex((line, n) => line !== b[n]);
+            problems.push(
+                `${job.key}: the hand-written SharedNode tree and the projection disagree. ` +
+                    `First difference on line ${i + 1} of the tree:\n` +
+                    `      expectation: ${JSON.stringify(a[i])}\n      projection:  ${JSON.stringify(b[i])}`,
+            );
+        }
+        const key = (loss) => `${loss.kind}:${loss.line}`;
+        const wantLost = (job.expectation.lost ?? [])
+            .filter((l) => l.kind !== 'comment')
+            .map(key)
+            .sort();
+        const gotLost = result.lost.map(key).sort();
+        if (wantLost.join(',') !== gotLost.join(',')) {
+            const missing = wantLost.filter((k) => !gotLost.includes(k));
+            const extra = gotLost.filter((k) => !wantLost.includes(k));
+            problems.push(
+                `${job.key}: declared losses and projected losses disagree — ` +
+                    `declared and not taken: [${missing.join(', ')}]; taken and not declared: [${extra.join(', ')}].`,
+            );
+        }
+    }
+}
+
 if (problems.length > 0) fail();
+
+// Neither stage has a skip branch to print: a missing parser, emitter or projection is a
+// problem pushed above, and `fail()` has already exited by here.
+const kinds = new Set(SHADOW_DIVERGENCES.map((entry) => entry.kind));
+const tolerated = SHADOW_DIVERGENCES.reduce((n, entry) => n + (entry.lines ?? []).length, 0);
+const stageC =
+    `stage C ran the in-repo parser over all ${byteEqual + ledgered} corpus file(s): ` +
+    `${byteEqual} byte-equal, ${ledgered} ledgered across ${kinds.size} cause(s) and ` +
+    `${tolerated} named line(s) — every other line held to the golden`;
+
+const stageD = `stage D held ${projected} hand-written SharedNode tree(s) against the projection`;
 
 const stageB = havecompiler
     ? write
@@ -479,5 +755,5 @@ const losses = everyExpectation.reduce((n, e) => n + (e.lost ?? []).length, 0);
 console.log(
     `check-blueprint-corpus: stage A verified ${CORPUS_RULES.length} rule(s) and ` +
         `${CORPUS_REAL_FILES.length} reality probe(s), each with a hand-written expectation ` +
-        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}.`,
+        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}.`,
 );
