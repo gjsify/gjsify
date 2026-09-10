@@ -1325,19 +1325,25 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
         containedNodes += 1;
         for (const [prop, value] of Object.entries(node.props ?? {})) {
             const attribute = prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
-            if (!element.values.has(attribute)) {
-                failures.push(
-                    `${tree.widget}: authored node ${index} <${wanted}> sets ${prop}, and the ${fence.slot} fence ` +
-                        `of ${fence.rel} sets no ${attribute} on it. Both tree drivers assert that value; the ` +
-                        'page a reader copies does not carry it.',
-                );
-                continue;
-            }
-            const raw = element.values.get(attribute);
-            // A boolean is the attribute's PRESENCE on this renderer — the same rule
-            // `adwaita-web`'s driver builds with — so `false` is the attribute being
-            // absent and there is nothing here for it to disagree with.
+            const present = element.values.has(attribute);
+            // A BOOLEAN IS THE ATTRIBUTE'S PRESENCE, which is the rule `adwaita-web`'s
+            // driver builds with (`toggleAttribute`) and the elements read back with
+            // `hasAttribute`. So `false` is the attribute being ABSENT, and the test
+            // belongs BEFORE the not-set failure below — which is a claim about a
+            // VALUE, and a false boolean has none. Both directions were wrong without
+            // it: a fence that correctly omitted `active` failed against a node
+            // authoring `active: false`, and a fence that spelled it while the node
+            // said false — a real disagreement — passed in silence.
             if (typeof value === 'boolean') {
+                if (value !== present) {
+                    failures.push(
+                        `${tree.widget}: authored node ${index} <${wanted}> sets ${prop} to ${value}, and the ` +
+                            `${fence.slot} fence of ${fence.rel} ${present ? 'sets' : 'does not set'} ${attribute} ` +
+                            'on it. A boolean is the attribute being there: present is true, absent is false.',
+                    );
+                    continue;
+                }
+                const raw = element.values.get(attribute);
                 if (value && raw !== null && raw !== '') {
                     failures.push(
                         `${tree.widget}: <${wanted}> ${attribute} is authored as a boolean, and ${fence.rel} ` +
@@ -1347,6 +1353,15 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
                 }
                 continue;
             }
+            if (!present) {
+                failures.push(
+                    `${tree.widget}: authored node ${index} <${wanted}> sets ${prop}, and the ${fence.slot} fence ` +
+                        `of ${fence.rel} sets no ${attribute} on it. Both tree drivers assert that value; the ` +
+                        'page a reader copies does not carry it.',
+                );
+                continue;
+            }
+            const raw = element.values.get(attribute);
             const got = decodeEntities(raw ?? '', (entity) =>
                 failures.push(
                     `${fence.rel}: <${wanted} ${attribute}> carries the entity ${entity}, which arm 13 cannot ` +
