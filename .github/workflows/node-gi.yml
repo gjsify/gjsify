@@ -2571,8 +2571,38 @@ jobs:
           # it builds green with no gstvorbis.dll — which is how win32 came to ship an
           # `ogg` demuxer with nothing behind it to decode the Vorbis stream inside
           # the container (#1626). gvsbuild HAS the project; nothing had asked for it.
-          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build glib-networking libsoup3 libvorbis
-          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
+          #
+          # A NON-ZERO gvsbuild EXIT HAS TO STOP THIS STEP, AND IT DID NOT.
+          # `$ErrorActionPreference = 'Stop'` governs PowerShell errors, not the exit
+          # code of a native command, and the pwsh shell tests `$LASTEXITCODE` only for
+          # the LAST line of the script. Measured on run 34502880383: the first
+          # invocation printed `Error: libvorbis build failed`, the second succeeded,
+          # the step went GREEN, and the missing plugin surfaced three steps later at
+          # the named assertion — the only reason it was seen at all. Every invocation
+          # is checked now, and the message says WHICH one.
+          #
+          # AN `auto` FEATURE WHOSE ABSENCE WE CANNOT AFFORD IS NOT AN `auto` FEATURE.
+          # `vorbis` in -base and `soup` in -good both fail the same way when their
+          # library is missing: a meson `message()`, a `subdir_done()`, and a green
+          # build with the plugin simply not in it. Pinned to `enabled` they `error()`
+          # AT the project that needs the library, naming it, instead of leaving the
+          # assertion below as the only reader. Carried by gvsbuild's own
+          # `--extra-opts <project>:<opt>`, so neither is a patch to a build system we
+          # do not own.
+          #
+          # `libvorbis:-DCMAKE_POLICY_VERSION_MINIMUM=3.5` is a THIRD-PARTY TOOLCHAIN
+          # MISMATCH, and it is why naming the project was not enough. libvorbis 1.3.7
+          # opens with `cmake_minimum_required(VERSION 2.8.12)`, gvsbuild fetches CMake
+          # 4.3.3, and CMake 4 removed compatibility below 3.5 — so the project
+          # gvsbuild defines cannot configure with the CMake gvsbuild ships. libogg is
+          # untouched by it because its own CMakeLists asks for 3.6, which is exactly
+          # why ogg was in the payload and vorbis was not. The flag is CMake's own
+          # documented escape hatch, aimed at the one project that needs it, and it
+          # retires when gvsbuild's libvorbis or the upstream CMakeLists moves (#1626).
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build --extra-opts 'libvorbis:-DCMAKE_POLICY_VERSION_MINIMUM=3.5' glib-networking libsoup3 libvorbis
+          if ($LASTEXITCODE -ne 0) { throw "gvsbuild: the glib-networking/libsoup3/libvorbis invocation exited $LASTEXITCODE" }
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build --extra-opts 'gst-plugins-base:-Dvorbis=enabled' --extra-opts 'gst-plugins-good:-Dsoup=enabled' gstreamer gst-plugins-base gst-plugins-good
+          if ($LASTEXITCODE -ne 0) { throw "gvsbuild: the GStreamer invocation exited $LASTEXITCODE" }
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
         shell: pwsh
@@ -2587,14 +2617,17 @@ jobs:
           $plugins = Get-ChildItem "$env:GTK_PREFIX\lib\gstreamer-1.0" -Filter *.dll -ErrorAction SilentlyContinue
           if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
           Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
-          # NAMED, not counted. These two are the plugins whose absence the build above
-          # produces SILENTLY — a meson `message()` or an `auto` feature that simply
-          # switches off, then a green build — and a count of 80-odd plugins says
-          # nothing about which one is missing. Same reason gst-elements.test.mjs names
-          # its elements. `gstsoup.dll` is the https half; the GIO module beside it is
-          # what makes that work at all. `gstvorbis.dll` is the format the bundle now
-          # claims to decode, so its absence must stop the build here rather than reach
-          # the payload gate as a declaration nothing backs.
+          # NAMED, not counted, and it stays even though the step above pinned both
+          # features to `enabled`. Those two changes answer DIFFERENT questions: meson
+          # now refuses to CONFIGURE without the library, this asks whether the plugin
+          # reached the prefix — a build that configures and a file that is there are
+          # not the same claim, and a count of 80-odd plugins cannot tell which one is
+          # missing either way. Same reason gst-elements.test.mjs names its elements.
+          # `gstsoup.dll` is the https half; the GIO module beside it is what makes
+          # that work at all. `gstvorbis.dll` is a format the bundle CLAIMS to decode,
+          # so its absence must stop the build here rather than reach the payload gate
+          # as a declaration nothing backs. It has fired once already, on the run that
+          # measured the CMake mismatch (#1626).
           foreach ($named in @(
             @{ leaf = 'gstsoup.dll'; why = 'gst-plugins-good was built without libsoup in the prefix' },
             @{ leaf = 'gstvorbis.dll'; why = 'gst-plugins-base was built without libvorbis in the prefix' }
