@@ -660,6 +660,15 @@ jobs:
       - name: Check every NativeScript icon name is in the compiled subset
         run: node scripts/check-nativescript-icon-names.mjs
 
+      # The three renderers promise ONE glyph per icon-name, and until this landed each
+      # kept its own list. `@gjsify/adwaita-app` bundles the Adwaita subset into the app's
+      # own GResource so a GTK app does not depend on the host having Adwaita installed —
+      # measured before it: `add_resource_path` had zero hits in the whole tree. The GTK
+      # bundle deliberately does not CHOOSE its subset, it takes the web pillar's, and this
+      # is what makes that true: adding an icon to one map fails until the other carries it.
+      - name: Check the GTK icon bundle and the web stylesheet agree
+        run: node scripts/check-bundled-icon-parity.mjs
+
       # The SAME class of defect on the GTK side of the same question, and it was found
       # the expensive way: `@gjsify/react-native`'s Ionicons map was verified by asking
       # `Gtk.IconTheme.has_icon` on the author's desktop, so its only check was a gate on
@@ -1318,6 +1327,15 @@ jobs:
       # first run: a storybook story mapped a name its own control does not offer.
       - name: Check every NativeScript icon name is in the compiled subset
         run: node scripts/check-nativescript-icon-names.mjs
+
+      # The three renderers promise ONE glyph per icon-name, and until this landed each
+      # kept its own list. `@gjsify/adwaita-app` bundles the Adwaita subset into the app's
+      # own GResource so a GTK app does not depend on the host having Adwaita installed —
+      # measured before it: `add_resource_path` had zero hits in the whole tree. The GTK
+      # bundle deliberately does not CHOOSE its subset, it takes the web pillar's, and this
+      # is what makes that true: adding an icon to one map fails until the other carries it.
+      - name: Check the GTK icon bundle and the web stylesheet agree
+        run: node scripts/check-bundled-icon-parity.mjs
 
       # The SAME class of defect on the GTK side of the same question, and it was found
       # the expensive way: `@gjsify/react-native`'s Ionicons map was verified by asking

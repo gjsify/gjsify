@@ -5734,3 +5734,19 @@ needs a musl symbol set to be sound, so it is a policy change to `prebuild-libc`
 Publishing `-musl` packages makes the question moot for the bridges that can be built twice.
 Either way the CLI's install-time report stays useful for the residue, and neither is decidable
 from a working copy.
+
+### The bundled icon theme is not wired into the `create-app` templates
+
+`@gjsify/adwaita-app` ships the Adwaita subset in the app's own GResource and registers it
+on `startup` (ADR 0009 § Amendment 1), so `icon-name` no longer depends on the host having
+Adwaita installed. That amendment also records the DECIDED divergence that comes with the
+default — on GTK a host theme that defines the name still wins, deliberately — so it is not
+repeated here.
+
+What is genuinely open is reach. Measured rather than assumed: all four templates
+(`gtk-minimal`, `adw-canvas2d`, `adw-game`, `adw-webgl`) construct `Adw.Application` /
+`Gtk.Application` by hand instead of through `runAdwaitaApp`, and **none of them names an
+icon anywhere** — no `icon-name` in any `.ts` or `.blp`. Adding the dependency today would
+ship 26.5 KiB and a startup call to apps with no icons. The day a template draws one, the
+change is one line: `runAdwaitaApp` already defaults this on, and a hand-built application
+calls `installBundledIconTheme()`.

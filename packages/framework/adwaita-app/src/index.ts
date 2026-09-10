@@ -6,6 +6,20 @@
 export { AdwaitaApp, runAdwaitaApp, runApplication } from './application.js';
 export type { AdwaitaAppOptions } from './application.js';
 
+// The app's own Adwaita glyphs, so `icon-name` does not depend on the host theme.
+// `AdwaitaApp` installs these on `startup` already; these are for an app that builds
+// its `Adw.Application` some other way, and for a test that wants the effect on a
+// theme object of its own.
+export {
+    BUNDLED_ICON_COUNT,
+    BUNDLED_ICON_RESOURCE_PATH,
+    BUNDLED_ICON_THEME_NAME,
+    addBundledIconsToTheme,
+    installBundledIconTheme,
+    registerBundledIconResource,
+} from './icon-theme.js';
+export type { BundledIconPreference, BundledIconThemeOptions } from './icon-theme.js';
+
 export { createNavShell } from './nav-shell.js';
 export type { NavShell, NavShellOptions } from './nav-shell.js';
 
