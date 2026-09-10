@@ -136,6 +136,15 @@ describe('media-capabilities — the declaration is checked with no payload at a
         assert.doesNotMatch(text(result), /says nothing about MP3/);
     });
 
+    it('fails a declaration that is present and says nothing at all', () => {
+        // `{}` is the shape between "absent" and "two empty arrays", and it is the one a hand
+        // edit produces: the key is there, so `field-coverage` is satisfied by its NAME, and
+        // both arrays are `undefined` rather than empty. Demanded by name so the difference
+        // cannot be read as a clean bundle.
+        const result = auditMediaCapabilities([bundleRecord('@gjsify/gtk-runtime-a', scratch('bare'), {})]);
+        assert.match(text(result), /needs both an `audioDecode` and a `gaps` array/);
+    });
+
     it('fails a declaration that claims nothing and excuses nothing', () => {
         // An empty declaration reads as a present one to every consumer and is what a check
         // iterating it would report as clean.
