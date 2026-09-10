@@ -53,8 +53,10 @@ import { AdwEmptySectionsTest } from './empty-sections.spec.js';
 import { AdwSlottedChildrenTest } from './slotted-children.spec.js';
 import { AdwKeyboardOperableTest } from './keyboard-operable.spec.js';
 import { AdwFontsTest } from './adw-fonts.spec.js';
+import { AdwSharedTreesTest } from './shared-trees.spec.js';
 
 run({
+    AdwSharedTreesTest,
     AdwKeyboardOperableTest,
     AdwConnectLifecycleTest,
     AdwEmptySectionsTest,
