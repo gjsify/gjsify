@@ -1,22 +1,23 @@
-<StackLayout
+<gtk:Box
   xmlns="http://schemas.nativescript.org/tns.xsd"
   xmlns:gtk="~/gtk"
   orientation="horizontal"
+  spacing="12"
 >
   <gtk:Button
-    text="Pill"
+    label="Pill"
     styleClasses="pill"
   />
   <gtk:Button
-    text="Suggested"
+    label="Suggested"
     styleClasses="suggested-action"
   />
   <gtk:Button
-    text="Delete"
+    label="Delete"
     styleClasses="destructive-action"
   />
   <gtk:Button
-    text="Flat"
+    label="Flat"
     styleClasses="flat"
   />
-</StackLayout>
+</gtk:Box>

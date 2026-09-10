@@ -38,6 +38,9 @@
   surface: the `nativescript` fence stops being a rendered TAB and becomes a CORPUS, authored
   on all 40 blocks and read only by arm 12, because the end state of this convergence is that
   the two panes are one text and showing both is the redundancy that end state predicts.
+  § Amendment 17, 2026-09-10, adds the three widgets whose ABSENCE was making the panes two
+  programs — `Gtk.Box`, `Gtk.Label`, and a `Gtk.Button` that holds an icon or a child — and
+  takes the printed pane distance from 445 to 357 with `composition` halved.
   § Amendment 18, 2026-09-09, closes the `glyph` kind § Amendment 14 printed: the
   NativeScript port resolves Adwaita theme NAMES through a compiled subset plus a
   `registerIcon()` door, the shape the web pillar already had, with the bundle cost measured
@@ -2855,6 +2858,163 @@ variant", as if Node, Bun and Deno needed a different program), and it paid for 
 requiring every gallery intro to carry the four-runtime sentence. The sentence is now made
 once, on the pages that are about runtimes. ADR 0033's consequence names the window by its old
 title and has been updated to name it by its new one.
+## Amendment 17, 2026-09-10 — the three missing widgets, and what a printed distance is FOR
+
+§ Amendment 14 printed a distance and closed with a list of what was left, one line of
+which was: *"the blocks where a `@nativescript/core` layout stands in for a widget the port
+does not ship"*. That sentence names a gap in the PORT, and it was reachable only because
+the panes had been compared. This amendment closes it, and the interesting half is not the
+three widgets: it is that the ledger's own reasons were the specification.
+
+### The gap was legible in the ledger, in sentences it had written itself
+
+Seven of the thirty-five ledgered reasons named the same three absences, none of them
+written by anyone setting out to find a gap:
+
+- `Adw.ButtonContent`: *"the port's Gtk.Button is text-only, so the button around the
+  content is a @nativescript/core StackLayout carrying the Adwaita classes"*
+- `Adw.BottomSheet`: *"@nativescript/core's StackLayout and Label stand in for Gtk.Box and
+  Gtk.Label, which the port does not ship"*
+- `Adw.Carousel`: *"no Gtk.Box or Gtk.Label, so each card is a @nativescript/core
+  StackLayout"*
+- `Adw.Sidebar`: *"the two panes sit in a @nativescript/core GridLayout"*
+- `Adw.ActionRow`: *"the port's Gtk.Button is text-only, so the trailing chevron is a
+  Gtk.Image rather than a flat button"*
+- `Adw.NavigationView`: *"a `tap` listener rather than a `clicked` signal"*
+- `Gtk.Button`: *"the circular icon-only variant has no counterpart at all"*
+
+Two widgets and one property, restated seven times because each pane was written
+separately. **A per-block ledger is a defect census when the reasons are read together**,
+and that reading is what a per-block ledger buys over one sentence per surface. It is the
+same yield § Amendment 18 took from the same list one kind over, and neither was a review.
+
+### What was built, and what each deliberately does not do
+
+**`Gtk.Box`** extends the real `StackLayout`. What it adds is what the platform has no word
+for: `spacing`, which no NativeScript layout has (`Style` carries no `columnGap`/`rowGap`,
+the same absence `wrap-box-layout.ts` already records) and which therefore comes out of the
+children's margins; and GTK's child verbs — `append`, `prepend`, `remove`,
+`insert_child_after`, `reorder_child_after` — with `gtk_widget_insert_after`'s
+NULL-means-FIRST rule, shared with the wrap box rather than copied.
+
+`orientation` is NOT declared on it, and that is the decision worth recording.
+`StackLayout.orientation` already takes `'horizontal' | 'vertical'`, which is
+`Gtk.Orientation`'s two nicks, so the convergent spelling is the platform's own — and it is
+a NativeScript `Property`, so an accessor of that name in a subclass shadows the prototype
+accessor NS installed and the native layout never learns the axis. That is the `cssClasses`
+hazard `style-classes.ts` records, one property over. The box LISTENS for
+`orientationChange` instead, so the gap moves to the other axis when the axis changes.
+`homogeneous` and the two baseline properties are declared gaps: a `StackLayout` measures
+each child at its natural size with no equal-share mode, and nothing in `@nativescript/core`
+measures a text baseline.
+
+**`Gtk.Label`** extends the real `Label`, and the thing it had to DECLARE is markup. There
+were three possible answers and only one is honest: render it (impossible — `Label.text` is
+literal and `formattedText` takes objects, not a markup string), pass it through (the label
+then shows `<b>Bold</b>` verbatim), or reduce it to its plain text and say so. It reduces,
+through the same `stripMarkup` `Adw.Banner` already used, so the port has ONE answer to
+markup rather than one per widget; unparseable markup keeps the raw string, which is the C
+fallback. `use-markup` defaults to FALSE as in GTK, which is what keeps this surface clear
+of the failure the other direction has — a widget that parses markup by default blanks a
+label containing a `<` in ordinary prose. Everything Pango is a declared gap: `ellipsize`,
+`justify`, `wrap-mode`, the character-width requests, and `xalign`/`yalign`, which are a
+continuum where `textAlignment` has three positions.
+
+**`Gtk.Button`** stopped being the platform's text-only `Button` and became a tappable
+`GridLayout` with one star cell — the construction `AdwImageButton`, `AdwSplitButton` and
+`AdwButtonRow` were already using for exactly this reason. It has GTK's three content slots
+(`label`, `iconName`, `child`), mutually exclusive, last write wins, with the previous
+slot's view DETACHED: two views left in one grid cell paint over each other at exit 0, which
+is the same silent failure `generate-adwaita-nativescript-templates.mjs` records for
+`LayoutBase._addChildFromBuilder`. It emits `clicked` beside `tap`, so
+`connect('clicked', …)` — the line § Amendment 15 closed with as an open axis — runs
+verbatim on this one widget. `has-frame` and `can-shrink` stay declared gaps.
+
+**`text` IS GONE from the button**, and that is the breaking half. It was NativeScript's
+name for the label, INHERITED rather than declared, and `check-nativescript-widget-coverage`
+had said so in as many words: *"a divergence no gate sees because `text` is inherited rather
+than declared here"*. A name no gate can see is the shape this ADR exists to remove, so
+`label` is the GIR name and the only one.
+
+### The icon slot inherited § Amendment 18 rather than re-deciding it
+
+`Gtk.Button.iconName` was written against the SVG-source door and landed after theme names
+did. It needed no edit: the icon slot parents a `GtkImage` and writes the value onto that
+widget's own `iconName`, so `resolveIconSource` answers for both spellings and the new
+button takes `'list-add-symbolic'` on the day it ships. The `glyph` bucket therefore stays
+at **0** through a change that adds an icon property — which is what a delegation is worth,
+and the reason the header of that property points at the delegation rather than restating
+the rule.
+
+### The numbers
+
+Arm 12's last line, before and after, both measured on `origin/main` at 4dc67b4611 — that
+is, with § Amendments 16 and 18 already in:
+
+```text
+before  40 block(s) written twice — 6 the SAME TEXT after one normalisation, 34
+        ledgered [vocabulary 5, glyph 0, property 19, composition 10] — distance 445
+after   40 block(s) written twice — 7 the SAME TEXT after one normalisation, 33
+        ledgered [vocabulary 6, glyph 0, property 22, composition 5] — distance 357
+```
+
+`composition` halves, which is the deliverable: the five that remain are the four
+XML-template-plus-loader panes — not a divergence a rename could close — and
+`Adw.AlertDialog`, whose dialog is the platform's own confirm chrome. **Not one
+`@nativescript/core` import is left in any converged pane.** `property` rises from 19 to 22
+and `vocabulary` from 5 to 6 because entries came DOWN into them from `composition`: the
+kind is what closing the WHOLE entry would take, so an entry that loses its most expensive
+clause re-sorts. A total that only fell would be the number lying.
+
+`Adw.ExpanderRow`'s entry is gone entirely, and it was not this change that closed it —
+§ Amendment 15 renamed `addRow` to `add_row` and the pane was never updated. The
+self-retiring rule found it the moment the pane was fixed.
+
+### The census found four snippets that could not run, and none of them was new
+
+The panes are read, not run, and a line that throws reads exactly like a line that works.
+Four were wrong in the published gallery:
+
+| pane | wrote | the port ships |
+|---|---|---|
+| `Gtk.Button` | `box.add(button)` | `AdwWrapBox.append` |
+| `Adw.Carousel` | `carousel.addPage(page)` | `Adw.Carousel.append` |
+| `Adw.ExpanderRow` | `row.add(row)` | `add_row` since § Amendment 15 |
+| `Adw.Toast` | `overlay.set_content(view)` | `AdwToastOverlay.set_child` |
+
+Each is a `TypeError` on the first run — LOUDER than the silent drop the other two doors
+have, which is precisely why nothing had noticed. So `check-doc-fences.mjs`'s NativeScript
+arm learned the THIRD door: it held property writes and construct-props keys against the
+port's declared members and did not hold METHOD CALLS. It does now, against the same class
+chain plus an ambient method set read off `ns-core.d.ts`, and the two are the same claim
+about the widget.
+
+The probe that inflates the gallery's XML templates had a matching hole: its comparison was
+a strict `!==`, and `styleClasses` takes a whitespace-separated STRING and answers the LIST
+— the DOM's own `className`/`classList` split. Every `styleClasses` attribute it asserts
+would have failed on the first device that ran it. Nothing had.
+
+### What is deliberately left open
+
+- **`halign`/`valign` are now the commonest line left.** Six of the remaining reasons end at
+  the alignment spelling, three of them at nothing else. § Amendment 12 left the convergence
+  open and § Amendment 13 measured why it is not free: a per-widget `set verticalAlignment`
+  would shadow `View`'s, and the ATTRIBUTE door has no coercer to hang the translation on.
+  The construct-props bag already translates the two NativeScript names; what is missing is
+  the GTK-named pair beside them.
+- **The typography classes still have no rules.** `.title-1` and `.title-2` are set by two
+  converged panes and styled by nothing — `_labels.scss`'s utility set is an open-todo entry
+  and stayed one. The panes are honest (they set the class the `gjs` pane sets); the
+  rendering is not yet.
+- **`add_css_class` reached three widgets, not forty-eight.** `Gtk.Box`, `Gtk.Label` and
+  `Gtk.Button` carry GTK's five style-class methods; `AdwButtonRow` still writes `className`
+  and its pane still says so. Carrying them across the port is the method axis
+  § Amendment 15 opened, one widget at a time.
+- **Nothing here ran a pane.** Same limit § Amendment 14 recorded: the panes are compared as
+  text, their properties AND now their methods are held against the port's source, and that
+  a converged pane renders the same tree on a phone is still what ADR 0027 § 9's conformance
+  vectors would close.
+
 ## Amendment 18, 2026-09-09 — the glyph kind, closed by naming the thing
 
 § Amendment 14 measured the two snippets and left a printed distance behind, with four

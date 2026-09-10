@@ -60,8 +60,10 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     'adw:ToolbarView': Adw.ToolbarView,
     'adw:WindowTitle': Adw.WindowTitle,
     'adw:WrapBox': Adw.WrapBox,
+    'gtk:Box': Gtk.Box,
     'gtk:Button': Gtk.Button,
     'gtk:Entry': Gtk.Entry,
+    'gtk:Label': Gtk.Label,
     Label,
     StackLayout,
 };
@@ -107,11 +109,11 @@ export const EXPECTED: readonly ExpectView[] = [
         { tag: 'adw:ButtonContent', props: {"id":"download","label":"Download"} }
     },
     { widget: 'Gtk.Button', view: 'GtkButton', root:
-        { tag: 'StackLayout', props: {"orientation":"horizontal"}, children: [
-                { tag: 'gtk:Button', props: {"text":"Pill","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Suggested","styleClasses":"suggested-action"} },
-                { tag: 'gtk:Button', props: {"text":"Delete","styleClasses":"destructive-action"} },
-                { tag: 'gtk:Button', props: {"text":"Flat","styleClasses":"flat"} }
+        { tag: 'gtk:Box', props: {"orientation":"horizontal","spacing":12}, children: [
+                { tag: 'gtk:Button', props: {"label":"Pill","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"Suggested","styleClasses":"suggested-action"} },
+                { tag: 'gtk:Button', props: {"label":"Delete","styleClasses":"destructive-action"} },
+                { tag: 'gtk:Button', props: {"label":"Flat","styleClasses":"flat"} }
             ] }
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
@@ -119,14 +121,14 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.Clamp', view: 'AdwClamp', root:
         { tag: 'adw:Clamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
-                { tag: 'Label', props: {"class":"card","textWrap":true,"text":"This content is clamped: it stops growing past the maximum size and stays centred."} }
+                { tag: 'gtk:Label', props: {"styleClasses":"card","wrap":true,"label":"This content is clamped: it stops growing past the maximum size and stays centred."} }
             ] }
     },
     { widget: 'Adw.HeaderBar', view: 'AdwHeaderBar', root:
         { tag: 'adw:HeaderBar', children: [
-                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","styleClasses":"flat"} },
+                { tag: 'gtk:Button', slot: 'startBox', props: {"label":"‹","styleClasses":"flat"} },
                 { tag: 'adw:WindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
-                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","styleClasses":"flat"} }
+                { tag: 'gtk:Button', slot: 'endBox', props: {"label":"≡","styleClasses":"flat"} }
             ] }
     },
     { widget: 'Adw.ToolbarView', view: 'AdwToolbarView', root:
@@ -140,12 +142,12 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.WrapBox', view: 'AdwWrapBox', root:
         { tag: 'adw:WrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
-                { tag: 'gtk:Button', props: {"text":"Design","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Adwaita","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GNOME","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GTK","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"TypeScript","styleClasses":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Storybook","styleClasses":"pill"} }
+                { tag: 'gtk:Button', props: {"label":"Design","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"Adwaita","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"GNOME","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"GTK","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"TypeScript","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"label":"Storybook","styleClasses":"pill"} }
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:

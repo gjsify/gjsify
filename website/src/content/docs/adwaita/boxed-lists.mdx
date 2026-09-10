@@ -113,7 +113,8 @@ preferences page.
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const signOut = new Gtk.Button({ text: 'Sign out', styleClasses: 'flat' });
+    const signOut = new Gtk.Button({ label: 'Sign out', verticalAlignment: 'middle' });
+    signOut.add_css_class('flat');
 
     const group = new Adw.PreferencesGroup({
         title: 'Account',
@@ -202,9 +203,11 @@ row responds to a click, which is how you open a detail page.
 
     row.add_prefix(new Gtk.Image({ iconName: 'network-wireless-symbolic' }));
 
-    // Gtk.Button is text-only here, so the trailing chevron is a Gtk.Image rather than
-    // a flat button — and with no button there is no activatable widget to point at.
-    row.add_suffix(new Gtk.Image({ iconName: 'go-next-symbolic' }));
+    const next = new Gtk.Button({ iconName: 'go-next-symbolic', verticalAlignment: 'middle' });
+    next.add_css_class('flat');
+    row.add_suffix(next);
+
+    row.activatableWidget = next;
     row.activatable = true;
     ```
   </Fragment>
@@ -592,8 +595,8 @@ whole section.
         expanded: true,
     });
 
-    row.add(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
-    row.add(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
+    row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
+    row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```
   </Fragment>
 </AdwWidget>

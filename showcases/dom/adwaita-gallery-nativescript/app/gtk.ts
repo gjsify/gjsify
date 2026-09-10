@@ -15,6 +15,8 @@
 // widget under the wrong name.
 
 export {
+    Box,
     Button,
     Entry,
+    Label,
 } from '@gjsify/adwaita-nativescript/gtk';

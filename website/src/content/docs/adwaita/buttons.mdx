@@ -88,7 +88,7 @@ short.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import { StackLayout } from '@nativescript/core';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const content = new Adw.ButtonContent({
         label: 'Download',
@@ -96,13 +96,12 @@ short.
         // The bitmap is pre-coloured, so a suggested button's white icon is pinned here
         // rather than inherited from the stylesheet the way GTK inherits `color`.
         iconColor: '#ffffff',
+        canShrink: false,
     });
 
-    // Gtk.Button is text-only, so a styled layout wraps the content.
-    const button = new StackLayout();
-    button.orientation = 'horizontal';
-    button.className = 'adw-button suggested-action pill';
-    button.addChild(content);
+    const button = new Gtk.Button({ child: content });
+    button.add_css_class('suggested-action');
+    button.add_css_class('pill');
     ```
   </Fragment>
 </AdwWidget>

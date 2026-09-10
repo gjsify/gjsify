@@ -89,7 +89,48 @@ export function normalizeStyleClasses(value: AdwStyleClassesInput): string[] {
     return [...seen];
 }
 
-/** `className` for a widget whose own class is `base` and which carries `classes`. */
+/**
+ * `className` for a widget whose own class is `base` and which carries `classes`.
+ *
+ * AN EMPTY `base` IS A WIDGET WITH NO CLASS OF ITS OWN, and two of them ship: `Gtk.Box`
+ * and `Gtk.Label` are transparent — there is no Adwaita fill, radius or typography to give
+ * a box or a bare label, so they carry only what a caller puts on them. The empties are
+ * filtered rather than joined, because `` `${''} ${'title-1'}` `` is a leading space and
+ * NativeScript's `className` splitter turns that into an empty class name.
+ */
 export function classNameWith(base: string, classes: readonly string[]): string {
-    return classes.length > 0 ? `${base} ${classes.join(' ')}` : base;
+    return [base, ...classes].filter((name) => name !== '').join(' ');
+}
+
+/**
+ * The list after `gtk_widget_add_css_class(name)` — GTK's own method, and the door a GJS
+ * snippet reaches for.
+ *
+ * WHY THE METHODS EXIST BESIDE THE `styleClasses` PROPERTY. A NativeScript XML attribute
+ * can only carry a string, which is what `styleClasses` is for; a TypeScript caller ported
+ * off GJS writes `button.add_css_class('pill')`, and that line is in every Adwaita snippet
+ * that gives a button a look. The two doors hold the SAME list, so a widget that offers
+ * both cannot have them disagree — which is why the mutation is a pure function over the
+ * list rather than a second `className` rewrite per method.
+ *
+ * ADDS AT THE END, AND ONLY IF ABSENT. `gtk_widget_add_css_class` is a no-op for a class
+ * the widget already has (the quark is already in the list), so a second add does not move
+ * it — measured under gjs 1.88.1: `add_css_class('a'); add_css_class('b');
+ * add_css_class('a')` reads back two classes.
+ *
+ * ONE NAME, TRIMMED. GTK takes a single class name and would happily intern `'a b'` as one
+ * unmatchable class; here the string door already means "a whitespace-separated list", so a
+ * name with whitespace in it is the caller confusing the two doors. It is trimmed, and an
+ * empty name is dropped rather than added as a class nothing can be.
+ */
+export function withCssClass(classes: readonly string[], name: string): string[] {
+    const wanted = (name ?? '').trim();
+    if (wanted === '' || classes.includes(wanted)) return [...classes];
+    return [...classes, wanted];
+}
+
+/** The list after `gtk_widget_remove_css_class(name)`. Absent is a no-op, as in C. */
+export function withoutCssClass(classes: readonly string[], name: string): string[] {
+    const wanted = (name ?? '').trim();
+    return classes.filter((held) => held !== wanted);
 }

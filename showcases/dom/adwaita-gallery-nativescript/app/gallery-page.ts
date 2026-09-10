@@ -129,6 +129,21 @@ const readBack = (view: View, name: string): unknown =>
 
 const describeValue = (value: unknown): string => `${typeof value} ${JSON.stringify(value) ?? String(value)}`;
 
+/**
+ * Whether the value read back off the widget IS what the template declared.
+ *
+ * A LIST-VALUED GETTER BEHIND A STRING ATTRIBUTE is not a mismatch, and a strict `!==`
+ * called it one. `styleClasses` takes a whitespace-separated string — that is the only
+ * thing an XML attribute can carry — and answers the LIST, which is the DOM's own
+ * `className`/`classList` split and is written down as such in `style-classes.ts`. So
+ * `styleClasses="pill suggested-action"` reads back `['pill', 'suggested-action']`, and
+ * every `styleClasses` attribute in this probe would have failed on the first device that
+ * ran it. Nothing had: the probe needs a device, and the panes it asserts were compared as
+ * TEXT until now.
+ */
+const sameValue = (actual: unknown, wanted: unknown): boolean =>
+    Array.isArray(actual) && typeof wanted === 'string' ? actual.join(' ') === wanted : actual === wanted;
+
 /** Walk one declared node against the view the Builder actually made. */
 async function assertNode(expect: ExpectNode, view: View, label: string): Promise<void> {
     const Class = ELEMENT_CLASSES[expect.tag];
@@ -140,7 +155,7 @@ async function assertNode(expect: ExpectNode, view: View, label: string): Promis
     for (const [name, wanted] of Object.entries(expect.props ?? {})) {
         await it(`${label}: ${name} reached the widget`, () => {
             const actual = readBack(view, name);
-            if (actual !== wanted) {
+            if (!sameValue(actual, wanted)) {
                 throw new Error(`read back ${describeValue(actual)}, template declares ${describeValue(wanted)}`);
             }
         });

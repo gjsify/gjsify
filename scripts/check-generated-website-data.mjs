@@ -611,10 +611,8 @@ if (checkedSnippets === 0) failures.push('no snippet was matched against a probe
  */
 const NS_CORE_PROPS = {
     id: 'ViewBase.id — the handle a code-behind reaches a template child by.',
-    class: 'ViewBase.className, spelled `class` in markup.',
-    text: 'TextBase.text — GtkButton extends NativeScript Button, whose label IS `text`.',
-    textWrap: 'TextBase.textWrap.',
-    orientation: 'LayoutBase orientation on StackLayout.',
+    orientation:
+        'LayoutBase orientation, inherited by Gtk.Box from StackLayout — the same two nicks Gtk.Orientation has, which is why the box does not re-declare it.',
 };
 
 let nsSources = new Map();

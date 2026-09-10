@@ -7,7 +7,7 @@
 // The Solid/Vue/React trees beside this file are written in `@gjsify/gtk-host`'s
 // vocabulary, and that vocabulary is GTK's: `gtk-label`, `gtk-button`, `cssClasses`,
 // `iconName`. NativeScript's is a different widget set on a different toolkit —
-// `Label`, `GtkButton`, `class`, an `iconName` that is an SVG SOURCE rather than a name.
+// `GtkButton`, `styleClasses`, an `iconName` that is an SVG SOURCE rather than a name.
 // A generator that turned one into the other would need exactly the hand-written
 // alias table of tags AND semantics that `adwaita-gallery-trees.mjs` refuses in its
 // own header, one toolkit further apart. So the port describes itself, here, and
@@ -143,13 +143,13 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         widget: 'Gtk.Button',
         page: 'buttons',
         root: {
-            tag: 'StackLayout',
-            props: { orientation: 'horizontal' },
+            tag: 'GtkBox',
+            props: { orientation: 'horizontal', spacing: 12 },
             children: [
-                { tag: 'GtkButton', props: { text: 'Pill', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Suggested', styleClasses: 'suggested-action' } },
-                { tag: 'GtkButton', props: { text: 'Delete', styleClasses: 'destructive-action' } },
-                { tag: 'GtkButton', props: { text: 'Flat', styleClasses: 'flat' } },
+                { tag: 'GtkButton', props: { label: 'Pill', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'Suggested', styleClasses: 'suggested-action' } },
+                { tag: 'GtkButton', props: { label: 'Delete', styleClasses: 'destructive-action' } },
+                { tag: 'GtkButton', props: { label: 'Flat', styleClasses: 'flat' } },
             ],
         },
     },
@@ -168,11 +168,11 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             props: { maximumSize: 400, tighteningThreshold: 300 },
             children: [
                 {
-                    tag: 'Label',
+                    tag: 'GtkLabel',
                     props: {
-                        class: 'card',
-                        textWrap: true,
-                        text: 'This content is clamped: it stops growing past the maximum size and stays centred.',
+                        styleClasses: 'card',
+                        wrap: true,
+                        label: 'This content is clamped: it stops growing past the maximum size and stays centred.',
                     },
                 },
             ],
@@ -184,13 +184,13 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         root: {
             tag: 'AdwHeaderBar',
             children: [
-                { tag: 'GtkButton', slot: 'startBox', props: { text: '‹', styleClasses: 'flat' } },
+                { tag: 'GtkButton', slot: 'startBox', props: { label: '‹', styleClasses: 'flat' } },
                 {
                     tag: 'AdwWindowTitle',
                     slot: 'titleWidget',
                     props: { title: 'Text Editor', subtitle: 'notes.md' },
                 },
-                { tag: 'GtkButton', slot: 'endBox', props: { text: '≡', styleClasses: 'flat' } },
+                { tag: 'GtkButton', slot: 'endBox', props: { label: '≡', styleClasses: 'flat' } },
             ],
         },
     },
@@ -244,12 +244,12 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             tag: 'AdwWrapBox',
             props: { childSpacing: 8, lineSpacing: 8 },
             children: [
-                { tag: 'GtkButton', props: { text: 'Design', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Adwaita', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'GNOME', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'GTK', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'TypeScript', styleClasses: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Storybook', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'Design', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'Adwaita', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'GNOME', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'GTK', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'TypeScript', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { label: 'Storybook', styleClasses: 'pill' } },
             ],
         },
     },

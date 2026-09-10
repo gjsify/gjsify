@@ -6,27 +6,27 @@
   lineSpacing="8"
 >
   <gtk:Button
-    text="Design"
+    label="Design"
     styleClasses="pill"
   />
   <gtk:Button
-    text="Adwaita"
+    label="Adwaita"
     styleClasses="pill"
   />
   <gtk:Button
-    text="GNOME"
+    label="GNOME"
     styleClasses="pill"
   />
   <gtk:Button
-    text="GTK"
+    label="GTK"
     styleClasses="pill"
   />
   <gtk:Button
-    text="TypeScript"
+    label="TypeScript"
     styleClasses="pill"
   />
   <gtk:Button
-    text="Storybook"
+    label="Storybook"
     styleClasses="pill"
   />
 </adw:WrapBox>

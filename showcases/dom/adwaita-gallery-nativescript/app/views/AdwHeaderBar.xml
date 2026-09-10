@@ -5,7 +5,7 @@
 >
   <adw:HeaderBar.startBox>
     <gtk:Button
-      text="‹"
+      label="‹"
       styleClasses="flat"
     />
   </adw:HeaderBar.startBox>
@@ -17,7 +17,7 @@
   </adw:HeaderBar.titleWidget>
   <adw:HeaderBar.endBox>
     <gtk:Button
-      text="≡"
+      label="≡"
       styleClasses="flat"
     />
   </adw:HeaderBar.endBox>

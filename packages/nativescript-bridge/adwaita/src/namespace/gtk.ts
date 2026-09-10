@@ -14,8 +14,10 @@
 // ledger already declares, so `Gtk.Image` is right here today and stays right after the
 // class is renamed.
 
+export { GtkBox as Box } from '../widgets/gtk-box.js';
 export { GtkButton as Button } from '../widgets/gtk-button.js';
 export { GtkDropDown as DropDown } from '../widgets/gtk-drop-down.js';
 export { GtkEntry as Entry } from '../widgets/gtk-entry.js';
 export { GtkImage as Image } from '../widgets/gtk-image.js';
+export { GtkLabel as Label } from '../widgets/gtk-label.js';
 export { GtkMenuButton as MenuButton } from '../widgets/gtk-menu-button.js';
