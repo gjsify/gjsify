@@ -26,10 +26,13 @@
 //   · A `GParamSpec`-default table. `BANNER_DEFAULT_VECTORS` states the pspec defaults, and
 //     a tree driver reads a CONSTRUCTED widget. The two are different facts and they
 //     disagree: measured on libadwaita 1.9.3, `AdwBanner`'s `use-markup` pspec default is
-//     TRUE while a freshly constructed `AdwBanner` answers FALSE (`get_use_markup()` and
-//     `get_property` agree with each other). `gtk-host`'s README already names that class —
-//     construction and the pspec disagree in a hundred-odd places — so reading a pspec
-//     table off a built widget would assert the wrong one of two true things.
+//     TRUE while a freshly constructed `AdwBanner` answers FALSE. The mechanism is measured
+//     too — the banner's getter reads its template `GtkLabel`, whose own `use-markup`
+//     default is FALSE and which the pspec default never writes: assigning the internal
+//     label's property directly moves what the banner reports. `gtk-host`'s README already
+//     names that class — construction and the pspec disagree in a hundred-odd places — so
+//     reading a pspec table off a built widget would assert the wrong one of two true
+//     things. What the ports do with it is `status/open-todos.md`'s, not this module's.
 //   · A table whose expectation is a LOCALIZED rendering. `SHORTCUT_LABEL_VECTORS` spells
 //     its keycaps in English; `Adw.ShortcutLabel` renders `gtk_accelerator_get_label`,
 //     which is translated. Measured: `<Control>C` draws `["Strg","C"]` on a de_DE host and
@@ -133,12 +136,8 @@ const switchRowRowFor = (active: boolean | undefined) =>
 function expectationsForNode(node: SharedTreeNode, path: string): SharedTreeExpectation[] {
     const props = node.props ?? {};
     const found: SharedTreeExpectation[] = [];
-    const at = (
-        table: string,
-        observable: SharedTreeObservable,
-        expected: string | number | boolean,
-        rule: string,
-    ) => found.push({ path, gtype: node.tag, table, observable, expected, rule });
+    const at = (table: string, observable: SharedTreeObservable, expected: string | number | boolean, rule: string) =>
+        found.push({ path, gtype: node.tag, table, observable, expected, rule });
 
     if (node.tag === 'AdwEntryRow') {
         // An unset `text` is the empty entry, which is a row of the table like any other.

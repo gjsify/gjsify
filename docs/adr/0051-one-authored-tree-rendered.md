@@ -306,12 +306,16 @@ matter to the decision.
   one.** `BANNER_DEFAULT_VECTORS` states that `AdwBanner:use-markup` defaults to TRUE, and
   the pspec agrees: `Adw.Banner.find_property('use-markup').get_default_value()` is `true`
   on libadwaita 1.9.3. A freshly constructed `Adw.Banner` answers FALSE — `get_use_markup()`
-  and `get_property('use-markup')` agree with each other. `gtk-host`'s README already names
-  that class (construction and the pspec disagree in a hundred-odd places) and the host's own
-  contract sides with construction. Both Adwaita ports implement the pspec default, so the
-  same authored banner is markup-on in the browser and markup-off in GTK. A tree driver
-  therefore cannot read a pspec-default table off a built widget, and the divergence it
-  exposes belongs to the ports rather than to this suite.
+  and `get_property('use-markup')` agree with each other — and the MECHANISM is measured, not
+  guessed: the banner's getter reads its template `GtkLabel`, whose own `use-markup` default
+  is FALSE and which nothing writes the banner's pspec default into. Setting that internal
+  label's property directly moves what the banner reports, which is what identifies the
+  getter as a delegation. `gtk-host`'s README already names the class (construction and the
+  pspec disagree in a hundred-odd places) and the host's own contract sides with
+  construction. Both Adwaita ports implement the pspec default, so the same authored banner
+  is markup-on in the browser and markup-off in GTK. A tree driver therefore cannot read a
+  pspec-default table off a built widget; what the ports should do about the divergence is a
+  rendering change with its own blast radius and is tracked in `status/open-todos.md`.
 - **A localized rendering is a fact about the runner.** `SHORTCUT_LABEL_VECTORS` spells
   `<Control>C` as `[Ctrl][C]`; `Adw.ShortcutLabel` draws `gtk_accelerator_get_label`, which
   is translated — measured as `["Strg","C"]` on this de_DE host and `["Ctrl","C"]` under

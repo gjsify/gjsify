@@ -601,7 +601,11 @@ const treeTables = new Set();
     for (const { label, dir, renderer } of TREE_DRIVER_DIRS) {
         const { live } = readSuiteRegistration(dirname(dir));
         for (const file of walk(dir)) {
-            if (!file.endsWith('.spec.ts') || !new RegExp(`\\b${TREE_ENTRY}\\b`).test(withoutComments(readFileSync(file, 'utf8')))) continue;
+            if (
+                !file.endsWith('.spec.ts') ||
+                !new RegExp(`\\b${TREE_ENTRY}\\b`).test(withoutComments(readFileSync(file, 'utf8')))
+            )
+                continue;
             if (!live.has(file)) {
                 failures.push(
                     `${rel(ROOT, file)}: drives the shared authored tree, but no test entry of ${label} hands ` +

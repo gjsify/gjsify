@@ -599,6 +599,39 @@ build a tree out of in any runtime this repo tests in. A device-bound driver wou
 CI guard, which is why the second driver is `adwaita-web`: the renderer ADR 0027 § 9 named
 in the first place.
 
+### A constructed `Adw.Banner` does not interpret markup, and both ports say it does
+
+Found by the tree driver ADR 0051 landed, which is the first thing in this tree to read a
+`GParamSpec`-default table off a widget a renderer actually BUILT.
+
+`BANNER_DEFAULT_VECTORS` states `AdwBanner:use-markup` defaults to TRUE, and the pspec agrees
+— `Adw.Banner.find_property('use-markup').get_default_value()` is `true` on libadwaita 1.9.3.
+A freshly constructed `Adw.Banner` answers FALSE, from `get_use_markup()` and from
+`get_property('use-markup')` alike.
+
+**The mechanism, measured rather than read off the C** (`refs/libadwaita` is not a checkout
+here): the banner's getter DELEGATES to its template `GtkLabel`. `adw-banner.ui` — read out
+of the installed GResource at `/org/gnome/Adwaita/ui/adw-banner.ui` — sets `use-underline`,
+`ellipsize`, `wrap` and more on that label and never `use-markup`, so the label keeps
+`GtkLabel`'s own FALSE; and a pspec default is not written through a setter, so the banner's
+TRUE never reaches the label. Assigning `label.useMarkup = false` directly makes
+`banner.useMarkup` report `false`, and `banner.set_use_markup(true)` makes both report
+`true` — which is what identifies the read as a delegation rather than a stored field.
+
+**What it costs.** Both Adwaita ports implement the pspec default, so the same authored
+banner interprets `<b>bold</b>` in the browser and paints it literally in GTK. That is a
+user-visible rendering difference on the exact surface ADR 0027 § 9 is about.
+
+**Why it is not fixed here.** Deciding it changes what two published renderers paint, and it
+changes a conformance row whose `rule` cites `adw-banner.c` line numbers that cannot be
+checked without the submodule. The candidates are not equivalent: teach
+`BANNER_DEFAULT_VECTORS` to carry the CONSTRUCTED default beside the pspec one (the honest
+shape, since `gtk-host`'s contract already sides with construction and the two disagree in a
+hundred-odd places), or keep one column and decide which fact a renderer is held to. Either
+way it wants its own change with its own vectors. The tree drivers do not paper over it:
+they take no pspec-default table at all, and the reason is in
+`adwaita-core/src/conformance/shared-trees.ts`'s header.
+
 ### The gallery's two authored PANES are now measured too, and five of forty are one text
 
 The sibling fact to the entry above, one surface over. That one is about the gallery's two
