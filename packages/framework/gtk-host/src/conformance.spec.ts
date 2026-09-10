@@ -89,9 +89,11 @@ export default async () => {
             ).toBe(true);
             // The second prefix, verbatim from the darwin legs of
             // `gtk-os-suites.yml` — both arches, while win32 and Linux stay silent.
-            // GDK's own surface bookkeeping: this codebase has zero call sites for
-            // `freeze_updates`, `thaw_updates` or `update_freeze`, so a record under
-            // this prefix cannot be about our tree.
+            // THE STRING IS THE ONE A REAL HOST STORES, not one typed here: read
+            // back out of `GLib.log_set_writer_func`'s `MESSAGE` field on macOS, it
+            // carries no domain prefix and arrives at level CRITICAL. Why the
+            // classification is GDK's rather than ours is measured in ADR 0054 —
+            // three plain GTK lines reproduce it with no gtk-host in the process.
             expect(
                 isEnvironmentDiagnostic(
                     "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed",

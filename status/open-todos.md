@@ -314,30 +314,6 @@ Widening the rule before they are fixed lands a check with a 31-entry exemption 
 which the rule's own header argues against having shipped once already. Fix the 21
 published-package ones, then add the pattern.
 
-### Hiding and re-presenting a toplevel is a thaw imbalance on the macOS GDK backend
-
-MEASURED by `gtk-os-suites.yml` on BOTH darwin arches (x64 and arm64), GTK from the
-shipped closure under node, while win32 and every Linux leg stay silent:
-
-    gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed
-
-The trigger is one vector — `survives the MOVE that remove() documents itself as` — and
-what it does is what a MOVE of a `toplevel`-placed node is (ADR 0054 § 6): `present()`,
-`set_visible(false)`, `present()` on a real window. Two plain GTK calls; the counter in
-the assertion is GDK's own and this codebase never touches it (`freeze_updates`,
-`thaw_updates`, `update_freeze`: zero call sites across `packages/{framework,web,dom}`).
-
-Classified as an ENVIRONMENT diagnostic — the second entry in `ENVIRONMENT_PREFIXES`,
-resting on the same premise as `Vulkan:` and stated the same way. It is recorded rather
-than dropped, so `assertQuiet` still names the count.
-
-What is NOT established, and is why this is an entry rather than a closed case: whether
-the imbalance is GDK's alone. The darwin legs cannot be reproduced here (no macOS host,
-and a VM is out of scope for this work), so the argument is the call-site count plus the
-OS split, not a reading of `gdksurface-macos.c`. Whoever has a macOS host: the reproducer
-is three lines, and if GDK turns out to be balanced there after all, the prefix comes
-straight back out and the vector says so.
-
 ### node-gi invalidates a handle `gtk_window_destroy()` drops, where gjs keeps the object
 
 MEASURED on this machine (gjs 1.88.1 / node 24.19.0 / GTK 4.22.4), the same corpus on

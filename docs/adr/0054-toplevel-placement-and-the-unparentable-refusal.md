@@ -294,7 +294,8 @@ hide-then-destroy — so the cost of the ordering is one call rather than any be
 
 **Both arms carry the vector now.** `runs the declared retraction ONCE across remove() then
 destroy()` on the toplevel arm, `runs the declared retraction ONCE per operation, like its
-neighbour` on the portal arm. Reverting the ordering reds exactly the second one, 1 of 633.
+neighbour` on the portal arm. Reverting the ordering reds exactly the second one and NOTHING
+else — the count that stays true as the suite grows is one, not one of a total.
 
 ## Verification — an abort has to be SEEN to be denied
 
@@ -340,6 +341,57 @@ this suite also runs on win32.
 The prefix is PROBED with `GLib.find_program_in_path` (`prlimit` is util-linux, and darwin
 and win32 have none), never on `process.platform`: a host without it spawns the identical
 argv and asserts the identical things, and only pays the dump.
+
+## The one darwin diagnostic, and the host that settled it
+
+`gtk-os-suites.yml` went red on BOTH darwin arches — win32 and every Linux leg silent — on
+the MOVE vector of § 6:
+
+    gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed
+
+It is classified as an ENVIRONMENT diagnostic, the second entry in `ENVIRONMENT_PREFIXES`.
+**That classification was first argued from a call-site count** — this codebase has none for
+`freeze_updates`, `thaw_updates` or `update_freeze` — **and that argument is weaker than it
+sounds.** The assertion says somebody thawed once too often, and "we never call it ourselves"
+does not rule out our call SEQUENCE walking GDK into the imbalance. Putting a diagnostic in
+the environment list is precisely how a real defect goes quiet, so it was measured instead,
+on a macOS Sequoia 15.7.9 guest (darwin-x64, Homebrew gjs 1.88.1 / GTK 4.22.4 /
+libadwaita 1.9.2) with **no gjsify, and no gtk-host, in the process at all**.
+
+| # | case, in a bare `gjs -m` script | result |
+|---|---|---|
+| X1 | `new Gtk.Window()`, `present()`, `set_visible(false)`, `present()` — what a MOVE is, at the GTK level | the assertion FIRES |
+| X2 | the same shape with no `present()` anywhere: `set_visible(true)`, `set_visible(false)`, `set_visible(true)` | FIRES |
+| X3 | `present()` alone · `present()` twice · `present()` then `set_visible(false)` | all three SILENT |
+
+So the trigger is re-showing a surface that was hidden — not this host, and not even
+`present`. Under `G_DEBUG=fatal-criticals` the imbalanced side is NAMED: every frame above
+the log call is GTK's own, down to the binding boundary at `ffi_call_unix64`, and the only
+JS in the picture is case X1's `Gtk.Window.present()`.
+
+    _g_log_abort · g_logv · g_log
+    _gdk_macos_toplevel_surface_present     <- the extra thaw
+    gtk_window_present_toplevel · gtk_window_show · g_signal_emit
+    gtk_widget_show · _gtk_window_present
+    ffi_call_unix64                          <- the binding boundary
+
+**Loud, and measured harmless**: one record per re-show with no accumulation over five
+cycles, the window still `visible` and `mapped`, the same `GdkSurface` object throughout,
+and a render that is byte-identical either side of the sequence (a 200×100 texture, 937-byte
+PNG, before and after). So the gate widens by one GDK function that this repository has been
+shown not to provoke, rather than by a namespace — and the control vector keeps
+`gdk_surface_freeze_updates:` a failure.
+
+**The classifier was checked against the REAL record and not a hand-typed one.** Reproducing
+`installDiagnosticsGate`'s own primitive on that host — `GLib.log_set_writer_func`, reading
+the `MESSAGE` field — the stored string is
+`gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed` with no
+domain prefix, at level CRITICAL (8), so it is both recorded and matched by the prefix. A
+classifier vector that agrees with a string nobody measured is the failure mode this note
+exists to avoid.
+
+The remaining ask is upstream and is tracked as such: GDK's macOS backend should balance the
+freeze it thaws in `_gdk_macos_toplevel_surface_present`.
 
 ## Consequences
 
@@ -389,3 +441,15 @@ case. Source read at `refs/libadwaita/src/adw-dialog.c` (`adw_dialog_root` at 79
 | V | `force_close` counted through a wrapper: `destroy(dialog)` / `remove` then `destroy` | 1 / 2 with the ordering, **2 / 3** without |
 | W | `sh -c 'ulimit -c 0; exec gjs …'` and the same without `exec`, as controls | BOTH report the child's signal — a shell does not turn it into `128 + n` |
 | U | `new Gtk.Window()`, never presented | already in `list_toplevels()`; dropping the JS reference + `system.gc()` leaves it there, `destroy()` removes it |
+
+And on macOS Sequoia 15.7.9, darwin-x64, Homebrew gjs 1.88.1 / GTK 4.22.4 / libadwaita
+1.9.2 — a bare `gjs -m` script with no gjsify in it, one process per case:
+
+| # | case | result |
+|---|---|---|
+| X1 | `present()`, `set_visible(false)`, `present()` on a plain `Gtk.Window` | `gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed` |
+| X2 | the same with `set_visible(true/false/true)` and no `present()` at all | the same assertion — the trigger is the re-show, not `present` |
+| X3 | `present()` alone; `present()` twice; `present()` then `set_visible(false)` | silent, all three |
+| X4 | the extra thaw under `G_DEBUG=fatal-criticals` + `lldb` | inside `_gdk_macos_toplevel_surface_present`, GTK frames all the way down to `ffi_call_unix64` |
+| X5 | five hide/show cycles, then a render | one record per re-show, no accumulation, same `GdkSurface`, identical 937-byte PNG before and after |
+| X6 | the record `GLib.log_set_writer_func` actually stores | `gdk_surface_thaw_updates: …` with no domain prefix, level CRITICAL (8) — recorded, and matched by the prefix |
