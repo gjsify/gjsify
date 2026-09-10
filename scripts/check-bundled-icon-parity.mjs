@@ -116,8 +116,14 @@ const GENERATED = join(ROOT, 'packages/framework/adwaita-app/src/icons.generated
  */
 function committedNames() {
     if (!existsSync(GENERATED)) return null;
-    const m = /BUNDLED_ICON_NAMES = (\[[^\]]*\])/.exec(readFileSync(GENERATED, 'utf8'));
-    return m ? JSON.parse(m[1]) : [];
+    // The names are read out of the LITERAL rather than parsed as JSON: the generator emits
+    // the array already formatted — single quotes, one per line — because the artifact is
+    // committed and `oxfmt --check` reads it like any other source. A `JSON.parse` here threw
+    // the moment that shape landed, which is the honest failure; a reader that had caught and
+    // returned `[]` would have reported all 41 names as missing and read like a real finding.
+    const block = /BUNDLED_ICON_NAMES = \[([\s\S]*?)\]/.exec(readFileSync(GENERATED, 'utf8'));
+    if (!block) return [];
+    return [...block[1].matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
 }
 
 const rel = (p) => toPosixPath(relative(ROOT, p));

@@ -14,7 +14,49 @@ export const BUNDLED_ICON_COUNT = 41;
  * The names in the bundle, recorded so a STALE committed artifact is detectable without
  * `glib-compile-resources` — `check-bundled-icon-parity.mjs` holds this against SUBSET.
  */
-export const BUNDLED_ICON_NAMES = ["application-x-executable","avatar-default","camera-photo","contact-new","document-edit","document-open","document-save","edit-copy","emblem-system","folder","folder-documents","folder-download","folder-music","go-down","go-home","go-next","go-previous","image-missing","list-add","list-remove","mail-reply-sender","mail-send","mail-unread","network-wireless","open-menu","preferences-system","send-to","sidebar-show","starred","system-search","user-trash","view-conceal","view-grid","view-list","view-more","view-paged","view-refresh","view-reveal","window-close","window-maximize","window-minimize"] as const;
+export const BUNDLED_ICON_NAMES = [
+    'application-x-executable',
+    'avatar-default',
+    'camera-photo',
+    'contact-new',
+    'document-edit',
+    'document-open',
+    'document-save',
+    'edit-copy',
+    'emblem-system',
+    'folder',
+    'folder-documents',
+    'folder-download',
+    'folder-music',
+    'go-down',
+    'go-home',
+    'go-next',
+    'go-previous',
+    'image-missing',
+    'list-add',
+    'list-remove',
+    'mail-reply-sender',
+    'mail-send',
+    'mail-unread',
+    'network-wireless',
+    'open-menu',
+    'preferences-system',
+    'send-to',
+    'sidebar-show',
+    'starred',
+    'system-search',
+    'user-trash',
+    'view-conceal',
+    'view-grid',
+    'view-list',
+    'view-more',
+    'view-paged',
+    'view-refresh',
+    'view-reveal',
+    'window-close',
+    'window-maximize',
+    'window-minimize',
+] as const;
 
 /** The compiled `.gresource`, base64. 20349 bytes raw. */
 export const BUNDLED_ICON_GRESOURCE_BASE64 =
