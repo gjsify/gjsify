@@ -60,12 +60,15 @@ import { defineRule } from '../registry.mjs';
  *
  * Measured before adding it, because `bin` is a far more ordinary name than
  * `gtk` — and measured over THIS RULE'S OWN UNIVERSE, which is the part worth
- * copying: `createContext({ discoveryRoots: ['packages'] })` sees 329 packages,
- * and exactly three of them list `bin` in `files`, all three added with this
- * line. An earlier version of this note counted 337 by walking the working tree
- * for `package.json` files, which is a different set from the one the rule
- * scans; a number measured beside the check it justifies is not evidence about
- * the check.
+ * copying: `createContext({ discoveryRoots: ['packages'] })`, where exactly the
+ * three `@gjsify/node-runtime-*` packages list `bin` in `files` and nothing else
+ * in the tree does. An earlier version of this note walked the working tree for
+ * `package.json` files instead, which is a different set from the one the rule
+ * scans — and it wrote both totals down, so the note went stale the next time a
+ * package was added. A number measured beside the check it justifies is not
+ * evidence about the check; a number in a comment is not evidence at all. The
+ * set this establishes is asserted in `tests/e2e/bundled-license-trigger/`,
+ * against the real tree, by name.
  *
  * And the trigger is `files`, not the `bin` MANIFEST FIELD — a package declaring
  * executables via `"bin": {…}` is untouched.
@@ -76,9 +79,25 @@ const PAYLOAD_DIRS = new Set(['gtk', 'bin']);
 const SEE_LICENSE_IN = /^SEE LICEN[CS]E IN\s+(.+)$/;
 
 /**
- * The payload directory a `SEE LICENSE IN <file>` value points its notice INTO, or
- * `null` for every other licence shape — including `SEE LICENSE IN LICENSE.md`, which
- * is an ordinary npm package deferring to its own file and no business of this rule.
+ * The file a `SEE LICENSE IN <file>` value names, plus the first path SEGMENT of that
+ * file, or `null` for any other licence shape.
+ *
+ * One parse for both readers below — the trigger asks whether `dir` is a payload
+ * directory, the audit asks whether `named` is shipped — because a second `exec` of the
+ * same pattern is a second answer to "is this a deferral" that can drift from the first.
+ */
+function seeLicenseTarget(license) {
+    if (typeof license !== 'string') return null;
+    const match = SEE_LICENSE_IN.exec(license.trim());
+    if (match === null) return null;
+    const named = match[1].trim();
+    return { named, dir: named.replace(/^\.\/+/, '').split(/[\\/]/)[0] };
+}
+
+/**
+ * The same value, but only when the notice sits INSIDE a payload directory — `null` for
+ * `SEE LICENSE IN LICENSE.md`, an ordinary npm package deferring to its own file and no
+ * business of this rule.
  *
  * THIS IS THE SECOND WAY IN, and it is what keeps the trigger from being an escape
  * hatch. `files` is an ordinary edit: narrowing the win32 bundle's from `gtk` to
@@ -94,14 +113,18 @@ const SEE_LICENSE_IN = /^SEE LICEN[CS]E IN\s+(.+)$/;
  * and it travels in the tarball — so it collects the package and the audit fails it by
  * name. Same mechanism `media-capabilities` uses with `gjsify.mediaCapabilities`, for
  * the same reason and against the same edit.
+ *
+ * AND ITS LIMIT, because it reads the licence and this rule accepts TWO shapes. A
+ * bundling package declaring a compound SPDX expression instead names no notice path,
+ * so the narrowing still takes it out silently — measured, and held by
+ * `tests/e2e/bundled-license-trigger/`. All six bundles this repository publishes use
+ * the `SEE LICENSE IN <payload>/…` form and a test asserts that they do, so the day one
+ * switches shape the escape route is a red build rather than a rediscovery. What closes
+ * it for that package is then the enumerated list in the same suite, not this function.
  */
 function noticeInsidePayload(license) {
-    if (typeof license !== 'string') return null;
-    const seeIn = SEE_LICENSE_IN.exec(license.trim());
-    if (seeIn === null) return null;
-    const named = seeIn[1].trim();
-    const dir = named.replace(/^\.\/+/, '').split(/[\\/]/)[0];
-    return PAYLOAD_DIRS.has(dir) ? { named, dir } : null;
+    const target = seeLicenseTarget(license);
+    return target !== null && PAYLOAD_DIRS.has(target.dir) ? target : null;
 }
 
 /**
@@ -179,9 +202,9 @@ export function auditBundledLicense(packages) {
             continue;
         }
 
-        const seeIn = SEE_LICENSE_IN.exec(license.trim());
+        const seeIn = seeLicenseTarget(license);
         if (seeIn) {
-            const named = seeIn[1].trim();
+            const named = seeIn.named;
             // The file must be one the tarball carries, or the field points at nothing
             // for every consumer — the failure mode being fixed, one level down.
             const shipped = pkg.files.some((f) => {
