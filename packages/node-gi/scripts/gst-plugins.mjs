@@ -101,9 +101,12 @@ export const GST_AUDIO_PLUGINS = [
     // nothing about what it can autoplug. `audioparsers` supplies the mp3/aac/flac parsers
     // decodebin reaches for.
     //
-    // Seeding a plugin here is a request, not a promise. `mpg123`, `vorbis` and `flac` are seeded
-    // and the win32 archive has none of them, which is exactly why the CLAIM cannot live in this
-    // file: a seed that matched nothing is byte-identical to a seed that matched (#1544).
+    // Seeding a plugin here is a request, not a promise, and the win32 archive answers three of
+    // these requests with nothing — which is exactly why the CLAIM cannot live in this file: a
+    // seed that matched nothing is byte-identical to a seed that matched (#1544). WHICH three is
+    // per target and moves, so it is read from the bundles' own manifests rather than written
+    // here: `vorbis` was one of them until the Windows GStreamer build named `libvorbis` (#1626),
+    // and a list in this comment would still be naming it.
     //
     // AAC-in-M4A is NOT covered anywhere, and a sentence here used to say it was: `isomp4`
     // demuxes the container and `aacparse` parses the stream, after which nothing decodes it.
