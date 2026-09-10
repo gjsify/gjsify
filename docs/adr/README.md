@@ -76,6 +76,7 @@ the TODO records the *what's left*.
 | [0053](0053-blueprint-parsed-in-repo.md) | Blueprint is parsed in-repo, into the node shape ADR 0051 already renders | Accepted |
 | [0054](0054-toplevel-placement-and-the-unparentable-refusal.md) | The quiet half of the abort class: `toplevel` placement and a structural refusal | Accepted |
 | [0055](0055-declared-media-capabilities.md) | A runtime bundle declares the media formats it decodes, and the declaration names its own evidence | Proposed |
+| [0056](0056-win32-audio-payload-is-bounded-by-gvsbuild.md) | What the Windows runtime bundle decodes is bounded by gvsbuild's project list | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

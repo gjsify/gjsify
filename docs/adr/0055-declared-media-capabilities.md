@@ -135,10 +135,13 @@ promise — and #1544 is precisely the difference between the two.
 - **A fourth bundle cannot be added silently.** The trigger is `files` naming a `gtk/`
   payload, not a package list, so a new target's first commit is a red build asking for
   its audio contract.
-- **A declared gap is a decision, still open.** #1626 carries the win32 payload question —
-  build libmpg123/libvorbis/libFLAC into the gvsbuild set, take them from elsewhere, or
-  keep the narrowed contract. Declaring the gap does not answer it; it makes the answer
-  visible to whoever is choosing.
+- **A declared gap is a decision, and declaring it is what got one of them decided.**
+  #1626 carried the win32 payload question — build libmpg123/libvorbis/libFLAC into the
+  gvsbuild set, take them from elsewhere, or keep the narrowed contract — and asking it of
+  three artifacts at once separated an OMISSION from an ABSENCE: gvsbuild has a `libvorbis`
+  project nobody had ever named, and no project at all for libmpg123 or libFLAC. Ogg/Vorbis
+  is now a claim on all three targets; the other two stay gaps whose `why` names the upstream
+  file that would close them. [ADR 0056](0056-win32-audio-payload-is-bounded-by-gvsbuild.md).
 
 ## What this does NOT decide
 
