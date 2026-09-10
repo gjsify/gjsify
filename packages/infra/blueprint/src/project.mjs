@@ -69,7 +69,7 @@ const scalarOf = (value) => {
 const projectBody = (body) => {
     /** @type {Record<string, string | number | boolean>} */
     const props = {};
-    /** @type {{ line: number, slot?: string, object: ObjectNode }[]} */
+    /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
     for (const property of body.properties) {
@@ -77,20 +77,31 @@ const projectBody = (body) => {
         // `SharedNode` has one field for both — the conflation is declared in the header of
         // `corpus/expectations.mjs`, and this is the single line that performs it.
         if (property.value.kind === 'object') {
-            placed.push({ line: property.line, slot: property.name, object: property.value.object });
+            placed.push({
+                line: property.line,
+                order: property.order,
+                slot: property.name,
+                object: property.value.object,
+            });
             continue;
         }
         const scalar = scalarOf(property.value);
         if (scalar !== undefined) props[property.name] = scalar;
     }
     for (const child of body.children) {
-        placed.push({ line: child.line, slot: child.slot, object: /** @type {ObjectNode} */ (child.object) });
+        placed.push({
+            line: child.line,
+            order: child.order,
+            slot: child.slot,
+            object: /** @type {ObjectNode} */ (child.object),
+        });
     }
 
     // Source order, across both arrays. `toolbar-view.blp` interleaves a `[top]` bracket, a
     // `content:` property and a `[bottom]` bracket, so concatenating the two arrays gets the
-    // order wrong and only the line recovers it.
-    placed.sort((a, b) => a.line - b.line);
+    // order wrong. `line` recovers it until two members share one — legal, and pinned by
+    // `26-one-line-members.blp` — which is what `order` is for.
+    placed.sort((a, b) => a.line - b.line || a.order - b.order);
 
     const children = placed
         .filter((entry) => !isBreakpoint(entry.object))

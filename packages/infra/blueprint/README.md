@@ -45,12 +45,16 @@ bakes the compiler — and with `--require-oracle`, because an announced skip is
 laptop and a hole in the one run that is supposed to prove something.
 
 Stage C runs the in-repo parser and emitter over all 36 files and diffs the result against the
-goldens — **25 byte-equal today, 11 ledgered under one cause**. A disagreement fails unless
-`corpus/divergences.mjs` says why, and an entry there for a file that no longer disagrees fails
-too, so the ledger cannot only grow. Stage D runs the projection over the same files and holds
-the 36 hand-written `SharedNode` trees and their 119 declared losses against it, which is what
-turns them from a claim into an oracle. Neither stage needs a compiler — only the committed
-goldens — so both run on every runner.
+goldens — **25 byte-equal today, 11 ledgered under one cause across 23 named lines**. A
+disagreement fails unless `corpus/divergences.mjs` says why, and it says why per LINE: an entry
+excuses the lines it lists and every other line of that file is held to the golden. An entry
+for a file that no longer disagrees fails too, and so does a listed line that now agrees, so
+the ledger cannot only grow. Stage D runs the projection over the same files and holds the 36
+hand-written `SharedNode` trees and their 119 declared losses against it, which is what turns
+them from a claim into an oracle. Neither stage needs a compiler — only the committed goldens —
+so both run on every runner, and neither has a skip path: the parser, the emitter and the
+projection live in this repository, so a missing one is a deletion and fails rather than
+skipping.
 
 If stage B fails on a version mismatch, that is not noise. [ADR 0053 clause
 5](../../../docs/adr/0053-blueprint-parsed-in-repo.md): after an upstream release, a run that

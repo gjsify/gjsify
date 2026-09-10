@@ -518,6 +518,11 @@ class Parser {
         /** @type {Extension[]} */
         const extensions = [];
 
+        // Stamped on every member as it is parsed. These four arrays are the only place
+        // source order is destroyed, and this is the only place it can be recorded — a tie
+        // broken by `line` is broken wrongly the moment two members share one.
+        let order = 0;
+
         while (!this.at('}')) {
             const token = this.peek();
             if (token.type === 'eof') {
@@ -528,12 +533,12 @@ class Parser {
                 throw this.fail(token, `found end of file, expected \`}\` closing the \`{\` on line ${opening.line}`);
             }
             if (token.text === '[') {
-                children.push(this.parseAnnotatedChild());
+                children.push({ ...this.parseAnnotatedChild(), order: order++ });
                 continue;
             }
             if (token.text === '$') {
                 // Same routing as at the top level: let `parseTypeRef` name the extern type.
-                children.push({ object: this.parseObject(), line: token.line });
+                children.push({ object: this.parseObject(), line: token.line, order: order++ });
                 continue;
             }
             if (token.type !== 'ident') {
@@ -549,24 +554,24 @@ class Parser {
             // a legal property name.
             const next = this.peek(1);
             if (next.text === ':') {
-                properties.push(this.parseProperty());
+                properties.push({ ...this.parseProperty(), order: order++ });
             } else if (next.text === '::' || next.text === '=>') {
-                signals.push(this.parseSignal());
+                signals.push({ ...this.parseSignal(), order: order++ });
             } else if (BLOCK_EXTENSIONS.has(token.text) && next.text === '{') {
-                extensions.push(this.parseBlockExtension());
+                extensions.push({ ...this.parseBlockExtension(), order: order++ });
             } else if (token.text === 'condition' && next.text === '(') {
-                extensions.push(this.parseConditionExtension());
+                extensions.push({ ...this.parseConditionExtension(), order: order++ });
             } else if (token.text === 'responses' && next.text === '[') {
-                extensions.push(this.parseResponsesExtension());
+                extensions.push({ ...this.parseResponsesExtension(), order: order++ });
             } else if (LIST_PROPERTIES.has(token.text) && next.text === '[') {
-                properties.push(this.parseListProperty());
+                properties.push({ ...this.parseListProperty(), order: order++ });
             } else if (REFUSED_EXTENSIONS.has(token.text) && (token.text === 'template' || next.text === '[')) {
                 throw this.fail(
                     token,
                     `found ${REFUSED_EXTENSIONS.get(token.text)}, which is not in this subset — no corpus file reaches it, and \`Extension\` in ast.d.mts would record its name and drop its own vocabulary`,
                 );
             } else {
-                children.push({ object: this.parseObject(), line: token.line });
+                children.push({ object: this.parseObject(), line: token.line, order: order++ });
             }
         }
         this.expect('}', '`}`');

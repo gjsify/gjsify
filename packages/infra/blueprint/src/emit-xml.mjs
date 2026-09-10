@@ -237,13 +237,26 @@ function emitBody(xml, body, ownerType, context) {
  * @param {readonly [string, readonly { readonly line: number }[]][]} groups
  * @returns {[string, { readonly line: number }][]}
  */
+/**
+ * Merge the arrays of one body back into the order the source wrote them.
+ *
+ * `line` first and `order` to break the tie. The tie is not hypothetical: two members on one
+ * line is legal — `Gtk.Label { } spacing: 4;` — and before `order` existed the tie fell to
+ * whichever array a member had landed in, which put the property first where the oracle puts
+ * the child first. `26-one-line-members.blp` is that case, pinned.
+ *
+ * Menu attributes and items carry no `order` and fall back to the stable sort's insertion
+ * order, which is this function's other caller and a KNOWN gap: two menu members on one line
+ * would interleave the same way and nothing here would notice. No file in the corpus has one,
+ * and the fix is the same counter one level down.
+ */
 function inSourceOrder(groups) {
-    /** @type {[string, { readonly line: number }][]} */
+    /** @type {[string, { readonly line: number, readonly order?: number }][]} */
     const merged = [];
     for (const [kind, nodes] of groups) {
         for (const node of nodes) merged.push([kind, node]);
     }
-    return merged.sort((a, b) => a[1].line - b[1].line);
+    return merged.sort((a, b) => a[1].line - b[1].line || (a[1].order ?? 0) - (b[1].order ?? 0));
 }
 
 /** @param {XmlWriter} xml @param {Child} child @param {EmitContext} context */
@@ -416,10 +429,25 @@ function identText(name, ownerType, context) {
  * a `.` but which lands on a whole number is emitted as an integer — which is why the AST
  * keeps the raw spelling and this is the only place that reads it.
  *
- * BigInt and not Number: the reference goes through Python's arbitrary-precision `int`, so
- * `123456789012345678.0` emits all eighteen digits (measured on 0.20.4) and a 17-digit
- * literal is exact. Underscore separators and the `0x` form are Blueprint's own number
- * grammar; an exponent is not, so there is no `e` case to handle.
+ * BigInt and not Number on the WHOLE path: the reference goes through Python's
+ * arbitrary-precision `int`, so a 17-digit literal with no `.` is exact where `Number` would
+ * round it. On the dotted path that precision is already gone — `123456789012345678.0` emits
+ * `123456789012345680` from both, because both round through an IEEE-754 double before the
+ * integer conversion — so the BigInt there buys formatting, not digits.
+ *
+ * The fractional path is Python's `repr`, and it is NOT `String(x)`. Measured on 0.20.4:
+ *
+ *     0.00005     ->  5e-05      String(x) gives "0.00005"
+ *     0.0000015   ->  1.5e-06    String(x) gives "0.0000015"
+ *     0.0000001   ->  1e-07      String(x) gives "1e-7"
+ *
+ * Two independent rules differ. Python switches to exponent notation below `1e-4` and
+ * JavaScript below `1e-6`, so everything in that band comes out fixed here and scientific
+ * there; and Python pads the exponent to two digits where JavaScript pads to none. The high
+ * end needs no rule: Python also switches at `1e16`, and every double at or above `2**53` is
+ * an integer, so a value with a fraction can never reach it and the branch above has already
+ * taken it. Underscore separators and the `0x` form are Blueprint's own number grammar; an
+ * exponent is not, which is a fact about INPUT and says nothing about the output above.
  *
  * @param {string} raw
  */
@@ -434,7 +462,14 @@ function numberText(raw) {
     }
 
     const asFloat = negative ? -Number(digits) : Number(digits);
-    return Number.isInteger(asFloat) ? BigInt(asFloat).toString() : String(asFloat);
+    if (Number.isInteger(asFloat)) return BigInt(asFloat).toString();
+
+    // `toExponential()` with no argument is the shortest round-trip form, which is the same
+    // set of digits Python's `repr` picks — only the notation and the exponent width differ.
+    const [mantissa, exponent] = asFloat.toExponential().split('e');
+    const power = Number(exponent);
+    if (power >= -4) return String(asFloat);
+    return `${mantissa}e${power < 0 ? '-' : '+'}${String(Math.abs(power)).padStart(2, '0')}`;
 }
 
 // ------------------------------------------------------------------ signals

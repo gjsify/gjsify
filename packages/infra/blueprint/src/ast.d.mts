@@ -121,19 +121,25 @@ export interface ListValue {
     readonly line: number;
 }
 
-export type Value =
-    | StringValue
-    | NumberValue
-    | BoolValue
-    | IdentValue
-    | ObjectValue
-    | BindingValue
-    | ListValue;
+export type Value = StringValue | NumberValue | BoolValue | IdentValue | ObjectValue | BindingValue | ListValue;
 
 export interface Property {
     readonly name: string;
     readonly value: Value;
     readonly line: number;
+    /**
+     * Position among ALL members of one object body, in source order, counting from 0.
+     *
+     * `ObjectBody` keeps four arrays and GtkBuilder interleaves them: `toolbar-view.blp` emits
+     * `<child type="top">`, `<property name="content">`, `<child type="bottom">` in that order.
+     * Sorting the concatenation by `line` recovers it for every file in the corpus and is WRONG
+     * the moment two members share a line — `Gtk.Label { } spacing: 4;` is legal, and a tie
+     * broken by which array a member landed in is not source order. This counter cannot tie.
+     *
+     * It is not a source position and does not pretend to be one: nothing outside the body it
+     * was assigned in may compare two of them.
+     */
+    readonly order: number;
 }
 
 /** `clicked => $onClicked(obj) swapped after;` */
@@ -145,6 +151,7 @@ export interface Signal {
     readonly object?: string;
     readonly flags: readonly string[];
     readonly line: number;
+    readonly order: number;
 }
 
 /**
@@ -159,6 +166,7 @@ export interface Child {
     readonly slot?: string;
     readonly object: ObjectNode | MenuNode;
     readonly line: number;
+    readonly order: number;
 }
 
 /**
@@ -176,6 +184,7 @@ export interface Extension {
     readonly argument?: string;
     readonly entries: readonly Property[];
     readonly line: number;
+    readonly order: number;
 }
 
 export interface ObjectBody {

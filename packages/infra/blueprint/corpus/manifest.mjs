@@ -179,6 +179,12 @@ export const CORPUS_RULES = [
         surprise: 'the bracket is an ordinary `<child type="breakpoint">`; nothing about it is special',
     },
     {
+        file: '26-one-line-members.blp',
+        isolates: 'two body members sharing one source line, twice',
+        surprise:
+            'the oracle keeps SOURCE order, so the child precedes the property beside it and the signal precedes the property beside it — an order `line` alone cannot recover',
+    },
+    {
         file: '23-widget-reference-list.blp',
         isolates: 'a second top-level object holding a list of widget REFERENCES',
         surprise: 'the references are `<widget name="…"/>`, so the ids they point at are load-bearing',
