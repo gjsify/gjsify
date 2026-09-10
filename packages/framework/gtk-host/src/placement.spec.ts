@@ -1,4 +1,5 @@
-// The portal seam — ADR 0045.
+// The placement axis — ADR 0045 (the portal arm) and ADR 0054 (the toplevel arm,
+// the structural refusal, and the child-process control at the bottom of the file).
 //
 // EVERY VECTOR HERE ROOTS ITS PARENT IN A WINDOW, and that is not a detail of the
 // fixture. The defect this seam exists for is `g_error()` inside
@@ -7,14 +8,19 @@
 // (measured), so a suite built on bare boxes would report the seam works and would
 // have proved nothing. `rooted()` below is the only fixture, for that reason.
 //
-// The abort itself is deliberately NOT asserted in-process: it is SIGABRT with a
-// core dump, so a test that triggers it takes the runner with it. What is asserted
-// is the seam that makes it unreachable — the node never enters the parent — plus
-// the two silent wrongs around it (a stray toplevel, a dialog left up).
+// THE ABORT IS NOT ASSERTED IN-PROCESS, AND IT IS NOT LEFT UNASSERTED EITHER. It is
+// SIGABRT with a core dump, so a case that triggers it takes the runner with it —
+// which means an in-process "it did not abort" proves only that this run is still
+// alive, never that the harness could have SEEN an abort at all. The discriminator
+// is the last describe in this file: child processes, one running the raw append
+// this seam replaces and one running the placement GTK really has, with their exit
+// SIGNALS read. Everything in between asserts that the host takes the second route.
 
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
@@ -22,7 +28,7 @@ import { descriptorProblems, gtkChildTypes, gtkChildren, installDiagnosticsGate 
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 import { GtkHostError } from './errors.js';
 import { adopt, createElement, destroy, insert, materialize, remove, setProp } from './host.js';
-import { isPortal, placementOf, portalOf } from './policies.js';
+import { isPortal, isUnparented, outsideParentOf, placementOf, portalOf } from './policies.js';
 import { lookupWidget, registerWidget, registerWidgets } from './registry.js';
 import { createRoot as createReactRoot } from './adapters/react.js';
 import {
@@ -52,6 +58,76 @@ function rooted(): { window: Adw.Window; parent: HostElement; box: Gtk.Box } {
     const box = new Gtk.Box();
     window.set_content(box);
     return { window, parent: adopt(box), box };
+}
+
+/** POSIX signal 6. Spelled once, so the assertion below reads as the name it means. */
+const SIGABRT = 6;
+
+/**
+ * The interpreter the child cases need, or null.
+ *
+ * A LOOKUP RATHER THAN AN ASSUMPTION, because this suite is ONE program across two
+ * legs (ADR 0030): `test:gjs` runs it under gjs, `test:gjs-on-node` runs the same
+ * corpus under node-gi, and the second host is not obliged to carry a gjs binary.
+ * That is a precondition genuinely outside this package, which is what
+ * `it.failing`'s `when` is for — the cases RUN and are red the day a host that has
+ * gjs stops reproducing the abort.
+ */
+const GJS = GLib.find_program_in_path('gjs');
+
+interface ChildOutcome {
+    /** True when the child was killed by a signal rather than exiting. */
+    signalled: boolean;
+    /** The signal that killed it, or -1. */
+    termSig: number;
+    /** Its exit status, or -1 when it was signalled. */
+    exitStatus: number;
+    stdout: string;
+    stderr: string;
+}
+
+/**
+ * Run GTK code in its OWN process and report how that process ended.
+ *
+ * WHY A CHILD AT ALL. `g_error()` is SIGABRT: it takes the calling process down
+ * with a core dump, past every `try`, past `installDiagnosticsGate()`, past the
+ * test runner. So the abort cannot be asserted where it happens — and an
+ * in-process suite that merely FINISHES proves only that this run is alive, not
+ * that the harness could have seen the abort at all. Reading the child's exit
+ * SIGNAL is what turns "did not abort" into a falsifiable claim.
+ *
+ * The snippet is spliced into a fixed preamble rather than being a whole file, so
+ * a case reads as the three or four GTK calls it is about.
+ */
+function runInChild(body: string): ChildOutcome {
+    const source = `import Adw from 'gi://Adw?version=1';\nimport Gtk from 'gi://Gtk?version=4.0';\nGtk.init();\n${body}\n`;
+    // A DIRECTORY rather than `GLib.file_open_tmp`, which hands back an open file
+    // DESCRIPTOR that GJS gives no way to close — one leaked fd per case.
+    const dir = GLib.Dir.make_tmp('gjsify-placement-XXXXXX');
+    const path = `${dir}/case.js`;
+    GLib.file_set_contents(path, new TextEncoder().encode(source));
+    try {
+        const proc = Gio.Subprocess.new(
+            [GJS as string, '-m', path],
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+        );
+        const [, stdout, stderr] = proc.communicate_utf8(null, null);
+        const signalled = proc.get_if_signaled();
+        return {
+            signalled,
+            // ASKED ONLY WHEN IT APPLIES: `g_subprocess_get_term_sig` and
+            // `get_exit_status` each assert on the other case, so reading both
+            // unconditionally answers a critical at exit 0 — which is precisely the
+            // class this suite is about.
+            termSig: signalled ? proc.get_term_sig() : -1,
+            exitStatus: signalled ? -1 : proc.get_exit_status(),
+            stdout: stdout ?? '',
+            stderr: stderr ?? '',
+        };
+    } finally {
+        GLib.unlink(path);
+        GLib.rmdir(dir);
+    }
 }
 
 export default async () => {
@@ -155,6 +231,102 @@ export default async () => {
                 };
                 const problems = descriptorProblems([window]).map((p) => p.problem);
                 expect(problems.some((p) => p.includes('takes 0 argument(s)'))).toBe(true);
+            });
+
+            // ... and the other way round, which is the half that did not exist
+            // while `portal` was the only non-parented kind. A one-argument
+            // `present` declared as a toplevel would be called with nothing.
+            await it('refuses a present() that DOES take a parent as a toplevel', async () => {
+                const dialog: WidgetDescriptor = {
+                    gtype: 'AdwDialog',
+                    ctor: () => Adw.Dialog as never,
+                    children: { kind: 'single', set: 'set_child' },
+                    placement: { kind: 'toplevel', present: 'present', close: 'force_close' },
+                };
+                const problems = descriptorProblems([dialog]).map((p) => p.problem);
+                expect(problems.some((p) => p.includes('takes 1 argument(s)'))).toBe(true);
+                expect(problems.some((p) => p.includes('a toplevel is presented with exactly 0'))).toBe(true);
+            });
+
+            await it('names present and destroy on the toplevel family', async () => {
+                expect(placementOf(lookupWidget('GtkWindow'))).toStrictEqual({
+                    kind: 'toplevel',
+                    present: 'present',
+                    close: 'destroy',
+                });
+                // The libadwaita half of the same declaration, and the row that is
+                // easiest to file on the wrong side: `AdwMessageDialog` reads like
+                // the dialog family and IS a `GtkWindow`.
+                expect(placementOf(lookupWidget('AdwMessageDialog'))).toStrictEqual({
+                    kind: 'toplevel',
+                    present: 'present',
+                    close: 'destroy',
+                });
+                expect(portalOf(lookupWidget('AdwMessageDialog'))).toBe(null);
+                expect(isUnparented(createElement('GtkWindow'))).toBe(true);
+                expect(isPortal(createElement('GtkWindow'))).toBe(false);
+                expect(isUnparented(createElement('GtkBox'))).toBe(false);
+            });
+
+            // THE MECHANISM for the toplevel arm, and the twin of the walk above.
+            // Registration is exact, so a `Gtk.Root` the curated table forgets is a
+            // tag that GTK accepts into a child list at exit 0 — a root with a
+            // parent, drawn twice and measured by a container. This fails the day
+            // GTK ships a twentieth one.
+            await it('is declared by every registered Gtk.Root that can present itself', async () => {
+                const roots: string[] = [];
+                const undeclared: string[] = [];
+                const unpresentable: string[] = [];
+                for (const d of BUILTIN_DESCRIPTORS) {
+                    const Klass = d.ctor() as unknown as { $gtype?: GObject.GType; prototype?: object } | undefined;
+                    if (!Klass?.$gtype) continue;
+                    if (!GObject.type_is_a(Klass.$gtype, Gtk.Root.$gtype)) continue;
+                    roots.push(d.gtype);
+                    if (typeof (Klass.prototype as Record<string, unknown>).present !== 'function') {
+                        unpresentable.push(d.gtype);
+                        continue;
+                    }
+                    if (outsideParentOf(d)?.kind !== 'toplevel') undeclared.push(d.gtype);
+                }
+                expect(undeclared).toStrictEqual([]);
+                // MEASURED, and named rather than counted: `GtkDragIcon` is the one
+                // `Gtk.Root` in the table with no `present`, no `close` and no
+                // `destroy` — GTK builds one for a drag operation and nothing else
+                // shows one — so it cannot carry the declaration and is refused at
+                // the insert instead. A second name appearing here is a new case to
+                // decide, not a number to bump.
+                expect(unpresentable).toStrictEqual(['GtkDragIcon']);
+                // The population, for the same reason the dialog walk asserts its
+                // own: an empty walk satisfies both lines above while checking
+                // nothing.
+                expect(roots.includes('GtkWindow')).toBe(true);
+                expect(roots.includes('AdwApplicationWindow')).toBe(true);
+                expect(roots.length >= 19).toBe(true);
+            });
+
+            // THE CHECK THAT MAKES THE ABSENCE VISIBLE, which is the direction the
+            // whole class arrived through: every other check in `descriptorProblems`
+            // holds a WRITTEN claim against the class, and nothing held the class
+            // against a descriptor that claims nothing.
+            await it('reports a class that demands a placement and declares none', async () => {
+                const silentWindow: WidgetDescriptor = {
+                    gtype: 'GtkWindow',
+                    ctor: () => Gtk.Window as never,
+                    children: { kind: 'single', set: 'set_child' },
+                };
+                const silentDialog: WidgetDescriptor = {
+                    gtype: 'AdwDialog',
+                    ctor: () => Adw.Dialog as never,
+                    children: { kind: 'single', set: 'set_child' },
+                };
+                expect(descriptorProblems([silentWindow])[0]?.problem).toMatch(
+                    /implements Gtk\.Root and declares no placement/,
+                );
+                expect(descriptorProblems([silentDialog])[0]?.problem).toMatch(/aborts the process/);
+                // That the SHIPPED table produces none of these is asserted where
+                // every other descriptor problem is — `every declared method and
+                // text sink exists` in conformance.spec.ts, which reads the same
+                // list. A second copy here would be a second place to update.
             });
         });
 
@@ -477,6 +649,277 @@ export default async () => {
                 expect(gtkChildTypes(right)).toStrictEqual([]);
                 destroy(dialog);
             });
+        });
+
+        await gated(diagnostics, 'toplevel placement — a Gtk.Root through the host', async () => {
+            await it('presents as its own window and enters no child list', async () => {
+                const { parent, box } = rooted();
+                const win = createElement('GtkWindow');
+                insert(win, parent);
+
+                // THE QUIET HALF OF THE CLASS, closed. MEASURED without the seam:
+                // `box.append(new Gtk.Window())` on this exact tree is exit 0, with
+                // `win.get_parent()` the box and `win.get_root()` the window ITSELF
+                // — a root with a parent, drawn as a toplevel AND measured by the
+                // container. Nothing in GTK says a word about it.
+                expect(gtkChildTypes(box)).toStrictEqual([]);
+                const widget = widgetOf(win) as unknown as Gtk.Window;
+                expect(widget.get_parent()).toBe(null);
+                expect(widget.get_root() === widget).toBe(true);
+                expect(win.attached).toBe(true);
+                destroy(win);
+            });
+
+            await it('takes its own children through the ordinary one-child slot', async () => {
+                const { parent } = rooted();
+                const win = createElement('GtkWindow');
+                const label = createElement('GtkLabel', { label: 'inside' });
+                insert(label, win);
+                insert(win, parent);
+                expect((widgetOf(win) as unknown as Gtk.Window).get_child() === widgetOf(label)).toBe(true);
+                destroy(win);
+            });
+
+            await it('honours an authored visible: false instead of overruling it', async () => {
+                // `present()` sets the window visible (measured), so presenting
+                // unconditionally would make this property a silent no-op — the
+                // shape this host exists to refuse. `attached` stays true because
+                // GTK holds a root whether or not it is on screen.
+                const { parent } = rooted();
+                const win = createElement('GtkWindow', { visible: false });
+                insert(win, parent);
+                expect((widgetOf(win) as unknown as Gtk.Window).get_visible()).toBe(false);
+                expect(win.attached).toBe(true);
+                // And the ordinary property path still shows it, so the node is not
+                // stranded by the decision above.
+                setProp(win, 'visible', true);
+                expect((widgetOf(win) as unknown as Gtk.Window).get_visible()).toBe(true);
+                destroy(win);
+            });
+
+            await it('takes the window down on unmount, and the forced call is the one used', async () => {
+                // `destroy` and not `close`: MEASURED on GTK 4.22.4, a
+                // `close-request` handler returning true leaves `close()`'s window
+                // mapped and visible. An unmount is not a user request, which is the
+                // same choice the portal arm makes with `force_close`.
+                const { parent } = rooted();
+                const win = createElement('GtkWindow');
+                insert(win, parent);
+                const widget = widgetOf(win) as unknown as Gtk.Window;
+                widget.connect('close-request', () => true);
+                expect(widget.get_visible()).toBe(true);
+                remove(win);
+                expect(widget.get_visible()).toBe(false);
+            });
+
+            await it('does not shift the siblings that follow it', async () => {
+                // The same four sibling walks the portal arm needed, now reached by a
+                // second kind: counting a toplevel offsets every later child by one
+                // and `insert_child_after` is then handed a widget that is not in
+                // this container at all.
+                const { box, parent } = rooted();
+                const a = createElement('GtkLabel', { label: 'A' });
+                const win = createElement('GtkWindow');
+                const b = createElement('GtkLabel', { label: 'B' });
+                const c = createElement('GtkLabel', { label: 'C' });
+                insert(a, parent);
+                insert(win, parent);
+                insert(c, parent);
+                insert(b, parent, c);
+
+                expect(gtkChildTypes(box)).toStrictEqual(['GtkLabel', 'GtkLabel', 'GtkLabel']);
+                expect(gtkChildren(box).map((w) => (w as Gtk.Label).label)).toStrictEqual(['A', 'B', 'C']);
+                destroy(win);
+            });
+
+            await it('does not claim a one-child slot it never entered', async () => {
+                const { parent } = rooted();
+                const bin = createElement('AdwBin');
+                insert(bin, parent);
+                const win = createElement('GtkWindow');
+                insert(win, bin);
+                const label = createElement('GtkLabel', { label: 'content' });
+                insert(label, bin);
+                expect((widgetOf(bin) as unknown as Adw.Bin).get_child() === widgetOf(label)).toBe(true);
+                destroy(win);
+            });
+
+            await it('presents from a React tree mounted into a rooted container', async () => {
+                // The framework-agnostic claim again, for the second arm. One
+                // adapter is enough here where the portal arm needed three: what
+                // three proved is that the seam sits BELOW every adapter, and this
+                // arm enters through the identical two functions in `policies.ts`.
+                const window = new Adw.Window();
+                const box = new Gtk.Box();
+                window.set_content(box);
+                const root = createReactRoot(box);
+                try {
+                    root.render(reactCreateElement('gtk-window', {}, reactCreateElement('gtk-label', { label: 'rn' })));
+                    expect(gtkChildTypes(box)).toStrictEqual([]);
+                } finally {
+                    root.unmount();
+                }
+            });
+        });
+
+        await gated(diagnostics, 'the refusal that replaces the abort', async () => {
+            // `descriptorProblems()` says the same thing about the shipped TABLE up
+            // front. These are about `registerWidget`, which takes descriptors from
+            // applications and is checked by nobody — and for the dialog family the
+            // consequence of not checking is not a wrong window but a dead process.
+            const withoutPlacement = (gtype: string, ctor: () => unknown): WidgetDescriptor => ({
+                gtype,
+                ctor: ctor as never,
+                children: { kind: 'single', set: 'set_child' },
+            });
+
+            const refusalFor = (gtype: string, ctor: () => unknown): GtkHostError | undefined => {
+                registerWidget(withoutPlacement(gtype, ctor));
+                try {
+                    const { parent } = rooted();
+                    const child = createElement(gtype);
+                    try {
+                        insert(child, parent);
+                    } catch (error) {
+                        return error as GtkHostError;
+                    }
+                    return undefined;
+                } finally {
+                    registerWidgets(BUILTIN_DESCRIPTORS);
+                }
+            };
+
+            await it('refuses an application-registered dialog BEFORE the adder runs', async () => {
+                // THE ONE CASE IN THIS FILE WHERE FAILING IS NOT A RED TEST. Without
+                // the refusal this line reaches `box.append(dialog)` on a rooted box,
+                // which is `g_error()` — the runner dies with SIGABRT and this suite
+                // reports nothing at all. The child process in the next describe is
+                // what makes that difference observable rather than assumed.
+                const error = refusalFor('AdwDialog', () => Adw.Dialog);
+                expect(error?.code).toBe('unparentable-child');
+                expect(error?.message).toMatch(/AdwDialog\.present\(\) takes a parent/);
+                expect(error?.message).toMatch(/kind: 'portal'/);
+            });
+
+            await it('refuses an application-registered toplevel, which GTK would take in silence', async () => {
+                const error = refusalFor('GtkWindow', () => Gtk.Window);
+                expect(error?.code).toBe('unparentable-child');
+                expect(error?.message).toMatch(/implements Gtk\.Root/);
+                expect(error?.message).toMatch(/kind: 'toplevel'/);
+            });
+
+            await it('refuses the one Gtk.Root that cannot present itself', async () => {
+                // `GtkDragIcon` is in the shipped table, is a `Gtk.Root`, and has no
+                // `present`/`close`/`destroy` at all (measured), so it carries no
+                // placement — the refusal is its whole answer, and this is what says
+                // the two mechanisms cover the class between them rather than each
+                // covering half of it.
+                const { parent } = rooted();
+                const icon = createElement('GtkDragIcon');
+                let caught: unknown;
+                try {
+                    insert(icon, parent);
+                } catch (error) {
+                    caught = error;
+                }
+                expect((caught as GtkHostError)?.code).toBe('unparentable-child');
+                expect((caught as GtkHostError)?.message).toMatch(/implements Gtk\.Root/);
+            });
+
+            await it('lets an explicit parented placement through, because the oracle is not the author', async () => {
+                // THE ESCAPE HATCH, and it is measured on the SILENT half on purpose:
+                // a consumer whose own widget trips the structural oracle while
+                // really being a child needs a way back, and demonstrating it with a
+                // dialog would abort this process rather than document anything.
+                registerWidget({
+                    gtype: 'GtkWindow',
+                    ctor: () => Gtk.Window as never,
+                    children: { kind: 'single', set: 'set_child' },
+                    placement: { kind: 'parented' },
+                });
+                try {
+                    const { parent, box } = rooted();
+                    const win = createElement('GtkWindow');
+                    insert(win, parent);
+                    expect(gtkChildTypes(box)).toStrictEqual(['GtkWindow']);
+                    remove(win);
+                } finally {
+                    registerWidgets(BUILTIN_DESCRIPTORS);
+                }
+            });
+        });
+
+        // THE DISCRIMINATOR. Everything above runs in THIS process, and a process
+        // that aborts reports nothing — so "the host no longer aborts" is a claim no
+        // in-process assertion can make. These two cases run the same GTK calls in a
+        // CHILD and read how it died.
+        await gated(diagnostics, 'the abort is real, and the placement avoids it', async () => {
+            await it.failing(
+                'kills a child process with SIGABRT on the raw append the seam replaces',
+                async () => {
+                    const outcome = runInChild(`
+                        const outer = new Adw.Window();
+                        const box = new Gtk.Box();
+                        outer.set_content(box);
+                        box.append(new Adw.Dialog());
+                        print('SURVIVED');
+                    `);
+                    // The NEGATIVE CONTROL: without this line passing, every "does
+                    // not abort" in this file is unfalsifiable — a harness that
+                    // cannot see an abort reports the same green either way.
+                    expect(outcome.signalled).toBe(true);
+                    expect(outcome.termSig).toBe(SIGABRT);
+                    expect(outcome.stderr).toMatch(/Adwaita-ERROR/);
+                    expect(outcome.stdout.includes('SURVIVED')).toBe(false);
+                },
+                'needs a gjs interpreter on PATH to run the case in its own process',
+                { when: GJS === null },
+            );
+
+            await it.failing(
+                'exits 0 on the placement the host uses instead',
+                async () => {
+                    // The same intent, expressed the way `presentPortal` expresses
+                    // it. Same process shape, same fixture, opposite outcome — which
+                    // is what makes the row above a control rather than a lone fact.
+                    const outcome = runInChild(`
+                        const outer = new Adw.Window();
+                        const box = new Gtk.Box();
+                        outer.set_content(box);
+                        const dialog = new Adw.Dialog();
+                        dialog.present(box);
+                        print('parent=' + (dialog.get_parent() !== null) + ' visibleDialog=' + (outer.visibleDialog === dialog));
+                    `);
+                    expect(outcome.signalled).toBe(false);
+                    expect(outcome.exitStatus).toBe(0);
+                    expect(outcome.stdout).toMatch(/parent=true visibleDialog=true/);
+                },
+                'needs a gjs interpreter on PATH to run the case in its own process',
+                { when: GJS === null },
+            );
+
+            await it.failing(
+                'shows the toplevel half is a silent accept rather than a second abort',
+                async () => {
+                    // Case K of ADR 0045, re-measured here because the fix for it is
+                    // in this PR: the neighbour does NOT abort, which is exactly why
+                    // it survived a seam built only for the loud one.
+                    const outcome = runInChild(`
+                        const outer = new Adw.Window();
+                        const box = new Gtk.Box();
+                        outer.set_content(box);
+                        const win = new Gtk.Window();
+                        box.append(win);
+                        print('parent=' + (win.get_parent() === box) + ' rootIsSelf=' + (win.get_root() === win));
+                    `);
+                    expect(outcome.signalled).toBe(false);
+                    expect(outcome.exitStatus).toBe(0);
+                    expect(outcome.stdout).toMatch(/parent=true rootIsSelf=true/);
+                    expect(outcome.stderr).toBe('');
+                },
+                'needs a gjs interpreter on PATH to run the case in its own process',
+                { when: GJS === null },
+            );
         });
     });
 };

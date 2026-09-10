@@ -13,11 +13,12 @@ import { err, GtkHostError } from './errors.js';
 import {
     addressOf,
     insertChild,
-    isPortal,
+    isUnparented,
     makeDetachedContainer,
     makeWrapper,
-    portalOf,
-    presentPortal,
+    outsideParentOf,
+    placeOutsideParent,
+    refuseUnparentable,
     removeChild,
     setterSlotOf,
     setterSlots,
@@ -592,11 +593,12 @@ function flushText(el: HostElement): void {
  */
 function* setterSlotChildren(el: HostElement): Generator<HostElement> {
     for (const child of siblingsFrom(el.first, el)) {
-        // `isPortal` for the reason `holdsOursInSlot` carries: `setterSlotOf` reads
-        // the PARENT's policy, so it answers `set_child` for a portal child that is
-        // not in the slot and never was — and a text write would then record that
-        // GTK had unparented it.
-        if (child.kind === 'element' && child.attached && !isPortal(child) && setterSlotOf(el, child)) yield child;
+        // `isUnparented` for the reason `holdsOursInSlot` carries: `setterSlotOf`
+        // reads the PARENT's policy, so it answers `set_child` for a portal or
+        // toplevel child that is not in the slot and never was — and a text write
+        // would then record that GTK had unparented it.
+        if (child.kind === 'element' && child.attached && !isUnparented(child) && setterSlotOf(el, child))
+            yield child;
     }
 }
 
@@ -730,18 +732,25 @@ function attach(parent: HostElement, child: HostElement): void {
     if (!parent.widget) return;
     materialize(child);
 
-    // A PORTAL leaves before any of it (ADR 0045). None of the four steps below
-    // applies to a node the parent never adopts: there is no wrapper row for a
-    // node no container addresses, no slot for it to occupy, and no index or tail
-    // for it to take part in. `attached` is what `presentPortal` answers, because
-    // a portal inserted before its parent is in a window is claimed by the host
-    // and NOT yet taken by GTK — the two facts this host keeps apart everywhere
-    // else.
-    const portal = portalOf(child.descriptor);
-    if (portal) {
-        child.attached = presentPortal(parent, child, portal);
+    // A NON-PARENTED NODE LEAVES BEFORE ANY OF IT (ADR 0045, ADR 0054). None of
+    // the four steps below applies to a node the parent never adopts: there is no
+    // wrapper row for a node no container addresses, no slot for it to occupy, and
+    // no index or tail for it to take part in. `attached` is what the placement
+    // answers, because a portal inserted before its parent is in a window is
+    // claimed by the host and NOT yet taken by GTK — the two facts this host keeps
+    // apart everywhere else.
+    const outside = outsideParentOf(child.descriptor);
+    if (outside) {
+        child.attached = placeOutsideParent(parent, child, outside);
         return;
     }
+
+    // AND A NODE THAT SHOULD HAVE HAD ONE IS REFUSED HERE, before `ensureWrapper`
+    // rather than inside `insertChild`. A wrapper row's `set_child` is silent on a
+    // detached row (measured), so putting the check further down would build the
+    // row and only then refuse — and for the dialog family there is no "further
+    // down": the append is `g_error()` and the process is gone.
+    refuseUnparentable(parent, child);
 
     ensureWrapper(parent, child);
 
@@ -766,21 +775,22 @@ function attach(parent: HostElement, child: HostElement): void {
 
     let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
     let index = priorChildren.length;
-    // A PORTAL SIBLING COUNTS FOR NOTHING, and it is the same rule an anchor
+    // A NON-PARENTED SIBLING COUNTS FOR NOTHING, and it is the same rule an anchor
     // already gets one line up: it owns no address in this container, so counting
     // it shifts every later child by one and rotating it would call the parent's
-    // adder on a node the parent must never touch (`g_error`, § the portal arm of
-    // `NodePlacement`). `attached` is true for a presented portal — GTK has taken
-    // it — so `attached` alone is not the question here.
+    // adder on a node the parent must never touch — `g_error` for the portal arm,
+    // a silently parented root for the toplevel one (§ `NodePlacement`).
+    // `attached` is true for a presented portal and for every toplevel — GTK has
+    // taken them — so `attached` alone is not the question here.
     for (const n of siblingsFrom(parent.first, parent)) {
         if (n === child) break;
-        if (n.kind !== 'element' || !n.attached || isPortal(n)) continue;
+        if (n.kind !== 'element' || !n.attached || isUnparented(n)) continue;
         prevWidget = addressOf(n);
         index += 1;
     }
     const following: HostElement[] = [];
     for (const n of siblingsFrom(child.next, parent)) {
-        if (n.kind === 'element' && n.attached && !isPortal(n)) following.push(n);
+        if (n.kind === 'element' && n.attached && !isUnparented(n)) following.push(n);
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
@@ -826,12 +836,13 @@ function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
  */
 function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
     for (const n of siblingsFrom(parent.first, parent)) {
-        // A portal is not IN a slot — it never entered the parent — and a portal
-        // child carries `slot === null` like everything unslotted, so without this
-        // a `<Modal>` inside a one-child container would answer for the slot its
-        // sibling actually holds. Both readers of this care about the same thing:
-        // is the parent's single slot occupied by one of ours.
-        if (n.kind === 'element' && n.attached && n.slot === slot && !isPortal(n)) return true;
+        // A portal or a toplevel is not IN a slot — neither ever entered the
+        // parent — and such a child carries `slot === null` like everything
+        // unslotted, so without this a `<Modal>` inside a one-child container
+        // would answer for the slot its sibling actually holds. Both readers of
+        // this care about the same thing: is the parent's single slot occupied by
+        // one of ours.
+        if (n.kind === 'element' && n.attached && n.slot === slot && !isUnparented(n)) return true;
     }
     return false;
 }

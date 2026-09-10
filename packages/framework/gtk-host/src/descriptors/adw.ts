@@ -3,6 +3,10 @@
 import Adw from 'gi://Adw?version=1';
 
 import type { NodePlacement, WidgetDescriptor } from '../types.js';
+// IMPORTED, not restated. A second literal with the same two method names is a
+// second source for one measured fact, and the day `close` moves off `destroy`
+// only one of the copies would.
+import { TOPLEVEL } from './gtk.js';
 
 /**
  * The placement every `Adw.Dialog` shares — ADR 0045, and the whole of the seam's
@@ -19,8 +23,8 @@ import type { NodePlacement, WidgetDescriptor } from '../types.js';
  * They are named rather than derived because registration is exact: the generated
  * table registers each subclass under its own GType with `children:
  * { kind: 'uncurated' }`, so an inherited placement would never be looked up and
- * `<adw-alert-dialog>` under a rooted box would abort the process. `portal
- * placement is inherited by every Adw.Dialog subclass` in `portal.spec.ts` is what
+ * `<adw-alert-dialog>` under a rooted box would abort the process. `is
+ * declared by every registered Adw.Dialog subclass` in `placement.spec.ts` is what
  * keeps the list complete when libadwaita adds the sixth.
  */
 const DIALOG_PORTAL: NodePlacement = { kind: 'portal', present: 'present', close: 'force_close' };
@@ -79,15 +83,44 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         ctor: () => Adw.Toggle,
         children: { kind: 'single', set: 'set_child' },
     },
+    // The libadwaita toplevels — ADR 0054. `Gtk.Root`, so they are presented and
+    // destroyed rather than parented, exactly like GTK's own; the constant and the
+    // measurements behind `destroy` live in `gtk.ts` and `types.ts`.
+    //
+    // `AdwMessageDialog` is here and NOT in the portal family one screen up, and
+    // that is the same measurement read the other way: it is a `GtkWindow`, so it
+    // has a 0-argument `present` and is a toplevel. Its `AdwAlertDialog`
+    // replacement is the portal. The two look alike in a widget list and sit on
+    // opposite sides of this axis.
     {
         gtype: 'AdwApplicationWindow',
         ctor: () => Adw.ApplicationWindow,
         children: { kind: 'single', set: 'set_content' },
+        placement: TOPLEVEL,
     },
     {
         gtype: 'AdwWindow',
         ctor: () => Adw.Window,
         children: { kind: 'single', set: 'set_content' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'AdwMessageDialog',
+        ctor: () => Adw.MessageDialog,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'AdwAboutWindow',
+        ctor: () => Adw.AboutWindow,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
+    },
+    {
+        gtype: 'AdwPreferencesWindow',
+        ctor: () => Adw.PreferencesWindow,
+        children: { kind: 'uncurated' },
+        placement: TOPLEVEL,
     },
     {
         gtype: 'AdwBin',

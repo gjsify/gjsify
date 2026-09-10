@@ -124,13 +124,32 @@ export type HostNode = HostElement | HostText | HostAnchor;
  * accepts the very same append in silence at exit 0 — re-testing this on a bare
  * box "disproves" it and puts the append back.
  *
+ * THE ABORT IS THE LOUD HALF OF A CLASS, and its quiet half arrives through the
+ * same door (ADR 0054). MEASURED on the same libraries, one process per case:
+ * `box.append(new Gtk.Window())` with the box rooted is **exit 0, silent**, and
+ * afterwards `win.get_parent()` is the box while `win.get_root()` is the window
+ * ITSELF — a `GtkRoot` with a parent, which is a contradiction GTK states nowhere.
+ * Presenting that window then draws it as a toplevel AND leaves it in the box's
+ * child list, so the container measures and allocates a window. One node kind
+ * aborts, its neighbour says nothing; both are the same question answered wrong,
+ * so both are answered here.
+ *
  * So the descriptor declares the axis, and `policies.ts` is the only reader.
  * `parented` is every other widget and is what an ABSENT `placement` means; the
  * union still cannot be forgotten because there is exactly one normaliser
  * (`placementOf`) and every switch over it ends in `unhandledPlacement`.
  */
 export type NodePlacement =
-    /** The parent's `ChildPolicy` places it. Every widget but the dialog family. */
+    /**
+     * The parent's `ChildPolicy` places it — every widget but the two families below.
+     *
+     * DECLARING it is not the same as leaving it out, and the difference is an
+     * escape hatch rather than a nicety: the host refuses a node whose CLASS says
+     * it cannot be parented (`unparentableChild`), and that refusal fires only
+     * where the descriptor is SILENT. A consumer whose own widget trips the
+     * structural oracle — a `present(parent)` method on a widget that really is a
+     * child — writes this arm and is placed by its parent again.
+     */
     | { readonly kind: 'parented' }
     /**
      * The node places ITSELF against its parent: `present(parent)` / `close()`.
@@ -152,7 +171,41 @@ export type NodePlacement =
      *    at exit 0, and `force_close()` is silent. So the host needs no
      *    "is it up?" probe before retracting one.
      */
-    | { readonly kind: 'portal'; readonly present: string; readonly close: string };
+    | { readonly kind: 'portal'; readonly present: string; readonly close: string }
+    /**
+     * The node IS a root: `present()` / `destroy()`, and no parent anywhere.
+     *
+     * WHAT SEPARATES IT FROM A PORTAL IS THE ARITY, and that is a fact about the
+     * two libraries rather than a convention: measured, `adw_dialog_present` takes
+     * 1 argument and `gtk_window_present` takes 0. A portal has two positions in
+     * the tree and the parent is what joins them; a toplevel has ONE, its own, so
+     * there is nothing to present it against. `descriptorProblems()` holds both
+     * arities, so the two arms cannot be swapped by a copy/paste.
+     *
+     * MEMBERSHIP IS `Gtk.Root`, measured with `GObject.type_is_a` and not read
+     * from documentation — 19 classes in the shipped table, from `GtkWindow` and
+     * `AdwApplicationWindow` down to `GtkPrintUnixDialog`. It is GTK's own word
+     * for "this widget is a toplevel", which is why the generic code asks it
+     * instead of forming a second opinion.
+     *
+     * `close: 'destroy'` IS THE FORCED ONE, the same choice the portal arm makes
+     * and for the same measured reason. On GTK 4.22.4: `gtk_window_close()` emits
+     * `close-request`, and a handler returning TRUE leaves the window mapped and
+     * visible — which is exactly how an application vetoes a user's close. An
+     * unmount is not a user request, so the conditional call is the wrong one;
+     * `gtk_window_destroy()` takes it down regardless. Both are silent on a window
+     * that was never presented (measured), so the host needs no "is it up?" probe.
+     *
+     * AND THE FORCED CALL IS TERMINAL HERE, which is where this arm stops being a
+     * copy of the portal one. MEASURED: `present()` after either `close()` or
+     * `destroy()` answers `Gtk-WARNING **: A window is shown after it has been
+     * destroyed. This will leave the window in an inconsistent state.` — GTK4's
+     * default `close-request` handler destroys the window, so `close()` is a
+     * conditional destroy rather than a hide. A retracted toplevel is therefore
+     * gone for good, and a re-mount is a fresh widget (which is what `rebuild`
+     * already does for a construct-only write).
+     */
+    | { readonly kind: 'toplevel'; readonly present: string; readonly close: string };
 
 // ---------------------------------------------------------------------------
 // Child placement

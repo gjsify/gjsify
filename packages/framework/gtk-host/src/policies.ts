@@ -12,9 +12,16 @@
 //
 // TWO AXES, not one, since the portal seam (ADR 0045). `ChildPolicy` says how a
 // PARENT adopts a child; `NodePlacement` says whether the node goes into its
-// parent at all. The second half lives under § Portal placement below and is the
+// parent at all. The second half lives under § Placement below and is the
 // only part of this file a parent's policy never reaches.
+//
+// The second axis has TWO non-parented arms (ADR 0054) because the installed
+// libraries have two ways of refusing a parent, and only one of them says so: a
+// parented `Adw.Dialog` is `g_error()` and a parented `Gtk.Window` is exit 0. The
+// same declaration answers both, and `classPlacementKind` is what catches a
+// descriptor that declares neither before the adder gets the chance.
 
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { err, GtkHostError } from './errors.js';
@@ -162,11 +169,14 @@ export function slotOccupant(widget: Gtk.Widget, setter: string): Gtk.Widget | n
 }
 
 // ---------------------------------------------------------------------------
-// Portal placement — a node whose host node is not its parent node
+// Placement — whether a node goes into its parent at all
 // ---------------------------------------------------------------------------
 
 /** What an absent `placement` means, spelled once. */
 const PARENTED: NodePlacement = { kind: 'parented' };
+
+/** A placement that does NOT put the node into its parent's child list. */
+export type OutsideParent = Exclude<NodePlacement, { kind: 'parented' }>;
 
 /**
  * The declared placement of a node. The ONE place absence is turned into a value.
@@ -177,17 +187,30 @@ const PARENTED: NodePlacement = { kind: 'parented' };
  */
 export const placementOf = (descriptor: WidgetDescriptor): NodePlacement => descriptor.placement ?? PARENTED;
 
-/** The portal arm, or null. The narrow question four call sites ask. */
-export function portalOf(descriptor: WidgetDescriptor): Extract<NodePlacement, { kind: 'portal' }> | null {
+/**
+ * The placement, when it is NOT `parented` — the narrow question every caller asks.
+ *
+ * Returning the arm rather than a boolean is what keeps the two non-parented kinds
+ * ONE question: a caller switches over what it gets and its `never` arm fails to
+ * compile the day a fourth kind arrives.
+ */
+export function outsideParentOf(descriptor: WidgetDescriptor): OutsideParent | null {
     const placement = placementOf(descriptor);
     switch (placement.kind) {
         case 'parented':
             return null;
         case 'portal':
+        case 'toplevel':
             return placement;
         default:
             return unhandledPlacement(placement);
     }
+}
+
+/** The portal arm specifically, or null. */
+export function portalOf(descriptor: WidgetDescriptor): Extract<NodePlacement, { kind: 'portal' }> | null {
+    const outside = outsideParentOf(descriptor);
+    return outside?.kind === 'portal' ? outside : null;
 }
 
 /** `unhandledPolicy`'s twin for the placement axis, and it exists for the same reason. */
@@ -198,10 +221,28 @@ export function unhandledPlacement(placement: never): never {
 /** Is this node placed against its parent rather than into it? */
 export const isPortal = (el: HostElement): boolean => portalOf(el.descriptor) !== null;
 
-function portalMethod(el: HostElement, method: string, role: 'present' | 'close'): (...a: unknown[]) => unknown {
+/**
+ * Does this node take NO position in its parent's child list?
+ *
+ * The question four sibling walks ask, and it is the placement AXIS rather than
+ * the portal arm: a toplevel occupies a parent's child list exactly as little as a
+ * portal does. Asking `isPortal` there was correct while `portal` was the only
+ * non-parented kind and became a silent hole the moment it was not — counting a
+ * toplevel as a sibling shifts every later child by one and hands
+ * `insert_child_after` a widget that is not in the container (a critical at exit 0),
+ * and rotating one calls the parent's adder on a node that must never enter it.
+ */
+export const isUnparented = (el: HostElement): boolean => outsideParentOf(el.descriptor) !== null;
+
+function placementMethod(
+    el: HostElement,
+    placement: OutsideParent,
+    method: string,
+    role: 'present' | 'close',
+): (...a: unknown[]) => unknown {
     const node = el.widget as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined> | null;
     const fn = node?.[method];
-    if (typeof fn !== 'function') throw err.portalMethodMissing(el.descriptor.gtype, method, role);
+    if (typeof fn !== 'function') throw err.placementMethodMissing(el.descriptor.gtype, placement.kind, method, role);
     return fn;
 }
 
@@ -264,8 +305,8 @@ export function presentPortal(
     // it is a named refusal at the insert. `descriptorProblems()` catches a
     // built-in descriptor up front; an application-registered one is checked by
     // nobody, which is the same gap `slotNeedsRemove` fills for a slot.
-    portalMethod(child, portal.present, 'present');
-    portalMethod(child, portal.close, 'close');
+    placementMethod(child, portal, portal.present, 'present');
+    placementMethod(child, portal, portal.close, 'close');
     watchPortalRoot(anchor, child, portal);
     return placeAgainst(anchor, child, portal);
 }
@@ -299,7 +340,7 @@ function placeAgainst(
         // Unconditional, for the reason `retractPortal` is: `force_close` on a node
         // that was never presented is silent (measured), so no "is it up?" probe is
         // needed, and on a deferred insert this is a no-op.
-        portalMethod(child, portal.close, 'close').call(node);
+        placementMethod(child, portal, portal.close, 'close').call(node);
         return false;
     }
     if (node.get_parent()) {
@@ -311,9 +352,9 @@ function placeAgainst(
         // first is the sequence that works (measured: force_close, then present,
         // lands it in the new window with no diagnostic).
         if (toplevelOf(node) === target) return true;
-        portalMethod(child, portal.close, 'close').call(node);
+        placementMethod(child, portal, portal.close, 'close').call(node);
     }
-    portalMethod(child, portal.present, 'present').call(node, anchor);
+    placementMethod(child, portal, portal.present, 'present').call(node, anchor);
     return true;
 }
 
@@ -355,7 +396,168 @@ function retractPortalWatch(child: HostElement): void {
 export function retractPortal(child: HostElement, portal: Extract<NodePlacement, { kind: 'portal' }>): void {
     retractPortalWatch(child);
     if (!child.widget) return;
-    portalMethod(child, portal.close, 'close').call(child.widget);
+    placementMethod(child, portal, portal.close, 'close').call(child.widget);
+}
+
+/**
+ * Show a toplevel node — and it needs nothing from its parent, which is the point.
+ *
+ * NO ANCHOR, NO WAIT, NO SUBSCRIPTION. A portal has two positions in the tree and
+ * defers until the parent supplies the second one; a toplevel HAS no second
+ * position, so the whole `notify::root` machinery next door has nothing to watch
+ * for. Measured: `gtk_window_present` takes 0 arguments where
+ * `adw_dialog_present` takes 1, and that arity is exactly the difference.
+ *
+ * Returns whether GTK has taken the node — always true once there is a widget,
+ * because a root is taken by nobody: measured, a presented window answers
+ * `get_parent() === null` and `get_root() === itself`. That is not the portal's
+ * "claimed but not yet taken" state, it is the finished one.
+ *
+ * AN AUTHORED `visible: false` IS HONOURED rather than overwritten. `present()`
+ * sets the window visible (measured), so presenting unconditionally would make
+ * `<gtk-window visible={false}>` a property this host silently reverses — the
+ * exact shape it exists to refuse. The node is still `attached`: GTK holds it as
+ * its own root whether or not it is on screen, and a later `setProp(el,
+ * 'visible', true)` shows it through the ordinary property path.
+ */
+export function presentToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): boolean {
+    const node = child.widget as unknown as Gtk.Widget | null;
+    if (!node) return false;
+    const present = placementMethod(child, placement, placement.present, 'present');
+    // Asked here as well, for the reason the portal arm asks both up front: a
+    // descriptor an application registered is checked by nobody, and a missing
+    // `close` first discovered during an unmount is a TypeError with no tag on it.
+    placementMethod(child, placement, placement.close, 'close');
+    if (child.props.visible !== false) present.call(node);
+    return true;
+}
+
+/**
+ * Take a toplevel back down — the FORCED call, and it is terminal.
+ *
+ * `destroy` and not `close`, measured on GTK 4.22.4: `gtk_window_close()` emits
+ * `close-request`, and an application handler returning TRUE leaves the window
+ * mapped and visible. That veto is how an application asks the USER to confirm,
+ * and an unmount is not a user request — the same reasoning that makes the portal
+ * arm name `force_close`.
+ *
+ * Unconditional for the same reason too: measured, `destroy()` on a window that
+ * was never presented is silent, so no "is it up?" probe is needed. What differs
+ * from the portal is that there is no way back — measured, `present()` after a
+ * destroy (or after a `close()`, whose default handler destroys) answers
+ * `Gtk-WARNING **: A window is shown after it has been destroyed`. A re-mount
+ * therefore has to be a fresh widget, which is what `rebuild` already produces.
+ */
+export function retractToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): void {
+    if (!child.widget) return;
+    placementMethod(child, placement, placement.close, 'close').call(child.widget);
+}
+
+/**
+ * Place a node that does NOT go into its parent's child list, and say whether GTK took it.
+ *
+ * The ONE dispatch over the non-parented arms. Both callers in `host.ts` reach the
+ * axis through this and through `retractOutsideParent`, so a fourth placement kind
+ * is two `never` arms away from compiling rather than a search through the host.
+ */
+export function placeOutsideParent(parent: HostElement, child: HostElement, placement: OutsideParent): boolean {
+    switch (placement.kind) {
+        case 'portal':
+            return presentPortal(parent, child, placement);
+        case 'toplevel':
+            return presentToplevel(child, placement);
+        default:
+            return unhandledPlacement(placement);
+    }
+}
+
+/** `placeOutsideParent`'s twin: take the node back down the way its placement put it up. */
+export function retractOutsideParent(child: HostElement, placement: OutsideParent): void {
+    switch (placement.kind) {
+        case 'portal':
+            return retractPortal(child, placement);
+        case 'toplevel':
+            return retractToplevel(child, placement);
+        default:
+            return unhandledPlacement(placement);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// What the CLASS says about its own placement
+// ---------------------------------------------------------------------------
+
+/** The name every self-presenting class in GTK4 and libadwaita uses. */
+const PRESENT = 'present';
+
+/**
+ * The placement the installed libraries give this class, or null for an ordinary child.
+ *
+ * STRUCTURAL, never a name. ADR 0027 rule 1 forbids widget knowledge in the host,
+ * and a list of gtypes here would be exactly that — so the class is asked two
+ * questions it answers itself, each measured across all 164 rows of the shipped
+ * table on GTK 4.22.4 / libadwaita 1.9.3:
+ *
+ *  - `Gtk.Root` is GTK's OWN word for "this widget is a toplevel". 19 classes in
+ *    the table implement it, from `GtkWindow` to `GtkPrintUnixDialog`, and none of
+ *    them can legally have a parent.
+ *  - A `present()` that TAKES AN ARGUMENT is a node presented AGAINST something.
+ *    Exactly five classes in the table have one, and they are exactly the five
+ *    `Adw.Dialog` descendants — the ones whose `root` vfunc calls `g_error()`.
+ *    `Gtk.Popover.present()` is the discriminator that makes the ARITY part of the
+ *    question rather than the name: it exists, it takes 0 arguments, and a popover
+ *    is parented with `set_parent()` like any other child.
+ *
+ * The order matters and is not alphabetical: every `Gtk.Root` in the table also
+ * has a 0-argument `present`, and `GtkDragIcon` has no `present` at all, so the
+ * root test has to come first and cannot be replaced by an arity test.
+ *
+ * @param gtype the class's GType — `type_is_a` walks interfaces as well as parents
+ * @param present the class's own `present`, or the value found on an instance
+ */
+export function classPlacementKind(gtype: GObject.GType, present: unknown): OutsideParent['kind'] | null {
+    if (GObject.type_is_a(gtype, Gtk.Root.$gtype)) return 'toplevel';
+    if (typeof present === 'function' && present.length === 1) return 'portal';
+    return null;
+}
+
+/** `classPlacementKind` for a live widget, which is what the insert path holds. */
+export function nodePlacementKind(node: Gtk.Widget): OutsideParent['kind'] | null {
+    const gtype = (node as unknown as { constructor?: { $gtype?: GObject.GType } }).constructor?.$gtype;
+    if (!gtype) return null;
+    return classPlacementKind(gtype, (node as unknown as Record<string, unknown>)[PRESENT]);
+}
+
+/**
+ * Refuse a child the installed libraries will not adopt, BEFORE the adder runs.
+ *
+ * This is the catchable half of the abort class (ADR 0054). `descriptorProblems()`
+ * says the same thing about the whole TABLE up front, which is what keeps the
+ * shipped rows honest — but `registerWidget` takes descriptors from applications
+ * and nothing checks those, and for one of the two families the consequence is not
+ * a wrong window: `adw_dialog_root()` is `g_error()`, so the process is gone before
+ * any handler runs. A refusal is only possible while there is still a process.
+ *
+ * ONLY WHERE THE DESCRIPTOR IS SILENT, and that is the escape hatch rather than an
+ * oversight. `placement` present — including an explicit `{ kind: 'parented' }` —
+ * means the author has answered this question, and the host does not overrule an
+ * answer with a heuristic. A consumer widget that trips the `present(parent)` half
+ * of the oracle while really being a child says so in one line.
+ */
+export function refuseUnparentable(parent: HostElement, child: HostElement): void {
+    if (child.descriptor.placement !== undefined) return;
+    const node = child.widget as unknown as Gtk.Widget | null;
+    if (!node) return;
+    const kind = nodePlacementKind(node);
+    if (!kind) return;
+    throw err.unparentableChild(
+        parent.descriptor.gtype,
+        child.descriptor.gtype,
+        kind,
+        kind === 'toplevel'
+            ? `${child.descriptor.gtype} implements Gtk.Root, so it IS a toplevel and cannot have a parent`
+            : `${child.descriptor.gtype}.present() takes a parent, so it is presented AGAINST one and never placed into one`,
+    );
 }
 
 export interface Placement {
@@ -612,12 +814,12 @@ function clearIfCurrent(host: AnyWidget, setter: string, address: Gtk.Widget): v
 }
 
 export function removeChild(parent: HostElement, child: HostElement): void {
-    // BEFORE the two guards below, and both would be wrong for a portal. The
-    // parent never took the node, so there is nothing of the parent's to call —
-    // and `attached` is false for a portal still waiting for a toplevel, which is
-    // exactly the state whose subscription has to be disconnected.
-    const portal = portalOf(child.descriptor);
-    if (portal) return retractPortal(child, portal);
+    // BEFORE the two guards below, and both would be wrong for a node the parent
+    // never took. There is nothing of the parent's to call — and `attached` is
+    // false for a portal still waiting for a toplevel, which is exactly the state
+    // whose subscription has to be disconnected.
+    const outside = outsideParentOf(child.descriptor);
+    if (outside) return retractOutsideParent(child, outside);
     const host = parent.widget as unknown as AnyWidget;
     if (!host) return;
     // Never ask GTK to remove what it never adopted. A node can be linked in the
