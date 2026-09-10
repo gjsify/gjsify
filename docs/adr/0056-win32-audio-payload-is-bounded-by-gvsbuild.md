@@ -62,6 +62,20 @@ libvorbis as a gvsbuild dependency, so nothing orders the two for us. `@gjsify/g
 therefore claims Ogg/Vorbis instead of excusing it, and the `ogg` demuxer it already shipped
 stops leading to nothing.
 
+**Naming the project was not enough, and the first Windows run is what said so.** gvsbuild
+fetches CMake 4.3.3; libvorbis 1.3.7 opens with `cmake_minimum_required(VERSION 2.8.12)`;
+CMake 4 removed compatibility below 3.5. So the project gvsbuild defines cannot configure with
+the CMake gvsbuild ships, and the invocation answered `Error: libvorbis build failed`. libogg
+is untouched because its own CMakeLists asks for 3.6 — which is exactly why the `ogg` demuxer
+was in the payload and the Vorbis decoder was not, a difference that had nothing to do with
+either library's availability and would never have been visible from a project listing. The
+repair is `--extra-opts 'libvorbis:-DCMAKE_POLICY_VERSION_MINIMUM=3.5'`: CMake's own documented
+escape hatch, carried by gvsbuild's own per-project option, retiring the day either side moves.
+
+So step 1 of § 1 is necessary and not sufficient, and the ADR would have been wrong to stop
+there. A project in the catalogue can still be unbuildable with the toolchain the catalogue
+ships, and only a build says which.
+
 ### 3. MP3 and FLAC stay declared gaps, and the reason is availability, not licence
 
 Worth stating because the neighbouring AAC gap IS a licensing decision and the two get
@@ -141,12 +155,19 @@ corpus has already answered.
   advisory. The darwin leg keeps gating. **Retirement is a RELEASE, not an issue:** delete
   `continue-on-error`, both step ids and the note on the first run after a published
   `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`.
-- **This ADR is `Proposed` until a Windows leg has run it.** What is measured today is a file
-  list and a project list, both read from Linux. What is not: that `gstvorbis.dll` builds, that
-  it loads, and that `vorbisdec` registers. The first is the prefix assertion, the second and
-  third are `gst-elements.test.mjs` on the target — which asks for exactly the elements this
-  bundle's manifest claims, so the claim added here is what puts `vorbisdec` in its question.
-  Promote on the first green win32 windowing-bundle run carrying both.
+- **A Windows leg has now run it once, and refuted the easy half.** Run 34502880383 built the
+  prefix from scratch (the cache key moved, so nothing reproduced the old bundle) and the named
+  assertion fired: `MISSING …\gstvorbis.dll`. Naming the gvsbuild project was not sufficient —
+  § 2 carries the cause. That run is also what makes the difference between the two halves of
+  this ADR concrete: the project LIST is readable from Linux and settled MP3 and FLAC, while
+  whether a listed project BUILDS is a Windows fact and nothing here could have predicted it.
+- **This ADR stays `Proposed` until a Windows leg is green on it.** Still unmeasured: that
+  `gstvorbis.dll` builds with the policy flag, that it loads, and that `vorbisdec` registers.
+  The first is the prefix assertion, the second and third are `gst-elements.test.mjs` on the
+  target — which asks for exactly the elements this bundle's manifest claims, so the claim
+  added here is what puts `vorbisdec` in its question. Promote on the first green win32
+  windowing-bundle run carrying both; if the flag does not take, the honest end is the one § 3
+  already describes for MP3 and FLAC, one format wider.
 
 ## What this does NOT decide
 
