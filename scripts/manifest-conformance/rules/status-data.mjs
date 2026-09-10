@@ -42,13 +42,13 @@
  * WHY THE PATH IS NAMED AND THE RULE IS NOT "NOTHING IGNORED IS TRACKED"
  *
  * The general form was measured and is not available. `git ls-files -i -c
- * --exclude-standard` reports `refs/gtk` beside the render — tracked, and excluded
- * only by a line in `.git/info/exclude`, which no commit carries. A rule over that set would answer a question about the checkout it
- * runs in rather than about the commit under review, i.e. it would differ between a
- * developer's tree and CI by construction. Restricting it to the TRACKED `.gitignore`
- * files instead means implementing gitignore matching — negations, directory
- * patterns, nested files — a mechanism written to watch a one-line policy, which is
- * the smell the root AGENTS.md names under `simplicity`.
+ * --exclude-standard` reports `refs/gtk` here — tracked, and ignored only by a line
+ * in `.git/info/exclude`, which no commit carries. A rule over that set would answer
+ * a question about the checkout it runs in rather than about the commit under review,
+ * i.e. it would differ between a developer's tree and CI by construction. Restricting
+ * it to the TRACKED `.gitignore` files instead means implementing gitignore matching
+ * — negations, directory patterns, nested files — a mechanism written to watch a
+ * one-line policy, which is the smell the root AGENTS.md names under `simplicity`.
  *
  * Repo-scoped because it knows this repo's layout and doc conventions; `fields: []`
  * because it governs no `package.json#gjsify.*` key — declared explicitly so the
