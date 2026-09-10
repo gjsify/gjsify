@@ -154,9 +154,11 @@ export function auditBundledLicense(packages) {
         // instead is a tarball carrying third-party binaries with no `files` entry this
         // rule can key on — see `noticeInsidePayload` for what that edit costs. Skipped
         // afterwards, so an untriggered package cannot also be judged on the licence
-        // shape it is already being failed for.
-        if (pkg.payload.length === 0) {
-            const notice = noticeInsidePayload(license);
+        // shape it is already being failed for. Conditioned on the MATCH rather than on
+        // the payload count alone, so the message reads a directory the licence really
+        // named instead of dereferencing a match that was never made.
+        const notice = noticeInsidePayload(license);
+        if (notice !== null && pkg.payload.length === 0) {
             failures.push(
                 `${pkg.name} (${pkg.path}): \`license\` is "${license}", deferring the terms of the whole tarball to ` +
                     `a notice inside a \`${notice.dir}/\` payload directory, and \`files\` ships no \`${notice.dir}\` ` +
