@@ -5900,8 +5900,7 @@ This is recorded as a GAP, not as a proposal. ADR 0051 Decision 5 already sets t
 nothing more is extracted than the second driver needs — and its rejected alternatives name the
 inverse outright: "extract a `host-core` package first, then find a consumer". 0051 also measured
 that the three adapters carry no runtime `gi://` import at all, so a second renderer behind the
-same ops would be a parameterisation of the node type rather than a rewrite. The cheapest
-evidence, if anyone wants it, is the web leg: custom elements are the best-supported interop
-target in the browser, so Vue or Solid against `adw-*` is mostly an `isCustomElement` predicate
-plus type declarations rather than a reconciler. A consumer that needs it is what would start
-this, per the policy above.
+same ops would be a parameterisation of the node type rather than a rewrite. A consumer that needs it is what would start
+this, per the policy above. No estimate of the web leg's cost belongs here until someone
+measures one: a browser binding that resolved custom elements directly would bypass the
+gtk-host ops entirely, so it would not even be evidence for the parameterisation above.

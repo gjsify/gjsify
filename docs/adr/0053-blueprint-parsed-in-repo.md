@@ -88,17 +88,23 @@ the fences.
 node shape ADR 0051's renderers already consume. `blueprint-compiler` stops being a build
 dependency and becomes the oracle the parser is measured against.**
 
-1. **The parser's output is `SharedNode`, not a private AST.** Blueprint becomes a second
-   authoring surface over the shape that already exists, rather than a parallel pipeline
-   beside it. This is what makes the parser worth more than a toolchain swap, and it is also
-   the constraint that keeps it honest: a construct with no `SharedNode` spelling has
-   nowhere to go.
+1. **The parser produces a full AST, and `SharedNode` is a DECLARED PROJECTION of it.** One
+   representation cannot serve both halves of this ADR: clause 4 wants byte-equal GtkBuilder
+   XML, which needs every construct the census found, and `SharedNode` carries none of the
+   six. So the AST is the parser's output, the XML is emitted from the AST, and the
+   projection is a second, LOSSY exit whose losses are exactly those six — named at the seam
+   rather than discovered downstream. Blueprint thereby becomes a second READER of the shape
+   ADR 0051's renderers consume, and NOT a second authoring surface: 0051 Decision 1 keeps
+   `ADWAITA_GALLERY_SHARED_TREES` the corpus, and no block of it originates from a `.blp`
+   while that decision stands.
 
 2. **That equivalence is PROVED, not asserted.** The mapping table above is a reading of two
    notations, and a reading is not a measurement. For every `.blp` in the corpus a
    hand-written `SharedNode` tree states what it should parse to, and the parser is held to
    it. Until that suite exists the equivalence is not claimed anywhere — not in docs, not in
-   a review.
+   a review. ADR 0051 § Alternatives rejected turned down a translator between two markup
+   vocabularies on a measurement; the projection in clause 1 is a translator in one
+   direction, so it carries that burden of proof rather than an exemption from it.
 
 3. **Scope is a SUBSET, and an unrecognised construct is a hard error naming its line.**
    Never a silent pass-through: output that looks plausible and means something else is the
@@ -107,12 +113,16 @@ dependency and becomes the oracle the parser is measured against.**
    outside `SharedNode`; they are accepted only on the GTK path, where GtkBuilder gives them
    meaning, and refused with that reason anywhere else.
 
-4. **`blueprint-compiler` is the oracle for the emitted GtkBuilder XML, and for NOTHING
-   ELSE.** A byte-equal XML diff proves the parser and the tree it produced. It is not
-   evidence about anything built from that tree afterwards, and it must not be cited as such
-   — in review or in a job summary. The claim is narrow, and stating it narrowly now is
-   cheaper than retracting it later, when the parser is long correct and something
-   downstream is not.
+4. **`blueprint-compiler` proves the emitted GtkBuilder XML, and nothing built from the AST
+   afterwards.** A byte-equal diff proves the parser and the AST it produced. It is not
+   evidence about the `SharedNode` projection, about a renderer, or about anything else
+   downstream, and it must not be cited as such — in review or in a job summary. Stating the
+   claim narrowly now is cheaper than retracting it later, when the parser is long correct
+   and something downstream is not. What the diff does NOT retire is the other use ADR 0028
+   § 6 makes of the same binary: validation against the installed typelib, which a parser
+   reading into a tree does not perform. `Gtk.Box { spacinng: 4; }` parses cleanly into a
+   prop nothing rejects until a ParamSpec lookup at runtime. The compiler keeps that role
+   wherever it is present.
 
 5. **The parser runs in SHADOW until it is silent.** `blueprint-compiler` stays
    authoritative for the build; the in-repo parser runs beside it and reports every
@@ -129,21 +139,25 @@ dependency and becomes the oracle the parser is measured against.**
 
 7. **Done is a deletion, not a feature list.** This work is complete when these are gone:
    `resolve-compiler.ts` and its spec — 505 lines that exist only to find a binary and
-   explain its absence — the `oxlint-disable` in `loading-stack.ts`, the programmatic window
-   in `@gjsify/storybook`, the `not on PATH` skip in `check-doc-fences.mjs`, and the MSYS2
-   branch of `gjsify system-check`. Until the parser is authoritative no library package
-   gains a `.blp`; porting continues where the compiler already runs, in showcases, apps and
-   templates. A parser that adds a package without removing those has not finished — it has
-   forked.
+   explain its absence — the line-level `oxlint-disable` in `loading-stack.ts`, and the
+   MSYS2 branch of `gjsify system-check`. `check-doc-fences.mjs`'s skip does not vanish but
+   becomes TWO-STAGE: the parse arm runs everywhere, the typelib arm wherever clause 4's
+   compiler is present, and the report names which of the two ran. `@gjsify/storybook`'s
+   programmatic window is a DIFFERENT item — `.oxlintrc.json` scopes that whole package off
+   the rule, so what it needs is a scoping decision and not a deletion. Until the parser is
+   authoritative no library package gains a `.blp`; porting continues where the compiler
+   already runs, in showcases, apps and templates. A parser that adds a package without
+   removing the rest has not finished — it has forked.
 
 ## Consequences
 
-- ADR 0028 keeps `blueprint-compiler` as external validation against the installed typelib.
-  That role is unchanged, and clause 4 narrows rather than removes it: it stops being
-  something the build needs and becomes something the tests need, which is where an oracle
-  belongs.
-- `check-doc-fences.mjs` can stop skipping, so its blueprint arm becomes real off the
-  ci-fedora image, and `loading-stack.ts`'s suppression is deleted rather than re-argued.
+- ADR 0028 § 6 keeps `blueprint-compiler` as validation against the installed typelib, and
+  clause 4 leaves that role untouched. What changes is only its position: it stops being
+  something a bundle needs in order to build and becomes something the tests and one CI arm
+  need, which is where an oracle belongs.
+- `check-doc-fences.mjs`'s blueprint arm becomes real off the ci-fedora image for the half a
+  parser can answer, and `loading-stack.ts`'s line-level suppression is deleted rather than
+  re-argued.
 - Clause 1 gives the shared corpus a second front door without touching its source of truth.
   What it does NOT give is a reason to move the corpus: `SharedNode` stays the authored form
   until something measures that Blueprint serves it better.
@@ -166,9 +180,10 @@ dependency and becomes the oracle the parser is measured against.**
   Windows and macOS toolchain cost twice — once now, once again the next time a library
   package wants a template. It cannot fix the cold-bootstrap case at all, where the
   transform does not exist yet regardless of what is installed.
-- **A private AST instead of `SharedNode`.** Simpler to write and it makes Blueprint a
+- **An AST with no declared projection.** Simpler to write, and it makes Blueprint a
   parallel pipeline whose agreement with the shared corpus nothing checks — a second truth
-  of exactly the kind ADR 0030 § 2 refuses, arrived at from a new direction.
+  of exactly the kind ADR 0030 § 2 refuses, arrived at from a new direction. Clause 1 keeps
+  the AST and makes the projection the thing that is tested.
 - **Full language parity before anything is usable.** Maximises what the differential test
   proves and delays every deletion in clause 7 behind the language's least-used corners.
 - **Passing unknown constructs through unchanged.** Never blocks, always builds, produces
@@ -209,6 +224,15 @@ dependency and becomes the oracle the parser is measured against.**
   reports green while proving nothing.
 - The parser is a package of its own; `@gjsify/vite-plugin-blueprint` becomes its consumer
   and keeps its public interface, so no showcase changes when the authority flips.
+- **Where `SharedNode` lives is the first unresolved question, and it comes before any
+  parser code.** Today the type is a hand-written `scripts/adwaita-gallery-shared-trees.d.mts`
+  whose own header refuses a second transcript of the tree. A package that produces the
+  projection needs that type somewhere a package can import, and neither copying it nor
+  moving it out of `scripts/` is free.
+- ADR 0028 § 6 turned down an in-repo Blueprint VALIDATOR, on the measured grounds that
+  building one would duplicate a better tool for no gain. This is a compiler replacement and
+  clause 4 explicitly leaves validation to the tool 0028 chose — but it is an adjacent
+  question 0028 closed, and a reviewer should find that named here rather than discover it.
 - No AGENTS.md change lands with this ADR: nothing here changes a rule an agent follows
   today. The rule changes belong to the PR that earns them — the lint suppression and the
   fence gate's skip path both go when clause 7 is satisfied.
