@@ -486,7 +486,7 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
 
-### The gallery's two authored trees agree on 7 blocks of 23, and the rest is ledgered
+### The gallery's two authored trees agree on a minority of blocks, and the rest is ledgered
 
 ADR 0027 § 9's criterion is *"the same authored tree, rendered through the GTK host and
 through `adwaita-web`, satisfies the same `@gjsify/adwaita-core/conformance` vectors with
@@ -502,26 +502,29 @@ a host and an authentication toggle on three tabs and *"Advanced"* with a develo
 toggle and an endpoint on the fourth, children in the opposite order, for as long as both
 files existed. Nothing compared one to the other.
 
-**The census that sized the work.** 40 blocks; 23 carry a tree on both renderers, and the
-other 17 are refused by one or by both with a reason already recorded. Of the 23, compared
-node by node with the GIR-name case rule as the only transform:
+**The census that sized the work.** Some blocks carry a tree on both renderers; the rest
+are refused by one or by both with a reason already recorded. The paired ones are compared
+node by node with the GIR-name case rule as the only transform, and land in five buckets:
 
-| | blocks | |
-|---|---|---|
-| identical | 7 | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
-| `property` | 5 | same shape and tags; one renderer has no such property |
-| `vocabulary` | 2 | same shape; a tag, slot or property is spelled differently |
-| `composition` | 7 | genuinely different UIs, each forced by a renderer |
-| `content` | 2 | nothing forced them apart — two authors, two examples |
+| | |
+|---|---|
+| identical | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
+| `property` | same shape and tags; one renderer has no such property |
+| `vocabulary` | same shape; a tag, slot or property is spelled differently |
+| `composition` | genuinely different UIs, each forced by a renderer |
+| `content` | nothing forced them apart — two authors, two examples |
 
-Every number is recomputed by arm 11 of `check-generated-website-data.mjs`, which prints
-the partition on every run and fails on a ledgered block whose two trees have BECOME
-identical — the self-retiring shape of arm 5b's stale-refusal rule, so the branches closing
-the renderer gaps one property at a time cannot leave a dead reason standing.
+**How many are in each bucket is not written here.** Arm 11 of
+`check-generated-website-data.mjs` recomputes the partition and prints it on every run,
+and it fails on a ledgered block whose two trees have BECOME identical — the self-retiring
+shape of arm 5b's stale-refusal rule, so the branches closing the renderer gaps one
+property at a time cannot leave a dead reason standing. This entry used to carry the
+counts in a table and in its own heading; both were behind the tree by the time anyone
+read them, which is the reason the numbers are gone rather than corrected.
 
-**What blocks the remaining 16, in the order it can be paid.**
+**What blocks the ledgered ones, in the order it can be paid.**
 
-*The 5 `property` ones are renderer work and are already in flight or trivially scoped.*
+*The `property` ones are renderer work and are already in flight or trivially scoped.*
 `Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, whose
 whole Adwaita surface today is `size` and `text` — and whose `set text` always renders
 initials, so there is no icon path to reach either. `Gtk.Entry` needs nothing:
@@ -538,7 +541,7 @@ Adwaita symbolic SVG STRING on the port. A property that agrees on its name and 
 its value is worse than one that is missing, and `check-vocabulary-alignment.mjs` counts it
 as agreement.
 
-*The 2 `vocabulary` ones close for free when the convergence that gate already counts down
+*The `vocabulary` ones close for free when the convergence that gate already counts down
 lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
 slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
 why no shared tree uses one yet: the shared source admits a block only when it needs no
@@ -546,15 +549,15 @@ alias, and every slotted pair still needs three. `Adw.Spinner` sat here until it
 half was read: a `vocabulary` entry PROMISES the block lands in the shared source for free
 when the renames land, so a missing property filed under it is a promise nothing can keep.
 
-*The 7 `composition` ones each need a decision before they need code*, and two of them are
+*The `composition` ones each need a decision before they need code*, and two of them are
 the same decision twice: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK
 and a plain `title` property on the port, so `Adw.OverlaySplitView` and `Adw.ToolbarView`
 carry two nodes more on one side than the other. Converging them means deciding which
 renderer is wrong, which is an ADR 0034 question and not a gallery one.
 
-*The 2 `content` ones are the ones nobody has an excuse for*, and they are left as measured
-rather than fixed because closing the LIST would not move either into the shared source:
-both also carry a `cssClasses` against the port's style-class property, and that half does
+*The `content` ones are the ones nobody has an excuse for*, and two of them are left as
+measured rather than fixed because closing the LIST would not move either into the shared
+source: both also carry a `cssClasses` against the port's style-class property, and that half does
 not close by renaming. `@nativescript/core`'s `ViewBase` already owns the name — its
 constructor assigns `this.cssClasses = new Set()`, its `ClassSelector.match` reads
 `node.cssClasses.has(…)` and its `className` setter clears and refills the same Set — so
@@ -563,10 +566,14 @@ engine a live mutable Set, and the value kinds differ besides (`string[]` agains
 `Set<string>`). Padding the lists moves them from `content` to `vocabulary`, which is a
 bucket sideways and not a block shared. `Adw.WrapBox`: the block
 preview and three tabs show eight chips, the NativeScript template six. `Gtk.Button`: five
-buttons against four, the icon-only circular one missing. The rule that settles both is the
-one `Adw.WrapBox`'s own tree already states — a gallery block is one widget written several
-ways, so its `preview` fragment is the authority — and in both cases it is the NativeScript
-template that drifted from it.
+buttons against four, the icon-only circular one missing. `Adw.SpinRow` joined them later
+and is the one with a second half: the examples differ ("Font size" against "Copies"), and
+so does the value KIND, which does not close by matching the numbers — an adjustment is an
+OBJECT a JSX expression carries on one side and the JSON STRING its XML door parses on the
+other (ADR 0047 § 5). The rule that settles the LIST half is the one `Adw.WrapBox`'s own
+tree already states — a gallery block is one widget written several ways, so its `preview`
+fragment is the authority — and in all three cases it is the NativeScript template that
+drifted from it.
 
 The census also found the `Adw.WrapBox` chip list spelled `Typescript` in seven authored
 sites and `TypeScript` in one — the NativeScript template, the only one that was right. All
@@ -603,6 +610,27 @@ would not help: `@nativescript/core` ships a widget class only as `index.android
 does not resolve outside a device — the measurement is in the ADR's Amendment 1. A
 device-bound driver would not be a CI guard, which is why the second driver is
 `adwaita-web`: the renderer ADR 0027 § 9 named in the first place.
+
+**The `preview` fence is NOT emitted from the corpus, and the direction is settled the
+other way.** ADR 0051's last open stage asked for exactly that, and the measurement
+overturned it — ADR 0051 § Amendment 2 carries it block by block. Three shared blocks
+already read as the corpus would emit them; the other four each document something a
+`SharedNode` cannot author, and not one of the four is an accident: a `slot=` child and a
+`Gio.ListModel` row (the corpus uses no slot at all, and ADRs 0042/0046/0047's portable
+values have no shared spelling), four further examples of one widget beside a flex wrapper
+(a tree driver builds ONE tree), and a generated gloss line that
+`generate-adwaita-attribute-comments.mjs` owns and arm 12 holds. The corpus is SELECTED for
+agreement between two renderers, so what it drops is exactly what they disagree about —
+which is what a reader most needs the page to show. What landed instead is arm 13 of
+`check-generated-website-data.mjs`: every node of a shared tree occurs in that block's
+`preview` fence, same element, attributes and values, in the same order, the fence free to
+carry more. That closes what arm 11 cannot see — two authored trees can agree with each
+other and both describe a UI the block stopped showing.
+
+Still open beside it, and deliberately not claimed by arm 13: the framework tree of a
+LEDGERED block is held against its own fence by nothing. That is the wider arm, and it
+needs its own measurement first — the ledger's `content` entries say the templates drifted
+from the fence, which is the same drift one artifact over and was found by hand.
 
 ### A constructed `Adw.Banner` does not interpret markup, and both ports say it does
 
