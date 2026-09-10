@@ -10,6 +10,14 @@
 //
 // A second transcript of the tree — generated or hand-copied — is the defect ADR 0051
 // exists to prevent, so there is deliberately no way to get one.
+//
+// NOTHING CHECKS THIS FILE AGAINST THE `.mjs`, so it declares ONLY what a TypeScript spec
+// imports — three names, each imported by at least one live spec, which makes a rename over
+// there a build error over here. A declaration nobody imports has no such backstop: it is a
+// claim about the module that can quietly stop being true, which is this file's own failure
+// mode. The `.mjs`'s other exports (`nativeScriptTree`,
+// `ADWAITA_GALLERY_TREE_DIVERGENCES`) have plain-`.mjs` consumers only and are deliberately
+// absent; add one here when, and only when, a spec imports it.
 
 /** One node of an authored tree, spelled in GIR class names. */
 export interface SharedNode {
@@ -35,9 +43,3 @@ export declare const hostTagOf: (gtype: string) => string;
 
 /** The shared block in `gtk-host` tags. */
 export declare const gtkHostTree: (widget: string) => SharedTree;
-
-/** The shared block in GIR class names — no transform, see the source. */
-export declare const nativeScriptTree: (widget: string) => SharedTree;
-
-/** Every gallery block that has a tree on both renderers and is still authored twice. */
-export declare const ADWAITA_GALLERY_TREE_DIVERGENCES: Record<string, string>;
