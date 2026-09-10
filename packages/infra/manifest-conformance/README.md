@@ -20,6 +20,7 @@ the same shape of question, each written in reaction to a separate incident:
 | An emulated build ran on the runner's own architecture | machine-vs-directory |
 | A stale `.tsbuildinfo` made `gjsify tsc` a silent no-op (#67) | declared outputs exist |
 | `@gjsify/canvas2d-core` documented itself headless and imported `gi://Gdk` | headless contract (ADR 0015) |
+| A runtime bundle shipped a GStreamer payload with no MP3 decoder while its siblings had one | declared media capabilities (ADR 0053) |
 
 The collection grew; it was never designed. Nothing connected *"we added a field
 to the manifest contract"* to *"therefore something must verify it"* — so a new
@@ -43,7 +44,7 @@ declared. Same shape as `gjsify.platformsUncommitted`, for the same reason.
 
 - **`portable`** (this package) — reads only the manifest, files on disk and
   binaries. Correct in any npm package: `package-outputs`,
-  `prebuild-artifacts`, `headless`, `field-coverage`.
+  `prebuild-artifacts`, `headless`, `field-coverage`, `media-capabilities`.
 - **`repo`** (`scripts/manifest-conformance/` in the gjsify repo) — knows about
   *that* repository: its directory layout as an axis taxonomy, curated
   `@gjsify/*` package-name allowlists, `prebuilds.yml`'s matrix,
