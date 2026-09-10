@@ -19,6 +19,13 @@
 // the package so the audit can fail it by name. Same mechanism `media-capabilities` uses
 // with `gjsify.mediaCapabilities`, against the same edit.
 //
+// AND WHAT IT DOES NOT COVER is a test here rather than something for the next reader to
+// find: the second way in reads `license`, so a bundle declaring the OTHER shape this rule
+// accepts — a compound SPDX expression — is taken out by the same narrowing, silently. The
+// enumerated list at the end is what closes that one, and the licence shape every bundle
+// actually uses is asserted beside it, so the precondition of the closure is checked
+// instead of assumed.
+//
 // AND THE REAL TREE IS ASSERTED TOO, at the end. A rule driven only by fixtures it wrote
 // itself can be correct about nothing: the last suite names every bundling package this
 // repository publishes and re-runs the narrowing against the REAL win32 manifest — the
@@ -156,6 +163,30 @@ describe('bundled-license — the trigger, held against itself', () => {
         );
         assert.deepEqual(collected, []);
     });
+
+    it('does NOT reach a bundle declaring a compound expression — the limit, written down', () => {
+        // THE HALF THE SECOND WAY IN CANNOT SEE, measured rather than reasoned about, and
+        // held here so it stays a known edge instead of being rediscovered as a defect.
+        //
+        // The second way in reads `license`, and this rule accepts TWO shapes: a notice
+        // path, and a compound SPDX expression — the suite above asserts the second is
+        // valid. A compound expression names no notice, so it survives nothing: narrow such
+        // a package's `files` and it leaves the rule exactly as before, at exit 0.
+        //
+        // Widening the `files` trigger to match a path SEGMENT would close it and is
+        // deliberately not done: this rule is `scope: 'portable'`, which the registry
+        // defines as exposed to consumers through `gjsify manifest-check`, and `bin/cli.js`
+        // is an ordinary npm `files` entry. Firing on packages that redistribute nothing is
+        // the failure the test above this one exists to prevent.
+        //
+        // What closes it instead is the enumerated list in the next suite — which is why
+        // that list is asserted against the real tree, and why the licence SHAPE every
+        // bundle uses is asserted with it.
+        const collected = collectBundlingPackages(
+            contextOf([{ name: '@gjsify/gtk-runtime-a', files: NARROWED_FILES, license: 'MIT AND LGPL-2.1-or-later' }]),
+        );
+        assert.deepEqual(collected, [], 'the compound-licence narrowing is covered after all — update the note');
+    });
 });
 
 describe('bundled-license — the packages this repository publishes', () => {
@@ -175,6 +206,25 @@ describe('bundled-license — the packages this repository publishes', () => {
 
     it('holds them all — the same audit `audit-runtimes --check` runs on every PR', () => {
         assert.deepEqual(auditBundledLicense(packages).failures, []);
+    });
+
+    it('holds the licence SHAPE the second way in depends on, for every one of them', () => {
+        // THE PRECONDITION OF THE CLOSURE, made machine-checked instead of assumed. The
+        // second way in only survives a `files` narrowing while the package's licence names
+        // a notice INSIDE its payload; a bundle that switched to a compound SPDX expression
+        // would be back outside the rule with nothing red (the previous suite measures
+        // exactly that). Today all of them use the notice form. The day one does not, this
+        // fails by name and whoever made the change is told the escape route reopened for
+        // it — rather than the rule quietly covering one package fewer again.
+        for (const pkg of packages) {
+            assert.match(
+                String(pkg.license),
+                /^SEE LICEN[CS]E IN\s+(gtk|bin)\//,
+                `${pkg.name} declares "${pkg.license}", which names no notice inside its payload — the ` +
+                    '`files` narrowing is silent for it again. Keep the `SEE LICENSE IN <payload>/…` form, ' +
+                    'or give `collectBundlingPackages` a way in that does not read the licence.',
+            );
+        }
     });
 
     it('fails the REAL win32 bundle under the narrowing, licence and all', () => {
