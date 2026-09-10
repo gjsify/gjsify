@@ -1330,6 +1330,23 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
         const element = elements[cursor];
         cursor += 1;
         containedNodes += 1;
+        // A SLOT IS NOT COMPARED HERE, so a shared node carrying one has to be loud
+        // rather than quietly unheld — the shape a rule falls out of its own check by.
+        // No shared tree has one: the two renderers spell slots differently
+        // (`start`/`title`/`end` against `startBox`/`titleWidget`/`endBox` in the
+        // divergence ledger), which is why a slotted block does not meet the no-alias
+        // admission rule to begin with. Comparing `node.slot` to the fence's `slot=`
+        // would bless the gtk-host spelling as the corpus's, which is the one thing
+        // this corpus exists to refuse; so the day a block is admitted with a slot, it
+        // came with a decision about what a shared slot SPELLS, and this arm is taught
+        // that rather than guessing it.
+        if (node.slot !== undefined) {
+            failures.push(
+                `${tree.widget}: authored node ${index} <${wanted}> carries slot="${node.slot}", and arm 13 does ` +
+                    'not hold a slot against the fence. The two renderers spell slots differently, so there is no ' +
+                    'shared spelling to compare against — teach this arm the one the corpus settled on.',
+            );
+        }
         for (const [prop, value] of Object.entries(node.props ?? {})) {
             const attribute = attributeOf(prop);
             const present = element.values.has(attribute);
