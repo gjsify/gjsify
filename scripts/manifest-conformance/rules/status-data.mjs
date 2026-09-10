@@ -42,9 +42,8 @@
  * WHY THE PATH IS NAMED AND THE RULE IS NOT "NOTHING IGNORED IS TRACKED"
  *
  * The general form was measured and is not available. `git ls-files -i -c
- * --exclude-standard` reports TWO paths in this repository, and the second is
- * `refs/gtk` — tracked, and excluded only by a line in `.git/info/exclude`, which no
- * commit carries. A rule over that set would answer a question about the checkout it
+ * --exclude-standard` reports `refs/gtk` beside the render — tracked, and excluded
+ * only by a line in `.git/info/exclude`, which no commit carries. A rule over that set would answer a question about the checkout it
  * runs in rather than about the commit under review, i.e. it would differ between a
  * developer's tree and CI by construction. Restricting it to the TRACKED `.gitignore`
  * files instead means implementing gitignore matching — negations, directory
