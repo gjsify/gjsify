@@ -16,9 +16,20 @@
 // about whether the size axis belongs in the family name. `Source Sans 3`, from the same staging
 // run, has no such axis and reads identically on both. `initFonts()` answered
 // `registered: 5, declined: 0, failed: 0` on BOTH hosts — accurate, and useless: on Windows the
-// declared family was absent from the map and Pango substituted Tahoma, silently, because
-// `set_family()` against a family nothing has does not throw, does not exit non-zero and writes
-// nothing to stderr.
+// declared family was absent from the map and Pango substituted, because `set_family()` against a
+// family nothing has does not throw and does not exit non-zero.
+//
+// RE-MEASURED on 0.48.0, with the two files copied to both machines and SHA-256-verified
+// identical there: 100 families → 102 under fontconfig (`Merriweather`, `Source Sans 3`) and
+// 82 → 84 under `@gjsify/gtk-runtime-win32-x64` (`Merriweather 18pt`, `Source Sans 3`). The
+// substitution is measurable rather than merely warned about: on Windows a 40pt `Wg` set in
+// `Merriweather` measures exactly what an INVENTED family measures, while the same string in
+// `Merriweather 18pt` measures something else — a different face, not a call that returned.
+//
+// What the two hosts DO differ on is whether anything is said at all: the win32 backend prints
+// `couldn't load font "Merriweather …", falling back to "Sans …"` at LAYOUT time, and the
+// fontconfig host printed nothing for the same invented family. Neither is a value a caller can
+// branch on, which is why the answer is a returned match rather than a log line.
 //
 // So this is the layer between "a face was registered" and "the name I wrote will render": given
 // the family names a map actually holds, what should the caller ASK FOR — and when is the honest

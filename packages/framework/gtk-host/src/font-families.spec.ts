@@ -9,12 +9,24 @@ import { describe, expect, it } from '@gjsify/unit';
 import { describeFontFamilyMatch, matchFontFamilies, matchFontFamily } from './font-families.js';
 
 /**
- * What the two hosts of #1542 reported after the SAME staging run of the same five files.
+ * What two hosts report after registering the SAME two files, re-measured on `0.48.0`.
  *
- * Byte-identical faces (SHA-256 verified), one script, and two different family names — because
+ * `@expo-google-fonts/merriweather`'s `Merriweather_400Regular.ttf` and
+ * `@expo-google-fonts/source-sans-3`'s `SourceSans3_400Regular.ttf`, copied to both machines and
+ * SHA-256-verified identical there, then handed to
+ * `PangoCairo.FontMap.get_default().add_font_file()` by one script:
+ *
+ *   Fedora 44 / GJS / PangoCairoFcFontMap      100 families → 102: `Merriweather`, `Source Sans 3`
+ *   Windows 11 / @gjsify/gtk-runtime-win32-x64  82 families →  84: `Merriweather 18pt`, `Source Sans 3`
+ *
  * Google Fonts ships Merriweather as an optical-size family and the two readers disagree about
- * whether the size axis belongs in the name. `Source Sans 3` is the control: no size axis, same
- * name on both, and a name that ends in a digit without being an optical variant.
+ * whether the size axis belongs in the name. `Source Sans 3` is the control: no size axis, the
+ * same name on both, and a name that ends in a digit without being an optical variant.
+ *
+ * And the substitution is a MEASUREMENT rather than a warning nobody sees. On Windows a 40pt
+ * `Wg` set in `Merriweather` measures the same as one set in an invented family — Pango
+ * substituted, and said so only in a `couldn't load font` line on stderr — while the same string
+ * set in `Merriweather 18pt` measures differently. A different face, not a call that returned.
  */
 const FONTCONFIG = ['Cantarell', 'DejaVu Sans', 'Merriweather', 'Source Sans 3'];
 const GVSBUILD = ['Tahoma', 'Segoe UI', 'Merriweather 18pt', 'Source Sans 3'];
