@@ -240,6 +240,33 @@ export function auditMediaCapabilities(bundles, options = {}) {
                         '`libgst<name>.dylib`, `gst<name>.dll` or `libgst<name>.so`.',
                 );
             }
+            // `upstream` — the THIRD oracle, and the one no host can read at all. `plugin` is a
+            // FILE and `element` is a REGISTRY ENTRY; this is a project in somebody else's build
+            // system, so a portable rule can hold its SHAPE and nothing more. What the value says
+            // about the world is held by `gvsbuild-catalogue` (scripts/manifest-conformance/),
+            // against a snapshot pinned to the version the workflows build with. The field is
+            // what lets an upstream-bounded gap retire itself: while the reason lived only in
+            // `why`, nothing could notice the day the library arrived upstream.
+            if (entry.upstream !== undefined) {
+                const upstream = entry.upstream;
+                if (typeof upstream !== 'object' || upstream === null || Array.isArray(upstream)) {
+                    failures.push(
+                        `${where}: \`upstream\` is not an object. It is \`{ catalogue, library }\` — which build ` +
+                            'system decides whether this format can be had at all, and the library it would have to ' +
+                            'carry.',
+                    );
+                } else {
+                    for (const key of ['catalogue', 'library']) {
+                        if (filled(upstream[key])) continue;
+                        failures.push(
+                            `${where}: \`upstream.${key}\` is missing or empty. A claim or gap that turns on an ` +
+                                'upstream build system names the system and the library, or the dependency is prose ' +
+                                'again — and prose about a pinned external artifact expires without anything ' +
+                                'noticing.',
+                        );
+                    }
+                }
+            }
             if (filled(entry.format)) {
                 const previous = seen.get(entry.format);
                 if (previous !== undefined) {

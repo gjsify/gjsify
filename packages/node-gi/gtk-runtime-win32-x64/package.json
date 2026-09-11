@@ -44,12 +44,20 @@
         {
           "format": "Ogg / Vorbis",
           "plugin": "vorbis",
-          "element": "vorbisdec"
+          "element": "vorbisdec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "libvorbis"
+          }
         },
         {
           "format": "Opus",
           "plugin": "opus",
-          "element": "opusdec"
+          "element": "opusdec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "opus"
+          }
         },
         {
           "format": "A-law",
@@ -67,13 +75,21 @@
           "format": "MP3",
           "plugin": "mpg123",
           "element": "mpg123audiodec",
-          "why": "gst-plugins-good's mpg123 element links libmpg123, and the gvsbuild version this bundle is built from defines no project for that library — so it is not in the prefix and the element cannot be built. That is a different reason from \"nobody asked\": libvorbis IS a gvsbuild project and Ogg/Vorbis moved out of this list once the build named it, which is the whole difference between an omission and an absence. Measured on the published 0.48.0 bundle on Windows 11 with no gvsbuild on the host: `mpg123audiodec` resolves to NULL and `playbin3` never leaves READY for an mp3 while the same pipeline reaches PLAYING for a wav from the same ffmpeg run; a bundled mp3 fails as \"missing a plug-in\" and an mp3 stream as \"Internal data stream error\", which reads like a missing TLS backend and is not (#1544, #1626). Closing it needs a libmpg123 project in gvsbuild itself."
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "mpg123"
+          },
+          "why": "gst-plugins-good's mpg123 element links libmpg123, and the gvsbuild version this bundle is built from defines no project for that library — so it is not in the prefix and the element cannot be built. That is a different reason from \"nobody asked\": libvorbis IS a gvsbuild project and Ogg/Vorbis moved out of this list once the build named it, which is the whole difference between an omission and an absence. Measured on the published 0.48.0 bundle on Windows 11 with no gvsbuild on the host: `mpg123audiodec` resolves to NULL and `playbin3` never leaves READY for an mp3 while the same pipeline reaches PLAYING for a wav from the same ffmpeg run; a bundled mp3 fails as \"missing a plug-in\" and an mp3 stream as \"Internal data stream error\", which reads like a missing TLS backend and is not (#1544, #1626). The other two routes out of that same pinned catalogue are shut as well, measured at 2026.6.0: gvsbuild's own `patches/ffmpeg/build/build.sh` configures ffmpeg `--disable-everything` and turns on `mp2float`, `wmav2` and `wmapro` as its whole audio set, so `gst-libav` decodes no MP3 either; gst-plugins-rs 0.15.2 — gvsbuild's `gst-plugin-gtk4` — has no MP3 decoder; and gst-plugins-ugly 1.28.4 ships `ext/` = a52dec, cdio, dvdread, mpeg2dec, sidplay, x264, `mad` having been removed upstream. Closing it needs a libmpg123 project in gvsbuild itself. Until then an application making the redistribution decision for itself can add an MSVC-ABI `gstmpg123.dll` of the same GStreamer through `GST_PLUGIN_PATH`, which this runtime deliberately never sets: measured that a second directory named there merges with the bundle's `GST_PLUGIN_SYSTEM_PATH` and the bundle's own elements survive it."
         },
         {
           "format": "FLAC",
           "plugin": "flac",
           "element": "flacdec",
-          "why": "the gst-plugins-good element links libFLAC and gvsbuild defines no project for that library either — the same absence as MP3, read off the same project list, and neither is a licensing decision: libmpg123 is LGPL-2.1 and libFLAC is BSD-3-Clause. Measured in the same Windows 11 run against the published 0.48.0 bundle: `flacdec` resolves to NULL (#1626). Closing it needs a libFLAC project in gvsbuild itself."
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "flac"
+          },
+          "why": "the gst-plugins-good element links libFLAC and gvsbuild defines no project for that library either — the same absence as MP3, read off the same project list, and neither is a licensing decision: libmpg123 is LGPL-2.1 and libFLAC is BSD-3-Clause. Measured in the same Windows 11 run against the published 0.48.0 bundle: `flacdec` resolves to NULL (#1626). Unlike MP3 this one has a route out of the pinned catalogue and is therefore a COSTED decision rather than an absence: gvsbuild builds gst-plugins-rs under the project name `gst-plugin-gtk4`, and that tree's `claxon` feature is a pure-Rust FLAC decoder (`claxondec`, MPL-2.0). It is not taken — ADR 0056 § Alternatives rejected carries the price: cargo-c plus gst-plugins-bad and gtk4 rebuilt from source, on the leg whose GStreamer build already runs under a 150-minute timeout, to close the one of the two gaps no consumer has been measured needing. A libFLAC project in gvsbuild closes it in one word instead."
         },
         {
           "plugin": "wasapi2",
