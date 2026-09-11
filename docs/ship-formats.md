@@ -101,8 +101,11 @@ real artifact: 944 632 both ways) and lists the tree with `unsquashfs`. That cha
 the failure this format has and the `.deb` does not: an executable ELF of plausible size with
 nothing behind it, which mounts an empty directory at exit 0.
 
-**Three measurements about appimagetool 1.9.1, one of which was a defect.** It embeds its own
-runtime, so the pack stays offline. It cannot guess the architecture of a JavaScript payload, so
+**Three measurements about appimagetool 1.9.1, one of which was a defect.** It FETCHES its runtime
+from `type2-runtime`'s rolling `continuous` tag on every pack — the host's own architecture
+included, and it caches nothing — so this is the one step in `ship` that needs a network, and the
+~940 KB of ELF a user executes is pinned by nothing in this tree (ADR 0024 § A26.1,
+`status/open-todos.md`). It cannot guess the architecture of a JavaScript payload, so
 `ARCH` is required in the environment rather than optional. And it CREATES `.DirIcon` when the
 AppDir has none — a symlink, with the wall clock, after the packer has stamped every path, which
 also moves the AppDir root's mtime. mksquashfs stores both, so two packs of one build differed in
@@ -178,6 +181,8 @@ measures nothing — the reason this field is a required one rather than prose:
 | `windows-dir` | `file(1)` | not baked into the CI image, and a job using a tool the image never carries trips `scripts/check-ci-image-packages.mjs` | CPython `struct` + `cmd.exe` |
 | `windows-dir` | our own `binary.mjs` | it is the reader under test — a PE read by the same family that staged it is not an oracle | " |
 | `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
+| `appimage` | `--appimage-offset` | the artifact's own embedded runtime answering where its filesystem starts — § A3's `selfReading`, with extra steps | CPython `struct` over the ELF section headers + `unsquashfs` |
+| `appimage` | `--appimage-extract` | the same runtime unpacking what it was concatenated onto — it reproduces names, modes and mtimes faithfully (measured), which is exactly why it is not a second opinion about them | " |
 | `macos-app-dmg` | `hdiutil verify` / `hdiutil imageinfo` | hdiutil reading what hdiutil wrote — ADR 0024 § A3 names this format as the case the field exists for | `7z l` + `7z t` + `dmg2img` + `fsck.hfsplus -f -n`, on **Linux** |
 | `macos-app-dmg` | `7z l` alone | it decodes only what its nested HFS listing needs — measured blind to a byte flipped at offset 16000 of a real image, which `7z t` and `dmg2img` both refuse | " |
 | `macos-app-dmg` | `dmg2img in.dmg out.img` | writes the whole GPT-partitioned DISK (measured: eight partitions), so the HFS+ volume header is not at offset 1024 and `fsck.hfsplus` exits 8 on a correct image | `dmg2img -l` to find the `Apple_HFS` partition, then `dmg2img -p <n>` |

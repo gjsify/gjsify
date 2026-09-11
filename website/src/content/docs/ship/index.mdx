@@ -107,8 +107,8 @@ can spell stops the run.
 
 ## Where each format can be packed
 
-Nine formats wrap three layouts. Seven of them pack on any host, offline, with
-no tool outside this CLI. Two do not, and ship refuses those on the wrong host
+Ten formats wrap three layouts. Seven of them pack on any host, offline, with
+no tool outside this CLI. Three do not, and ship refuses those on the wrong host
 rather than writing a broken file.
 
 | Format | Layout | In the default set | Packs on | Needs installed |
@@ -116,12 +116,16 @@ rather than writing a broken file.
 | `deb` | linux | yes | any host | nothing |
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | Linux | `flatpak-builder`, `flatpak` |
+| `appimage` | linux | no | Linux | `appimagetool`, which no distribution packages |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | macOS | `hdiutil`, which is part of macOS |
 | `windows-dir` | windows | yes | any host | `glib-compile-schemas` |
 | `windows-dir-zip` | windows | yes | any host | `glib-compile-schemas` |
 | `msi` | windows | no | Linux or Windows | `wixl` from `msitools`, or WiX Toolset v3.14 |
+
+`appimage` is the one row that also needs a NETWORK: `appimagetool` fetches the
+AppImage runtime from GitHub on every pack. Every other format here is offline.
 
 `glib-compile-schemas` ships in `glib2` on Fedora and `libglib2.0-bin` on
 Debian and Ubuntu. It is a tool rather than a host, so the four formats that

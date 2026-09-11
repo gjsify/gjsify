@@ -361,6 +361,13 @@ One thing it cannot handle for you in a minimal container: appimagetool needs
 `file(1)` and says so, even though `gjsify ship` already tells it the
 architecture. Install `file` and the build works with no FUSE at all.
 
+**Packing an AppImage needs a network, and nothing else in `gjsify ship` does.**
+appimagetool downloads the AppImage runtime — the ELF the finished file starts
+with — from GitHub on every pack, for your own architecture too, and caches
+nothing. On an offline or firewalled machine it fails with no file written, and
+`gjsify ship` names that first among the causes. `gjsify ship linux --stage`
+still needs nothing: assemble offline, pack where the network is.
+
 Your project needs a desktop entry and an icon for this format — an AppImage has
 nowhere to put an application that has neither. A `kind: "cli"` project is
 refused by name; ship it as a `.deb`, an `.rpm` or a Flatpak instead.

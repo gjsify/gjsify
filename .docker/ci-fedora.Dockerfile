@@ -129,6 +129,7 @@ RUN dnf install -y \
     msitools \
     squashfs-tools \
     file \
+    curl \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
@@ -164,7 +165,16 @@ RUN dnf install -y \
 # PINNED BY DIGEST, not by tag: a release asset can be replaced in place, and a
 # packer whose tool changed under it would produce different bytes for the same
 # payload with nothing to say so. `sha256sum -c` FAILS the image build, which is
-# the loudest place for this to go wrong.
+# the loudest place for this to go wrong. The pin covers the TOOL only — what it
+# embeds into every artifact is fetched from `type2-runtime`'s rolling
+# `continuous` tag at pack time, which no digest here reaches
+# (`status/open-todos.md` → "The AppImage pack is not offline").
+#
+# `curl` IS DECLARED IN THE dnf BLOCK ABOVE and not only in the later one. This
+# layer execs it, and until it was declared it ran on `fedora:44`'s base
+# `curl-minimal` — an undeclared dependency the image installs forty lines
+# further DOWN, so a base that stopped shipping it would fail here with
+# `curl: not found`, which reads as a network problem rather than a package one.
 #
 # MEASURED ON `fedora:44` WITH NO `/dev/fuse`, because two of its failure modes
 # are exactly what a container hits and neither says what it is:
