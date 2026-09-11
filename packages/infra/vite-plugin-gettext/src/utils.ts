@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
  * @param command The command to check (msgfmt, xgettext, etc.)
  * @param pluginName Name of the plugin for logging
  * @param verbose Enable verbose logging
- * @throws Error if the command is not found
+ * @throws Error if the command is not found, or is there and refused to run
  */
 export async function checkDependencies(command: string, pluginName: string, verbose: boolean) {
     try {
@@ -15,7 +15,21 @@ export async function checkDependencies(command: string, pluginName: string, ver
         if (verbose) {
             console.log(`[${pluginName}] Found ${command}`);
         }
-    } catch (_error) {
+    } catch (error) {
+        // ABSENT and BROKEN are different answers, and this used to give the
+        // first one to both — `catch (_error)`, install hint, every time. A
+        // gettext that is installed but cannot run (a missing libintl after a
+        // partial upgrade, a noexec mount, the wrong arch under emulation) then
+        // tells the reader to install what they have already got, and its own
+        // stderr — the part that says which library is missing — is dropped.
+        //
+        // The same distinction `@gjsify/vite-plugin-blueprint`'s
+        // `resolve-compiler.ts` was written for, after a "not found" for a
+        // compiler that WAS there cost a day.
+        if ((error as { code?: string }).code !== 'ENOENT') {
+            const detail = (error as { stderr?: string }).stderr || (error as Error).message;
+            throw new Error(`${command} is installed but failed to run:\n${detail}`);
+        }
         throw new Error(
             `${command} not found. Please install gettext:\n` +
                 '  Ubuntu/Debian: sudo apt-get install gettext\n' +
