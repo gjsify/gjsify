@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
 import reflectionTransformOrderSuite from './reflection-transform-order.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
+import cliExitSuite from './utils/cli-exit.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipChangelogSuite from './utils/ship/changelog.spec.js';
 import shipLayoutSuite from './utils/ship/layout.spec.js';
@@ -226,6 +227,7 @@ run(
         bundlerPickSuite,
         reflectionTransformOrderSuite,
         cliFailSuite,
+        cliExitSuite,
         shipPlanSuite,
         shipChangelogSuite,
         shipLayoutSuite,
