@@ -26,7 +26,7 @@ gtk/
   lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig
   licenses/                license texts from the gvsbuild prefix, plus vendored ones
   THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and that it is unmodified
-  manifest.json            counts + sizes + DLL list + symmetry/license proof
+  manifest.json            counts + sizes + DLL list + symmetry/API-floor/license proof
 ```
 
 Note the native code lives in **`gtk/bin`** (DLLs), not `gtk/lib` — on Windows the
@@ -63,6 +63,35 @@ not shipped):
    because `gi_repository_require` loads dependencies first), and re-verifies the
    finished bundle off disk against a floor of namespaces that must be present. Shared
    with the darwin builder: [`../scripts/typelib-backers.mjs`](../scripts/typelib-backers.mjs).
+   **A backed typelib is not a callable one**, which is the hole that check cannot see.
+   Measured on the published 0.50.0 tarballs, one symbol at a time out of each bundle's own
+   `Adw-1.typelib`:
+
+   | symbol | win32-x64 | darwin-arm64 | darwin-x64 |
+   |---|---|---|---|
+   | `adw_about_dialog_new` | present | present | present |
+   | `adw_about_dialog_new_from_appdata` | **absent** | present | present |
+   | `adw_about_dialog_get_appdata_resource_path` | **absent** | present | present |
+
+   So on Windows an application whose About dialog is built from its own AppStream metainfo
+   does not open at all — `no static method 'new_from_appdata'` — while symmetry, the data
+   sets, the decode probe and the licence coverage were every one of them green. The cause is
+   upstream and deliberate: gvsbuild applies
+   `patches/libadwaita/0001-remove-appstream-dependency.patch`, which wraps every
+   `*_from_appdata` entry point in `#ifndef G_OS_WIN32` and makes `appstream_dep` conditional
+   on `target_system != 'windows'`. libadwaita 1.9.3 (what gvsbuild *and* Homebrew build)
+   still parses AppStream through the heavy `appstream` library, for which gvsbuild defines no
+   project; the small `ministream` replacement landed in libadwaita 1.10.alpha and gvsbuild
+   already carries a `ministream` project for it. Homebrew's formula `depends_on "appstream"`,
+   which is why darwin has the functions.
+
+   Nothing here can compile that symbol, so what the builder enforces instead is that the hole
+   cannot ship UNANNOUNCED: [`../scripts/typelib-symbols.mjs`](../scripts/typelib-symbols.mjs)
+   holds an API floor per namespace, a missing entry point is a build failure unless a
+   DECLARED gap names its upstream cause, the gap is recorded in `manifest.typelibApi.gaps`,
+   and the gap EXPIRES — it is held against the committed gvsbuild patch snapshot, so the day
+   upstream drops that patch the build reds and names the symbols to re-measure. A gap whose
+   symbol turns out to be present fails too.
 4. **Licenses** — copy the license corpus the gvsbuild prefix documents
    (`share/doc/<project>/COPYING|LICENSE`, `share/licenses/<project>/*`) into
    `gtk/licenses/` and write `gtk/THIRD-PARTY-NOTICES.md`, which lists every bundled

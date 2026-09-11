@@ -97,5 +97,10 @@
         "wing",
         "x264",
         "zlib"
-    ]
+    ],
+    "patches": {
+        "libadwaita": [
+            "0001-remove-appstream-dependency.patch"
+        ]
+    }
 }

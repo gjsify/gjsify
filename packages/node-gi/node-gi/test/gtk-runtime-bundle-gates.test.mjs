@@ -79,6 +79,15 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import {
+    TYPELIB_API_FLOOR,
+    TYPELIB_API_GAPS,
+    gapUpstreamProblems,
+    readTypelibSymbolPool,
+    typelibApiRecord,
+    verifyTypelibApiFloor,
+} from '../../scripts/typelib-symbols.mjs';
+import { PATCHED_PROJECTS, normalizeProject, readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
 
 // --- a synthetic typelib ----------------------------------------------------
 // girepository's Header, built by hand so the parser is tested against the FORMAT
@@ -1513,5 +1522,187 @@ test('a target this does not bundle for is refused, not answered', () => {
     // failing it.
     for (const target of ['WIN32-X64', 'linux-x64', '', undefined]) {
         assert.throws(() => expectedGstPlugins(target), /names no platform this bundles for/);
+    }
+});
+// --- the typelib API floor (the Adw appdata hole) ---------------------------
+// A BACKED TYPELIB IS NOT A CALLABLE ONE. Measured on the published 0.50.0 tarballs, one
+// symbol at a time out of each bundle's own `Adw-1.typelib`:
+//
+//   adw_about_dialog_new                        win32 PRESENT  darwin PRESENT
+//   adw_about_dialog_new_from_appdata           win32 absent   darwin PRESENT
+//   adw_about_dialog_get_appdata_resource_path  win32 absent   darwin PRESENT
+//
+// gvsbuild applies `patches/libadwaita/0001-remove-appstream-dependency.patch`, which wraps
+// every `*_from_appdata` entry point in `#ifndef G_OS_WIN32`; Homebrew's formula
+// `depends_on "appstream"` and keeps them. Symmetry, the data sets, the decode probe and the
+// licence coverage were all green over it, and on Windows 11 the About dialog of an
+// application built from its own AppStream metainfo simply did not open.
+
+/** The synthetic typelib above, plus a symbol pool — what the floor actually reads. */
+function synthesizeTypelibWithSymbols({ namespace, version, sharedLibrary, dependencies, symbols }) {
+    const base = synthesizeTypelib({ namespace, version, sharedLibrary, dependencies });
+    // Appended past the header's own strings, exactly as girepository stores a function's
+    // `symbol`: NUL-terminated entries in one pool, referenced by offset.
+    return Buffer.concat([base, Buffer.from(`${symbols.join('\0')}\0`, 'utf8')]);
+}
+
+function adwFixture({ symbols }) {
+    const dir = fixtureDir();
+    writeFileSync(
+        join(dir, 'Adw-1.typelib'),
+        synthesizeTypelibWithSymbols({
+            namespace: 'Adw',
+            version: '1',
+            sharedLibrary: 'libadwaita-1.0.dylib',
+            dependencies: null,
+            symbols,
+        }),
+    );
+    return dir;
+}
+
+const ADW_FLOOR_SYMBOLS = ['adw_about_dialog_new_from_appdata', 'adw_about_dialog_get_appdata_resource_path'];
+
+test('the symbol pool reads an identifier EXACTLY, never as a substring', () => {
+    // `adw_about_dialog_new` is a prefix of `adw_about_dialog_new_from_appdata`, so a
+    // substring search would have answered PRESENT for the missing symbol in every bundle
+    // that has the other — i.e. in all three, which is the one answer that cannot be right.
+    const file = join(adwFixture({ symbols: ['adw_about_dialog_new'] }), 'Adw-1.typelib');
+    const pool = readTypelibSymbolPool(file);
+    assert.ok(pool.has('adw_about_dialog_new'));
+    assert.ok(!pool.has('adw_about_dialog_new_from_appdata'));
+    // And the other direction: a pool holding the LONG name does not answer for a name it
+    // merely contains being absent — both are separate entries, each exact.
+    const both = readTypelibSymbolPool(join(adwFixture({ symbols: ADW_FLOOR_SYMBOLS }), 'Adw-1.typelib'));
+    assert.ok(both.has('adw_about_dialog_new_from_appdata'));
+    assert.ok(!both.has('adw_about_dialog_new'));
+});
+
+test('a namespace shipped WITHOUT a floor entry point fails the build', () => {
+    // The win32 state, with no gap declared: this is what the builder would have refused to
+    // ship, and what nothing refused for 0.50.0.
+    const result = verifyTypelibApiFloor({
+        typelibDir: adwFixture({ symbols: ['adw_about_dialog_new'] }),
+        platform: 'darwin',
+    });
+    assert.equal(result.missing.length, 2);
+    assert.equal(result.problems.length, 2);
+    assert.match(result.problems.join('\n'), /WITHOUT adw_about_dialog_new_from_appdata/);
+    // The message has to name the FILE, because a bundle ships forty typelibs and "a symbol
+    // is missing" is not actionable without knowing which namespace lost it.
+    assert.match(result.problems[0], /^Adw-1\.typelib/);
+});
+
+test('a DECLARED gap covers the absence, and only on its own platform', () => {
+    const dir = adwFixture({ symbols: ['adw_about_dialog_new'] });
+    // win32 declares it: recorded, not fatal.
+    const win = verifyTypelibApiFloor({ typelibDir: dir, platform: 'win32' });
+    assert.deepEqual(win.problems, []);
+    assert.equal(win.declared.length, 2);
+    assert.equal(typelibApiRecord(win).gaps.length, 1);
+    assert.deepEqual(typelibApiRecord(win).gaps[0].symbols, ADW_FLOOR_SYMBOLS);
+    // darwin does NOT, so the same bytes fail there. That asymmetry is the whole value of
+    // keying a gap to the toolchain that produced it: the day Homebrew stops depending on
+    // appstream, this leg goes red instead of inheriting Windows's excuse.
+    assert.equal(verifyTypelibApiFloor({ typelibDir: dir, platform: 'darwin' }).problems.length, 2);
+});
+
+test('a gap whose symbol is PRESENT fails too — an expiry nobody would otherwise see', () => {
+    // The direction that is easy to leave out and is the only moment anybody learns upstream
+    // fixed this: a bundle that GAINED a function looks exactly like one that never needed it.
+    const result = verifyTypelibApiFloor({
+        typelibDir: adwFixture({ symbols: ADW_FLOOR_SYMBOLS }),
+        platform: 'win32',
+    });
+    assert.equal(result.problems.length, 2);
+    assert.match(result.problems.join('\n'), /DECLARED as a win32 gap and this bundle HAS it/);
+    assert.match(result.problems.join('\n'), /TYPELIB_API_GAPS/);
+});
+
+test('a bundle that ships no Adw typelib is SKIPPED, not failed', () => {
+    // The display-free variant, and the same derivation `verifyWindowingData` makes: a
+    // bundle cannot be required to carry an entry point of a namespace it does not ship.
+    const dir = fixtureDir();
+    writeFileSync(
+        join(dir, 'GLib-2.0.typelib'),
+        synthesizeTypelib({ namespace: 'GLib', version: '2.0', sharedLibrary: 'libglib-2.0.so.0' }),
+    );
+    const result = verifyTypelibApiFloor({ typelibDir: dir, platform: 'win32' });
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.checked, 0);
+    assert.equal(result.skipped.length, 2);
+});
+
+test("the host's own Adw typelib carries the floor — the measurement, not the fixture", (t) => {
+    // A synthetic pool proves the READER. This proves the FLOOR is a real API and not a pair
+    // of invented names: a distribution libadwaita built the ordinary way has both.
+    const dir = [
+        '/usr/lib64/girepository-1.0',
+        '/usr/lib/girepository-1.0',
+        '/usr/lib/x86_64-linux-gnu/girepository-1.0',
+    ]
+        .filter((candidate) => existsSync(join(candidate, 'Adw-1.typelib')))
+        .at(0);
+    if (!dir) return t.skip('no system Adw-1.typelib on this host');
+    const pool = readTypelibSymbolPool(join(dir, 'Adw-1.typelib'));
+    for (const symbol of ADW_FLOOR_SYMBOLS) {
+        assert.ok(pool.has(symbol), `${symbol} is missing from this host's Adw-1.typelib`);
+    }
+});
+
+test('the floor states what it is for, and every gap names its upstream cause', () => {
+    assert.ok(TYPELIB_API_FLOOR.length > 0, 'an empty floor passes every bundle vacuously');
+    for (const entry of TYPELIB_API_FLOOR) {
+        assert.ok(entry.namespace && entry.symbol, 'a floor entry names a namespace and a symbol');
+        assert.ok(entry.what && entry.why, `${entry.symbol} must say what it is and why its absence matters`);
+    }
+    const floorSymbols = new Set(TYPELIB_API_FLOOR.map((entry) => entry.symbol));
+    for (const gap of TYPELIB_API_GAPS) {
+        assert.ok(gap.platform && gap.namespace, 'a gap names a platform and a namespace');
+        assert.ok(gap.why && gap.upstream?.catalogue, `${gap.symbols} must state its upstream cause`);
+        for (const symbol of gap.symbols) {
+            // A gap for a symbol no floor entry requires excuses nothing and would sit here
+            // forever: the floor is the only thing that ever asks the question.
+            assert.ok(floorSymbols.has(symbol), `${symbol} is excused by a gap and required by no floor entry`);
+        }
+    }
+});
+
+test('every declared gap still matches the committed gvsbuild snapshot', () => {
+    // GREEN TODAY, and the point is the two red arms below: the reason a gap gives is a fact
+    // about a PINNED release, and `GVSBUILD_VERSION` moves. Every other mechanism here
+    // compares a declaration to OUR artifact and stays green when the REASON expires.
+    const catalogue = readGvsbuildCatalogue();
+    const result = gapUpstreamProblems({ catalogue });
+    assert.deepEqual(result.problems, []);
+    assert.ok(result.checked > 0, 'no gap was compared to the catalogue at all');
+
+    // Upstream drops the patch → the gap's reason is false and it says which symbols to
+    // re-measure.
+    const dropped = gapUpstreamProblems({
+        catalogue: { ...catalogue, version: '2099.1.0', patches: { libadwaita: [] } },
+    });
+    assert.equal(dropped.problems.length, 1);
+    assert.match(dropped.problems[0], /applies no patch at all/);
+
+    // The snapshot has no patch list for the project → reported as UNCOMPARED, never as
+    // "upstream stopped patching". A missing entry must not read as good news.
+    const unread = gapUpstreamProblems({ catalogue: { ...catalogue, patches: {} } });
+    assert.equal(unread.problems.length, 1);
+    assert.match(unread.problems[0], /records no patch list/);
+});
+
+test('every declared gap names a project the snapshot actually covers', () => {
+    // `--update` reads the patch directory of the projects in PATCHED_PROJECTS. A new gap
+    // naming a project absent from that list would update a snapshot that does not cover it
+    // and be reported as uncompared forever — a red retired by editing a list nobody was
+    // told about. This is the line that tells them.
+    const covered = new Set(PATCHED_PROJECTS.map(normalizeProject));
+    for (const gap of TYPELIB_API_GAPS) {
+        if (gap.upstream?.catalogue !== 'gvsbuild') continue;
+        assert.ok(
+            covered.has(normalizeProject(gap.upstream.project)),
+            `${gap.upstream.project} is blamed by a gap and absent from PATCHED_PROJECTS in gvsbuild-catalogue.mjs`,
+        );
     }
 });

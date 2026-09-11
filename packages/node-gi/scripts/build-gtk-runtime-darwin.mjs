@@ -102,6 +102,7 @@ import {
     readTypelibDir,
     verifyBundleTypelibs,
 } from './typelib-backers.mjs';
+import { formatTypelibApiProblems, typelibApiRecord, verifyTypelibApiFloor } from './typelib-symbols.mjs';
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
 const pillarDir = dirname(scriptsDir); // packages/node-gi
@@ -1160,6 +1161,33 @@ console.log(
         `namespaces ${requiredNamespaces.join(', ')} all present`,
 );
 
+// --- 4d2. the ENTRY POINTS a shipped namespace must carry ------------------
+// Symmetry one level in, shared with the win32 builder (typelib-symbols.mjs). It is the
+// win32 bundle that fails this today — gvsbuild patches `adw_about_dialog_new_from_appdata`
+// out — and the check is here because THIS side is what makes that measurable: Homebrew's
+// libadwaita `depends_on "appstream"`, so both darwin bundles carry the function, and the
+// day the formula stops doing so this leg goes red instead of inheriting the other
+// platform's excuse. No gap is declared for darwin, and one would fail on sight.
+//
+// No `gapUpstreamProblems` call here, deliberately: the only catalogue it answers for is
+// gvsbuild, which does not build this bundle. The win32 leg checks every gap, including
+// this platform's if one is ever declared, so the expiry is covered exactly once.
+const typelibApi = verifyTypelibApiFloor({ typelibDir: typelibOut, platform: 'darwin' });
+if (typelibApi.problems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibApiProblems(typelibApi.problems, {
+            stage: 'verifying the finished bundle',
+            typelibDir: typelibOut,
+        })}`,
+    );
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: typelib API floor verified — ${typelibApi.present.length} entry point(s) present, ` +
+        `${typelibApi.declared.length} covered by a declared upstream gap, ${typelibApi.skipped.length} not ` +
+        'applicable to this bundle',
+);
+
 // --- 4e. the DECLARED windowing data must BE in the finished bundle ---------
 // The data-side twin of § 4c, and the reason § 4b's steps may keep warning: a set is
 // required iff the finished bundle ships the namespace it belongs to — the namespaces
@@ -1385,6 +1413,9 @@ const manifest = {
         dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
         requiredNamespaces,
     },
+    // What the shipped namespaces can be CALLED with — symmetry one level in, and the
+    // record `verify-bundle-manifest.mjs` requires before a bundle may publish.
+    typelibApi: typelibApiRecord(typelibApi),
     licenses: {
         notice: 'THIRD-PARTY-NOTICES.md',
         dir: 'licenses',

@@ -66,6 +66,13 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import {
+    formatTypelibApiProblems,
+    gapUpstreamProblems,
+    typelibApiRecord,
+    verifyTypelibApiFloor,
+} from '../../scripts/typelib-symbols.mjs';
+import { readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
@@ -858,6 +865,35 @@ console.log(
         `namespaces ${requiredNamespaces.join(', ')} all present`,
 );
 
+// --- 5a. the ENTRY POINTS a shipped namespace must carry ------------------
+// The hole § 5 cannot see. Symmetry proves `Adw-1.typelib` has its DLL; it says nothing
+// about what is IN the typelib, and gvsbuild's libadwaita patch compiles
+// `adw_about_dialog_new_from_appdata` out on Windows. Measured on the published 0.50.0
+// tarballs: absent here, present in both darwin bundles — so the About dialog of an
+// application built from its own AppStream metainfo does not open on Windows, while every
+// gate in this builder was green. The floor + its declared gaps live in
+// typelib-symbols.mjs, shared with the darwin builder.
+const typelibApi = verifyTypelibApiFloor({ typelibDir: typelibOut, platform: 'win32' });
+// AND the gap's own reason, held against the committed gvsbuild snapshot. A declared gap
+// that upstream has closed is the failure this direction exists for: nothing else in the
+// build would ever notice, because a bundle that GAINED a function looks exactly like one
+// that never needed it.
+const gapProblems = gapUpstreamProblems({ catalogue: readGvsbuildCatalogue() }).problems;
+if (typelibApi.problems.length > 0 || gapProblems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibApiProblems([...typelibApi.problems, ...gapProblems], {
+            stage: 'verifying the finished bundle',
+            typelibDir: typelibOut,
+        })}`,
+    );
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: typelib API floor verified — ${typelibApi.present.length} entry point(s) present, ` +
+        `${typelibApi.declared.length} covered by a declared upstream gap, ${typelibApi.skipped.length} not ` +
+        'applicable to this bundle',
+);
+
 // --- 5b. the DECLARED windowing data must BE in the finished bundle --------
 // The data-side twin of § 5, sharing its rule module with the darwin builder: a data set
 // is required iff the FINISHED bundle ships the namespace it belongs to (namespaces from
@@ -1063,6 +1099,11 @@ const manifest = {
         dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
         requiredNamespaces,
     },
+    // What the shipped namespaces can be CALLED with — symmetry one level in. A consumer
+    // holding only the tarball can read which floor entry points are here and which are
+    // not, with the upstream fact behind each absence; `verify-bundle-manifest.mjs`
+    // requires the record, so a bundle built before this check existed cannot publish.
+    typelibApi: typelibApiRecord(typelibApi),
     // Windowing-only: a display-free bundle is not expected to rasterise anything,
     // so the absence of GL there is by design and recording it would read as a gap.
     ...(WINDOWING ? { glImplementation } : {}),

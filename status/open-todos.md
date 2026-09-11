@@ -4,6 +4,38 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
+
+Measured on the published 0.50.0 tarballs, symbol by symbol out of each bundle's own
+`Adw-1.typelib`: `adw_about_dialog_new_from_appdata` and
+`adw_about_dialog_get_appdata_resource_path` are PRESENT in both darwin bundles and ABSENT in
+win32-x64. On Windows 11 that is `no static method 'new_from_appdata'`, and the About dialog of
+an application built from its own AppStream metainfo does not open.
+
+The cause is gvsbuild's `patches/libadwaita/0001-remove-appstream-dependency.patch`, which wraps
+every `*_from_appdata` entry point in `#ifndef G_OS_WIN32` and makes `appstream_dep` conditional
+on `target_system != 'windows'`. It is still applied on gvsbuild `main` at libadwaita 1.9.3.
+Homebrew's formula `depends_on "appstream"`, which is the whole of the asymmetry.
+
+Nothing in this repository can compile that symbol, so what landed is the ratchet:
+`typelib-symbols.mjs` fails the build on a missing floor entry point unless a DECLARED gap names
+its upstream cause, and the gap is held against the committed gvsbuild patch snapshot, so it
+expires the day the patch does. What is still OPEN is the fix itself, and there are exactly two
+routes:
+
+- **libadwaita >= 1.10 + `ministream` in the Windows prefix.** `ministream` replaced the
+  `appstream` dependency in libadwaita at 1.10.alpha (commit `7352d8c8`) and gvsbuild already
+  carries a `ministream` project — it is there for exactly this. gvsbuild's own `libadwaita`
+  recipe is still pinned to 1.9.3 and still patched, so taking this route today means building
+  libadwaita outside that recipe on the Windows runner. 1.10 is beta, and it would reach every
+  consumer of the bundle at once.
+- **gvsbuild drops the patch**, which is the same event from the other side and needs no change
+  here beyond bumping `GVSBUILD_VERSION`, re-reading the snapshot and deleting the gap entry.
+
+Until one of them happens, a Windows application that wants an About dialog fills
+`Adw.AboutDialog` itself. The dialog is fully constructible; only the metainfo-parsing
+constructor is gone.
+
 ### A renamed ship artifact broke a workflow, and only one of nine references noticed
 
 #1655 gave the two zip rows an OS label — `windows-dir-zip` became
