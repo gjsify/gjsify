@@ -33,6 +33,12 @@
  *     validated as a name and asked of the running registry by
  *     `packages/node-gi/node-gi/test/gst-elements.test.mjs`, on the operating
  *     system the bundle is for.
+ *   • the optional `upstream` is a PROJECT IN SOMEBODY ELSE'S BUILD SYSTEM — why
+ *     a win32 format is available or is not (ADR 0056 § 6). Nothing portable can
+ *     read that, so the same division applies once more: the SHAPE is checked
+ *     here, and what the value says is checked by `gvsbuild-catalogue` in
+ *     `scripts/manifest-conformance/rules/`, against a committed snapshot pinned
+ *     to the version the workflows build with.
  *
  * A file that is present is therefore a NECESSARY condition and not a sufficient
  * one, and the notes say so on every run. The direction still matters: every
