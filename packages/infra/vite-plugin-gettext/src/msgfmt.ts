@@ -3,6 +3,8 @@ import { execa } from 'execa';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { MsgfmtPluginOptions, MsgfmtFormat } from './types.js';
+import { GettextGuardError } from './guards.js';
+import { planCatalogNames } from './catalog-names.js';
 import { checkDependencies, findAvailableLanguages, ensureDirectory } from './utils.js';
 
 /**
@@ -79,6 +81,7 @@ export function msgfmtPlugin(options: MsgfmtPluginOptions): Plugin {
         msgfmtOptions = [],
         useLocaleStructure = true,
         removeComments = true,
+        localeNames,
     } = options;
 
     const pluginName = 'vite-plugin-msgfmt';
@@ -155,48 +158,53 @@ export function msgfmtPlugin(options: MsgfmtPluginOptions): Plugin {
                     return;
                 }
 
+                // Only the gettext locale structure is looked up by glibc, so
+                // only it needs POSIX names. The flat `<outputDirectory>/<lang>`
+                // layout is read by whatever the project points at it, and
+                // renaming there would break a consumer to fix nobody.
+                const usesLocaleLookup = useLocaleStructure && format === 'mo';
+                const plans = usesLocaleLookup
+                    ? planCatalogNames(languages, { pluginName, namespace: 'posix', localeNames })
+                    : languages.map((catalog) => ({ catalog, posix: [catalog], bcp47: '' }));
+
                 // Process each language individually for other formats
-                for (const lang of languages) {
-                    const poFile = path.join(poDirectory, `${lang}.po`);
+                for (const plan of plans) {
+                    const poFile = path.join(poDirectory, `${plan.catalog}.po`);
 
-                    let outputPath: string;
-                    let outputFile: string;
-
-                    if (useLocaleStructure && format === 'mo') {
-                        // Use standard gettext locale structure
-                        outputPath = path.join(outputDirectory, 'locale', lang, 'LC_MESSAGES');
-                        outputFile = path.join(
+                    for (const name of plan.posix) {
+                        const outputPath = usesLocaleLookup
+                            ? path.join(outputDirectory, 'locale', name, 'LC_MESSAGES')
+                            : path.join(outputDirectory, name);
+                        const outputFile = path.join(
                             outputPath,
                             options.filename || `${domain}${getOutputExtension(format)}`,
                         );
-                    } else {
-                        // Use simple language-based structure
-                        outputPath = path.join(outputDirectory, lang);
-                        outputFile = path.join(
-                            outputPath,
-                            options.filename || `${domain}${getOutputExtension(format)}`,
-                        );
+
+                        // Create the directory structure
+                        await ensureDirectory(outputPath);
+
+                        if (verbose) {
+                            console.log(`[${pluginName}] Compiling ${poFile} to ${outputFile}`);
+                        }
+
+                        // Build arguments for individual processing
+                        const baseArgs = ['--output-file=' + outputFile, `--${format}`, poFile];
+                        const args = buildMsgfmtArgs(baseArgs, { msgfmtOptions });
+
+                        if (verbose) {
+                            console.log(`[${pluginName}] Running msgfmt with: ${args.join(' ')}`);
+                        }
+
+                        await execa('msgfmt', args);
                     }
-
-                    // Create the directory structure
-                    await ensureDirectory(outputPath);
-
-                    if (verbose) {
-                        console.log(`[${pluginName}] Compiling ${poFile} to ${outputFile}`);
-                    }
-
-                    // Build arguments for individual processing
-                    const baseArgs = ['--output-file=' + outputFile, `--${format}`, poFile];
-                    const args = buildMsgfmtArgs(baseArgs, { msgfmtOptions });
-
-                    if (verbose) {
-                        console.log(`[${pluginName}] Running msgfmt with: ${args.join(' ')}`);
-                    }
-
-                    await execa('msgfmt', args);
                 }
             }
         } catch (error) {
+            // A guard's message IS the guard — wrapping it buries the
+            // instruction that makes it useful.
+            if (error instanceof GettextGuardError) {
+                throw error;
+            }
             throw new Error(`Failed to compile files: ${error}`);
         }
     }

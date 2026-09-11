@@ -2,17 +2,23 @@ import { type Plugin } from 'vite';
 import { execa } from 'execa';
 import path from 'node:path';
 import type { GettextPluginOptions } from './types.js';
+import { GettextGuardError } from './guards.js';
+import { planCatalogNames } from './catalog-names.js';
 import { checkDependencies, findAvailableLanguages, generateLinguasFile, ensureDirectory } from './utils.js';
 
 /**
  * Creates a Vite plugin that compiles PO translation files to binary MO format
  * The MO files are placed in the standard gettext directory structure:
  * {moDirectory}/locale/{lang}/LC_MESSAGES/messages.mo
+ *
+ * The directory is the catalog's POSIX locale name, which is NOT always the
+ * `.po` basename — a Weblate `zh_Hans.po` is installed as `zh_CN`, because
+ * `zh_Hans` is a name glibc never probes. See `catalog-names.ts`.
  * @param options Configuration options for the plugin
  * @returns A Vite plugin that handles PO compilation
  */
 export function gettextPlugin(options: GettextPluginOptions): Plugin {
-    const { poDirectory, moDirectory, filename = 'messages.mo', verbose = false } = options;
+    const { poDirectory, moDirectory, filename = 'messages.mo', verbose = false, localeNames } = options;
 
     const pluginName = 'vite-plugin-gettext';
 
@@ -43,23 +49,36 @@ export function gettextPlugin(options: GettextPluginOptions): Plugin {
             // Generate LINGUAS file
             await generateLinguasFile(languages, poDirectory, verbose);
 
+            // Resolve every catalog's locale directories BEFORE compiling any of
+            // them, so a name nobody can place stops the build instead of
+            // leaving a half-written tree that looks complete.
+            const plans = planCatalogNames(languages, { pluginName, namespace: 'posix', localeNames });
+
             // Create MO directory
             await ensureDirectory(path.join(moDirectory, 'locale'));
 
-            for (const lang of languages) {
-                const poFile = path.join(poDirectory, `${lang}.po`);
-                const moPath = path.join(moDirectory, 'locale', lang, 'LC_MESSAGES');
-                const moFile = path.join(moPath, filename);
+            for (const plan of plans) {
+                const poFile = path.join(poDirectory, `${plan.catalog}.po`);
 
-                await ensureDirectory(moPath);
+                for (const localeDir of plan.posix) {
+                    const moPath = path.join(moDirectory, 'locale', localeDir, 'LC_MESSAGES');
+                    const moFile = path.join(moPath, filename);
 
-                if (verbose) {
-                    console.log(`[${pluginName}] Compiling ${poFile} to ${moFile}`);
+                    await ensureDirectory(moPath);
+
+                    if (verbose) {
+                        console.log(`[${pluginName}] Compiling ${poFile} to ${moFile}`);
+                    }
+
+                    await execa('msgfmt', ['--output-file=' + moFile, poFile]);
                 }
-
-                await execa('msgfmt', ['--output-file=' + moFile, poFile]);
             }
         } catch (error) {
+            // A guard's message IS the guard — wrapping it in "Failed to compile
+            // MO files: Error: …" buries the instruction that makes it useful.
+            if (error instanceof GettextGuardError) {
+                throw error;
+            }
             throw new Error(`Failed to compile MO files: ${error}`);
         }
     }
