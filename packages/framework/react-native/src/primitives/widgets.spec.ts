@@ -599,6 +599,70 @@ export default async () => {
                 );
             });
 
+            await it('keeps a child’s flex-1 when an invisible text sibling appears beside it', async () => {
+                // #1640, read off the real tree. The provider condition asked
+                // `children.some(isTextNode)` — "is there text here", which is a question
+                // about the SIBLINGS — so ONE text child dropped `ParentProvider` for every
+                // element child beside it, and their `flex-1` began refusing for something
+                // they had not touched.
+                //
+                // THE SIBLING IS `''`, and that is why this wants a mounted vector rather
+                // than a plan comparison: `Children.toArray` keeps an empty string while the
+                // reconciler builds a text fiber only for a NON-empty one, so `{label}` going
+                // from `null` to `''` renders nothing, changes nothing on screen, and used to
+                // remove the provider. Both trees below hold exactly one label; only
+                // `hexpand` says which condition ran.
+                //
+                // THE FIRST ARM IS THE DISCRIMINATOR AND NOT DECORATION: the same structure
+                // WITHOUT the text sibling resolves under the old spelling too, so a green
+                // second arm alone would not say which half of the condition it measured.
+                // The pair is what makes the `''` the only difference between them.
+                const row = (...extra: ReactNode[]): ReactNode =>
+                    createElement(
+                        View,
+                        { className: 'flex-row' },
+                        createElement(Text, { key: 'a', className: 'flex-1' }, 'a'),
+                        ...extra,
+                    );
+                const readRow = (element: ReactNode): { tags: string[]; hexpand: boolean } => {
+                    let read = { tags: [] as string[], hexpand: false };
+                    mounted(element, (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Box;
+                        expect(box.orientation).toBe(Gtk.Orientation.HORIZONTAL);
+                        const labels = gtkChildren(box);
+                        read = { tags: labels.map(typeOf), hexpand: (labels[0] as Gtk.Label).hexpand };
+                    });
+                    return read;
+                };
+                expect(readRow(row())).toStrictEqual({ tags: ['GtkLabel'], hexpand: true });
+                expect(readRow(row(''))).toStrictEqual({ tags: ['GtkLabel'], hexpand: true });
+            });
+
+            await it('keeps it on a primitive that DOES have a text sink, which is the other half', async () => {
+                // `plan.textSink !== null && children.every(isTextNode)` is two claims, and
+                // the vector above holds only the first: a `<View>` has no sink, so the
+                // left-hand side alone decides it there and `some` on the right would pass.
+                // A `<Pressable>` is a `Gtk.Button`, whose `label` IS a sink — so here the
+                // left-hand side is satisfied and ONLY `every` versus `some` decides whether
+                // the provider survives the same invisible `''`.
+                //
+                // The control is the same pair as above, and for the same reason.
+                const button = (...extra: ReactNode[]): ReactNode =>
+                    createElement(Pressable, {}, createElement(View, { key: 'body', className: 'flex-1' }), ...extra);
+                const readButton = (element: ReactNode): { tags: string[]; vexpand: boolean } => {
+                    let read = { tags: [] as string[], vexpand: false };
+                    mounted(element, (container) => {
+                        const control = gtkChildren(container)[0] as Gtk.Button;
+                        expect(typeOf(control)).toBe('GtkButton');
+                        const inner = gtkChildren(control);
+                        read = { tags: inner.map(typeOf), vexpand: (inner[0] as Gtk.Box).vexpand };
+                    });
+                    return read;
+                };
+                expect(readButton(button())).toStrictEqual({ tags: ['GtkBox'], vexpand: true });
+                expect(readButton(button(''))).toStrictEqual({ tags: ['GtkBox'], vexpand: true });
+            });
+
             await it('becomes a Gtk.Overlay when a CHILD is absolutely positioned', async () => {
                 mounted(
                     createElement(
