@@ -614,6 +614,25 @@ describe('gvsbuild-catalogue — the committed snapshot and this tree', () => {
         assert.deepEqual(matchLibrary(catalogue.modules, 'mpg123'), []);
     });
 
+    it('reads a pin out of a CRLF workflow file, which a Windows clone hands it', () => {
+        // `core.autocrlf=true` is Git for Windows' installer default and `.gitattributes`
+        // deliberately does not cover `*.yml`, so a Windows clone hands the reader CRLF. It
+        // copes, and the reason is a language fact rather than anything in the pattern:
+        // ECMAScript counts CR as a line terminator, so `$` under `/m` matches before the
+        // `\r` too. That is the opposite of the obvious guess — a `[ \t\r]*` was added
+        // against it and measured to change nothing — which is exactly why the property is
+        // asserted instead of trusted: a rewrite splitting on `\n` would lose it silently,
+        // and the symptom would be "no pin in any workflow", a red run about a line ending.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-gvsbuild-crlf-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        const line = "    env:{EOL}      GVSBUILD_VERSION: '2026.6.0'{EOL}";
+        for (const eol of ['\r\n', '\n']) {
+            writeFileSync(join(root, '.github', 'workflows', 'a.yml'), line.replaceAll('{EOL}', eol));
+            assert.deepEqual(readGvsbuildPins(root), [{ workflow: '.github/workflows/a.yml', version: '2026.6.0' }]);
+        }
+        rmSync(root, { recursive: true, force: true });
+    });
+
     it('holds the real bundles — the same audit `audit-runtimes --check` runs on every PR', () => {
         const ctx = createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] });
         const bundles = collectMediaBundles(ctx).map((bundle) => ({

@@ -75,6 +75,14 @@ export function readGvsbuildPins(repoRoot) {
     for (const entry of readdirSync(dir).sort()) {
         if (!entry.endsWith('.yml') && !entry.endsWith('.yaml')) continue;
         const text = readFileSync(join(dir, entry), 'utf8');
+        // A CRLF workflow file is read correctly and NOT because of anything written here:
+        // ECMAScript counts CR as a line terminator, so `$` under `/m` matches before the
+        // `\r` as well as before the `\n`. Measured, because the opposite is the obvious
+        // guess and a `[ \t\r]*` was briefly added against it — on a Windows clone
+        // (`core.autocrlf=true` is Git for Windows' installer default, and
+        // `.gitattributes` deliberately does not cover `*.yml`) both spellings find the
+        // pin. The property is pinned by a test rather than left to this comment, because
+        // a rewrite that split on `\n` would silently lose it.
         for (const match of text.matchAll(/^[ \t]*GVSBUILD_VERSION:[ \t]*['"]?([^'"\s#]+)['"]?[ \t]*$/gm)) {
             rows.push({ workflow: `.github/workflows/${entry}`, version: match[1] });
         }
