@@ -78,6 +78,13 @@ export default async () => {
             // have — the substitution this module exists to prevent, caused by the fix for it.
             expect(matchFontFamily('Adwaita Sans', ['Adwaita Sans Condensed']).kind).toBe('absent');
             expect(matchFontFamily('Adwaita Sans', ['Adwaita Sans Mono']).kind).toBe('absent');
+            // `Display` and `Poster` are `opsz` value names AND real family names, which is why
+            // they are out of the set. A host that has `Noto Sans Display` and not `Noto Sans`
+            // must hear `absent` — loud, with a warning — rather than be handed a DIFFERENT
+            // family as the name to ask for, which is the failure this module reports on.
+            expect(matchFontFamily('Noto Sans', ['Noto Sans Display']).kind).toBe('absent');
+            expect(matchFontFamily('Playfair', ['Playfair Display']).kind).toBe('absent');
+            expect(matchFontFamily('Bodoni', ['Bodoni Poster']).kind).toBe('absent');
             // And the exact name still wins over a variant when the map carries both, so a host
             // with the real family is never redirected to an optical alias of it.
             const both = matchFontFamily('Adwaita Sans', ['Adwaita Sans Text', 'Adwaita Sans']);

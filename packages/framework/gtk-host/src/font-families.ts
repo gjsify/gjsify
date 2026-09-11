@@ -55,18 +55,24 @@
  * the map is `Adwaita Sans Text`. Byte-identical file, two family names — exactly the
  * Merriweather finding, which is why it belongs in this pattern rather than in a special case.
  *
- * A CLOSED SET OF NAMES, not `\w+`. `Noto Sans Display` and `Playfair Display` are real
- * families in their own right, so a rule that matched any trailing word would silently answer
- * `optical` for a family a host genuinely does not have. These are the standard `opsz` axis
- * value names; anything else stays `absent`, which is the answer that cannot cause a
- * substitution. The `exact` arm is tried first, so a map holding BOTH names is unaffected, and
- * two matches still land in `ambiguous` rather than in a guess.
+ * A CLOSED SET OF NAMES, not `\w+`, and `Display` and `Poster` are OUT OF IT. A trailing word
+ * is not evidence of an optical variant: `Noto Sans Display`, `Playfair Display` and
+ * `Bodoni Poster` are families in their own right, so admitting those two tokens answers
+ * `optical` — with a `family` the caller is told to ask for — for a family the host genuinely
+ * does not have. That is the substitution this module exists to surface, produced by the fix
+ * for it, and `absent` is the answer that cannot cause one. The set is therefore what has been
+ * MEASURED (`\d+pt`, `Text`) plus the `opsz` names with no standalone-family collision; the
+ * cost of leaving one out is a loud `absent` with a warning, the cost of admitting one is a
+ * silent wrong family.
+ *
+ * The `exact` arm is tried first, so a map holding BOTH names is unaffected, and two matches
+ * still land in `ambiguous` rather than in a guess.
  *
  * Anchored at the END and requiring the space, so `Source Sans 3` — a family whose name simply
  * ends in a digit — is untouched. It was the control in the measurement: same staging run, no
  * size axis, identical family name on both hosts.
  */
-const OPTICAL_SIZE_SUFFIX = /^(.*\S)\s(?:\d+pt|Text|Display|Caption|Subhead|Poster|Banner)$/i;
+const OPTICAL_SIZE_SUFFIX = /^(.*\S)\s(?:\d+pt|Text|Caption|Subhead|Banner)$/i;
 
 /** How a declared family name was found among the families a font map holds. */
 export type FontFamilyMatchKind = 'exact' | 'optical' | 'ambiguous' | 'absent';

@@ -329,10 +329,16 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     // `Merriweather` / `Merriweather 18pt` finding one spelling over. Asserting the declared
     // string would fail a bundle whose face is present and usable — and, worse, it would hide
     // the real defect this caught: the policy was WRITING the declared name too.
+    //
+    // THE SAME CLOSED SET `font-families.ts` uses, and it has to stay the same one: this copy
+    // exists only because the published tarball's staging cannot import that module, and a copy
+    // that resolves a name the PRODUCT refuses is a green test over a broken app. `Display` and
+    // `Poster` are deliberately absent from both — they are real family names as well as `opsz`
+    // value names.
     const resolveFamily = (declared) => {
         if (after.includes(declared)) return declared;
         const variants = after.filter((name) =>
-            new RegExp(`^${declared} (\\d+pt|Text|Display|Caption)$`, 'i').test(name),
+            new RegExp(`^${declared} (\\d+pt|Text|Caption|Subhead|Banner)$`, 'i').test(name),
         );
         return variants.length === 1 ? variants[0] : undefined;
     };
