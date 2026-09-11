@@ -281,20 +281,28 @@ function renderDebianCopyright(settings: ShipSettings, licenseText: string): str
  * Icons land in the hicolor theme, named after the app id — that name is what
  * the desktop entry's `Icon=` and the MetaInfo `<id>` both point at, so a file
  * keeping its source basename installs an icon nothing ever looks up.
+ *
+ * A SYMBOLIC icon keeps the `-symbolic` half of that name, and for the same
+ * reason rather than as an exception: the name GTK resolves a symbolic icon by
+ * is `<app id>-symbolic`, so renaming the file to the bare id installs an icon
+ * nothing ever looks up — one sentence, applied to both lookups.
  */
 function planIcons(settings: ShipSettings): StagedFile[] {
     const out: StagedFile[] = [];
     const seen = new Map<string, string>();
     for (const icon of settings.iconFiles) {
         const ext = extname(icon);
-        const dir = iconSizeDir(icon);
-        const path = `${SHARE.icons}/${dir}/apps/${settings.appId}${ext}`;
+        const dir = iconThemeDir(icon);
+        const name = isSymbolicIcon(icon) ? `${settings.appId}-symbolic` : settings.appId;
+        const path = `${SHARE.icons}/${dir}/apps/${name}${ext}`;
         const previous = seen.get(path);
         if (previous !== undefined) {
             throw new Error(
                 `gjsify ship: ${icon} and ${previous} both install as ${path}. ` +
-                    'Icon size is read from the path (`.../128x128/...`) or the filename (`icon-128.png`); ' +
-                    'give them distinguishable sizes or point `gjsify.ship.icon` at a single file.',
+                    'An icon is keyed on its context and its size: `symbolic` is read from a `symbolic/` ' +
+                    'path component or a `-symbolic` filename, the size from the path (`.../128x128/...`) ' +
+                    'or the filename (`icon-128.png`). Give them distinguishable sizes, or point ' +
+                    '`gjsify.ship.icon` at a single file.',
             );
         }
         seen.set(path, icon);
@@ -304,11 +312,45 @@ function planIcons(settings: ShipSettings): StagedFile[] {
 }
 
 /**
- * The hicolor subdirectory for an icon: `scalable` for SVG, otherwise the
- * pixel size read from a `<n>x<n>` path component or a trailing number in the
- * filename.
+ * Whether an icon belongs in the theme's SYMBOLIC context rather than at a size.
+ *
+ * `symbolic` is a directory of its own in a hicolor theme and NOT a size value.
+ * Measured in `refs/adwaita-icon-theme/index.theme`, which lists `symbolic/apps`
+ * in `Directories=` beside `scalable/apps` and `16x16/apps` and gives it its own
+ * section — `Context=Applications`, `Size=16`, `MinSize=8`, `MaxSize=512`,
+ * `Type=Scalable` — against the scalable row's `Size=128`. The freedesktop icon
+ * theme specification has no notion of `symbolic` at all: a theme expresses it by
+ * giving the directory a section, which is exactly why reading the EXTENSION
+ * cannot see it, and why this question has to be asked before the size one.
+ *
+ * TWO SIGNALS, the same pair `iconThemeDir` already reads for a size: the
+ * directory an author put the file in, and the name they gave it. GTK resolves a
+ * symbolic icon by the `-symbolic` name suffix, so an author who wrote the name
+ * has said as much as one who wrote the path.
+ *
+ * SVG ONLY, because the symbolic directory is declared `Type=Scalable`: the
+ * raster form GTK's own `gtk-encode-symbolic-svg` produces
+ * (`<name>-symbolic.symbolic.png`) is installed at a SIZE instead. So a PNG keeps
+ * answering the size question, and one that cannot answer it stays refused rather
+ * than quietly becoming a scalable icon that does not scale.
  */
-export function iconSizeDir(iconPath: string): string {
+export function isSymbolicIcon(iconPath: string): boolean {
+    if (extname(iconPath).toLowerCase() !== '.svg') return false;
+    if (/(?:^|[\\/])symbolic[\\/]/.test(iconPath)) return true;
+    return basename(iconPath, extname(iconPath)).endsWith('-symbolic');
+}
+
+/**
+ * The hicolor subdirectory for an icon: the `symbolic` CONTEXT, else `scalable`
+ * for an SVG, else the pixel size read from a `<n>x<n>` path component or a
+ * trailing number in the filename.
+ *
+ * Named for the theme DIRECTORY rather than a size from the moment the first of
+ * those answers stopped being one: `iconSizeDir` returning `symbolic` would be a
+ * name every caller has to read past.
+ */
+export function iconThemeDir(iconPath: string): string {
+    if (isSymbolicIcon(iconPath)) return 'symbolic';
     if (extname(iconPath).toLowerCase() === '.svg') return 'scalable';
     const square = /(?:^|[\\/])(\d{1,4})x\1(?:[\\/]|$)/.exec(iconPath);
     if (square) return `${square[1]}x${square[1]}`;
