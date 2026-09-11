@@ -20,6 +20,10 @@
 // 5. Deps that don't declare the script are skipped silently.
 // 6. A failing intermediate dep stops the cascade with non-zero exit.
 // 7. `--continue-on-error` keeps going past a failed dep.
+// 8. `foreach -t -p` orders the same plain-range chain as `-t`. It lives here
+//    rather than in a foreach suite because it needs THIS fixture: it is the one
+//    topological leg with a scheduler of its own, and the shared graph is what
+//    keeps the two legs from ordering a monorepo differently.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -336,6 +340,31 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
         assert.equal(r.status, 0, `workspace failed: ${r.stderr}\n${r.stdout}`);
         assert.ok(markMtimes()['@plain/leaf'] !== undefined, 'the target itself must still run');
         assert.match(r.stdout + r.stderr, /found no workspace dependencies/i);
+    });
+
+    // `gjsify foreach -t -p` runs its OWN scheduler, and it used to build the
+    // dependency map from a private `workspace:`-only walk rather than the shared
+    // graph. Once the shared rule widened to plain ranges, the two topological legs
+    // would have ordered THIS fixture differently: `-t` correctly, `-t -p` seeing no
+    // edges at all and releasing every workspace at once, at exit 0. `--jobs 1` puts
+    // the ordering alone under test — with no edges the scheduler falls back to
+    // selection order, which is alphabetical and puts `@plain/app` first.
+    it('foreach -t -p orders a plain-range chain the same way -t does', async () => {
+        clearMarks();
+        const r = await runCli(
+            cliEntry,
+            // `--include` comes FIRST and a flag follows it: it is a yargs array
+            // option, so it keeps eating non-flag tokens and would swallow the script.
+            ['foreach', '--include=@plain/*', '-A', '-t', '-p', '--jobs=1', 'build'],
+            { cwd: root },
+        );
+        assert.equal(r.status, 0, `foreach failed: ${r.stderr}\n${r.stdout}`);
+        const m = markMtimes();
+        for (const n of ['@plain/base', '@plain/mid', '@plain/app']) {
+            assert.ok(m[n] !== undefined, `${n} was not built`);
+        }
+        assert.ok(m['@plain/base'] < m['@plain/mid'], `base(${m['@plain/base']}) must precede mid(${m['@plain/mid']})`);
+        assert.ok(m['@plain/mid'] < m['@plain/app'], `mid(${m['@plain/mid']}) must precede app(${m['@plain/app']})`);
     });
 
     it('errors clearly when the workspace does not exist', async () => {
