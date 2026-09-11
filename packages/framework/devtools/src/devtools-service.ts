@@ -407,6 +407,9 @@ export class DevtoolsService {
      * rather than an error for "no match": not finding a widget is an ordinary
      * answer a caller acts on (wait and retry, or report), not a fault.
      *
+     * The type half matches IS-A, so `AdwDialog` reaches an application's own
+     * `Adw.Dialog` subclass, and an INTERFACE name (`GtkOrientable`, `GtkEditable`) matches
+     * every implementor; an exact-type match is still preferred over any of them.
      * Invisible and unmapped subtrees are skipped — see {@link findWidgetPath}. */
     FindWidget(selector: string): string {
         const parsed = parseWidgetSelector(selector);
