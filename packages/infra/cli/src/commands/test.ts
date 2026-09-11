@@ -6,8 +6,9 @@
 // command builds it for GJS + Node and runs each output, aggregating
 // exit codes.
 
-import { existsSync, statSync, readdirSync } from 'node:fs';
-import { join, dirname, resolve, relative } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { join, resolve, relative, sep } from 'node:path';
+import { newestDepSignalMtimeMs, newestInputMtimeMs, packageBuildInputs } from '../utils/package-inputs.js';
 import { isRuntimeAvailable, RUNTIMES } from '../utils/runtimes.js';
 import { nodeBinary } from '../utils/run-node.js';
 import { describeExit, spawnToCompletion } from '../utils/spawn.js';
@@ -129,7 +130,7 @@ export const testCommand: Command<unknown, TestOptions> = {
 
             // Build stage (skip if --no-build OR (not --rebuild AND outfile fresher than src)).
             if (args.build !== false) {
-                const needsBuild = args.rebuild || !isFresh(outfile, entry);
+                const needsBuild = args.rebuild || !isFresh(outfile, entry, cwd, outdir);
                 if (needsBuild) {
                     const buildStart = Date.now();
                     if (args.verbose) {
@@ -246,38 +247,39 @@ async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
     if (result.code !== 0) throw new Error(`node exited with ${describeExit(result)}`);
 }
 
-/** True when `outfile` exists and is newer than every `.ts`/`.mts` file under the entry's directory tree. */
-function isFresh(outfile: string, entry: string): boolean {
+/**
+ * True when `outfile` is at least as new as every build input of the package
+ * at `cwd`.
+ *
+ * The set is {@link packageBuildInputs}, the same one the build cache hashes.
+ * It used to be `dirname(entry)` — `tests/` for any package whose suite lives
+ * there, so `src/**` was never walked: a change to the code UNDER TEST left
+ * the bundle "fresh" and `gjsify test` reran the previous build and reported
+ * on it. That went both ways inside one dependency bump — a green run
+ * measuring a version that was no longer installed, then a red one after the
+ * source had already been repaired (#1651).
+ *
+ * `outdir` is subtracted as this command's own output; `entry` is added
+ * because `--entry ../shared/test.mts` may point outside the package.
+ */
+export function isFresh(outfile: string, entry: string, cwd: string, outdir: string): boolean {
     if (!existsSync(outfile)) return false;
-    const outMtime = statSync(outfile).mtimeMs;
-    const srcRoot = dirname(entry);
-    // Conservative: walk the src tree once. If the package has no `src/`,
-    // fall back to entry-only check.
     try {
-        const newest = newestMtimeUnder(existsSync(srcRoot) ? srcRoot : entry);
+        const outMtime = statSync(outfile).mtimeMs;
+        const extraOutputs: string[] = [];
+        const outdirRel = relative(cwd, outdir).split(sep).join('/');
+        if (outdirRel !== '' && !outdirRel.startsWith('../')) extraOutputs.push(outdirRel);
+        const newest = Math.max(
+            newestInputMtimeMs(packageBuildInputs(cwd, { extraOutputs })),
+            statSync(entry).mtimeMs,
+            // A dependency bump changes no file in the package — and that is
+            // the shape #1651 was found in. `node_modules` is far too large
+            // to stat per run, so the lockfile stands in for it.
+            newestDepSignalMtimeMs(cwd),
+        );
         return outMtime >= newest;
     } catch {
         // On any FS error, force rebuild to stay safe.
         return false;
     }
-}
-
-function newestMtimeUnder(path: string): number {
-    const st = statSync(path);
-    if (st.isFile()) return st.mtimeMs;
-    let max = st.mtimeMs;
-    for (const entry of readdirSync(path, { withFileTypes: true })) {
-        if (
-            entry.name === 'node_modules' ||
-            entry.name === 'dist' ||
-            entry.name === 'lib' ||
-            entry.name.startsWith('.')
-        ) {
-            continue;
-        }
-        const child = join(path, entry.name);
-        const m = newestMtimeUnder(child);
-        if (m > max) max = m;
-    }
-    return max;
 }

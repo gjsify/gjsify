@@ -35,6 +35,20 @@ where it was written first (`utils/watch-loop.ts`). WHAT to build is not re-decl
 `utils/dev-plan.ts` reads the project's own `build:gjs`/`build:node` script and puts the CLI
 flags on top, so the dev loop and `gjsify run build` cannot drift into different bundles.
 
+**"What are this package's build inputs" is ONE definition — `utils/package-inputs.ts` — and it
+was three.** `packageBuildInputs` is what the build cache hashes AND what `gjsify test` judges
+its bundle against; add a fourth READER, never a fourth answer. It is a DENY-list (not
+`node_modules`, not a dot-entry, not what the package's own `clear` script says it PRODUCES)
+because every allow-list written for the question is wrong for a package that exists here:
+`src/**` misses `@gjsify/adwaita-fonts` (no `src/` at all) and the tracked source in
+`resolve-npm/lib` + `manifest-conformance/lib` (#821), and `dirname(<test entry>)` missed
+`src/**` entirely — #1651, where `gjsify test` reran the PREVIOUS bundle and reported on it, in
+both directions, while CI stayed structurally blind because a fresh container has no `dist/` and
+therefore always builds. Both arms of that test belong together: without "a file OUTSIDE the set
+must NOT rebuild", the suite also passes against an `isFresh` that always answers false.
+Measurements + the copy still open (CI's `actions/cache` glob):
+[docs/build-artifacts.md](../../../docs/build-artifacts.md).
+
 **A command that SUPERVISES owes three things a one-shot command never does** — all three
 paid for on the GJS host, with every Node test green (`utils/watch-loop.ts` holds the
 measurements): `holdMainLoop()`, because nothing else keeps a GJS process alive once its entry

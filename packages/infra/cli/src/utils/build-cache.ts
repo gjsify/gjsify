@@ -11,9 +11,9 @@
 //   - a toolchain salt (workspace-resolved versions of @gjsify/cli,
 //     @gjsify/tsc, rolldown, typescript — a bundler/compiler bump must
 //     invalidate everything),
-//   - the package's own input hash (every file under `src/**`, plus
-//     `package.json`, plus the package's root `tsconfig*.json` — real file
-//     contents, streamed sha256, sorted for determinism),
+//   - the package's own input hash — `packageBuildInputs`, the ONE definition
+//     of "what are this package's build inputs" (`utils/package-inputs.ts`),
+//     hashed by real file contents, streamed sha256, sorted for determinism,
 //   - the input hashes of EVERY workspace dependency in the package's
 //     transitive dep closure (prod + dev + optional + peer `workspace:`
 //     edges). Composing the closure's OWN hashes (instead of recursing into
@@ -70,6 +70,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDependencyGraph, type DependencyGraph, type Workspace } from '@gjsify/workspace';
 import { replicateLinkSync } from './dir-link.js';
+import { CONVENTIONAL_OUTPUT_DIRS, packageBuildInputs } from './package-inputs.js';
 
 /**
  * Bump to invalidate every existing cache entry (schema/semantic changes).
@@ -83,11 +84,21 @@ import { replicateLinkSync } from './dir-link.js';
  * still on v2's whole-dir ownership and could restore over a sibling unit; a v2
  * manifest for them records `lib`, so it must not be replayed against the
  * per-child units this version stores.
+ *
+ * v4: the input set is now `packageBuildInputs` instead of `src/**` + the
+ * manifests (#1651). Every v3 key was computed over a strictly narrower set,
+ * so replaying one would report a hit for a change it could not have seen.
  */
-export const BUILD_CACHE_LAYOUT_VERSION = 'v3';
+export const BUILD_CACHE_LAYOUT_VERSION = 'v4';
 
-/** Conventional per-package build output directories, checked in this order. */
-export const OUTPUT_DIR_CANDIDATES = ['lib', 'dist', 'dist-templates'] as const;
+/**
+ * Conventional per-package build output directories, checked in this order.
+ *
+ * Deliberately the same constant the input definition subtracts: a directory
+ * this cache STORES as an output must never also be hashed as an input, or
+ * storing it would invalidate the key it was stored under.
+ */
+export const OUTPUT_DIR_CANDIDATES = CONVENTIONAL_OUTPUT_DIRS;
 
 /** Keep at most this many keys per package; evict the least recently stored/used. */
 export const MAX_KEYS_PER_PACKAGE = 2;
@@ -149,69 +160,15 @@ export function hashFileStream(path: string): string {
     return hash.digest('hex');
 }
 
-// Recursive, sorted file walk. Yields workspace-relative paths (forward
-// slashes). Directory symlinks are NOT followed (loop safety) — the link
-// target string participates in the hash instead. `node_modules` and the
-// output dirs never appear because callers only walk `src/` + explicit root
-// files, but guard anyway for nested oddities.
-function walkFiles(dir: string, prefix: string, out: { rel: string; abs: string; link?: string }[]): void {
-    let entries: string[];
-    try {
-        entries = readdirSync(dir);
-    } catch {
-        return;
-    }
-    entries.sort();
-    for (const entry of entries) {
-        if (entry === 'node_modules') continue;
-        const abs = join(dir, entry);
-        const rel = prefix === '' ? entry : `${prefix}/${entry}`;
-        let st: ReturnType<typeof lstatSync>;
-        try {
-            st = lstatSync(abs);
-        } catch {
-            continue;
-        }
-        if (st.isSymbolicLink()) {
-            // File symlinks: hash the resolved content below if readable;
-            // dir symlinks: record the target only.
-            try {
-                const target = readlinkSync(abs);
-                out.push({ rel, abs, link: target });
-            } catch {
-                /* dropped mid-walk */
-            }
-        } else if (st.isDirectory()) {
-            walkFiles(abs, rel, out);
-        } else if (st.isFile()) {
-            out.push({ rel, abs });
-        }
-    }
-}
-
 /**
- * Content hash of a package's build INPUTS: every file under `src/**`, plus
- * `package.json`, plus root `tsconfig*.json`. Sorted, content-streamed —
+ * Content hash of a package's build INPUTS — the set is
+ * {@link packageBuildInputs}, shared with `gjsify test`'s freshness check so
+ * the two cannot drift about what an input is. Sorted, content-streamed:
  * mtimes do not participate, so a `git checkout` with identical contents
  * hashes identically across machines.
  */
 export function hashPackageInputs(location: string): string {
-    const files: { rel: string; abs: string; link?: string }[] = [];
-    const pkgJson = join(location, 'package.json');
-    if (existsSync(pkgJson)) files.push({ rel: 'package.json', abs: pkgJson });
-    let rootEntries: string[] = [];
-    try {
-        rootEntries = readdirSync(location);
-    } catch {
-        /* unreadable package dir — hash degenerates to the empty set */
-    }
-    for (const entry of rootEntries.sort()) {
-        if (/^tsconfig.*\.json$/.test(entry)) {
-            files.push({ rel: entry, abs: join(location, entry) });
-        }
-    }
-    const srcDir = join(location, 'src');
-    if (existsSync(srcDir)) walkFiles(srcDir, 'src', files);
+    const files = packageBuildInputs(location);
 
     const hash = createHash('sha256');
     hash.update(`gjsify-build-cache-inputs/${BUILD_CACHE_LAYOUT_VERSION}\n`);
@@ -236,6 +193,47 @@ export function hashPackageInputs(location: string): string {
         }
     }
     return hash.digest('hex');
+}
+
+/**
+ * Recursive, sorted walk of an OUTPUT tree, yielding `/`-separated relative
+ * paths. Directory symlinks are not followed (loop safety) — the link target
+ * string participates in the hash instead.
+ *
+ * Deliberately NOT `packageBuildInputs`: this one is handed a directory that
+ * the input walk subtracts, and it must report everything inside it, dot-files
+ * included — an emitted `.gresource` is part of what was built.
+ */
+function walkFiles(dir: string, prefix: string, out: { rel: string; abs: string; link?: string }[]): void {
+    let entries: string[];
+    try {
+        entries = readdirSync(dir);
+    } catch {
+        return;
+    }
+    entries.sort();
+    for (const entry of entries) {
+        if (entry === 'node_modules') continue;
+        const abs = join(dir, entry);
+        const rel = prefix === '' ? entry : `${prefix}/${entry}`;
+        let st: ReturnType<typeof lstatSync>;
+        try {
+            st = lstatSync(abs);
+        } catch {
+            continue;
+        }
+        if (st.isSymbolicLink()) {
+            try {
+                out.push({ rel, abs, link: readlinkSync(abs) });
+            } catch {
+                /* dropped mid-walk */
+            }
+        } else if (st.isDirectory()) {
+            walkFiles(abs, rel, out);
+        } else if (st.isFile()) {
+            out.push({ rel, abs });
+        }
+    }
 }
 
 /**
