@@ -64,6 +64,24 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
             // A separate workspace that defines `build` but is unrelated
             // to the chain — must NOT be picked up by the closure.
             { dir: 'unrelated', name: '@test/unrelated', deps: {}, scripts: ['build'] },
+            // #1587 — a second chain declaring its local deps by PLAIN SEMVER RANGE,
+            // which is legal, deliberate, and what Learn6502 does. The closure used to
+            // follow `workspace:` edges only, so this chain matched nothing, built
+            // nothing and exited 0.
+            { dir: 'plain-base', name: '@plain/base', deps: {}, scripts: ['build'] },
+            { dir: 'plain-mid', name: '@plain/mid', deps: { '@plain/base': '^0.0.1' }, scripts: ['build'] },
+            {
+                dir: 'plain-app',
+                name: '@plain/app',
+                // One range the local member satisfies, one it does not: every
+                // workspace here is 0.0.1, so `^9.0.0` names a package only the
+                // registry has — it must NOT be built, and it must be REPORTED.
+                deps: { '@plain/mid': '^0.0.1', '@test/utils': '^9.0.0' },
+                scripts: ['build'],
+            },
+            // A leaf with no local dependency at all: `--with-dependencies` on it is
+            // not a defect, but it has to SAY it expanded to nothing.
+            { dir: 'plain-leaf', name: '@plain/leaf', deps: {}, scripts: ['build'] },
         ];
         for (const w of workspaces) {
             const safeName = w.name.replace('/', '-');
@@ -113,7 +131,17 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
     function markMtimes() {
         // Returns { '@test/utils': nsec, '@test/core': nsec, … } for the
         // marks that exist; missing entries are absent.
-        const names = ['@test/utils', '@test/core', '@test/plugin', '@test/cli', '@test/unrelated'];
+        const names = [
+            '@test/utils',
+            '@test/core',
+            '@test/plugin',
+            '@test/cli',
+            '@test/unrelated',
+            '@plain/base',
+            '@plain/mid',
+            '@plain/app',
+            '@plain/leaf',
+        ];
         const out = {};
         for (const n of names) {
             const safe = n.replace('/', '-');
@@ -261,6 +289,53 @@ describe('gjsify workspace <name> <script> --with-dependencies', { timeout: 120_
         const combined = r.stdout + r.stderr;
         assert.match(combined, /@test\/utils/);
         assert.match(combined, /@test\/cli/);
+    });
+
+    // #1587. The `workspace:` protocol is the right hint, but its ABSENCE cannot mean
+    // "this package has no local dependencies". Measured in JumpLink/Learn6502: the
+    // Flatpak build called this to assemble `app-gnome` with its local dependencies
+    // and produced one WITHOUT `@learn6502/core`, reporting success. A build tool that
+    // builds nothing and says so is a nuisance; one that builds nothing and reports
+    // success makes every downstream step measure an artifact that was never assembled.
+    it('--with-dependencies follows PLAIN SEMVER RANGES, not just `workspace:`', async () => {
+        clearMarks();
+        const r = await runCli(cliEntry, ['workspace', '@plain/app', 'build', '-d'], { cwd: root });
+        assert.equal(r.status, 0, `workspace failed: ${r.stderr}\n${r.stdout}`);
+        const m = markMtimes();
+        assert.ok(m['@plain/base'] !== undefined, 'plain-range transitive dep was not built');
+        assert.ok(m['@plain/mid'] !== undefined, 'plain-range direct dep was not built');
+        assert.ok(m['@plain/app'] !== undefined, '@plain/app mark missing');
+        assert.ok(
+            m['@plain/base'] <= m['@plain/mid'],
+            `base(${m['@plain/base']}) must come before mid(${m['@plain/mid']})`,
+        );
+        assert.ok(
+            m['@plain/mid'] <= m['@plain/app'],
+            `mid(${m['@plain/mid']}) must come before app(${m['@plain/app']})`,
+        );
+    });
+
+    it('does NOT build a name match the local version fails — and reports it', async () => {
+        // `@plain/app` declares `@test/utils: ^9.0.0` and the local member is 0.0.1.
+        // Substituting it would be a second silent defect; saying nothing about it
+        // would be the first one all over again.
+        clearMarks();
+        const r = await runCli(cliEntry, ['workspace', '@plain/app', 'build', '-d'], { cwd: root });
+        assert.equal(r.status, 0, `workspace failed: ${r.stderr}\n${r.stdout}`);
+        assert.ok(markMtimes()['@test/utils'] === undefined, '@test/utils must not be built — 0.0.1 ⊄ ^9.0.0');
+        const combined = r.stdout + r.stderr;
+        assert.match(combined, /@test\/utils/);
+        assert.match(combined, /does not satisfy/i);
+    });
+
+    it('says so when the expansion finds no workspace dependencies', async () => {
+        // A leaf legitimately has none — but "none" and "the flag could not see them"
+        // used to be the same silent exit 0, and that ambiguity is the whole defect.
+        clearMarks();
+        const r = await runCli(cliEntry, ['workspace', '@plain/leaf', 'build', '-d'], { cwd: root });
+        assert.equal(r.status, 0, `workspace failed: ${r.stderr}\n${r.stdout}`);
+        assert.ok(markMtimes()['@plain/leaf'] !== undefined, 'the target itself must still run');
+        assert.match(r.stdout + r.stderr, /found no workspace dependencies/i);
     });
 
     it('errors clearly when the workspace does not exist', async () => {

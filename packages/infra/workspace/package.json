@@ -40,6 +40,9 @@
         "install"
     ],
     "license": "MIT",
+    "dependencies": {
+        "@gjsify/semver": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",

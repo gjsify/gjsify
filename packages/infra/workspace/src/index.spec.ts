@@ -217,6 +217,93 @@ export default async (): Promise<void> => {
                 const g = buildDependencyGraph(ws);
                 expect(() => topologicalSort(g)).toThrow();
             });
+
+            // #1587 — the `workspace:` protocol is an unambiguous HINT, but its
+            // ABSENCE cannot mean "this package has no local dependencies": a monorepo
+            // whose packages depend on each other by plain semver range is legal,
+            // deliberate, and not exotic.
+            await it('links a plain-range dep whose local version SATISFIES the range', () => {
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', { dependencies: { lib: '^1.2.0', lodash: '^4.0.0' } }),
+                    makeWs('lib', '1.4.1'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(true);
+                // An external dep is still not an edge — it never matched a member name.
+                expect(g.edges.get('app')!.has('lodash')).toBeFalsy();
+                expect(g.unlinked.length).toBe(0);
+            });
+
+            await it('does NOT link a name match the local version fails, and REPORTS it', () => {
+                // A member named `lib@2.0.0` against a declared `^1.0.0` is not the
+                // package the consumer asked for, so the installer fetches the registry
+                // copy — substituting the local one would be a second silent defect.
+                // Saying nothing about it would be the first one all over again.
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', { dependencies: { lib: '^1.0.0' } }),
+                    makeWs('lib', '2.0.0'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(false);
+                expect(g.unlinked).toStrictEqual([{ from: 'app', to: 'lib', spec: '^1.0.0', version: '2.0.0' }]);
+            });
+
+            await it('links the usual range spellings, and never a registry alias', () => {
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', {
+                        dependencies: {
+                            exact: '1.0.0',
+                            tilde: '~1.0.0',
+                            star: '*',
+                            tagged: 'latest',
+                            aliased: 'npm:other@^1.0.0',
+                            filed: 'file:../elsewhere',
+                        },
+                    }),
+                    makeWs('exact', '1.0.0'),
+                    makeWs('tilde', '1.0.9'),
+                    makeWs('star', '3.1.4'),
+                    makeWs('tagged', '1.0.0'),
+                    makeWs('aliased', '1.0.0'),
+                    makeWs('filed', '1.0.0'),
+                ];
+                const g = buildDependencyGraph(ws);
+                const deps = g.edges.get('app')!;
+                expect(deps.has('exact')).toBe(true);
+                expect(deps.has('tilde')).toBe(true);
+                expect(deps.has('star')).toBe(true);
+                // A dist-tag, an alias and a `file:` spec are not ranges — nothing to
+                // satisfy, so nothing to link and nothing to report either.
+                expect(deps.has('tagged')).toBe(false);
+                expect(deps.has('aliased')).toBe(false);
+                expect(deps.has('filed')).toBe(false);
+                expect(g.unlinked.length).toBe(0);
+            });
+
+            await it('a `workspace:` dep is linked whatever the versions say', () => {
+                // The protocol is explicit: it names the local package, so a version
+                // that would not satisfy the expanded range is not this graph's call.
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', { dependencies: { lib: 'workspace:^1.0.0' } }),
+                    makeWs('lib', '9.9.9'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(true);
+                expect(g.unlinked.length).toBe(0);
+            });
+
+            await it('the dependency closure reaches a plain-range chain', () => {
+                // End to end for `gjsify workspace <pkg> <script> --with-dependencies`:
+                // the FORWARD graph plus `affectedClosure` is what the command walks.
+                const ws: Workspace[] = [
+                    makeWs('@app/learn', '1.0.0', { dependencies: { '@app/examples': '^1.0.0' } }),
+                    makeWs('@app/examples', '1.0.0', { dependencies: { '@app/core': '^1.0.0' } }),
+                    makeWs('@app/core', '1.0.0'),
+                    makeWs('@app/unrelated', '1.0.0'),
+                ];
+                const closure = affectedClosure(buildDependencyGraph(ws), ['@app/learn']);
+                expect([...closure].sort()).toStrictEqual(['@app/core', '@app/examples', '@app/learn']);
+            });
         });
 
         await describe('filterWorkspaces', async () => {
