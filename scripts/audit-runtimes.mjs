@@ -2086,9 +2086,12 @@ async function main() {
             }
             console.error('');
             console.error(
-                'STATUS.md is GENERATED from the authored data under status/ plus the package manifests. Fix the ' +
-                    'authored data (status/status.json, status/*.md, status/sections/*.md), then regenerate with ' +
-                    '`node scripts/generate-status.mjs` and commit both. Never edit STATUS.md directly.',
+                'STATUS.md is GENERATED from the authored data under status/ plus the package manifests, and it is ' +
+                    'NOT committed (ADR 0016 amendment). Fix the authored data (status/status.json, status/*.md, ' +
+                    'status/sections/*.md) and commit THAT alone; `node scripts/generate-status.mjs` renders the ' +
+                    'gitignored view on demand. Never edit STATUS.md directly and never stage it — this text used ' +
+                    'to say "commit both", which is how the render came to sit in the index behind its own ignore ' +
+                    'rule (#1631).',
             );
             console.error('');
         }

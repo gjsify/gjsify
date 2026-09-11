@@ -16,6 +16,7 @@
  *   - `status/sections/` holds exactly the fixed section set the generator renders (an
  *     unknown file would silently never appear);
  *   - open-TODO headings are not struck-through / ✓ / "Completed" corpses.
+ *   - the RENDER is not in the git index (below).
  *
  * NEVER gate on regenerating STATUS.md. A byte-comparison against a committed copy
  * was tried and removed: STATUS.md derives from every manifest, so ANY merge staled
@@ -23,7 +24,31 @@
  * the DISK rather than git (`examples/`, `showcases/`, `tests/` listings), so two
  * CORRECT checkouts legitimately disagree — the introducing commit baked `68` examples
  * from a tree with untracked scratch directories against a clean checkout's `63`.
- * STATUS.md is gitignored now, so there is no tracked artifact to keep in sync.
+ *
+ * THE OPPOSITE CLAIM NEEDED A CHECK TOO (#1631)
+ *
+ * This header used to end "STATUS.md is gitignored now, so there is no tracked
+ * artifact to keep in sync", and that sentence was false for as long as it stood: the
+ * blob sat in the index the whole time, beside the `.gitignore` line. Nothing
+ * contradicted the two, because an ignore rule suppresses UNTRACKED files only — so
+ * git kept handing the render out while every tool reading `.gitignore` called the
+ * path ignored, and a file nothing ever showed as dirty is a file nobody regenerates.
+ * The staleness that argument predicts arrived in full, just invisibly.
+ *
+ * So the index is the thing to assert, and `.gitignore` is not the assertion: it is a
+ * suppression, and here it suppressed the evidence. One membership test, on the
+ * generator's own `RENDER_PATH`, using the reader this registry already has.
+ *
+ * WHY THE PATH IS NAMED AND THE RULE IS NOT "NOTHING IGNORED IS TRACKED"
+ *
+ * The general form was measured and is not available. `git ls-files -i -c
+ * --exclude-standard` reports `refs/gtk` here — tracked, and ignored only by a line
+ * in `.git/info/exclude`, which no commit carries. A rule over that set would answer
+ * a question about the checkout it runs in rather than about the commit under review,
+ * i.e. it would differ between a developer's tree and CI by construction. Restricting
+ * it to the TRACKED `.gitignore` files instead means implementing gitignore matching
+ * — negations, directory patterns, nested files — a mechanism written to watch a
+ * one-line policy, which is the smell the root AGENTS.md names under `simplicity`.
  *
  * Repo-scoped because it knows this repo's layout and doc conventions; `fields: []`
  * because it governs no `package.json#gjsify.*` key — declared explicitly so the
@@ -32,7 +57,24 @@
  */
 
 import { defineRule } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
-import { collectPackageFacts, loadStatusData } from '../../generate-status.mjs';
+import { RENDER_PATH, collectPackageFacts, loadStatusData } from '../../generate-status.mjs';
+import { readIndexPaths } from '../git-index.mjs';
+
+/**
+ * Whether the render is staged.
+ *
+ * Reads the index as a FILE — `windows-suites.yml` runs this same `--check` with no
+ * `git` binary on PATH, and a rule that shelled out died there reporting nothing. No
+ * tolerance for an absent `.git`: `audit-runtimes.mjs` takes its root from its own
+ * module URL, so this rule only ever runs against this checkout, and a root with no
+ * index is a broken one rather than a synthetic one.
+ *
+ * @param {string} root
+ * @returns {boolean}
+ */
+function isRenderStaged(root) {
+    return readIndexPaths(root).has(RENDER_PATH);
+}
 
 export const statusDataRule = defineRule({
     id: 'status-data',
@@ -43,10 +85,25 @@ export const statusDataRule = defineRule({
         const facts = collectPackageFacts(ctx.root);
         const { failures } = loadStatusData(ctx.root, facts);
         const published = facts.filter((f) => !f.private).length;
+        if (isRenderStaged(ctx.root)) {
+            failures.push(
+                `${RENDER_PATH} is staged in the git index. It is the GENERATED render of the authored data under ` +
+                    'status/ (ADR 0016 amendment) and .gitignore already names it — but an ignore rule suppresses ' +
+                    'UNTRACKED files only, so a tracked copy never shows up dirty, never gets regenerated, and is ' +
+                    `handed to every clone by \`git checkout\` anyway. Run \`git rm --cached ${RENDER_PATH}\`: the ` +
+                    'file stays on disk and `npm run status:generate` rewrites it whenever you want the tables.',
+            );
+        }
         return {
             failures,
             stats: { packages: facts.length, published },
-            summary: `status-data: OK. status/ validates against ${published} published package(s).`,
+            // Stated flat, not branched on the measurement: a `summary` is printed
+            // only on a PASSING run — `report.mjs` and `audit-runtimes.mjs` both
+            // guard theirs with `if (run.ok)` — so a rule can never print one
+            // beside its own finding, and the other arm would be unreachable.
+            summary:
+                `status-data: OK. status/ validates against ${published} published package(s); ` +
+                `${RENDER_PATH} is not in the index.`,
         };
     },
 });

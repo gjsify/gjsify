@@ -120,3 +120,29 @@ no lossy `33 (80%)` → `33` round trip).
 git, and do not re-commit the render "just so it is readable on GitHub":
 readability was the only argument for tracking it, and it is answered by the
 authored data plus one command.
+
+## Amendment 2 (2026-09-10) — the untracking was never performed, so it is now checked
+
+The amendment above added `/STATUS.md` to `.gitignore` and left the blob in the
+index. Both were true for over a month (#1631), and they do not contradict each
+other from git's side: an ignore rule suppresses UNTRACKED files only, so git
+kept tracking and handing out the render while every tool that reads
+`.gitignore` reported the path as ignored.
+
+The result is the failure this ADR set out to remove, inverted. Nothing showed
+the file as dirty, so nobody regenerated it and nobody noticed it drift, while
+`git checkout` gave each clone an authoritative-looking copy of a repository
+that no longer existed — measured at the untracking, 1579 tracked lines against
+a 7015-line render.
+
+**The `.gitignore` line was the whole enforcement, and a suppression is not an
+assertion.** So the `status-data` rule now refuses the render in the git index,
+reading `.git/index` through `scripts/manifest-conformance/git-index.mjs` and
+naming the path. That is a membership test on one path, not the freshness
+comparison this ADR still forbids — it asks whether the artifact exists in git
+at all, which has one right answer on every checkout and cannot stale.
+
+Deliberately NOT generalised to "no ignored path is tracked": the ignored set as
+git computes it includes `.git/info/exclude`, which no commit carries, so such a
+rule would answer a question about the checkout rather than about the commit
+under review. The rule's own header carries that measurement.
