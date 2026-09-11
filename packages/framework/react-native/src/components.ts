@@ -471,8 +471,7 @@ function render(rendered: Rendered): ReactElement {
         // than `some` keeps a mixed `<Text>a<Text>b</Text></Text>` wrapped, which is
         // one provider on a nested run and correct rather than merely cheap. The 233
         // `Text` uses still allocate nothing, because their children are all text.
-        const body =
-            plan.textSink !== null && children.every(isTextNode) ? children : [wrap(children)];
+        const body = plan.textSink !== null && children.every(isTextNode) ? children : [wrap(children)];
         return createElement(plan.node.tag, nodeProps(plan.node, inherited, extra), ...body);
     }
 

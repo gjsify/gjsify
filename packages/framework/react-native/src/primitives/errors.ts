@@ -21,12 +21,7 @@
  * Two template literals that happen to agree are not that: the format is here once and
  * both the throw and the static answer are built from it.
  */
-export const primitiveErrorMessage = (
-    primitive: string,
-    subject: string,
-    detail: string,
-    where = '',
-): string =>
+export const primitiveErrorMessage = (primitive: string, subject: string, detail: string, where = ''): string =>
     `@gjsify/react-native: <${primitive}>${subject === '' ? '' : ` ${subject}`} — ${detail}${
         where === '' ? '' : ` ${where}`
     }`;

@@ -24,9 +24,7 @@ import { describeElement, PrimitiveError, primitiveErrorMessage } from './errors
 export default async () => {
     await describe('describeElement', async () => {
         await it('names a plain className', async () => {
-            expect(describeElement({ className: 'flex-1 bg-canvas' })).toBe(
-                '[className="flex-1 bg-canvas"]',
-            );
+            expect(describeElement({ className: 'flex-1 bg-canvas' })).toBe('[className="flex-1 bg-canvas"]');
         });
 
         await it('flattens an array, which is how half of them are written', async () => {
@@ -36,9 +34,7 @@ export default async () => {
         });
 
         await it('collapses the whitespace an array join leaves behind', async () => {
-            expect(describeElement({ className: '  flex-1\n  bg-canvas ' })).toBe(
-                '[className="flex-1 bg-canvas"]',
-            );
+            expect(describeElement({ className: '  flex-1\n  bg-canvas ' })).toBe('[className="flex-1 bg-canvas"]');
         });
 
         await it('says nothing rather than nothing-in-quotes', async () => {
@@ -51,9 +47,7 @@ export default async () => {
         });
 
         await it('carries testID beside it, and only when it is a non-empty string', async () => {
-            expect(describeElement({ className: 'p-2', testID: 'save' })).toBe(
-                '[className="p-2" testID="save"]',
-            );
+            expect(describeElement({ className: 'p-2', testID: 'save' })).toBe('[className="p-2" testID="save"]');
             expect(describeElement({ testID: 'save' })).toBe('[testID="save"]');
             expect(describeElement({ testID: '' })).toBe('');
             expect(describeElement({ testID: 7 })).toBe('');
@@ -78,9 +72,9 @@ export default async () => {
         });
 
         await it('appends the element clause when there is one', async () => {
-            expect(
-                primitiveErrorMessage('View', 'expand', 'needs a parent', '[className="flex-1"]'),
-            ).toBe('@gjsify/react-native: <View> expand — needs a parent [className="flex-1"]');
+            expect(primitiveErrorMessage('View', 'expand', 'needs a parent', '[className="flex-1"]')).toBe(
+                '@gjsify/react-native: <View> expand — needs a parent [className="flex-1"]',
+            );
         });
     });
 
@@ -96,9 +90,7 @@ export default async () => {
         await it('defaults the clause to empty, so every existing throw is unchanged', async () => {
             const error = new PrimitiveError('Text', 'prop "onPress"', 'a label emits no clicked');
             expect(error.where).toBe('');
-            expect(error.message).toBe(
-                '@gjsify/react-native: <Text> prop "onPress" — a label emits no clicked',
-            );
+            expect(error.message).toBe('@gjsify/react-native: <Text> prop "onPress" — a label emits no clicked');
         });
     });
 };
