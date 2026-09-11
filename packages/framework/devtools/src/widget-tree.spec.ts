@@ -1,7 +1,8 @@
 // @gjsify/devtools — widget-path parse/build tests (pure logic).
 
 import { describe, expect, it } from '@gjsify/unit';
-import type Gtk from 'gi://Gtk?version=4.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import {
     activateWidget,
     buildWidgetPath,
@@ -11,12 +12,36 @@ import {
     parseWidgetPath,
     parseWidgetSelector,
     sendKeyToWidget,
+    widgetIsA,
     widgetType,
 } from './widget-tree.js';
 
 // widgetType() is duck-typed on purpose (it reads runtime-provided accessors that
 // differ per runtime), so the specs feed it plain shapes cast to Gtk.Widget.
 const asWidget = (shape: object): Gtk.Widget => shape as unknown as Gtk.Widget;
+
+// A consumer's OWN subclasses of toolkit types — the shape #1582 is about. Registered
+// once here so `GObject.type_from_name` can answer for them; the mock shapes below then
+// carry their names the way a live instance would.
+const SpecDialog = GObject.registerClass(
+    { GTypeName: 'DevtoolsSpecDialog' },
+    class DevtoolsSpecDialog extends Gtk.Box {},
+);
+const SpecListBox = GObject.registerClass(
+    { GTypeName: 'DevtoolsSpecListBox' },
+    class DevtoolsSpecListBox extends Gtk.ListBox {},
+);
+const SpecKeyController = GObject.registerClass(
+    { GTypeName: 'DevtoolsSpecKeyController' },
+    class DevtoolsSpecKeyController extends Gtk.EventControllerKey {},
+);
+// Touch every GType these specs name: measured under GJS 1.88.1,
+// `GObject.type_from_name('GtkToggleButton')` answers null until something in JS
+// touches the class, and registering one registers its whole ancestor chain.
+void SpecDialog.$gtype;
+void SpecListBox.$gtype;
+void SpecKeyController.$gtype;
+void Gtk.ToggleButton.$gtype;
 
 export default async () => {
     await describe('parseWidgetPath', async () => {
@@ -166,6 +191,92 @@ export default async () => {
                 'toplevel:0',
             );
         });
+
+        await it('matches a SUBCLASS of the selected type', async () => {
+            // #1582: an app subclassing a toolkit type is how GTK apps are written, and the
+            // exact-GType comparison excluded exactly that. `DevtoolsSpecDialog extends
+            // Gtk.Box` stands in for the consumer's own dialog class.
+            const tree = node('GtkWindow', { children: [node('DevtoolsSpecDialog')] });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkBox', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:0',
+            );
+        });
+
+        await it('matches a subclass through the toolkit chain too', async () => {
+            // Not only a JS subclass: GtkToggleButton IS-A GtkButton, and a selector naming
+            // the base could not reach it either.
+            const tree = node('GtkBox', { children: [node('GtkToggleButton')] });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkButton', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:0',
+            );
+        });
+
+        await it('still requires the css class when the type matched through a subclass', async () => {
+            const tree = node('GtkWindow', {
+                children: [node('DevtoolsSpecDialog'), node('DevtoolsSpecDialog', { classes: ['floating'] })],
+            });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkBox', cssClass: 'floating' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:1',
+            );
+        });
+
+        await it('prefers an EXACT type match over a subclass anywhere in the tree', async () => {
+            // The compatibility guarantee: every selector that resolved before widening
+            // resolves to the same path after it. The subclass is only consulted when no
+            // exact match exists, so a tree with both answers as it always did — even
+            // though the subclass comes first in reading order.
+            const tree = node('GtkWindow', {
+                children: [node('DevtoolsSpecDialog'), node('GtkBox')],
+            });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkBox', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:1',
+            );
+        });
+
+        await it('does not match an ANCESTOR of the selected type', async () => {
+            // is-a is directional: a GtkBox is not a DevtoolsSpecDialog.
+            const tree = node('GtkWindow', { children: [node('GtkBox')] });
+            expect(findWidgetPath(asWidget(tree), { type: 'DevtoolsSpecDialog', cssClass: '' }, 'toplevel:0')).toBe(
+                null,
+            );
+        });
+
+        await it('falls back to the name alone for a type GObject does not know', async () => {
+            // A runtime that never registered the type, or a mock: the string comparison is
+            // the whole answer, which is what keeps every spec above meaningful.
+            const tree = node('GtkBox', { children: [node('NoSuchRegisteredType')] });
+            expect(findWidgetPath(asWidget(tree), { type: 'NoSuchRegisteredType', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:0',
+            );
+            expect(findWidgetPath(asWidget(tree), { type: 'AlsoNotRegistered', cssClass: '' }, 'toplevel:0')).toBe(
+                null,
+            );
+        });
+    });
+
+    await describe('widgetIsA', async () => {
+        await it('answers for the type itself, its ancestors, and nothing else', async () => {
+            const dialog = asWidget({ constructor: { $gtype: { name: 'DevtoolsSpecDialog' } } });
+            expect(widgetIsA(dialog, 'DevtoolsSpecDialog')).toBe(true);
+            expect(widgetIsA(dialog, 'GtkBox')).toBe(true);
+            expect(widgetIsA(dialog, 'GtkWidget')).toBe(true);
+            expect(widgetIsA(dialog, 'GtkButton')).toBe(false);
+        });
+
+        await it('reads the node-gi runtime type off $typeName', async () => {
+            expect(widgetIsA(asWidget({ $typeName: 'GtkToggleButton' }), 'GtkButton')).toBe(true);
+        });
+
+        await it('is a plain name comparison for an unregistered type', async () => {
+            const mock = asWidget({ constructor: { $gtype: { name: 'NoSuchRegisteredType' } } });
+            expect(widgetIsA(mock, 'NoSuchRegisteredType')).toBe(true);
+            expect(widgetIsA(mock, 'GtkWidget')).toBe(false);
+        });
+
+        await it('answers false for an object with no readable type', async () => {
+            expect(widgetIsA(asWidget(Object.create(null)), 'GtkWidget')).toBe(false);
+            expect(widgetIsA(asWidget({ constructor: { $gtype: { name: 'GtkBox' } } }), '')).toBe(false);
+        });
     });
 
     await describe('activateWidget', async () => {
@@ -249,6 +360,22 @@ export default async () => {
             expect(activateWidget(asWidget(btn))).toBe(true);
             expect(touched).toBe(false);
         });
+
+        await it('drives the row when the parent is a GtkListBox SUBCLASS', async () => {
+            // Same class of defect as #1582, one file over: the parent check compared the
+            // exact GType, so a row inside an app's own list-box subclass was undrivable.
+            let selected: unknown = null;
+            const listbox = {
+                constructor: { $gtype: { name: 'DevtoolsSpecListBox' } },
+                select_row: (row: unknown) => {
+                    selected = row;
+                },
+                emit: () => {},
+            };
+            const row = { activate: () => false, get_parent: () => listbox };
+            expect(activateWidget(asWidget(row))).toBe(true);
+            expect(selected).toBe(row);
+        });
     });
 
     await describe('sendKeyToWidget', async () => {
@@ -288,6 +415,16 @@ export default async () => {
                 throw new Error('a click gesture must never be sent a key');
             });
             expect(sendKeyToWidget(withControllers([gesture]), 0xffff, 0)).toBe(false);
+        });
+
+        await it('delivers to a SUBCLASS of GtkEventControllerKey', async () => {
+            // Third site of the same exact-GType comparison (#1582): an app that subclasses
+            // the key controller — to keep per-widget state beside the handler — got a key
+            // silently delivered nowhere, which reads as "the keyboard does not work".
+            const seen: unknown[][] = [];
+            const own = controller('DevtoolsSpecKeyController', (...a) => seen.push(a));
+            expect(sendKeyToWidget(withControllers([own]), 0xffff, 0)).toBe(true);
+            expect(seen).toStrictEqual([['key-pressed', 0xffff, 0, 0]]);
         });
     });
 

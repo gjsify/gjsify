@@ -407,6 +407,8 @@ export class DevtoolsService {
      * rather than an error for "no match": not finding a widget is an ordinary
      * answer a caller acts on (wait and retry, or report), not a fault.
      *
+     * The type half matches IS-A, so `AdwDialog` reaches an application's own
+     * `Adw.Dialog` subclass; an exact-type match is still preferred over any subclass.
      * Invisible and unmapped subtrees are skipped — see {@link findWidgetPath}. */
     FindWidget(selector: string): string {
         const parsed = parseWidgetSelector(selector);
