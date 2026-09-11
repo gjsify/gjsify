@@ -315,6 +315,12 @@ staged face directory — on all three layouts, exactly as `GJSIFY_LOCALE_DIR`
 already hands over the catalogue directory for `bindtextdomain`, which has no
 environment variable of its own either (ADR 0024 § A9).
 
+> **Amended 2026-09-11 (§ Amendment 2).** `GJSIFY_FONT_DIR` is no longer the only
+> font-directory handover. The GTK runtime bundle now carries the GNOME UI typeface
+> and publishes it separately as `GJSIFY_GTK_RUNTIME_FONT_DIR`. Everything this
+> paragraph says about the APPLICATION's own face still holds verbatim; why the
+> second directory is a second variable rather than a contested one is below.
+
 Redundant on Linux, informational on macOS, load-bearing on Windows — and
 exported everywhere anyway, because the one thing a consumer must not have to
 write is an OS branch around a path this command chose. `Layout.fontGap` names the
@@ -533,3 +539,53 @@ discriminator reproduced (a `Round9x13` layout measures 87x63 px before registra
 to an invented family, and 66x50 px after). What no leg here still does is build a program
 directory or a `.app`, start it through the launcher this command wrote, and assert the family
 resolves in THAT process. `status/open-todos.md`.
+
+## Amendment 2 (2026-09-11) — a second face directory, because the PLATFORM's typeface is missing too
+
+This ADR answered one question — how does an application find the face IT ships — and answered it
+with one variable. A second face is now in scope and it is not the application's: off Linux
+nothing installs the GNOME UI typeface itself. Measured on Windows 11 / GTK 4.22.4 against the
+published `@gjsify/gtk-runtime-win32-x64` 0.50.0 bundle: 82 families on the map, `Cantarell`,
+`Adwaita Sans` and `Adwaita Mono` among none of them, every request answered by Tahoma with one
+`couldn't load font …, falling back` line and exit 0. Measured again in the shipped `.app` on
+macOS 15.7.9: 187 families, the same two absent, both falling back to Helvetica. The bundles
+shipped fontconfig's CONFIG (`etc/fonts/`) and no face for it to find, which is why
+`windowingData.fontconfig: true` was never an answer to this question.
+
+**TWO VARIABLES, NOT ONE, and that is the decision.** `@gjsify/gtk-runtime-<target>` stages
+Adwaita Sans + Adwaita Mono into `gtk/share/fonts` from the pinned `refs/adwaita-fonts` checkout,
+and `@gjsify/node-gi`'s loader publishes that directory as **`GJSIFY_GTK_RUNTIME_FONT_DIR`**.
+`GJSIFY_FONT_DIR` keeps its meaning unchanged. Collapsing them into one would force an
+application shipping a brand face to choose between its face and the platform's — the two answer
+different questions and both have to be true at once. `initFonts()` reads both and registers the
+RUNTIME directory first; duplicates collapse, so a dev tree pointing both at one place registers
+it once. `InitFontsResult.dir` still means the APPLICATION's directory alone, so an existing
+caller asserting "my staged face was found" cannot start answering yes because the platform's
+arrived.
+
+**The per-OS honesty rows of § 3 carry over unchanged, and one of them now bites harder.** Linux
+finds `share/fonts` through the `XDG_DATA_DIRS` the loader already sets; Windows can only be
+reached by `add_font_file`, which is what makes the handover load-bearing there exactly as § 4
+says; and macOS **cannot register these faces at all** — `add_font_file` is a vfunc the CoreText
+map does not implement, so every face answers `G_IO_ERROR_NOT_SUPPORTED`. The § Amendment
+error-code keying is what makes that a reported `declined` rather than a crash, but the
+reasoning written into that arm — "the OS activated the directory declaratively before any code
+ran" — is about an application's OWN faces in a `.app`, where `ATSApplicationFontsPath` did it.
+Nothing points that key at the runtime bundle's `gtk/share/fonts`. So the darwin bundles carry
+~7.3 MB of faces no process can currently reach; `adwaitaUiFontAvailability()` answers `absent`
+there and a preferences dialog will not offer the `adwaita` policy. Both routes out are in
+`status/open-todos.md`.
+
+**`@gjsify/gtk-host/fonts` also grew the SIZE half, which no face can fix.** GTK takes the system
+UI font from the shell, and measured as `ascent + descent` rather than in points — points are not
+comparable across platforms, and macOS reports `gtk-xft-dpi` 72 while Pango renders at 96 —
+Windows is 16.0 px against GNOME's 19.0, i.e. 16 % small, while macOS is 18.8 px and has no size
+problem. The subpath therefore exports a three-state policy (`system` / `size` / `adwaita`),
+`applyUiFontPolicy()`, `uiFontBaseline()` and `adwaitaUiFontAvailability()` beside `initFonts()`.
+Two properties are decisions rather than details: **nothing is applied by default**, because
+registering a typeface and rewriting a user's font setting are different acts and a default would
+make `system` unreachable — the host's own value would be gone before a consumer could choose to
+keep it; and the baseline is captured BEFORE the first write, because afterwards the host's value
+is not reconstructible from GTK, from the display, or from any schema. The consequence for this
+ADR's own scope is that `/fonts` is no longer only the shipped-face call; `packages/framework/AGENTS.md`
+rule (9) says so, and the consumer-facing guide is `website/.../guides/bundled-fonts.md`.
