@@ -282,4 +282,13 @@ export const logSetWriterDefault = native.logSetWriterDefault;
 export const bindPropertyFull = native.bindPropertyFull;
 export const bindingGroupBindFull = native.bindingGroupBindFull;
 
+// The libintl half of GjsPrivate — the binders GLib's GIR does not publish, plus
+// the LC_* constants read from the host's own <locale.h>. Consumed by
+// `./gettext.js`; loading THIS module is also what puts the process in the
+// environment's locale (the addon's Init does it, as gjs's entry point does).
+export const setThreadLocale = native.setThreadLocale;
+export const textdomain = native.textdomain;
+export const bindtextdomain = native.bindtextdomain;
+export const localeCategories = native.localeCategories;
+
 export default native;

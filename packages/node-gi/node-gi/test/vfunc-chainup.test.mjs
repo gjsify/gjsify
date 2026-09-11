@@ -225,7 +225,21 @@ test('chain-up surfaces a can-throw parent vfunc GError (native)', () => {
     // The parent fill reads the closed base → G_IO_ERROR_CLOSED → propagated + thrown
     // (NOT swallowed, NOT returned). With the buggy &error indirection this would
     // return -1 with no throw.
-    assert.throws(() => callParentVfunc(buf, 'fill', [-1, null]), /closed/i);
+    //
+    // Assert the DOMAIN and CODE, never the message. GLib translates its own error
+    // strings, so `/closed/i` held only while the process was stuck in the C locale
+    // — it went red the day node-gi started honouring LANG (on a German host the
+    // message reads "Datenstrom ist bereits geschlossen"). The code is the stable
+    // contract, and matching it is also STRICTER than a substring any unrelated
+    // error mentioning "closed" would satisfy.
+    assert.throws(
+        () => callParentVfunc(buf, 'fill', [-1, null]),
+        (error) => {
+            assert.equal(error.domain, 'g-io-error-quark');
+            assert.equal(error.code, requireGi('Gio', '2.0').IOErrorEnum.CLOSED);
+            return true;
+        },
+    );
 });
 
 test('chain-up surfaces a can-throw parent vfunc as a real GLib.Error (L1 super)', () => {

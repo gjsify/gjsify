@@ -62,6 +62,7 @@
     "binding.gyp",
     "scripts/install.mjs",
     "scripts/win-gi-gyp-flags.mjs",
+    "scripts/mac-intl-gyp-flags.mjs",
     "prebuilds"
   ],
   "gjsify": {
@@ -87,23 +88,23 @@
     "build:prebuild": "node-gyp rebuild && node scripts/stage-prebuild.mjs",
     "rebuild": "node-gyp rebuild",
     "clean": "node-gyp clean",
-    "test": "NODE_GI_NATIVE=build node --test",
-    "test:node": "NODE_GI_NATIVE=build node --test",
-    "test:gc": "NODE_GI_NATIVE=build node --test --expose-gc",
-    "test:dbus": "dbus-run-session --config-file=test/session.conf -- env NODE_GI_NATIVE=build node --test --expose-gc test/dbus.test.mjs test/dbus-async.test.mjs",
+    "test": "LC_ALL=C NODE_GI_NATIVE=build node --test",
+    "test:node": "LC_ALL=C NODE_GI_NATIVE=build node --test",
+    "test:gc": "LC_ALL=C NODE_GI_NATIVE=build node --test --expose-gc",
+    "test:dbus": "dbus-run-session --config-file=test/session.conf -- env LC_ALL=C NODE_GI_NATIVE=build node --test --expose-gc test/dbus.test.mjs test/dbus-async.test.mjs",
     "test:bun": "node scripts/cross-runtime.mjs bun",
     "test:conformance": "node scripts/conformance.mjs",
     "test:conformance:gjs-napi": "node scripts/conformance.mjs --runtimes=gjs-napi",
     "test:gimarshalling": "node scripts/gimarshalling.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
-    "test:cairo": "NODE_GI_NATIVE=build node --test test/cairo.test.mjs",
-    "test:cairo-canvas2d": "NODE_GI_NATIVE=build node --test test/cairo-canvas2d.test.mjs",
-    "test:gtk": "NODE_GI_NATIVE=build node --test test/gtk-smoke.test.mjs",
-    "test:gtk-cairo": "NODE_GI_NATIVE=build node --test test/cairo-drawfunc.test.mjs",
-    "test:adw": "NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",
-    "test:gtk-template": "NODE_GI_NATIVE=build node --test test/gtk-template.test.mjs",
-    "test:gtk-template-callbacks": "NODE_GI_NATIVE=build node --test test/gtk-template-callbacks.test.mjs",
-    "test:gtk-template-signals": "NODE_GI_NATIVE=build node --test test/gtk-template-signals.test.mjs"
+    "test:cairo": "LC_ALL=C NODE_GI_NATIVE=build node --test test/cairo.test.mjs",
+    "test:cairo-canvas2d": "LC_ALL=C NODE_GI_NATIVE=build node --test test/cairo-canvas2d.test.mjs",
+    "test:gtk": "LC_ALL=C NODE_GI_NATIVE=build node --test test/gtk-smoke.test.mjs",
+    "test:gtk-cairo": "LC_ALL=C NODE_GI_NATIVE=build node --test test/cairo-drawfunc.test.mjs",
+    "test:adw": "LC_ALL=C NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",
+    "test:gtk-template": "LC_ALL=C NODE_GI_NATIVE=build node --test test/gtk-template.test.mjs",
+    "test:gtk-template-callbacks": "LC_ALL=C NODE_GI_NATIVE=build node --test test/gtk-template-callbacks.test.mjs",
+    "test:gtk-template-signals": "LC_ALL=C NODE_GI_NATIVE=build node --test test/gtk-template-signals.test.mjs"
   },
   "dependencies": {
     "node-addon-api": "^8.0.0"

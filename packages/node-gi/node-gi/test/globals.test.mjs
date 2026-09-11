@@ -52,12 +52,19 @@ test('imports.system exposes a Node-backed subset', () => {
     assert.equal(typeof globalThis.imports.system.programInvocationName, 'string');
 });
 
-test('imports.gettext is a no-translation passthrough', () => {
-    const { gettext, ngettext } = globalThis.imports.gettext;
+test('imports.gettext is the real Gettext module, msgid-falling-back while unbound', () => {
+    const { gettext, ngettext, bindtextdomain } = globalThis.imports.gettext;
+    // An unbound domain makes gettext answer with the msgid — the same values the
+    // passthrough stub returned, which is exactly why nothing here could tell the
+    // two apart. That it is the C library answering now is what locale.test.mjs
+    // measures; this file pins the LEGACY spelling apps reach it through.
     assert.equal(gettext('hello'), 'hello');
     assert.equal(ngettext('one', 'many', 1), 'one');
     assert.equal(ngettext('one', 'many', 5), 'many');
     assert.equal(globalThis.imports.gettext.domain('app').gettext('x'), 'x');
+    // The binder reports its binding instead of the stub's unconditional null —
+    // this is the call `pkg.initGettext()` and every GJS app bootstrap makes.
+    assert.equal(bindtextdomain('app', '/usr/share/locale'), '/usr/share/locale');
 });
 
 test('installGjsGlobals is idempotent and returns imports', () => {
