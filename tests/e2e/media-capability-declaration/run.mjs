@@ -633,6 +633,35 @@ describe('gvsbuild-catalogue — the committed snapshot and this tree', () => {
         rmSync(root, { recursive: true, force: true });
     });
 
+    it('reads a pin however the line is spelled, because a pin it misses passes silently', () => {
+        // The under-report direction again, one level below the module basenames. A pin this
+        // reader does not see is a pin nothing compares to the snapshot — and the other seven
+        // still agree with it, so the run that had to be red is the one that goes green.
+        // Measured on the trailing-comment spelling, which is the dangerous one: annotating
+        // the line is what a person does AT a bump, which is the single moment this rule
+        // exists for.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-gvsbuild-spelling-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        for (const spelling of [
+            "'2026.6.0'",
+            '"2026.6.0"',
+            '2026.6.0',
+            "'2026.6.0'  # bumped for GTK 4.22",
+            '2026.6.0 # see ADR 0056 § 6',
+        ]) {
+            writeFileSync(
+                join(root, '.github', 'workflows', 'a.yml'),
+                `    env:\n      GVSBUILD_VERSION: ${spelling}\n`,
+            );
+            assert.deepEqual(
+                readGvsbuildPins(root),
+                [{ workflow: '.github/workflows/a.yml', version: '2026.6.0' }],
+                `this spelling was not read: ${spelling}`,
+            );
+        }
+        rmSync(root, { recursive: true, force: true });
+    });
+
     it('holds the real bundles — the same audit `audit-runtimes --check` runs on every PR', () => {
         const ctx = createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] });
         const bundles = collectMediaBundles(ctx).map((bundle) => ({

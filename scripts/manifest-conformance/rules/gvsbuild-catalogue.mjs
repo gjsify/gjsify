@@ -83,8 +83,18 @@ export function readGvsbuildPins(repoRoot) {
         // `.gitattributes` deliberately does not cover `*.yml`) both spellings find the
         // pin. The property is pinned by a test rather than left to this comment, because
         // a rewrite that split on `\n` would silently lose it.
-        for (const match of text.matchAll(/^[ \t]*GVSBUILD_VERSION:[ \t]*['"]?([^'"\s#]+)['"]?[ \t]*$/gm)) {
-            rows.push({ workflow: `.github/workflows/${entry}`, version: match[1] });
+        //
+        // The trailing `#` comment is admitted for the same reason this file reads module
+        // BASENAMES: a reader that UNDER-reports turns the rule green. Measured — an
+        // anchored pattern without that clause does not see
+        // `GVSBUILD_VERSION: 2026.8.0 # bumped for GTK 4.22` at all, and annotating the line
+        // is what a person does AT a bump. The lost pin takes the finding with it: the
+        // other seven still agree with the stale snapshot, so the one run that had to be
+        // red is the one that goes green.
+        for (const match of text.matchAll(
+            /^[ \t]*GVSBUILD_VERSION:[ \t]*(?:'([^'\n\r]*)'|"([^"\n\r]*)"|([^'"\s#]+))[ \t]*(?:#.*)?$/gm,
+        )) {
+            rows.push({ workflow: `.github/workflows/${entry}`, version: match[1] ?? match[2] ?? match[3] });
         }
     }
     return rows;
