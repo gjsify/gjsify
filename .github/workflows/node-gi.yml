@@ -2958,7 +2958,7 @@ jobs:
           python3 "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-program-dir.py" \
             "ship/out/Ship Window Demo" ship/stage/.gjsify-ship-stage.json
           bash "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-app-zip.sh" \
-            ship/out/ship-window-demo-1.0.0-1.x64.zip "ship/out/Ship Window Demo" "program directory"
+            ship/out/ship-window-demo-1.0.0-1.windows.x64.zip "ship/out/Ship Window Demo" "program directory"
           test -f "ship/out/Ship Window Demo/node.exe" || {
             echo "the directory carries no interpreter — the next job would run the runner's node"; exit 1
           }

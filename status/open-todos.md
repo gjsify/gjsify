@@ -4,6 +4,29 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A renamed ship artifact broke a workflow, and only one of nine references noticed
+
+#1655 gave the two zip rows an OS label — `windows-dir-zip` became
+`<binary>-<version>-<release>.windows.<arch>.zip`, `macos-app-zip` the `.macos.` twin — and its
+own suite pins both names. What nothing pinned is the CONSUMER: `node-gi.yml` hard-codes the
+old spelling at one site, so `Assemble a self-contained Windows program directory` exited 1 on
+the next commit that ran it, and the two Windows jobs downstream failed at
+`Unable to download artifact` — a chain whose first link is three jobs away from the rename.
+
+The other eight references to a ship artifact in that workflow use a glob (`*.zip`,
+`Get-ChildItem -Filter *.zip`, `ls *.zip | head -1`) and survived. That is the wrong lesson to
+draw: a glob survives a rename by not checking it. The hard-coded one is the only site that
+asserts the name at all, which is why it is the one that reported the change.
+
+What is missing is the check that a format's `fileName` and the workflow text that consumes it
+agree. `FORMATS` knows every name it can produce, and `.github/workflows/**` is a fixed set of
+files, so the comparison is mechanical. Until it exists, a rename lands green and the breakage
+appears in a job that names neither the format nor the PR that renamed it.
+
+Related: the same shape as `CI's build-output cache key is the third answer to "what are this
+package's inputs"` — a value with several copies, only one of which is held.
+
+
 ### `acceptsPropValue` is an oracle for the VOCABULARY, not for the type
 
 `@gjsify/react-native/prop-table` answers "would `<P prop={value}>` render" for the two
