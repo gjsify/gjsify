@@ -81,6 +81,17 @@ function goodManifest(overrides = {}) {
         // alone is what the win32 bundles satisfied while shipping GLib and OpenSSL with
         // no terms, so the release gate wants both.
         licenses: { texts: 65, binariesCovered: 121 },
+        // `typelibApi` is the FLOOR record — which entry points of the shipped namespaces
+        // the builder found, and which are covered by a declared upstream gap. A backed
+        // typelib is not a callable one: both darwin 0.50.0 bundles carry
+        // `adw_about_dialog_new_from_appdata` and win32-x64 does not, with identical
+        // symmetry records on both.
+        typelibApi: {
+            checked: 2,
+            present: ['adw_about_dialog_get_appdata_resource_path', 'adw_about_dialog_new_from_appdata'],
+            gaps: [],
+            skipped: [],
+        },
         windowingData: {
             verified: [
                 { id: 'schemas', files: 1 },
@@ -134,9 +145,10 @@ describe('verify-bundle-manifest: the release gate', () => {
         // no license texts beside 37-45 relocated LGPL/MPL/GPL libraries.
         const result = runVerify({ platform: `${process.platform}-${process.arch}`, windowing: false, dataBytes: 0 });
         assert.equal(result.status, 1);
-        assert.match(result.stderr, /FAILED 6 check\(s\)/);
+        assert.match(result.stderr, /FAILED 7 check\(s\)/);
         assert.match(result.stderr, /windowing=false dataBytes=0/);
         assert.match(result.stderr, /no verified typelib symmetry/);
+        assert.match(result.stderr, /no typelib API floor check/);
         assert.match(result.stderr, /no license texts/);
         assert.match(result.stderr, /no license coverage over the bundled binaries/);
         assert.match(result.stderr, /no verified windowing data sets/);
@@ -155,6 +167,92 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.equal(result.status, 1);
         assert.match(result.stderr, /no license coverage over the bundled binaries/);
         assert.match(result.stderr, /assertLicenseCoverage over every binary it ships/);
+    });
+
+    // --- the typelib API floor record ---------------------------------------
+    // A BACKED TYPELIB IS NOT A CALLABLE ONE, and no count in this file can tell the
+    // difference: the published 0.50.0 win32 and darwin bundles record the same
+    // `typelibSymmetry`, the same data sets and the same decode probe, and only one of
+    // them can build an About dialog from its own AppStream metainfo.
+    it('rejects a bundle whose builder never checked the entry points', () => {
+        // FAIL CLOSED, on the decode-probe precedent: "the builder is too old to say" is
+        // not a pass. This also refuses a bundle assembled before the floor existed.
+        const manifest = goodManifest();
+        delete manifest.typelibApi;
+        const result = runVerify(manifest);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no typelib API floor check/);
+        assert.match(result.stderr, /verifyTypelibApiFloor over the finished bundle/);
+    });
+
+    it('rejects a RECORDED zero the same way it rejects an absent record', () => {
+        // A builder that ran the floor over nothing is not a builder that ran it. Same
+        // split as `licenses.binariesCovered`: absent is a legacy artifact, zero is a
+        // claim, and only the first is ever excusable.
+        const result = runVerify(goodManifest({ typelibApi: { checked: 0, present: [], gaps: [], skipped: [] } }), [
+            '--allow-legacy-api-record',
+        ]);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no typelib API floor check/);
+    });
+
+    it('rejects a gap that does not say what is missing and why upstream', () => {
+        // The record is the only thing a consumer holding the tarball ever gets, so a gap
+        // with no `symbols`, no `why` or no `upstream.catalogue` is a hole with a note
+        // attached. Measured against the real win32 shape, which names all three.
+        const result = runVerify(
+            goodManifest({
+                typelibApi: { checked: 2, present: [], gaps: [{ namespace: 'Adw', symbols: [] }], skipped: [] },
+            }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /typelibApi\.gaps\[0\] does not say what is missing and why upstream/);
+    });
+
+    it('accepts the real win32 shape: both symbols gapped, with their upstream cause', () => {
+        const result = runVerify(
+            goodManifest({
+                typelibApi: {
+                    checked: 2,
+                    present: [],
+                    gaps: [
+                        {
+                            namespace: 'Adw',
+                            symbols: ['adw_about_dialog_new_from_appdata'],
+                            why: 'gvsbuild patches every *_from_appdata entry point out on Windows',
+                            upstream: { catalogue: 'gvsbuild', project: 'libadwaita', patch: '0001-x.patch' },
+                        },
+                    ],
+                    skipped: [],
+                },
+            }),
+        );
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /0 of 2 floor entry point\(s\) \(1 declared upstream gap\(s\)\)/);
+    });
+
+    it('lets the PUBLISHED closure through when the API record predates the field', () => {
+        // The same narrow allowance one field over, and the reason it exists: `typelibApi`
+        // postdates every tarball published before it, so requiring it in the
+        // published-closure role would turn all three shipped-closure legs red over a
+        // property no already-published artifact can acquire.
+        const manifest = goodManifest();
+        delete manifest.typelibApi;
+        const result = runVerify(manifest, ['--allow-legacy-api-record'], { GITHUB_ACTIONS: 'true' });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /LEGACY — .*no typelibApi record/);
+        assert.match(result.stdout, /published-closure role/);
+        assert.match(result.stdout, /an unrecorded number of floor entry point/);
+        assert.doesNotMatch(result.stdout, /::warning::/);
+    });
+
+    it('says the API allowance was not needed, so it can be deleted', () => {
+        // Self-retiring in the same sense: the first published bundle that carries the
+        // record turns the flag into an annotation naming the two call sites to delete.
+        const result = runVerify(goodManifest(), ['--allow-legacy-api-record'], { GITHUB_ACTIONS: 'true' });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /::warning::verify-bundle-manifest: --allow-legacy-api-record was not needed/);
+        assert.match(result.stdout, /DELETE the flag from the two call sites/);
     });
 
     // THE OTHER ROLE, and the reason the requirement above is not unconditional. The same
