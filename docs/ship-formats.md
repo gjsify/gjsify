@@ -83,6 +83,32 @@ Without that synthesis the archive expands into whatever directory the user was 
 `app\`, `share\` and a loose `.cmd` across it — and every entry would be individually correct, so
 no listing of names reads as wrong.
 
+### An artifact name must identify its format on its own
+
+`fileName` is a row's field, and the two zip rows are why it is worth a rule rather than a
+convention. `windows-dir-zip` was written to `macos-app-zip`'s pattern —
+`<binary>-<version>-<release>.<arch>.zip`, the second row copied from the first — and what kept the
+two apart in one `ship/out/` was a coincidence between two unrelated arch tables: `MACOS_ARCH` maps
+`x64` to `x86_64`, `WINDOWS_ARCH` maps it to `x64`. That is not a separation, it is a gap that had
+not closed yet: `WINDOWS_ARCH` has a single row only because gvsbuild publishes no arm64 GTK
+([#1117](https://github.com/gjsify/gjsify/issues/1117)), so the day a Windows/arm64 row lands both
+formats write `…-1.arm64.zip` to the same directory and the second overwrites the first at exit 0.
+It was already costing something before that: a lone `My App-0.7.0-1.arm64.zip` on a GitHub release
+page beside a Windows zip does not say which operating system it is for, and the name is the only
+thing a user has to choose by.
+
+So every zip row carries its OS (`macos`, `windows`), and the spelling is the USER's rather than
+`process.platform`'s — the same call `MACOS_ARCH` makes when it labels an artifact `x86_64` instead
+of `x64`. `.deb`, `.rpm`, `.flatpak`, `.dmg` and `.msi` each name one platform by extension and need
+no token; `.zip` names none and is the only container this table puts on more than one OS.
+
+The rule is held by a test over the WHOLE table rather than by these two rows
+(`flatpak.spec.ts` § *format descriptors*): every row is asked for its filename with the SAME arch
+label, and the set must be unique. Holding the label fixed is the point — it measures whether a row
+is distinguishable BY ITSELF or only by an arch table that may grow a value tomorrow, and it makes
+the latent Windows/arm64 collision observable today, years before the blocker lifts. A row added by
+copying its neighbour reds there.
+
 `windows-dir` is also the row where `archName` is one value: `wingtk/gvsbuild` hardcodes
 `self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
 `@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact to load

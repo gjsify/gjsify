@@ -44,8 +44,8 @@ different one.
 | Command | What lands in `ship/out/` | That target runs |
 |---|---|---|
 | `gjsify ship linux` | `my-app_1.2.3-1_all.deb`, `my-app-1.2.3-1.noarch.rpm` | `gjs` or `node` |
-| `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.arm64.zip` | `node` |
-| `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.x64.zip` | `node` |
+| `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.macos.arm64.zip` | `node` |
+| `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.windows.x64.zip` | `node` |
 
 Each target picks its own runtime from `gjsify.ship.app.<os>`, keyed `linux`,
 `darwin` and `win32`, falling back to `gjsify.app`. So one project can be GJS on

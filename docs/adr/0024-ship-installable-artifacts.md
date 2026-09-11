@@ -671,6 +671,26 @@ a REGRESSION against the Flatpak of the same app. `isSymbolicIcon` reads the two
 logic already reads — a `symbolic/` path component or a `-symbolic` name — and SVG only, because the
 raster form `gtk-encode-symbolic-svg` writes is installed at a size instead.
 
+**Also landed, and it CHANGES A PUBLISHED NAME: the two zips say which OS they are.** § 2's table
+lists "zip" under macOS and "portable zip" under Windows and never asked what either is CALLED, so
+`windows-dir-zip` was written to `macos-app-zip`'s pattern and both emitted
+`<binary>-<version>-<release>.<arch>.zip`. What separated them inside one `ship/out/` was a
+coincidence between two unrelated arch tables — `MACOS_ARCH` maps `x64` to `x86_64`, `WINDOWS_ARCH`
+to `x64` — and `WINDOWS_ARCH` has one row only because gvsbuild publishes no arm64 GTK (#1117).
+That is a blocker standing in, not a design: the day it lifts, both formats write `…-1.arm64.zip`
+to the same directory and the second overwrites the first at exit 0. The user-facing half was
+already costing something, because the name is the whole of what a release page offers to choose
+by — a lone `…-1.arm64.zip` beside a Windows zip names no operating system. So the rows are
+`…-<release>.macos.<arch>.zip` and `…-<release>.windows.<arch>.zip`, in the user's spelling rather
+than `process.platform`'s, which is the call § A3's arch tables already make. `.deb`, `.rpm`,
+`.flatpak`, `.dmg` and `.msi` name their platform by extension and are untouched; `.zip` is the one
+container this table puts on two operating systems. **Breaking** for anything that downloads a
+darwin or windows zip by name — the rows shipped in v0.47.0 — and the rule is now held over the
+WHOLE table instead of by these two rows: every format is asked for its filename with the SAME arch
+label and the set must be unique, so holding the label fixed makes the latent collision red today
+and a row copied from its neighbour cannot reintroduce the class (`flatpak.spec.ts` § *format
+descriptors*; reasoning in `docs/ship-formats.md`).
+
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
 `7896c51b02` (#897): the reader is `@gjsify/manifest-conformance`'s `binary.mjs`

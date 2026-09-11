@@ -14,12 +14,14 @@ gjsify ship windows
 
 ```text
 ship/out/My App/
-ship/out/my-app-1.2.3-1.x64.zip
+ship/out/my-app-1.2.3-1.windows.x64.zip
 ```
 
 The program directory is what an installer lays down and a user browses to. The
-zip is what a user downloads, so it carries the version and the architecture in
-its filename.
+zip is what a user downloads, so it carries the operating system, the version and
+the architecture in its filename. The `windows` token is there because `.zip` is
+the only suffix `ship` uses on more than one operating system: without it this
+artifact and the macOS one are two files a user cannot tell apart.
 
 `x64` is the only architecture. `gvsbuild`, the project that builds GTK for
 Windows, publishes no arm64 binaries, so there is no GTK for a Windows on ARM
