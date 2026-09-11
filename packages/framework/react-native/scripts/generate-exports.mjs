@@ -350,12 +350,24 @@ function renderPrimitiveSection(heading, primitive, spec, note, { table, answers
         // `—` on such a row reads as "everything lands". The names go in the row so
         // the reader of the row knows which values are not answered; the sentences go
         // below, because they are paragraphs and a table cell is not.
+        // A prop whose route MAPS its values reads as "everything lands" without
+        // this: `| pointerEvents | property | can-target | — |` was the row while a
+        // render refused `box-none`, which is #1648's defect on the document surface.
+        // The two grains are printed as the two facts they are — what the prop takes,
+        // and which of the rest have a sentence of their own.
+        const allowed =
+            answer.allows === null
+                ? null
+                : `takes ${[...answer.allows.values]
+                      .sort()
+                      .map((one) => `\`${cell(one)}\``)
+                      .join(', ')}${answer.allows.numbers ? ', or a number of pixels' : ''}`;
+        const refusalNote =
+            refused.length === 0 ? null : `refuses ${refused.map((one) => `\`${cell(one)}\``).join(', ')} — see below`;
         const why =
             answer.why !== ''
                 ? cell(answer.why)
-                : refused.length === 0
-                  ? '—'
-                  : `refuses ${refused.map((one) => `\`${cell(one)}\``).join(', ')} — see below`;
+                : [allowed, refusalNote].filter((part) => part !== null).join('; ') || '—';
         out.push(
             `| \`${prop}\` | ${answer.status} | ${answer.gtk.length === 0 ? '—' : answer.gtk.map((one) => `\`${cell(one)}\``).join(', ')} | ${why} |`,
         );

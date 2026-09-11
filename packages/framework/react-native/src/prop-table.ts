@@ -34,11 +34,18 @@ import {
     unknownPrimitiveDetail,
     type PropAnswer,
     type PropStatus,
+    type ValueVocabulary,
 } from './primitives/answers.js';
-import { describeValue, PrimitiveError, primitiveErrorMessage } from './primitives/errors.js';
+import {
+    describeValue,
+    PrimitiveError,
+    primitiveErrorMessage,
+    unknownAccessibleKeyDetail,
+    unknownMappedValueDetail,
+} from './primitives/errors.js';
 import { FRAMEWORK_PROPS, PRIMITIVE_NAMES, PRIMITIVES, type PrimitiveSpec } from './primitives/table.js';
 
-export type { PropAnswer, PropStatus };
+export type { PropAnswer, PropStatus, ValueVocabulary };
 
 /**
  * Every primitive this layer answers for.
@@ -139,6 +146,15 @@ export function acceptsPropValue(primitive: string, prop: string, value: unknown
     return explainPropValue(primitive, prop, value, variant) === null;
 }
 
+/** Does this prop's declared vocabulary contain this value? */
+function vocabularyAccepts(vocabulary: ValueVocabulary, value: unknown): boolean {
+    if (vocabulary.numbers && typeof value === 'number' && Number.isFinite(value)) return true;
+    // `String(value)` because the table keys a boolean prop's two answers as `'true'`
+    // and `'false'` — an object literal cannot be keyed by `true`, and `lookup` in
+    // `resolve.ts` reads the map exactly this way.
+    return vocabulary.values.includes(String(value));
+}
+
 /**
  * The sentence a render would print for this prop with THIS value.
  *
@@ -147,9 +163,18 @@ export function acceptsPropValue(primitive: string, prop: string, value: unknown
  * under Node type stripping is why) — so the formatter the throw uses lives in
  * `errors.ts` and both call it.
  *
- * A value merely ABSENT from a mapped prop's table is NOT answered here: that is the
- * "Known: …" a typo gets, it is built from the map at the moment of the throw, and this
- * surface is about the values the table refuses ON PURPOSE.
+ * TWO GRAINS OF REFUSAL, AND THE SECOND ONE WAS MISSING (#1648). A prop can refuse a
+ * value by NAME — `answer.refuses`, a deny-list with a reason per entry — and it can
+ * refuse one by OMISSION from the list its route maps: `pointerEvents` is
+ * `{ auto, none }`, `box-none` is a real React Native spelling with no GTK
+ * expression, and a render throws on it. Reading only the deny-list answered ACCEPTED
+ * for the second kind on every mapped property, every `announce` route and every
+ * accessible record — and a consumer deleted a working `box-none` mapping of their
+ * own because a green test said the layer had caught up.
+ *
+ * What is still NOT answered here is the TYPE grain: `coerce` refuses a non-boolean
+ * for `editable` and a non-function for `onPress`, and neither is a list this table
+ * can publish. `acceptsPropValue` is an oracle for the vocabulary, not for the type.
  */
 export function explainPropValue(
     primitive: string,
@@ -160,13 +185,43 @@ export function explainPropValue(
     const answer = propAnswer(primitive, prop, variant);
     if (!isAccepted(answer.status)) return explainProp(primitive, prop, variant);
     const reason = answer.refuses[String(value)];
-    if (reason === undefined) return null;
     // Two subjects, because the two grains throw differently and this has to be the
     // same string as the throw: a mapped property names the value, an accessible record
     // names the KEY it carries. `resolve.ts` and `accessibility.ts` are the two throws.
-    return answer.status === 'accessible'
-        ? primitiveErrorMessage(primitive, `prop "${prop}"`, `carries "${String(value)}", which ${reason}`)
-        : primitiveErrorMessage(primitive, `prop "${prop}" = ${describeValue(value)}`, reason);
+    if (reason !== undefined) {
+        return answer.status === 'accessible'
+            ? primitiveErrorMessage(primitive, `prop "${prop}"`, `carries "${String(value)}", which ${reason}`)
+            : primitiveErrorMessage(primitive, `prop "${prop}" = ${describeValue(value)}`, reason);
+    }
+    // AFTER the deny-list, the same order `lookup` reads them in: a value the table
+    // refuses BY NAME must answer with its own reason rather than with "Known: …".
+    if (answer.allows !== null && !vocabularyAccepts(answer.allows, value)) {
+        return answer.status === 'accessible'
+            ? primitiveErrorMessage(
+                  primitive,
+                  `prop "${prop}"`,
+                  unknownAccessibleKeyDetail(String(value), answer.allows.values),
+              )
+            : primitiveErrorMessage(
+                  primitive,
+                  `prop "${prop}"`,
+                  unknownMappedValueDetail(describeValue(value), answer.allows.values),
+              );
+    }
+    return null;
+}
+
+/**
+ * The values this prop accepts by name, or `null` when the table enumerates none.
+ *
+ * The reader for {@link PropAnswer.allows}, beside `propRefusedValues` because they
+ * are the two halves of one question and a consumer holding a ledger of "which props
+ * has the layer caught up on" needs both: a deny-list says which spellings have a
+ * reason, an allow-list says which ones exist at all.
+ */
+export function propAllowedValues(primitive: string, prop: string, variant?: PropVariant): readonly string[] | null {
+    const allows = propAnswer(primitive, prop, variant).allows;
+    return allows === null ? null : [...allows.values].sort();
 }
 
 /** Every prop name this primitive's table row carries, sorted. Framework props are not among them. */
