@@ -405,10 +405,42 @@ export function applyUiFontPolicy(request: UiFontPolicy | ApplyUiFontPolicyOptio
     // BEFORE the read of `current`, so the very first call through this function still records
     // the host's own value even when it is about to overwrite it.
     const baseline = captureUiFontBaseline();
-    const plan = planUiFontPolicy({ ...options, current: settings.gtk_font_name ?? undefined, baseline });
+    const plan = planUiFontPolicy({
+        ...options,
+        family: options.family ?? resolvedAdwaitaFamily(options.policy),
+        current: settings.gtk_font_name ?? undefined,
+        baseline,
+    });
     if (plan.next === undefined) return plan;
     settings.gtk_font_name = plan.next;
     return plan;
+}
+
+/**
+ * WHICH NAME TO ASK FOR when the policy is `adwaita` — resolved against the live font map, not
+ * taken from the declared constant.
+ *
+ * MEASURED, and it is the reason this function exists at all: `Adwaita Sans` is a variable font
+ * with an `opsz` axis whose value at 14 is named `Text`, so fontconfig puts `Adwaita Sans` on the
+ * map and gvsbuild's DirectWrite reader puts `Adwaita Sans Text`. Writing the declared name on
+ * Windows therefore asks for a family that host does not have, Pango substitutes Tahoma, and a
+ * user who chose "use the Adwaita font" gets the very substitution the policy was picked to
+ * avoid — silently, because a missing family is not an error.
+ *
+ * `absent` falls back to the declared name AND says so. Refusing would be worse: the consumer
+ * asked for this state explicitly, and it was told to check {@link adwaitaUiFontAvailability}
+ * first. What it must not do is fail quietly.
+ */
+function resolvedAdwaitaFamily(policy: UiFontPolicy): string | undefined {
+    if (policy !== 'adwaita') return undefined;
+    const availability = adwaitaUiFontAvailability();
+    if (availability.match.family !== undefined) return availability.match.family;
+    console.warn(
+        `applyUiFontPolicy: "${availability.family}" is ${availability.match.kind} on this font map, so asking for ` +
+            "it will render in a substituted family. Register the runtime bundle's faces with initFonts() first, " +
+            'and check adwaitaUiFontAvailability() before offering this policy.',
+    );
+    return undefined;
 }
 
 /**

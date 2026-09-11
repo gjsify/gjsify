@@ -490,7 +490,12 @@ export default async () => {
                 const settings = Gtk.Settings.get_default();
                 if (settings === null) return; // asserted above; keeps this row honest on its own
                 const baseline = uiFontBaseline();
-                const adwaitaValue = `${ADWAITA_UI_FONT_FAMILY} ${GNOME_UI_FONT_POINT_SIZE}`;
+                // THE NAME THE MAP HOLDS, not the one we declare. `Adwaita Sans` is a variable
+                // font with an `opsz` axis, so fontconfig reports `Adwaita Sans` and gvsbuild's
+                // DirectWrite reader reports `Adwaita Sans Text` — measured, and it is why this
+                // test asked for a family Windows does not have on its first run.
+                const adwaitaFamily = adwaitaUiFontAvailability().match.family ?? ADWAITA_UI_FONT_FAMILY;
+                const adwaitaValue = `${adwaitaFamily} ${GNOME_UI_FONT_POINT_SIZE}`;
 
                 // THE DEGENERATE HOST, DETECTED RATHER THAN PASSED THROUGH. On a current GNOME
                 // the interface font ALREADY is `Adwaita Sans 11`, so `system` and `adwaita` name

@@ -408,9 +408,16 @@ if (!adwaita.available) {
 }
 ```
 
-It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state: a
-family can be on the map under a decorated name, in which case the honest thing is to ask for
-`match.family`. Call it after `initFonts()`, which is what puts the bundled faces there.
+It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state — and on
+Windows it is the NORMAL one for this very font. `Adwaita Sans` is a variable font with an `opsz`
+axis whose value at 14 is named `Text`, so fontconfig puts **`Adwaita Sans`** on the map and
+gvsbuild's DirectWrite reader puts **`Adwaita Sans Text`**. Byte-identical file, two family names.
+
+`applyUiFontPolicy('adwaita')` handles that for you: it asks the map which name it holds and
+writes that one. If you set `gtk-font-name` yourself, do the same — writing the declared name on
+Windows asks for a family that host does not have, and Pango substitutes Tahoma without a word.
+
+Call it after `initFonts()`, which is what puts the bundled faces there.
 
 ## Who does what
 

@@ -226,6 +226,13 @@ both sufficient and the simplest mechanism.
   `system` reachable again after `adwaita`: once a value has been overwritten the host's own is
   not recoverable from GTK, from the display or from any schema.
 
+  **The family name differs on this platform**, which `adwaita` resolves rather than assumes:
+  `Adwaita Sans` is a variable font with an `opsz` axis whose value at 14 is named `Text`, so
+  fontconfig reports `Adwaita Sans` and gvsbuild's DirectWrite reader reports `Adwaita Sans
+  Text` — byte-identical file, two names. Writing the declared name here would ask for a family
+  Windows does not have and Pango would substitute Tahoma silently. Found by CI, on the one
+  platform it happens on.
+
   Built on the Windows runner:
   ```
   node scripts/build-gtk-runtime.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk ^

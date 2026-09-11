@@ -43,14 +43,30 @@
 // the same class of failure as the substitution it exists to surface.
 
 /**
- * The optical-size suffix, as Google Fonts spells it and as gvsbuild's DirectWrite reader keeps
- * it: a space, digits, `pt`, at the end of the family name.
+ * The optical-size suffix, in the two spellings that have been MEASURED on the Windows reader.
+ *
+ *   `Merriweather 18pt`    — Google Fonts' numeric convention, the original measurement
+ *   `Adwaita Sans Text`    — a STAT axis-value NAME for the `opsz` axis
+ *
+ * The second was found by this repository's own bundled typeface failing on Windows, and it is
+ * the same defect one spelling over. `AdwaitaSans-Regular.ttf` declares nameID 1 `Adwaita Sans`
+ * and carries an `opsz` axis (14–32) whose value at 14 is named `Text`: fontconfig reports the
+ * nameID-1 family, while gvsbuild's DirectWrite reader composes the STAT name and the family on
+ * the map is `Adwaita Sans Text`. Byte-identical file, two family names — exactly the
+ * Merriweather finding, which is why it belongs in this pattern rather than in a special case.
+ *
+ * A CLOSED SET OF NAMES, not `\w+`. `Noto Sans Display` and `Playfair Display` are real
+ * families in their own right, so a rule that matched any trailing word would silently answer
+ * `optical` for a family a host genuinely does not have. These are the standard `opsz` axis
+ * value names; anything else stays `absent`, which is the answer that cannot cause a
+ * substitution. The `exact` arm is tried first, so a map holding BOTH names is unaffected, and
+ * two matches still land in `ambiguous` rather than in a guess.
  *
  * Anchored at the END and requiring the space, so `Source Sans 3` — a family whose name simply
  * ends in a digit — is untouched. It was the control in the measurement: same staging run, no
  * size axis, identical family name on both hosts.
  */
-const OPTICAL_SIZE_SUFFIX = /^(.*\S)\s\d+pt$/;
+const OPTICAL_SIZE_SUFFIX = /^(.*\S)\s(?:\d+pt|Text|Display|Caption|Subhead|Poster|Banner)$/i;
 
 /** How a declared family name was found among the families a font map holds. */
 export type FontFamilyMatchKind = 'exact' | 'optical' | 'ambiguous' | 'absent';

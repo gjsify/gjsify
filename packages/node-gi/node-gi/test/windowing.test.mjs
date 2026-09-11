@@ -279,15 +279,35 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     for (const face of faces) fontMap.add_font_file(face);
     const after = familyNames();
 
-    // The families the bundle DECLARES, spelled here rather than imported: this test
-    // runs from the published tarball's own staging, where the builder's modules are
-    // not present. The builder asserts the same two names (BUNDLED_FONT_FAMILIES).
-    for (const family of ['Adwaita Sans', 'Adwaita Mono']) {
-        assert.ok(
-            after.includes(family),
-            `"${family}" is not on the font map after registering ${faces.length} bundled face(s) from ${fontDir} — ` +
-                `text asking for it renders in a substituted family. Map gained: [${after.filter((n) => !before.includes(n)).join(', ')}]`,
+    // The families the bundle DECLARES, spelled here rather than imported: this test runs
+    // from the published tarball's own staging, where the builder's modules are not
+    // present. The builder asserts the same two names (BUNDLED_FONT_FAMILIES).
+    //
+    // RESOLVED, NOT MATCHED LITERALLY, and this is where the first version of this test was
+    // wrong on the platform it exists for. `Adwaita Sans` is a variable font with an `opsz`
+    // axis whose value at 14 is named `Text`: fontconfig puts nameID 1 — `Adwaita Sans` — on
+    // the map, and gvsbuild's DirectWrite reader composes the STAT name and puts
+    // `Adwaita Sans Text`. Byte-identical file, two family names, which is the documented
+    // `Merriweather` / `Merriweather 18pt` finding one spelling over. Asserting the declared
+    // string would fail a bundle whose face is present and usable — and, worse, it would hide
+    // the real defect this caught: the policy was WRITING the declared name too.
+    const resolveFamily = (declared) => {
+        if (after.includes(declared)) return declared;
+        const variants = after.filter((name) =>
+            new RegExp(`^${declared} (\\d+pt|Text|Display|Caption)$`, 'i').test(name),
         );
+        return variants.length === 1 ? variants[0] : undefined;
+    };
+    const resolvedFamilies = [];
+    for (const declared of ['Adwaita Sans', 'Adwaita Mono']) {
+        const family = resolveFamily(declared);
+        assert.ok(
+            family !== undefined,
+            `"${declared}" resolves to nothing on the font map after registering ${faces.length} bundled face(s) ` +
+                `from ${fontDir} — text asking for it renders in a substituted family. Map gained: ` +
+                `[${after.filter((n) => !before.includes(n)).join(', ')}]`,
+        );
+        resolvedFamilies.push(family);
     }
 
     // THE DISCRIMINATOR, and without it the assertions above prove nothing: being LISTED
@@ -317,7 +337,7 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
         const font = fontMap.load_font(context, description);
         return font ? font.describe().get_family() : null;
     };
-    for (const family of ['Adwaita Sans', 'Adwaita Mono']) {
+    for (const family of resolvedFamilies) {
         assert.equal(
             resolve(family),
             family,
@@ -327,7 +347,8 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     }
     console.log(
         `fonts: ${faces.length} bundled face(s) → map ${before.length} → ${after.length} families; ` +
-            `"Adwaita Sans 11" loads "${resolve('Adwaita Sans')}", "Adwaita Mono 11" loads ` +
-            `"${resolve('Adwaita Mono')}", and "${absent} 11" falls back to "${resolve(absent)}"`,
+            `declared [Adwaita Sans, Adwaita Mono] resolve to [${resolvedFamilies.join(', ')}] and load as ` +
+            `[${resolvedFamilies.map((f) => resolve(f)).join(', ')}]; "${absent} 11" falls back to ` +
+            `"${resolve(absent)}"`,
     );
 });

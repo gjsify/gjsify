@@ -56,6 +56,35 @@ export default async () => {
             expect(match.family).toBe('Merriweather');
         });
 
+        await it('finds an opsz axis-value NAME too, not just the `18pt` spelling', async () => {
+            // MEASURED on this repository's own bundled typeface, and it is the same defect one
+            // spelling over. `AdwaitaSans-Regular.ttf` declares nameID 1 `Adwaita Sans` and
+            // carries an `opsz` axis (14-32) whose value at 14 is named `Text`. fontconfig puts
+            // `Adwaita Sans` on the map; gvsbuild's DirectWrite reader composes the STAT name and
+            // puts `Adwaita Sans Text`. Byte-identical file, two family names.
+            //
+            // It cost a CI failure to find: the runtime bundle's own font test asked for the
+            // declared name on Windows and the family was not there — and the UI-font policy was
+            // WRITING that name, so "use the Adwaita font" would have rendered in Tahoma.
+            const match = matchFontFamily('Adwaita Sans', ['Adwaita Sans Text', 'Adwaita Mono', 'Segoe UI']);
+            expect(match.kind).toBe('optical');
+            expect(match.family).toBe('Adwaita Sans Text');
+        });
+
+        await it('keeps the set of axis-value names CLOSED', async () => {
+            // `\w+` would have been the shorter rule and it is the wrong one: a trailing word is
+            // not evidence of an optical variant. `Adwaita Sans Condensed` is a different family,
+            // and answering `optical` for it would send a caller at a face the host does not
+            // have — the substitution this module exists to prevent, caused by the fix for it.
+            expect(matchFontFamily('Adwaita Sans', ['Adwaita Sans Condensed']).kind).toBe('absent');
+            expect(matchFontFamily('Adwaita Sans', ['Adwaita Sans Mono']).kind).toBe('absent');
+            // And the exact name still wins over a variant when the map carries both, so a host
+            // with the real family is never redirected to an optical alias of it.
+            const both = matchFontFamily('Adwaita Sans', ['Adwaita Sans Text', 'Adwaita Sans']);
+            expect(both.kind).toBe('exact');
+            expect(both.family).toBe('Adwaita Sans');
+        });
+
         await it('REFUSES to choose when the map carries several optical sizes', async () => {
             // Which optical size to use at which point size is a design decision — an optical size
             // is a different drawing of the letterforms. Picking one here would be this module
