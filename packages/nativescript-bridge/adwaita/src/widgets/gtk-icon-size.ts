@@ -94,15 +94,31 @@ export function gtkIconSizeNick(value: unknown, fallback: GtkIconSizeNick): GtkI
 }
 
 /**
+ * GTK's "`pixel-size` is not set" sentinel — what `gtk_image_get_pixel_size` answers when
+ * the icon size is in charge.
+ *
+ * A sentinel rather than `null` because it is the value the PROPERTY carries: a getter that
+ * answered the size the image happens to draw at would make `image.pixelSize =
+ * image.pixelSize` PIN that size, and the setter falls back to the getter (every number
+ * setter in this package does — `xmlNumber(raw, this.<prop>)`), so an unparseable
+ * assignment would pin it too.
+ */
+export const PIXEL_SIZE_UNSET = -1;
+
+/** An assignment to `pixel-size` as the value to store: a positive size, or the sentinel. */
+export function storedPixelSize(value: number): number {
+    return Number.isFinite(value) && value > 0 ? value : PIXEL_SIZE_UNSET;
+}
+
+/**
  * The size to draw at, in DIPs: the explicit `pixelSize` when there is one, else what
  * `iconSize` resolves to.
  *
  * That precedence is `Gtk.Image`'s own — `gtk_image_set_pixel_size` documents -1 as "unset,
- * the icon size decides" and any other value as an override. Here a non-positive or
- * non-finite `pixelSize` means the same thing, because a 0-DIP image is not a rendering
- * anyone asked for.
+ * the icon size decides" and any other value as an override. Any non-positive or non-finite
+ * value reads as unset here, because a 0-DIP image is not a rendering anyone asked for.
  */
-export function iconPixelSize(iconSize: GtkIconSizeNick, pixelSize: number | null): number {
-    if (pixelSize !== null && Number.isFinite(pixelSize) && pixelSize > 0) return pixelSize;
+export function iconPixelSize(iconSize: GtkIconSizeNick, pixelSize: number): number {
+    if (Number.isFinite(pixelSize) && pixelSize > 0) return pixelSize;
     return GTK_ICON_SIZE_PIXELS[iconSize];
 }

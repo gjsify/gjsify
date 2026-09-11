@@ -22,7 +22,14 @@ import { GridLayout, Image, ItemSpec } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { resolveIconSource } from './icon-theme.js';
-import { DEFAULT_ICON_PIXEL_SIZE, type GtkIconSizeNick, gtkIconSizeNick, iconPixelSize } from './gtk-icon-size.js';
+import {
+    DEFAULT_ICON_PIXEL_SIZE,
+    type GtkIconSizeNick,
+    gtkIconSizeNick,
+    iconPixelSize,
+    PIXEL_SIZE_UNSET,
+    storedPixelSize,
+} from './gtk-icon-size.js';
 import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
@@ -45,7 +52,7 @@ export class AdwImageButton extends withSignals(GridLayout) {
     // them (#1584) — this widget renders the same symbolic through the same engine, so a
     // second vocabulary for its size would be the false friend one file over.
     private _iconSize: GtkIconSizeNick = 'inherit';
-    private _pixelSize: number | null = null;
+    private _pixelSize = PIXEL_SIZE_UNSET;
     private _unsubScheme: (() => void) | null = null;
 
     constructor(props?: ConstructProps<AdwImageButton>) {
@@ -158,15 +165,15 @@ export class AdwImageButton extends withSignals(GridLayout) {
 
     /**
      * `Gtk.Image:pixel-size` on the glyph — its edge length in DIPs, overriding
-     * {@link iconSize}. Default 16. This is what `iconSize` did before #1584.
+     * {@link iconSize}. This is what `iconSize` did before #1584. It reads back `-1` while
+     * unset, as `gtk_image_get_pixel_size` does; assigning a non-positive value clears it.
      */
     get pixelSize(): number {
-        return this._renderedSize;
+        return this._pixelSize;
     }
 
     set pixelSize(raw: number | string) {
-        const value = xmlNumber(raw, this.pixelSize);
-        this._pixelSize = Number.isFinite(value) && value > 0 ? value : null;
+        this._pixelSize = storedPixelSize(xmlNumber(raw, this._pixelSize));
         this._applySize();
     }
 

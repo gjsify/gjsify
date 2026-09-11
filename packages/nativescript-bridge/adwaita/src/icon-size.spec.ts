@@ -12,6 +12,8 @@ import {
     GTK_ICON_SIZE_PIXELS,
     gtkIconSizeNick,
     iconPixelSize,
+    PIXEL_SIZE_UNSET,
+    storedPixelSize,
 } from './widgets/gtk-icon-size.js';
 
 export default async (): Promise<void> => {
@@ -63,8 +65,8 @@ export default async (): Promise<void> => {
         await it('lets an explicit pixel size win over the icon size, as `Gtk.Image` does', () => {
             // `gtk_image_set_pixel_size` documents the override: a pixel-size of -1 (unset)
             // leaves `icon-size` in charge, any other value takes precedence.
-            expect(iconPixelSize('large', null)).toBe(32);
-            expect(iconPixelSize('normal', null)).toBe(16);
+            expect(iconPixelSize('large', PIXEL_SIZE_UNSET)).toBe(32);
+            expect(iconPixelSize('normal', PIXEL_SIZE_UNSET)).toBe(16);
             expect(iconPixelSize('large', 12)).toBe(12);
             expect(iconPixelSize('normal', 48)).toBe(48);
         });
@@ -72,9 +74,28 @@ export default async (): Promise<void> => {
         await it('treats a non-positive pixel size as unset rather than as a size', () => {
             // GTK's own sentinel is -1, and a 0-DIP image is not a rendering anyone asked
             // for — both mean "the icon size decides".
-            expect(iconPixelSize('large', -1)).toBe(32);
+            expect(PIXEL_SIZE_UNSET).toBe(-1);
             expect(iconPixelSize('large', 0)).toBe(32);
             expect(iconPixelSize('normal', Number.NaN)).toBe(16);
+        });
+
+        await it('stores a pixel size so reading it back and writing it changes nothing', () => {
+            // The property carries the SENTINEL, not the size it draws at. Every number
+            // setter in this package falls back to its own getter — `xmlNumber(raw,
+            // this.<prop>)` — so a getter answering the drawn size would make
+            // `image.pixelSize = image.pixelSize` PIN it, and an unparseable assignment
+            // would pin it too. That is the silent-substitution shape #1584 is about,
+            // one property over.
+            expect(storedPixelSize(PIXEL_SIZE_UNSET)).toBe(PIXEL_SIZE_UNSET);
+            expect(storedPixelSize(storedPixelSize(PIXEL_SIZE_UNSET))).toBe(PIXEL_SIZE_UNSET);
+            expect(storedPixelSize(24)).toBe(24);
+            expect(storedPixelSize(storedPixelSize(24))).toBe(24);
+            // A non-positive or non-finite assignment CLEARS the override — GTK's own way
+            // of handing the size back to `icon-size`.
+            expect(storedPixelSize(0)).toBe(PIXEL_SIZE_UNSET);
+            expect(storedPixelSize(-4)).toBe(PIXEL_SIZE_UNSET);
+            expect(storedPixelSize(Number.NaN)).toBe(PIXEL_SIZE_UNSET);
+            expect(storedPixelSize(Number.POSITIVE_INFINITY)).toBe(PIXEL_SIZE_UNSET);
         });
     });
 };

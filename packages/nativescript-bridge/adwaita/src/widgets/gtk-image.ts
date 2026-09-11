@@ -35,7 +35,14 @@ import { Image } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { resolveIconSource } from './icon-theme.js';
-import { DEFAULT_ICON_PIXEL_SIZE, type GtkIconSizeNick, gtkIconSizeNick, iconPixelSize } from './gtk-icon-size.js';
+import {
+    DEFAULT_ICON_PIXEL_SIZE,
+    type GtkIconSizeNick,
+    gtkIconSizeNick,
+    iconPixelSize,
+    PIXEL_SIZE_UNSET,
+    storedPixelSize,
+} from './gtk-icon-size.js';
 import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -54,11 +61,11 @@ export class GtkImage extends withSignals(Image) {
     // on dark); an explicit `iconColor` pins it and stops following the theme.
     private _iconColor = themeIconColor();
     private _explicitColor = false;
-    // The two GTK size properties, each under its own name (#1584). `_pixelSize` is null
-    // until a caller sets one, which is `Gtk.Image:pixel-size`'s -1: unset, so `_iconSize`
-    // decides. Neither is the rendered size — {@link iconPixelSize} is.
+    // The two GTK size properties, each under its own name (#1584). `_pixelSize` carries
+    // `Gtk.Image:pixel-size`'s own -1 until a caller sets one: unset, so `_iconSize`
+    // decides. Neither IS the rendered size — {@link iconPixelSize} computes that.
     private _iconSize: GtkIconSizeNick = 'inherit';
-    private _pixelSize: number | null = null;
+    private _pixelSize = PIXEL_SIZE_UNSET;
     private _unsubScheme: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkImage>) {
@@ -165,20 +172,20 @@ export class GtkImage extends withSignals(Image) {
     }
 
     /**
-     * `Gtk.Image:pixel-size` — the rendered edge length in DIPs, overriding
-     * {@link iconSize}. Default 16, the Adwaita symbolic grid.
+     * `Gtk.Image:pixel-size` — the edge length in DIPs, overriding {@link iconSize}.
      *
      * This is what the property called `iconSize` did before #1584, under the name GTK
-     * gives it. A non-positive value means "unset, the icon size decides" — GTK's own
-     * sentinel is -1 and a 0-DIP image is not a rendering anyone asked for.
+     * gives it. It reads back `-1` while unset, which is what `gtk_image_get_pixel_size`
+     * answers and NOT the size the image draws at: a getter that answered the drawn size
+     * would make `image.pixelSize = image.pixelSize` pin it. Assigning any non-positive
+     * value clears the override and hands the size back to {@link iconSize}.
      */
     get pixelSize(): number {
-        return this._renderedSize;
+        return this._pixelSize;
     }
 
     set pixelSize(raw: number | string) {
-        const value = xmlNumber(raw, this.pixelSize);
-        this._pixelSize = Number.isFinite(value) && value > 0 ? value : null;
+        this._pixelSize = storedPixelSize(xmlNumber(raw, this._pixelSize));
         this._applySize();
     }
 }
