@@ -77,9 +77,50 @@ function concat(chunks: Uint8Array[]): Uint8Array {
     return out;
 }
 
-/** One-shot compression via `Gio.ZlibCompressor`. */
-export function compressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
-    const compressor = new Gio.ZlibCompressor({ format: getGioFormat(format) });
+/** `Gio.ZlibCompressor:level`'s own "pick the zlib default" value. */
+export const DEFAULT_LEVEL = -1;
+
+/**
+ * Reject a level `Gio.ZlibCompressor` would take differently than zlib does.
+ *
+ * MEASURED on gjs 1.86 / GLib 2.86, because the guess was wrong in the direction
+ * that matters. An out-of-range construct value is not clamped to the paramspec's
+ * bounds — GObject DISCARDS it, logs `GLib-GObject-CRITICAL: value "42" … is
+ * invalid or out of range for property 'level'`, and leaves the property at 0.
+ * Level 0 is zlib's STORE mode, so `level: 42` asks for maximum compression and
+ * gets a stream that is compressed not at all, while a CRITICAL is a log line and
+ * not an exception — the process carries on at exit 0. Node throws
+ * `ERR_OUT_OF_RANGE` here, and throwing is the only answer that cannot be missed.
+ *
+ * RANGE ONLY, and not `Number.isInteger`, because the reference implementation is
+ * the reference: measured on Node 24, `gzipSync(data, {level: 2.5})` is ACCEPTED
+ * (C casts it) while 42 and -7 throw. A first version of this guard rejected 2.5
+ * as well and the Node leg of the spec failed it — which is what that leg is for
+ * (tests/AGENTS.md rule 3: the Node run proves the TEST, the GJS run proves our
+ * implementation). The truncation that keeps GI happy is {@link compressWithGio}'s.
+ *
+ * Written as `!(level >= -1 && level <= 9)` rather than `level < -1 || level > 9`
+ * so `NaN` — which compares false against everything — is refused rather than
+ * passed through to a `gint` marshaller.
+ */
+export function assertLevel(level: number): void {
+    if (!(level >= DEFAULT_LEVEL && level <= 9)) {
+        throw new RangeError(`The value of "level" is out of range. It must be >= -1 and <= 9. Received ${level}`);
+    }
+}
+
+/**
+ * One-shot compression via `Gio.ZlibCompressor`.
+ *
+ * @param level 0 (store) to 9 (most), or {@link DEFAULT_LEVEL} for zlib's own choice.
+ *   The level is not cosmetic: it is the only way to set the gzip header's XFL byte,
+ *   which is how `lintian` and `file` read back a claim of maximum compression.
+ *   TRUNCATED before it reaches the `gint` property, which is what Node's C cast
+ *   does with the fractional level it also accepts.
+ */
+export function compressWithGio(data: Uint8Array, format: GioFormat, level: number = DEFAULT_LEVEL): Uint8Array {
+    assertLevel(level);
+    const compressor = new Gio.ZlibCompressor({ format: getGioFormat(format), level: Math.trunc(level) });
     const converter = new Gio.ConverterOutputStream({
         base_stream: Gio.MemoryOutputStream.new_resizable(),
         converter: compressor,
