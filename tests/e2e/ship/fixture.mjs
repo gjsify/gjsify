@@ -104,16 +104,25 @@ export const NODE_BUNDLE = [
 ].join('\n');
 
 /**
- * A minimal but complete GJS project: a built bundle, an icon, a schema, a licence.
+ * A minimal but complete GJS project: a built bundle, an icon PAIR, a schema, a licence.
  *
  * `mutate` receives the DIRECTORY as well as the manifest, so a caller can plant
  * a second bundle beside the first — which is the layout `resolve-gjs-entry.ts`
  * documents as normal (`dist/<name>.gjs.js` next to `dist/<name>.node.mjs`) and
  * the one a filename heuristic mis-read.
+ *
+ * THE ICON IS A PAIR because that is what a GNOME app ships, and the single
+ * scalable SVG this fixture used to carry is what hid the defect: with one icon
+ * there is nothing for a second to collide with. Learn6502's own
+ * `data/icons/meson.build` installs exactly these two paths, and pointing
+ * `gjsify.ship.icon` at that directory made `ship` refuse to run — both files
+ * were planned into `scalable/apps/<id>.svg`, because every SVG answered
+ * `scalable` and every icon was renamed to the bare app id.
  */
 export function scaffold(dir, mutate) {
     mkdirSync(join(dir, 'dist'), { recursive: true });
     mkdirSync(join(dir, 'data', 'icons', 'hicolor', 'scalable', 'apps'), { recursive: true });
+    mkdirSync(join(dir, 'data', 'icons', 'hicolor', 'symbolic', 'apps'), { recursive: true });
 
     const pkg = {
         name: 'ship-demo',
@@ -167,6 +176,10 @@ export function scaffold(dir, mutate) {
     writeFileSync(join(dir, 'data', `${APP_ID}.gschema.xml`), '<schemalist/>\n');
     writeFileSync(
         join(dir, 'data', 'icons', 'hicolor', 'scalable', 'apps', `${APP_ID}.svg`),
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>\n',
+    );
+    writeFileSync(
+        join(dir, 'data', 'icons', 'hicolor', 'symbolic', 'apps', `${APP_ID}-symbolic.svg`),
         '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>\n',
     );
     writeFileSync(join(dir, 'LICENSE'), 'MIT License\n\nPermission is hereby granted, free of charge…\n');

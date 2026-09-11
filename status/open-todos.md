@@ -3636,7 +3636,6 @@ Open, in order — each independently mergeable, each with its proof:
 **The console-window gap is CLOSED (ADR 0040), and here is what it cost to be sure.** `node.exe` is a CONSOLE-subsystem PE: `Subsystem` = 3, at offset 0xD4, measured on `node-v24.20.0-win-x64.zip`'s `node.exe` (`e_lfanew` 0x78, so 0x78 + 4 + 20 + 68 = 0xD4), and that release ships no `nodew.exe` (`unzip -Z1` lists exactly ONE `.exe`; the `nodewin` hits are corepack shim DIRECTORIES, the control string proving the grep was live). Two of the three fixes #1354 M3 listed do not work, for one reason: **the console is allocated for `cmd.exe`, which is a console image whatever `node.exe` is**, so `Subsystem`-patching the interpreter changes a field on a process started inside a console that already exists — and it would also discard every byte the app writes, because a console-less Node black-holes stdout/stderr and prints its uncaught-exception trace from C++ (`src/debug_utils.cc`), where no JS replacement of `process.stderr` can reach it (nodejs/node#12036). The `.msi`-shortcut fix reaches only the installed copy, not the zip. So the answer is the first of the three: the windows LAYOUT stages a GUI-subsystem launcher `gjsify ship` EMITS itself (`utils/ship/pe-launcher.ts`, 13 824 bytes, twelve kernel32 imports, no CRT and no vendored binary), the `.msi` shortcut points at it, and it runs the same `.cmd` — so no environment decision is duplicated in machine code. It preserves diagnosis: a terminal launch writes to the terminal, a redirected launch writes to the redirect, and only a launch with nowhere to write at all falls back to `%TEMP%\<binaryName>.launch.log`. **Still no CI leg can observe any of it** — every Windows job starts the app from a shell and already has a console. `verify-program-dir.py` now JUDGES the stub's subsystem (a claim about a file we write) and still PRINTS the interpreter's, and `tests/e2e/ship-windows` drives both refusals. The window measurement was made by hand on `win11-gjsify`, session 1, over a real staged program directory: the `.cmd` adds two visible console-host windows, the `.exe` adds none, both exit 7, and the control run with nothing started adds none. Instrument and method are in ADR 0040 § The measurement.
 **What #1354 M2b landed.** `utils/ship/app-runtime.ts` stages four things into the darwin layout, each resolved BY NAME and each `null`-not-throw: the interpreter (`@gjsify/node-runtime-darwin-<arch>` → `Contents/MacOS/node` + its LICENSE), the relocated GTK closure (`@gjsify/gtk-runtime-darwin-<arch>` → `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**`, TREE-PRESERVING), the addon (`@gjsify/node-gi`'s `prebuilds/<target>/node_gi.node`, SIBLING to that closure because its `@rpath` is `@loader_path/gtk/lib`), and — the one nobody predicted — **node-gi's JavaScript**, because `@gjsify/node-gi/*` is external in every `--app node` bundle by design, so a `gi://Gtk` import compiles to `require('@gjsify/node-gi/gi')` and a `.app` has no consumer `node_modules`. Measured on a bundle staged the M2a way, run from an unrelated directory: `Error: Cannot find module '@gjsify/node-gi/gi'`. The launcher execs `"$here/node"` and exports `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE` and (when the app carries GI libraries of its own) `GJSIFY_GI_LIBRARY_PATH` — all read by node-gi in JS, none by dyld, so § A4's signing rule survives. Two CI jobs in `node-gi.yml`: `macos-app-assemble` (Linux) and `macos-app-selfcontained` (`macos-latest` + `macos-15-intel`), which asserts brew gtk4/libadwaita are ABSENT and `PATH` reduced to the system directories has no `node`, then unzips the artifact and opens a window.
 
-9. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 
 ### Two zlibs can compress one `gjsify ship` artifact, and they disagree
 
@@ -3692,6 +3691,57 @@ time**, so `--from-stage` needs the entries inside `.gjsify-ship-stage.json` —
 bump, which that file's own rules say must be justified in its header and which `readStage`
 must then validate. That is the whole cost, and it is why this is ledgered instead of folded
 into the changelog PR.
+
+### A scaffolded workflow is read by actionlint, and a registry keeps it that way
+
+Item 9 of the `gjsify ship` roadmap, closed. `gjsify flatpak ci` writes a GitHub Actions
+workflow into somebody ELSE's repository and four `assert.match` regexes over raw text were
+the only thing that had ever looked at it — never parsed, never actionlint'd, never run.
+**Measured on the real scaffolded `flatpak.yml`, one mutation each (actionlint 1.7.7), where
+"yaml" is the plain `YAML.parse` a hand-rolled structural check would be built on:** unclosed
+`[` in `branches:` — both refuse; `runs-on:` → `runs_on:` — actionlint refuses, YAML accepts;
+`actions/checkout@v4` stripped of its ref — actionlint refuses, YAML accepts; `github.sha` →
+`github.shaX` — actionlint refuses, YAML accepts; `jobs:` → `jbos:` — actionlint refuses,
+YAML accepts; `on:` → `onn:` — actionlint refuses, YAML accepts; an unterminated `if` inside
+a `run:` block — **both ACCEPT**. All four original regexes still match every one of those
+seven documents, because each asserts a substring the mutation does not touch.
+
+Two things that follow, and both are in `scripts/check-scaffolded-workflow.mjs`. A YAML parse
+alone catches one of seven, so structural assertions of our own would be close to the vacuum
+they replace — actionlint is the reader, for the reason `audit-runtimes.yml` already gives
+about this repo's own workflows. And actionlint is BLIND to the last row, because it runs
+with `-shellcheck=` empty and parses workflow syntax rather than the shell inside `run:` — so
+the chain is two readers and neither is redundant, the second being the existing
+`check-workflow-run-syntax.mjs --root`, reused rather than reimplemented. `flatpak ci` emits
+no `run:` block today, which makes that reader vacuous ON THIS SCAFFOLDER and not on the
+class; the ledger's minimum bar for `ship ci` was `bash -n` on every extracted `run:` block,
+and it is already wired for the day `ship ci` exists.
+
+**Three traps worth not rediscovering.** (1) `actionlint` with no file arguments discovers
+workflows by walking a GIT REPOSITORY — pointed at a scratch directory it exits 3 with "no
+project was found in any parent directories", so generated output must be passed as an
+explicit file path (`git init` also works and costs more). (2) `bash -n` accepts
+`if [ -z "$x" ; then echo hi; fi`: a `[` missing its `]` is a RUNTIME error from the builtin,
+not a parse error, so the first negative control here proved nothing and had to be replaced
+with an unterminated `if`. (3) The coverage scan's first version read raw source and named
+`utils/gjsify-shim.ts`, which merely mentions `.github/workflows/release-cut.yml` in a prose
+comment — comments are stripped before the grep now, because a rule that cries wolf earns an
+exception list and an exception list is where the real scaffolder eventually hides.
+
+**What is NOT closed, and it is worse than "one of the two readers is missing".** `actionlint`
+is on no runner image this repo uses and in no `dnf install` in `.docker/ci-fedora.Dockerfile`.
+Without it NOTHING reads the scaffolded document: the other reader parses the shell inside
+`run:` blocks, `flatpak ci` emits none, so it reads zero of them and exits 0. Measured — on
+such a host the pair prints OK for a `flatpak.yml` whose `runs-on:` is misspelled `runs_on:`,
+which is the defect this whole exercise exists to catch. So the document test sits behind
+`e2eSkipReason('flatpak', …)` and SKIPS there instead of reporting a pass: a skip is visible in
+the shard output, a green assertion that read nothing is not (#1550). Two ways to make it RUN,
+in increasing cost — add the pinned + checksummed actionlint download `audit-runtimes.yml`
+already carries to `main.yml`'s `e2e` job and name the suite in `GJSIFY_E2E_REQUIRE`; or put
+actionlint in the CI image, which must be its OWN PR because `build-ci-image.yml` publishes
+only on a push to `main` and a PR that adds the tool and hard-requires it in one step can never
+go green (the trap `msitools` hit in #1354 M5). Until one of those lands, the leg that really
+runs is a developer with actionlint on PATH, plus `--coverage`, which needs no tool at all.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 
@@ -6210,3 +6260,42 @@ already has — *a pattern the caller wrote that matched nothing is an error, a 
 emptied a real set is not* — applied at the selection sites above, `barrels` having taken
 the first of them by hand. The distinction is the whole content of the rule, and it is why
 a blanket "empty is an error" would be wrong for `prune` and `foreach --exclude`.
+### win32 MP3 has no route out of gvsbuild, and the pin is the only moment the claim is re-asked
+
+#1626 closes as a declaration (ADR 0056 § 3, § 6), not as a payload. What stays open is
+upstream work and one accepted blind spot.
+
+**The upstream repair nobody has filed.** Closing MP3 on Windows needs a `libmpg123` project
+in `wingtk/gvsbuild` — a single file of the shape `libvorbis.py` already has — and the same
+for `libFLAC`. Measured at the pinned `2026.6.0`, cross-read from the GitHub contents API and
+from the PyPI wheel `pipx install gvsbuild==2026.6.0` unpacks: 95 files, identical lists, 94
+of them project modules beside an `__init__.py`, `libvorbis.py`, `ogg.py` and `opus.py` among
+them and nothing matching `flac` or `mpg123`. `main` carried the same list on the day of the
+reading, and so does the newer `2026.8.0` release — read with the same tooling against that
+tag, nothing added and nothing removed — so a pin bump on its own will not close this. Every
+other route out of that catalogue was read and is shut: gvsbuild's own
+`patches/ffmpeg/build/build.sh` configures ffmpeg `--disable-everything` and enables
+`mp2float`, `wmav2`, `wmapro` as its whole audio set, so `gst-libav` decodes no MP3;
+gst-plugins-rs 0.15.2 has no MP3 decoder; gst-plugins-ugly 1.28.4 ships `ext/` = a52dec,
+cdio, dvdread, mpeg2dec, sidplay, x264, `mad` having been removed upstream. **Nobody has
+opened that gvsbuild PR**, and until somebody does, the one measured third-party consumer
+(a desktop reader whose bundled episode and live radio both fail on Windows) has exactly one
+answer: ship its own MSVC-ABI `gstmpg123.dll` and point `GST_PLUGIN_PATH` at it, which the
+gap's `why` now spells out.
+
+**FLAC is a price, not a wall, and the price is not paid.** `claxon` in gst-plugins-rs is a
+pure-Rust FLAC decoder and gvsbuild already defines that tree (`gst-plugin-gtk4`). Taking it
+means cargo-c plus gst-plugins-bad and gtk4 rebuilt from source on the leg whose GStreamer
+build already runs under a 150-minute timeout. ADR 0056 § Alternatives rejected carries the
+reasoning; revisit when a consumer measures FLAC, or when a Rust toolchain lands in that
+prefix for another reason.
+
+**The blind spot the new rule does NOT close.** `gvsbuild-catalogue` re-asks "does upstream
+have this library" whenever `GVSBUILD_VERSION` moves, because the snapshot and the pin must
+agree. While the pin sits still, an upstream addition is invisible — deliberately: a project
+we are not pinned to cannot be built anyway, so the finding would be noise until the bump.
+The cost is latency, and the bump is where it is paid. A scheduled job polling the catalogue
+would remove that latency and add a network dependency plus a job that can go red for
+something no PR caused; not obviously worth it, and worth revisiting only if a pin ever sits
+still long enough for the latency to matter.
+

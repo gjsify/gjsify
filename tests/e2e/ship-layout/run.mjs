@@ -278,6 +278,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             `share/fonts/${APP_ID}/${FONT_LEAF}`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
+            `share/icons/hicolor/symbolic/apps/${APP_ID}-symbolic.svg`,
             `share/metainfo/${APP_ID}.metainfo.xml`,
             `share/mime/packages/${APP_ID}.xml`,
         ]);
@@ -729,7 +730,10 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             dir,
         );
         assert.equal(status, 0);
-        assert.match(stderr, /carries 6 file\(s\)/);
+        // SEVEN since the fixture ships the icon PAIR: the symbolic half is another
+        // `share/icons/hicolor/**` file, so it is install-dependent for exactly the
+        // same reason as the scalable one and the count follows the payload.
+        assert.match(stderr, /carries 7 file\(s\)/);
         assert.match(stderr, /UNCLASSIFIED: share\/dbus-1\/services\/org\.example\.ShipDemo\.service/);
     });
 

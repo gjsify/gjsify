@@ -2556,7 +2556,13 @@ jobs:
           # autodetect, directsound. NOT flac and mpg123, which this line used to
           # name: those elements link libFLAC and libmpg123, gvsbuild defines a
           # project for neither library, so -good builds green without them and the
-          # bundle declares both formats as gaps instead (#1626).
+          # bundle declares both formats as gaps instead (#1626). That sentence is no
+          # longer only a comment: each gap carries `upstream: {catalogue, library}` in
+          # the bundle manifest, and the `gvsbuild-catalogue` conformance rule holds it
+          # against a committed snapshot of gvsbuild's project list pinned to
+          # GVSBUILD_VERSION. Bump the pin without re-reading the snapshot and that rule
+          # reds on every PR; the day upstream adds the project, it reds naming the
+          # format to close (ADR 0056 § 6).
           # `--enable-gi` IS THE WHOLE POINT and defaults to FALSE. gvsbuild's
           # gstreamer projects gate introspection on it — without it they pass
           # `-Dintrospection=disabled`, so the build succeeds and produces no

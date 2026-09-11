@@ -34,6 +34,44 @@ Requires `gettext` tools (`msgfmt`, `xgettext`) to be installed on the system.
   fuzzy entries out of the `.mo`. A run that really does replace that many strings raises the
   option.
 
+## One catalog, three namespaces
+
+A catalog is called one thing in the repository and has to be spelled three different ways
+downstream. They disagree, so the `.po` basename is not passed through unchanged:
+
+| Target | Namespace | `zh_Hans.po` | `pt_BR.po` |
+|---|---|---|---|
+| `.mo` directory (`gettextPlugin`, `msgfmtPlugin`) | POSIX locale | `locale/zh_CN/`, `locale/zh_SG/` | `locale/pt_BR/` |
+| JSON file (`po2jsonPlugin`) | Android qualifier | `zh.json` | `pt-BR.json` |
+| the `.po` in the repo | BCP-47-ish (Weblate) | `zh_Hans` | `pt_BR` |
+
+Weblate names simplified Chinese `zh_Hans`, which is BCP-47 and **not** a POSIX locale — glibc
+never probes it, so a catalog compiled under that name ships complete and renders in English for
+every Chinese user while the build exits 0. The compiled catalog is therefore installed under the
+locale directories real users actually resolve, keeping the original name alongside them so
+nothing that already worked stops.
+
+On the JSON side the filename becomes an Android resource qualifier
+(`values-<lang>[-r<REGION>]`), where an underscore is illegal: `pt_BR.json` would yield
+`values-pt_BR`, a directory Android never consults.
+
+**A catalog whose script subtag maps to no known name fails the build**, naming every such
+catalog at once. A build that cannot say where a catalog goes must not quietly put it somewhere —
+"somewhere" is indistinguishable from "correct" until a user of that language complains. Map it
+explicitly with `localeNames`, one catalog at a time, so mapping one language does not disarm the
+check for the rest:
+
+```typescript
+gettextPlugin({
+    poDirectory: 'po',
+    moDirectory: 'dist',
+    localeNames: { az_Arab: ['az_IR'] },
+});
+```
+
+Two catalogs that would land on one output name (a Weblate `zh_Hans.po` beside a hand-made
+`zh_CN.po`) fail the same way, rather than letting one overwrite the other.
+
 ```typescript
 xgettextPlugin({
     sources: ['src/**/*.blp', 'data/**/*.desktop.in', '!src/**/*.generated.blp'],

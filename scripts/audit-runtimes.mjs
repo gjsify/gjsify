@@ -91,6 +91,7 @@ import './manifest-conformance/rules/node-script-globals.mjs';
 import './manifest-conformance/rules/reverse-bridge-leg.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
+import './manifest-conformance/rules/gvsbuild-catalogue.mjs';
 import './manifest-conformance/rules/stylesheet-font-families.mjs';
 import './manifest-conformance/rules/bundler-plugins.mjs';
 import './manifest-conformance/rules/widget-vocabulary.mjs';
@@ -1607,6 +1608,15 @@ const CHECK_RULES = [
     // where a payload exists — the two builders, and `gtk-os-suites.yml`, which passes
     // `--media-payload` at the bundle it staged from npm.
     'media-capabilities',
+    // The other half of the same declaration, and the half no artifact of ours can answer.
+    // A win32 gap's reason is that gvsbuild defines no project for the library behind the
+    // element (ADR 0056 § 1) — a statement about an EXTERNAL catalogue at a PINNED version,
+    // which every check in this area is structurally blind to: they compare the manifest to
+    // our payload, and they stay green on the day the gap could be closed. This reads a
+    // committed snapshot of that catalogue plus the `GVSBUILD_VERSION` the workflows carry,
+    // so it needs no network and belongs on every PR — the pin bump that expires the reason
+    // lands here, not on a Windows leg.
+    'gvsbuild-catalogue',
     // Guards the apps EXCLUDED from `workspaces` — the set no other check can see.
     'release-train',
     // Reads `.github/workflows/*.yml` and nothing else, so it needs no install and no
@@ -1775,6 +1785,10 @@ async function main() {
         // Fetched, summarised and PRINTED-ON-FAILURE in the same edit — the two comments
         // above are what the other order cost twice.
         const mediaCapabilities = byId.get('media-capabilities');
+        // Fetched, summarised and printed-on-failure in the SAME edit, which the three
+        // comments above are the price of learning. Its subject is the half of the same
+        // declaration that `media-capabilities` structurally cannot reach.
+        const gvsbuildCatalogue = byId.get('gvsbuild-catalogue');
         const stylesheetFontFamilies = byId.get('stylesheet-font-families');
         // Fetched AND printed in both branches in the same edit — the two comments above
         // are what the other order cost twice.
@@ -1799,6 +1813,7 @@ async function main() {
             console.log(bundledLicense.summary);
             console.log(bundleSearchPaths.summary);
             console.log(mediaCapabilities.summary);
+            console.log(gvsbuildCatalogue.summary);
             console.log(stylesheetFontFamilies.summary);
             console.log(bundlerPlugins.summary);
             console.log(repositoryDirectory.summary);
@@ -2156,6 +2171,25 @@ async function main() {
             );
             console.error('');
         }
+        if ((gvsbuildCatalogue.failures ?? []).length > 0) {
+            console.error(`GVSBUILD-CATALOGUE FAILURES on ${gvsbuildCatalogue.failures.length} finding(s):`);
+            for (const line of gvsbuildCatalogue.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                "What the Windows bundle decodes is bounded by gvsbuild's project list, and each win32 gap says so " +
+                    'in its own `why` (ADR 0056 § 1). That sentence is about an EXTERNAL catalogue at a PINNED ' +
+                    'version, which every other check here is blind to: they compare the declaration to OUR payload ' +
+                    'and stay green on the day the gap could close. Fix by one of: (a) the pin moved — re-read the ' +
+                    'catalogue with `node packages/node-gi/scripts/gvsbuild-catalogue.mjs --update <version>` and ' +
+                    "read the diff; (b) a gap's library ARRIVED upstream — name the project in the `gvsbuild " +
+                    'build` invocations of node-gi.yml AND release.yml, move the cache key, extend the named prefix ' +
+                    "assertion, and move the format out of `gaps`, all in one commit; (c) a claim's library is " +
+                    'gone or misspelled — a format whose library the prefix cannot produce belongs in `gaps`.',
+            );
+            console.error('');
+        }
         if ((stylesheetFontFamilies.failures ?? []).length > 0) {
             console.error(`STYLESHEET-FONT-FAMILY FAILURES on ${stylesheetFontFamilies.failures.length} finding(s):`);
             for (const line of stylesheetFontFamilies.failures) {
@@ -2306,6 +2340,7 @@ async function main() {
             'platform-packages',
             'bundled-license',
             'media-capabilities',
+            'gvsbuild-catalogue',
             'pr-trigger-parity',
             'workflow-rev-pin',
             'stylesheet-font-families',

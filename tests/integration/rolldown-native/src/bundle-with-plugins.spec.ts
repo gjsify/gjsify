@@ -272,6 +272,101 @@ export default async () => {
                 expect((observedThrow as unknown as Error).message.includes('intentional failure')).toBe(true);
             });
 
+            await it('a failing load hook puts its OWN message in the rejection', async () => {
+                // The defect this guards, measured on this tree: a `.blp` with a
+                // deliberate syntax error built under the Node engine printed
+                // blueprint-compiler's "Could not determine what kind of syntax
+                // is meant here" with the offending line and a caret, and under
+                // THIS engine printed only
+                //
+                //   {"error":"rolldown: Bundler::generate: BatchedBuildDiagnostic([
+                //     BuildDiagnostic { severity: Error, kind: "UNLOADABLE_DEPENDENCY",
+                //       message: "Could not load src/header-bar.blp", .. }])"}
+                //
+                // — no reason anywhere, for 22 of 24 files in the real incident.
+                // The test above deliberately accepts "either resolution", so
+                // the throw was observed in user-land and nobody checked that it
+                // reached the CALLER. That gap is this test.
+                const dir = tmpdir('rdn-int-hookerr');
+                writeFile(`${dir}/main.mjs`, 'import "./gen.blp";\nexport const v = 1;');
+                writeFile(`${dir}/gen.blp`, 'not javascript');
+
+                // A stand-in for blueprint-compiler's stderr: multi-line, and
+                // the useful part is NOT in the first line — same shape as the
+                // real thing, so a fix that keeps only a summary still fails.
+                const compilerStderr =
+                    'blueprint-compiler failed (/usr/bin/blueprint-compiler)\n' +
+                    'error: Namespace Adw is not available\n' +
+                    'at gen.blp line 2 column 7';
+
+                const failing: NativePlugin = {
+                    name: 'fixture-blueprint',
+                    load(id) {
+                        if (id.endsWith('.blp')) throw new Error(`${id}: ${compilerStderr}`);
+                        return null;
+                    },
+                };
+
+                let rejection: Error | null = null;
+                try {
+                    await bundleWithPlugins(
+                        { input: [{ name: 'main', import: `${dir}/main.mjs` }], cwd: dir, format: 'esm' },
+                        [failing],
+                    );
+                } catch (e) {
+                    rejection = e as Error;
+                }
+
+                expect(rejection !== null).toBe(true);
+                const message = (rejection as unknown as Error).message;
+                // The compiler's own diagnosis — the line that was missing.
+                expect(message.includes('Namespace Adw is not available')).toBe(true);
+                // Which file, and which plugin to blame for it.
+                expect(message.includes('gen.blp')).toBe(true);
+                expect(message.includes('fixture-blueprint')).toBe(true);
+            });
+
+            await it('states the total when there are more failures than it prints', async () => {
+                // The count is the diagnosis — 22 of 24 `.blp` files, and the
+                // two that loaded were the two without `using Adw 1;`. So the
+                // total has to survive the cap that keeps 22 five-line compiler
+                // excerpts from burying it.
+                const dir = tmpdir('rdn-int-hookerr-many');
+                const failures = 12;
+                let entry = '';
+                for (let i = 0; i < failures; i++) {
+                    writeFile(`${dir}/m${i}.blp`, 'x');
+                    entry += `import "./m${i}.blp";\n`;
+                }
+                writeFile(`${dir}/main.mjs`, `${entry}export const v = 1;`);
+
+                const failing: NativePlugin = {
+                    name: 'fixture-many',
+                    load(id) {
+                        if (id.endsWith('.blp')) throw new Error(`${id}: boom`);
+                        return null;
+                    },
+                };
+
+                let rejection: Error | null = null;
+                try {
+                    await bundleWithPlugins(
+                        { input: [{ name: 'main', import: `${dir}/main.mjs` }], cwd: dir, format: 'esm' },
+                        [failing],
+                    );
+                } catch (e) {
+                    rejection = e as Error;
+                }
+
+                expect(rejection !== null).toBe(true);
+                const lines = (rejection as unknown as Error).message.split('\n');
+                expect(lines.includes(`${failures} plugin hooks failed during this build:`)).toBe(true);
+                // Capped at 8 spelled out, with the remainder accounted for
+                // rather than silently dropped.
+                expect(lines.filter((l) => l.includes('[plugin fixture-many]')).length).toBe(8);
+                expect(lines.includes(`  … and ${failures - 8} more`)).toBe(true);
+            });
+
             await it('rolldown-shaped {filter, handler} hooks dispatch correctly via toNativePlugin', async () => {
                 // Mirrors how the CLI wire-up (B.5b) translates rolldown's
                 // {filter:{id:/regex/}, handler} hook form into our

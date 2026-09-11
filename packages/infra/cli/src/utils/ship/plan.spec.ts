@@ -12,7 +12,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { gunzip } from '@gjsify/tar';
 
-import { assertOverlayIsLicensed, iconSizeDir, planOverlay, planStage, type StageInputs } from './plan.js';
+import { assertOverlayIsLicensed, iconThemeDir, planOverlay, planStage, type StageInputs } from './plan.js';
 import { FORMATS } from './formats.js';
 import { renderLauncher } from './launcher.js';
 import { LAYOUTS } from './layout.js';
@@ -124,10 +124,52 @@ export default async () => {
             expect(paths).toContain('share/icons/hicolor/scalable/apps/org.example.Hello.svg');
         });
 
+        await it('stages the app icon PAIR a GNOME app ships, symbolic one included', async () => {
+            // The two files a modern GNOME app installs, spelled exactly as its own
+            // meson does (measured in Learn6502's `data/icons/meson.build`). Before
+            // `isSymbolicIcon` they planned onto ONE destination and `ship` refused
+            // to run — so this case is the consumer report, not a variation on the
+            // one above it. Why `symbolic` is a directory rather than a size, and
+            // why the suffix survives the rename: `isSymbolicIcon` in `plan.ts`.
+            const paths = planStage(
+                settings({
+                    iconFiles: [
+                        '/project/data/icons/hicolor/scalable/apps/org.example.Hello.svg',
+                        '/project/data/icons/hicolor/symbolic/apps/org.example.Hello-symbolic.svg',
+                    ],
+                }),
+                inputs(),
+            ).map((file) => file.path);
+            expect(paths).toContain('share/icons/hicolor/scalable/apps/org.example.Hello.svg');
+            expect(paths).toContain('share/icons/hicolor/symbolic/apps/org.example.Hello-symbolic.svg');
+        });
+
+        await it('renames a symbolic icon after the app id and KEEPS the suffix', async () => {
+            // The rename is the point — `Icon=` and the MetaInfo `<id>` name the app
+            // id, not the author's basename — but for a symbolic icon the name GTK
+            // looks up is `<id>-symbolic`. Source basename discarded, suffix kept.
+            const paths = planStage(
+                settings({ iconFiles: ['/project/data/icons/hicolor/symbolic/apps/whatever-symbolic.svg'] }),
+                inputs(),
+            ).map((file) => file.path);
+            expect(paths).toContain('share/icons/hicolor/symbolic/apps/org.example.Hello-symbolic.svg');
+        });
+
         await it('refuses two icons that would install as the same file', async () => {
             expect(() => planStage(settings({ iconFiles: ['/a/icon-64.png', '/b/other-64.png'] }), inputs())).toThrow(
                 'both install as',
             );
+        });
+
+        await it('still refuses two SYMBOLIC icons that would install as the same file', async () => {
+            // The collision check has to survive the new destination: two symbolic
+            // SVGs now agree on `symbolic/apps/<id>-symbolic.svg` the same way two
+            // 64px PNGs agree on `64x64/apps/<id>.png`. A context that silently
+            // overwrote would be the defect this fix exists to remove, one directory
+            // over.
+            expect(() =>
+                planStage(settings({ iconFiles: ['/a/one-symbolic.svg', '/b/two-symbolic.svg'] }), inputs()),
+            ).toThrow('both install as');
         });
 
         await it('refuses a schema whose name does not start with the app id', async () => {
@@ -314,15 +356,42 @@ export default async () => {
         });
     });
 
-    await describe('iconSizeDir', async () => {
+    await describe('iconThemeDir', async () => {
         await it('reads the size from the path, the filename, or the extension', async () => {
-            expect(iconSizeDir('/a/hicolor/256x256/apps/x.png')).toBe('256x256');
-            expect(iconSizeDir('/a/icon-48.png')).toBe('48x48');
-            expect(iconSizeDir('/a/icon.svg')).toBe('scalable');
+            expect(iconThemeDir('/a/hicolor/256x256/apps/x.png')).toBe('256x256');
+            expect(iconThemeDir('/a/icon-48.png')).toBe('48x48');
+            expect(iconThemeDir('/a/icon.svg')).toBe('scalable');
         });
 
         await it('refuses an icon whose size it cannot tell', async () => {
-            expect(() => iconSizeDir('/a/icon.png')).toThrow('cannot tell what size');
+            expect(() => iconThemeDir('/a/icon.png')).toThrow('cannot tell what size');
+        });
+
+        await it('answers `symbolic` for the context directory, which is not a size', async () => {
+            // The scalable row is asserted beside it on purpose: `symbolic` being a
+            // separate answer is only meaningful if the ordinary SVG still gets the
+            // old one. Both sides in one case, so a rule that swallowed every SVG
+            // into `symbolic/` could not pass here either.
+            expect(iconThemeDir('/a/hicolor/symbolic/apps/x-symbolic.svg')).toBe('symbolic');
+            expect(iconThemeDir('/a/hicolor/scalable/apps/x.svg')).toBe('scalable');
+        });
+
+        await it('takes either signal — the directory the author used, or the name', async () => {
+            // One case per signal, each with the OTHER absent: a file in `symbolic/`
+            // that is not named `-symbolic`, and one named `-symbolic` sitting
+            // nowhere in particular. Testing a path that carries both would pass for
+            // an implementation reading only one of them.
+            expect(iconThemeDir('/a/hicolor/symbolic/apps/plain.svg')).toBe('symbolic');
+            expect(iconThemeDir('/a/anywhere/app-symbolic.svg')).toBe('symbolic');
+        });
+
+        await it('leaves a PNG out of the symbolic context, which is Type=Scalable', async () => {
+            // The boundary `isSymbolicIcon` draws at the extension, from both sides:
+            // a `-symbolic` PNG in a sized directory still answers the size, and one
+            // with no size to read is still refused rather than quietly becoming a
+            // scalable icon that does not scale.
+            expect(iconThemeDir('/a/icons/16x16/status/x-symbolic.png')).toBe('16x16');
+            expect(() => iconThemeDir('/a/x-symbolic.png')).toThrow('cannot tell what size');
         });
     });
 };

@@ -404,3 +404,274 @@ describe('media-capabilities — the three published bundles, in this tree', () 
         }
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The same declaration's THIRD oracle: `upstream`, and the `gvsbuild-catalogue`
+// rule that reads it.
+//
+// WHY IT EXISTS. Everything above compares a declaration to OUR artifact — the plugin
+// files, and on the target the running registry. A win32 gap's REASON is neither: it is
+// that gvsbuild defines no project for the library behind the element (ADR 0056 § 1), a
+// statement about an external catalogue at a pinned version. Both checks above stay green
+// on the day that stops being true, which is #1544's class with the sign flipped — there a
+// decoder was absent and nothing said so, here a gap outlives its cause and nothing says
+// so. The expiry is not hypothetical: `GVSBUILD_VERSION` is spelled in eight workflow
+// `env:` blocks and gvsbuild 2026.8.0 was published while 2026.6.0 was still the pin.
+//
+// The rule is repo-scoped, so it is imported from `scripts/` rather than from the
+// conformance package, exactly as `ci-workflow-rev-pin` imports its own.
+
+const GVSBUILD_RULE = join(MONOREPO_ROOT, 'scripts', 'manifest-conformance', 'rules', 'gvsbuild-catalogue.mjs');
+const { inspectGvsbuildCatalogue, readGvsbuildPins, upstreamEntries } = await import(`file://${GVSBUILD_RULE}`);
+// The matcher and the snapshot reader are node-gi's, beside the builders whose payload the
+// catalogue bounds; the rule is only their caller. Imported from the owner, so a test that
+// passes here is testing the code the rule runs.
+const { matchLibrary, normalizeProject, readGvsbuildCatalogue } = await import(
+    `file://${join(MONOREPO_ROOT, 'packages', 'node-gi', 'scripts', 'gvsbuild-catalogue.mjs')}`
+);
+
+/** A catalogue in the committed shape, long enough to clear the vacuity floor. */
+function fakeCatalogue(extra = []) {
+    const filler = Array.from({ length: 50 }, (_, i) => `filler${i}`);
+    return { version: '2026.6.0', modules: [...filler, 'libvorbis', 'ogg', 'opus', ...extra].sort() };
+}
+
+const PIN = [{ workflow: '.github/workflows/node-gi.yml', version: '2026.6.0' }];
+
+/** One win32-shaped bundle: a claim whose library exists, a gap whose library does not. */
+function gvsbuildBundle({ claimLibrary = 'libvorbis', gapLibrary = 'mpg123' } = {}) {
+    return [
+        {
+            name: '@gjsify/gtk-runtime-win32-x64',
+            path: 'packages/node-gi/gtk-runtime-win32-x64',
+            capabilities: {
+                audioDecode: [
+                    {
+                        format: 'Ogg / Vorbis',
+                        plugin: 'vorbis',
+                        element: 'vorbisdec',
+                        upstream: { catalogue: 'gvsbuild', library: claimLibrary },
+                    },
+                ],
+                gaps: [
+                    {
+                        format: 'MP3',
+                        plugin: 'mpg123',
+                        element: 'mpg123audiodec',
+                        why: 'no project upstream',
+                        upstream: { catalogue: 'gvsbuild', library: gapLibrary },
+                    },
+                ],
+            },
+        },
+    ];
+}
+
+const gvsbuildText = (result) => result.problems.join('\n');
+
+describe('gvsbuild-catalogue — a gap that blames an upstream catalogue is held against it', () => {
+    it('passes the win32 shape: a claim whose library is there, a gap whose library is not', () => {
+        const result = inspectGvsbuildCatalogue({
+            catalogue: fakeCatalogue(),
+            pins: PIN,
+            bundles: gvsbuildBundle(),
+        });
+        assert.deepEqual(result.problems, []);
+        // Both directions were actually exercised. A run reporting 0 and 0 has compared
+        // nothing and would pass every assertion in this block.
+        assert.equal(result.stats.present, 1);
+        assert.equal(result.stats.absent, 1);
+    });
+
+    it('fails the day a gap’s library arrives upstream, and says what closing it takes', () => {
+        // THE WHOLE POINT. Nothing else in this repository can notice: the payload is
+        // unchanged, the element is still null on the target, and the gap is still declared.
+        const result = inspectGvsbuildCatalogue({
+            catalogue: fakeCatalogue(['libmpg123']),
+            pins: PIN,
+            bundles: gvsbuildBundle(),
+        });
+        assert.match(gvsbuildText(result), /gvsbuild 2026\.6\.0 defines libmpg123/);
+        assert.match(gvsbuildText(result), /ADR 0056 § 1 step 1 now answers YES/);
+        // And it says the sufficient half out loud, because libvorbis proved step 1 is not
+        // it: a project in the catalogue can still fail to build with the catalogue's CMake.
+        assert.match(gvsbuildText(result), /necessary and not sufficient/);
+    });
+
+    it('fails a CLAIM whose library the catalogue has no project for', () => {
+        const result = inspectGvsbuildCatalogue({
+            catalogue: fakeCatalogue(),
+            pins: PIN,
+            bundles: gvsbuildBundle({ claimLibrary: 'libflac' }),
+        });
+        assert.match(gvsbuildText(result), /CLAIMS the format, and gvsbuild 2026\.6\.0 defines no project module/);
+    });
+
+    it('refuses a catalogue too short to be one, BEFORE any absence is read off it', () => {
+        // The vacuity direction, and it is asymmetric: a truncated snapshot answers "absent"
+        // to everything, so the gaps would all pass and only the claims would fail — half a
+        // signal, pointing at the declarations instead of at the snapshot.
+        const result = inspectGvsbuildCatalogue({
+            catalogue: { version: '2026.6.0', modules: ['glib', 'gtk'] },
+            pins: PIN,
+            bundles: gvsbuildBundle(),
+        });
+        assert.match(gvsbuildText(result), /lists 2 project module\(s\), fewer than the 40/);
+    });
+
+    it('fails a pin that moved without the snapshot, naming the workflow', () => {
+        const result = inspectGvsbuildCatalogue({
+            catalogue: fakeCatalogue(),
+            pins: [{ workflow: '.github/workflows/release.yml', version: '2026.8.0' }],
+            bundles: gvsbuildBundle(),
+        });
+        assert.match(gvsbuildText(result), /release\.yml` builds with gvsbuild 2026\.8\.0/);
+        assert.match(gvsbuildText(result), /gvsbuild-catalogue\.mjs --update 2026\.8\.0/);
+    });
+
+    it('fails two workflows pinning different versions of the same build system', () => {
+        // ADR 0056 § Consequences declined a guard over the duplicated ARGUMENT lists and was
+        // right to: the declaration already holds those. The VERSION is the half a cache key
+        // is derived from, so two spellings build two prefixes and the leg that proves the
+        // payload stops being the leg that ships it.
+        const result = inspectGvsbuildCatalogue({
+            catalogue: fakeCatalogue(),
+            pins: [
+                { workflow: '.github/workflows/node-gi.yml', version: '2026.6.0' },
+                { workflow: '.github/workflows/release.yml', version: '2026.8.0' },
+            ],
+            bundles: gvsbuildBundle(),
+        });
+        assert.match(gvsbuildText(result), /spelled 2 different ways/);
+    });
+
+    it('fails when no declaration blames the catalogue at all', () => {
+        const result = inspectGvsbuildCatalogue({ catalogue: fakeCatalogue(), pins: PIN, bundles: [] });
+        assert.match(gvsbuildText(result), /compared nothing and passed/);
+    });
+
+    it('fails when every `upstream` points the same way, which is how the matcher goes blind', () => {
+        const bundles = gvsbuildBundle();
+        delete bundles[0].capabilities.audioDecode[0].upstream;
+        const result = inspectGvsbuildCatalogue({ catalogue: fakeCatalogue(), pins: PIN, bundles });
+        assert.match(gvsbuildText(result), /every `upstream` declaration points the same way/);
+    });
+
+    it('leaves a catalogue it does not answer for alone, and says it did', () => {
+        const bundles = gvsbuildBundle();
+        bundles[0].capabilities.gaps[0].upstream = { catalogue: 'homebrew', library: 'mpg123' };
+        const result = inspectGvsbuildCatalogue({ catalogue: fakeCatalogue(), pins: PIN, bundles });
+        assert.match(result.notes.join('\n'), /which this rule does not answer for/);
+    });
+
+    it('matches a library the way upstream might spell it, and only then', () => {
+        const modules = ['libvorbis', 'ogg', 'opus', 'adwaita_icon_theme'];
+        assert.deepEqual(matchLibrary(modules, 'vorbis'), ['libvorbis']);
+        assert.deepEqual(matchLibrary(modules, 'libvorbis'), ['libvorbis']);
+        // A future FLAC project is `flac.py` or `libflac.py` with equal likelihood, so the
+        // question is asked as a substring — an exact match would answer "still absent" to
+        // one of the two spellings.
+        assert.deepEqual(matchLibrary(['libflac'], 'flac'), ['libflac']);
+        assert.deepEqual(matchLibrary(modules, 'flac'), []);
+        assert.deepEqual(matchLibrary(modules, 'mpg123'), []);
+        // gvsbuild spells one project two ways: `adwaita_icon_theme.py` IS
+        // `adwaita-icon-theme`, so the comparison cannot be literal.
+        assert.deepEqual(matchLibrary(modules, 'adwaita-icon-theme'), ['adwaita_icon_theme']);
+        assert.equal(normalizeProject('libFLAC'), 'libflac');
+        // An empty needle would match every module and turn every gap red at once.
+        assert.deepEqual(matchLibrary(modules, ''), []);
+    });
+
+    it('reads the direction off the array, never off a field', () => {
+        const [bundle] = gvsbuildBundle();
+        assert.deepEqual(
+            upstreamEntries(bundle.capabilities).map((row) => [row.kind, row.expect]),
+            [
+                ['audioDecode', 'present'],
+                ['gaps', 'absent'],
+            ],
+        );
+    });
+});
+
+describe('gvsbuild-catalogue — the committed snapshot and this tree', () => {
+    const catalogue = readGvsbuildCatalogue();
+    const pins = readGvsbuildPins(MONOREPO_ROOT);
+
+    it('finds the workflow pins, so nothing below was checked over an empty list', () => {
+        assert.ok(pins.length > 0, 'no `GVSBUILD_VERSION:` was found in .github/workflows');
+        assert.deepEqual([...new Set(pins.map((pin) => pin.version))], [catalogue.version]);
+    });
+
+    it('records the measurement ADR 0056 § 3 rests on, in both directions', () => {
+        // Read at 2026.6.0 from the GitHub contents API and cross-read against the PyPI wheel
+        // `pipx install gvsbuild==2026.6.0` unpacks: 95 entries, byte-identical lists, no
+        // `flac.py` and no `mpg123.py`. Asserted by NAME, because a version of this test
+        // comparing the snapshot to itself would pass while measuring nothing.
+        assert.ok(catalogue.modules.includes('libvorbis'));
+        assert.ok(catalogue.modules.includes('opus'));
+        assert.deepEqual(matchLibrary(catalogue.modules, 'flac'), []);
+        assert.deepEqual(matchLibrary(catalogue.modules, 'mpg123'), []);
+    });
+
+    it('reads a pin out of a CRLF workflow file, which a Windows clone hands it', () => {
+        // `core.autocrlf=true` is Git for Windows' installer default and `.gitattributes`
+        // deliberately does not cover `*.yml`, so a Windows clone hands the reader CRLF. It
+        // copes, and the reason is a language fact rather than anything in the pattern:
+        // ECMAScript counts CR as a line terminator, so `$` under `/m` matches before the
+        // `\r` too. That is the opposite of the obvious guess — a `[ \t\r]*` was added
+        // against it and measured to change nothing — which is exactly why the property is
+        // asserted instead of trusted: a rewrite splitting on `\n` would lose it silently,
+        // and the symptom would be "no pin in any workflow", a red run about a line ending.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-gvsbuild-crlf-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        const line = "    env:{EOL}      GVSBUILD_VERSION: '2026.6.0'{EOL}";
+        for (const eol of ['\r\n', '\n']) {
+            writeFileSync(join(root, '.github', 'workflows', 'a.yml'), line.replaceAll('{EOL}', eol));
+            assert.deepEqual(readGvsbuildPins(root), [{ workflow: '.github/workflows/a.yml', version: '2026.6.0' }]);
+        }
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('reads a pin however the line is spelled, because a pin it misses passes silently', () => {
+        // The under-report direction again, one level below the module basenames. A pin this
+        // reader does not see is a pin nothing compares to the snapshot — and the other seven
+        // still agree with it, so the run that had to be red is the one that goes green.
+        // Measured on the trailing-comment spelling, which is the dangerous one: annotating
+        // the line is what a person does AT a bump, which is the single moment this rule
+        // exists for.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-gvsbuild-spelling-'));
+        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+        for (const spelling of [
+            "'2026.6.0'",
+            '"2026.6.0"',
+            '2026.6.0',
+            "'2026.6.0'  # bumped for GTK 4.22",
+            '2026.6.0 # see ADR 0056 § 6',
+        ]) {
+            writeFileSync(
+                join(root, '.github', 'workflows', 'a.yml'),
+                `    env:\n      GVSBUILD_VERSION: ${spelling}\n`,
+            );
+            assert.deepEqual(
+                readGvsbuildPins(root),
+                [{ workflow: '.github/workflows/a.yml', version: '2026.6.0' }],
+                `this spelling was not read: ${spelling}`,
+            );
+        }
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('holds the real bundles — the same audit `audit-runtimes --check` runs on every PR', () => {
+        const ctx = createContext({ root: MONOREPO_ROOT, discoveryRoots: ['packages'] });
+        const bundles = collectMediaBundles(ctx).map((bundle) => ({
+            name: bundle.name,
+            path: bundle.path,
+            capabilities: bundle.capabilities,
+        }));
+        const result = inspectGvsbuildCatalogue({ catalogue, pins, bundles });
+        assert.deepEqual(result.problems, []);
+        assert.equal(result.stats.present, 2, 'the win32 bundle no longer claims a gvsbuild-backed format');
+        assert.equal(result.stats.absent, 2, 'the win32 bundle no longer declares a gvsbuild-bounded gap');
+    });
+});

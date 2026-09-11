@@ -34,6 +34,12 @@ function packSettings(overrides: Partial<PackSettings> = {}): PackSettings {
     return {
         binaryName: 'hello-app',
         appId: 'org.example.Hello',
+        // The DISPLAY name, and it was missing until a test asked a non-Flatpak row
+        // for its filename: `windows-dir` calls `windowsProgramDirName`, which reads
+        // it, so the omission surfaced as `Cannot read properties of undefined`
+        // rather than as a type error — a `Partial<PackSettings>` spread satisfies
+        // the required field as far as the compiler is concerned.
+        name: 'Hello App',
         version: '1.2.3',
         release: '1',
         maintainer: 'Dev <dev@example.org>',
@@ -277,6 +283,48 @@ export default async () => {
             // Not a label: the arch is part of `app/<id>/<arch>/<branch>`, so a
             // guess is a ref nothing can install.
             expect(() => FORMATS.flatpak.archName('s390x', false)).toThrow();
+        });
+
+        await it('gives every format an artifact name no other format can produce', async () => {
+            // THE ARCH LABEL IS HELD FIXED, and that is the whole measurement: it
+            // asks whether a row is distinguishable BY ITSELF, or only by an arch
+            // table that may grow a value tomorrow. `macos-app-zip` and
+            // `windows-dir-zip` were the second kind — separated by nothing but
+            // `MACOS_ARCH` mapping `x64` to `x86_64` where `WINDOWS_ARCH` maps it to
+            // `x64`, with #1117 the only reason the latter has one row. Passing the
+            // real per-row labels would therefore be green today and red years from
+            // now, in someone else's PR. Reasoning: `docs/ship-formats.md`.
+            //
+            // Over ALL rows rather than the zip pair, because the next format added
+            // by copying its neighbour is the one nobody thinks to check.
+            const settings = packSettings();
+            const byName = new Map<string, string>();
+            const collisions: string[] = [];
+            for (const id of FORMAT_IDS) {
+                const name = FORMATS[id].fileName(settings, 'SAME-ARCH');
+                const previous = byName.get(name);
+                if (previous !== undefined) collisions.push(`${previous} and ${id} both write ${name}`);
+                byName.set(name, id);
+            }
+            expect(collisions).toStrictEqual([]);
+        });
+
+        await it('names the operating system on every artifact whose extension does not', async () => {
+            // The other direction, because uniqueness alone is satisfied by any two
+            // strings that differ — including two that differ uselessly. `.zip` is
+            // the only container this table puts on more than one OS, so it is the
+            // only name that has to say which, in the spelling a downloader reads.
+            for (const id of FORMAT_IDS) {
+                const name = FORMATS[id].fileName(packSettings(), 'SAME-ARCH');
+                if (!name.endsWith('.zip')) continue;
+                expect(/\.(macos|windows|linux)\./.test(name)).toBe(true);
+            }
+            expect(FORMATS['macos-app-zip'].fileName(packSettings(), 'arm64')).toBe(
+                'hello-app-1.2.3-1.macos.arm64.zip',
+            );
+            expect(FORMATS['windows-dir-zip'].fileName(packSettings(), 'x64')).toBe(
+                'hello-app-1.2.3-1.windows.x64.zip',
+            );
         });
     });
 

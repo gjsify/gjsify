@@ -80,7 +80,7 @@ const BINARY = 'ship-demo';
  * about that name true only on an x64 runner.
  */
 const ARCH = 'arm64';
-const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
+const ZIP_NAME = `${BINARY}-1.2.3-1.macos.${ARCH}.zip`;
 
 /** The ZIP writer itself, for the two red runs no CLI invocation can produce. */
 const { buildZip } = await import(

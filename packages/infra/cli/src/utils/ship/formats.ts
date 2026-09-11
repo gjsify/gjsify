@@ -482,7 +482,22 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // is a download: it lands in a browser's downloads folder beside other
         // files, so it carries the version and the arch, and it avoids the spaces
         // a display name may contain.
-        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
+        //
+        // AND THE OPERATING SYSTEM, which the extension does not name. Every other
+        // row's suffix names exactly one platform — `.deb`, `.rpm`, `.flatpak`,
+        // `.dmg`, `.msi` — and `.zip` names none, so this row and `windows-dir-zip`
+        // are the only two artifacts in the table a user cannot tell apart by
+        // looking at them. Before this token they were separated by nothing but a
+        // coincidence between two unrelated arch tables (`MACOS_ARCH` maps x64 to
+        // `x86_64`, `WINDOWS_ARCH` to `x64`), which put a bare `…-1.arm64.zip` on a
+        // release page beside a Windows zip with no way to choose — and would have
+        // had the two formats silently overwrite each other in `ship/out/` the day
+        // a Windows/arm64 row became possible, an upstream blocker (#1117) being
+        // all that stood in the way. `macos`, not `darwin`, for the same reason
+        // `MACOS_ARCH` writes `x86_64` rather than `x64`: this label is read by
+        // whoever downloads the file, never by `process.platform`.
+        fileName: (s: PackSettings, archLabel: string) =>
+            `${s.binaryName}-${s.version}-${s.release}.macos.${archLabel}.zip`,
         artifactKind: 'file',
     },
     // ── macOS (#1354 M4) ─────────────────────────────────────────────────
@@ -694,7 +709,15 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // pair splits them: this one is a download that lands in a browser's
         // folder beside other files, so it carries the version and the arch and
         // avoids the spaces a display name may contain.
-        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
+        //
+        // …and the OS, for the reason spelled out on the `macos-app-zip` row it was
+        // copied from: `.zip` is the one container this table puts on more than one
+        // operating system, so it is the one name that has to say which. `windows`
+        // rather than `win32` — the spelling is the user's, like the `x64` this row
+        // keeps because Node's own archives, gvsbuild's assets and the runner label
+        // all use it.
+        fileName: (s: PackSettings, archLabel: string) =>
+            `${s.binaryName}-${s.version}-${s.release}.windows.${archLabel}.zip`,
         artifactKind: 'file',
     },
     // ── The Windows installer (#1354 M5) ─────────────────────────────────

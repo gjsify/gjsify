@@ -13,12 +13,15 @@ gjsify ship darwin --arch arm64
 
 ```text
 ship/out/My App.app
-ship/out/my-app-1.2.3-1.arm64.zip
+ship/out/my-app-1.2.3-1.macos.arm64.zip
 ```
 
 The `.app` is the artifact a user drags into `/Applications`. The zip is the
-artifact a user downloads, so it carries the version and the architecture in its
-filename and avoids the spaces a display name may contain.
+artifact a user downloads, so it carries the operating system, the version and
+the architecture in its filename, and avoids the spaces a display name may
+contain. `.zip` is the only suffix `ship` uses on more than one operating system
+— a `.dmg` or an `.msi` could be nothing else — so the macOS and Windows zips say
+which one they are, and a release page holding both stays readable.
 
 `--arch` takes `x64` or `arm64` and defaults to the architecture of the host you
 run it on. It labels the artifact and picks which runtime packages are staged.

@@ -83,7 +83,7 @@ import {
     TARGET,
 } from '../ship/windows-fixture.mjs';
 
-const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
+const ZIP_NAME = `${BINARY}-1.2.3-1.windows.${ARCH}.zip`;
 
 /** The ZIP writer itself, for the red run no CLI invocation can produce. */
 const { buildZip } = await import(
