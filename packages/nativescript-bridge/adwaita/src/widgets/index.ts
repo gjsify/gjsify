@@ -257,6 +257,14 @@ export { attachRowPressFeedback } from './row-press.js';
 export { applyConstructProps, nsAlignment } from './construct-props.js';
 export type { ConstructProps } from './construct-props.js';
 export { GTK_ALIGN } from './gtk-align.js';
+export {
+    DEFAULT_ICON_PIXEL_SIZE,
+    GTK_ICON_SIZE_NICKS,
+    GTK_ICON_SIZE_PIXELS,
+    type GtkIconSizeNick,
+    isGtkIconSizeNick,
+    PIXEL_SIZE_UNSET,
+} from './gtk-icon-size.js';
 
 // --- Icon theme (names) ---
 // Every icon property here takes an Adwaita icon NAME (`'list-add-symbolic'`) or the

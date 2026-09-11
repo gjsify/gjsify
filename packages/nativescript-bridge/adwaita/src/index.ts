@@ -104,6 +104,12 @@ export {
     applyConstructProps,
     nsAlignment,
     GTK_ALIGN,
+    DEFAULT_ICON_PIXEL_SIZE,
+    GTK_ICON_SIZE_NICKS,
+    GTK_ICON_SIZE_PIXELS,
+    type GtkIconSizeNick,
+    isGtkIconSizeNick,
+    PIXEL_SIZE_UNSET,
     // Interaction + icon helpers
     attachRowPressFeedback,
     // Icon theme: a NAME resolves through the compiled subset; `registerIcon` adds one.
