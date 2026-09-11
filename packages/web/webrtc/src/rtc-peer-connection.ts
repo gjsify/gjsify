@@ -20,7 +20,7 @@ import {
     gstToIceConnectionState,
     gstToIceGatheringState,
 } from './gst-enum-maps.js';
-import { asWebRtcBin, asWebRtcSrcPad } from './internal/gst-types.js';
+import { asWebRtcBin, asWebRtcSrcPad, emitWebRtcBin } from './internal/gst-types.js';
 import { DOMException } from '@gjsify/dom-exception';
 import { RTCSessionDescription } from './rtc-session-description.js';
 import { RTCIceCandidate } from './rtc-ice-candidate.js';
@@ -223,7 +223,7 @@ export class RTCPeerConnection extends EventTarget {
                     const encCred = encodeURIComponent(server.credential);
                     const turnUrl = `${proto}//${encUser}:${encCred}@${hostPort}`;
                     try {
-                        this._webrtcbin.emit('add-turn-server', turnUrl);
+                        emitWebRtcBin(this._webrtcbin, 'add-turn-server', turnUrl);
                     } catch {
                         asWebRtcBin(this._webrtcbin).turn_server = turnUrl;
                     }
@@ -459,9 +459,7 @@ export class RTCPeerConnection extends EventTarget {
     /** Find a GstWebRTCRTPTransceiver not yet in our map (created by request_pad_simple). */
     _findNewGstTransceiver(): GstWebRTC.WebRTCRTPTransceiver | null {
         for (let i = 0; ; i++) {
-            // `get-transceiver` is an action signal — return value flows back at
-            // runtime even though the GIR `emit()` overload is typed `void`.
-            const gt = this._webrtcbin.emit('get-transceiver', i) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
+            const gt = emitWebRtcBin(this._webrtcbin, 'get-transceiver', i);
             if (!gt) return null;
             if (!this._transceivers.has(gt)) return gt;
         }

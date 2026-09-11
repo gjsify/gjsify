@@ -22,7 +22,7 @@
 // event and keeps the window responsive; a consumer that needs every event needs
 // to not be a stream.
 
-import type GObject from 'gi://GObject?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 
 import { Effect, Stream } from 'effect';
 import * as Queue from 'effect/Queue';
@@ -70,9 +70,16 @@ export const signalStream = <A extends ReadonlyArray<unknown> = ReadonlyArray<un
     Stream.callback<A>(
         (queue) =>
             Effect.gen(function* () {
-                const handler = source.connect(signalName, (_emitter: GObject.Object, ...args: unknown[]) => {
-                    Queue.offerUnsafe(queue, args as unknown as A);
-                });
+                // Lower-level on purpose, same reason as `signalScope` in `scope.ts`:
+                // the name is a parameter, and since `@girs` 5.0.0 `connect` accepts
+                // only the names the object's own class declares.
+                const handler = GObject.signal_connect(
+                    source,
+                    signalName,
+                    (_emitter: GObject.Object, ...args: unknown[]) => {
+                        Queue.offerUnsafe(queue, args as unknown as A);
+                    },
+                );
                 yield* Effect.addFinalizer(() => Effect.sync(() => source.disconnect(handler)));
             }),
         {

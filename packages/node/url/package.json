@@ -39,7 +39,7 @@
         "fs"
     ],
     "dependencies": {
-        "@girs/glib-2.0": "4.9.0",
+        "@girs/glib-2.0": "5.0.0",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {

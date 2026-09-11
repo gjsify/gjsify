@@ -21,6 +21,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
+import { emitWebRtcBin } from '../internal/gst-types.js';
 import { RTCDataChannel } from '../rtc-data-channel.js';
 import type { RTCPeerConnection, RTCDataChannelInit } from '../rtc-peer-connection.js';
 
@@ -98,15 +99,7 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
 
         let native: GstWebRTC.WebRTCDataChannel | null = null;
         try {
-            // webrtcbin's `create-data-channel` is an action signal that returns
-            // a `GstWebRTCDataChannel`. The GIR-generated `emit()` overloads
-            // declare a `void` return for action signals, but at runtime the
-            // value flows back. Cast through `unknown` to acknowledge the gap.
-            native = this._webrtcbin.emit(
-                'create-data-channel',
-                label,
-                gstOpts,
-            ) as unknown as GstWebRTC.WebRTCDataChannel | null;
+            native = emitWebRtcBin(this._webrtcbin, 'create-data-channel', label, gstOpts);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             throw new Error(`create-data-channel failed: ${msg}`);

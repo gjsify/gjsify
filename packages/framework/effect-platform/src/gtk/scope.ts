@@ -47,7 +47,7 @@
 // which is synchronous and one line. An earlier version of this file wrapped it as
 // `onExit`; nothing ever called the wrapper, so it is gone.
 
-import type GObject from 'gi://GObject?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import type Gtk from 'gi://Gtk?version=4.0';
 
 import { Effect, Exit, Scope } from 'effect';
@@ -93,8 +93,15 @@ export const signalScope = (source: GObject.Object, signals: ReadonlyArray<strin
         if (remaining !== undefined) Effect.runFork(remaining);
     };
 
+    // `GObject.signal_connect` and not `source.connect`: the names arrive as DATA, and
+    // since `@girs` 5.0.0 `connect` takes only the signal names the object's own class
+    // declares — which a `string` cannot satisfy, and which this function deliberately
+    // does not know. The lower-level entry point is what ts-for-gir names for exactly
+    // this case, and it is the SAME connection: measured on gjs 1.86 and on node-gi,
+    // the handler receives the emitter first and the id it returns is the one
+    // `source.disconnect` takes back.
     handlers = signals.map((signal) =>
-        source.connect(signal, () => {
+        GObject.signal_connect(source, signal, () => {
             close();
             // `close-request` is one of the signals installed by `windowScope`, and
             // it is a `G_SIGNAL_RUN_LAST` boolean: a truthy return STOPS the close.

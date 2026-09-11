@@ -223,5 +223,7 @@ await runHostProbeApp<Ui>({
     // — Solid says so on stderr, and the harness counts stderr.
     build: (app) => createRoot(() => buildUi(app)),
     assert: assertUi,
-    present: (ui) => (widgetOf(ui.node) as Adw.ApplicationWindow).present(),
+    // `Gtk.Window` owns `present()`; see `adw-host-counter` for why the `Adw.ApplicationWindow`
+    // spelling stopped compiling under `@girs` 5.0.0.
+    present: (ui) => (widgetOf(ui.node) as Gtk.Window).present(),
 });

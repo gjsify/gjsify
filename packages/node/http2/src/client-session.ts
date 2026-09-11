@@ -10,7 +10,6 @@
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
-import type GObject from '@girs/gobject-2.0';
 import { EventEmitter } from 'node:events';
 import { Duplex } from 'node:stream';
 import { Buffer } from 'node:buffer';
@@ -298,6 +297,14 @@ export class ClientHttp2Stream extends Duplex {
 
         const message = new Soup.Message({ method, uri });
 
+        // `rejectUnauthorized: false`, for THIS message only — never the shared session,
+        // which would disable verification for every other stream on it. `accept-certificate`
+        // is a `Soup.Message` signal in libsoup 3; the session has no signal of that name at
+        // all (see `_acceptAnyCertificate`).
+        if (this._session._acceptsAnyCertificate()) {
+            message.connect('accept-certificate', () => true);
+        }
+
         // Apply request headers (skip HTTP/2 pseudo-headers)
         const reqHeaders = message.get_request_headers();
         for (const [key, value] of Object.entries(this._requestHeaders)) {
@@ -400,6 +407,21 @@ export class ClientHttp2Session extends Http2Session {
 
     private _authority: string;
     private _soupSession: Soup.Session;
+    /**
+     * `rejectUnauthorized: false` — accept the peer certificate on every message
+     * this session sends.
+     *
+     * It is a per-MESSAGE decision because `accept-certificate` is a `Soup.Message`
+     * signal and libsoup 3 installs none of that name on `Soup.Session`. This used to
+     * connect it on the session, which THROWS — measured on libsoup 3:
+     * `No signal 'accept-certificate' on object 'SoupSession'`, and `signal_list_ids`
+     * on `SoupSession` answers `request-queued, request-unqueued` and nothing else.
+     * Nothing caught it because `@girs` 4.x let `connect` take any string, so the call
+     * type-checked and the option was simply dead. `@girs` 5.0.0 types `connect` on the
+     * object's own signal names and the line stopped compiling, which is what surfaced
+     * it. `@gjsify/fetch` already did it per message; this is the same idiom.
+     */
+    private _acceptAnyCertificate: boolean;
     private _streams: Set<ClientHttp2Stream> = new Set();
     private _nativeClient: Http2NativeClientDispatcher | null = null;
 
@@ -413,22 +435,7 @@ export class ClientHttp2Session extends Http2Session {
         this.encrypted = authority.startsWith('https:');
 
         this._soupSession = new Soup.Session();
-
-        // Configure TLS for rejectUnauthorized: false (common in testing with self-signed certs)
-        if (options.rejectUnauthorized === false) {
-            // Connect to the accept-certificate signal on each message via session
-            // This is a best-effort approach; system CA store may still reject the cert.
-            // The signal isn't in Soup.Session's typed SignalSignatures map (it lives
-            // on Soup.Message); widening to the string-overload of GObject.connect()
-            // keeps the call typed without dropping into `any`.
-            const signalName: string = 'accept-certificate';
-            this._soupSession.connect(
-                signalName,
-                (_msg: GObject.Object, _cert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags) => {
-                    return true;
-                },
-            );
-        }
+        this._acceptAnyCertificate = options.rejectUnauthorized === false;
 
         // Native dispatcher: opt-in via `nativeDispatcher: 'force'`. The default
         // ('auto') keeps the Soup path verbatim so existing consumers — which
@@ -522,6 +529,11 @@ export class ClientHttp2Session extends Http2Session {
     /** @internal Used by ClientHttp2Stream to build the request URL */
     _getAuthority(): string {
         return this._authority;
+    }
+
+    /** @internal Whether this session was opened with `rejectUnauthorized: false`. */
+    _acceptsAnyCertificate(): boolean {
+        return this._acceptAnyCertificate;
     }
 
     request(headers: Record<string, string | string[]>, options?: ClientStreamOptions): ClientHttp2Stream {

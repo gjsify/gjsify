@@ -24,6 +24,7 @@
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from '../gst-init.js';
+import { emitWebRtcBin } from '../internal/gst-types.js';
 import { w3cDirectionToGst } from '../gst-enum-maps.js';
 import { defaultRtpCapsString } from '../rtp-capabilities.js';
 import { MediaStreamTrack } from '../media-stream-track.js';
@@ -163,13 +164,7 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const createDirection =
                 direction === 'inactive' ? w3cDirectionToGst('sendrecv') : w3cDirectionToGst(direction);
 
-            // `add-transceiver` is an action signal returning the new
-            // GstWebRTCRTPTransceiver — see comment on `create-data-channel` above.
-            const result = this._webrtcbin.emit(
-                'add-transceiver',
-                createDirection,
-                caps,
-            ) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
+            const result = emitWebRtcBin(this._webrtcbin, 'add-transceiver', createDirection, caps);
             if (!result) {
                 throw new Error('webrtcbin did not create a transceiver');
             }

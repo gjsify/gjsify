@@ -229,5 +229,9 @@ await runHostProbeApp<Ui>({
     applicationId: 'eu.jumplink.AdwHostCounter',
     build: buildUi,
     assert: assertUi,
-    present: (ui) => (widgetOf(ui.window) as Adw.ApplicationWindow).present(),
+    // `Gtk.Window` and not `Adw.ApplicationWindow`: `present()` is declared there, and since
+    // `@girs` 5.0.0 a `Gtk.Widget` is no longer castable to a window class that implements
+    // `Gio.ActionMap` — the permissive `connect(signal: string, …)` overload was what used to
+    // make the two types overlap. Naming the type that owns the method needs no escape hatch.
+    present: (ui) => (widgetOf(ui.window) as Gtk.Window).present(),
 });

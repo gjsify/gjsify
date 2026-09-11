@@ -290,7 +290,7 @@ export default async () => {
                         }}
                     />,
                     (container) => {
-                        find(container, 'AdwButtonRow').emit('activated');
+                        (find(container, 'AdwButtonRow') as Adw.ButtonRow).emit('activated');
                     },
                 );
                 expect(activations).toBe(1);
@@ -399,7 +399,7 @@ export default async () => {
                         onEntryActivated={() => fired.push('entry-activated')}
                     />,
                     (container) => {
-                        const row = find(container, 'AdwEntryRow');
+                        const row = find(container, 'AdwEntryRow') as Adw.EntryRow;
                         row.emit('apply');
                         row.emit('entry-activated');
                     },
