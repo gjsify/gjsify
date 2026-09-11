@@ -97,6 +97,26 @@ accepts BOTH `null` and `undefined` as a NULL string/object (gjs refuses
 `undefined` everywhere and `null` for non-nullable args) — see
 `status/open-todos.md`.
 
+**Too FEW arguments is a REFUSAL, not a pad.** A call supplying fewer than the
+callable's JS arity throws gjs's own `TypeError` before any marshalling —
+`method GObject.Object.get_property: At least 2 arguments required, but only 1
+passed`, down to the singular/plural of "argument" and gjs's `format_name()`
+spelling (`method <ns>.<class>.<name>` / `function <ns>.<name>`). The demanded
+count is `JsInArgCount`, the same pre-scan the invoke loop consumes arguments
+with and the same number `Function.length` reports, so what is demanded is by
+construction what is consumed. It used to pad the missing ones with `undefined`
+and marshal THAT, which is not leniency but a wrong call: on a GValue parameter
+`undefined` becomes gjs's null guess, a `G_TYPE_POINTER` GValue, so
+`label.get_property('label')` printed `g_object_get_property: can't retrieve
+property 'label' of type 'gchararray' as value of type 'gpointer'` and evaluated
+to `undefined` — on stock GTK classes and registerClass'd ones alike, with the
+`set_property` twin mirroring it (`unable to set property … from value of type
+'gpointer'`). Silent, and the one-argument spelling it invited throws on gjs, so
+it never worked anywhere; consumers just got `undefined` and no error to follow.
+Too MANY arguments stays permitted — gjs only warns there, through a JS warning
+reporter node-gi has no equivalent of. Pinned by the `callable-too-few-args`
+conformance program.
+
 ## The raw engine API (`@gjsify/node-gi`)
 
 The low-level entry points the L1 layer is built on. Most code should use L1 below; these

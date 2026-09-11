@@ -513,6 +513,34 @@ int JsInArgCount(GICallableInfo* callable) {
   return count;
 }
 
+// gjs's Gjs::Function::format_name (refs/gjs/gi/function.cpp:801) — the spelling its
+// argument-count TypeError carries, so a refusal reads identically on both runtimes.
+// Deliberately NOT the `displayName` the other refusals here use: that one names the
+// RUNTIME type the call was made on (`GtkLabel.get_property`), which is the useful
+// thing to say about a marshalling failure but not what gjs prints for arity. gjs
+// names the DECLARING info — `method GObject.Object.get_property` — and consumers
+// byte-compare these.
+static std::string GjsCallableName(GICallableInfo* callable) {
+  GIBaseInfo* base = reinterpret_cast<GIBaseInfo*>(callable);
+  bool isMethod = gi_callable_info_is_method(callable);
+  std::string name = isMethod ? "method " : "function ";
+  const char* ns = gi_base_info_get_namespace(base);
+  if (ns != nullptr) name += ns;
+  name += '.';
+  if (isMethod) {
+    // Borrowed ref — no unref (same contract as the container read below).
+    GIBaseInfo* container = gi_base_info_get_container(base);
+    const char* containerName = container != nullptr ? gi_base_info_get_name(container) : nullptr;
+    if (containerName != nullptr) {
+      name += containerName;
+      name += '.';
+    }
+  }
+  const char* fn = gi_base_info_get_name(base);
+  if (fn != nullptr) name += fn;
+  return name;
+}
+
 static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
@@ -573,6 +601,35 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   std::vector<bool> skip(n_args, false);
   std::vector<bool> isLenArg(n_args, false);
   ComputeSkippedArgs(callable, n_args, &skip, &isLenArg);
+
+  // Too FEW arguments is a REFUSAL — gjs does the same at
+  // refs/gjs/gi/function.cpp:891 (JS::CallArgs::reportMoreArgsNeeded). node-gi used
+  // to read a missing argument as `undefined` and marshal THAT, which is not leniency
+  // but a wrong call: on a GValue parameter `undefined` becomes gjs's null guess, a
+  // G_TYPE_POINTER GValue (JsToFreshGValue), so `label.get_property('label')` — one
+  // of the two arguments gjs demands — printed "g_object_get_property: can't retrieve
+  // property 'label' of type 'gchararray' as value of type 'gpointer'" and evaluated
+  // to `undefined`, on stock and custom classes alike, with the set_property twin
+  // mirroring it. Counted off the pre-scan JUST computed rather than by calling
+  // JsInArgCount (which would redo it on every call, on the hottest path in the
+  // binding) — same walk, so what is demanded is by construction what the loop below
+  // consumes, and stays equal to the `Function.length` the method reports. Placed
+  // here, before the marshalling loop: nothing above has taken ownership of anything,
+  // so the early return needs no unwinding. Too MANY stays permitted — gjs only warns
+  // there, through a JS warning reporter node-gi has no equivalent of.
+  int required = 0;
+  for (unsigned int i = 0; i < n_args; i++) {
+    if (skip[i]) continue;
+    if (dirs[i] == GI_DIRECTION_IN || dirs[i] == GI_DIRECTION_INOUT) required++;
+  }
+  if (required > 0 && args.Length() < static_cast<uint32_t>(required)) {
+    Napi::TypeError::New(env, GjsCallableName(callable) + ": At least " +
+                                  std::to_string(required) + " argument" +
+                                  (required == 1 ? "" : "s") + " required, but only " +
+                                  std::to_string(args.Length()) + " passed")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
 
   // Caller-allocates OUT storage (fixed C array or boxed struct): blob != nullptr
   // marks the arg; boxedGType != 0 selects the boxed copy/free path on read-back.

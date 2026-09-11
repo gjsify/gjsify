@@ -443,6 +443,14 @@ without aligning the call shape would make the reported arity lie about the
 invoke. Fix the calling convention first; the arity then follows for free from
 the shared pre-scan.
 
+Since 0.51 the arity is also ENFORCED (a call with too few arguments throws
+gjs's `TypeError` rather than padding with `undefined`), so the second of these
+two now has a visible consequence rather than only a wrong length: node-gi
+demands 2 for `add_data`, so `add_data(bytes)` — which gjs accepts — is refused
+there. It is the same defect from the same line, still fixed by aligning the
+calling convention; the refusal is merely no longer silent. `read` diverges the
+lenient way (node-gi demands 1, gjs 2) and refuses nothing gjs accepts.
+
 One string/object leniency measured in the same pass and also left open:
 node-gi accepts BOTH `null` and `undefined` as a NULL utf8/object IN arg,
 while gjs throws `Expected type string … got type undefined` for `undefined`
