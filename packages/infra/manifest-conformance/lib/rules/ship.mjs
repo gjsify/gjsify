@@ -55,11 +55,17 @@ const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
  * WiX v3). On some machine somewhere every axis that could refuse a declaration
  * does — and it is still legal to declare, because a project says what it ships,
  * not where the shipping happens.
+ *
+ * `appimage` needs a tool NO distribution packages, which is a fourth way to fail
+ * the same gate and changes nothing here for the same reason: a project declaring
+ * it says what it ships, and the machine that reads this rule may be the one that
+ * only assembles the stage.
  */
 const TARGETS = new Set([
     'deb',
     'rpm',
     'flatpak',
+    'appimage',
     'macos-app',
     'macos-app-zip',
     'macos-app-dmg',

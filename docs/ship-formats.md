@@ -83,6 +83,55 @@ Without that synthesis the archive expands into whatever directory the user was 
 `app\`, `share\` and a loose `.cmd` across it — and every entry would be individually correct, so
 no listing of names reads as wrong.
 
+### `appimage`: the row with no distro to name, and a tool that edits the tree
+
+`appimage` (ADR 0024 § A24-§ A27) is `finishOn: ['linux']` for flatpak's reason and not the
+`.dmg`'s — the container is an ELF runtime for Linux, so the format is bound the way the
+application is — and `requiredTools: ['appimagetool']`. It is the first row whose `installHint`
+cannot name a package: neither Fedora nor Debian ships `appimagetool`, so the hint names the GitHub
+release and the `--stage` route for a CI image that will not grow a hand-installed binary. Writing
+the format ourselves stays refused by § A6's rule (a squashfs writer is a project, not a target)
+and vendoring the binary by licence (GPL-3.0 into an MIT tree, ADR 0023's argument).
+
+**The oracle must not be the artifact.** `--appimage-offset` and `--appimage-extract` are the
+embedded runtime answering questions about the file it is embedded in — `selfReading` with extra
+steps. `.github/ship-oracle/verify-appimage.py` derives the filesystem offset from the ELF
+section-header table (`e_shoff + e_shnum * e_shentsize`, checked against `--appimage-offset` on a
+real artifact: 944 632 both ways) and lists the tree with `unsquashfs`. That chain is what catches
+the failure this format has and the `.deb` does not: an executable ELF of plausible size with
+nothing behind it, which mounts an empty directory at exit 0.
+
+**Three measurements about appimagetool 1.9.1, one of which was a defect.** It embeds its own
+runtime, so the pack stays offline. It cannot guess the architecture of a JavaScript payload, so
+`ARCH` is required in the environment rather than optional. And it CREATES `.DirIcon` when the
+AppDir has none — a symlink, with the wall clock, after the packer has stamped every path, which
+also moves the AppDir root's mtime. mksquashfs stores both, so two packs of one build differed in
+sha256 with every listing, mode, size and content byte identical; four packs over the SAME AppDir
+were byte-identical, which is what separated "nondeterministic tool" from "the tool edits the
+tree". `appDirPayload` writes `.DirIcon` itself now.
+
+**`APPIMAGE_EXTRACT_AND_RUN=1` is set unconditionally on the child, and TWO container failures
+were measured on `fedora:44` rather than guessed.** appimagetool is itself an AppImage and mounts
+itself through libfuse to start, so without that variable it exits **127** pointing at the
+AppImageKit FUSE wiki; a native build ignores the variable, so there is no host for which setting
+it is wrong and no flag a CI author has to discover. The second failure is the one a minimal image
+really hits: without `file(1)` it exits **1** with *"file command is missing but required"*, EVEN
+with `ARCH` set — which is why `.docker/ci-fedora.Dockerfile` installs `file` beside
+`squashfs-tools` and the pinned `appimagetool`. `buildAppImage`'s failure message names both, plus
+the third thing an exit after "Embedding ELF" can be: a full work directory.
+
+The artifact mounts itself the same way at RUN time, which nothing here can remove — measured in
+the same container, a bare run fails and `--appimage-extract-and-run` works. So
+`tests/e2e/ship-appimage` asserts the extract path on every host and the mount path only where
+`/dev/fuse` exists.
+
+**And `depends: null` here means there is no FIELD, not that there is nothing to say.** An
+AppImage has nowhere to write `Depends: gir1.2-gtk-4.0`, so `appImageHostRequirements` derives the
+same set through the same `hostProvidedNamespaces` the `.deb` uses, `ship` prints it on every pack,
+and `AppRun` checks the interpreter half at launch. Two artifacts from one payload cannot disagree
+about what the host provides, and the version this one prints is distro-neutral because there is no
+distribution to name package names in.
+
 ### An artifact name must identify its format on its own
 
 `fileName` is a row's field, and the two zip rows are why it is worth a rule rather than a

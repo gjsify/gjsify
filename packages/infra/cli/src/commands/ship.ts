@@ -41,6 +41,13 @@ import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
 import { discoverPayload } from '../utils/ship/discover.js';
+import {
+    appDirFor,
+    appDirPayload,
+    appImageHostRequirements,
+    buildAppImage,
+    stampAppDirTimes,
+} from '../utils/ship/appimage.js';
 import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
@@ -1124,6 +1131,52 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 verbose: input.verbose,
             });
             break;
+        case 'appimage': {
+            // FROM THE PAYLOAD, like every other container here and NOT from the
+            // stage directory, so the three properties `writePayload` guarantees
+            // hold: the modes are the plan's, the stage's own sidecar stays out
+            // because it was never payload, and `--target appimage` alone works
+            // without another row having run first.
+            //
+            // The host requirement list is derived HERE rather than inside the
+            // packer, because it is the same pair of inputs `deriveDepends` takes
+            // one branch up — `input.namespaces` from the stage manifest and
+            // `facts.bundledTypelibs` from the payload. Two derivations would be
+            // two answers to "what does this artifact need from the machine", from
+            // one build, in two files.
+            const hostRequirements = appImageHostRequirements({
+                app: settings.app,
+                minGjsVersion: settings.minGjsVersion,
+                minNodeVersion: settings.minNodeVersion,
+                namespaces: input.namespaces,
+                bundledTypelibs: facts.bundledTypelibs,
+            });
+            const appDir = appDirFor(outRoot);
+            const tree = appDirPayload(settings, payload, hostRequirements);
+            // ONE `writePayload` FOR THE WHOLE AppDir, prefix and root files
+            // together, because that call WIPES: two of them would leave the
+            // previous run's `<appId>.desktop` and icon at a root the second call
+            // never cleaned, and appimagetool packs an AppDir with two desktop
+            // files without complaining about either.
+            writePayload(appDir, tree, '');
+            // AND THEN THE TIMES, which are the single difference between two packs
+            // of one build (measured, sha256): mksquashfs stores per-file mtimes
+            // and `writePayload`'s own `mkdir`/`writeFileSync` leave the wall clock.
+            stampAppDirTimes(appDir, tree, mtime);
+            // PRINTED, not logged at `--verbose`. ADR 0024 § 9's objection to this
+            // format is that "runs anywhere" is a claim the file cannot keep, and
+            // the answer is that the file says what it does not carry — to the
+            // person building it, every time, and not only in a document.
+            console.log(`${LOG} the AppImage takes these from the host: ${hostRequirements.join(', ')}`);
+            await buildAppImage({
+                appDir,
+                target,
+                archLabel,
+                workDir: dirname(appDir),
+                verbose: input.verbose,
+            });
+            break;
+        }
         case 'macos-app':
         case 'windows-dir':
             // ONE STATEMENT FOR TWO ROWS, folded because the code really is

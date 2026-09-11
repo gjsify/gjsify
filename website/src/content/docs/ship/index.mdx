@@ -201,6 +201,7 @@ feeds all of them.
 |---|---|---|
 | A file a Linux user installs with their own package manager | `gjsify ship linux` | [Linux packages](/gjsify/ship/linux-packages/) |
 | A single Flatpak file, sandboxed, with a pinned GTK on every distro | `gjsify ship linux --target flatpak` | [Linux packages](/gjsify/ship/linux-packages/#the-flatpak-bundle) |
+| One portable file for someone else's distro, with no install and no root | `gjsify ship linux --target appimage` | [Linux packages](/gjsify/ship/linux-packages/#the-appimage) |
 | An application a Mac user drags into `/Applications` | `gjsify ship darwin` | [macOS app bundles](/gjsify/ship/macos/) |
 | An installer a Windows user double-clicks | `gjsify ship windows --target msi` | [Windows artifacts](/gjsify/ship/windows/) |
 | A GUI app on Flathub, with the manifest and metadata files in your repo | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
@@ -215,8 +216,11 @@ the manifest and the AppStream files committed in your repository. The one-line
 installer suits early adopters while you are still iterating, and dlx suits a
 tool nobody wants permanently installed.
 
-There is no AppImage target. The nearest thing that exists is the Flatpak
-bundle, which is also one file, needs no repository and works offline.
+The AppImage and the Flatpak bundle are both one file with no repository behind
+it, and they answer different questions. An AppImage needs no installation and
+no root at all, and takes GJS and GTK from the machine it runs on — `gjsify
+ship` prints that list and the file repeats it if the runtime is missing. A
+Flatpak carries its own runtime and needs flatpak installed to put it anywhere.
 
 ## Next
 

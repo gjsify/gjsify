@@ -4,6 +4,24 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The AppImage row names four architectures and one of them is exercised
+
+`APPIMAGE_ARCH` (`utils/ship/formats.ts`) maps `x64`, `arm64`, `ia32` and `arm` to `x86_64`,
+`aarch64`, `i686` and `armhf`, and that is a PROMISE about a label a user downloads. Only
+`x86_64` is behind a run: `.docker/ci-fedora.Dockerfile` bakes the `x86_64` appimagetool release
+and `build-ci-image.yml` publishes `linux/amd64` only, so `tests/e2e/ship-appimage`'s real tier
+can never see the other three.
+
+The table is short on purpose — an arch it does not know is REFUSED rather than guessed — but
+"refused rather than guessed" is not the same as "produced and run". Two of the rows are also
+unlikely to be reachable at all without more: appimagetool publishes `x86_64` and `aarch64`
+releases, and an `i686`/`armhf` pack would need a runtime nobody here has looked for.
+
+What would close it: widening `build-ci-image.yml`'s `platforms:` (which three other jobs already
+wait on — see *"runs on arm64, ghcr.io/gjsify/ci-fedora is built for amd64 only"* in
+`check-ci-image-packages.mjs`), plus an `aarch64` appimagetool pin beside the `x86_64` one. Until
+then, treat `aarch64` as declared-and-unproven and `ia32`/`armhf` as declared-and-unlikely.
+
 ### A renamed ship artifact broke a workflow, and only one of nine references noticed
 
 #1655 gave the two zip rows an OS label — `windows-dir-zip` became

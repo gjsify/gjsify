@@ -32,6 +32,7 @@ import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
+import shipAppImageSuite from './utils/ship/appimage.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipMsiSuite from './utils/ship/msi.spec.js';
@@ -250,6 +251,7 @@ run(
         shipAppRuntimeSuite,
         shipFlatpakSuite,
         shipDmgSuite,
+        shipAppImageSuite,
         shipPlistSuite,
         shipMsiSuite,
         installProvenanceSuite,

@@ -1590,3 +1590,110 @@ false: the bundle is no longer one path, and the discriminator it called nonexis
 bundle path is read before the settings are resolved — which is why the resolver runs beside
 `resolveShipApp` and feeds `discoverPayload` rather than being derived from the settings it
 precedes.
+
+## Amendment, 2026-09-11 — AppImage lands, and it DECLARES what it does not carry
+
+### A24. § 9's deferral is lifted, and the condition it named is not the one that mattered
+
+§ 9 deferred AppImage on one argument: the format promises *one file, no install, any distro*, the
+third of those holds only if the file carries GTK4, libadwaita, GJS and the typelibs, no
+relocatable Linux closure exists, and *"that is not an AppImage; it is a tarball with a launcher,
+wearing the name of something that promises more."* It named the unblocker as
+`@gjsify/gtk-runtime-linux-<arch>`, after which the format would be *"mostly a packaging step"*.
+
+That closure still does not exist, and the deferral is lifted anyway, because the argument counted
+three promises and weighed one. **No install and no root hold with no closure at all**, and they
+are the two nothing else in the format table offers: a `.deb` and an `.rpm` need root and the right
+distribution, a Flatpak needs flatpak installed and a runtime downloaded. The case this format is
+for — *someone else's machine, someone else's distribution, no sudo* — is served by none of them.
+Learn6502 has the user issue to prove it ([JumpLink/Learn6502#93](https://github.com/JumpLink/Learn6502/issues/93)).
+
+**What would have made § 9 right is silence, and silence is what is refused here.** The third
+promise is not made:
+
+- `appImageHostRequirements` derives what the file does NOT carry from the SAME scan
+  `deriveDepends` derives the `.deb`'s `Depends:` from — `hostProvidedNamespaces` is shared between
+  them, so the two artifacts built from one payload cannot disagree about what the host provides.
+  The AppImage's version is distro-NEUTRAL (`the Gtk-4.0 typelib`, not `gir1.2-gtk-4.0`), because
+  there is no distribution to name package names in.
+- `gjsify ship` PRINTS that list on every pack, unconditionally, not behind `--verbose`.
+- `AppRun` carries the interpreter half INSIDE the artifact: `command -v <interpreter>`, and on a
+  miss a message naming the runtime, this file's limit and the whole requirement list, at exit 127.
+  Without it the failure is `gjs: not found` from a shell and nothing at all from a desktop
+  launcher, and the user concludes the download is broken.
+
+The typelib half is deliberately NOT probed: girepository's search path is not shell-visible, and
+GJS's own *"Typelib file for namespace 'Gtk' not found"* is already precise. Listing them is what
+this file can honestly do; probing them would be a guess dressed as a check.
+
+When `@gjsify/gtk-runtime-linux-<arch>` arrives, the list shrinks and nothing else here changes —
+which is § 9's own prediction, kept.
+
+### A25. The tool is the host's, per § A3, and this row is the first with no distro to name
+
+`appimagetool` is REQUIRED ON PATH, like `flatpak-builder` for a Flatpak and WiX for an `.msi` on
+Windows. Writing the format ourselves is refused by § A6's rule, unchanged: an AppImage is an ELF
+runtime with a squashfs image concatenated onto it, and a filesystem writer is *a project rather
+than a target, every mistake silent*. Vendoring the binary is refused on licence — appimagetool is
+GPL-3.0 against 185 MIT manifests, the same reason ADR 0023 refuses a from-source GTK. Downloading
+it at pack time is refused because every other packer here runs offline, and a pack step that
+fetches is a release step that fails when GitHub does.
+
+The cost is honest and is paid in the `installHint`: neither Fedora nor Debian packages
+`appimagetool`, so the hint names a GitHub release and, for a CI image that will not grow a
+hand-installed binary, the `--stage` route. `finishOn: ['linux']` is flatpak's kind of
+host-boundness rather than the `.dmg`'s — the container is an ELF for Linux — so the format is
+opt-in through `--target` and `defaultFormatIds('linux')` stays `deb` + `rpm`.
+
+**The oracle is an ELF parse plus `unsquashfs`** (`.github/ship-oracle/verify-appimage.py`), and
+the readers it must not use are the obvious ones: `--appimage-offset` and `--appimage-extract` are
+the artifact's own embedded runtime answering questions about itself. The filesystem begins at
+`e_shoff + e_shnum * e_shentsize`, straight out of the ELF specification, and the derived value was
+checked against `--appimage-offset` on a real artifact (944 632 both ways). That is what catches
+the failure this format has and the `.deb` does not: an executable ELF of plausible size with
+NOTHING behind it, which mounts an empty directory at exit 0.
+
+### A26. Four behaviours of appimagetool 1.9.1 decided the implementation, and one was a defect
+
+Measured rather than read off `--help`, because none of them is in it:
+
+1. **It embeds its own runtime.** `--runtime-file` exists and 1.9.1 needs none, so the pack stays
+   offline. A packer that fetched a runtime would have put the network back in `ship`.
+2. **It cannot guess our architecture.** appimagetool reads the AppDir's ELF binaries to decide,
+   and a `--app gjs` payload is JavaScript and a `/bin/sh` launcher. `ARCH` in the environment is
+   therefore required, not a hint, and its value is the format row's `archName` so the label inside
+   the file and the one in its name are one decision.
+3. **It mutates the AppDir after the packer has finished with it** — and this one was a *defect*,
+   found by a byte comparison and by nothing else. appimagetool creates `.DirIcon` when the AppDir
+   has none: a symlink, with the wall clock, written after every path has been stamped, which also
+   moves the AppDir root's own mtime. mksquashfs stores both, so two packs of ONE build differed in
+   sha256 while every listing, mode, size and content byte was identical — 965 differing bytes, the
+   first inside `.digest_md5`, because the embedded digest covers the filesystem. Four packs over
+   the SAME AppDir were byte-identical, which is what separated "the tool is nondeterministic" from
+   "the tool edits the tree". The packer writes `.DirIcon` itself now, as a regular file, and
+   `tests/e2e/ship-appimage`'s determinism assertion is what would notice if it stopped.
+4. **Two container failures, measured on `fedora:44` with no `/dev/fuse`**, because they decide
+   what the CI image holds. Without `APPIMAGE_EXTRACT_AND_RUN=1` appimagetool exits 127 pointing at
+   the AppImageKit FUSE wiki — it is itself an AppImage and mounts itself to start — so the packer
+   sets that variable unconditionally and the FUSE-less path is the default rather than something a
+   CI author discovers. Without `file(1)` it exits 1 with *"file command is missing but required"*,
+   EVEN with `ARCH` set. The artifact it writes mounts itself the same way, so a bare run fails
+   there while `--appimage-extract-and-run` works. `.docker/ci-fedora.Dockerfile` therefore installs
+   `file` and `squashfs-tools` beside a digest-pinned `appimagetool`, and `tests/e2e/ship-appimage`
+   asserts the extract path on every host and the mount path only where `/dev/fuse` exists.
+
+`--no-appstream` is passed for a fifth reason that is a policy rather than a measurement:
+appimagetool otherwise runs `appstreamcli validate-tree`, so the pack would succeed or fail
+depending on whether a package unrelated to packaging is installed — green on a workstation, red in
+a container, over a byte-identical payload. The MetaInfo keeps the validator built for it,
+`gjsify flatpak check --appstream`, where a missing `appstreamcli` is the point of the command
+rather than a surprise inside another one.
+
+### A27. Nothing was staged, which is § 2's claim reaching its fourth Linux format
+
+The AppImage wraps the `/usr` payload `deb` and `rpm` already wrap, and `tests/e2e/ship-appimage`
+asserts the two stages are payload-identical. The AppDir's three root files — `AppRun`, the
+desktop entry's second copy and the icon — are the PACKER's, assembled as one list and written by
+the single `writePayload` call `packOne` makes for every format. Two calls would be two wipes, and
+the second would not clean the first: an AppDir still holding a previous run's `<appId>.desktop` is
+one appimagetool packs without complaint, because it looks for *a* desktop file and finds two.

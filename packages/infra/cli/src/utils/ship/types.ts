@@ -75,6 +75,7 @@ export type FormatId =
     | 'deb'
     | 'rpm'
     | 'flatpak'
+    | 'appimage'
     | 'macos-app'
     | 'macos-app-zip'
     | 'macos-app-dmg'

@@ -49,6 +49,16 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         'is the one-way conversion FROM that portable identifier TO a host path, so the split ' +
         'side must be `/` — using a both-separator helper would corrupt a legitimate Linux ' +
         'filename containing a backslash.',
+    'packages/infra/cli/src/utils/ship/appimage.ts':
+        'A prefix-relative PAYLOAD path, the same identifier `stage-writer.ts` and `rpm.ts` ' +
+        'split below. Two sites: the AppDir root icon takes the last component of a staged ' +
+        '`share/icons/hicolor/<dir>/apps/<id>.png`, and `appDirPaths` walks the directories ' +
+        'above each entry so `stampAppDirTimes` can reach them. Both read `PayloadEntry.path`, ' +
+        'which is POSIX-separated by its own type contract and built with `posix.join` by ' +
+        '`planStage` — never read back off a filesystem. The conversion TO a host path is the ' +
+        "`.split('/').join(sep)` one line further on, which is the one-way direction this " +
+        'ledger exists to distinguish: a both-separator helper on the split side would corrupt ' +
+        'a legitimate Linux filename containing a backslash.',
     'packages/infra/cli/src/utils/ship/rpm.ts':
         'An ARCHIVE path. RPM describes the TARGET filesystem, not the build host: `DIRNAMES` ' +
         'entries are `/`-terminated and `BASENAMES` carries the last component, both defined ' +

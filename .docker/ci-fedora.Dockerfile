@@ -127,6 +127,8 @@ RUN dnf install -y \
     desktop-file-utils \
     appstream \
     msitools \
+    squashfs-tools \
+    file \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
@@ -145,6 +147,47 @@ RUN dnf install -y \
     mesa-libGL \
     weston \
     && dnf clean all
+
+# `appimagetool`, and the ONLY thing in this file that is downloaded rather than
+# installed — because nothing packages it. Neither Fedora nor Debian ships it, so
+# `tests/e2e/ship-appimage`'s real tier would otherwise be a printed skip on every
+# CI run, which is the same vacuum `msitools` is baked here to avoid: a
+# probed-and-skipped tool leaves every assertion behind it proving nothing.
+#
+# THIS IS NOT THE VENDORING ADR 0024 § A25 REFUSES. That refusal is about putting
+# a GPL-3.0 binary in an MIT source tree and shipping it; this is a build tool on
+# a build machine, which is what `wixl` and `blueprint-compiler` are too. Nothing
+# from it reaches an artifact: appimagetool embeds an AppImage RUNTIME into what
+# it writes, and that runtime is `type2-runtime`, whose licence travels with the
+# file the packer produces rather than with this image.
+#
+# PINNED BY DIGEST, not by tag: a release asset can be replaced in place, and a
+# packer whose tool changed under it would produce different bytes for the same
+# payload with nothing to say so. `sha256sum -c` FAILS the image build, which is
+# the loudest place for this to go wrong.
+#
+# MEASURED ON `fedora:44` WITH NO `/dev/fuse`, because two of its failure modes
+# are exactly what a container hits and neither says what it is:
+#
+#   * without `APPIMAGE_EXTRACT_AND_RUN=1` it exits 127 — appimagetool is itself
+#     an AppImage and mounts itself through libfuse to start. `utils/ship/appimage.ts`
+#     sets that variable on every invocation, so nothing here has to.
+#   * without `file(1)` it exits 1 with "file command is missing but required",
+#     EVEN when `ARCH` is set — which is why `file` is in the dnf list above
+#     rather than assumed. `squashfs-tools` is beside it for the other half:
+#     `unsquashfs` is what `.github/ship-oracle/verify-appimage.py` reads the
+#     artifact back with, and it is not in the base image either.
+#
+# With both present the whole chain runs in a FUSE-less container: build, derive
+# the offset from the ELF section headers, list the tree with `unsquashfs`, and
+# run the artifact with `--appimage-extract-and-run` (a bare mount still fails
+# there, and the e2e suite asks for the extract path for that reason).
+ARG APPIMAGETOOL_VERSION=1.9.1
+ARG APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+RUN curl -fsSL -o /usr/local/bin/appimagetool \
+        "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" \
+    && echo "${APPIMAGETOOL_SHA256}  /usr/local/bin/appimagetool" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/appimagetool
 
 # Meson + Vala + Blueprint compiler for the native bridge builds
 # (@gjsify/{webrtc-native, tls-native, terminal-native, sab-native,
