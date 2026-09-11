@@ -55,6 +55,15 @@ static void OnEnvShutdown(void* arg) {
 }
 
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  // FIRST, before any GLib call: adopt the locale the environment names, the way
+  // gjs's entry point does (`setlocale(LC_ALL, "")`, refs/gjs/gjs/console.cpp).
+  // This is the seam EVERY node-gi application crosses — `gi://`, `requireGi`, the
+  // globals shim and a bare `import '@gjsify/node-gi'` all load the addon — whereas
+  // the globals module is injected only when a bundle still references the GJS
+  // ambient globals, so a locale set there would miss every program that does not.
+  // Without it the process stays in the C locale, where GNU gettext refuses to
+  // translate; the block in private.cc records what that cost.
+  NodeGiInitProcessLocale();
   // The owner env + its JS/main thread are captured lazily at the first wrap
   // (EnsureDrainAsync) — NOT here, since Init runs once PER env and a per-env
   // overwrite would mis-identify the main thread under worker_threads. The cleanup
@@ -138,6 +147,12 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("logSetWriterDefault", Napi::Function::New(env, LogSetWriterDefault));
   exports.Set("bindPropertyFull", Napi::Function::New(env, BindPropertyFull));
   exports.Set("bindingGroupBindFull", Napi::Function::New(env, BindingGroupBindFull));
+  // The libintl half of GjsPrivate: the binders GLib's GIR does not publish, and
+  // the LC_* constants read from this platform's headers.
+  exports.Set("setThreadLocale", Napi::Function::New(env, ApplyThreadLocale));
+  exports.Set("textdomain", Napi::Function::New(env, Textdomain));
+  exports.Set("bindtextdomain", Napi::Function::New(env, Bindtextdomain));
+  exports.Set("localeCategories", Napi::Function::New(env, LocaleCategories));
   // The native cairo binding + foreign-struct registration (the `__cairo` export).
   InitCairo(env, exports);
   return exports;

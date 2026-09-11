@@ -70,6 +70,16 @@ RUN dnf install -y \
 # for the `gjsify gettext` test — and `msgunfmt`, which `gjsify ship` runs to
 # read a staged `.mo` back before folding it into the freedesktop metadata.
 #
+# `glibc-langpack-de` is what lets a TRANSLATION be tested at all. GNU gettext
+# returns the untranslated msgid while LC_MESSAGES is the C locale, and
+# `setlocale` only leaves C for a locale the host has GENERATED — of which
+# `glibc-minimal-langpack` (this image's base) generates exactly one, `C.UTF-8`,
+# which glibc treats as C for message lookup and which makes it ignore LANGUAGE
+# too (measured on glibc 2.43). So without a real langpack every assertion about
+# a catalog passes by returning its own msgid, and node-gi shipped every
+# `--app node` application untranslated on all three platforms with the suite
+# green. German because the test fixtures are: `test/locale-gate.mjs`.
+#
 # `desktop-file-utils` and `appstream` are the two INDEPENDENT readers for the
 # metadata `gjsify ship` generates: `desktop-file-validate` parses the `.desktop`
 # entry and `appstreamcli validate` the AppStream component. Both were missing
@@ -124,6 +134,7 @@ RUN dnf install -y \
     glib2 \
     glib2-devel \
     gettext \
+    glibc-langpack-de \
     desktop-file-utils \
     appstream \
     msitools \

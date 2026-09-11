@@ -710,6 +710,30 @@ Napi::Value LogSetWriterDefault(const Napi::CallbackInfo& info);
 Napi::Value BindPropertyFull(const Napi::CallbackInfo& info);
 Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 
+// private.cc — the locale + gettext binders (gjs_set_thread_locale /
+// gjs_textdomain / gjs_bindtextdomain, and the LC_* constants GjsPrivate exports
+// as GjsLocaleCategory). These need C because libintl is not introspectable:
+// GLib publishes the LOOKUP half (g_dgettext/g_dngettext/g_dpgettext2) in its GIR
+// and nothing else, so `bindtextdomain` has no `gi://` spelling on any runtime.
+// NOT named SetThreadLocale, though that is what it mirrors: `<windows.h>` (pulled
+// in by uv.h) defines SetThreadLocale as an object-like macro for the kernel32 API,
+// which rewrote the token at the `Napi::Function::New(env, SetThreadLocale)` call
+// site and failed the MSVC build with C2665 — the same collision the `#undef
+// RegisterClass` above exists for. Renaming the C++ symbol keeps that undef list at
+// one entry; `SetThreadLocaleImpl` is a distinct token and needs nothing.
+Napi::Value ApplyThreadLocale(const Napi::CallbackInfo& info);
+Napi::Value Textdomain(const Napi::CallbackInfo& info);
+Napi::Value Bindtextdomain(const Napi::CallbackInfo& info);
+// The LC_* values THIS platform's <locale.h> defines, as a JS object. Read from
+// the headers rather than written down: the numbers differ per C library
+// (LC_MESSAGES is 5 on glibc, 6 on darwin, and gettext's own 1729 on MSVC, which
+// has no such category), so a literal table is correct on one platform and
+// silently addresses the wrong category on every other one.
+Napi::Value LocaleCategories(const Napi::CallbackInfo& info);
+// Put the process in the locale the environment names — the `setlocale(LC_ALL,
+// "")` gjs's entry point runs before anything else. Idempotent, process-wide.
+void NodeGiInitProcessLocale();
+
 // loop.cc
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);
 Napi::Value IterateMainContext(const Napi::CallbackInfo& info);

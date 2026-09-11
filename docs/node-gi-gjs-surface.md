@@ -648,7 +648,7 @@ import '@gjsify/node-gi/globals';
 print('hello', 1, true);                 // → stdout, GJS String()-join
 const GLib = imports.gi.GLib;            // legacy imports.gi (honours .versions)
 imports.gi.versions.Gtk = '4.0';
-console.log(imports.gettext.gettext('x')); // no-translation passthrough
+console.log(imports.gettext.gettext('x')); // real gettext — § Locale and gettext
 
 // Legacy script modules many older GJS sources use:
 const emitter = {};
@@ -676,6 +676,115 @@ The remaining GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`
 `const GLib = imports.gi.GLib`, the core overrides, `_promisify`, the legacy
 `imports.*` modules) is layered on top of this engine in the gjsify bundler
 integration and subsequent drops.
+
+## Locale and gettext (`@gjsify/node-gi/gettext`, the bare `gettext` module)
+
+Loading the addon puts the process in the locale the environment names —
+`setlocale(LC_ALL, "")`, run once from the N-API `Init` in `src/addon.cc`. It is
+there and not in `globals.js` because the addon is the seam EVERY node-gi program
+crosses, while the globals shim is injected only into bundles that still reference
+the GJS ambient globals.
+
+**The defect this closed.** A C program starts in the `"C"` locale, and GNU gettext
+returns the untranslated msgid whenever `LC_MESSAGES` is `C` — whatever `LANG` says,
+whatever `bindtextdomain` was told. Node never leaves that locale, and neither did
+node-gtk. GJS does, in the first statement of `main()`
+(`refs/gjs/gjs/console.cpp`), so the SAME source translated under `--app gjs` and
+not under `--app node`, on every platform. Learn6502 shipped macOS and Windows
+artifacts in English while carrying catalogs for 15 languages.
+
+Two things made it hard to see, and both are worth keeping:
+
+* **The APIs that read the environment directly were already correct.**
+  `GLib.get_language_names()` answered `["de","C"]` throughout, so an About dialog
+  resolving its title that way was properly German while every gettext string
+  beside it stayed English. That reads as "some strings are untranslated", not as
+  "the process is in the C locale".
+* **`gtk_init()` masks it partially.** GTK calls `setlocale(LC_ALL, "")` itself
+  (`gtk/gtkmain.c`, `setlocale_initialization`), so a GTK program translates what
+  it looks up AFTER init — but not its module-scope strings, and not at all when it
+  is headless or a CLI. A probe that only measured post-init strings would conclude
+  the locale was fine.
+
+`C.UTF-8` is not a way out: glibc treats it as the C locale for message lookup and
+ignores `LANGUAGE` under it (measured, glibc 2.43), which is why the CI image
+installs a real langpack.
+
+### Why `LC_ALL` and not `LC_ALL`-minus-`LC_NUMERIC`
+
+`setlocale(LC_ALL, "")` moves `LC_NUMERIC` too, and that is the category with
+teeth: in a German locale the C library's decimal separator becomes `,`, and
+`strtod("3.5")` returns `3.0` (measured on this glibc while diagnosing the bug).
+The carve-out is nevertheless wrong here, for three reasons:
+
+1. **GJS does not make it.** Measured under `gjs` with `LANG=de_DE.UTF-8`:
+   `LC_NUMERIC = de_DE.UTF-8`. node-gi's contract is that unchanged GJS source
+   behaves the same on both, so a node-only carve-out would be a silent
+   `--app gjs` ↔ `--app node` divergence in number formatting.
+2. **It would not hold.** `gtk_init()` sets the full `LC_ALL` unconditionally, so
+   in any GTK program the carve-out is undone moments later. A guard that a
+   dependency reverts is worse than none — it moves the behaviour change to a
+   point nobody is looking at.
+3. **JS is unaffected, and GLib has its own answer.** ECMAScript number parsing
+   and `toString` are locale-independent by specification (verified: `Number`,
+   `JSON.parse`/`stringify` and `GLib.Variant` round-trip `3.5` identically before
+   and after). The exposure is C-library `strtod`/`printf`, and the GNOME answer to
+   that is `g_ascii_strtod`/`g_ascii_dtostr`, which GLib and GJS already use
+   throughout for exactly this reason.
+
+The blast radius this DID have was in the test suite, not the runtime: assertions
+matching GLib's own error TEXT (`/closed/i`) went red on a German host once the
+process honoured `LANG`, because GLib translates its errors. Those assert the error
+domain and code now, and the node test scripts pin `LC_ALL=C` so a developer's
+locale is not a hidden input — the same reason the conformance harness does.
+
+### The surface
+
+Lookups go to GLib (`g_dgettext` / `g_dngettext` / `g_dpgettext2`), which is
+introspectable; the binders are libintl, which has no GIR on any runtime, so
+`setlocale` / `textdomain` / `bindtextdomain` come from the addon. That is the same
+split GJS makes between `imports.gi.GLib` and `GjsPrivate`
+(`refs/gjs/modules/core/_gettext.js`).
+
+```js
+import Gettext from 'gettext';           // or '@gjsify/node-gi/gettext'
+
+Gettext.bindtextdomain('org.example.App', '/app/share/locale');  // pins UTF-8
+Gettext.textdomain('org.example.App');
+Gettext.gettext('Stack filled');         // → 'Stapel voll' under LANGUAGE=de
+Gettext.ngettext('%d file', '%d files', 4);
+Gettext.pgettext('toolbar', 'Open');
+```
+
+`LocaleCategory` is read from the host C library's `<locale.h>` rather than written
+down, because the values are not a standard: `LC_MESSAGES` is 5 on glibc, 6 on
+darwin, and gettext's own 1729 on MSVC, which has no such category. The table this
+module used to carry was glibc's, so on macOS its `MESSAGES` addressed `LC_TIME` —
+on two of the three platforms the blocker was reported from.
+
+Measured divergences from GJS, both deliberate:
+
+* `bindtextdomainCodeset` is a no-op returning `null`. `bindtextdomain` already
+  pins UTF-8, and GJS does not implement this member either.
+* On Windows the PRECEDENCE differs, not the category. The MSVC CRT has no
+  `LC_MESSAGES`, but GNU gettext's `<libintl.h>` redirects `setlocale` to its own
+  `libintl_setlocale` there, which carries it — so the call takes and reports the
+  prior name. What changes is that glibc ignores `LANGUAGE` once the message locale
+  is `"C"`, while gettext's Windows port keeps honouring it: forcing `LC_MESSAGES`
+  to `C` stops lookup on Linux and does not on Windows. Both are measured, each on
+  its own CI leg (`test/locale.test.mjs`).
+
+  The category is handed to the C library like every other one, on purpose. Special-
+  casing it to "cache the name and skip the call" — on the assumption the CRT would
+  refuse it — made `setlocale(MESSAGES, 'no-such-locale.invalid')` answer with the
+  PRIOR name, so a failure was indistinguishable from success. That assumption was
+  wrong twice over, and the Windows leg is what said so.
+
+`setlocale` is thread-local (`uselocale`), as GJS's is, and inherits GJS's reporting
+quirk with it: a query answers with the name in effect BEFORE the last successful
+set on that thread, because the report comes from the global locale `uselocale` does
+not touch. Verified against gjs 1.88 — setting `LC_MESSAGES` to `C` stops
+translation immediately while the next query still answers the old name.
 
 ## cairo (`@gjsify/node-gi/cairo`)
 
