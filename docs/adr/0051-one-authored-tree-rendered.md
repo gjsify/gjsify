@@ -1,8 +1,11 @@
 # 51. One authored tree, rendered: ADR 0027 § 9's criterion becomes a suite
 
-- Status: **Accepted** (2026-09-10) — amended, see § Amendment 1: the second driver is
-  `adwaita-web` and not the NativeScript port, because the port has no widget an
-  off-device suite can build. What was actually built is § What landed.
+- Status: **Accepted** (2026-09-10) — amended twice, both times by a measurement that
+  overturned a stage as written. § Amendment 1: the second driver is `adwaita-web` and
+  not the NativeScript port, because the port has no widget an off-device suite can
+  build. § Amendment 2: stage 5 points the wrong way — the `preview` fence is the
+  authority and the corpus is the subset, so the corpus is held AGAINST the fence
+  rather than emitted into it. What was actually built is § What landed.
 - Date: 2026-09-09
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0030 (one corpus, GJS as oracle)](0030-one-corpus-gjs-as-oracle.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md)
@@ -221,7 +224,7 @@ Each stage is independently useful and breaks nothing that ships.
 | 2 | ~~The same for the NativeScript port over `nativeScriptTree(widget)`~~ — **withdrawn, see § Amendment 1.** The port's widget classes extend `@nativescript/core` bases that no runtime here has, so there is no off-device tree to build. The second driver is `adwaita-web`, over the same corpus. | the same four, plus a block whose two drivers disagree — which is the finding the whole ADR exists to produce |
 | 3 | Teach `check-adwaita-conformance-drivers.mjs` the tree driver, so a table driven only from a tree is not read as undriven, and a tree claiming a table it does not reach fails. | a false coverage claim — the exact class that gate's three incidents are about |
 | 4 | Print the distance: blocks in the corpus, blocks reaching a vector, blocks declared, per renderer. Derived every run; no count in a header or in prose. | any figure that is written down rather than derived |
-| 5 | Put `adwaita-web` on the corpus: emit the gallery `preview` fence from `ADWAITA_GALLERY_SHARED_TREES` instead of authoring it per block, then drive it in `tests/browser`. This is the stage that closes § 9 in its own words. | a preview fence that is not what the shared tree emits; a web tree that fails a vector its two siblings pass |
+| 5 | Put `adwaita-web` on the corpus. Its first half — drive the corpus in a browser — landed with § Amendment 1. ~~Emit the gallery `preview` fence from `ADWAITA_GALLERY_SHARED_TREES` instead of authoring it per block~~ — **withdrawn, see § Amendment 2**; the fence is held against the corpus in the other direction instead. | a shared node the block's `preview` fence does not carry; a web tree that fails a vector its two siblings pass |
 
 Stages 1–4 need no new package and no change to any adapter. Stage 5 is the only one that
 touches the website's authored fences, and it is last because the two stages before it are
@@ -340,3 +343,84 @@ matter to the decision.
 
 The consequence for decision 4 is the one worth keeping: two of the seven blocks reach no row
 at all, and the reason each reaches none is a measurement rather than an omission.
+
+## Amendment 2 — stage 5 emits the wrong way round, and the fence is the authority
+
+Stage 5 asked for the gallery's `preview` fence to be emitted from
+`ADWAITA_GALLERY_SHARED_TREES` "instead of authoring it per block". Measured against
+the fences on `main` at `5a8895898d`, doing that would DELETE documentation from two of
+the seven shared blocks, and for a reason no amount of corpus growth removes: what a
+`SharedNode` can NAME is a GIR class, and those two fences teach with markup that has no
+GIR class to be named by.
+
+The measurement is a throwaway emitter over `ADWAITA_GALLERY_SHARED_TREES`, diffed per
+block against the fence with the generated gloss lines set aside. **Five of the seven
+shared blocks already read exactly as the corpus would emit them** — `Adw.SwitchRow`,
+`Adw.EntryRow`, `Adw.ExpanderRow`, `Adw.Banner`, `Adw.WindowTitle`. Two do not, and
+neither is an authoring accident:
+
+- **`Adw.PreferencesGroup`** documents a `<button slot="header-suffix" class="adw-button
+  flat">Sign out</button>` and an `<adw-combo-row model='[…]'>`. A `SharedNode` names its
+  tag with a GIR class name — `hostTagOf` throws on anything else — and carries no text
+  content, so a CSS-classed HTML button is not a node it has any way to be. The combo row
+  is expressible as markup but not as a shared node: its framework sibling authors `model`
+  as a JS ARRAY (one of the portable values ADRs 0042/0046/0047 gave those trees) against
+  the fence's JSON string, which is the same one-value-two-doors split the `Adw.SpinRow`
+  ledger entry records. Emitting this fence would drop both children.
+- **`Adw.ShortcutLabel`** documents five accelerators side by side in a
+  `<div style="display:flex…">`, including the empty-with-`disabled-text` case. The
+  wrapper is the blocker and the count is not: a shared tree has one ROOT, not one node,
+  so five sibling labels are authorable — under a GIR container that would emit as
+  `<gtk-box>`, which is different markup from the one the block shows. Emitting this
+  fence would replace the wrapper and drop four examples.
+
+**What is NOT a blocker, and was claimed as one.** `Adw.SwitchRow` and `Adw.EntryRow`
+differ from the corpus emission by exactly one line each, a generated gloss
+(`<!-- active: … -->`) that `generate-adwaita-attribute-comments.mjs` writes from the GIR
+and arm 12 holds. That is a region another generator owns, but the two compose rather than
+collide: `stripGenerated` removes every generated comment line and `rewriteFence` puts
+them back on every run — "so a rewrite is idempotent", in its own words — over markup it
+does not author. Measured by deleting the gloss line from the fence and re-running
+`applyMeanings`: it comes back. So the count of blocks a corpus emitter would damage is
+two, not four, and the case below rests on those two.
+
+Behind the two there is one argument, and this ADR's own Risks section already stated
+half of it: *"a block joins the shared source only when it needs no alias, so the corpus
+is selected for the property being tested"*. A corpus selected for AGREEMENT is exactly
+the wrong source for documentation, because what it drops is precisely what the two
+renderers disagree about — which is what a reader most needs the page to show. The
+divergence ledger had already settled the direction in the other artifact's favour:
+*"the block's own `preview` fragment is the authority"*.
+
+**So the rung is the containment, in the other direction.** Arm 13 of
+`check-generated-website-data.mjs` asserts that every node of a shared tree occurs in
+that block's `preview` fence — same element, same attributes, same values, in the same
+order — with the fence free to carry more. That is a claim that can be true, it holds
+today on the whole corpus, and it closes the hole arm 11 structurally cannot see: arm
+11 compares the two authored TREES to each other, and they can agree with each other
+while both describe a UI the block stopped showing. The ledger records that drift
+having happened once already, block by block, found by hand.
+
+**Why not emit the five and author the two**, now that the damage is measured at two
+blocks rather than four. Because the emitter is what stage 5 costs, and it is the same
+whether it serves five blocks or seven: turning a `SharedNode` into markup needs a
+quoting and entity-ENCODING rule, and nothing would hold that rule against the
+quote-aware reader the fences are already read with — one direction generated, the other
+checked, agreeing with each other by construction. A per-block opt-in also puts the
+authority in two places at once, which is what `content` in the divergence ledger was
+decided against. Containment needs no emitter and makes the same drift loud.
+
+Two transforms carry it and there is still no third: `hostTagOf`, and `attributeOf`,
+the camelCase→kebab attribute rule. Both are exported from
+`adwaita-gallery-shared-trees.mjs` and IMPORTED by the `adwaita-web` driver and by arm 13
+rather than restated in either, so the check cannot end up agreeing with its own copy of a
+rule instead of with the renderer it makes a claim about. Entity decoding is markup's own
+escaping rather than a vocabulary mapping, and an entity the arm does not know FAILS
+rather than passing through — an undecoded value reports a mismatch between two strings
+that render identically, which is a worse failure than the missing entity it really is.
+
+**What this does not decide.** Whether the corpus should GROW to carry slots and
+portable values is untouched and stays a corpus question, with the ledger as its
+backlog. And the containment claim is made only over the shared corpus; the framework
+tree of a ledgered block is not held against its fence by anything, which is a wider
+arm and a separate measurement.

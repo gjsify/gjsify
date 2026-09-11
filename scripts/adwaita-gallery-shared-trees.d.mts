@@ -12,8 +12,8 @@
 // exists to prevent, so there is deliberately no way to get one.
 //
 // NOTHING CHECKS THIS FILE AGAINST THE `.mjs`, so it declares ONLY what a TypeScript spec
-// imports — three names, each imported by at least one live spec, which makes a rename over
-// there a build error over here. A declaration nobody imports has no such backstop: it is a
+// imports — every name below is imported by at least one live spec, which makes a rename
+// over there a build error over here. A declaration nobody imports has no such backstop: it is a
 // claim about the module that can quietly stop being true, which is this file's own failure
 // mode. The `.mjs`'s other exports (`nativeScriptTree`,
 // `ADWAITA_GALLERY_TREE_DIVERGENCES`) have plain-`.mjs` consumers only and are deliberately
@@ -40,6 +40,9 @@ export declare const ADWAITA_GALLERY_SHARED_TREES: readonly SharedTree[];
 
 /** `AdwPreferencesGroup` -> `adw-preferences-group` — `gtk-host`'s own `tagOf`, restated. */
 export declare const hostTagOf: (gtype: string) => string;
+
+/** `buttonLabel` -> `button-label` — an authored prop as the DOM attribute it becomes. */
+export declare const attributeOf: (prop: string) => string;
 
 /** The shared block in `gtk-host` tags. */
 export declare const gtkHostTree: (widget: string) => SharedTree;

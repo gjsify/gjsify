@@ -35,12 +35,17 @@ import {
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 
-import { ADWAITA_GALLERY_SHARED_TREES, hostTagOf } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
+// `attributeOf` — `buttonLabel` -> `button-label` — comes from the corpus rather than
+// being spelled again here, because arm 13 of `check-generated-website-data.mjs` reads
+// gallery fences back through the SAME rule: two copies would let this driver and that
+// check agree with each other while the fence a reader copies means something else.
+import {
+    ADWAITA_GALLERY_SHARED_TREES,
+    attributeOf,
+    hostTagOf,
+} from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
 
 import '@gjsify/adwaita-web';
-
-/** `buttonLabel` -> `button-label`. The authored spelling is camelCase for every surface. */
-const attributeOf = (prop: string) => prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
 
 /**
  * The whole renderer-specific half of this driver: an element, its authored properties as

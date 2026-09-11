@@ -90,6 +90,14 @@
 //      ledgered block whose two trees have BECOME identical fails, the same
 //      self-retiring shape as (5b). (4)-(9) each hold ONE tree against ONE renderer,
 //      which is why they were all green while one block drew two different widgets.
+//  13. Every node of a shared tree occurs in the fence its block shows a reader — same
+//      element, same attributes, same values, in the same order. (11) compares the two
+//      authored trees to EACH OTHER, and they can agree while both describe a UI the
+//      block stopped showing; the fence is what a reader copies, and the divergence
+//      ledger already calls it the authority. CONTAINMENT and not equality: the corpus
+//      admits a block only when its two trees need no alias, so what the renderers
+//      disagree about is exactly what it cannot carry — and the docs are entitled to
+//      teach that. ADR 0051 § Amendment 2 is the measurement behind the direction.
 //
 // Plain Node over the repo's own files — no install, no build, no astro render.
 //
@@ -104,6 +112,7 @@ import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adw
 import {
     ADWAITA_GALLERY_SHARED_TREES,
     ADWAITA_GALLERY_TREE_DIVERGENCES,
+    attributeOf,
     hostTagOf,
 } from './adwaita-gallery-shared-trees.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
@@ -113,6 +122,7 @@ import {
     ATTRIBUTE_MEANING_LEDGER,
     ATTRIBUTE_OXFMT_EXEMPT_OUTPUTS,
     AUTHORED_MEANINGS,
+    markupElements,
     MEANINGS_MODULE,
     meaningCounts,
 } from './generate-adwaita-attribute-comments.mjs';
@@ -1051,8 +1061,10 @@ const nsByWidget = new Map(ADWAITA_GALLERY_NS_TEMPLATES.map((tree) => [tree.widg
  * `subtitle` in is not part of the UI. Compared as written, a parity branch that
  * closes a `property` divergence by adding the missing props in a different order
  * would leave its ledger entry standing with nothing to notice — the self-retiring
- * half would have been the half that silently passes. (Measured on today's 23 pairs:
- * no divergence is order-only, so this changes no verdict and closes the hole.)
+ * half would have been the half that silently passes. (Measured over every pair when
+ * the sort landed: no divergence was order-only, so it changed no verdict and closed
+ * the hole. The pair count is printed below, never written here — this comment carried
+ * one and it was behind the tree within two merges.)
  */
 const shapeOf = (node, tagOf) =>
     JSON.stringify({
@@ -1159,7 +1171,7 @@ for (const [gtype, tag] of HOST_WIDGET_ROWS) {
 }
 
 // An EMPTY shared source is deliberately not a failure — it is the honest state of a
-// gallery where nothing agrees yet, and the arm still compares all 23 pairs. What
+// gallery where nothing agrees yet, and the arm still compares every pair. What
 // would be vacuous is having no pair to compare at all. (An emptied shared source is
 // loud anyway: both generators call `gtkHostTree`/`nativeScriptTree` by name, and
 // `entryFor` throws that name.)
@@ -1228,6 +1240,187 @@ notes.push(
         `glossed from the GIR, ${measuredCounts.nameSuffices} where the name suffices, ` +
         `${Object.keys(ATTRIBUTE_MEANING_LEDGER).length} with no GIR property, ` +
         `${Object.keys(AUTHORED_MEANINGS).length} authored; ${measuredCounts.commentLines} comment line(s)`,
+);
+
+// ---------------------------------------------------------------------------
+// 13. the shared corpus is a SUBSET of the UI its block documents
+// ---------------------------------------------------------------------------
+
+/**
+ * Every node of a shared tree occurs in the fence its block SHOWS A READER, same
+ * element, same attributes, same values, in the same order.
+ *
+ * WHICH FENCE is {@link galleryFences}'s decision and not a second one taken here — the
+ * `web` fragment where a block has one, `preview` otherwise. Every shared block resolves
+ * to `preview` today, and every message below names the slot it actually read rather than
+ * assuming that stays true.
+ *
+ * WHY CONTAINMENT AND NOT EQUALITY, which is the direction ADR 0051 § 5 proposed and
+ * this arm is the measured answer to. The fence is the RICHER artifact and the ledger
+ * in `adwaita-gallery-shared-trees.mjs` already calls it the authority. The corpus is
+ * a deliberately narrow subset: a block joins it only when its two authored trees need
+ * no alias, so everything the two renderers disagree about is exactly what the corpus
+ * cannot carry — and that is content the DOCS are entitled to teach. Measured over the
+ * shared blocks, emitting the fence from the corpus would delete a `slot=` child and a
+ * `Gio.ListModel` row from one block and all but one of the examples from another. The
+ * corpus is a subset of the documentation; asserting that is a claim that can be true.
+ *
+ * THE MATCH IS GREEDY on the element name, in document order, and a matched element
+ * must then agree on every authored value. Searching on for a later instance that fits
+ * would turn a drifted value into a silent re-anchor — one block draws a row of
+ * `<adw-shortcut-label>`s, so "found one that matches" is available and worthless.
+ *
+ * WHAT IT CATCHES that arm 11 cannot. Arm 11 compares the two authored TREES to each
+ * other; both can agree and both be a description of a UI the block no longer shows.
+ * The ledger records that exact drift having happened once already in the other
+ * direction, block by block, found by hand.
+ */
+const ENTITIES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" };
+
+/**
+ * A fence value in the vocabulary the corpus is authored in.
+ *
+ * An unknown entity FAILS rather than passing through: `&nbsp;` compared as its own
+ * bytes would report a value mismatch naming two strings that look identical, which is
+ * a worse failure than the missing entity it really is.
+ */
+const decodeEntities = (value, onUnknown) =>
+    value.replace(/&[^;\s]+;/g, (entity) => {
+        const name = entity.slice(1, -1);
+        if (Object.hasOwn(ENTITIES, name)) return ENTITIES[name];
+        onUnknown(entity);
+        return entity;
+    });
+
+/** The authored nodes depth-first — the order both tree drivers assert the DOM in. */
+const depthFirst = (node, out = []) => {
+    out.push(node);
+    for (const child of node.children ?? []) depthFirst(child, out);
+    return out;
+};
+
+const fenceByTitle = new Map(applied.fences.map((fence) => [fence.title, fence]));
+let containedNodes = 0;
+let comparedValues = 0;
+let fenceElements = 0;
+for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
+    const fence = fenceByTitle.get(tree.widget);
+    if (fence === undefined) {
+        failures.push(
+            `${tree.widget} is a shared tree with no fence on any gallery page, so the corpus describes ` +
+                'a UI the site does not show. Either the block was renamed or it was removed from the gallery ' +
+                'while its tree stayed in the shared source.',
+        );
+        continue;
+    }
+    const elements = markupElements(fence.body);
+    fenceElements += elements.length;
+    let cursor = 0;
+    for (const [index, node] of depthFirst(tree.root).entries()) {
+        const wanted = hostTagOf(node.tag);
+        while (cursor < elements.length && elements[cursor].tag !== wanted) cursor += 1;
+        if (cursor === elements.length) {
+            failures.push(
+                `${tree.widget}: authored node ${index} <${wanted}> has no matching element left in the ` +
+                    `${fence.slot} fence of ${fence.rel}. The shared corpus is supposed to be a subset of what ` +
+                    'the block documents — one of the two was edited without the other.',
+            );
+            break;
+        }
+        const element = elements[cursor];
+        cursor += 1;
+        containedNodes += 1;
+        // A SLOT IS NOT COMPARED HERE, so a shared node carrying one has to be loud
+        // rather than quietly unheld — the shape a rule falls out of its own check by.
+        // No shared tree has one: the two renderers spell slots differently
+        // (`start`/`title`/`end` against `startBox`/`titleWidget`/`endBox` in the
+        // divergence ledger), which is why a slotted block does not meet the no-alias
+        // admission rule to begin with. Comparing `node.slot` to the fence's `slot=`
+        // would bless the gtk-host spelling as the corpus's, which is the one thing
+        // this corpus exists to refuse; so the day a block is admitted with a slot, it
+        // came with a decision about what a shared slot SPELLS, and this arm is taught
+        // that rather than guessing it.
+        if (node.slot !== undefined) {
+            failures.push(
+                `${tree.widget}: authored node ${index} <${wanted}> carries slot="${node.slot}", and arm 13 does ` +
+                    'not hold a slot against the fence. The two renderers spell slots differently, so there is no ' +
+                    'shared spelling to compare against — teach this arm the one the corpus settled on.',
+            );
+        }
+        for (const [prop, value] of Object.entries(node.props ?? {})) {
+            const attribute = attributeOf(prop);
+            const present = element.values.has(attribute);
+            comparedValues += 1;
+            // A BOOLEAN IS THE ATTRIBUTE'S PRESENCE, which is the rule `adwaita-web`'s
+            // driver builds with (`toggleAttribute`) and the elements read back with
+            // `hasAttribute`. So `false` is the attribute being ABSENT, and the test
+            // belongs BEFORE the not-set failure below — which is a claim about a
+            // VALUE, and a false boolean has none. Both directions were wrong without
+            // it: a fence that correctly omitted `active` failed against a node
+            // authoring `active: false`, and a fence that spelled it while the node
+            // said false — a real disagreement — passed in silence.
+            if (typeof value === 'boolean') {
+                if (value !== present) {
+                    failures.push(
+                        `${tree.widget}: authored node ${index} <${wanted}> sets ${prop} to ${value}, and the ` +
+                            `${fence.slot} fence of ${fence.rel} ${present ? 'sets' : 'does not set'} ${attribute} ` +
+                            'on it. A boolean is the attribute being there: present is true, absent is false.',
+                    );
+                    continue;
+                }
+                const raw = element.values.get(attribute);
+                if (value && raw !== null && raw !== '') {
+                    failures.push(
+                        `${tree.widget}: <${wanted}> ${attribute} is authored as a boolean, and ${fence.rel} ` +
+                            `spells it "${raw}". The elements read it with hasAttribute(), so a value there is ` +
+                            'read as true whatever it says.',
+                    );
+                }
+                continue;
+            }
+            if (!present) {
+                failures.push(
+                    `${tree.widget}: authored node ${index} <${wanted}> sets ${prop}, and the ${fence.slot} fence ` +
+                        `of ${fence.rel} sets no ${attribute} on it. Both tree drivers assert that value; the ` +
+                        'page a reader copies does not carry it.',
+                );
+                continue;
+            }
+            const raw = element.values.get(attribute);
+            const got = decodeEntities(raw ?? '', (entity) =>
+                failures.push(
+                    `${fence.rel}: <${wanted} ${attribute}> carries the entity ${entity}, which arm 13 cannot ` +
+                        `decode. Add it to the ${Object.keys(ENTITIES).length} already in ENTITIES — comparing it ` +
+                        'undecoded reports a mismatch between two strings that render the same.',
+                ),
+            );
+            if (got === String(value)) continue;
+            failures.push(
+                `${tree.widget}: <${wanted}> ${prop} is authored "${value}" and the ${fence.slot} fence of ` +
+                    `${fence.rel} shows "${got}". The corpus two renderers are tested against and the markup a ` +
+                    'reader copies describe different UIs.',
+            );
+        }
+    }
+}
+
+// The corpus can legitimately be empty (arm 11 says why), but an arm that walked no
+// node proved nothing, and the fences are what would have gone missing.
+if (ADWAITA_GALLERY_SHARED_TREES.length > 0 && containedNodes === 0) {
+    failures.push('no shared node was matched against a fence at all — arm 13 proved nothing');
+}
+// MATCHING A NODE IS NOT COMPARING A VALUE, and the node count cannot tell the two
+// apart: with the property loop neutered, every node still matches, the note still
+// prints the same figure and the arm is green having compared nothing. Measured by
+// doing exactly that, which is the only way to learn what a guard does not cover.
+if (containedNodes > 0 && comparedValues === 0) {
+    failures.push('arm 13 matched shared nodes but compared no authored value — it proved only that tags line up');
+}
+
+notes.push(
+    `${containedNodes} shared node(s) and ${comparedValues} authored value(s) from ` +
+        `${ADWAITA_GALLERY_SHARED_TREES.length} tree(s) found in ${fenceElements} fence element(s) — the corpus ` +
+        'is that far inside what the gallery documents',
 );
 
 // A scan whose corpus is empty reports green while proving nothing.

@@ -35,8 +35,18 @@
 // refusal stands and this file does not weaken it.
 //
 // A block joins this file only when its tree needs NO alias at all: the same widget
-// names, the same property names, the same values, in the same order. The single
-// transform is {@link hostTagOf}, which turns the GIR class name a block is authored
+// names, the same property names, the same values, in the same order. And what it
+// authors must be CONTAINED in the fence its block shows a reader — same elements,
+// attributes and values, in the same order — which arm 13 of
+// `check-generated-website-data.mjs` holds, because a corpus two renderers are tested
+// against proves nothing about a UI the page stopped showing.
+//
+// CONTAINMENT, and in that direction. The fence is the authority (see the `content`
+// kind in {@link ADWAITA_GALLERY_TREE_DIVERGENCES}) and is free to teach more than a
+// `SharedNode` can express; ADR 0051 § Amendment 2 measured, block by block, what
+// emitting the fence FROM here would have deleted.
+//
+// The single transform is {@link hostTagOf}, which turns the GIR class name a block is authored
 // in into the `gtk-host` tag — `AdwPreferencesGroup` -> `adw-preferences-group`, a
 // deterministic case rule and not a semantic mapping. It is `gtk-host`'s OWN rule
 // (`tagOf` in `packages/framework/gtk-host/src/tags.ts`), and arm 11 runs it against
@@ -210,6 +220,24 @@ export const hostTagOf = (gtype) => {
     }
     return out.join('');
 };
+
+/**
+ * `buttonLabel` -> `button-label`, the second and last transform.
+ *
+ * AUTHORED HERE BECAUSE TWO PLACES NEED THE SAME ONE, which is the short version of the
+ * lesson {@link hostTagOf} spells out above. `adwaita-web`'s tree driver
+ * (`packages/web/adwaita-web/src/shared-trees.spec.ts`) turns an authored prop into a DOM
+ * attribute with this rule, and arm 13 of `check-generated-website-data.mjs` reads a
+ * fence's attributes back through it. A one-liner restated in the checker would make the
+ * checker agree with its own copy rather than with the renderer it is a claim about, and
+ * nothing would hold the two spellings together the way arm 11 holds `hostTagOf` against
+ * `gtk-host`'s generated table. The driver already imports this module for the corpus
+ * itself, so one export is the whole cost.
+ *
+ * NOT AN ALIAS TABLE and not a third transform: a case rule over the authored NAME, with
+ * no entry to give a name it does not recognise.
+ */
+export const attributeOf = (prop) => prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
 
 const SHARED_BY_WIDGET = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));
 
