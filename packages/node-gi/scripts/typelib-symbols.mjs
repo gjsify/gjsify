@@ -93,8 +93,10 @@ export const TYPELIB_API_FLOOR = [
  * carries its own expiry. `upstream` is the same shape `gjsify.mediaCapabilities` uses for
  * the MP3/FLAC gaps — `catalogue` names the build system, and here `project` + `patch` name
  * the recipe and the patch file that removes the symbol. {@link gapUpstreamProblems} holds
- * that against the committed gvsbuild snapshot, so the day upstream drops the patch the gap
- * fails and names the symbol to close.
+ * that against the committed gvsbuild snapshot: once the snapshot stops recording the patch,
+ * the gap fails and names the symbol to close. The snapshot moves when the `GVSBUILD_VERSION`
+ * pin does — § WHEN IT ACTUALLY FIRES on that function is what makes this a COMPELLED re-read
+ * rather than an automatic one, and the distinction is load-bearing.
  *
  * PLATFORM, NOT PACKAGE. A gap is a property of the toolchain that produced the bytes, and
  * both darwin bundles are produced by the same Homebrew formula; keying on `process.platform`
@@ -284,6 +286,19 @@ export function typelibApiRecord(result) {
  * `gvsbuild-catalogue` rule's own subject (ADR 0056 § 6) with the cause moved one step: there a
  * REASON is "upstream defines no project", here it is "upstream applies this patch". Both are
  * facts about a pinned release, and both are read out of the same snapshot.
+ *
+ * WHEN IT ACTUALLY FIRES, stated precisely because the loose version of this sentence — "the gap
+ * expires by itself" — is false and would be believed. This reads a COMMITTED snapshot; nothing
+ * refreshes it on its own, and no scheduled job runs `gvsbuild-catalogue.mjs --update`. The
+ * forcing function is real but INDIRECT: the `gvsbuild-catalogue` rule fails when any workflow's
+ * `GVSBUILD_VERSION` disagrees with the snapshot's, so raising the pin — the only way a newer
+ * gvsbuild ever builds these bundles — compels the re-read, and the re-read is what makes a
+ * dropped patch visible here. So: THE GAP EXPIRES WHEN THE PIN IS RAISED, AND THE CATALOGUE RULE
+ * MAKES THAT UNAVOIDABLE. Between two pin bumps, a patch upstream deleted is a gap this cannot
+ * yet see — which is correct for the bytes being built (the pinned gvsbuild still applies it) and
+ * is NOT the same claim as expiring on its own. A gap that outlives several bumps is the signal
+ * that a direct expiry is wanted; `status/open-todos.md` carries that alternative rather than a
+ * scheduled run nobody reads.
  *
  * @param {object} opts
  * @param {{version: string, modules: string[], patches?: Record<string, string[]>}} opts.catalogue

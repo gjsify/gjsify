@@ -55,9 +55,21 @@ Homebrew's formula `depends_on "appstream"`, which is the whole of the asymmetry
 
 Nothing in this repository can compile that symbol, so what landed is the ratchet:
 `typelib-symbols.mjs` fails the build on a missing floor entry point unless a DECLARED gap names
-its upstream cause, and the gap is held against the committed gvsbuild patch snapshot, so it
-expires the day the patch does. What is still OPEN is the fix itself, and there are exactly two
-routes:
+its upstream cause, and the gap is held against the committed gvsbuild patch snapshot.
+
+**When that expiry fires, precisely.** The snapshot is committed and nothing refreshes it on its
+own; `gvsbuild-catalogue.mjs --update` is run by a person. The forcing function is indirect and
+real: the `gvsbuild-catalogue` conformance rule fails whenever a workflow's `GVSBUILD_VERSION`
+disagrees with the snapshot's, so **raising the pin compels the re-read, and the re-read is what
+makes a dropped patch visible** — and raising the pin is the only way a newer gvsbuild ever builds
+these bundles. Between two bumps, a patch upstream has already deleted is a gap nothing here can
+yet see. That is correct for the bytes being built — the pinned gvsbuild still applies it — but it
+is not "the gap expires by itself", and the loose sentence is the kind that gets quoted back as
+evidence. If this gap survives several pin bumps, the direct expiry is a scheduled
+`gvsbuild-catalogue.mjs --update` that opens a PR on a diff; it is deliberately NOT here today,
+because a cron nobody reads is the same blind spot one level up.
+
+What is still OPEN is the fix itself, and there are exactly two routes:
 
 - **libadwaita >= 1.10 + `ministream` in the Windows prefix.** `ministream` replaced the
   `appstream` dependency in libadwaita at 1.10.alpha (commit `7352d8c8`) and gvsbuild already
