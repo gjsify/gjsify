@@ -30,108 +30,142 @@ A worked example is the v0.28.0 release body:
 https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 -->
 
-## What this release is about
+## Highlights
 
-**One vocabulary across the renderers, and the values that made it possible.** If you write
-Adwaita UI with gjsify — in GJS, in the browser, in NativeScript, in React Native — the
-widget you name and the property you set are converging on the names GTK and libadwaita
-already use. This release moves the last of the widget names and three of the property
-names, and the property moves needed something the surfaces did not have: a portable form
-of the GObject value the property holds.
-
-Alongside that, React Native on GTK grew the parts an application actually needs — its own
-`Adw.Application`, accessibility, dialogs, deep links.
+- **Blueprint is parsed in this repository.** `blueprint-compiler` stops being a build
+  dependency and becomes the oracle a parser is measured against — 25 of 36 corpus files
+  byte-equal, the other 11 diverging under exactly one named cause (#1632, #1635).
+- **Effect 4 runs on GJS, unmodified**, and `@gjsify/effect-platform` gives it GNOME:
+  `effect/FileSystem` on `Gio.File`, `effect/Path` on GLib, GObject lifetimes bound to
+  Effect `Scope`s (#1590).
+- **The first musl prebuilds ship.** `linux-x64-musl` and `linux-arm64-musl` are declared
+  and published, ending a silent fallback that left the CSS bridge missing on musl hosts
+  (#1602, #1607, #1613).
+- **A runtime bundle declares what it can decode** — every format, the element behind it,
+  and the reason for each gap — and win32 gained Ogg/Vorbis. `initFonts()` now reports
+  family NAMES, the one thing a caller can act on (#1629, #1633).
+- **One authored widget tree, built by two renderers.** GTK and the browser are held to the
+  same conformance rows, so a red test names the renderer rather than the assertion (#1627).
+- **A `Gtk.Root` appended to a box no longer aborts the process.** It is presented as its own
+  window, and a class that cannot be a child is refused at the insert with a catchable error
+  naming the tag (#1628).
+- **A macOS bundle reached past itself for libsoup** and ended up with two GObject type
+  systems in one process. The shipped library is now the one it finds (#1634).
+- **The NativeScript vocabulary finishes converging on GJS spellings** — `Gtk.Box`,
+  `Gtk.Label`, methods and signals as GJS writes them, and a look is a class list
+  (#1615, #1623, #1575).
 
 ---
 
-### The widget names are one set now
+## What this release is about
 
-Five widgets in `@gjsify/adwaita-nativescript` wore an `Adw` prefix over a GTK type. The
-last one moves here: `AdwIcon` is `GtkImage`, because libadwaita ships no icon type at all
-— a non-interactive image rendering a symbolic is a `Gtk.Image` with an icon name.
+**Two languages the repository stopped outsourcing, and one it finished converging.**
+Blueprint is now read here rather than shelled out to, Effect runs on GJS without a patch,
+and the Adwaita vocabulary's last NativeScript names move to the ones GTK and libadwaita
+already use. Around those: the first musl prebuilds, runtime bundles that state their own
+audio and font contracts, and a set of instruments that used to report nothing.
 
-The 43 flat widget classes are gone from that package's root and from
-`@gjsify/adwaita-react-native`'s. Reach a widget through `Adw.<Widget>` / `Gtk.<Widget>`
-from the package root, or through the `./adw` and `./gtk` subpaths; in XML,
-`<adw:PreferencesGroup>` replaces the bare class name.
+---
 
-**One name moved where you might not look for it.** `registerAdwaitaElements()` — the call
-that hands the widgets to the `registerElement` global in `@nativescript/angular` and
-`nativescript-vue` — registers under the class name, because that dialect has one flat
-namespace and no prefix. `<AdwIcon>` in an Angular or Vue template is therefore now
-`<GtkImage>`. Plain XML apps resolve through their own `xmlns` barrel and are unaffected.
+### Blueprint is parsed in this repository
 
-### Three GObject values you can now write as data
+`blueprint-compiler` was a build dependency — a Python program, on `PATH`, standing between
+a `.blp` file and the UI it describes. ADR 0053 demotes it to an **oracle**: it stays
+authoritative for the build while an in-repo parser runs beside it and reports every byte it
+gets wrong, and it becomes authoritative only when that report is empty.
 
-A property whose value is a GObject had no portable form, so each surface invented one. Three
-of them now have a shared value in `@gjsify/adwaita-core`, and the property that holds it
-carries its GIR name on every surface:
+The corpus came first (#1632), before a line of parser existed, because a harness with
+nothing to compare against reports green while proving nothing. It holds 25 one-rule `.blp`
+files with the XML the reference compiler produces from each, the 11 `.blp` this repo already
+builds — listed by path and read from where they live, so no copy can drift and keep passing
+— and a hand-written `SharedNode` tree for all 36, with its 119 losses declared at the seam.
 
-| the value | the property | what it replaced |
-|---|---|---|
-| a menu model, mirroring `GMenuModel` | `menuModel` | a plain string array that could carry no action, section or submenu — and nothing at all in the declarative dialects |
-| a list model, plus `GListModel`'s own `items-changed` | `model` | `options` and `items` |
-| an adjustment — `Gtk.Adjustment`'s six numbers | `adjustment` | `min` / `max` / `step`, and `lower` / `upper` / `stepIncrement` |
+Then the parser, the emitter and the projection (#1635): `.blp` → AST → GtkBuilder XML, and a
+second, lossy exit to `SharedNode` that never sees the first. **25 of the 36 files come out
+byte-equal today, and the other 11 diverge under exactly one cause across 23 named lines** —
+an enum member reaching the XML by name where GTK writes its number. One problem eleven times
+is a parser waiting on a fact it may not invent; eleven unrelated problems would be a parser
+that is unfinished.
 
-Each is deliberately scoped to the widgets GTK gives that property. A list `model` exists on
-five GTK widget interfaces; for the widgets whose collection is built by
-`adw_sidebar_append()` there is no such property, and inventing one would put a GTK word on
-a value GTK does not have.
+What tolerates those 11 is data, never an `if` in the emitter — an exemption in a code path is
+invisible to every reader of the output and outlives its cause. And it names the LINES it
+excuses, because an entry that named only a file excused everything that file emitted: measured
+on this corpus, an emitter taught to write `<property name="THIS-IS-NOT-A-PROPERTY">` for every
+`hscrollbar-policy` passed the gate with the headline unchanged. The ledger fails both ways, so
+it cannot only grow: a divergence that is not listed fails, and a listed divergence that no
+longer happens fails too.
 
-In markup these arrive as JSON:
+### Effect 4 runs on GJS, unmodified
 
-```html
-<adw-spin-row title="Font size" value="16" adjustment='{"lower":0,"upper":100}'></adw-spin-row>
+[Effect](https://effect.website) is a TypeScript library for programs that have to survive
+failure, concurrency and resource cleanup — typed error channels, fibers you can actually
+cancel, scopes that release what they acquired. It now runs on GJS with **no change to any
+`@gjsify/*` package**, which was the open question: 64 cases green on Node, 85 on GJS (#1590).
+Bare GJS gives Effect `WeakRef` and `FinalizationRegistry` and nothing else it asks for;
+`structuredClone`, `MessageChannel`, `AbortController`, `queueMicrotask`, `performance`,
+`Symbol.dispose` and `process` all come from gjsify, and they all hold.
+
+`@gjsify/effect-platform` is the GNOME half — `effect/FileSystem` on `Gio.File`, `effect/Path`
+on GLib, `GError` mapped onto Effect's normalized platform errors, and a `/gtk` subpath that
+binds GObject lifetimes to Effect `Scope`s. It follows the shape of Effect's own ecosystem,
+one platform package per host beside `@effect/platform-node` and friends, and is deliberately
+**not** a fourth renderer: Effect has no components, no templates and no reconciliation, and
+this repo already answers the rendering question three times over. Effect is pinned at
+`4.0.0-rc.112` exactly, because `^` does not do what you expect across prerelease tags. The
+documentation files this under Experiments — it runs, it is not yet a recommendation.
+
+### The first musl prebuilds
+
+`@gjsify/lightningcss-native` and `@gjsify/sab-native` now declare and ship `linux-x64-musl`
+and `linux-arm64-musl` (#1607). The musl leg had been building and uploading these for a
+while and `commit-prebuilds` dropped them on purpose, because committing an undeclared target
+is exactly what the `prebuild-artifacts` rule fails on. So the build was proven and nothing
+ever shipped, and a musl host silently resolved the glibc sibling instead.
+
+What that cost, measured on a OnePlus 6 running postmarketOS with musl 1.2.6: nine of ten
+prebuilds load anyway, because musl's loader aliases `libc.so.6` to itself. The tenth does
+not —
+
+```
+Error relocating …/libgjsify_lightningcss.so: gnu_get_libc_version: symbol not found
 ```
 
-The string shorthands did not disappear where GTK has one: a menu still accepts the string
-array it always did, widened into the model's input rather than surviving beside it.
+— and the CSS bridge is then simply absent from the next build, which rolldown reports as
+`Could not load src/application.css`. Nothing in that chain names libc. A host that still
+falls back to a glibc prebuild is now warned about by name (#1602), and the libc is measured
+rather than assumed, so musl and glibc are two different answers instead of one (#1613).
 
-**Defects that came out with the convergence**, each of which had been green:
+### The NativeScript port converges the rest of the way
 
-- Both browser selectors rebuilt every option node on a model assignment. They splice now —
-  and the rebuild had been hiding a click handler that closed over the index it was built at.
-- Writing a spin row's three bounds one at a time passed through a momentarily INVERTED
-  range, so React Native reported an intermediate value GTK never produced.
-- A non-finite write to a spin row's value was coerced to 0 before clamping, which is
-  harmless only while 0 is inside the range. On `[-5, -1]` it produced the MAXIMUM.
-- Setting `model = ['a', 'b']` on NativeScript stored raw strings, so every label read back
-  `undefined`.
+ADR 0034 converged widget names and has been counting down property names. This release takes
+the axes no ledger had touched.
 
-### React Native on GTK: the application, and what it can reach
+**Methods and signals, as GJS spells them** (#1615). Across the 40 gallery blocks that carry
+both a `gjs` and a `nativescript` pane, the two surfaces shared exactly three method names:
+`add`, `present`, `push`. And the spelling is not a matter of taste — on the real GJS,
+`Gtk.Button.prototype.add_css_class` is a function and `addCssClass` is `undefined`. GJS
+installs snake_case and nothing else, so a method converges to the typelib's spelling or it
+does not converge at all.
 
-`registerRootComponent` built an `Adw.Application` and kept it, so an application on this
-layer could not reach its own — and `@gjsify/devtools` needs one to install onto, which made
-the layer's only out-of-process instrument unreachable. It hands the application back now.
+**A look is a class list** (#1575). `.suggested-action`, `.destructive-action`, `.pill`, and
+`.flat` on a header bar are not properties in GTK; they are style classes, and a widget carries
+a list of them in `GtkWidget:css-classes`. The port had spelled them as properties, so the one
+construction that GTK makes composable was the one the port could not compose.
 
-Accessibility props were refused wholesale, on a true premise and a wrong conclusion: GTK
-carries accessibility through an imperative `update_property()` call, so there is nothing to
-set as data — but an imperative call is a route like any other. 40 React Native role names,
-33 mapped to GTK nicks, 7 refused BY NAME with advice, none unanswered.
+**A page is chosen, not counted** (#1573). No portable selection value had to be invented here
+— the value already exists on every surface. What diverged was which of GTK's three selection
+shapes each port had picked, per widget, against what GTK itself chooses.
 
-`Modal` works, over a new portal seam in `@gjsify/gtk-host`: a node can now be placed
-AGAINST its parent rather than into it. `box.append(dialog)` is a `g_error()` — SIGABRT, a
-core dump — but only once the box is rooted in a window, which is why a detached tree took
-the same call in silence.
+**`Gtk.Box`, `Gtk.Label`, and a button with an icon** (#1623) close the last gallery blocks
+where a `@nativescript/core` layout stood in for a widget the port did not ship. A widget can
+now be built through a construct-props object like every other surface spells it (#1579), a
+bottom sheet is simply `open` (#1574), and an avatar falls back (#1578).
 
-Deep links stay on their own tab; a route's cache is per-route; and one routed window gets
-one header bar.
-
-### Instruments that reported nothing
-
-A recurring theme, and this release closes another set of them:
-
-- `gjsify ship` staged a payload the target's interpreter could not load — a `gi://` import
-  for Node, a bare GJS built-in — and said nothing until the application failed to start.
-- `@gjsify/unit` counted assertions where it said tests, and could report "3 of 2 tests
-  failed". Test hooks registered in a nested `describe` leaked outward, and `afterEach` did
-  not run for a failing test.
-- A GStreamer plugin seed matched nothing on the shipping platform, so an audio format's
-  decoder was simply absent from the bundle.
-- `gjsify foreach --exec -- <cmd> 9` dropped every numeric argument after the separator.
-- On Windows, `C:\images\logo.png` was refused as a URI: a drive letter satisfies RFC 3986's
-  scheme grammar exactly, and the only OS with drive letters is the one that failed.
-
+**And the icons travel with the app** (#1620, #1624). Repo-wide before this change,
+`add_resource_path` and `add_search_path` had zero hits outside `node_modules`: every gjsify
+GTK app drew whatever icon theme the host happened to have, and nothing in the tree noticed.
+`@gjsify/adwaita-app` now bundles the Adwaita subset into the app's own GResource and
+registers it, because you cannot assume the environment your app lands in ships that set.
 ### One authored widget tree, built by two renderers
 
 The gallery has widget trees that are written once and drawn by more than one renderer. Until
@@ -192,12 +226,6 @@ when you pass `expectedFamilies`, a `matches` entry per name saying whether it r
 under an optical-size alias, or is simply not there — warned about on the spot, because Pango
 substitutes silently and nothing else ever will.
 
-### Also in this release
-
-`@gjsify/vite-plugin-gettext` refuses to gut a catalog rather than writing an empty one;
-`@gjsify/gtk-host` quotes a font family GTK would otherwise refuse, and clears a nullable
-property for real; and the `.deb` package carries a changelog.
-
 ### A window in a child list is not a smaller version of a dialog in one
 
 `@gjsify/gtk-host` learned last release that an `Adw.Dialog` cannot be a child: appending
@@ -250,3 +278,24 @@ Both now cover both, and a new conformance rule reads the finished payload from 
 a Linux workstation can inspect a macOS bundle's load commands without a Mac — refusing an image
 that can reach outside the bundle, and equally one left with a dependency it can no longer
 resolve.
+
+### Also in this release
+
+The website's Adwaita gallery grew three windows, one language per window (#1622), glosses
+its fence attributes from the GIR rather than from prose (#1621), and its two panes are now
+measured against each other rather than asserted to match (#1614). Effect moved under a new
+Experiments rubric (#1608), and the documentation as a whole reads for a reader rather than
+for a reviewer (#1619, #1625).
+
+On the GTK side: `Gtk.AspectFrame` is curated, because a ratio needs a widget that holds one
+(#1598); a flow box keeps its per-line cap at its child count (#1596); an enum value is read
+rather than counted (#1585); and a horizontal `ScrollView` answers its height with a layout
+manager (#1599). A React Native tab layout can contribute a persistent bottom bar (#1617),
+and the switcher moves there when the window is narrow (#1597). A finger is a pointer too
+(#1591).
+
+In the toolchain: `@gjsify/rolldown-plugin-gjsify` never inlines a read of the host (#1604)
+and grew its `gi://` arms for the browser and NativeScript (#1580); the npm client retries
+past a registry blip, body included (#1603); the ship oracle stops blaming the artifact for
+a fault in its own reader (#1605); and `@gjsify/devtools` says which absence a declined
+screenshot was (#1611), over a tree that reports what it was given (#1589).
