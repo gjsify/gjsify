@@ -48,6 +48,24 @@ accepted before and quietly drew 16 pixels, because the string fell through to a
 A name that means one thing in GTK and another here is the kind of bug you only find by
 measuring pixels. See #1647.
 
+## @girs 5.0.0: a signal name is now checked
+
+The type packages went to 5.0.0, and they dropped the permissive overloads that let
+`connect`, `connect_after` and `emit` take any string. A signal name the object's type does
+not declare is a compile error now.
+
+That found a bug we had shipped for years. `@gjsify/http2` connected `accept-certificate`
+on the `Soup.Session`, and libsoup 3 installs no signal of that name there, so the call
+threw. `rejectUnauthorized: false` never worked on that path, and the string overload is
+the reason it kept compiling.
+
+Twenty-two call sites in nine packages needed changing here. If you hit the same error
+after upgrading, the shape is almost always one of two. A name known only at runtime
+belongs in `GObject.signal_connect` / `signal_emit_by_name`, the low-level API that exists
+for exactly that. A name the type should know means the receiver is typed too widely, or
+the signal is one an element installs at runtime, which you can read back with
+`GObject.signal_query` and declare once (#1659).
+
 ## Blueprint reads enum values instead of passing names through
 
 A `.blp` file says `orientation: vertical`. GtkBuilder wants `1`. The in-repo parser passed
