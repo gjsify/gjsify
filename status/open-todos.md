@@ -6002,3 +6002,55 @@ cannot stay private forever and cannot export a type from a path outside its own
 candidate answers are a type-only package both sides import, and a declaration in the parser that a
 compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
 with a working projection in hand than without one.
+
+### Four more commands answer an empty selection with exit 0, and one of them is a `--check`
+
+#1587 was one command resolving an empty set, doing nothing and reporting success. The
+fix is in, and a sweep of every command in `packages/infra/cli/src/commands/` asked the
+same question of each: *when the selection resolves to EMPTY, what happens?* Most answer
+well — `foreach --include`, `onboard --packages`, `storybook`, `ship`, `run`, `check`,
+`trust`, `dev` and every `flatpak` subcommand exit NON-ZERO, and `prune`, `upgrade`'s
+dependency filters, `install`, `info` and `affected` print a line saying they found
+nothing. Four do not, ranked by what a later step then measures:
+
+1. **`gjsify barrels --paths <dir>` skips a directory it cannot read, and `--check` calls
+   that no drift.** `actions/barrels-generate.ts:65-76` catches the `readdir` failure,
+   logs only under `--verbose`, and `continue`s; `commands/barrels.ts:124-129` exits
+   non-zero only when `drift > 0`, so a typo'd or renamed path contributes 0 and the
+   check passes for a barrel nothing looked at. `commands/barrels.ts:101` guards "zero
+   paths given" and never "this path matched nothing" — the exact asymmetry
+   `assertEveryIncludeMatches` was written to close for `foreach`. This is the worst of
+   the four because it is a GUARD that goes green.
+2. **`gjsify build` has no guard for an entry / `--library` glob matching no files.**
+   `rolldown-plugin-gjsify/src/utils/entry-points.ts:102-105` returns `[]`, which flows
+   into `input` (`library/lib.ts:83`, `app/gjs.ts:153`) and on to `runBundle`. Every
+   post-build guard is offender-based and passes trivially on nothing:
+   `assertGjsBundleLoadable` returns when both offender lists are empty,
+   `assertGjsBundleParses` `continue`s on empty code, `computeCommonRoot` even has an
+   explicit `paths.length === 0 → 'src'` fallback. Whether rolldown itself refuses
+   `input: []` is NOT determined from this tree, and that is the point: the no-match path
+   is reachable (`commands/build.ts:6-26` records a win32-backslashed pattern where
+   "nothing ever matches, and no output file is written"), and build is precisely the
+   step whose artifact a later step measures.
+3. **`gjsify upgrade --workspace <glob>` prints one line and exits 0** where `foreach`
+   asserts (`commands/upgrade.ts:161-164`). `applyWorkspaceFilter` cannot tell "the
+   pattern named something that does not exist" from "the exclude emptied a real set", so
+   a stale name or a quoting mishap reports success having edited nothing, and the
+   following `install` + `build` measure the OLD versions. Cheapest of the four to fix:
+   the assert exists twice already (`commands/foreach.ts:593`,
+   `utils/onboard-discovery.ts:73`).
+4. **`gjsify pack` on an unbuilt package writes a `.tgz` of `package.json` + README and
+   prints its name at exit 0** (`commands/pack.ts:283-306`). The comment at `:276-282`
+   names the incident — `@gjsify/tsc` shipped an empty `lib/` for the whole v0.4.37-0.7.2
+   window — and puts the guard in `scripts/verify-tarball-outputs.mjs`, OUTSIDE the
+   command, so a `pack` → `publish` that does not run that script is unheld.
+
+Deliberate and left alone: `clear` and `copy` wildcards that match nothing (shell parity,
+argued for in `utils/clear-targets.ts:98-104` and `utils/copy-targets.ts:97-99`), and
+`ship --stage`'s `formats (none — …)` line.
+
+**What would close it**: one shared assert with the shape `assertEveryIncludeMatches`
+already has — *a pattern the caller wrote that matched nothing is an error, a filter that
+emptied a real set is not* — applied at the three selection sites above. The distinction
+is the whole content of the rule, and it is why a blanket "empty is an error" would be
+wrong for `prune` and `foreach --exclude`.
