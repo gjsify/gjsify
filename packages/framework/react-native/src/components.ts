@@ -54,7 +54,7 @@ import { childFacts, childNodes, isAbsoluteChild, isTextNode } from './child-fac
 import { ParentContext, ParentProvider } from './parent-context.js';
 import { onGesture, onPressStateChange } from './press.js';
 import type { ClassNameInput } from './primitives/classes.js';
-import { PrimitiveError } from './primitives/errors.js';
+import { describeElement, PrimitiveError } from './primitives/errors.js';
 import { createHandle, type TextInputHandle } from './primitives/handles.js';
 import {
     resolvePrimitive,
@@ -214,15 +214,29 @@ export function usePlan(primitive: string, authored: object): Rendered {
     // same authored tree. A feature whose two frameworks differ is worse than a
     // refusal, so this stays a refusal until that difference is understood. The
     // workaround is the container's own expand, which the application owns anyway.
+    //
+    // THE MESSAGE NAMES THE ELEMENT, because naming the primitive is not enough: an
+    // application has many elements per primitive, and a consumer reported spending
+    // hours on a `<View> expand` refusal with twenty-five `<View className="flex-1
+    // bg-canvas">` sites to choose between. `describeElement` says what the author
+    // wrote; `primitives/errors.ts` says why those two fields and no more.
+    //
+    // AND IT NO LONGER OFFERS "or its parent is not a box", WHICH CANNOT BE THE CAUSE
+    // HERE. The only input to resolving `expand`, `alignSelf` and `overlay` is whether
+    // a parent record EXISTS (`primitives/intents.ts`); the four subjects that test
+    // `widget.box` or `parent.overlay` throw on the spot and never reach `remaining`,
+    // so they never arrive here. A reader chasing that clause for a `flex-1` refusal
+    // is chasing something that cannot apply, which is what the same consumer did.
     const unresolved = Object.keys(plan.intent);
     if (unresolved.length > 0) {
         throw new PrimitiveError(
             primitive,
             unresolved.join(', '),
-            'carries layout that cannot be resolved at this position. These need a parent to resolve against — ' +
-                '`flex-1` and `self-*` need the parent orientation, `absolute` needs the parent to be an overlay — ' +
-                'and this element is the root of its tree, or its parent is not a box. Wrap it in a <View>, or move ' +
-                'the utility to a child.',
+            'carries layout that only a parent can resolve — `flex-1` and `self-*` need the parent orientation, ' +
+                '`absolute` needs the parent to be an overlay — and no parent context was published above this ' +
+                'element: either it is the root of its React tree, or it was built outside its parent’s provider. ' +
+                'Wrap it in a <View>, or move the utility to a child.',
+            describeElement(props),
         );
     }
 
@@ -438,7 +452,27 @@ function render(rendered: Rendered): ReactElement {
         // to, so the wrapper would be pure overhead on the most common element in
         // any application (233 `Text` uses against 55 `View`s, ADR 0032's
         // measurement).
-        const body = children.some(isTextNode) ? children : [wrap(children)];
+        //
+        // THE CONDITION IS THE PRIMITIVE'S, NOT THE CHILDREN'S, and it used to be
+        // `children.some(isTextNode)` — which asks "is there any text here" and
+        // answers a question about the SIBLINGS. One text child therefore deleted the
+        // provider for every element child beside it, and a child's `flex-1` started
+        // refusing because a sibling's value had become a string.
+        //
+        // MEASURED, and the case is worse than it sounds because the text need not be
+        // visible: `Children.toArray` keeps `''` (`child-facts.ts`) and the reconciler
+        // builds a text fiber only for a NON-empty string, so `{label}` going from
+        // `null` to `''` renders nothing, changes nothing on screen, and removes the
+        // provider. A consumer hit exactly that and spent hours on a `<View> expand`
+        // refusal about an element they had not touched.
+        //
+        // `plan.textSink !== null` is what the paragraph above actually describes: a
+        // sink-only primitive is the one with nothing to publish to. `every` rather
+        // than `some` keeps a mixed `<Text>a<Text>b</Text></Text>` wrapped, which is
+        // one provider on a nested run and correct rather than merely cheap. The 233
+        // `Text` uses still allocate nothing, because their children are all text.
+        const body =
+            plan.textSink !== null && children.every(isTextNode) ? children : [wrap(children)];
         return createElement(plan.node.tag, nodeProps(plan.node, inherited, extra), ...body);
     }
 
