@@ -117,6 +117,23 @@ export default async () => {
             expect(planUiFontPolicy({ policy: 'size', current: 'Segoe UI 14' }).kind).toBe('kept');
         });
 
+        await it('size honours an explicit family, because the option type offers one', async () => {
+            // `family` sits on `PlanUiFontOptions`, which `ApplyUiFontPolicyOptions` extends, so
+            // it is offered for EVERY policy — and this hand-off used to drop it, producing the
+            // one failure shape nothing catches: `{ policy: 'size', family: 'Inter' }` compiled,
+            // ran, returned a plan, and wrote the HOST's family. An option that is accepted and
+            // ignored is worse than one that is refused.
+            const plan = planUiFontPolicy({ policy: 'size', current: WINDOWS, family: 'Inter' });
+            expect(plan.next).toBe('Inter 11');
+            expect(plan.family).toBe('Inter');
+            // And the SIZE stays raise-only, which is what still separates it from `adwaita`: a
+            // host above GNOME's keeps its own size while the family moves.
+            expect(planUiFontPolicy({ policy: 'size', current: 'Segoe UI 14', family: 'Inter' }).next).toBe('Inter 14');
+            expect(planUiFontPolicy({ policy: 'adwaita', current: 'Segoe UI 14', family: 'Inter' }).next).toBe(
+                'Inter 11',
+            );
+        });
+
         await it('adwaita forces the GNOME face at GNOME size, on every platform', async () => {
             const plan = planUiFontPolicy({ policy: 'adwaita', current: WINDOWS });
             expect(plan.kind).toBe('family');

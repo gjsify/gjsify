@@ -189,7 +189,13 @@ export function planUiFontPolicy(options: PlanUiFontPolicyOptions): UiFontPlan {
         return describe(baseline, 'restored');
     }
 
-    if (policy === 'size') return planUiFont(current, { size: options.size });
+    // `family` is FORWARDED here, and dropping it was a silent hole: `PlanUiFontOptions.family`
+    // is in the option type of every policy (`ApplyUiFontPolicyOptions` extends it), so
+    // `applyUiFontPolicy({ policy: 'size', family: 'Inter' })` type-checks, reads as "the host's
+    // size rule, my face" — and used to write the HOST's family. `planUiFont` has always honoured
+    // the option; only this hand-off dropped it, which is the one way an option can be wrong that
+    // neither the compiler nor a warning can reach.
+    if (policy === 'size') return planUiFont(current, { size: options.size, family: options.family });
 
     // `adwaita` — the GNOME font at GNOME's size, the same on every platform. NOT raise-only and
     // NOT dependent on the current value: that is the whole point of the state, and a consumer
