@@ -326,6 +326,47 @@ export default async () => {
                 expect(message.includes('fixture-blueprint')).toBe(true);
             });
 
+            await it('states the total when there are more failures than it prints', async () => {
+                // The count is the diagnosis — 22 of 24 `.blp` files, and the
+                // two that loaded were the two without `using Adw 1;`. So the
+                // total has to survive the cap that keeps 22 five-line compiler
+                // excerpts from burying it.
+                const dir = tmpdir('rdn-int-hookerr-many');
+                const failures = 12;
+                let entry = '';
+                for (let i = 0; i < failures; i++) {
+                    writeFile(`${dir}/m${i}.blp`, 'x');
+                    entry += `import "./m${i}.blp";\n`;
+                }
+                writeFile(`${dir}/main.mjs`, `${entry}export const v = 1;`);
+
+                const failing: NativePlugin = {
+                    name: 'fixture-many',
+                    load(id) {
+                        if (id.endsWith('.blp')) throw new Error(`${id}: boom`);
+                        return null;
+                    },
+                };
+
+                let rejection: Error | null = null;
+                try {
+                    await bundleWithPlugins(
+                        { input: [{ name: 'main', import: `${dir}/main.mjs` }], cwd: dir, format: 'esm' },
+                        [failing],
+                    );
+                } catch (e) {
+                    rejection = e as Error;
+                }
+
+                expect(rejection !== null).toBe(true);
+                const lines = (rejection as unknown as Error).message.split('\n');
+                expect(lines.includes(`${failures} plugin hooks failed during this build:`)).toBe(true);
+                // Capped at 8 spelled out, with the remainder accounted for
+                // rather than silently dropped.
+                expect(lines.filter((l) => l.includes('[plugin fixture-many]')).length).toBe(8);
+                expect(lines.includes(`  … and ${failures - 8} more`)).toBe(true);
+            });
+
             await it('rolldown-shaped {filter, handler} hooks dispatch correctly via toNativePlugin', async () => {
                 // Mirrors how the CLI wire-up (B.5b) translates rolldown's
                 // {filter:{id:/regex/}, handler} hook form into our
