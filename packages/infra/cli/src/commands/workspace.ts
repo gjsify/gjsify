@@ -268,17 +268,22 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
  * elsewhere in the monorepo is somebody else's business, and printing all of them would
  * bury the one that explains why this closure is the size it is.
  *
- * This is a warning, not a failure. The installer resolves such a dependency from the
- * registry, so leaving it out of the build order is correct — it is only invisible that
- * makes it dangerous.
+ * This is a warning, not a failure, and it deliberately asserts NO outcome, because the
+ * outcome depends on which installer placed `node_modules`: npm and yarn fetch such a
+ * dependency from the registry — the rule the graph follows, under which leaving it out of
+ * the build order is simply right — while `gjsify install` symlinks the local member
+ * whatever the range says. Under that one the build order really is short a package, so
+ * the message asks for the range and the version to be brought into agreement instead of
+ * telling the reader where the files came from.
  */
 function reportUnlinked(unlinked: readonly UnlinkedDependency[], closure: ReadonlySet<string>): void {
     for (const entry of unlinked) {
         if (!closure.has(entry.from)) continue;
         console.error(
             `gjsify workspace: "${entry.from}" depends on "${entry.to}": ${entry.spec}, which the local ` +
-                `workspace (${entry.to}@${entry.version}) does not satisfy — NOT built as a dependency; ` +
-                `the installer resolves it from the registry.`,
+                `workspace (${entry.to}@${entry.version}) does not satisfy — NOT built as a dependency. ` +
+                `npm and yarn take that one from the registry; \`gjsify install\` links the local one ` +
+                `anyway, so if it is the local one you mean, make the range admit ${entry.version}.`,
         );
     }
 }

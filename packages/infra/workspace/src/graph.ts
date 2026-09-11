@@ -19,11 +19,20 @@ export interface DependencyGraph {
  * A dependency that names a workspace member but does not link to it, because the
  * member's version does not satisfy the declared range.
  *
- * This is not an error — the installer resolves that dependency from the REGISTRY, so
- * excluding it from the graph is correct. It is reported because it is the one case a
- * caller cannot tell from "no local dependency at all", and the difference is the whole
- * of #1587: a closure that comes back empty for this reason looks exactly like a closure
- * that is empty because nothing local was needed.
+ * This is not an error, and it is REPORTED rather than silently dropped because it is the
+ * one case a caller cannot tell from "no local dependency at all" — the difference is the
+ * whole of #1587: a closure that comes back empty for this reason looks exactly like a
+ * closure that is empty because nothing local was needed.
+ *
+ * WHICH INSTALLER PLACED THE FILES DECIDES WHAT IT MEANS, and the graph cannot know, so it
+ * states no outcome. npm and yarn resolve such a dependency from the REGISTRY, which is the
+ * rule this graph follows and under which excluding it is simply correct. `gjsify install`
+ * does NOT: it symlinks a name-matched member whatever the spec says, because routing one
+ * into its fetch/extract queue would unpack a published tarball over the workspace's own
+ * source tree (`@gjsify/cli` `commands/install.ts`, the `localWorkspace` branch). Under
+ * that installer the consumer imports the local package while this graph declines to build
+ * it, so a range and a member version that disagree are worth ALIGNING rather than
+ * explaining — which is what makes this list the thing to print instead of a guess.
  */
 export interface UnlinkedDependency {
     /** The workspace that declares the dependency. */
