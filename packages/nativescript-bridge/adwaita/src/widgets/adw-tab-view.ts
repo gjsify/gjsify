@@ -481,7 +481,7 @@ export class AdwTabView extends withSignals(GridLayout) {
         const close = new AdwImageButton();
         close.className = `${close.className} adw-tab-close`.trim();
         close.iconName = windowCloseSymbolic;
-        close.iconSize = 12;
+        close.pixelSize = 12;
         close.verticalAlignment = 'middle';
         close.addEventListener('tap', () => this._state.closePage(page.id));
         button.addChild(close);

@@ -763,13 +763,20 @@ claim.) Of the 95:
 | the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
 | the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
 | the type differs: nullability only | 1 |
-| **the type differs AND so does the kind of value** | **3** |
+| **the type differs AND so does the kind of value** | **2** (was 3 — #1584) |
 | **the type AGREES and the kind of value does not** | **5** |
 | the evidence does not decide | 1 |
 
-The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
-page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
-`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number).
+The two the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string) and `AdwTabView.defaultIcon` (`Gio.Icon` against a string).
+
+**The third is RESOLVED** (#1584) and is worth keeping here for the shape of that answer
+too. It was `GtkImage.iconSize`, a `Gtk.IconSize` enum against a DIP number — the port
+carrying `Gtk.Image:pixel-size`'s meaning under `icon-size`'s name, twice (`AdwImageButton`
+had the same pair). The fix was not to pick one: the port now carries BOTH GTK properties
+under their own names, `iconSize` taking the three nicks and `pixelSize` the number, with
+`pixel-size` overriding as it does on GTK. `widgets/gtk-icon-size.ts` holds the table and
+arm 7 of `check-nativescript-xml-doors.mjs` holds it against `GtkIconSizeNick`.
 
 **The five it does not have RESOLVED** (ADR 0034 § Amendment 18), and they are worth keeping
 here for the shape of the answer. They were one family — `GtkImage.iconName`,
@@ -6002,3 +6009,35 @@ cannot stay private forever and cannot export a type from a path outside its own
 candidate answers are a type-only package both sides import, and a declaration in the parser that a
 compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
 with a working projection in hand than without one.
+
+### `Gtk.IconSize` takes the nick and not the constant, and the second door has no gate arm
+
+ADR 0034 § 4 gives an enum TWO accepted spellings: the nick, because a nick is a string
+and a string is the only thing that survives an XML attribute, and the CONSTANT, so a
+snippet ported off GJS keeps working. `widgets/gtk-icon-size.ts` (#1584) declares only the
+first. `new Gtk.Image({ iconSize: Gtk.IconSize.LARGE })` is therefore a type error and a
+runtime refusal, where the same line spelled `'large'` works.
+
+That is a deliberate omission and not an oversight, because of where the second spelling
+has to live. A setter must NOT widen its declared type to admit the constant — that drags
+the number into the ATTRIBUTE door, which has no coercer — so the number is accepted by the
+construct-props BAG, which coerces it to a nick first. `Gtk.Align` does exactly this
+through `ALIGNMENT_AXES` + the `AlignmentProp` widening in `ConstructProps<T>`, and the
+reason it is safe there is that arm 5 of `check-nativescript-xml-doors.mjs` holds the
+table, and `construct-props.spec.ts` pins the derived constants literally. A second such
+table with no arm behind it would be the shape this repository calls a declaration nothing
+checks.
+
+**What would close it**: an `ICON_SIZE_PROPS` table beside `ALIGNMENT_AXES`, a second
+member of the `ConstructProps<T>` widening union, and one arm holding the constants against
+`ENUM_VALUES` in `packages/framework/gtk-host/src/generated/enum-values.mts` — which
+already carries `GtkIconSize.inherit` 0, `.normal` 1, `.large` 2, is committed, and is
+reachable from a `checkout` + `setup-node` job with no `@girs` install. That in-repo table
+is also what would retire `gtk-align.ts`'s own "the alias declaration is the one GIR fact
+no in-repo oracle can check" caveat, so the two are one piece of work rather than two.
+
+**Why the numbers are not simply authored here meanwhile**: no member of `Gtk.IconSize` is
+an alias, so the positions in the nick list ARE the constants — which is exactly the
+shortcut `Gtk.Align` measured to be wrong for 2 of its 7 members. Writing a derivation that
+happens to be right for this enum and is silently wrong for the next one is worse than not
+having the door.

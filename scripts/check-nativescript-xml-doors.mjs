@@ -69,6 +69,15 @@
 //      base is a widget a GJS event snippet cannot run on, and a second wrap is a second,
 //      identical copy of the door one prototype up. The count is PRINTED, split by which
 //      way each class got it, so "every class" is a number and not a sentence.
+//   7. THE `Gtk.IconSize` TABLE. Same shape as arm 5 and a different question: its nick
+//      list is `GtkIconSizeNick`'s, in that order and that spelling, and every member
+//      carries a pixel size. No member of this enum is an alias, so unlike `Gtk.Align` the
+//      positions ARE the values and there is no derivation to hold — what there is instead
+//      is a NUMBER PER MEMBER that no in-repo oracle can look up, measured on a live
+//      `Gtk.Image` and pinned literally by `icon-size.spec.ts`. The arm exists because the
+//      table is the whole of #1584's fix: the port used to carry `Gtk.Image:pixel-size`
+//      under `icon-size`'s name, and a name that agrees with a value that does not is
+//      invisible to every gate that compares names.
 //
 // Plain Node over the repo's own files — no install, no build. It defines nothing that
 // writes, and `nativescript-xml-doors.mjs` beside it is a library for the same reason.
@@ -94,6 +103,7 @@ import {
     NOT_AN_XML_WIDGET,
     NS_CONSTRUCT_PROPS,
     NS_GTK_ALIGN,
+    NS_GTK_ICON_SIZE,
     NS_SIGNALS,
     NS_WIDGETS_DIR,
     readCoreClasses,
@@ -555,6 +565,74 @@ notes.push(
         `base in ${SIGNALS_MIXIN}(), ${inherited} inherit it through a port base`,
 );
 if (wrapped === 0) failures.push('no widget class wraps a platform base — arm 6 proved nothing');
+
+// ---------------------------------------------------------------------------
+// 7. the Gtk.IconSize table: the GIR nick list, and a pixel size for every member
+// ---------------------------------------------------------------------------
+
+let iconSizeSource = null;
+let iconSizeNicks = null;
+try {
+    iconSizeSource = readFileSync(join(ROOT, NS_GTK_ICON_SIZE), 'utf8');
+} catch {
+    failures.push(`${NS_GTK_ICON_SIZE} is not readable — arm 7 would pass vacuously.`);
+}
+try {
+    iconSizeNicks = readNickUnion(readFileSync(join(ROOT, GTK_HOST_NICKS), 'utf8'), 'GtkIconSizeNick');
+} catch {
+    failures.push(`${GTK_HOST_NICKS} is not readable — arm 7 has no independent side to compare against.`);
+}
+if (iconSizeNicks === null && iconSizeSource !== null) {
+    failures.push(`${GTK_HOST_NICKS} declares no GtkIconSizeNick — the table below would be held against nothing.`);
+}
+if (iconSizeSource !== null && iconSizeNicks !== null) {
+    const order = readStringArray(iconSizeSource, 'GTK_ICON_SIZE_NICKS');
+    const pixels = readRecordLiteral(iconSizeSource, 'GTK_ICON_SIZE_PIXELS');
+    if (order === null || pixels === null) {
+        failures.push(
+            `${NS_GTK_ICON_SIZE}: ${[
+                ['GTK_ICON_SIZE_NICKS', order],
+                ['GTK_ICON_SIZE_PIXELS', pixels],
+            ]
+                .filter(([, read]) => read === null)
+                .map(([name]) => name)
+                .join(', ')} could not be read as a flat declaration. A reader that cannot read one has to ` +
+                'say so; silence here is a clean bill for a table nothing looked at.',
+        );
+    } else {
+        if (order.join(' ') !== iconSizeNicks.join(' ')) {
+            failures.push(
+                `GTK_ICON_SIZE_NICKS is [${order.join(', ')}] where GtkIconSizeNick in ${GTK_HOST_NICKS} is ` +
+                    `[${iconSizeNicks.join(', ')}]. ORDER is part of the comparison: no member of this enum is ` +
+                    'an alias, so the positions are the GIR constants and a member in the wrong place renames two.',
+            );
+        }
+        for (const nick of order) {
+            const size = pixels.get(nick);
+            if (size === undefined) {
+                failures.push(
+                    `Gtk.IconSize '${nick}' has no entry in GTK_ICON_SIZE_PIXELS. Every member resolves to a ` +
+                        'size here — a missing one would fall through to `undefined` and size an image to NaN, ' +
+                        'which is the silent shape #1584 was.',
+                );
+                continue;
+            }
+            if (!/^\d+$/.test(size) || Number(size) <= 0) {
+                failures.push(`GTK_ICON_SIZE_PIXELS['${nick}'] is ${size}, which is not a positive pixel count.`);
+            }
+        }
+        for (const [nick] of pixels) {
+            if (!order.includes(nick)) {
+                failures.push(`GTK_ICON_SIZE_PIXELS names '${nick}', which is not a Gtk.IconSize member.`);
+            }
+        }
+        notes.push(
+            `${order.length} Gtk.IconSize member(s) held against GtkIconSizeNick in order, each with a pixel ` +
+                'size; the sizes themselves are the one GIR fact no in-repo oracle can check and are pinned by ' +
+                'icon-size.spec.ts',
+        );
+    }
+}
 
 for (const note of notes) console.log(`check-nativescript-xml-doors: ${note}`);
 

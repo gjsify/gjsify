@@ -377,9 +377,21 @@ export const NS_CONSTRUCT_PROPS = `${NS_WIDGETS_DIR}/construct-props.ts`;
 export const NS_GTK_ALIGN = `${NS_WIDGETS_DIR}/gtk-align.ts`;
 
 /**
+ * Where the `Gtk.IconSize` table lives — arm 7's subject.
+ *
+ * A second enum file rather than a row in the first, because the two answer different
+ * questions: `Gtk.Align` is TRANSLATED onto NativeScript properties that already exist and
+ * has three members with no counterpart at all, while `Gtk.IconSize` resolves to a NUMBER
+ * this port computes itself and every member has one. Sharing a file would put a refusal
+ * table and a pixel table under one heading.
+ */
+export const NS_GTK_ICON_SIZE = `${NS_WIDGETS_DIR}/gtk-icon-size.ts`;
+
+/**
  * The in-repo, GIR-derived nick lists — `packages/framework/gtk-host/src/generated/props.ts`.
  *
- * The independent side of the `Gtk.Align` table, and the only one that needs no install:
+ * The independent side of the `Gtk.Align` and `Gtk.IconSize` tables, and the only one that
+ * needs no install:
  * this file is emitted from each `@girs` package's `vocabulary` entry by a generator that
  * has never heard of the NativeScript port, and the gates run in a `checkout` +
  * `setup-node` job with no `node_modules` at all (`audit-runtimes.yml`). It carries the
