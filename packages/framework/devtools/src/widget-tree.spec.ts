@@ -23,24 +23,18 @@ const asWidget = (shape: object): Gtk.Widget => shape as unknown as Gtk.Widget;
 // A consumer's OWN subclasses of toolkit types — the shape #1582 is about. Registered
 // once here so `GObject.type_from_name` can answer for them; the mock shapes below then
 // carry their names the way a live instance would.
-const SpecDialog = GObject.registerClass(
-    { GTypeName: 'DevtoolsSpecDialog' },
-    class DevtoolsSpecDialog extends Gtk.Box {},
-);
-const SpecListBox = GObject.registerClass(
-    { GTypeName: 'DevtoolsSpecListBox' },
-    class DevtoolsSpecListBox extends Gtk.ListBox {},
-);
-const SpecKeyController = GObject.registerClass(
+GObject.registerClass({ GTypeName: 'DevtoolsSpecDialog' }, class DevtoolsSpecDialog extends Gtk.Box {});
+GObject.registerClass({ GTypeName: 'DevtoolsSpecListBox' }, class DevtoolsSpecListBox extends Gtk.ListBox {});
+GObject.registerClass(
     { GTypeName: 'DevtoolsSpecKeyController' },
     class DevtoolsSpecKeyController extends Gtk.EventControllerKey {},
 );
-// Touch every GType these specs name: measured under GJS 1.88.1,
-// `GObject.type_from_name('GtkToggleButton')` answers null until something in JS
-// touches the class, and registering one registers its whole ancestor chain.
-void SpecDialog.$gtype;
-void SpecListBox.$gtype;
-void SpecKeyController.$gtype;
+// `GtkToggleButton` is named by a spec below and by nothing else here, and a GType is
+// registered LAZILY: measured under GJS 1.88.1, `GObject.type_from_name('GtkToggleButton')`
+// answers null until something in JS touches the class. The three `registerClass` calls above
+// need no such line — they register eagerly, and each registers its whole ancestor chain on
+// the way, which is also what makes `GtkBox`, `GtkListBox` and `GtkEventControllerKey`
+// resolvable below without being touched.
 void Gtk.ToggleButton.$gtype;
 
 export default async () => {
@@ -260,7 +254,21 @@ export default async () => {
             expect(widgetIsA(dialog, 'DevtoolsSpecDialog')).toBe(true);
             expect(widgetIsA(dialog, 'GtkBox')).toBe(true);
             expect(widgetIsA(dialog, 'GtkWidget')).toBe(true);
+            // `false` has TWO causes — unrelated types, and a `typeName` GObject does not know
+            // — so the negative is worth something only beside proof that GTK's button chain
+            // IS registered. Without the line above it, the one below holds either way.
+            expect(widgetIsA(asWidget({ $typeName: 'GtkToggleButton' }), 'GtkButton')).toBe(true);
             expect(widgetIsA(dialog, 'GtkButton')).toBe(false);
+        });
+
+        await it('answers true for an INTERFACE the type implements', async () => {
+            // `g_type_is_a`'s own reach, and a rig author naming a capability rather than a
+            // class is not making a mistake. Pinned because it is wider than "the ancestors":
+            // every widget implements GtkAccessible, so that selector answers a widget.
+            const box = asWidget({ constructor: { $gtype: { name: 'GtkBox' } } });
+            expect(widgetIsA(box, 'GtkOrientable')).toBe(true);
+            expect(widgetIsA(box, 'GtkAccessible')).toBe(true);
+            expect(widgetIsA(box, 'GtkEditable')).toBe(false);
         });
 
         await it('reads the node-gi runtime type off $typeName', async () => {

@@ -65,7 +65,14 @@ function gtypeName(object: unknown): string | null {
 }
 
 /**
- * Does `object`'s runtime GType derive from `typeName` — the type itself, or any ancestor?
+ * Does `object`'s runtime GType derive from `typeName` — the type itself, an ancestor, or an
+ * INTERFACE it implements?
+ *
+ * The interface arm is `g_type_is_a`'s and is kept rather than filtered out: `GtkOrientable`,
+ * `GtkEditable` and `GtkAccessible` describe what a widget can DO, which is the same question
+ * a selector asks, and a rig author who tries one is not making a mistake. It does mean
+ * `GtkAccessible` and `GtkBuildable` match the first visible widget in any GTK tree — every
+ * widget implements both — so a selector that broad answers a widget rather than nothing.
  *
  * **The name comparison comes first and is the whole answer for a type GObject does not
  * know.** That covers a unit-test shape and a runtime that never registered the type, and
@@ -275,11 +282,16 @@ export function parseWidgetSelector(selector: string): WidgetSelector | null {
  * consumer invents — matching a STYLE CLASS instead — addresses the widget by how it looks
  * rather than by what it is.
  *
- * An EXACT match anywhere in the subtree still wins over a subclass match, even one earlier in
- * reading order, and that ordering is the compatibility guarantee: every selector that resolved
- * before this widening resolves to the SAME path after it, and the subclass leg is consulted
- * only where the answer used to be none. It costs one full walk in the case that used to walk
- * the tree anyway — the miss.
+ * An EXACT match anywhere in THIS CALL's subtree still wins over a subclass match, even one
+ * earlier in reading order, and that ordering is the compatibility guarantee: every selector
+ * that resolved before this widening resolves to the SAME path after it, and the subclass leg
+ * is consulted only where the answer used to be none. It costs one full walk in the case that
+ * used to walk the tree anyway — the miss.
+ *
+ * PER CALL is the whole scope of that guarantee, and a caller sweeping several roots has to
+ * say so itself: `FindWidget` passes ONE root (the active window), but a consumer looping over
+ * `ListToplevels` gets a subclass hit in an early toplevel ahead of an exact hit in a later
+ * one. Collect the per-root answers and prefer the exact one, or pass the exact type.
  */
 export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, basePath: string): string | null {
     const derived: { path: string | null } = { path: null };

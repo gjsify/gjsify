@@ -294,8 +294,9 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
                     'Find the first widget matching a selector and return its widget path, searched ' +
                     'depth-first from the active window. Selector is a GType name, a `:css-class`, or ' +
                     'both (`GtkButton:suggested-action`). A GType name matches SUBCLASSES too, so ' +
-                    "`AdwDialog` reaches the application's own Adw.Dialog subclass; an exact match wins " +
-                    'over a subclass. Invisible and unmapped subtrees are skipped, so ' +
+                    "`AdwDialog` reaches the application's own Adw.Dialog subclass, and an interface " +
+                    'name matches every implementor (`GtkAccessible` matches almost anything); an ' +
+                    'exact match wins over both. Invisible and unmapped subtrees are skipped, so ' +
                     'a hit is something a user can actually reach. Saves dumping the whole tree to hunt ' +
                     'for a path — and unlike a path written down earlier, a selector survives a widget ' +
                     'being inserted above the target. Returns an empty result when nothing matches.',
