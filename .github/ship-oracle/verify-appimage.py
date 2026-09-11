@@ -40,10 +40,12 @@ THE CHAIN, and what each link is for — none of them is redundant:
      `verify-modes.py` holds the `.deb` against, so the two formats are checked against
      ONE record of what the payload is rather than against each other.
 
-  5. THE THREE APPDIR ROOT FILES.  `AppRun` (executable), `<appId>.desktop` and the
-     icon its `Icon=` names.  appimagetool refuses an AppDir without the first two, so
-     their absence cannot be what fails here — what CAN is `AppRun` arriving
-     non-executable, or the icon being the `-symbolic` glyph instead of the app's face.
+  5. THE FOUR APPDIR ROOT FILES.  `AppRun` (executable), `<appId>.desktop`, the icon
+     its `Icon=` names, and `.DirIcon` AS A REGULAR FILE.  appimagetool refuses an
+     AppDir without the first two, so their absence cannot be what fails here — what
+     CAN is `AppRun` arriving non-executable, the icon being the `-symbolic` glyph
+     instead of the app's face, or `.DirIcon` being the symlink appimagetool writes
+     for itself, which is the reproducibility defect of ADR 0024 § A26.3 come back.
 
 USAGE
     python3 verify-appimage.py <image.AppImage> <stage/.gjsify-ship-stage.json> <appId>
@@ -62,6 +64,9 @@ SQUASHFS_MAGIC = b"hsqs"
 
 #: Where the prefix lives inside an AppDir — `APPDIR_PREFIX_DIR` in `utils/ship/appimage.ts`.
 PREFIX_DIR = "usr"
+
+#: The AppDir thumbnail the PACKER writes — `DIR_ICON_NAME` in `utils/ship/appimage.ts`.
+DIR_ICON = ".DirIcon"
 
 
 def fail(message: str) -> None:
@@ -158,6 +163,13 @@ def main(argv: list[str]) -> None:
 
     with open(manifest_path, encoding="utf-8") as handle:
         planned = {entry["path"]: entry["mode"] for entry in json.load(handle)["staged"]}
+    # `verify-modes.py`'s guard, which this reader shipped without. With an empty
+    # `staged[]` every comparison below runs zero times and the closing line reads
+    # "0 staged path(s) inside the image at exactly the planned mode" — a sentence
+    # shaped like a pass that checked nothing. MEASURED on a real artifact with a
+    # hand-emptied sidecar: exit 0, no output a reader would question.
+    if not planned:
+        fail("the stage sidecar plans no files, so this check has no subject")
 
     problems: list[str] = []
     for path, mode in sorted(planned.items()):
@@ -182,13 +194,30 @@ def main(argv: list[str]) -> None:
         problems.append(f"{app_id}.png/.svg: ABSENT from the AppDir root — the desktop entry's Icon= names it")
     if any(name.endswith("-symbolic.png") or name.endswith("-symbolic.svg") for name in icons):
         problems.append("the AppDir root icon is the -symbolic glyph, not the application's face")
+    # `.DirIcon` AS A REGULAR FILE, which is the ONLY thing in the artifact that
+    # distinguishes "the packer wrote it" from "appimagetool wrote it". The tool
+    # creates it as a SYMLINK when the AppDir has none, after every path has been
+    # stamped — the defect ADR 0024 § A26.3 records. `listing()` keeps regular
+    # files only, so a tool-written `.DirIcon` is simply ABSENT here: measured, an
+    # image packed from an AppDir without one passes every other check at exit 0.
+    # Without this line the repair is held up by nothing but a sha256 comparison
+    # between two packs a second apart, and that comparison cannot see a tree the
+    # tool edits the same way both times.
+    if DIR_ICON not in inside:
+        problems.append(
+            f"{DIR_ICON}: not a regular file in the image — appimagetool wrote it as a symlink, which means "
+            "the packer stopped writing it and two packs of one build will differ in sha256"
+        )
 
     if problems:
         for problem in problems:
             print(f"  ✗ {problem}")
         fail("the AppImage does not reproduce the staged payload")
 
-    print(f"{len(planned)} staged path(s) inside the image at exactly the planned mode, plus AppRun, entry and icon")
+    print(
+        f"{len(planned)} staged path(s) inside the image at exactly the planned mode, "
+        f"plus AppRun, entry, icon and a regular-file {DIR_ICON}"
+    )
 
 
 if __name__ == "__main__":
