@@ -266,13 +266,20 @@ export function inspectGvsbuildCatalogue({ catalogue, pins, bundles }) {
     };
 }
 
-/** The bundles this rule answers for, in the shape {@link inspectGvsbuildCatalogue} takes. */
+/**
+ * The bundles this rule answers for, in the shape {@link inspectGvsbuildCatalogue} takes.
+ *
+ * Keyed on the DECLARATION rather than on `files` shipping a `gtk/` payload, which is what
+ * `collectMediaBundles` keys on: that trigger exists to catch a bundle declaring nothing,
+ * and this rule has nothing to say about one. A package carrying `upstream` without the
+ * payload is already a `media-capabilities` failure by name.
+ */
 function mediaBundles(ctx) {
     const out = [];
     for (const pkg of ctx.allPackages) {
-        const capabilities = pkg.gjsify?.mediaCapabilities;
+        const capabilities = pkg.gjsify.mediaCapabilities;
         if (capabilities === undefined) continue;
-        out.push({ name: pkg.name ?? pkg.rel, path: pkg.rel, capabilities });
+        out.push({ name: pkg.manifest.name ?? pkg.rel, path: pkg.rel, capabilities });
     }
     return out;
 }
@@ -286,8 +293,26 @@ export const gvsbuildCatalogueRule = defineRule({
     fields: ['gjsify.mediaCapabilities'],
     description: "a declared upstream-bounded media gap still matches gvsbuild's project list at the pinned version",
     run(ctx) {
+        let catalogue;
+        try {
+            catalogue = readGvsbuildCatalogue();
+        } catch (error) {
+            // Kept, and for `workflow-rev-pin`'s reason one file over: the snapshot is the
+            // only side of this comparison that is not derived from the tree, and an
+            // unreadable one must not degrade to "not applicable" — that is a pass that
+            // measured nothing. The registry's throw-to-failure net would already make it a
+            // FAILURE; catching puts the reader's own message under this rule's print block
+            // instead of delivering it as a stack trace.
+            return {
+                failures: [
+                    'the committed gvsbuild catalogue could not be read, so no declared upstream bound was ' +
+                        `compared to anything: ${error instanceof Error ? error.message : String(error)}. Re-read ` +
+                        'it with `node packages/node-gi/scripts/gvsbuild-catalogue.mjs --update`.',
+                ],
+            };
+        }
         const result = inspectGvsbuildCatalogue({
-            catalogue: readGvsbuildCatalogue(),
+            catalogue,
             pins: readGvsbuildPins(ctx.root),
             bundles: mediaBundles(ctx),
         });
