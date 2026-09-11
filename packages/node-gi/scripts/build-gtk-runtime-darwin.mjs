@@ -1039,11 +1039,12 @@ const windowing = {
     schemas: false,
     iconThemes: [],
     iconFiles: 0,
-    // The GNOME UI faces. macOS degrades less visibly than Windows — the system font is a
-    // reasonable one — but `Adwaita Sans` and `Cantarell` are as absent here as they are
-    // there (measured on the published 0.50.0 tarballs: the only .ttf in any of the three
-    // is GtkSourceView's BuilderBlocks), so an Adwaita stylesheet naming the GNOME font
-    // silently gets the host's substitute on this platform too.
+    // The GNOME UI faces. macOS has no SIZE problem — measured in the shipped `.app` on
+    // macOS 15.7.9: `.AppleSystemUIFont 12` at 18.8 px ascent+descent against GNOME's 19.0 —
+    // but the FAMILIES are as absent here as on Windows, and that half is now measured on
+    // real hardware rather than derived from the tarball: 187 families on the map, `Adwaita
+    // Sans` and `Cantarell` ABSENT from both, and both falling back to Helvetica at 14.7 px.
+    // So an Adwaita stylesheet naming the GNOME font silently gets a substitute here too.
     fonts: 0,
     fontFamilies: [],
     gtksource: false,

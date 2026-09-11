@@ -72,8 +72,8 @@ interface InitFontsResult {
     dir: string | undefined;
     /** Every directory registered, runtime first — see below. */
     sources: readonly { dir: string; origin: 'runtime' | 'app' }[];
-    /** What the UI-font-size policy did, or `undefined` when it did not run. See below. */
-    uiFont: { next: string | undefined; kind: 'raised' | 'family' | 'kept' | 'unparsed' } | undefined;
+    /** What the UI-font policy did, or `undefined` when none was asked for. See below. */
+    uiFont: { next: string | undefined; kind: 'raised' | 'family' | 'restored' | 'kept' | 'unparsed' } | undefined;
     /** Faces now on the default font map. */
     registered: readonly string[];
     /** Faces a font map that does no runtime registration refused. See below. */
@@ -349,29 +349,68 @@ the no-op it always was.
 ### …and the size, which the faces do not fix
 
 GTK takes the system UI font from the shell. Windows' is **9 pt**; GNOME designs for **11**.
-At 96 dpi that is 12 px against ~14.7 px — about 20 % small, which is the whole of "the font
-looks a bit small" and is not something the typeface can answer.
+Measured as `ascent + descent` — points are not comparable across platforms — that is **16.0 px
+against GNOME's 19.0**, about 16 % small, which is the whole of "the font looks a bit small" and
+is not something the typeface can answer. macOS measures 18.8 px and needs no correction, so the
+gap is Windows-alone.
 
-So when `initFonts()` registered the runtime bundle's faces, it also raises `gtk-font-name`'s
-point size to GNOME's, and **keeps the host's family**:
+Which of those you want is a **policy**, and your app picks one of three:
 
-| current | after |
-|---|---|
-| `Segoe UI 9` | `Segoe UI 11` |
-| `Cantarell 11` | unchanged — it raises only |
-| `Segoe UI 14` | unchanged — a user who enlarged their text keeps it |
-| `Segoe UI` (no size) | unchanged — a value it cannot read is never rewritten |
-
-Segoe UI at 11 pt is a GNOME app respecting its host; Segoe UI at 9 pt is Adwaita drawn at the
-wrong scale. If you want the GNOME face too, ask for it — and if you want none of this, say so:
+| policy | on Windows | what it means |
+|---|---|---|
+| `system` | `Segoe UI 9` — untouched | the host's font, size included. Someone who chose 9 pt keeps 9 pt |
+| `size` | `Segoe UI 11` | the host's face, drawn at the size Adwaita was designed for. Raise-only |
+| `adwaita` | `Adwaita Sans 11` | the GNOME font, identical on every platform |
 
 ```ts
-initFonts({ uiFontSize: { family: 'Adwaita Sans' } });  // force both
-initFonts({ uiFontSize: false });                       // touch nothing
+import { applyUiFontPolicy, UI_FONT_POLICIES } from '@gjsify/gtk-host/fonts';
+
+applyUiFontPolicy('size');      // recommended for an app shipping a bundled GTK
+applyUiFontPolicy('adwaita');   // or let the user choose — UI_FONT_POLICIES enumerates them
+applyUiFontPolicy('system');    // and back again, at any time
 ```
 
-On Linux with a system GTK no runtime bundle names a font directory, so the default does
-nothing at all and a desktop's own font setting is never second-guessed by a toolkit.
+You can also ask for it once, while registering the faces:
+
+```ts
+initFonts({ uiFont: 'size' });
+```
+
+**Nothing happens unless you ask.** Registering a typeface and rewriting the user's font
+setting are two different acts, and a runtime that does the second uninvited is a surprise.
+There is a second reason: if anything applied a policy by default, `system` would already be
+unreachable — the host's own value would have been overwritten before you could choose to
+keep it.
+
+Which is the other half of how this works. `initFonts()` records `gtk-font-name` **as the
+process first found it**, and `system` restores exactly that:
+
+```ts
+uiFontBaseline();   // "Segoe UI 9" — the host's own, before anything wrote
+```
+
+That capture is why switching `adwaita` → `system` in a preferences dialog lands on the
+user's real setting rather than an approximation. Once a value has been overwritten it is not
+recoverable: GTK keeps no previous value, Windows has no GSettings to re-read, and on Linux
+the value a session applied may itself be an override of the schema default.
+
+### Before you offer the `adwaita` option
+
+Forcing `Adwaita Sans 11` on a host where that family never arrived — an older bundle, a
+system GTK without adwaita-fonts — does not fail. Pango substitutes, and the user who picked
+"use the Adwaita font" gets Tahoma: one substitution traded for another, by a setting that now
+lies about what it did. So ask first:
+
+```ts
+const adwaita = adwaitaUiFontAvailability();
+if (!adwaita.available) {
+    // don't offer it, or offer it disabled — `adwaita.match` says why
+}
+```
+
+It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state: a
+family can be on the map under a decorated name, in which case the honest thing is to ask for
+`match.family`. Call it after `initFonts()`, which is what puts the bundled faces there.
 
 ## Who does what
 
@@ -380,6 +419,7 @@ nothing at all and a desktop's own font setting is never second-guessed by a too
 | `gjsify.ship.fonts` | names the faces; `gjsify ship` copies them to `share/fonts/<appId>/` |
 | the generated launcher | exports `GJSIFY_FONT_DIR` at that directory, on every layout |
 | `initFonts()` from `@gjsify/gtk-host/fonts` | reads the variable and registers what it finds |
+| `applyUiFontPolicy()` from the same module | applies one of the three UI-font states, and undoes it |
 | `@gjsify/gtk-runtime-<target>` | carries the GNOME UI typeface in `gtk/share/fonts` |
 | `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory |
 

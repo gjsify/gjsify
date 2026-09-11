@@ -202,13 +202,29 @@ both sufficient and the simplest mechanism.
   variable is a second route to files `XDG_DATA_DIRS` already reaches.
 
   **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
-  shell, and Windows' is 9 pt where GNOME designs for 11 — at 96 dpi, 12 px against ~14.7 px,
-  about 20 % small, which is the whole of "the font is a bit small". `initFonts()` raises the
-  point size to GNOME's when it registered this bundle's faces, and **keeps the host's
-  family**: Segoe UI at 11 pt is a GNOME app respecting its host; Segoe UI at 9 pt is Adwaita
-  drawn at the wrong scale. It raises only, so an enlarged system text is never shrunk. Pass
-  `uiFontSize: false` to leave the setting alone, or `{ family: 'Adwaita Sans' }` to force the
-  GNOME face too.
+  shell, and Windows' is 9 pt where GNOME designs for 11. Measured as `ascent + descent` rather
+  than in points — points are not comparable across platforms — that is **16.0 px against
+  GNOME's 19.0**, i.e. 16 % small, which is the whole of "the font is a bit small". macOS
+  measures 18.8 px and has no size problem at all, so the gap is Windows-alone.
+
+  That is a POLICY, not a defect with one right answer, so `@gjsify/gtk-host` offers three
+  states and the application picks (`UI_FONT_POLICIES`):
+
+  | policy | `gtk-font-name` on Windows | for |
+  |---|---|---|
+  | `system` | `Segoe UI 9`, untouched | honouring the host exactly, size included |
+  | `size` | `Segoe UI 11` | the host's face at the size Adwaita is drawn for |
+  | `adwaita` | `Adwaita Sans 11` | a GNOME app that looks identical on every platform |
+
+  **Nothing is applied unless asked for.** A runtime that rewrites a font setting nobody asked
+  it to change is a surprise, and applying anything by default would also make `system`
+  unreachable — the host's own value would be gone before a consumer could choose to keep it.
+  `size` is the recommended value for an app shipping a bundled GTK; it is a recommendation in
+  the documentation, not a default in the code.
+
+  `initFonts()` captures `gtk-font-name` as the process first found it, which is what makes
+  `system` reachable again after `adwaita`: once a value has been overwritten the host's own is
+  not recoverable from GTK, from the display or from any schema.
 
   Built on the Windows runner:
   ```

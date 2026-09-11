@@ -14,6 +14,11 @@
 // `glib-2.0`, `gtksourceview-5` and `icons` — no `fonts`. Fontconfig's CONFIG ships
 // (`etc/fonts/fonts.conf` + `conf.d`), with no faces for it to find.
 //
+// DARWIN IS MEASURED TOO, in the shipped `.app` on macOS 15.7.9 x86_64 with the GTK closure
+// from the bundle itself: 187 families on the map, `Adwaita Sans` and `Cantarell` ABSENT from
+// both, both falling back to Helvetica. So "all three bundles" is a measurement on two
+// platforms and a tarball listing on the third, not an inference from the recipe.
+//
 // So every Adwaita stylesheet rule naming the GNOME font, and every application that asks
 // for one by name, silently gets a foreign face. Pango does not report a missing family: it
 // substitutes, the window renders, the process exits 0.

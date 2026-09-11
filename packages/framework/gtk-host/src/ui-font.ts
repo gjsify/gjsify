@@ -1,31 +1,52 @@
 // THE SIZE the GNOME UI is drawn at — the half of the font problem that shipping faces does not
 // fix.
 //
-// WHAT WAS MEASURED, on Windows 11 / GTK 4.22.4 with the published 0.50.0 runtime bundle:
+// WHAT WAS MEASURED, on all three platforms, in the shipped artifact with the GTK closure from
+// the bundle itself — and measured as `ascent + descent` in PIXELS out of `Pango.Font.get_metrics`,
+// NOT as point sizes:
 //
-//   gtk-font-name      "Segoe UI 9"          ascent+descent 16.0 px
-//   pango resolution   96 dpi
-//   monitor            1600x1200, scale 1
+//   platform                gtk-font-name              pango    ascent+descent
+//   Linux (GNOME, the ref)  "Adwaita Sans 11"          96 dpi   19.0 px
+//   macOS 15.7.9 x86_64     ".AppleSystemUIFont 12"    96 dpi   18.8 px
+//   Windows 11              "Segoe UI 9"               96 dpi   16.0 px
 //
-// GTK on Windows takes the system UI font from the shell, and Windows' is **9 pt**. GNOME's is
-// **11 pt** — that is the size the Adwaita stylesheet's spacing, line heights and control metrics
-// are drawn against. At 96 dpi the difference is 12 px against ~14.7 px, about 20 % smaller, which
-// is exactly the "the font is a bit small" a user reports without being able to name.
+// POINTS ARE NOT COMPARABLE ACROSS PLATFORMS and reading them as if they were is how this note
+// got its first number wrong. It said "about 20 % smaller", derived from the ratio 9:11 — the
+// measured gap is 16.0 px against 19.0, i.e. **16 %**. macOS makes the trap concrete: its
+// `gtk-xft-dpi` reports 72 while Pango renders at 96, so a points-only comparison draws the wrong
+// conclusion there twice over.
 //
-// THE POLICY, and it is a choice rather than a derivation. Two things are wrong at once on that
-// host: the FAMILY is not a GNOME one, and the SIZE is not GNOME's. This corrects the SIZE and
-// leaves the FAMILY alone.
+// TWO THINGS FOLLOW, and both are measurements rather than arguments:
 //
-//   • A Windows user's shell font is a legitimate preference, and Segoe UI at 11 pt is a GNOME
-//     app that respects its host. Segoe UI at 9 pt is not — it is Adwaita drawn at the wrong
-//     scale, which is a rendering defect rather than a preference.
-//   • The reverse choice — forcing `Adwaita Sans 11` — is defensible and deliberately not the
-//     default: it overrides a setting the user may have chosen (Windows' own text-size setting
-//     moves `gtk-font-name`), and it would take effect on hosts where the bundled face never
-//     arrived, replacing one substitution with another. `applyGnomeUiFont({ family })` is there
-//     for an application that wants it.
-//   • RAISE ONLY. A host already at 11 pt or above is left untouched, so a user who enlarged
-//     their system text does not get it shrunk back to GNOME's default by a toolkit.
+//   • THE GAP IS WINDOWS-ALONE. macOS at 18.8 px against GNOME's 19.0 is the same size to within
+//     a rounding error; it has no size problem to fix.
+//   • RAISE-ONLY IS RIGHT, and not merely defensive. macOS asks for 12 pt, so `size` leaves it
+//     untouched (12 >= 11) — which is exactly the correct outcome on the one host we have that
+//     tests the rule. A policy that set 11 unconditionally would have made macOS slightly WORSE.
+//
+// THREE STATES, AND THE CONSUMER PICKS. Two things can be wrong at once on that host — the FAMILY
+// is not a GNOME one and the SIZE is not GNOME's — and which of them an application wants
+// corrected is not something a toolkit can derive:
+//
+//   • `system`  — `gtk-font-name` is left exactly as the host set it. On Windows that is
+//                 `Segoe UI 9`, size included. Somebody who deliberately set 9 pt keeps 9 pt.
+//   • `size`    — keep the host's family, raise the size to GNOME's 11. RAISE ONLY, so a user who
+//                 enlarged their system text is never shrunk back by a toolkit.
+//   • `adwaita` — `Adwaita Sans 11`, so a GNOME application looks identical on every platform.
+//
+// `size` USED TO BE THE HARD-WIRED DEFAULT, and that was the unclear middle: it respects the
+// system font only HALF — the family is honoured, the size overruled — so `system` was not
+// expressible at all. Once anything applied the policy the original size was gone, and with it
+// the one state a user who chose 9 pt actually wanted. Two clean states are more honest than one
+// blended one, and a third that splits the difference is a legitimate choice as long as it is
+// CHOSEN.
+//
+// WHICH MEANS THE ORIGINAL VALUE HAS TO BE REMEMBERED BEFORE ANYTHING WRITES IT. `system` is not
+// "do not call the function": a consumer that offers these three in a preferences dialog must be
+// able to go from `adwaita` BACK to `system` at runtime, and after the first write the host's own
+// value is not reconstructible from anything on the system. `fonts.ts` captures it on first
+// contact and `uiFontBaseline()` hands it back; this module takes it as an argument so the
+// decision stays pure.
 //
 // Split from `fonts.ts` and free of any GI import so the DECISION runs as a unit test on node,
 // with no display, no font map and no Gtk.Settings — the same split `font-dir.ts` makes for the
@@ -38,17 +59,41 @@
  */
 export const GNOME_UI_FONT_POINT_SIZE = 11;
 
-/** What {@link planUiFont} decided, and why. */
+/**
+ * The GNOME UI face, and the family `@gjsify/gtk-runtime-<target>` bundles.
+ *
+ * `Adwaita Sans` rather than `Cantarell`, which it succeeded: adwaita-fonts ships no Cantarell,
+ * so naming it here would ask for a family no bundle carries.
+ */
+export const ADWAITA_UI_FONT_FAMILY = 'Adwaita Sans';
+
+/** Which of the three states an application wants. See the note at the top of this file. */
+export type UiFontPolicy = 'system' | 'size' | 'adwaita';
+
+/**
+ * The three states, in the order a preferences dialog should offer them.
+ *
+ * Exported so a consumer building that dialog enumerates them instead of hard-coding three
+ * strings that then drift from this type — the settings UI and the policy are two copies of one
+ * list otherwise, and only one of them is checked by the compiler.
+ */
+export const UI_FONT_POLICIES: readonly UiFontPolicy[] = ['system', 'size', 'adwaita'];
+
+/** The reasons a plan gives. See {@link UiFontPlan.kind}. */
+export type UiFontPlanKind = 'raised' | 'family' | 'restored' | 'kept' | 'unparsed';
+
+/** What {@link planUiFont} or {@link planUiFontPolicy} decided, and why. */
 export interface UiFontPlan {
     /** The `gtk-font-name` to set, or `undefined` when nothing should change. */
     readonly next: string | undefined;
     /**
      * `raised` — the host's size was below GNOME's and is corrected;
      * `family` — a family override was asked for and applied;
-     * `kept` — the host is already at or above the target size and nothing was asked for;
+     * `restored` — the host's ORIGINAL value is being put back (the `system` policy);
+     * `kept` — nothing to do: the setting already says what the policy wants;
      * `unparsed` — the current value carries no point size this can reason about.
      */
-    readonly kind: 'raised' | 'family' | 'kept' | 'unparsed';
+    readonly kind: UiFontPlanKind;
     /** The family in effect after the plan, for reporting. */
     readonly family: string | undefined;
     /** The point size in effect after the plan, for reporting. */
@@ -99,5 +144,73 @@ export function planUiFont(current: string | undefined, options: PlanUiFontOptio
         kind: options.family !== undefined && options.family !== head ? 'family' : 'raised',
         family,
         size: nextSize,
+    };
+}
+
+export interface PlanUiFontPolicyOptions extends PlanUiFontOptions {
+    /** Which of the three states to plan for. */
+    readonly policy: UiFontPolicy;
+    /** `gtk-font-name` as it stands right now. */
+    readonly current: string | undefined;
+    /**
+     * `gtk-font-name` as this PROCESS first found it, before anything wrote to it.
+     *
+     * Only the `system` policy reads it, and without it that policy cannot exist: once a value
+     * has been overwritten the host's own is not recoverable — not from GTK, not from the
+     * display, not from GSettings (Windows has none, and on Linux the setting a user actually
+     * chose may itself have been a session-level override). `fonts.ts` captures it on first
+     * contact; `uiFontBaseline()` is the reader.
+     */
+    readonly baseline?: string | undefined;
+}
+
+/**
+ * Decide `gtk-font-name` for one of the three {@link UiFontPolicy} states.
+ *
+ * Pure, like {@link planUiFont} it builds on, so all three states and the way back are exercised
+ * as unit tests on node with no display and no `Gtk.Settings`. {@link applyUiFontPolicy} in
+ * `fonts.ts` is the half that writes.
+ */
+export function planUiFontPolicy(options: PlanUiFontPolicyOptions): UiFontPlan {
+    const { policy, current, baseline } = options;
+
+    if (policy === 'system') {
+        // RESTORE, not "reason about". The baseline is a value this process READ off the host, so
+        // it is put back verbatim — parsing it would invent a second opinion about a string GTK
+        // itself produced, and an unparsable host value (the `unparsed` arm) must still be
+        // restorable. That asymmetry is deliberate: this policy's job is to undo the others.
+        if (baseline === undefined) {
+            // Nothing was ever captured, so there is nothing to go back to. Reported as `kept`
+            // rather than as a failure: a host whose `gtk-font-name` was unset is a real state,
+            // and "leave it alone" is the correct answer for it.
+            return { next: undefined, kind: 'kept', family: undefined, size: undefined };
+        }
+        if (baseline === current) return describe(baseline, 'kept');
+        return describe(baseline, 'restored');
+    }
+
+    if (policy === 'size') return planUiFont(current, { size: options.size });
+
+    // `adwaita` — the GNOME font at GNOME's size, the same on every platform. NOT raise-only and
+    // NOT dependent on the current value: that is the whole point of the state, and a consumer
+    // who wants the host's size with the GNOME face passes `size` explicitly.
+    //
+    // It therefore works from an UNPARSED current value too, where `planUiFont` correctly refuses
+    // to act: there is nothing to preserve here, so there is nothing a malformed value can spoil.
+    const family = options.family ?? ADWAITA_UI_FONT_FAMILY;
+    const size = options.size ?? GNOME_UI_FONT_POINT_SIZE;
+    const next = `${family} ${String(size)}`;
+    if (next === (current ?? '').trim()) return { next: undefined, kind: 'kept', family, size };
+    return { next, kind: 'family', family, size };
+}
+
+/** Split a `gtk-font-name` for REPORTING only — the value itself is passed through untouched. */
+function describe(value: string, kind: UiFontPlanKind): UiFontPlan {
+    const match = /^(.*\S)\s+(\d+(?:\.\d+)?)$/.exec(value.trim());
+    return {
+        next: kind === 'kept' ? undefined : value,
+        kind,
+        family: match ? (match[1] as string) : value.trim() || undefined,
+        size: match ? Number.parseFloat(match[2] as string) : undefined,
     };
 }

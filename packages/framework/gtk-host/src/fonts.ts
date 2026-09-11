@@ -49,9 +49,15 @@ import Gtk from 'gi://Gtk?version=4.0';
 import type Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
-import { describeFontFamilyMatch, matchFontFamilies, type FontFamilyMatch } from './font-families.js';
+import { describeFontFamilyMatch, matchFontFamilies, matchFontFamily, type FontFamilyMatch } from './font-families.js';
 import { isFontFace, resolveFontSources, type FontSource, type ResolveFontSourcesOptions } from './font-dir.js';
-import { GNOME_UI_FONT_POINT_SIZE, planUiFont, type PlanUiFontOptions, type UiFontPlan } from './ui-font.js';
+import {
+    ADWAITA_UI_FONT_FAMILY,
+    planUiFontPolicy,
+    type PlanUiFontOptions,
+    type UiFontPlan,
+    type UiFontPolicy,
+} from './ui-font.js';
 
 // The resolution half of this module's subject, re-exported so a caller that has to ask "what do
 // I actually put in `font-family`" reaches it from the same entry point as `initFonts` — there is
@@ -64,10 +70,21 @@ export {
     type FontFamilyMatchKind,
 } from './font-families.js';
 
-// The SIZE half, re-exported for the same reason: a caller reaching for "why is my GNOME app 20 %
+// The SIZE half, re-exported for the same reason: a caller reaching for "why is my GNOME app 16 %
 // small on Windows" and a caller reaching for "which face backs my family" are the same person on
 // two different days, and both arrive at this entry point.
-export { GNOME_UI_FONT_POINT_SIZE, planUiFont, type PlanUiFontOptions, type UiFontPlan } from './ui-font.js';
+export {
+    ADWAITA_UI_FONT_FAMILY,
+    GNOME_UI_FONT_POINT_SIZE,
+    UI_FONT_POLICIES,
+    planUiFont,
+    planUiFontPolicy,
+    type PlanUiFontOptions,
+    type PlanUiFontPolicyOptions,
+    type UiFontPlan,
+    type UiFontPlanKind,
+    type UiFontPolicy,
+} from './ui-font.js';
 export { resolveFontSources, type FontSource, type ResolveFontSourcesOptions } from './font-dir.js';
 
 /**
@@ -76,20 +93,19 @@ export { resolveFontSources, type FontSource, type ResolveFontSourcesOptions } f
  */
 export interface InitFontsOptions extends Omit<ResolveFontSourcesOptions, 'env'> {
     /**
-     * Correct the UI font SIZE to GNOME's when the GTK RUNTIME BUNDLE's faces were registered —
-     * that is, when this process is drawing GNOME UI on a host that supplies none of it.
+     * Which {@link UiFontPolicy} to apply to `gtk-font-name`, or nothing at all.
      *
-     * `true` applies it unconditionally, `false` never, a `PlanUiFontOptions` applies it with
-     * those settings. Default: apply it exactly when a `runtime` source was found.
+     * DEFAULT: NOTHING. Registering faces and rewriting the user's font setting are two different
+     * acts, and only the first is unambiguously this call's business — a runtime that changes a
+     * font setting nobody asked it to change is a surprise, and it would also make `system`
+     * unreachable in practice, because the host's own value would already have been overwritten
+     * before a consumer could choose to keep it. `size` is the RECOMMENDED value for an app
+     * shipping a bundled GTK; it is a recommendation in the documentation, not a default here.
      *
-     * WHY THE DEFAULT IS CONDITIONAL AND NOT SIMPLY ON. The measurement behind it is a
-     * bundled-runtime one — Windows hands GTK its shell's 9 pt while Adwaita is drawn for 11 —
-     * and the condition is what keeps the correction where the measurement is: on a Linux host
-     * with a system GTK no runtime bundle is named, so this does nothing at all and a desktop's
-     * own font setting is never second-guessed by a toolkit. See `ui-font.ts` for the policy
-     * itself, including why the FAMILY is left alone.
+     * Passing a policy still captures the baseline first, so switching back to `system` later
+     * works. See {@link applyUiFontPolicy}, which is also callable on its own at any time.
      */
-    readonly uiFontSize?: boolean | PlanUiFontOptions;
+    readonly uiFont?: UiFontPolicy | ApplyUiFontPolicyOptions;
 
     /**
      * The family names this application will ASK FOR — checked against the map once registration
@@ -287,12 +303,15 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const families = sources.length === 0 ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
 
-    // THE SIZE, after the faces and before the warnings — it is the other half of what a GNOME
-    // application looks like off Linux, and shipping the typeface without it leaves Adwaita drawn
-    // at the host shell's point size (measured: Windows hands GTK 9 pt where GNOME designs for
-    // 11). `ui-font.ts` holds the decision and the reasoning; this is only the part that needs a
-    // real `Gtk.Settings` to run.
-    const uiFont = applyUiFontPolicy(options.uiFontSize, sources);
+    // THE SETTING, after the faces. Registering a typeface and rewriting `gtk-font-name` are two
+    // different acts and only the first is unambiguously this call's business, so nothing happens
+    // here unless a policy was asked for — see `InitFontsOptions.uiFont`.
+    //
+    // The BASELINE is captured either way, and that is the load-bearing half: it is the only
+    // moment this process is guaranteed to see the host's own value before anything overwrites
+    // it, and `system` is not expressible afterwards. Capturing costs one property read.
+    captureUiFontBaseline();
+    const uiFont = options.uiFont === undefined ? undefined : applyUiFontPolicy(options.uiFont);
 
     for (const failure of failed) {
         console.warn(
@@ -315,37 +334,112 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     return { dir, sources, uiFont, registered, declined, failed, families, matches };
 }
 
+/** Everything {@link planUiFontPolicy} takes except what this module supplies itself. */
+export interface ApplyUiFontPolicyOptions extends PlanUiFontOptions {
+    readonly policy: UiFontPolicy;
+}
+
+// THE BASELINE: `gtk-font-name` as this process first saw it.
+//
+// Module-level, captured once, never overwritten — because after the first write the host's own
+// value is gone. GTK keeps no previous value, Windows has no GSettings to re-read, and on Linux
+// the setting a session actually applied may itself be an override of the schema default, so a
+// "restore" that read the schema would put back something the user never had. The only correct
+// source is what was observed BEFORE anyone wrote, which means capturing is a separate act from
+// applying and has to happen first.
+//
+// `undefined` after capture is a real answer (a host whose `gtk-font-name` is unset), which is
+// why the flag is separate from the value rather than encoded as "undefined means uncaptured".
+let baselineCaptured = false;
+let baselineValue: string | undefined;
+
 /**
- * Correct `gtk-font-name`'s point size, when the policy says to.
+ * Record `gtk-font-name` as it stands, if it has not been recorded yet. Idempotent.
+ *
+ * Safe before `Gtk.init()`: `Gtk.Settings.get_default()` answers null there and nothing is
+ * captured, so a later call still gets the first REAL value rather than pinning a null.
+ */
+function captureUiFontBaseline(): string | undefined {
+    if (baselineCaptured) return baselineValue;
+    const settings = Gtk.Settings.get_default();
+    if (settings === null) return undefined;
+    baselineValue = settings.gtk_font_name ?? undefined;
+    baselineCaptured = true;
+    return baselineValue;
+}
+
+/**
+ * `gtk-font-name` as this process first found it — what the `system` policy restores.
+ *
+ * READING IT CAPTURES IT, which is the point: the value is only correct if it is taken before
+ * anything writes. A consumer that wants to show the host's own font in a preferences dialog
+ * therefore gets the right answer by asking early, and `initFonts()` asks at startup.
+ *
+ * `undefined` means either "not captured yet, and the toolkit is not initialised" or "this host's
+ * `gtk-font-name` is genuinely unset". Both lead to the same correct behaviour under `system`:
+ * leave the setting alone.
+ */
+export function uiFontBaseline(): string | undefined {
+    return captureUiFontBaseline();
+}
+
+/**
+ * Apply one of the three {@link UiFontPolicy} states to `gtk-font-name`.
+ *
+ * The writing half of `ui-font.ts`, and the function a preferences dialog calls when the user
+ * changes the setting — including the way BACK: `system` restores the baseline this module
+ * captured before the first write, which is why switching `adwaita` → `system` at runtime
+ * returns the host's own `Segoe UI 9` rather than an approximation of it.
  *
  * `Gtk.Settings.get_default()` answers null before `Gtk.init()`, and that is a legitimate state
- * rather than an error: a program may register its faces before it initialises the toolkit, and
- * this is the one part of `initFonts` that cannot run then. It reports `unparsed` — the arm that
- * already means "nothing this can reason about, so nothing changed" — instead of throwing a
- * caller out of a font call over a setting.
+ * rather than an error: a program may register its faces before it initialises the toolkit. It
+ * reports `unparsed` — the arm that already means "nothing to act on, so nothing changed" —
+ * instead of throwing a caller out of a font call over a setting.
  */
-function applyUiFontPolicy(
-    request: boolean | PlanUiFontOptions | undefined,
-    sources: readonly FontSource[],
-): UiFontPlan | undefined {
-    if (request === false) return undefined;
-    const explicit = request !== undefined && request !== true ? request : {};
-    // The default: only where the GNOME UI is being drawn on a host that supplies none of it.
-    if (request === undefined && !sources.some((source) => source.origin === 'runtime')) return undefined;
-
+export function applyUiFontPolicy(request: UiFontPolicy | ApplyUiFontPolicyOptions): UiFontPlan {
+    const options: ApplyUiFontPolicyOptions = typeof request === 'string' ? { policy: request } : request;
     const settings = Gtk.Settings.get_default();
     if (settings === null) {
         return { next: undefined, kind: 'unparsed', family: undefined, size: undefined };
     }
-    const plan = planUiFont(settings.gtk_font_name ?? undefined, explicit);
+    // BEFORE the read of `current`, so the very first call through this function still records
+    // the host's own value even when it is about to overwrite it.
+    const baseline = captureUiFontBaseline();
+    const plan = planUiFontPolicy({ ...options, current: settings.gtk_font_name ?? undefined, baseline });
     if (plan.next === undefined) return plan;
     settings.gtk_font_name = plan.next;
-    console.info(
-        `initFonts: UI font size raised to GNOME's ${explicit.size ?? GNOME_UI_FONT_POINT_SIZE} pt — ` +
-            `gtk-font-name is now "${plan.next}". The host's own family is kept; pass ` +
-            '`uiFontSize: false` to leave the setting alone, or `{ family }` to force one.',
-    );
     return plan;
+}
+
+/**
+ * Can this process offer the `adwaita` policy at all — is the GNOME face on the font map?
+ *
+ * THE QUESTION A PREFERENCES DIALOG HAS TO ASK BEFORE IT OFFERS THE OPTION. Forcing
+ * `Adwaita Sans 11` on a host where that family never arrived — an old bundle, a system GTK with
+ * no adwaita-fonts package — does not fail: Pango substitutes, and the user who picked "use the
+ * Adwaita font" gets Tahoma. That is one substitution traded for another, with a setting that
+ * now lies about what it did.
+ *
+ * Answered as a {@link FontFamilyMatch} rather than a boolean because `optical` is a real third
+ * state, measured on Windows: a family can be on the map under a decorated name (`Merriweather
+ * 18pt`), in which case the honest thing is to ask for THAT name — `match.family` — rather than
+ * to report the face as missing. `available` is the convenience for the common case.
+ *
+ * Call it AFTER `initFonts()`, which is what puts the bundled faces on the map.
+ */
+export function adwaitaUiFontAvailability(family: string = ADWAITA_UI_FONT_FAMILY): UiFontAvailability {
+    const match = matchFontFamily(family, familyNames(PangoCairo.FontMap.get_default()));
+    return { family, match, available: match.kind !== 'absent' };
+}
+
+/** What {@link adwaitaUiFontAvailability} answers. */
+export interface UiFontAvailability {
+    /** The family that was asked about. */
+    readonly family: string;
+    /** How it resolves on the font map as it now stands. */
+    readonly match: FontFamilyMatch;
+    /** `false` when the family is absent, i.e. the `adwaita` policy would substitute. */
+    readonly available: boolean;
 }
 
 /**

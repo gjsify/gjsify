@@ -253,7 +253,21 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     const Pango = requireGi('Pango', '1.0');
     const PangoCairo = requireGi('PangoCairo', '1.0');
 
-    const faces = readdirSync(fontDir).filter((name) => /\.(ttf|otf|ttc|otc)$/i.test(name));
+    // RECURSIVELY, because the reader this stands in for does. The loader names the
+    // PARENT (`<bundle>/share/fonts`) — the directory fontconfig's stock configuration
+    // already scans over XDG_DATA_DIRS — while the builder stages the faces one level
+    // down in `share/fonts/adwaita/`, and `@gjsify/gtk-host`'s `collectFaces()` walks the
+    // tree. A flat listing sees the subdirectory and no face, which is exactly what this
+    // test did on its first run against a real bundle: it failed a CORRECT bundle because
+    // it re-implemented the reader and got it wrong. Mirror the reader.
+    const faces = [];
+    const walk = (dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (entry.isDirectory()) walk(join(dir, entry.name));
+            else if (/\.(ttf|otf|ttc|otc)$/i.test(entry.name)) faces.push(join(dir, entry.name));
+        }
+    };
+    walk(fontDir);
     assert.ok(
         faces.length > 0,
         `${fontDir} is named by the loader and holds no face — the bundle promised a typeface it did not ship`,
@@ -262,7 +276,7 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     const fontMap = PangoCairo.FontMap.get_default();
     const familyNames = () => fontMap.list_families().map((family) => family.get_name());
     const before = familyNames();
-    for (const face of faces) fontMap.add_font_file(join(fontDir, face));
+    for (const face of faces) fontMap.add_font_file(face);
     const after = familyNames();
 
     // The families the bundle DECLARES, spelled here rather than imported: this test

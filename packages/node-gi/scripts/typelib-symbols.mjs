@@ -13,6 +13,12 @@
 //   adw_about_dialog_new_from_appdata           absent      PRESENT        PRESENT
 //   adw_about_dialog_get_appdata_resource_path  absent      PRESENT        PRESENT
 //
+// AND IT IS NOT ONLY A BYTE SCAN. The darwin row was afterwards CALLED, in the shipped `.app` on
+// macOS 15.7.9 with the GTK closure from the bundle itself: `new_from_appdata` resolved, ran, and
+// failed where it should — on a deliberately invalid resource path (`Adwaita-ERROR: Could not
+// parse metadata file: The resource at "/nonexistent" does not exist`). A constructor that gets
+// as far as parsing is present in every sense this gate cares about.
+//
 // On Windows 11 that reads as `Adw.AboutDialog.new_from_appdata -> THREW: no static method`,
 // and an application whose About dialog is built from its own AppStream metainfo simply does
 // not open. Nine other named constructors in the same run worked, so it is not a marshalling

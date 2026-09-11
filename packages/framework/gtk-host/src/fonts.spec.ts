@@ -10,14 +10,24 @@
 // a process-global font map and there is no unregister, so every negative assertion runs before
 // the registration that would invalidate it.
 
-import { describe, expect, it } from '@gjsify/unit';
+import { describe, expect, it, on } from '@gjsify/unit';
 
 import GLib from 'gi://GLib?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
 import Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
-import { initFonts, isUnsupportedByFontMap, matchFontFamily } from './fonts.js';
+import {
+    adwaitaUiFontAvailability,
+    applyUiFontPolicy,
+    initFonts,
+    isUnsupportedByFontMap,
+    matchFontFamily,
+    uiFontBaseline,
+} from './fonts.js';
+import { ADWAITA_UI_FONT_FAMILY, GNOME_UI_FONT_POINT_SIZE, UI_FONT_POLICIES } from './ui-font.js';
+import { GTK_HOSTS } from './testing/gate.mjs';
 
 /**
  * A real face whose family is on no host, borrowed from the showcase exactly as
@@ -451,6 +461,148 @@ export default async () => {
         await it('does not treat a plain JS error as a declining font map', async () => {
             expect(isUnsupportedByFontMap(new Error('boom'))).toBe(false);
             expect(isUnsupportedByFontMap(undefined)).toBe(false);
+        });
+    });
+
+    // --- the three-state UI font policy, against a REAL Gtk.Settings ---------
+    //
+    // `ui-font.spec.ts` exercises the DECISION with no toolkit at all. This is the half that
+    // cannot be decided: whether a plan actually moves `gtk-font-name`, and — the case a
+    // consumer switching states in a preferences dialog depends on — whether the way BACK
+    // lands on the host's own value rather than an approximation of it.
+    //
+    // `Gtk.init()` first, because `Gtk.Settings.get_default()` answers null before it and
+    // every assertion below would then measure the null path instead of the setting.
+    await on(GTK_HOSTS, async () => {
+        Gtk.init();
+
+        await describe('the UI font policy, switched at runtime on a live Gtk.Settings', async () => {
+            await it("captures the host's own value BEFORE anything writes", async () => {
+                // The load-bearing half. Read early it is the host's; read after a write it is
+                // whatever was written, and the original is gone — GTK keeps no previous value
+                // and no schema can supply it.
+                const settings = Gtk.Settings.get_default();
+                expect(settings).not.toBeNull();
+                expect(uiFontBaseline()).toBe(settings?.gtk_font_name ?? undefined);
+            });
+
+            await it("walks all three states and comes back to the host's own value", async () => {
+                const settings = Gtk.Settings.get_default();
+                if (settings === null) return; // asserted above; keeps this row honest on its own
+                const baseline = uiFontBaseline();
+                const adwaitaValue = `${ADWAITA_UI_FONT_FAMILY} ${GNOME_UI_FONT_POINT_SIZE}`;
+
+                // THE DEGENERATE HOST, DETECTED RATHER THAN PASSED THROUGH. On a current GNOME
+                // the interface font ALREADY is `Adwaita Sans 11`, so `system` and `adwaita` name
+                // the same value and no round trip can tell them apart. Measured here: with the
+                // baseline capture deliberately disabled, this row still went GREEN — a test that
+                // cannot fail on the defect it exists for. The Windows and macOS legs, where the
+                // host is `Segoe UI 9` / the Apple system font, are the ones that discriminate.
+                const discriminating = baseline !== undefined && baseline !== adwaitaValue;
+
+                // system — nothing moves. This is the state that did not exist while `size` was
+                // hard-wired: applying the policy used to mean accepting 11 pt.
+                const kept = applyUiFontPolicy('system');
+                expect(kept.kind).toBe('kept');
+                expect(settings.gtk_font_name).toBe(baseline);
+
+                // adwaita — the GNOME face at GNOME's size, the same on every platform.
+                //
+                // ASSERTED ON THE SETTING, NOT ON THE `kind`, and that is a correction: the first
+                // version expected `family` and failed on this very host, because a current GNOME
+                // already ships `Adwaita Sans 11` — so `kept` was the right answer and the test
+                // was measuring an incidental detail of the host rather than the outcome.
+                const forced = applyUiFontPolicy('adwaita');
+                expect(settings.gtk_font_name).toBe(adwaitaValue);
+                expect(['family', 'kept']).toContain(forced.kind);
+
+                if (discriminating) {
+                    // The pair genuinely moved the setting, so the way back has something to undo.
+                    expect(settings.gtk_font_name).not.toBe(baseline);
+                    expect(forced.kind).toBe('family');
+                }
+
+                // THE WAY BACK, and the reason the baseline exists at all: from here the host's
+                // own value is not reconstructible from anything the platform still holds.
+                const back = applyUiFontPolicy('system');
+                expect(settings.gtk_font_name).toBe(baseline);
+                if (discriminating) {
+                    expect(back.kind).toBe('restored');
+                    expect(back.next).toBe(baseline);
+                } else {
+                    console.log(
+                        `initFonts spec: this host's gtk-font-name is already "${adwaitaValue}", so system and ` +
+                            'adwaita are the same value and the round trip cannot discriminate here — the decision ' +
+                            'is covered host-independently by ui-font.spec.ts, and the win32/darwin legs discriminate.',
+                    );
+                }
+
+                // size — family kept, size raised, and only upward.
+                applyUiFontPolicy('size');
+                const raised = settings.gtk_font_name ?? '';
+                expect(raised.endsWith(` ${GNOME_UI_FONT_POINT_SIZE}`) || raised === baseline).toBe(true);
+
+                // Leave the process on the host's own setting: this mutates display-wide state
+                // that later suites in the same run read.
+                applyUiFontPolicy('system');
+                expect(settings.gtk_font_name).toBe(baseline);
+            });
+
+            await it("THE WAY BACK is real: a forced value is undone to the host's own", async () => {
+                // HOST-INDEPENDENT BY CONSTRUCTION, which the row above cannot be: on a current
+                // GNOME the host is already `Adwaita Sans 11`, so `adwaita` moves nothing and the
+                // round trip proves nothing. Forcing an INVENTED family guarantees the setting
+                // moves on every host, so the restore has something real to undo — the same
+                // discriminator this file already uses for a font family that must not resolve.
+                //
+                // This is the row that fails when the baseline is broken. Measured: with
+                // `captureUiFontBaseline()` replaced by `undefined`, `system` becomes a no-op and
+                // the setting stays on the probe value.
+                const settings = Gtk.Settings.get_default();
+                if (settings === null) return;
+                const baseline = uiFontBaseline();
+                expect(baseline).not.toBeUndefined();
+
+                applyUiFontPolicy({ policy: 'adwaita', family: 'ZzzRoundTripProbe' });
+                expect(settings.gtk_font_name).toBe(`ZzzRoundTripProbe ${GNOME_UI_FONT_POINT_SIZE}`);
+                expect(settings.gtk_font_name).not.toBe(baseline);
+
+                const back = applyUiFontPolicy('system');
+                expect(back.kind).toBe('restored');
+                expect(back.next).toBe(baseline);
+                expect(settings.gtk_font_name).toBe(baseline);
+            });
+
+            await it('re-applying a state writes nothing the second time', async () => {
+                // No write means no `gtk-font-name` notify, so a consumer can apply its stored
+                // policy on every startup without churning the setting or the widgets bound to it.
+                applyUiFontPolicy('adwaita');
+                expect(applyUiFontPolicy('adwaita').kind).toBe('kept');
+                expect(applyUiFontPolicy('adwaita').next).toBeUndefined();
+                applyUiFontPolicy('system');
+            });
+
+            await it('says whether the adwaita state can honestly be offered', async () => {
+                // The question a preferences dialog has to ask BEFORE it offers the option:
+                // forcing `Adwaita Sans 11` where that family never arrived trades one
+                // substitution for another, with a setting that then lies about what it did.
+                const availability = adwaitaUiFontAvailability();
+                expect(availability.family).toBe(ADWAITA_UI_FONT_FAMILY);
+                expect(availability.available).toBe(availability.match.kind !== 'absent');
+                // An invented family must answer `absent`, or the probe says yes to everything
+                // and a consumer would offer the option on every host.
+                expect(adwaitaUiFontAvailability('ZzzNoSuchFamilyQx').available).toBe(false);
+                expect(adwaitaUiFontAvailability('ZzzNoSuchFamilyQx').match.kind).toBe('absent');
+            });
+
+            await it('offers exactly the three states, and every one of them applies', async () => {
+                // A state in the list that no consumer can apply would be a dialog entry that
+                // does nothing; this walks the exported list rather than three literals.
+                for (const policy of UI_FONT_POLICIES) {
+                    expect(typeof applyUiFontPolicy(policy).kind).toBe('string');
+                }
+                applyUiFontPolicy('system');
+            });
         });
     });
 };
