@@ -6,6 +6,7 @@
 // This file is just the executable wrapper around `runCli`.
 import { hideBin } from 'yargs/helpers';
 import { runCli } from './cli-app.js';
+import { exitOnReportedFailure } from './utils/cli-exit.js';
 import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 try {
@@ -43,3 +44,13 @@ try {
     process.exitCode = 1;
     gjsExit(1);
 }
+
+// The catch above is only HALF the entry's exit funnel, and the other half was
+// missing: a handler that reports a failure by assigning `process.exitCode` and
+// returning normally never reaches it. That is the Node idiom and the CLI uses
+// it wherever the failure is already printed in full (`gjsify gresource`,
+// `gjsify gsettings`, `gjsify barrels --check`, `setOxcExitCode`) — and under
+// GJS, which has no atexit hook, nothing read it back, so the process ended 0
+// with the error on stderr. `cli-exit.ts` carries the measurement and why `&&`
+// did not protect against it (JumpLink/Learn6502#180).
+exitOnReportedFailure();
