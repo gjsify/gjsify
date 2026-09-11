@@ -13,12 +13,16 @@
 //     file as a module.
 //   - Output is sorted by file name (locale-compare) — deterministic diffs.
 //   - `--check` exits non-zero on drift without writing (pre-commit / CI use).
+//   - A named path that is not a readable directory is REFUSED before anything
+//     is generated: skipping it would let `--check` report 0 drift, and exit 0,
+//     for a barrel nothing ever looked at.
 
 import type { Command } from '../types/index.js';
 import {
     DEFAULT_BARRELS_EXCLUDES,
     DEFAULT_BARRELS_HEADER,
     generateBarrels,
+    unscannableBarrelPaths,
     type BarrelExtension,
 } from '../actions/barrels-generate.js';
 
@@ -106,6 +110,23 @@ export const barrelsCommand: Command<unknown, BarrelsOptions> = {
             return;
         }
 
+        const baseDir = (args.baseDir as string | undefined) ?? process.cwd();
+
+        // A named path this cannot scan is a typo or a rename, and it is refused BEFORE
+        // anything is generated. The generator skips such a path and reports no drift for
+        // it, which under `--check` is a guard going green for a directory nothing looked
+        // at — the one failure mode a guard must not have.
+        const unscannable = await unscannableBarrelPaths(baseDir, paths);
+        if (unscannable.length > 0) {
+            for (const problem of unscannable) console.error(`[gjsify barrels] cannot scan ${problem}`);
+            console.error(
+                `[gjsify barrels] ${unscannable.length} of ${paths.length} path(s) could not be scanned — ` +
+                    'refusing to report on the rest as if that were the whole set.',
+            );
+            process.exitCode = 1;
+            return;
+        }
+
         const excludePatterns = (args.exclude as string[] | undefined)?.length
             ? (args.exclude as string[])
             : [...DEFAULT_BARRELS_EXCLUDES];
@@ -113,7 +134,7 @@ export const barrelsCommand: Command<unknown, BarrelsOptions> = {
         const drift = await generateBarrels({
             paths,
             extension: (args.ext as BarrelExtension | undefined) ?? 'none',
-            baseDir: (args.baseDir as string | undefined) ?? process.cwd(),
+            baseDir,
             exclude: excludePatterns.map((src) => new RegExp(src)),
             header: (args.header as string | undefined) ?? DEFAULT_BARRELS_HEADER,
             noSemicolon: args.semicolon === false || args.semicolon === undefined,

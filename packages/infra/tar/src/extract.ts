@@ -115,8 +115,40 @@ export async function gunzip(input: Uint8Array): Promise<Uint8Array> {
     return drainStream(stream);
 }
 
-/** Compress a buffer to gzip using Web CompressionStream (cross-platform). */
-export async function gzip(input: Uint8Array): Promise<Uint8Array> {
+export interface GzipOptions {
+    /**
+     * 0 (store) to 9 (most compression); omit for zlib's own default.
+     *
+     * Only `node:zlib` can accept one, so asking for a level takes the `node:zlib`
+     * route below rather than `CompressionStream`.
+     */
+    level?: number;
+}
+
+/**
+ * Compress a buffer to gzip.
+ *
+ * TWO BACKENDS, AND THE LEVEL IS WHAT CHOOSES. `CompressionStream` is the default
+ * and takes a format and nothing else — the Compression Streams spec has no level
+ * — so a caller that needs a specific one is routed to `node:zlib`, which resolves
+ * to Node's zlib on node and to `@gjsify/zlib`'s `Gio.ZlibCompressor` on GJS.
+ * Imported lazily, so a consumer that never asks for a level never pulls zlib into
+ * its bundle.
+ *
+ * WHY A CALLER WOULD CARE, given that the decompressed bytes are identical either
+ * way: the level is recorded in the gzip header's XFL byte, and that byte is a
+ * claim independent readers act on. Debian Policy § 4.4 asks for `gzip -9 -n`, and
+ * `lintian` raises `changelog-not-compressed-with-max-compression` off XFL alone.
+ *
+ * THE TWO BACKENDS DO NOT AGREE BYTE-FOR-BYTE at the same level, so this is not a
+ * choice between interchangeable implementations — the measurement and what it
+ * costs a reproducible artifact are in the CLI's `utils/ship/gzip.ts`.
+ */
+export async function gzip(input: Uint8Array, options?: GzipOptions): Promise<Uint8Array> {
+    if (options?.level !== undefined) {
+        const { gzipSync } = await import('node:zlib');
+        return new Uint8Array(gzipSync(input, { level: options.level }));
+    }
     const Comp = (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream;
     if (typeof Comp !== 'function') {
         throw new Error(

@@ -36,9 +36,10 @@
 // `scripts/check-nativescript-xml-doors.mjs` is what keeps that true rather than
 // remembered. The narrower rule ("every setter a gallery template happens to name") was
 // the first version of this file, and it protected 23 of the 69 that existed: the 46 it
-// left out held exact clones of the three defects above (`GtkImage.iconSize` is the
-// avatar character for character), and it protected nobody writing their own XML
-// against the published package — which is most of the people this port is for.
+// left out held exact clones of the three defects above (`GtkImage.pixelSize` — then still
+// spelled `iconSize`, and carrying a second defect of its own, #1584 — is the avatar
+// character for character), and it protected nobody writing their own XML against the
+// published package, which is most of the people this port is for.
 //
 // Two exceptions, and they are LOOSER rather than missing: `resolveSpinnerSize` and
 // `normalizeClampSize` in `@gjsify/adwaita-core` already take `number | string` and

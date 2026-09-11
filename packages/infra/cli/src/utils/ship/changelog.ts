@@ -144,20 +144,21 @@ const WIDTH = 80;
  * wrong: exactly one leading space, then `--`, one space, the maintainer, and TWO
  * spaces before the date.
  *
- * TWO lintian tags this file still raises, both measured on lintian 2.117 against
- * gjsify's own `.deb` and both left alone deliberately:
+ * ONE lintian tag this file still raises, measured on lintian 2.117 against
+ * gjsify's own `.deb` and left alone deliberately: `initial-upload-closes-no-bugs`,
+ * because the Debian revision is `-1` and the entry closes no bug. It is a
+ * statement about the Debian ARCHIVE's ITP workflow — the first upload of a new
+ * source package should close its ITP bug — and a package built by `gjsify ship`
+ * is never uploaded there. There is no bug number that would be true to write, so
+ * the tag is inapplicable rather than unmet.
  *
- *  - `initial-upload-closes-no-bugs`, because the Debian revision is `-1` and the
- *    entry closes no bug. It is a statement about the Debian ARCHIVE's ITP
- *    workflow — the first upload of a new source package should close its ITP bug
- *    — and a package built by `gjsify ship` is never uploaded there. There is no
- *    bug number that would be true to write, so the tag is inapplicable rather
- *    than unmet.
- *  - `changelog-not-compressed-with-max-compression`. Policy asks for `gzip -9`
- *    and neither `CompressionStream` nor `@gjsify/zlib` takes a level, so
- *    `gzipDeterministic` cannot ask for one. Ledgered in `status/open-todos.md`:
- *    the fix is a capability in the core, and stamping the header's XFL byte to
- *    claim max compression we did not use is not one.
+ * `changelog-not-compressed-with-max-compression` was a second one, and closing it
+ * was a capability gap in the CORE rather than anything wrong in this file:
+ * neither `CompressionStream` nor `@gjsify/zlib` would take a compression level,
+ * so `gzipDeterministic` had none to pass on. `@gjsify/zlib` honours
+ * `options.level` now and `plan.ts` compresses this file at
+ * `POLICY_MAX_COMPRESSION`. `verify-deb.sh` gates the tag by name, so it cannot
+ * come back quietly.
  */
 export function renderDebianChangelog(settings: PackSettings, source: string | undefined, mtime: number): string {
     const entries = source === undefined ? [] : changelogEntriesFor(settings.version, source);

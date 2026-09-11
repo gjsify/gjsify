@@ -8,7 +8,12 @@ import { describe, expect, it } from '@gjsify/unit';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { generateBarrels, DEFAULT_BARRELS_HEADER, DEFAULT_BARRELS_EXCLUDES } from './actions/barrels-generate.js';
+import {
+    DEFAULT_BARRELS_EXCLUDES,
+    DEFAULT_BARRELS_HEADER,
+    generateBarrels,
+    unscannableBarrelPaths,
+} from './actions/barrels-generate.js';
 
 async function makeSandbox(prefix: string): Promise<string> {
     return await mkdtemp(join(tmpdir(), `gjsify-barrels-${prefix}-`));
@@ -299,6 +304,47 @@ export default async () => {
             expect(out.includes("./b'")).toBe(true);
             expect(out.includes("./c'")).toBe(true);
             expect(out.includes('README')).toBe(false);
+            await rm(root, { recursive: true, force: true });
+        });
+    });
+
+    await describe('unscannableBarrelPaths — what the command refuses before generating', async () => {
+        await it('names a path that is not there, so --check cannot exit 0 on it', async () => {
+            // The defect this closes: `generateBarrels` skips such a path and reports 0
+            // drift for it, so `--check` passed for a barrel nothing had looked at, with
+            // the only trace behind `--verbose`.
+            const root = await makeSandbox('unscannable-missing');
+            const problems = await unscannableBarrelPaths(root, ['nope']);
+            expect(problems.length).toBe(1);
+            expect(problems[0]!.includes('nope')).toBe(true);
+            // The reason travels with the path — ENOENT and "it is a file" are different
+            // mistakes and the caller fixes them differently.
+            expect(problems[0]!.includes('ENOENT')).toBe(true);
+            await rm(root, { recursive: true, force: true });
+        });
+
+        await it('names a path that is a FILE, which readdir would also refuse', async () => {
+            const root = await makeSandbox('unscannable-file');
+            await writeFile(join(root, 'notadir.ts'), '');
+            const problems = await unscannableBarrelPaths(root, ['notadir.ts']);
+            expect(problems.length).toBe(1);
+            expect(problems[0]!.includes('is not a directory')).toBe(true);
+            await rm(root, { recursive: true, force: true });
+        });
+
+        await it('reports every bad path, not just the first', async () => {
+            const root = await makeSandbox('unscannable-many');
+            await mkdir(join(root, 'good'), { recursive: true });
+            const problems = await unscannableBarrelPaths(root, ['nope', 'good', 'alsonope']);
+            expect(problems.length).toBe(2);
+            expect(problems.some((p) => p.includes('good'))).toBe(false);
+            await rm(root, { recursive: true, force: true });
+        });
+
+        await it('says nothing about a readable directory', async () => {
+            const root = await makeSandbox('unscannable-ok');
+            await mkdir(join(root, 'm'), { recursive: true });
+            expect(await unscannableBarrelPaths(root, ['m'])).toStrictEqual([]);
             await rm(root, { recursive: true, force: true });
         });
     });

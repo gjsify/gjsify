@@ -30,6 +30,7 @@
 // that reproduced it would be a new surface for it rather than a convenience.
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
+import { iconSizeNickOf } from './gtk-icon-size.js';
 
 /**
  * The keys a widget's construct-props bag accepts, derived from the widget itself.
@@ -45,10 +46,15 @@ import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNM
  * one that admits two impossible ones and says so when they arrive.
  */
 export type ConstructProps<T> = Partial<{
-    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends AlignmentProp
-        ? T[K] | number
-        : T[K];
+    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends EnumProp ? T[K] | number : T[K];
 }>;
+
+/**
+ * Every key this bag reads as a GIR ENUM, so `| number` is admitted for exactly those and
+ * nowhere else. ADR 0034 § 4's second spelling: a nick is what an XML attribute can carry,
+ * and the constant is what a snippet ported off GJS carries.
+ */
+export type EnumProp = AlignmentProp | IconSizeProp;
 
 /**
  * The NativeScript properties whose value this package reads as a `Gtk.Align`.
@@ -87,6 +93,20 @@ const ALIGNMENT_AXES = {
  * is the one caller the second spelling exists for.
  */
 export type AlignmentProp = keyof typeof ALIGNMENT_AXES;
+
+/**
+ * The keys the bag reads as a `Gtk.IconSize` — the port's OWN property, unlike the two
+ * alignment axes, which are NativeScript's.
+ *
+ * A table of one, and it is a table for the same reason `ALIGNMENT_AXES` is: the runtime key
+ * set and the type widening are derived from ONE declaration, so the type cannot admit a key
+ * the applier does not coerce, nor refuse one it does. `GtkImage` and `AdwImageButton` both
+ * spell it `iconSize` (#1584), and no other widget on this surface has a key of that name.
+ */
+const ICON_SIZE_PROPS = { iconSize: true } as const satisfies Readonly<Record<string, true>>;
+
+/** The keys {@link ICON_SIZE_PROPS} declares — {@link ConstructProps} widens exactly these. */
+export type IconSizeProp = keyof typeof ICON_SIZE_PROPS;
 
 /** How an assignment to `key` would land, or `null` when it would land nowhere. */
 function settableDoor(target: object, key: string): 'accessor' | 'data' | null {
@@ -166,6 +186,11 @@ export function applyConstructProps(target: object, props?: Readonly<Record<stri
         }
         if (value === undefined) continue;
         const axis = (ALIGNMENT_AXES as Readonly<Record<string, 'horizontal' | 'vertical' | undefined>>)[key];
-        (target as Record<string, unknown>)[key] = axis === undefined ? value : nsAlignment(value, axis);
+        (target as Record<string, unknown>)[key] =
+            axis !== undefined
+                ? nsAlignment(value, axis)
+                : Object.hasOwn(ICON_SIZE_PROPS, key)
+                  ? iconSizeNickOf(value)
+                  : value;
     }
 }

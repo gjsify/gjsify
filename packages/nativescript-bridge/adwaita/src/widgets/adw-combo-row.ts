@@ -71,7 +71,7 @@ export class AdwComboRow extends AdwActionRow {
         const chevron = new GtkImage();
         chevron.className = 'adw-combo-chevron';
         chevron.iconColor = '#9a9a9a'; // dim — matches the old chevron's ~0.45 alpha
-        chevron.iconSize = 16;
+        chevron.pixelSize = 16;
         chevron.iconName = panDownSymbolic;
 
         suffix.addChild(valueLabel);

@@ -74,7 +74,7 @@ export class AdwStatusPage extends withSignals(GridLayout) {
         icon.className = `${icon.className} adw-status-page-icon`.trim();
         icon.horizontalAlignment = 'center';
         icon.iconColor = DEFAULT_STATUS_ICON_COLOR;
-        icon.iconSize = DEFAULT_STATUS_ICON_SIZE;
+        icon.pixelSize = DEFAULT_STATUS_ICON_SIZE;
         icon.visibility = statusPageIconVisibility(this._iconName);
         this._icon = icon;
 

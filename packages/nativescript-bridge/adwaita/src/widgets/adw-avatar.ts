@@ -112,7 +112,7 @@ export class AdwAvatar extends withSignals(GridLayout) {
         // spilled out of the circle).
         this._label.set('fontSize', Math.round(Math.min(this._size * 0.4, avatarMaxFontSize(this._size))));
         // Half the diameter, as `adw_avatar_set_size` gives its icon child.
-        this._icon.iconSize = avatarIconSize(this._size);
+        this._icon.pixelSize = avatarIconSize(this._size);
     }
 
     /**

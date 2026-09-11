@@ -29,7 +29,7 @@
 // truth about the one question this whole layer exists to answer.
 
 import type { AccessibleRoute } from './accessibility.js';
-import type { PrimitiveSpec, PropRoute } from './table.js';
+import type { PrimitiveSpec, PropertyRoute, PropRoute } from './table.js';
 
 /**
  * What this layer does about a prop.
@@ -95,6 +95,32 @@ export interface PropAnswer {
      * stay one string (ADR 0039 § 2).
      */
     readonly refuses: Readonly<Record<string, string>>;
+    /**
+     * The values this prop ACCEPTS by name, when the table enumerates them — the
+     * inverse grain of {@link refuses}, and `null` when there is no such list.
+     *
+     * THE TWO GRAINS ARE NOT THE SAME FACT, and reading only one is how #1648
+     * happened. `refuses` enumerates what is forbidden; a `map` enumerates what is
+     * allowed, and a value outside it is refused BY OMISSION. `pointerEvents` is
+     * `{ auto, none }` with no `refuses` at all, so the oracle answered ACCEPTED for
+     * `box-none` — a real React Native spelling that a render throws on — and a
+     * consumer deleted their own working mapping on the strength of it.
+     */
+    readonly allows: ValueVocabulary | null;
+}
+
+/**
+ * The values one route accepts by name, for the routes whose table row says.
+ *
+ * `numbers` is not a special case bolted on: `pixels-or-map` accepts a pixel COUNT
+ * beside its two named steps, and a vocabulary that could not say so would make
+ * `<ActivityIndicator size={24}>` read as refused.
+ */
+export interface ValueVocabulary {
+    /** Accepted spellings, in the table's own keys. Compared against `String(value)`. */
+    readonly values: readonly string[];
+    /** A finite number is accepted without appearing in {@link values}. */
+    readonly numbers: boolean;
 }
 
 /**
@@ -143,28 +169,120 @@ type RouteAnswer = {
     why: string;
     gtk: readonly string[];
     refuses: Readonly<Record<string, string>>;
+    allows: ValueVocabulary | null;
 };
 
 const NO_REFUSALS: Readonly<Record<string, string>> = {};
 
-function answerForRoute(route: PropRoute): RouteAnswer {
+/** A vocabulary of named spellings and nothing else. */
+const named = (values: readonly string[]): ValueVocabulary => ({ values, numbers: false });
+
+/**
+ * Which values a COERCION lets through, for the one route kind that has coercions.
+ *
+ * Its own function so the switch below stays one arm per {@link PropRoute} kind, and
+ * so a coercion added to `Coercion` fails to compile HERE — the declared return type
+ * with no `default` is what asks the question rather than answering it by silence.
+ *
+ * The four non-map coercions have no enumerable vocabulary and that is a decision,
+ * not an omission: `string` takes every string, and what `boolean`/`not`/`int` refuse
+ * is a TYPE rather than a spelling. A type refusal is a different grain, it is not
+ * expressible as a list, and the oracle does not claim it — see `prop-table.ts`.
+ */
+function coercionVocabulary(route: PropertyRoute): ValueVocabulary | null {
+    switch (route.as) {
+        case 'map':
+            return named(Object.keys(route.map ?? {}));
+        case 'pixels-or-map':
+            return { values: Object.keys(route.map ?? {}), numbers: true };
+        case 'string':
+        case 'boolean':
+        case 'not':
+        case 'int':
+            return null;
+    }
+}
+
+/**
+ * One route → the values it accepts by name, or `null` when it enumerates none.
+ *
+ * THE COMPLETENESS QUESTION, asked of every route kind in one place (#1648). A route
+ * that refuses a value by OMISSION from a list is invisible to {@link PropAnswer.refuses},
+ * and three kinds do it — a mapped property, an `announce` map, and an accessible
+ * record's member keys. Before this function each of them was a separate oversight
+ * waiting to be reported; now the switch has no `default`, so the next route kind
+ * cannot be added without answering the question for it.
+ *
+ * `file` is the deliberate `null` worth naming: its refusals ARE value-level
+ * (`http:` has no synchronous loader, a `require()` id has no asset registry) but
+ * they are computed from the value's shape rather than drawn from a list, so no
+ * vocabulary can express them and the oracle must not pretend otherwise.
+ */
+export function routeValueVocabulary(route: PropRoute): ValueVocabulary | null {
     switch (route.to) {
         case 'property':
-            return { status: 'property', why: '', gtk: route.names, refuses: route.refuses ?? NO_REFUSALS };
+            return coercionVocabulary(route);
+        case 'announce':
+            return named(Object.keys(route.map));
+        case 'accessible':
+            // The grain is the record's KEY, which is what `refuses` is keyed by here
+            // too — one question at the table's own two grains.
+            return route.from === 'members' ? named(Object.keys(route.members)) : null;
         case 'style-property':
-            return { status: 'style', why: '', gtk: [`style: ${route.name}`], refuses: NO_REFUSALS };
         case 'event':
-            return { status: 'event', why: '', gtk: [route.signal], refuses: NO_REFUSALS };
         case 'file':
-            return { status: 'file', why: '', gtk: [route.property], refuses: NO_REFUSALS };
         case 'gesture':
-            return { status: 'gesture', why: '', gtk: [`Gtk.GestureClick::${route.signal}`], refuses: NO_REFUSALS };
+        case 'ignored':
+        case 'refused':
+            return null;
+    }
+}
+
+/**
+ * The vocabularies of a prop's routes → the prop's own.
+ *
+ * INTERSECTION, because a render applies every route the prop carries and a value
+ * has to survive all of them — the dual of the union {@link PropAnswer.refuses}
+ * takes, and for the same reason. `ScrollView`'s `horizontal` is three mapped
+ * properties over two nodes, so a spelling one of them does not map is refused by
+ * the prop. A route with no vocabulary constrains nothing and drops out.
+ */
+function intersectVocabularies(all: readonly (ValueVocabulary | null)[]): ValueVocabulary | null {
+    const present = all.filter((one): one is ValueVocabulary => one !== null);
+    if (present.length === 0) return null;
+    const first = present[0] as ValueVocabulary;
+    return {
+        values: first.values.filter((value) => present.every((one) => one.values.includes(value))),
+        numbers: present.every((one) => one.numbers),
+    };
+}
+
+function answerForRoute(route: PropRoute): RouteAnswer {
+    const allows = routeValueVocabulary(route);
+    switch (route.to) {
+        case 'property':
+            return { status: 'property', why: '', gtk: route.names, refuses: route.refuses ?? NO_REFUSALS, allows };
+        case 'style-property':
+            return { status: 'style', why: '', gtk: [`style: ${route.name}`], refuses: NO_REFUSALS, allows };
+        case 'event':
+            return { status: 'event', why: '', gtk: [route.signal], refuses: NO_REFUSALS, allows };
+        case 'file':
+            return { status: 'file', why: '', gtk: [route.property], refuses: NO_REFUSALS, allows };
+        case 'gesture':
+            return {
+                status: 'gesture',
+                why: '',
+                gtk: [`Gtk.GestureClick::${route.signal}`],
+                refuses: NO_REFUSALS,
+                allows,
+            };
         case 'announce':
             return {
                 status: 'announcement',
                 why: '',
                 gtk: [route.signal, 'Gtk.Accessible.announce()'],
                 refuses: NO_REFUSALS,
+                allows,
             };
         case 'accessible':
             return {
@@ -174,11 +292,12 @@ function answerForRoute(route: PropRoute): RouteAnswer {
                 // `from: 'value'` has no per-key grain to refuse at; `from: 'members'`
                 // carries the record's own refusals, empty today and not for long.
                 refuses: route.from === 'members' ? route.refuses : NO_REFUSALS,
+                allows,
             };
         case 'ignored':
-            return { status: 'ignored', why: route.why, gtk: [], refuses: NO_REFUSALS };
+            return { status: 'ignored', why: route.why, gtk: [], refuses: NO_REFUSALS, allows };
         case 'refused':
-            return { status: 'refused', why: route.why, gtk: [], refuses: NO_REFUSALS };
+            return { status: 'refused', why: route.why, gtk: [], refuses: NO_REFUSALS, allows };
     }
 }
 
@@ -200,14 +319,30 @@ export function answerFor(
     // loop for the same reason, so that the refusal names the primitive rather than
     // whichever prop the loop reached first.
     if (spec.refusesStyle !== undefined && (prop === 'style' || prop === 'className')) {
-        return { primitive, prop, status: 'refused', why: spec.refusesStyle, gtk: [], refuses: NO_REFUSALS };
+        return {
+            primitive,
+            prop,
+            status: 'refused',
+            why: spec.refusesStyle,
+            gtk: [],
+            refuses: NO_REFUSALS,
+            allows: null,
+        };
     }
     if (frameworkProps.has(prop)) {
-        return { primitive, prop, status: 'framework', why: '', gtk: [], refuses: NO_REFUSALS };
+        return { primitive, prop, status: 'framework', why: '', gtk: [], refuses: NO_REFUSALS, allows: null };
     }
     const route = spec.props[prop];
     if (route === undefined) {
-        return { primitive, prop, status: 'unknown', why: unknownPropDetail(spec), gtk: [], refuses: NO_REFUSALS };
+        return {
+            primitive,
+            prop,
+            status: 'unknown',
+            why: unknownPropDetail(spec),
+            gtk: [],
+            refuses: NO_REFUSALS,
+            allows: null,
+        };
     }
     const routes = Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute];
     const answers = routes.map(answerForRoute);
@@ -222,6 +357,7 @@ export function answerFor(
         // `horizontal` is three widget properties over two nodes and one question, so a
         // value one of them refuses is refused by the prop.
         refuses: Object.assign({}, ...answers.map((answer) => answer.refuses)) as Readonly<Record<string, string>>,
+        allows: intersectVocabularies(answers.map((answer) => answer.allows)),
     };
 }
 

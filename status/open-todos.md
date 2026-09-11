@@ -4,6 +4,32 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `acceptsPropValue` is an oracle for the VOCABULARY, not for the type
+
+`@gjsify/react-native/prop-table` answers "would `<P prop={value}>` render" for the two
+grains the table ENUMERATES — the values a route refuses by name (`refuses`) and the
+values it maps (`allows`, ADR 0039 § Amendment 2026-09-11, #1648). It does not answer
+the third: `coerce` in `primitives/resolve.ts` refuses a non-boolean for `editable`, a
+non-number for `numberOfLines`, a non-function for `onPress` and a non-string for
+`accessibilityLabel`, and `explainPropValue` returns `null` for every one of them.
+
+MEASURED on the state that closed #1648, by driving `'x'` through every property route
+with no enumerable vocabulary: the render refuses and the oracle answers `null` on all
+of them — `<Text numberOfLines>` ("expects a number"), `<Text selectable>`,
+`<Pressable disabled>` and `<ActivityIndicator animating>` ("expects a boolean") among
+them. It is a smaller hazard than the one that was fixed — a type error is a TypeScript
+error first, and the props are typed — but it is the same shape of claim, and a
+consumer's ledger test cannot tell the two apart.
+
+What it would take, and why it was not done with #1648: the answer needs a per-coercion
+PREDICATE on `PropAnswer` rather than a list, which is a second kind of published field;
+`file` has no predicate at all (its refusals are computed from the value's shape —
+`http:`, a `require()` id, an array), so the surface would have to say "unknown" for one
+route kind and mean it; and `event`/`gesture` want "a function", which no JSON-shaped
+answer can express to a consumer reading `propTable()` as data. The route-shape census in
+`prop-table.spec.ts` is where it would be wired in: each shape already declares whether it
+enumerates a vocabulary, and a `typeProbe` beside `OUTSIDE` is the same mechanism one
+grain over.
 ### CI's build-output cache key is the third answer to "what are this package's build inputs"
 
 `packageBuildInputs` (`packages/infra/cli/src/utils/package-inputs.ts`) is now the ONE definition
@@ -29,6 +55,7 @@ Bounded meanwhile: `GJSIFY_BUILD_CACHE` is set nowhere under `.github/`, so only
 change outside `src/**` should have invalidated — which `verify-package-outputs.mjs` (the
 warm-cache probe) does not see, because it asks whether the restored tree is COMPLETE, not
 whether it is CURRENT.
+
 
 ### The `@girs/*` vocabulary carries no method table, so the method oracle is read from the typelib
 
@@ -789,13 +816,23 @@ claim.) Of the 95:
 | the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
 | the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
 | the type differs: nullability only | 1 |
-| **the type differs AND so does the kind of value** | **3** |
+| **the type differs AND so does the kind of value** | **2** (was 3 — #1584) |
 | **the type AGREES and the kind of value does not** | **5** |
 | the evidence does not decide | 1 |
 
-The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
-page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
-`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number).
+The two the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string) and `AdwTabView.defaultIcon` (`Gio.Icon` against a string).
+
+**The third is RESOLVED** (#1584) and is worth keeping here for the shape of that answer
+too. It was `GtkImage.iconSize`, a `Gtk.IconSize` enum against a DIP number — the port
+carrying `Gtk.Image:pixel-size`'s meaning under `icon-size`'s name, twice (`AdwImageButton`
+had the same pair). The fix was not to pick one: the port now carries BOTH GTK properties
+under their own names, `iconSize` taking the three nicks and `pixelSize` the number, with
+`pixel-size` overriding as it does on GTK, and the constant reaching `iconSize` through the
+construct-props bag the way `Gtk.Align`'s does. `widgets/gtk-icon-size.ts` holds the table;
+arm 7 of `check-nativescript-xml-doors.mjs` holds it against `GtkIconSizeNick` AND holds the
+derived constants against the typelib-read values in `generated/enum-values.mts` — the
+second oracle `gtk-align.ts` names as the thing that would retire its own caveat.
 
 **The five it does not have RESOLVED** (ADR 0034 § Amendment 18), and they are worth keeping
 here for the shape of the answer. They were one family — `GtkImage.iconName`,
@@ -1116,18 +1153,22 @@ The nine, each read from both sides:
 | `AdwTabView.selectedPage` | `Adw.TabPage \| null` | the page id, a string (ADR 0048) |
 | `AdwTabView.defaultIcon` | `Gio.Icon` | a symbolic SVG string |
 | `AdwSidebar.filter` | `Gtk.Filter \| null` | a predicate function |
-| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs |
+| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs — no longer, see below |
 
 Seven of the nine are DECIDED portable forms with an ADR behind them — the port has no list
 model, no menu model and no page type, and giving it one was the point of those changes.
-The last two are the interesting ones and they are the same defect twice:
+
+The last two were the interesting ones and they were the same defect twice:
 `Gtk.Image:icon-size` is a three-member enum (`inherit`/`normal`/`large`) and the port's
-`iconSize` is "the icon size in DIPs" (`gtk-image.ts:109`). GTK's number for that is
-`pixel-size` — which the coverage census above lists as a gap on both widgets. So the port
-carries GTK's `pixel-size` under GTK's `icon-size` name, and `<gtk:Image iconSize="large">`
-resolves to `NaN` and falls back to 16, silently. Not fixed here: it renames a published
-attribute on a surface `feat/ns-construct-props` is rewriting, and both censuses now make
-the question visible from two directions.
+`iconSize` was "the icon size in DIPs". GTK's number for that is `pixel-size` — which the
+coverage census above listed as a gap on both widgets, beside the property that WAS it. So
+the port carried GTK's `pixel-size` under GTK's `icon-size` name, and
+`<gtk:Image iconSize="large">` fell back to 16, silently. #1584 gave each GTK property its
+own name — `iconSize` the nicks, and the constant through the construct-props bag;
+`pixelSize` the number — so the last row of the table above is agreement on the value kind
+now and eight of the nine remain. It is kept in the table because the SHAPE is this entry's
+point: two censuses made the question visible from two directions, and neither could have
+FAILED on it.
 
 **Why this is not a gate.** Getting from 26 raw disagreements to those 9 took four
 normalisations, and every one of them is a judgement a gate would be encoding rather than
@@ -3597,7 +3638,60 @@ Open, in order — each independently mergeable, each with its proof:
 
 9. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 
-10. **The `.deb` changelog is not compressed with `gzip -9`.** `W: gjsify: changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]` — measured on lintian 2.117 (ubuntu-24.04) against the first `.deb` that carried a changelog at all, i.e. it arrived WITH the § 4.4 fix rather than surviving it. Debian Policy § 4.4 asks for `gzip -9 -n`, and lintian reads the claim off the gzip header's XFL byte. The gap is a missing capability in the core, not in `ship`: `utils/ship/gzip.ts` compresses through `@gjsify/tar`'s `gzip()`, which is `CompressionStream('gzip')`, and the Web API takes no level; `@gjsify/zlib`'s `gzipSync` accepts a `ZlibOptions` it names `_options` and ignores, on both its Gio (`Gio.ZlibCompressor`, which DOES take a level) and its browser path. So the fix is a level argument through `@gjsify/zlib` → `@gjsify/tar` → `gzipDeterministic`, with the two backends' levels proven to agree. What is NOT the fix, and is why this is ledgered rather than closed: stamping XFL to 2 in `gzipDeterministic` beside the mtime and OS bytes it already normalises. Those two are facts about the build ENVIRONMENT; XFL is a statement about the compression that was actually performed, and writing it would make the artifact lie to the tool that reads it.
+### Two zlibs can compress one `gjsify ship` artifact, and they disagree
+
+Found while closing the `.deb` changelog's `gzip -9` gap, which is DONE: `@gjsify/zlib`
+honours `options.level` now (it was spelled `_options` and dropped on the floor, on the sync
+and the async path alike), `@gjsify/tar`'s `gzip()` takes one and routes a levelled request
+through `node:zlib` because `CompressionStream` has no level to give, and `plan.ts`
+compresses `changelog.Debian.gz` at `POLICY_MAX_COMPRESSION`. Measured with `lintian` 2.117
+on ubuntu-24.04 against gjsify's own `.deb`, before and after: `W: gjsify:
+changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]`
+present, then absent, with no error-severity tag in either run. `verify-deb.sh` gates the tag
+by name, so it cannot return quietly. **The file also settles the "just stamp XFL" argument
+with a number rather than a principle:** the two members differ in EXACTLY ONE BYTE —
+position 9, XFL, 0 against 2 — and are 1152 bytes either way, so for that input stamping
+would have produced the identical artifact. It is identical by coincidence of a small input;
+over the full `CHANGELOG.md` the same two levels differ by thousands of bytes.
+
+**What is open is what the work uncovered.** `gzipDeterministic` is deterministic for a
+given HOST, not for a given artifact, and its name says otherwise. `@gjsify/tar` compresses
+on the platform's zlib, and the two platforms this CLI runs on do not ship the same one:
+Fedora's `libz.so.1` is `zlib-ng-compat` 2.3.3, Node bundles `1.3.2.1-motley`. Measured
+2026-09-11 over this repo's `CHANGELOG.md` (876 192 bytes), gio-via-GJS against Node, output
+bytes per level — 0: 876 280 / 876 340 · 1: 295 057 / 297 789 · 6: 272 003 / 272 000 ·
+8: 270 255 / 270 260 · 9: 277 974 / 270 289. They agree at NO level on that input, including
+the default, and **zlib-ng's level 9 is worse than its own level 8** (~2.9 %), which is why
+the level is asked for only where a reader demands it and is not blanket-applied to
+`data.tar.gz` / `control.tar.gz`. Consequences: a `.deb` packed under GJS and one packed
+under Node differ in the two payload tarballs — those are compressed at PACK time — while
+`changelog.Debian.gz` is immune because `plan.ts` compresses it once at ASSEMBLY time and it
+travels as base64 in the sidecar. `tests/e2e/ship-from-stage` asserts byte-equality between a
+direct pack and a `--from-stage` pack and holds only because both run on one host; it is
+structurally blind to this, and a cross-host pack is the thing `--from-stage` exists for.
+Closing it means pinning ONE deflate implementation for the packers, which is a real
+decision (a vendored deflate, or declaring the packing host part of the artifact's identity)
+and not a patch.
+
+### The `.rpm` has no `%changelog`, and the blocker is the oracle rather than the writer
+
+Checked while doing the `.deb` half, so the next session does not re-derive it. `rpm.ts`
+writes no `CHANGELOGTIME` (1080) / `CHANGELOGNAME` (1081) / `CHANGELOGTEXT` (1082), so
+`rpm -qp --changelog` on a `gjsify ship` artifact prints nothing and `rpmlint` 2.8.0 raises
+`no-changelogname-tag` ("There is no changelog"). The entry text is NOT the missing piece —
+`changelogEntriesFor()` in `utils/ship/changelog.ts` already extracts the bullets per version
+and both formats would share it. Two things actually block it. **(a) `rpmlint` appears
+nowhere in this repository** — not in `.docker/ci-fedora.Dockerfile`, not in
+`.github/ship-oracle/verify-rpm.sh` — so the tag has no gate, and adding the package plus a
+test that hard-requires it in one PR is the ordering trap `build-ci-image.yml` imposes
+(the image publishes only on a push to `main`); `msitools` went in as its own PR first for
+exactly this, and this should too. The system `rpm`'s own `-qp --changelog` is a usable
+independent reader in the meantime and is already required by that suite. **(b) the RPM
+changelog is HEADER data built at PACK time, not an overlay file compressed at assembly
+time**, so `--from-stage` needs the entries inside `.gjsify-ship-stage.json` — a schema 6 → 7
+bump, which that file's own rules say must be justified in its header and which `readStage`
+must then validate. That is the whole cost, and it is why this is ledgered instead of folded
+into the changelog PR.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 
@@ -5908,23 +6002,35 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. What is left here is the order of the work.
+beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 37 of
+the 38 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on two lines,
+the ARIA value types below. Clause 5's condition is that last entry, and after it come the flip
+and the deletions.
 
-The first PR carries the WRITTEN corpus, the hand-written `SharedNode` expectation per corpus
-file (clause 2) and the shadow harness — NOT a parser already claiming a subset, because a
-harness with nothing to compare reports green while proving nothing. The subset then grows one
-shadow divergence at a time.
+The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
+interface and changes what it calls, and byte-equality on the corpus is evidence about the
+corpus: the parser accepts a documented SUBSET (clause 3), and a `.blp` outside it is a hard
+error rather than wrong output, so the flip has to say what a build does when a real file trips
+one. `expr`, `typeof`, an inline `menu` as a property value and a response flag in a `setters`
+block are the refusals that exist today, each with its own message.
 
-Two things that suite has to settle before anything is claimed. The equivalence of the two
-notations is a READING and nothing has run it, so the honest expectation is that the first suite
-moves at least one row of the ADR's mapping table. And six construct classes have no `SharedNode`
-spelling at all — `template`, object ids, `_()`, `bind`, and `Adw.Breakpoint`'s `condition` and
-`setters`. The translatable marker is the one that costs: a caption parsed into a plain string
-loses exactly the attribute ADR 0033 prefers a template for.
+**And "outside the subset is a hard error, never wrong output" is a property to re-measure
+before the flip, not to assume.** It was untrue for `accessibility { }` until that rule file
+grew past the single string it held: relations and states were emitted as `<property>`, inside
+the subset, silently. What found it was widening the corpus, not reading the code — so the
+question for every construct with a thin rule file is what its SECOND case looks like.
 
 Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
 one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
-skip in `check-doc-fences.mjs`, and the MSYS2 branch of `gjsify system-check`.
+skip in `check-doc-fences.mjs` — which becomes two-stage rather than vanishing, per clause 7 —
+and the MSYS2 branch of `gjsify system-check`. The compiler itself stays, as the oracle stage B
+runs: deleting the binary from the image would delete the only independent reading the goldens
+have.
+
+One thing the corpus settled that the ADR's mapping table did not have: six construct classes
+have no `SharedNode` spelling at all — `template`, object ids, `_()`, `bind`, and
+`Adw.Breakpoint`'s `condition` and `setters`. The translatable marker is the one that costs: a
+caption parsed into a plain string loses exactly the attribute ADR 0033 prefers a template for.
 
 ### Does the shared corpus want a second authored notation?
 
@@ -5961,39 +6067,57 @@ this, per the policy above. No estimate of the web leg's cost belongs here until
 measures one: a browser binding that resolved custom elements directly would bypass the
 gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
 
-### Byte-equal GtkBuilder XML needs the GIR, not only a parse
+### The enum numbers exist twice now, with two provenances and one reader each
 
-ADR 0053 clause 4 makes `blueprint-compiler` the oracle for the emitted XML and reserves the
-installed typelib for VALIDATION — "a parser reading into a tree does not perform" a ParamSpec
-lookup. The corpus in `packages/infra/blueprint/corpus/` shows the reservation is too narrow.
-`orientation: vertical` does not reach the XML as `vertical`; the reference compiler resolves
-the enum member and writes `<property name="orientation">1</property>`, and `halign: center`
-as `3` (`corpus/rules/03-property-enum.ui`). Emission needs introspection, not only validation,
-and the ADR's cost estimate does not include it.
+`@girs` 4.9.0 carries `ENUM_VALUES` in every namespace's vocabulary, read from the same GIR as
+the nicks. `packages/framework/gtk-host/src/generated/enum-values.mts` carries the same numbers
+read from whatever typelib the maintainer had, written by `scripts/generate-enum-values.mjs`
+under GJS and held by `scripts/check-enum-values.mjs` plus `generated.spec.ts`. The second one
+exists because the first did not, and ADR 0029 § Amendment 2 said so in as many words: "it
+stays the right long-term home, and when it lands the generator here swaps its INPUT and its
+output does not change shape".
 
-The first version of this entry said the obvious source is the wrong one — that `@girs`
-declares `enum Orientation { HORIZONTAL, VERTICAL }` with no initialisers, so its members
-carry POSITIONAL values. That was measured on `node_modules/@girs/gtk-4.0`, which sits at
-**4.1.0** while `gjsify-lock.json` pins **4.6.0**, and it is wrong for the pinned version:
-from `@girs` 4.5.0 the `.d.ts` carries the GIR's own numbers, so `Gtk.ResponseType.NONE` is
-`-1` there as it is in the GIR. An independent review reached the same wrong answer from the
-same stale file. Two readings of one out-of-date artefact agree with each other and not with
-the tree, which is worth more than the claim they agreed on.
+It has landed, and the two agree: of the 737 values in the committed table 736 match `@girs`
+4.9.0 exactly, the one difference is the declared version gap
+(`GtkEditableProperties.num-properties` is 8 on the installed GTK 4.22.4 and 10 in the GIR of
+4.23.3), and `@girs` also carries the two entries the generating host had to list under
+`ENUM_VALUES_UNAVAILABLE`. So the swap is available and what it deletes is real: the GJS-only
+generation step, the `ENUM_VALUES_UNAVAILABLE` table with the host-version strings in it, and
+one of the artifact's two provenances.
 
-What is genuinely missing is the RUNTIME half. `@girs/<ns>/vocabulary` gives `ENUM_NICKS` —
-the names, in declaration order — and no numbers, which is why
-`scripts/generate-enum-values.mjs` reads them from the installed typelib through GIRepository
-instead, and why that artefact carries two provenances: nicks from the GIR the vocabulary was
-generated against, values from whatever GTK the maintainer had. That is fixed upstream rather
-than here — ts-for-gir now emits `ENUM_VALUES`, `ENUM_DEPRECATED` and a declared unreadable
-remainder from the same GIR as the nicks. What stays open on this side is what to do when it
-releases: the generator's own header says its INPUT changes and its output does not, so the
-committed table survives and the GJS-only generation step, the `ENUM_VALUES_UNAVAILABLE`
-entries and one of the two provenances can go.
+What it COSTS is the reason this is an entry and not a commit. `generated.spec.ts` holds every
+number against the typelib that is actually running, which is the genuinely independent oracle
+ADR 0034 § 7.3 names; a table read from `@girs` and checked against `@girs` would be a reader
+agreeing with itself. The swap therefore has to keep that spec pointed at the typelib while the
+DATA comes from the vocabulary — which is the arrangement that makes the disagreement above a
+finding rather than a failure. `packages/nativescript-bridge/adwaita/src/widgets/gtk-align.ts`
+is the other consumer and it reads the artifact, not the generator, so it is unaffected either
+way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
+is the shape the swap would generalise.
 
-Also measured, and smaller: values are normalised rather than copied through. `xalign: 1.0`
-comes out as `1` while `0.25` and `0.5` come out unchanged
-(`corpus/rules/17-numeric-forms.ui`).
+### `accessibility { }` VALUE types need the ARIA table, which `@girs` does not carry
+
+Measured on `blueprint-compiler` 0.20.4: `Gtk.Label { accessibility { orientation: vertical; } }`
+emits `<property name="orientation">1</property>` although `GtkLabel` is not orientable at all,
+`autocomplete: inline` beside it emits `1`, and `checked: true` emits `1` because the slot is a
+`GtkAccessibleTristate` and not a boolean. The block is typed by GTK's ARIA table and not by the
+widget's ParamSpecs, and that table is built in C by `gtk_accessible_property_init_value` — the
+GIR carries the function, not what it writes. `PROP_ENUMS` answers the ParamSpec question only,
+so `packages/infra/blueprint/src/emit-xml.mjs` passes nothing for that block and the source
+spelling stands.
+
+The NAME half is already answered and is not part of this: which element each entry becomes is
+the nick list of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState`, all
+three in the vocabulary, so `src/resolve-ident.mjs` classifies it. What is left is the value,
+and `rules/20-accessibility.blp` holds it as the one entry in `corpus/divergences.mjs` — which
+is the second half of what this entry used to say: the gap was written here because no corpus
+file probed it, and a gap nothing probes is one nothing prints either. Resolving it through the
+widget would be right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`, so the repair
+is upstream: ts-for-gir emits the ARIA value types the way it now emits `PROP_ENUMS`, the ledger
+entry fails with "byte-equal and still listed, delete the entry", and clause 5 is reached.
+`layout { }` is the same shape with a different answer — the entry there belongs to the layout
+CHILD (`GtkGridLayoutChild`), the compiler leaves an unresolvable one as written, and
+`rules/19-layout.blp` pins that with a `halign` the widget would have numbered.
 
 ### The Blueprint projection cannot be inverted, and three losses have no `SharedNode` spelling
 
@@ -6028,3 +6152,61 @@ cannot stay private forever and cannot export a type from a path outside its own
 candidate answers are a type-only package both sides import, and a declaration in the parser that a
 compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
 with a working projection in hand than without one.
+
+### Three more commands answer an empty selection with exit 0
+
+#1587 was one command resolving an empty set, doing nothing and reporting success. The
+fix is in, and a sweep of every command in `packages/infra/cli/src/commands/` asked the
+same question of each: *when the selection resolves to EMPTY, what happens?* Most answer
+well — `foreach --include`, `onboard --packages`, `storybook`, `ship`, `run`, `check`,
+`trust`, `dev` and every `flatpak` subcommand exit NON-ZERO, and `prune`, `upgrade`'s
+dependency filters, `install`, `info` and `affected` print a line saying they found
+nothing. Four did not.
+
+**The worst of them was a GUARD that goes green, and it is CLOSED** — kept here because
+the incident is the reason the remaining three are written down at all.
+`gjsify barrels --paths <dir>` skipped a directory it could not read and `--check` called
+that no drift: the generator caught the `readdir` failure, logged it only under
+`--verbose` and continued, while the command exited non-zero only on `drift > 0`, so a
+typo'd or renamed path contributed 0 and the check passed for a barrel nothing had looked
+at. It guarded "zero paths given" and never "this path is not there" — the exact
+asymmetry `assertEveryIncludeMatches` was written to close for `foreach`. Now
+`unscannableBarrelPaths` refuses every named path that is not a readable directory before
+anything is generated, and the generator stays tolerant for programmatic callers, which
+is the split the two callers actually want.
+
+The three that remain, ranked by what a later step then measures:
+
+1. **`gjsify build` has no guard for an entry / `--library` glob matching no files.**
+   `rolldown-plugin-gjsify/src/utils/entry-points.ts:102-105` returns `[]`, which flows
+   into `input` (`library/lib.ts:83`, `app/gjs.ts:153`) and on to `runBundle`. Every
+   post-build guard is offender-based and passes trivially on nothing:
+   `assertGjsBundleLoadable` returns when both offender lists are empty,
+   `assertGjsBundleParses` `continue`s on empty code, `computeCommonRoot` even has an
+   explicit `paths.length === 0 → 'src'` fallback. Whether rolldown itself refuses
+   `input: []` is NOT determined from this tree, and that is the point: the no-match path
+   is reachable (`commands/build.ts:6-26` records a win32-backslashed pattern where
+   "nothing ever matches, and no output file is written"), and build is precisely the
+   step whose artifact a later step measures.
+2. **`gjsify upgrade --workspace <glob>` prints one line and exits 0** where `foreach`
+   asserts (`commands/upgrade.ts:161-164`). `applyWorkspaceFilter` cannot tell "the
+   pattern named something that does not exist" from "the exclude emptied a real set", so
+   a stale name or a quoting mishap reports success having edited nothing, and the
+   following `install` + `build` measure the OLD versions. Cheapest of the three to fix:
+   the assert exists twice already (`commands/foreach.ts:593`,
+   `utils/onboard-discovery.ts:73`).
+3. **`gjsify pack` on an unbuilt package writes a `.tgz` of `package.json` + README and
+   prints its name at exit 0** (`commands/pack.ts:283-306`). The comment at `:276-282`
+   names the incident — `@gjsify/tsc` shipped an empty `lib/` for the whole v0.4.37-0.7.2
+   window — and puts the guard in `scripts/verify-tarball-outputs.mjs`, OUTSIDE the
+   command, so a `pack` → `publish` that does not run that script is unheld.
+
+Deliberate and left alone: `clear` and `copy` wildcards that match nothing (shell parity,
+argued for in `utils/clear-targets.ts:98-104` and `utils/copy-targets.ts:97-99`), and
+`ship --stage`'s `formats (none — …)` line.
+
+**What would close them**: one shared assert with the shape `assertEveryIncludeMatches`
+already has — *a pattern the caller wrote that matched nothing is an error, a filter that
+emptied a real set is not* — applied at the selection sites above, `barrels` having taken
+the first of them by hand. The distinction is the whole content of the rule, and it is why
+a blanket "empty is an error" would be wrong for `prune` and `foreach --exclude`.

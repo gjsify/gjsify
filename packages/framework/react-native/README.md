@@ -78,6 +78,23 @@ expect(explainProp('Text', 'onPress')).toContain('Wrap it in a `<Pressable>`');
 runtime one. [PROPS.md](PROPS.md) is the generated document, one section per
 primitive, held byte for byte by `check-rn-surface.mjs`.
 
+**A prop can be answered and still refuse a VALUE, and the table says so at both
+grains** — `propRefusedValues` lists the spellings with a reason of their own,
+`propAllowedValues` lists the ones a mapped prop takes at all, and
+`acceptsPropValue`/`explainPropValue` answer for one value:
+
+```ts
+acceptsPropValue('View', 'pointerEvents', 'box-none'); // false — GTK's `can-target`
+propAllowedValues('View', 'pointerEvents'); // ['auto', 'none']
+```
+
+Both halves are needed because they are different facts: a value can be refused by
+NAME, with its own sentence, or by being absent from the list its route maps. Reading
+only the first answered ACCEPTED for `box-none` until #1648 (ADR 0039 § Amendment).
+What is still not answered is the TYPE grain — `acceptsPropValue('Text',
+'selectable', 'yes')` is `true` while a render refuses the string — because that is a
+predicate rather than a list; `status/open-todos.md` carries what it would take.
+
 ## `<TextInput>`'s ref is a handle, not the widget
 
 React Native's `TextInput` is a class, so `useRef<TextInput>(null)` and
