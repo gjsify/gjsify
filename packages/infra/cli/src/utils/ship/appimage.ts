@@ -37,28 +37,33 @@
 // to have audited, and appimagetool is GPL-3.0 while gjsify is MIT in 185
 // manifests. DOWNLOADING THE TOOL AT PACK TIME is refused for a different one:
 // every other packer here runs offline, and a pack step that fetches is a release
-// step that fails when GitHub does. That refusal is NOT achieved, because the tool
-// fetches on its own account — see the first measurement below, which is the one
-// open defect this module ships with.
+// step that fails when GitHub does. The tool fetches its RUNTIME on its own
+// account, which nearly made that refusal untrue in practice — see the first
+// measurement below, and the pin that answers it.
 //
 // MEASURED ON appimagetool 1.9.1 (build 296, 2025-12-04), because three of its
 // behaviours decide this file and none of them are in its `--help`:
 //
-//   * IT FETCHES THE RUNTIME, AND THIS PACK IS THEREFORE NOT OFFLINE. Re-measured
-//     on the version `.docker/ci-fedora.Dockerfile` pins (1.9.1, build 296, git
-//     8c8c91f): every invocation prints `Downloading runtime file from
-//     https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-<arch>`
-//     BEFORE "Embedding ELF…", for the host's own architecture as much as for a
-//     foreign one, and it caches nothing — four consecutive packs, four downloads.
-//     With the network blocked it exits 1 having written no file, naming
-//     `--runtime-file` as the way across. So the bytes a user ends up executing
-//     come from a ROLLING tag with no digest behind it, while the Dockerfile pins
-//     the tool itself by SHA-256 — and `ship`'s byte-identical promise holds only
-//     between two packs close enough together that `continuous` did not move.
-//     `--runtime-file` is the fix and it needs a decision about where a pinned
-//     runtime comes from (licence, and who fetches it); until then this is
-//     `status/open-todos.md` → "The AppImage pack is not offline".
-//     The first draft of this header recorded the opposite as measured.
+//   * IT FETCHES THE RUNTIME — it does NOT embed one, which the first draft of
+//     this header recorded as measured and which is the opposite of what it does.
+//     Re-measured on the version `.docker/ci-fedora.Dockerfile` pins (1.9.1, build
+//     296, git 8c8c91f): every invocation prints `Downloading runtime file from
+//     …/type2-runtime/releases/download/continuous/runtime-<arch>` BEFORE
+//     "Embedding ELF…", for the host's own architecture as much as for a foreign
+//     one, caching nothing — four consecutive packs, four downloads. With the
+//     network blocked it exits 1 having written no file, naming `--runtime-file`.
+//     So the ~940 KB of ELF a user DOWNLOADS AND EXECUTES came from a ROLLING tag
+//     with no digest behind it while the Dockerfile pinned the tool that fetched
+//     it by SHA-256 — a pin with a hole under it — and two packs of one build
+//     agreed only because `continuous` had not moved between them. It moves:
+//     `continuous`'s `runtime-x86_64` and the dated `20251108` release's are the
+//     same 944632 bytes and different content.
+//     SO THE RUNTIME IS PINNED TOO ({@link findPinnedRuntime},
+//     {@link appImageToolArgs}) and an architecture without one is ANNOUNCED
+//     rather than refused ({@link appImageRuntimeNotice}) — declare rather than
+//     imply, the rule {@link appImageHostRequirements} already follows. Measured
+//     with a pin: the pack succeeds with the network blocked and two packs are
+//     byte-identical.
 //   * IT CANNOT GUESS OUR ARCHITECTURE. appimagetool reads the AppDir's binaries
 //     to decide, and a `--app gjs` payload is JavaScript and a `/bin/sh`
 //     launcher: there is no ELF to read. `ARCH` in the environment is therefore
@@ -111,6 +116,29 @@ export const APPIMAGE_TOOL = 'appimagetool';
  * when a user runs that — and the spec asserts on the pair.
  */
 export const EXTRACT_AND_RUN = 'APPIMAGE_EXTRACT_AND_RUN';
+
+/**
+ * Where a PINNED AppImage runtime is looked for, and the variable that moves it.
+ *
+ * THE RUNTIME IS THE HALF OF THE ARTIFACT THIS TREE DOES NOT WRITE, and until it
+ * was pinned nothing pinned it: appimagetool fetches `runtime-<arch>` from
+ * `type2-runtime`'s ROLLING `continuous` tag on every pack (module header), so
+ * the ~940 KB of ELF a user downloads and executes arrived with no digest behind
+ * it, while `.docker/ci-fedora.Dockerfile` carefully pinned the tool that fetched
+ * it. Measured, and not a theoretical drift: `continuous`'s `runtime-x86_64` and
+ * the dated `20251108` release's differ in content at the same 944632 bytes.
+ *
+ * A DIRECTORY AND AN ENVIRONMENT VARIABLE, rather than a download this packer
+ * performs, because that is ADR 0024 § A25's rule applied one level down — a
+ * pack step that fetches is a release step that fails when GitHub does. The CI
+ * image puts a digest-checked file here; a workstation either does the same or
+ * takes the announced path below. Arch-named, `runtime-<arch>`, which is
+ * type2-runtime's own asset name, so pinning one is a copy and not a rename.
+ */
+export const APPIMAGE_RUNTIME_DIR_ENV = 'GJSIFY_APPIMAGE_RUNTIME_DIR';
+
+/** The default home for {@link APPIMAGE_RUNTIME_DIR_ENV}, which the CI image fills. */
+export const APPIMAGE_RUNTIME_DIR = '/usr/local/share/gjsify/appimage-runtime';
 
 /** The directory name the AppImage specification gives the tree appimagetool packs. */
 const APPDIR_NAME = 'AppDir';
@@ -195,14 +223,29 @@ export function appImageHostRequirements(input: {
     namespaces: readonly string[];
     bundledTypelibs?: readonly string[];
 }): string[] {
-    const interpreter =
-        input.app === 'node'
-            ? `node (>= ${input.minNodeVersion ?? DEFAULT_NODE_FLOOR})`
-            : `gjs (>= ${input.minGjsVersion ?? DEFAULT_GJS_FLOOR})`;
+    const floor = interpreterFloor(input);
     return [
-        interpreter,
+        `${input.app} (>= ${floor})`,
         ...hostProvidedNamespaces(input.namespaces, input.bundledTypelibs).map((ns) => `the ${ns} typelib`),
     ];
+}
+
+/**
+ * The version this payload's interpreter must be at least, as the project declared it.
+ *
+ * ONE DECISION, TWO READERS, which is why it is a function and not two ternaries:
+ * {@link appImageHostRequirements} PRINTS this floor and {@link renderAppRun}
+ * CHECKS it, and an artifact whose message names 1.86 while its script compares
+ * against something else is worse than one that does neither.
+ */
+export function interpreterFloor(input: {
+    app: PackSettings['app'];
+    minGjsVersion?: string;
+    minNodeVersion?: string;
+}): string {
+    return input.app === 'node'
+        ? (input.minNodeVersion ?? DEFAULT_NODE_FLOOR)
+        : (input.minGjsVersion ?? DEFAULT_GJS_FLOOR);
 }
 
 /**
@@ -227,6 +270,27 @@ export function appImageHostRequirements(input: {
  * is not a shell-visible thing, and GJS's own "Typelib file for namespace 'Gtk'
  * not found" is already precise. Listing them in the refusal is what this file
  * can honestly do — checking them would be a probe that guesses.
+ *
+ * AND THE FLOOR IS CHECKED, FAIL-OPEN, which is the one design decision in this
+ * script. `command -v gjs` alone accepted GJS 1.70 while the message beside it
+ * said `gjs (>= 1.86)` — a floor the `.deb` enforces through `Depends:` and this
+ * artifact merely printed, so the failure it exists to prevent came back one
+ * import later. The check costs the same fork `command -v` already cost.
+ *
+ * FAIL-OPEN IS THE POINT AND NOT A HEDGE. A version comparison in `/bin/sh` that
+ * gets it wrong REFUSES A WORKING SYSTEM, which is strictly worse than not
+ * checking: the user cannot argue with an artifact. So the refusal fires only on
+ * two integers that were actually parsed out of the interpreter's own
+ * `--version`, and every other outcome — no output, a spelling this `sed` does
+ * not match, a distro build that prints something else entirely — RUNS THE
+ * APPLICATION. `gjs --version` prints `gjs 1.88.1` and `node --version` prints
+ * `v24.19.0`; both reduce to a major and a minor, and a floor with no minor
+ * (`24`) compares as `24.0`.
+ *
+ * EXIT 126 AND NOT 127 for the too-old case, because the shell's own vocabulary
+ * already separates them: 127 is "not found", 126 is "found and cannot be run".
+ * A wrapper script that wants to tell the two apart can, and the message says
+ * which it is either way.
  */
 export function renderAppRun(settings: PackSettings, hostRequirements: readonly string[]): string {
     // `LAYOUTS.linux.dirs()` and not the literal `bin`: this path and the one
@@ -234,6 +298,8 @@ export function renderAppRun(settings: PackSettings, hostRequirements: readonly 
     // would break the day the layout map moves it — silently, because the AppDir
     // would still build and only the mounted image would 127.
     const launcherDir = LAYOUTS.linux.dirs(settings).launcher;
+    const floor = interpreterFloor(settings);
+    const [floorMajor = '0', floorMinor = '0'] = floor.split('.');
     return [
         '#!/bin/sh',
         '# Generated by `gjsify ship` — do not edit.',
@@ -244,6 +310,28 @@ export function renderAppRun(settings: PackSettings, hostRequirements: readonly 
         '    echo "This AppImage carries the application, not its runtime. It needs:" >&2',
         ...hostRequirements.map((need) => `    echo "  - ${shellSafe(need)}" >&2`),
         '    exit 127',
+        'fi',
+        // The first `<major>.<minor>` anywhere in the interpreter's own version
+        // output. `2>/dev/null` and `|| true` because `set -e` is on and an
+        // interpreter that fails its own `--version` must not kill the launcher —
+        // that is the fail-open path, reached before any comparison.
+        `found=$(${settings.app} --version 2>/dev/null | sed -n 's/[^0-9]*\\([0-9][0-9]*\\)\\.\\([0-9][0-9]*\\).*/\\1 \\2/p' | head -n 1 || true)`,
+        'major=${found% *}',
+        'minor=${found#* }',
+        // THE FAIL-OPEN GATE, and it is this ONE test because the `sed` above can
+        // only ever emit two runs of digits or nothing at all — both captures are
+        // `[0-9][0-9]*`. A `case "$major$minor" in ""|*[!0-9]*)` stood here first
+        // and was deleted after the mutation that should have red it stayed green:
+        // it guarded a state nothing can produce, which is a guard that cannot
+        // fail. What DOES reach here is the empty parse, and that is what this
+        // sees.
+        'if [ -n "$major" ]; then',
+        `    if [ "$major" -lt ${floorMajor} ] || { [ "$major" -eq ${floorMajor} ] && [ "$minor" -lt ${floorMinor} ]; }; then`,
+        `        echo "${shellSafe(settings.name)} needs ${settings.app} ${floor} or newer, and this system has $major.$minor." >&2`,
+        '        echo "This AppImage carries the application, not its runtime. It needs:" >&2',
+        ...hostRequirements.map((need) => `        echo "  - ${shellSafe(need)}" >&2`),
+        '        exit 126',
+        '    fi',
         'fi',
         `exec "$here/usr/${launcherDir}/${settings.binaryName}" "$@"`,
         '',
@@ -283,6 +371,48 @@ function shellSafe(text: string): string {
  * the desktop entry's `Icon=` says, so shipping it as the root icon installs an
  * icon nothing ever looks up (`plan.ts` documents the same rule for the theme).
  */
+/**
+ * The pinned runtime for this architecture, or `undefined` when none is staged here.
+ *
+ * PURE APART FROM ONE INJECTED PROBE, so both answers are testable on a host that
+ * has neither — the split {@link appImageToolArgs} draws for the flags. `exists`
+ * is a parameter for exactly that reason and defaults to the real one.
+ */
+export function findPinnedRuntime(
+    archLabel: string,
+    env: NodeJS.ProcessEnv = process.env,
+    exists: (path: string) => boolean = existsSync,
+): string | undefined {
+    const dir = env[APPIMAGE_RUNTIME_DIR_ENV] || APPIMAGE_RUNTIME_DIR;
+    const file = join(dir, `runtime-${archLabel}`);
+    return exists(file) ? file : undefined;
+}
+
+/**
+ * What this pack is about to do about the runtime, as ONE sentence `ship` prints
+ * unconditionally.
+ *
+ * DECLARE RATHER THAN IMPLY — {@link appImageHostRequirements}'s rule, applied to
+ * the other half of the artifact. With a pin the claim is checkable: no network,
+ * and two packs of one build agree because the embedded bytes are fixed. Without
+ * one the pack still works and still produces a correct-architecture container —
+ * so refusing would cost the three architectures nothing here pins, for a
+ * property they never had. What it must not do is happen silently: an AppImage
+ * built this way carries bytes from a rolling tag that nothing in this tree can
+ * name, and the person who can fix that is the one reading this line.
+ */
+export function appImageRuntimeNotice(archLabel: string, runtimeFile: string | undefined): string {
+    if (runtimeFile !== undefined) {
+        return `the AppImage runtime is pinned: ${runtimeFile} — this pack needs no network`;
+    }
+    return (
+        `NO pinned AppImage runtime for ${archLabel}: appimagetool will fetch runtime-${archLabel} from ` +
+        "type2-runtime's rolling `continuous` tag, so this pack NEEDS A NETWORK and the ~940 KB of runtime " +
+        `it embeds carries no digest from this tree. Pin one at ${APPIMAGE_RUNTIME_DIR}/runtime-${archLabel} ` +
+        `(or point ${APPIMAGE_RUNTIME_DIR_ENV} at a directory holding it).`
+    );
+}
+
 export function selectAppDirIcon(payload: readonly PayloadEntry[], appId: string): PayloadEntry | undefined {
     let best: { entry: PayloadEntry; rank: number } | undefined;
     for (const entry of payload) {
@@ -426,9 +556,24 @@ export function appDirPayload(
  * ubuntu-24.04's 4.6.1. Pinning means the day appimagetool switches to something
  * newer, this file changes and the reader is considered, instead of the reader
  * silently losing the ability to open what we ship.
+ *
+ * `--runtime-file` IS PASSED WHEN THERE IS ONE TO PASS, and its absence is the
+ * only thing in this vector that is not a decision — see
+ * {@link findPinnedRuntime}. With it, the pack embeds bytes this tree pinned and
+ * needs no network (measured: the whole pack succeeds with the network blocked,
+ * and two packs are byte-identical). Without it appimagetool fetches its own, the
+ * pack is announced as doing so, and the artifact is still correct — just built
+ * from something nothing here can name.
  */
-export function appImageToolArgs(input: { appDir: string; target: string }): string[] {
-    return ['--no-appstream', '--comp', 'zstd', input.appDir, input.target];
+export function appImageToolArgs(input: { appDir: string; target: string; runtimeFile?: string }): string[] {
+    return [
+        '--no-appstream',
+        '--comp',
+        'zstd',
+        ...(input.runtimeFile === undefined ? [] : ['--runtime-file', input.runtimeFile]),
+        input.appDir,
+        input.target,
+    ];
 }
 
 /**
@@ -458,20 +603,26 @@ export function appImageToolEnv(archLabel: string): Record<string, string> {
  * the list was found to be missing its FIRST entry, which is the shape a message
  * that nothing reads back tends to have.
  *
- * THE NETWORK IS CAUSE ZERO, and it was absent while the module claimed the pack
- * was offline. Measured on 1.9.1 build 296 with the network blocked: exit 1, no
- * file, `Failed to download runtime file … pass it to appimagetool with
- * --runtime-file`. It is the first thing a firewalled or air-gapped CI hits and
- * the only step in `ship` that needs a network at all, so a message listing three
- * local causes sends the reader to install `file` on a machine that already has it.
+ * THE FIRST CAUSE DEPENDS ON WHETHER A RUNTIME WAS PINNED, and getting that
+ * wrong is what this function existed to fix in the first place: with no pin the
+ * download is where an offline host fails (measured — exit 1, no file, `Failed to
+ * download runtime file`), and with one there is no download to fail, so naming
+ * it would send a reader with a working network to debug their firewall. So the
+ * pinned branch names the pinned FILE instead, which is the thing that is new in
+ * that configuration and the only one this tree chose.
  */
-export function appImageToolFailureMessage(exit: string): string {
+export function appImageToolFailureMessage(exit: string, runtimeFile?: string): string {
+    const first =
+        runtimeFile === undefined
+            ? 'the AppImage RUNTIME could not be downloaded — ' +
+              `${APPIMAGE_TOOL} fetches it from github.com/AppImage/type2-runtime when no runtime is pinned, ` +
+              'so this pack needs a network and an offline host fails here having written nothing; or '
+            : `the pinned runtime at ${runtimeFile} is not an AppImage runtime — it is passed through to ` +
+              '`--runtime-file` unread, so a truncated or wrong-architecture file fails here; or ';
     return (
         `gjsify ship: ${APPIMAGE_TOOL} failed with ${exit}. ` +
-        'Four causes, measured in this order: the AppImage RUNTIME could not be downloaded — ' +
-        `${APPIMAGE_TOOL} fetches it from github.com/AppImage/type2-runtime on every pack, so this is the ` +
-        'one step in `ship` that needs a network, and an offline host fails here having written nothing; ' +
-        'or `file` is not installed — ' +
+        `Four causes, measured in this order: ${first}` +
+        '`file` is not installed — ' +
         `${APPIMAGE_TOOL} requires file(1) and says so, even though this pack already tells it the ` +
         'architecture; or FUSE is unavailable and the tool on PATH is a wrapper that dropped ' +
         `${EXTRACT_AND_RUN}=1, which this pack sets so the extract path is taken instead of a mount; ` +
@@ -484,6 +635,8 @@ export interface AppImagePackInput {
     target: string;
     archLabel: string;
     verbose: boolean;
+    /** The pinned runtime to embed, or `undefined` to let appimagetool fetch one. */
+    runtimeFile?: string;
     /** Working root, so the log can name the directory that became the image. */
     workDir: string;
 }
@@ -535,7 +688,7 @@ export async function buildAppImage(input: AppImagePackInput): Promise<void> {
             ),
     });
     if (result.code !== 0) {
-        throw new Error(appImageToolFailureMessage(describeExit(result)));
+        throw new Error(appImageToolFailureMessage(describeExit(result), input.runtimeFile));
     }
     if (!existsSync(input.target)) {
         throw new Error(

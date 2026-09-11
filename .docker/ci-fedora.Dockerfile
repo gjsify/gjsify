@@ -199,6 +199,40 @@ RUN curl -fsSL -o /usr/local/bin/appimagetool \
     && echo "${APPIMAGETOOL_SHA256}  /usr/local/bin/appimagetool" | sha256sum -c - \
     && chmod 0755 /usr/local/bin/appimagetool
 
+# THE APPIMAGE RUNTIME, PINNED — the half of the artifact this tree does not write.
+#
+# Pinning appimagetool alone was a pin with a hole under it: the tool FETCHES
+# `runtime-<arch>` from `type2-runtime`'s ROLLING `continuous` tag on every pack
+# (measured on 1.9.1 build 296, for the host's own architecture as much as for a
+# foreign one, with no cache), and that ~940 KB of ELF is what a user downloads
+# and executes. So the digest above covered the packer and not the payload.
+#
+# NOT a theoretical drift. `continuous`'s `runtime-x86_64` and the dated
+# `20251108` release's are the same 944632 bytes and DIFFERENT CONTENT — measured
+# by sha256 on 2026-09-11, which is also what makes `ship`'s byte-identical
+# promise real only between two packs close enough together that the tag did not
+# move. With this file present the pack passes `--runtime-file` and neither is
+# true any more: measured, the whole pack succeeds with the network blocked, and
+# two packs of one build are byte-identical.
+#
+# A DATED RELEASE AND NOT `continuous`, which is the entire point, and the same
+# `sha256sum -c` shape as the tool above so a replaced asset fails the image build
+# rather than the artifact.
+#
+# x86_64 ONLY, because this image is `linux/amd64` only. A `--arch` pack for one
+# of the other three still works and is ANNOUNCED as unpinned by `gjsify ship` —
+# `appImageRuntimeNotice` in `utils/ship/appimage.ts`, the declare-rather-than-
+# imply rule the host-requirement list already follows. Pinning those three is one
+# `curl` each on the day a leg exists to run them (`status/open-todos.md`).
+ARG APPIMAGE_RUNTIME_VERSION=20251108
+ARG APPIMAGE_RUNTIME_X86_64_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+RUN mkdir -p /usr/local/share/gjsify/appimage-runtime \
+    && curl -fsSL -o /usr/local/share/gjsify/appimage-runtime/runtime-x86_64 \
+        "https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_RUNTIME_VERSION}/runtime-x86_64" \
+    && echo "${APPIMAGE_RUNTIME_X86_64_SHA256}  /usr/local/share/gjsify/appimage-runtime/runtime-x86_64" \
+        | sha256sum -c - \
+    && chmod 0644 /usr/local/share/gjsify/appimage-runtime/runtime-x86_64
+
 # Meson + Vala + Blueprint compiler for the native bridge builds
 # (@gjsify/{webrtc-native, tls-native, terminal-native, sab-native,
 # http2-native, http-soup-bridge}).

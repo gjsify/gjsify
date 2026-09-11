@@ -124,8 +124,13 @@ rather than writing a broken file.
 | `windows-dir-zip` | windows | yes | any host | `glib-compile-schemas` |
 | `msi` | windows | no | Linux or Windows | `wixl` from `msitools`, or WiX Toolset v3.14 |
 
-`appimage` is the one row that also needs a NETWORK: `appimagetool` fetches the
-AppImage runtime from GitHub on every pack. Every other format here is offline.
+`appimage` is the one row that embeds something this project did not write: the
+AppImage runtime the finished file starts with. `gjsify ship` passes a pinned one
+when your machine has it at
+`/usr/local/share/gjsify/appimage-runtime/runtime-<arch>` (or wherever
+`GJSIFY_APPIMAGE_RUNTIME_DIR` points), and says so on every pack. Without one,
+`appimagetool` downloads a runtime — so that pack needs a network, and the pack
+log says that too.
 
 `glib-compile-schemas` ships in `glib2` on Fedora and `libglib2.0-bin` on
 Debian and Ubuntu. It is a tool rather than a host, so the four formats that

@@ -505,6 +505,11 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         fileName: (s: PackSettings, archLabel: string) =>
             `${s.binaryName}-${s.version}-${s.release}.${archLabel}.AppImage`,
         artifactKind: 'file',
+        // THE ONLY ROW THAT SETS IT. appimagetool refuses an AppDir with no
+        // `.desktop` at its root, and `kind: 'cli'` stages none by design — a
+        // refusal `gjsify.ship.kind` decides on its own, so it belongs before the
+        // build beside the tool gate rather than after it inside the packer.
+        requiresDesktopEntry: true,
     },
     // ── macOS (#1354 M2a) ────────────────────────────────────────────────
     //
@@ -1189,6 +1194,26 @@ export function configuredFormats(
  * the two questions are separate, and a `.app` is precisely the item Apple's
  * remedy above tells you to staple after submitting the archive around it.
  */
+/**
+ * Refuse a project whose `kind` no chosen container can hold.
+ *
+ * DERIVED FROM THE TABLE (`FormatDescriptor.requiresDesktopEntry`), never from a
+ * list of format ids here — a fourth format that also needs an entry would
+ * otherwise be refused by appimagetool's own "Desktop file not found, aborting"
+ * after a full build, which is the message this replaced.
+ */
+export function assertKindCanPack(formats: readonly FormatDescriptor[], kind: 'app' | 'cli'): void {
+    if (kind === 'app') return;
+    const needsEntry = formats.filter((format) => format.requiresDesktopEntry);
+    if (needsEntry.length === 0) return;
+    throw new Error(
+        `gjsify ship: ${needsEntry.map((format) => format.id).join(', ')} cannot package a ` +
+            '`kind: "cli"` project — the container needs a desktop entry at its root and a CLI stages none ' +
+            'by design. Set `gjsify.ship.kind` to "app" if this is a GUI application, or ship it as a `.deb`, ' +
+            'an `.rpm` or a Flatpak, none of which need one.',
+    );
+}
+
 export function canCarryTicket(id: FormatId): boolean {
     switch (id) {
         case 'macos-app':

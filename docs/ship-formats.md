@@ -102,10 +102,11 @@ the failure this format has and the `.deb` does not: an executable ELF of plausi
 nothing behind it, which mounts an empty directory at exit 0.
 
 **Three measurements about appimagetool 1.9.1, one of which was a defect.** It FETCHES its runtime
-from `type2-runtime`'s rolling `continuous` tag on every pack — the host's own architecture
-included, and it caches nothing — so this is the one step in `ship` that needs a network, and the
-~940 KB of ELF a user executes is pinned by nothing in this tree (ADR 0024 § A26.1,
-`status/open-todos.md`). It cannot guess the architecture of a JavaScript payload, so
+from `type2-runtime`'s rolling `continuous` tag rather than embedding one — the host's own
+architecture included, with no cache — so the ~940 KB of ELF a user executes was pinned by nothing
+here until the runtime was pinned beside the tool (ADR 0024 § A26.1). With a pinned
+`runtime-<arch>` the pack is offline and byte-reproducible; without one it is announced as neither.
+It cannot guess the architecture of a JavaScript payload, so
 `ARCH` is required in the environment rather than optional. And it CREATES `.DirIcon` when the
 AppDir has none — a symlink, with the wall clock, after the packer has stamped every path, which
 also moves the AppDir root's mtime. mksquashfs stores both, so two packs of one build differed in

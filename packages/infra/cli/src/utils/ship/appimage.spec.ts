@@ -28,6 +28,8 @@ import { dirname, join, sep } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    APPIMAGE_RUNTIME_DIR,
+    APPIMAGE_RUNTIME_DIR_ENV,
     APPIMAGE_TOOL,
     appDirFor,
     DIR_ICON_NAME,
@@ -36,8 +38,10 @@ import {
     appImageHostRequirements,
     appImageToolArgs,
     appImageToolEnv,
+    appImageRuntimeNotice,
     appImageToolFailureMessage,
     assertAppImageIsPackable,
+    findPinnedRuntime,
     EXTRACT_AND_RUN,
     renderAppRun,
     selectAppDirIcon,
@@ -45,6 +49,7 @@ import {
 } from './appimage.js';
 import {
     assertHostCanFinish,
+    assertKindCanPack,
     assertToolsInstalled,
     defaultFormatIds,
     FORMATS,
@@ -153,17 +158,77 @@ export default async () => {
             expect(args.slice(-2)).toStrictEqual(['/out/ship/appimage/AppDir', '/out/ship/out/x.AppImage']);
         });
 
-        await it('passes NO runtime file, which is this row’s open cost', async () => {
-            // NOT because 1.9.1 embeds one. Re-measured on the build the Dockerfile
-            // pins: it DOWNLOADS the type2 runtime from a rolling `continuous` tag
-            // on every pack, the host's own architecture included, caches nothing,
-            // and with the network gone exits 1 having written no file. So this
-            // assertion records a COST rather than a property — passing a runtime
-            // means deciding where a pinned one comes from (licence, and who
-            // fetches it), and until then the artifact carries bytes nothing in
-            // this tree pins. `status/open-todos.md` → "The AppImage pack is not
-            // offline".
+        await it('passes `--runtime-file` when one is pinned, right before the positionals', async () => {
+            // The flag that makes the pack offline AND the embedded bytes pinned.
+            // Position matters only in that the two positionals stay last —
+            // appimagetool's contract is `SOURCE [DESTINATION]`, so an option
+            // value landing between them would be read as the destination.
+            const pinned = appImageToolArgs({
+                appDir: '/out/ship/appimage/AppDir',
+                target: '/out/ship/out/x.AppImage',
+                runtimeFile: '/usr/local/share/gjsify/appimage-runtime/runtime-x86_64',
+            });
+            expect(flag('--runtime-file', pinned)).toBe('/usr/local/share/gjsify/appimage-runtime/runtime-x86_64');
+            expect(pinned.slice(-2)).toStrictEqual(['/out/ship/appimage/AppDir', '/out/ship/out/x.AppImage']);
+        });
+
+        await it('passes NO runtime file when none is pinned, which is announced rather than silent', async () => {
+            // NOT because 1.9.1 embeds one: re-measured on the build the Dockerfile
+            // pins, it DOWNLOADS the type2 runtime from a rolling `continuous` tag
+            // on every pack, the host's own architecture included, caching nothing.
+            // So an absent flag is not a free default — it is the configuration in
+            // which the artifact carries bytes this tree cannot name, reached only
+            // for an architecture nothing pinned, and `appImageRuntimeNotice` says
+            // so on every such pack rather than leaving it to a document.
             expect(args).not.toContain('--runtime-file');
+        });
+    });
+
+    await describe('findPinnedRuntime and the notice that follows it', async () => {
+        const present = (path: string) => path === `${APPIMAGE_RUNTIME_DIR}/runtime-x86_64`;
+
+        await it('finds `runtime-<arch>` in the baked directory, by type2-runtime’s own asset name', async () => {
+            // The name is a copy rather than a rename on purpose: whoever pins one
+            // downloads a release asset and drops it in.
+            expect(findPinnedRuntime('x86_64', {}, present)).toBe(`${APPIMAGE_RUNTIME_DIR}/runtime-x86_64`);
+        });
+
+        await it('answers undefined for an architecture nothing pinned', async () => {
+            // The three architectures the CI image does not pin. NOT a refusal:
+            // the pack still produces a correct-architecture container, it just
+            // does it from a rolling tag — which is what the notice says.
+            expect(findPinnedRuntime('aarch64', {}, present)).toBe(undefined);
+        });
+
+        await it('lets the environment move the directory, for a host that is not the CI image', async () => {
+            const elsewhere = (path: string) => path === '/opt/rt/runtime-aarch64';
+            expect(findPinnedRuntime('aarch64', { [APPIMAGE_RUNTIME_DIR_ENV]: '/opt/rt' }, elsewhere)).toBe(
+                '/opt/rt/runtime-aarch64',
+            );
+            // And an empty value is not a directory called "" — an unset CI
+            // variable expands to exactly that, and silently looking in the
+            // filesystem root is how a pinned-runtime claim becomes a lie.
+            expect(findPinnedRuntime('x86_64', { [APPIMAGE_RUNTIME_DIR_ENV]: '' }, present)).toBe(
+                `${APPIMAGE_RUNTIME_DIR}/runtime-x86_64`,
+            );
+        });
+
+        await it('CLAIMS no network only when there is a pin behind the claim', async () => {
+            const pinned = appImageRuntimeNotice('x86_64', '/rt/runtime-x86_64');
+            expect(pinned).toContain('/rt/runtime-x86_64');
+            expect(pinned).toContain('no network');
+        });
+
+        await it('SAYS what an unpinned pack embeds, instead of leaving it to the ADR', async () => {
+            // ADR 0024 § A26.1: the tool fetches from a rolling tag and the bytes
+            // carry no digest from this tree. Declaring it is the same rule the
+            // host-requirement list follows — the alternative is not "no cost", it
+            // is an undeclared one.
+            const bare = appImageRuntimeNotice('armhf', undefined);
+            expect(bare).toContain('runtime-armhf');
+            expect(bare).toContain('continuous');
+            expect(bare).toContain('NEEDS A NETWORK');
+            expect(bare).toContain(APPIMAGE_RUNTIME_DIR_ENV);
         });
     });
 
@@ -176,6 +241,16 @@ export default async () => {
             // offline failure to install `file` on a machine that already has it.
             expect(message).toContain('type2-runtime');
             expect(message.indexOf('type2-runtime')).toBeLessThan(message.indexOf('file(1)'));
+        });
+
+        await it('names the PINNED FILE instead, when there is nothing to download', async () => {
+            // The branch that keeps the fix from becoming its own defect: with a
+            // runtime pinned there is no fetch to fail, so naming one would send a
+            // reader with a working network to debug a firewall.
+            const pinned = appImageToolFailureMessage('code 1', '/rt/runtime-x86_64');
+            expect(pinned).toContain('/rt/runtime-x86_64');
+            expect(pinned.includes('type2-runtime')).toBe(false);
+            expect(pinned).toContain('file(1)');
         });
 
         await it('still names the two container failures and the full disk', async () => {
@@ -690,6 +765,31 @@ export default async () => {
 
         await it('passes when appimagetool is present', async () => {
             assertToolsInstalled(FORMATS.appimage, (cmd) => cmd === APPIMAGE_TOOL, 'linux');
+        });
+
+        await it('refuses a `kind: "cli"` project BEFORE its build, and names the key', async () => {
+            // The third refusal that is knowable from configuration alone, and the
+            // one that used to cost a full build: it surfaced inside the packer,
+            // after `runProjectBuild`, as a payload with no desktop entry.
+            let message = '';
+            try {
+                assertKindCanPack([FORMATS.appimage], 'cli');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('appimage');
+            expect(message).toContain('gjsify.ship.kind');
+        });
+
+        await it('lets a CLI through every row that does NOT need a desktop entry', async () => {
+            // The negative control, and the reason this reads `requiresDesktopEntry`
+            // off the table rather than testing for the id `appimage`: a `.deb`, an
+            // `.rpm` and a Flatpak ship a command-line tool perfectly well, and a
+            // gate that refused them would break every CLI this repo packages —
+            // `release-cut.yml` packs `@gjsify/cli` itself.
+            assertKindCanPack([FORMATS.deb, FORMATS.rpm, FORMATS.flatpak], 'cli');
+            // …and an app is never the question.
+            assertKindCanPack([FORMATS.appimage], 'app');
         });
     });
 };

@@ -45,7 +45,9 @@ import {
     appDirFor,
     appDirPayload,
     appImageHostRequirements,
+    appImageRuntimeNotice,
     buildAppImage,
+    findPinnedRuntime,
     stampAppDirTimes,
 } from '../utils/ship/appimage.js';
 import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
@@ -53,6 +55,7 @@ import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
+    assertKindCanPack,
     assertToolsInstalled,
     canCarryTicket,
     configuredFormats,
@@ -104,6 +107,7 @@ import { buildRpm } from '../utils/ship/rpm.js';
 import {
     resolveShipApp,
     resolveShipBundle,
+    resolveShipKind,
     resolveShipSettings,
     type ShipPackageManifest,
 } from '../utils/ship/settings.js';
@@ -380,6 +384,14 @@ async function assemble(args: ShipOptions): Promise<void> {
     // front. Skipped under `--stage`, which is precisely the phase that does
     // NOT need the format's tooling — that asymmetry is the point of the split.
     if (!args.stage) for (const format of formats) assertCanPack(format);
+    // THE THIRD REFUSAL THAT IS KNOWABLE UP FRONT, and it was the one paid for
+    // with a whole build: `appimage` needs a desktop entry at its AppDir root,
+    // `kind: 'cli'` stages none by design, and both facts are configuration. It
+    // used to surface inside the packer — after `runProjectBuild` — so a CLI
+    // project asking for an AppImage built everything first and was then told its
+    // payload could never have become one. The ICON half stays in the packer,
+    // because an icon is discovered and discovery legitimately reads build output.
+    if (!args.stage) assertKindCanPack(formats, resolveShipKind(ship, flatpak));
 
     if (!args['skip-build']) await runProjectBuild(projectDir);
 
@@ -1168,10 +1180,21 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // the answer is that the file says what it does not carry — to the
             // person building it, every time, and not only in a document.
             console.log(`${LOG} the AppImage takes these from the host: ${hostRequirements.join(', ')}`);
+            // AND WHAT IT EMBEDS, on the same terms and for the same reason. The
+            // requirement list above says what the file does NOT carry; this says
+            // where the one thing it DOES carry that this tree did not write came
+            // from. With a pin that is a checkable claim (no network, and two packs
+            // of one build embed identical bytes); without one appimagetool fetches
+            // from a rolling tag, which still works and must still be said —
+            // ADR 0024 § A26.1. Unconditional, never behind `--verbose`: the person
+            // who can pin a runtime is the one reading a pack log.
+            const runtimeFile = findPinnedRuntime(archLabel);
+            console.log(`${LOG} ${appImageRuntimeNotice(archLabel, runtimeFile)}`);
             await buildAppImage({
                 appDir,
                 target,
                 archLabel,
+                runtimeFile,
                 workDir: dirname(appDir),
                 verbose: input.verbose,
             });

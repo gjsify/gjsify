@@ -41,7 +41,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -95,10 +95,21 @@ function writeAppDir(root, entries) {
  * so a stub is what lets tier 2 assert the whole chain on a host with no GTK — and
  * it records `$0`, which is the mounted prefix this tier exists to check.
  */
-function stubInterpreter(dir, log) {
+function stubInterpreter(dir, log, version = '') {
     mkdirSync(dir, { recursive: true });
     const stub = join(dir, 'gjs');
-    writeFileSync(stub, `#!/bin/sh\nprintf '%s\\n' "$@" >> ${JSON.stringify(log)}\n`);
+    // TWO BEHAVIOURS, because `AppRun` asks two questions: `--version` decides
+    // whether the floor is met, and everything else is the real exec. `version`
+    // defaults to answering NOTHING, which is the fail-open path — the stub that
+    // predates the floor check keeps meaning what it meant.
+    writeFileSync(
+        stub,
+        `#!/bin/sh\n` +
+            `if [ "$1" = "--version" ]; then\n` +
+            (version === '' ? '    exit 1\n' : `    echo ${JSON.stringify(version)}\n    exit 0\n`) +
+            `fi\n` +
+            `printf '%s\\n' "$@" >> ${JSON.stringify(log)}\n`,
+    );
     chmodSync(stub, 0o755);
     // The launcher itself needs coreutils, so PATH cannot be the stub alone —
     // `readlink` and `dirname` are how it finds its prefix. `/usr/bin` carries a
@@ -195,6 +206,39 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.equal(existsSync(join(projectDir, 'ship', 'out')), false, 'a refused pack writes no artifact');
     });
 
+    it('refuses a `kind: "cli"` project BEFORE running its build script', () => {
+        // THE CLAIM IS THE ORDER, so the assertion has to be able to see it: the
+        // fixture's build script writes a marker, and the marker's ABSENCE is what
+        // separates "refused up front" from "refused after building everything".
+        // This refusal used to live in the packer, past `runProjectBuild`, which
+        // made a CLI project pay a full build to be told its payload could never
+        // have become an AppImage — while the tool gate two lines up had been
+        // firing early since Flatpak, on exactly this argument.
+        const cliDir = scaffold(join(tmpDir, 'cli-app'), (pkg, dir) => {
+            pkg.gjsify.ship.kind = 'cli';
+            pkg.scripts.build = 'node build.mjs && node marker.mjs';
+            writeFileSync(
+                join(dir, 'marker.mjs'),
+                "import { writeFileSync } from 'node:fs';\nwriteFileSync('built.marker', 'x');\n",
+            );
+        });
+        let stderr = '';
+        let status = 0;
+        try {
+            runCliSync(CLI_ENTRY, ['ship', 'linux', '--target', 'appimage'], { cwd: cliDir });
+        } catch (error) {
+            status = error.status ?? 1;
+            stderr = `${error.stderr ?? ''}${error.stdout ?? ''}`;
+        }
+        assert.notEqual(status, 0, 'a CLI project must not be packaged as an AppImage');
+        assert.match(stderr, /gjsify\.ship\.kind/);
+        assert.equal(
+            existsSync(join(cliDir, 'built.marker')),
+            false,
+            'the refusal must fire BEFORE the project build script runs',
+        );
+    });
+
     // ── tier 2: the AppDir, executed ──────────────────────────────────────────
 
     it('mounts as a prefix the staged launcher can resolve — AppRun, run for real', () => {
@@ -264,6 +308,68 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.equal(status, 127, 'a missing interpreter must exit 127, the shell’s own "not found"');
         assert.match(stderr, /carries the application, not its runtime/);
         assert.match(stderr, /gjs/);
+    });
+
+    it('REFUSES a too-old interpreter, and RUNS on every answer it cannot parse', () => {
+        // THE FLOOR, EXECUTED. `command -v gjs` alone accepted 1.70 while the
+        // message beside it said `gjs (>= 1.86)` — a requirement the `.deb`
+        // enforces through `Depends:` and this artifact only printed. Four real
+        // `/bin/sh` runs, because the risk here is not "does it refuse" but "does
+        // it refuse something that works": a version comparison in shell that gets
+        // it wrong bricks a good machine, and the user cannot argue with a file.
+        const appDir = join(tmpDir, 'AppDir');
+        // `spawnSync` AND NOT `execFileSync`, because half of what this test asks
+        // is only visible on the SUCCESS path: `execFileSync` returns stdout and
+        // drops stderr unless it throws, so a `stderr === ''` assertion written
+        // around it is vacuous exactly where it matters — measured, it passed with
+        // the fail-open gate deleted.
+        const attempt = (version) => {
+            const dir = mkdtempSync(join(tmpDir, 'floor-'));
+            stubInterpreter(dir, join(dir, 'argv.txt'), version);
+            const run = spawnSync(join(appDir, 'AppRun'), [], {
+                env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+                encoding: 'utf-8',
+            });
+            assert.equal(run.error, undefined, `AppRun could not be started: ${run.error?.message ?? ''}`);
+            return { status: run.status, stderr: run.stderr ?? '' };
+        };
+
+        // BELOW the floor: refused, and NOT with 127 — that is "not found", and
+        // this runtime was found. 126 is the shell's own "found and cannot run".
+        const old = attempt('gjs 1.70.0');
+        assert.equal(old.status, 126, 'an interpreter below the floor must exit 126, not 127');
+        assert.match(old.stderr, /1\.86 or newer, and this system has 1\.70/);
+        assert.match(old.stderr, /carries the application, not its runtime/);
+
+        // AND A MAJOR THAT DECIDES ON ITS OWN, both ways. Without these two the
+        // comparison is only ever exercised on its MINOR arm: measured, inverting
+        // `-lt` to `-gt` on the major left every other case in this test green,
+        // because `1.70` against a `1.86` floor is settled by `-eq` plus the minor
+        // either way.
+        assert.equal(attempt('gjs 0.99.0').status, 126, 'a lower MAJOR must be refused');
+        assert.equal(attempt('gjs 2.0.0').status, 0, 'a higher MAJOR must be accepted');
+
+        // AT the floor and above it: runs. `1.86` itself is the boundary the
+        // comparison is most likely to get wrong, so it is asserted rather than
+        // assumed from `1.88`.
+        assert.equal(attempt('gjs 1.86.0').status, 0, 'the floor itself must be accepted');
+        assert.equal(attempt('gjs 1.88.1').status, 0, 'a newer interpreter must be accepted');
+
+        // FAIL-OPEN, the two ways. An interpreter whose `--version` this `sed`
+        // cannot read, and one that fails `--version` outright, both RUN the
+        // application: a distro build with an unexpected banner is not a reason to
+        // refuse a machine that can run the app perfectly well.
+        // SILENTLY, which is the half a status code cannot see. Measured: with the
+        // `[ -n "$major" ]` gate removed the launcher still runs the application —
+        // `[ "" -lt 1 ]` errors and the condition comes out false — so the exit
+        // code alone cannot tell the gate from its absence. What it leaves behind
+        // is `/bin/sh: integer expression expected` on stderr at EVERY launch, in
+        // the one file nobody reads until something has already gone wrong.
+        for (const answer of ['some unversioned build', '']) {
+            const open = attempt(answer);
+            assert.equal(open.status, 0, `an unreadable version (${answer || 'no output'}) must not refuse`);
+            assert.equal(open.stderr, '', 'the fail-open path must be silent, not merely non-fatal');
+        }
     });
 
     it('NEGATIVE CONTROL: an AppDir without the `usr/` prefix does not launch', () => {
@@ -365,6 +471,65 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         } else {
             console.log('  ↳ the MOUNT path was not exercised: this host has no /dev/fuse.');
         }
+
+        // THE PINNED RUNTIME, which is the other half of "two packs agree".
+        //
+        // `.DirIcon` was the tree the tool edits; this is the ~940 KB the tool
+        // FETCHES — from `type2-runtime`'s rolling `continuous` tag, with no
+        // digest anywhere in this repository, on every pack (ADR 0024 § A26.1).
+        // Pinned, the pack embeds bytes this tree named and needs no network.
+        //
+        // DERIVED FROM THE ARTIFACT JUST BUILT rather than downloaded, so this
+        // assertion runs wherever `appimagetool` does instead of only inside the
+        // CI image that bakes one. The first `e_shoff + e_shentsize * e_shnum`
+        // bytes ARE the runtime — the same read the oracle makes — and measured,
+        // appimagetool rewrites the embedded digest either way, so a pack from the
+        // derived file and one from the pristine release asset are byte-identical.
+        const runtimeDir = mkdtempSync(join(tmpDir, 'runtime-'));
+        const built = readFileSync(artifact);
+        const runtimeEnd = Number(built.readBigUInt64LE(0x28)) + built.readUInt16LE(0x3a) * built.readUInt16LE(0x3c);
+        writeFileSync(join(runtimeDir, `runtime-${ARCH_LABEL}`), built.subarray(0, runtimeEnd));
+
+        // WITH THE NETWORK CUT, which is what turns this from a string assertion
+        // into an effect one. Asserting only the printed "pinned" line passed a
+        // packer whose `--runtime-file` never reached appimagetool — measured, by
+        // deleting that flag from the arg vector: the log still said pinned and
+        // the tool still downloaded. A dead proxy makes any fetch fail (measured:
+        // `Failed to download runtime: server returned status code 0`, exit 1, no
+        // artifact), so this pack can only succeed if the flag arrived.
+        const pinnedEnv = {
+            ...process.env,
+            GJSIFY_APPIMAGE_RUNTIME_DIR: runtimeDir,
+            https_proxy: 'http://127.0.0.1:1',
+            http_proxy: 'http://127.0.0.1:1',
+            all_proxy: 'http://127.0.0.1:1',
+        };
+        const pinnedLog = runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--target', 'appimage'], {
+            cwd: projectDir,
+            env: pinnedEnv,
+        });
+        // SAID, on every pack and never behind --verbose: the person who can pin a
+        // runtime is the one reading a pack log.
+        assert.match(pinnedLog, /the AppImage runtime is pinned/);
+        assert.match(pinnedLog, new RegExp(`runtime-${ARCH_LABEL}`));
+        const pinnedFirst = sha256(artifact);
+
+        // AND IT STILL RUNS. An embedded runtime is the ELF the file STARTS with,
+        // so getting it wrong produces something that cannot execute at all.
+        assert.match(
+            execFileSync(artifact, ['--appimage-extract-and-run'], { encoding: 'utf-8', stdio: 'pipe', cwd: tmpDir }),
+            /GIRepositoryNamespace/,
+        );
+
+        // TWO PINNED PACKS, byte-identical — which is the claim that was NOT
+        // checkable while the runtime came from a rolling tag: the old assertion
+        // could only ever compare two packs close enough together that the tag had
+        // not moved.
+        runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--target', 'appimage'], {
+            cwd: projectDir,
+            env: pinnedEnv,
+        });
+        assert.equal(sha256(artifact), pinnedFirst, 'two packs with a pinned runtime must be byte-identical');
 
         // DETERMINISM, which is where `.DirIcon` was caught — see the header.
         const first = sha256(artifact);

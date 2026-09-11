@@ -1637,9 +1637,9 @@ runtime with a squashfs image concatenated onto it, and a filesystem writer is *
 than a target, every mistake silent*. Vendoring the binary is refused on licence — appimagetool is
 GPL-3.0 against 185 MIT manifests, the same reason ADR 0023 refuses a from-source GTK. Downloading
 THE TOOL at pack time is refused because every other packer here runs offline, and a pack step that
-fetches is a release step that fails when GitHub does. **That refusal is not achieved** — the tool
-fetches its runtime on its own account, § A26.1 — and closing it is open work rather than a
-decision this amendment makes.
+fetches is a release step that fails when GitHub does. The tool fetches its RUNTIME on its own
+account, which very nearly made that refusal untrue in practice; § A26.1 records the measurement
+and the pin that closes it for the architecture this image builds.
 
 The cost is honest and is paid in the `installHint`: neither Fedora nor Debian packages
 `appimagetool`, so the hint names a GitHub release and, for a CI image that will not grow a
@@ -1666,15 +1666,31 @@ Measured rather than read off `--help`, because none of them is in it:
    …/type2-runtime/releases/download/continuous/runtime-<arch>` before *"Embedding ELF…"*, for the
    host's own architecture as much as for a foreign one, and caches nothing — four consecutive
    packs, four downloads. With the network blocked it exits 1 having written no file and names
-   `--runtime-file` as the way across. Three things follow and none was intended: § A25's refusal
-   of a fetching pack step is not achieved, only RELOCATED into the tool; the SHA-256 pin the
-   Dockerfile puts on `appimagetool` is defeated one level down, because the ~940 KB of ELF a user
-   actually executes comes from a rolling tag with no digest anywhere in this tree; and
-   `tests/e2e/ship-appimage`'s determinism assertion can only ever see two packs close enough
-   together that `continuous` did not move — green for a weaker reason than it reads, which is this
-   repository's own most expensive class. `--runtime-file` is the fix and it needs a decision about
-   where a pinned runtime comes from, since § A25's licence and offline arguments apply to that
-   file too. Tracked in `status/open-todos.md` → *"The AppImage pack is not offline"*.
+   `--runtime-file` as the way across. Three things followed and none was intended: § A25's refusal
+   of a fetching pack step was not achieved, only RELOCATED into the tool; the SHA-256 pin the
+   Dockerfile puts on `appimagetool` was defeated one level down, because the ~940 KB of ELF a user
+   actually executes came from a rolling tag with no digest anywhere in this tree — not a
+   theoretical drift, `continuous`'s `runtime-x86_64` and the dated `20251108` release's are the
+   same 944 632 bytes and different content; and `tests/e2e/ship-appimage`'s determinism assertion
+   could only ever see two packs close enough together that the tag had not moved, which is green
+   for a weaker reason than it reads.
+
+   **So the runtime is pinned too, and § A25's refusal holds after all.**
+   `.docker/ci-fedora.Dockerfile` installs `runtime-x86_64` from the DATED `20251108` release under
+   a `sha256sum -c`, the same shape the tool above it uses; `findPinnedRuntime` looks for
+   `runtime-<arch>` in `/usr/local/share/gjsify/appimage-runtime` (moved by
+   `GJSIFY_APPIMAGE_RUNTIME_DIR`); and `appImageToolArgs` passes `--runtime-file` when there is one.
+   Measured: the whole pack then succeeds with the network blocked, and two packs of one build are
+   byte-identical — a claim the e2e now makes with the network cut, because asserting only the
+   printed line passed a packer whose flag never reached the tool.
+
+   **An architecture with no pin is ANNOUNCED, not refused.** `appImageRuntimeNotice` prints, on
+   every pack and never behind `--verbose`, either the pinned file or the sentence that this one
+   fetches from a rolling tag and embeds bytes nothing here can name. Refusing would cost the three
+   architectures this image does not pin a capability they do have — they produce correct
+   containers — for a property they never had. It is § A24's own rule applied to the other half of
+   the artifact: declare rather than imply. Pinning those three is one `curl` each on the day a leg
+   exists to run them (`status/open-todos.md`).
 2. **It cannot guess our architecture.** appimagetool reads the AppDir's ELF binaries to decide,
    and a `--app gjs` payload is JavaScript and a `/bin/sh` launcher. `ARCH` in the environment is
    therefore required, not a hint, and its value is the format row's `archName` so the label inside

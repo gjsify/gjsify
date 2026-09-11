@@ -4,36 +4,21 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### The AppImage pack is not offline, and the bytes it embeds are not pinned
+### Three of the four AppImage architectures have no pinned runtime
 
-ADR 0024 § A25 refuses downloading at pack time on the grounds that *"every other packer here
-runs offline"*. The refusal is not achieved: `appimagetool` fetches the type2 runtime itself.
-Measured on the build `.docker/ci-fedora.Dockerfile` pins (1.9.1, build 296, git 8c8c91f),
-`x86_64` on an `x86_64` host — i.e. not only the cross-arch case:
+`.docker/ci-fedora.Dockerfile` pins `runtime-x86_64` from type2-runtime's dated `20251108`
+release under a `sha256sum -c`, so an `x86_64` pack is offline and byte-reproducible
+(ADR 0024 § A26.1). `aarch64`, `i686` and `armhf` have no pinned file, so a `--arch` pack for one
+of them still asks appimagetool to fetch `runtime-<arch>` from the ROLLING `continuous` tag — the
+pack needs a network and embeds ~940 KB that no checksum in this tree covers.
 
-```
-Downloading runtime file from https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
-Downloaded runtime binary of size 944632
-Embedding ELF...
-```
+That is ANNOUNCED rather than silent (`appImageRuntimeNotice`, printed on every pack) and not
+refused, because those packs do produce correct containers. What closes it is one `curl` + digest
+each in the image, beside the `x86_64` one — cheap, and deliberately not done blind: the image is
+`linux/amd64` only, so nothing here would run what those three produce, and a pinned runtime
+nobody exercises is a digest guarding an untested path.
 
-It caches nothing (four consecutive packs, four downloads), and with the network blocked it
-exits 1 having written no file: *"Failed to download runtime file … pass it to appimagetool with
-`--runtime-file`"*. Three consequences, in order of how quietly they bite:
-
-- **The pin is defeated one level down.** The Dockerfile pins the TOOL by SHA-256; the ~940 KB of
-  ELF that ends up executing on a user's machine comes from a rolling `continuous` tag with no
-  digest anywhere in this tree.
-- **Reproducibility holds only inside one minute.** `tests/e2e/ship-appimage`'s determinism
-  assertion packs twice in one run, so it structurally cannot see `continuous` moving between two
-  packs of one build. It is green because the download is stable over seconds, not because the
-  artifact is reproducible.
-- **A release step now needs GitHub.** Nothing else in `ship` does.
-
-What would close it: `--runtime-file` with a runtime this tree pins — which needs a decision about
-where that file comes from, since the same licence and offline arguments § A25 applies to the tool
-apply to it. `buildAppImage`'s failure message names the network as cause zero in the meantime, and
-`appimage.ts`'s header records the measurement.
+Do it together with the arch entry below, whose blocker is the same `platforms:` line.
 
 ### The AppImage row names four architectures and one of them is exercised
 
