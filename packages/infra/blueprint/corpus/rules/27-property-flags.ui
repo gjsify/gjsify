@@ -6,9 +6,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <object class="GtkBox">
-    <property name="orientation">1</property>
-    <property name="halign">3</property>
-    <property name="valign">4</property>
+  <object class="GtkEntry">
+    <property name="input-hints">word-completion|lowercase</property>
+    <property name="input-purpose">6</property>
   </object>
 </interface>

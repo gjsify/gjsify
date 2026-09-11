@@ -238,3 +238,71 @@ dependency and becomes the oracle the parser is measured against.**
   fence gate's skip path both go when clause 7 is satisfied.
 - Follow-up work is tracked in `status/open-todos.md` per governance; this ADR records the
   *why*.
+
+## Amendment 1, 2026-09-11 — emission needs introspection too, and it comes from `@girs`
+
+**Clause 4 reserved the installed typelib for VALIDATION. That reservation was too narrow:
+EMISSION needs a lookup of its own, and it is answered from the `@girs` vocabulary — a pinned
+npm dependency — not from a typelib. The typelib keeps validation; the GIR takes emission.**
+
+Clause 4 said validation is "what a parser reading into a tree does not perform", which is
+true and does not cover the other exit. `orientation: vertical` does not reach the XML as
+`vertical`: the reference compiler writes `<property name="orientation">1</property>`, and
+`halign: center` is `3` (`corpus/rules/03-property-enum.ui`). Nothing in the syntax carries
+those numbers. Written as the ADR's own cost estimate had it, the emitter could only pass the
+identifier through, and eleven of the corpus files diverged on twenty-three lines under that
+one cause.
+
+**Two lookups, and only one of them was available.** The integer behind a nick was readable
+from the installed typelib, and `packages/framework/gtk-host/src/generated/enum-values.mts`
+already held all three numbers these files needed. The lookup that was missing is the one
+before it: WHICH enum `GtkBox.orientation` is. Searching the nick lists for an enum with a
+member called `never` finds several, and guessing between them is the silent-wrong-output
+clause 3 exists to prevent — so the divergences stayed, with the ledger recording that they
+were waiting on a fact and not on effort.
+
+**The fact shipped upstream.** `ts-for-gir`
+[#465](https://github.com/gjsify/ts-for-gir/pull/465) put `ENUM_VALUES` in the vocabulary
+(`@girs` 4.8.0) and [#467](https://github.com/gjsify/ts-for-gir/pull/467) added `PROP_ENUMS`,
+the join from a property to its enum type (4.9.0). `PROP_ENUMS` is keyed by the type that
+DECLARES the property, the way `OWN_PROPS` is, so the walk goes through `DECLS` — the
+flattened ancestry and interface list the vocabulary already ships — which is how
+`GtkBox.orientation` is found on `GtkOrientable`. `packages/infra/blueprint/src/resolve-ident.mjs`
+performs both lookups and the emitter takes it through the one seam it already had.
+
+**Why `@girs` and not the typelib, now that the emitter needs introspection at all.** The
+shadow run of clause 5 has no skip path and runs on EVERY runner, including the ones with no
+GNOME on them — that property is the reason the goldens are committed. A resolver reading a
+typelib would have needed a GNOME runtime and would have reintroduced exactly the hole
+`--require-oracle` closes one stage over: a gate reporting green because it could not run.
+The vocabulary is a dependency, present wherever `gjsify install` has run, and it is generated
+from the same GIR as the nicks, so the artifact carries one provenance instead of two.
+
+**Measured, both directions.** With the resolver in place every corpus file is byte-equal —
+the silence clause 5 names — and `corpus/divergences.mjs` is an empty list with its rules
+intact. The numbers were also read back against the independent oracle: of the 737 values in
+gtk-host's typelib-read table, 736 agree with `@girs` 4.9.0 and the single disagreement is the
+documented version gap (`GtkEditableProperties.num-properties` is 8 on the installed GTK
+4.22.4 and 10 in the GIR of 4.23.3), while `@girs` fills the two entries the generating host
+had to declare unavailable. Two independent readings of the library agree; where they do not,
+the reason is named.
+
+**What the corpus learned on the way, each one measured on 0.20.4 and none of it guessed.**
+A member is spelled with UNDERSCORES in Blueprint and with hyphens in the GIR, so
+`halign: baseline_fill` is `4` and `halign: baseline-fill` is an error. A flag set is NOT
+numbered: `input-hints: word_completion | lowercase` stays `word-completion|lowercase`, which
+is why the seam returns text rather than a number. And neither `layout { }` nor
+`accessibility { }` resolves through the widget — the first belongs to the layout child, the
+second to the ARIA table — so both pass the source spelling through and the a11y half is a
+declared gap rather than a decision.
+
+**What this changes for clause 4, exactly.** Its first sentence stands: a byte-equal diff
+proves the parser and the AST, and nothing downstream. Its last paragraph gains a second
+half — the compiler keeps validation, and the GIR, reached through `@girs`, answers emission.
+
+**What it does not change.** Clause 6 still holds: the resolver is DATA plus one seam, not an
+`if`. An unknown member of a known enum throws, naming the line, the property, the enum and
+the member, because passing it through would be output that looks plausible and means
+something else. And clause 7's deletion list is now due rather than done: every corpus file
+being byte-equal is the condition clause 5 sets, so the demotion of `blueprint-compiler` to
+oracle-only is the next piece of work and is tracked in `status/open-todos.md`.

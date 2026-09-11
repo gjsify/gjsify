@@ -24,14 +24,16 @@
 // whose image bakes `blueprint-compiler` and which carries no classifier gate, so a
 // docs-only PR runs it too.
 //
-// WHAT THE GOLDENS ALREADY PROVED, BEFORE ANY PARSER EXISTS
+// WHAT THE GOLDENS PROVED, MOST OF IT BEFORE ANY PARSER EXISTED
 //
-// Three facts the plan did not have, each reproducible from a `.ui` file in here and
-// each written up once, in this package's README: emission needs introspection and not
-// only a parse, `@girs` can supply what it needs once the install is not stale, and values are
-// normalised rather than copied through. They are in the README and not here because
-// they are findings about the corpus rather than facts about this table, and a second
-// copy of them beside the data is what would drift.
+// Six facts the plan did not have, each reproducible from a `.ui` file in here and each
+// written up once, in this package's README: emission needs introspection and not only a
+// parse; `@girs` supplies it, in two releases rather than one; a member is spelled with
+// underscores where the nick has hyphens; a flag set is not numbered; values are normalised
+// rather than copied through; and neither `layout { }` nor `accessibility { }` resolves
+// through the widget. They are in the README and not here because they are findings about
+// the corpus rather than facts about this table, and a second copy of them beside the data
+// is what would drift.
 //
 // WHAT THE ELEVEN REAL FILES DO NOT REACH
 //
@@ -63,7 +65,7 @@ export const ORACLE = {
     // agreeing at any image rebuild — and per ADR 0053 clause 5 that is not a
     // nuisance, it IS the upgrade notice: stage B fails naming the two versions.
     version: '0.20.4',
-    recordedOn: '2026-09-10',
+    recordedOn: '2026-09-11',
 };
 
 /**
@@ -90,7 +92,8 @@ export const CORPUS_RULES = [
     {
         file: '03-property-enum.blp',
         isolates: 'an enum member as a property value',
-        surprise: 'resolved to its NUMBER via the typelib — `vertical` becomes `1`',
+        surprise:
+            'resolved to its NUMBER against the GIR — `vertical` becomes `1`; and the member is spelled with UNDERSCORES where the GIR nick has hyphens, so `baseline_fill` is `4` and `baseline-fill` is an error',
     },
     { file: '04-children-implicit.blp', isolates: 'objects written as children, with no slot' },
     {
@@ -188,6 +191,12 @@ export const CORPUS_RULES = [
         file: '23-widget-reference-list.blp',
         isolates: 'a second top-level object holding a list of widget REFERENCES',
         surprise: 'the references are `<widget name="…"/>`, so the ids they point at are load-bearing',
+    },
+    {
+        file: '27-property-flags.blp',
+        isolates: 'a flag set as a property value, beside an enum on the same object',
+        surprise:
+            'a flag set is NOT numbered — the nicks survive, hyphenated and joined by `|` with no spaces — while the enum beside it is, so one lookup answers two different kinds of question',
     },
 ];
 

@@ -5882,23 +5882,28 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. What is left here is the order of the work.
+beside the compiler until it reports no divergence. **The shadow run is now silent**: every
+corpus file is byte-equal and `corpus/divergences.mjs` is an empty list, which is the condition
+clause 5 sets. What is left is the flip and the deletions, and neither has happened.
 
-The first PR carries the WRITTEN corpus, the hand-written `SharedNode` expectation per corpus
-file (clause 2) and the shadow harness — NOT a parser already claiming a subset, because a
-harness with nothing to compare reports green while proving nothing. The subset then grows one
-shadow divergence at a time.
-
-Two things that suite has to settle before anything is claimed. The equivalence of the two
-notations is a READING and nothing has run it, so the honest expectation is that the first suite
-moves at least one row of the ADR's mapping table. And six construct classes have no `SharedNode`
-spelling at all — `template`, object ids, `_()`, `bind`, and `Adw.Breakpoint`'s `condition` and
-`setters`. The translatable marker is the one that costs: a caption parsed into a plain string
-loses exactly the attribute ADR 0033 prefers a template for.
+The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
+interface and changes what it calls, and byte-equality on 38 files is evidence about those 38
+files: the parser accepts a documented SUBSET (clause 3), and a `.blp` outside it is a hard
+error rather than wrong output, so the flip has to say what a build does when a real file trips
+one. `expr`, `typeof`, an inline `menu` as a property value and a response flag in a `setters`
+block are the refusals that exist today, each with its own message.
 
 Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
 one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
-skip in `check-doc-fences.mjs`, and the MSYS2 branch of `gjsify system-check`.
+skip in `check-doc-fences.mjs` — which becomes two-stage rather than vanishing, per clause 7 —
+and the MSYS2 branch of `gjsify system-check`. The compiler itself stays, as the oracle stage B
+runs: deleting the binary from the image would delete the only independent reading the goldens
+have.
+
+One thing the corpus settled that the ADR's mapping table did not have: six construct classes
+have no `SharedNode` spelling at all — `template`, object ids, `_()`, `bind`, and
+`Adw.Breakpoint`'s `condition` and `setters`. The translatable marker is the one that costs: a
+caption parsed into a plain string loses exactly the attribute ADR 0033 prefers a template for.
 
 ### Does the shared corpus want a second authored notation?
 
@@ -5935,39 +5940,52 @@ this, per the policy above. No estimate of the web leg's cost belongs here until
 measures one: a browser binding that resolved custom elements directly would bypass the
 gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
 
-### Byte-equal GtkBuilder XML needs the GIR, not only a parse
+### The enum numbers exist twice now, with two provenances and one reader each
 
-ADR 0053 clause 4 makes `blueprint-compiler` the oracle for the emitted XML and reserves the
-installed typelib for VALIDATION — "a parser reading into a tree does not perform" a ParamSpec
-lookup. The corpus in `packages/infra/blueprint/corpus/` shows the reservation is too narrow.
-`orientation: vertical` does not reach the XML as `vertical`; the reference compiler resolves
-the enum member and writes `<property name="orientation">1</property>`, and `halign: center`
-as `3` (`corpus/rules/03-property-enum.ui`). Emission needs introspection, not only validation,
-and the ADR's cost estimate does not include it.
+`@girs` 4.9.0 carries `ENUM_VALUES` in every namespace's vocabulary, read from the same GIR as
+the nicks. `packages/framework/gtk-host/src/generated/enum-values.mts` carries the same numbers
+read from whatever typelib the maintainer had, written by `scripts/generate-enum-values.mjs`
+under GJS and held by `scripts/check-enum-values.mjs` plus `generated.spec.ts`. The second one
+exists because the first did not, and ADR 0029 § Amendment 2 said so in as many words: "it
+stays the right long-term home, and when it lands the generator here swaps its INPUT and its
+output does not change shape".
 
-The first version of this entry said the obvious source is the wrong one — that `@girs`
-declares `enum Orientation { HORIZONTAL, VERTICAL }` with no initialisers, so its members
-carry POSITIONAL values. That was measured on `node_modules/@girs/gtk-4.0`, which sits at
-**4.1.0** while `gjsify-lock.json` pins **4.6.0**, and it is wrong for the pinned version:
-from `@girs` 4.5.0 the `.d.ts` carries the GIR's own numbers, so `Gtk.ResponseType.NONE` is
-`-1` there as it is in the GIR. An independent review reached the same wrong answer from the
-same stale file. Two readings of one out-of-date artefact agree with each other and not with
-the tree, which is worth more than the claim they agreed on.
+It has landed, and the two agree: of the 737 values in the committed table 736 match `@girs`
+4.9.0 exactly, the one difference is the declared version gap
+(`GtkEditableProperties.num-properties` is 8 on the installed GTK 4.22.4 and 10 in the GIR of
+4.23.3), and `@girs` also carries the two entries the generating host had to list under
+`ENUM_VALUES_UNAVAILABLE`. So the swap is available and what it deletes is real: the GJS-only
+generation step, the `ENUM_VALUES_UNAVAILABLE` table with the host-version strings in it, and
+one of the artifact's two provenances.
 
-What is genuinely missing is the RUNTIME half. `@girs/<ns>/vocabulary` gives `ENUM_NICKS` —
-the names, in declaration order — and no numbers, which is why
-`scripts/generate-enum-values.mjs` reads them from the installed typelib through GIRepository
-instead, and why that artefact carries two provenances: nicks from the GIR the vocabulary was
-generated against, values from whatever GTK the maintainer had. That is fixed upstream rather
-than here — ts-for-gir now emits `ENUM_VALUES`, `ENUM_DEPRECATED` and a declared unreadable
-remainder from the same GIR as the nicks. What stays open on this side is what to do when it
-releases: the generator's own header says its INPUT changes and its output does not, so the
-committed table survives and the GJS-only generation step, the `ENUM_VALUES_UNAVAILABLE`
-entries and one of the two provenances can go.
+What it COSTS is the reason this is an entry and not a commit. `generated.spec.ts` holds every
+number against the typelib that is actually running, which is the genuinely independent oracle
+ADR 0034 § 7.3 names; a table read from `@girs` and checked against `@girs` would be a reader
+agreeing with itself. The swap therefore has to keep that spec pointed at the typelib while the
+DATA comes from the vocabulary — which is the arrangement that makes the disagreement above a
+finding rather than a failure. `packages/nativescript-bridge/adwaita/src/widgets/gtk-align.ts`
+is the other consumer and it reads the artifact, not the generator, so it is unaffected either
+way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
+is the shape the swap would generalise.
 
-Also measured, and smaller: values are normalised rather than copied through. `xalign: 1.0`
-comes out as `1` while `0.25` and `0.5` come out unchanged
-(`corpus/rules/17-numeric-forms.ui`).
+### `accessibility { }` enum values need the ARIA table, which `@girs` does not carry
+
+Measured on `blueprint-compiler` 0.20.4: `Gtk.Label { accessibility { orientation: vertical; } }`
+emits `<property name="orientation">1</property>` although `GtkLabel` is not orientable at all,
+and `autocomplete: inline` beside it emits `1`. The block resolves against the ARIA property
+table — `GtkAccessibleProperty` and the value type each of its members carries — and not
+against the widget's ParamSpecs. `PROP_ENUMS` in the `@girs` vocabulary answers the ParamSpec
+question only, so `packages/infra/blueprint/src/emit-xml.mjs` passes nothing for that block and
+the source spelling stands.
+
+No corpus file has an enum inside `accessibility { }`, so nothing diverges today and there is no
+ledger entry to hold it — which is the reason it is written here. Resolving it through the
+widget would be right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`, so the repair
+is a table and not a lookup: either ts-for-gir emits the ARIA property types the way it now
+emits `PROP_ENUMS`, or the corpus grows a rule file that pins the shape and the emitter is held
+to a divergence until it does. `layout { }` is the same shape with a different answer — the
+entry there belongs to the layout CHILD (`GtkGridLayoutChild`), and the compiler leaves an
+unresolvable one as written, which is what the emitter now does too.
 
 ### The Blueprint projection cannot be inverted, and three losses have no `SharedNode` spelling
 

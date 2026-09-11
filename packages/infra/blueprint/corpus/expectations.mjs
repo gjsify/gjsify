@@ -117,9 +117,9 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '03-property-enum.blp',
-        node: { tag: 'GtkBox', props: { orientation: 'vertical', halign: 'center' } },
+        node: { tag: 'GtkBox', props: { orientation: 'vertical', halign: 'center', valign: 'baseline_fill' } },
         lost: [],
-        note: 'The XML for the same two properties is `1` and `3`. The projection keeps the member NAME, which is the only spelling a renderer without a typelib can act on.',
+        note: 'The XML for the same three properties is `1`, `3` and `4`. The projection keeps the member NAME, which is the only spelling a renderer without a typelib can act on — and keeps it AS WRITTEN, underscores and all, because the `_`-to-`-` normalisation belongs to the GIR lookup the XML exit performs and a renderer that never does that lookup would be handed a spelling from nowhere.',
     },
     {
         file: '04-children-implicit.blp',
@@ -388,5 +388,11 @@ export const RULE_EXPECTATIONS = [
             },
         ],
         note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 4 and the signal before the property on line 6, and sorting by line alone cannot produce that. `SharedNode` has no signal, so the projection sees only half of what this file pins.',
+    },
+    {
+        file: '27-property-flags.blp',
+        node: { tag: 'GtkEntry', props: { 'input-hints': 'word_completion|lowercase', 'input-purpose': 'email' } },
+        lost: [],
+        note: 'The two identifiers leave the compiler as different KINDS of answer — `word-completion|lowercase` and `6` — from one lookup, so a resolver that only ever returns a number is wrong on half of this file. The projection keeps both as the source wrote them, `|` and underscores included, for the reason on `03-property-enum.blp`.',
     },
 ];

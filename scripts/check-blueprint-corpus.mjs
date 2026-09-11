@@ -486,11 +486,18 @@ if (havecompiler) {
 const PARSER = join(CORPUS, '..', 'src', 'parser.mjs');
 const EMITTER = join(CORPUS, '..', 'src', 'emit-xml.mjs');
 const PROJECTOR = join(CORPUS, '..', 'src', 'project.mjs');
+const RESOLVER = join(CORPUS, '..', 'src', 'resolve-ident.mjs');
 
 for (const [what, path] of [
     ['parser', PARSER],
     ['emitter', EMITTER],
     ['projection', PROJECTOR],
+    // The resolver is required for the same reason the other three are, and for one more:
+    // without it stage C does not CRASH, it quietly reports eleven divergences the emitter
+    // can no longer excuse, because the ledger that used to hold them is gone. A missing
+    // file that turns a gate red in a message about the wrong thing is worse than one that
+    // names itself, so it names itself here.
+    ['enum resolver', RESOLVER],
 ]) {
     if (!existsSync(path)) {
         problems.push(
@@ -501,13 +508,14 @@ for (const [what, path] of [
     }
 }
 
-const haveParser = existsSync(PARSER) && existsSync(EMITTER);
+const haveParser = existsSync(PARSER) && existsSync(EMITTER) && existsSync(RESOLVER);
 
 let byteEqual = 0;
 let ledgered = 0;
 if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+    const { resolveIdent } = await import(`file://${RESOLVER}`);
 
     const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
     for (const entry of SHADOW_DIVERGENCES) {
@@ -563,7 +571,9 @@ if (haveParser) {
         const golden = readFileSync(job.golden, 'utf8');
         let emitted;
         try {
-            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key), {
+                resolveIdent,
+            });
         } catch (error) {
             // Never ledgerable. Clause 3 makes an unreadable construct a hard error naming its
             // line, so a corpus file the parser refuses is a gap in the parser or a file that
@@ -730,10 +740,17 @@ if (problems.length > 0) fail();
 // problem pushed above, and `fail()` has already exited by here.
 const kinds = new Set(SHADOW_DIVERGENCES.map((entry) => entry.kind));
 const tolerated = SHADOW_DIVERGENCES.reduce((n, entry) => n + (entry.lines ?? []).length, 0);
+// An empty ledger is the condition ADR 0053 clause 5 names, so the line SAYS that rather than
+// printing three zeros a reader has to add up. The zeros were honest and unreadable: "0
+// ledgered across 0 cause(s) and 0 named line(s) — every other line held to the golden" is the
+// silence clause 5 is waiting for, written as an accounting remainder.
 const stageC =
-    `stage C ran the in-repo parser over all ${byteEqual + ledgered} corpus file(s): ` +
-    `${byteEqual} byte-equal, ${ledgered} ledgered across ${kinds.size} cause(s) and ` +
-    `${tolerated} named line(s) — every other line held to the golden`;
+    ledgered === 0
+        ? `stage C ran the in-repo parser over all ${byteEqual} corpus file(s): every one byte-equal, ` +
+          'nothing ledgered — the silence ADR 0053 clause 5 makes the parser authoritative on'
+        : `stage C ran the in-repo parser over all ${byteEqual + ledgered} corpus file(s): ` +
+          `${byteEqual} byte-equal, ${ledgered} ledgered across ${kinds.size} cause(s) and ` +
+          `${tolerated} named line(s) — every other line held to the golden`;
 
 const stageD = `stage D held ${projected} hand-written SharedNode tree(s) against the projection`;
 
