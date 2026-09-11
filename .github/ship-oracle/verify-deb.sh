@@ -214,6 +214,15 @@ TAG_LIST=$(lintian-explain-tags --list-tags 2>/dev/null || lintian --list-tags 2
 #   no-copyright-file                Policy § 12.5 — the licence overlay
 #   no-changelog                     Policy § 4.4 — the changelog overlay
 #   changelog-file-not-compressed    it ships gzipped, or not at all
+#   changelog-not-compressed-with-max-compression
+#                                    Policy § 4.4 asks for `gzip -9 -n`, and this
+#                                    tag is read off the gzip header's XFL byte
+#                                    alone. GATED rather than merely fixed because
+#                                    the level travels four hops to get here —
+#                                    `plan.ts` → `gzipDeterministic` →
+#                                    `@gjsify/tar` → `node:zlib` — and every one of
+#                                    them has a default-level path it can fall back
+#                                    to without failing.
 #   syntax-error-in-debian-changelog the header/trailer this writer renders
 #   no-md5sums-control-file          the control member's md5sums
 #   md5sum-mismatch                  a digest in it (NOT `md5sums-mismatch`:
@@ -227,6 +236,7 @@ TAG_LIST=$(lintian-explain-tags --list-tags 2>/dev/null || lintian --list-tags 2
 #   malformed-deb-archive            the ar container and its member order
 #   control-file-has-bad-permissions the control member's modes
 for tag in no-copyright-file no-changelog changelog-file-not-compressed \
+    changelog-not-compressed-with-max-compression \
     syntax-error-in-debian-changelog no-md5sums-control-file md5sum-mismatch \
     file-missing-in-md5sums md5sums-lists-nonexistent-file malformed-md5sums-control-file \
     wrong-file-owner-uid-or-gid control-file-has-bad-owner malformed-deb-archive \

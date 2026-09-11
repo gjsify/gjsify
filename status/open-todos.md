@@ -3571,7 +3571,60 @@ Open, in order — each independently mergeable, each with its proof:
 
 9. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 
-10. **The `.deb` changelog is not compressed with `gzip -9`.** `W: gjsify: changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]` — measured on lintian 2.117 (ubuntu-24.04) against the first `.deb` that carried a changelog at all, i.e. it arrived WITH the § 4.4 fix rather than surviving it. Debian Policy § 4.4 asks for `gzip -9 -n`, and lintian reads the claim off the gzip header's XFL byte. The gap is a missing capability in the core, not in `ship`: `utils/ship/gzip.ts` compresses through `@gjsify/tar`'s `gzip()`, which is `CompressionStream('gzip')`, and the Web API takes no level; `@gjsify/zlib`'s `gzipSync` accepts a `ZlibOptions` it names `_options` and ignores, on both its Gio (`Gio.ZlibCompressor`, which DOES take a level) and its browser path. So the fix is a level argument through `@gjsify/zlib` → `@gjsify/tar` → `gzipDeterministic`, with the two backends' levels proven to agree. What is NOT the fix, and is why this is ledgered rather than closed: stamping XFL to 2 in `gzipDeterministic` beside the mtime and OS bytes it already normalises. Those two are facts about the build ENVIRONMENT; XFL is a statement about the compression that was actually performed, and writing it would make the artifact lie to the tool that reads it.
+### Two zlibs can compress one `gjsify ship` artifact, and they disagree
+
+Found while closing the `.deb` changelog's `gzip -9` gap, which is DONE: `@gjsify/zlib`
+honours `options.level` now (it was spelled `_options` and dropped on the floor, on the sync
+and the async path alike), `@gjsify/tar`'s `gzip()` takes one and routes a levelled request
+through `node:zlib` because `CompressionStream` has no level to give, and `plan.ts`
+compresses `changelog.Debian.gz` at `POLICY_MAX_COMPRESSION`. Measured with `lintian` 2.117
+on ubuntu-24.04 against gjsify's own `.deb`, before and after: `W: gjsify:
+changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]`
+present, then absent, with no error-severity tag in either run. `verify-deb.sh` gates the tag
+by name, so it cannot return quietly. **The file also settles the "just stamp XFL" argument
+with a number rather than a principle:** the two members differ in EXACTLY ONE BYTE —
+position 9, XFL, 0 against 2 — and are 1152 bytes either way, so for that input stamping
+would have produced the identical artifact. It is identical by coincidence of a small input;
+over the full `CHANGELOG.md` the same two levels differ by thousands of bytes.
+
+**What is open is what the work uncovered.** `gzipDeterministic` is deterministic for a
+given HOST, not for a given artifact, and its name says otherwise. `@gjsify/tar` compresses
+on the platform's zlib, and the two platforms this CLI runs on do not ship the same one:
+Fedora's `libz.so.1` is `zlib-ng-compat` 2.3.3, Node bundles `1.3.2.1-motley`. Measured
+2026-09-11 over this repo's `CHANGELOG.md` (876 192 bytes), gio-via-GJS against Node, output
+bytes per level — 0: 876 280 / 876 340 · 1: 295 057 / 297 789 · 6: 272 003 / 272 000 ·
+8: 270 255 / 270 260 · 9: 277 974 / 270 289. They agree at NO level on that input, including
+the default, and **zlib-ng's level 9 is worse than its own level 8** (~2.9 %), which is why
+the level is asked for only where a reader demands it and is not blanket-applied to
+`data.tar.gz` / `control.tar.gz`. Consequences: a `.deb` packed under GJS and one packed
+under Node differ in the two payload tarballs — those are compressed at PACK time — while
+`changelog.Debian.gz` is immune because `plan.ts` compresses it once at ASSEMBLY time and it
+travels as base64 in the sidecar. `tests/e2e/ship-from-stage` asserts byte-equality between a
+direct pack and a `--from-stage` pack and holds only because both run on one host; it is
+structurally blind to this, and a cross-host pack is the thing `--from-stage` exists for.
+Closing it means pinning ONE deflate implementation for the packers, which is a real
+decision (a vendored deflate, or declaring the packing host part of the artifact's identity)
+and not a patch.
+
+### The `.rpm` has no `%changelog`, and the blocker is the oracle rather than the writer
+
+Checked while doing the `.deb` half, so the next session does not re-derive it. `rpm.ts`
+writes no `CHANGELOGTIME` (1080) / `CHANGELOGNAME` (1081) / `CHANGELOGTEXT` (1082), so
+`rpm -qp --changelog` on a `gjsify ship` artifact prints nothing and `rpmlint` 2.8.0 raises
+`no-changelogname-tag` ("There is no changelog"). The entry text is NOT the missing piece —
+`changelogEntriesFor()` in `utils/ship/changelog.ts` already extracts the bullets per version
+and both formats would share it. Two things actually block it. **(a) `rpmlint` appears
+nowhere in this repository** — not in `.docker/ci-fedora.Dockerfile`, not in
+`.github/ship-oracle/verify-rpm.sh` — so the tag has no gate, and adding the package plus a
+test that hard-requires it in one PR is the ordering trap `build-ci-image.yml` imposes
+(the image publishes only on a push to `main`); `msitools` went in as its own PR first for
+exactly this, and this should too. The system `rpm`'s own `-qp --changelog` is a usable
+independent reader in the meantime and is already required by that suite. **(b) the RPM
+changelog is HEADER data built at PACK time, not an overlay file compressed at assembly
+time**, so `--from-stage` needs the entries inside `.gjsify-ship-stage.json` — a schema 6 → 7
+bump, which that file's own rules say must be justified in its header and which `readStage`
+must then validate. That is the whole cost, and it is why this is ledgered instead of folded
+into the changelog PR.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 

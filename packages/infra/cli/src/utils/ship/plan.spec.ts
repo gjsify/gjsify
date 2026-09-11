@@ -267,6 +267,11 @@ export default async () => {
             // have to produce the same bytes (utils/ship/gzip.ts).
             expect([data[0], data[1]]).toStrictEqual([0x1f, 0x8b]);
             expect([data[4], data[5], data[6], data[7]]).toStrictEqual([0, 0, 0, 0]);
+            // XFL = 2, the byte Policy § 4.4's `gzip -9` is READ from: lintian raises
+            // `changelog-not-compressed-with-max-compression` off this one alone, and
+            // `file` prints it as "max compression". It is set by the compressor and
+            // NOT stamped here — `utils/ship/gzip.ts` has the measurement behind that.
+            expect(data[8]).toBe(2);
             expect(new TextDecoder().decode(await gunzip(data))).toBe(
                 'hello (1.0.0-1) unstable; urgency=medium\n' +
                     '\n' +
