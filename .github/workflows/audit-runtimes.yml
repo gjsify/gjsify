@@ -171,6 +171,20 @@ jobs:
       - name: Check every workflow `run:` block is valid shell
         run: node scripts/check-workflow-run-syntax.mjs
 
+      # The two checks above read the workflows this repo COMMITS. `gjsify flatpak ci`
+      # writes one into somebody ELSE's repository, and nothing read that at all: four
+      # `assert.match` regexes over raw text, never parsed, never actionlint'd, never
+      # run. Measured on the real output, all four still match a document with a
+      # misspelled `runs-on:`, an unpinned `uses:`, or a `${{ }}` naming a property no
+      # context defines — each mutation leaves their substrings untouched. The suite
+      # that scaffolds (`tests/e2e/flatpak`) now hands the output to `actionlint` plus
+      # the shell reader above; THIS step is the static half, which needs no build and
+      # so can run in this job: it fails if a command writes a `.github/workflows` path
+      # and is in no registry entry. ADR 0024 names this class for `ship ci`, which
+      # scaffolds too.
+      - name: Check every workflow scaffolder has a reader
+        run: node scripts/check-scaffolded-workflow.mjs --coverage
+
       # The cross-runtime package list and the `if:` chain that decides whether its
       # job runs are two copies of one set, and selective CI means the second one
       # decides whether the first is ever read. They had already drifted: the runtime
