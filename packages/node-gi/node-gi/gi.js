@@ -832,31 +832,99 @@ function assignTemplateChildren(instance, handle, reg) {
     }
 }
 
-// Push construct-time GObject-property values through the class's own JS SETTERS.
+// The prototype SETTER a GObject property name resolves to, across the three
+// spellings GJS makes equivalent, or undefined when the class declares none.
 //
-// A class can declare a GObject property (`Properties: { displayWidth: ParamSpec }`,
-// often CONSTRUCT with a default) AND a matching JS accessor
-// (`get/set displayWidth` over a `_displayWidth` backing field). On GJS the property
-// set vfunc delegates to the JS setter (`JS_SetProperty`), so the CONSTRUCT default
-// reaches `_displayWidth` at construction. node-gi builds the wrapper AFTER
-// g_object_new, so at construct time there is no USER_PROTO to route through — the
-// value lands only in the engine's per-instance store, and the class's getter
-// (reading `_displayWidth`) sees `undefined` (the Learn6502 Display "DrawingArea is
-// required" wall). Once USER_PROTO is attached (here, right after construction), read
-// each such property's construct value back out (from the store, or the ParamSpec
-// default) and run it through the JS setter — the node-gi analogue of GJS applying a
-// CONSTRUCT property via the JS setter, and BEFORE the user ctor body runs (same
-// order as GJS). Only properties whose name resolves to a prototype SETTER are
-// touched, so a plain GObject property (no JS accessor) keeps the store as its single
-// backing store — unchanged.
-function flushConstructProperties(instance, handle, reg) {
-    if (reg.constructPropertyNames === undefined) return;
+// GJS's set_property vfunc writes only the UNDERSCORE spelling
+// (refs/gjs/gi/gobject.cpp jsobj_set_gproperty → JS_SetProperty(underscore_name)),
+// and reaches a camelCase accessor anyway because registerClass has already mirrored
+// whichever spelling the class declared onto the dash, underscore AND camel names
+// (`_checkAccessors`, refs/gjs/modules/core/_common.js). node-gi keeps the engine
+// store as the backing store rather than installing GJS's generated accessors, so it
+// resolves the same three spellings at the point of use instead — same reachability,
+// no accessor synthesis. Learn6502's SourceView is exactly why this matters: its
+// property is `line-numbers` and its accessor is `lineNumbers`.
+function findPropertySetter(userProto, propertyName) {
+    const underscored = propertyName.replace(/-/g, '_');
+    const camel = propertyName.replace(/-([a-z])/g, (m) => m[1].toUpperCase());
+    for (const spelling of [propertyName, underscored, camel]) {
+        const desc = findProtoDescriptor(userProto, spelling);
+        if (desc !== undefined && typeof desc.set === 'function') return desc.set;
+    }
+    return undefined;
+}
+
+// Run a class's own JS setter for a custom property the ENGINE has just stored —
+// the L1 half of NodeGiSetProperty (src/class.cc), which is node-gi's
+// gjs_object_set_gproperty. The engine calls this only once the instance HAS a
+// wrapper, so a set that lands during construction never reaches here; those are
+// replayed by flushPropertiesToJsSetters below.
+function runJsPropertySetter(handle, propertyName) {
+    const instance = instanceCache.get(handle);
+    if (instance === undefined) return;
     const up = instance[USER_PROTO];
     if (up === undefined) return;
-    for (const name of reg.constructPropertyNames) {
-        const desc = findProtoDescriptor(up, name);
-        if (desc === undefined || typeof desc.set !== 'function') continue;
-        desc.set.call(instance, wrapReturn(native.getProperty(handle, name)));
+    const set = findPropertySetter(up, propertyName);
+    if (set === undefined) return; // no JS accessor: the store is the single backing store
+    set.call(instance, wrapReturn(native.getProperty(handle, propertyName)));
+}
+// Guarded because the addon paired with this JS may PREDATE it, and that pairing is
+// deliberate rather than hypothetical: gtk-os-suites.yml's shipped-closure legs run
+// this checkout's JS against the PUBLISHED addon (`NODE_GI_NATIVE=prebuild`, logged
+// as "node-gi JS: (this checkout) / addon: (published)"), so a bare call to a new
+// native export takes those three legs down with `native.<new export> is not a
+// function` until the next release republishes the binary. Every native call added
+// here degrades instead; without the callback, a post-construction set simply does
+// not reach the JS setter, which is what 0.50.0 did.
+if (typeof native.setPropertySetCallback === 'function') {
+    native.setPropertySetCallback(runJsPropertySetter);
+}
+
+// Which properties the construct-time replay must run.
+//
+// `native.storedPropertyNames` is the honest answer — what was ACTUALLY set, in
+// first-set order. An addon older than this JS does not export it (same cross-version
+// pairing as the guard above), so the fallback is the CONSTRUCT-flag filter this used
+// to be: narrower, since it misses a plain property passed to `new`, but never wrong
+// — GObject does apply CONSTRUCT properties at construction. Keeping it is what makes
+// the shipped-closure legs measure the published addon rather than this gap.
+function propertiesToReplay(handle, reg) {
+    if (typeof native.storedPropertyNames === 'function') return native.storedPropertyNames(handle);
+    return reg.constructPropertyNames ?? [];
+}
+
+// Replay the properties set DURING construction through the class's own JS SETTERS.
+//
+// A class can declare a GObject property (`Properties: { displayWidth: ParamSpec }`)
+// AND a matching JS accessor (`get/set displayWidth` over a `_displayWidth` backing
+// field). On GJS the set vfunc delegates to the JS setter, so a value applied by
+// g_object_new reaches `_displayWidth` at construction. node-gi builds the wrapper
+// AFTER g_object_new, so during construction there is no USER_PROTO to route through
+// — the value lands only in the engine's per-instance store, and the class's getter
+// (reading `_displayWidth`) sees `undefined` (the Learn6502 Display "DrawingArea is
+// required" wall). Once USER_PROTO is attached (here, right after construction), read
+// each such value back out and run it through the JS setter, BEFORE the user ctor
+// body runs — the same order GJS produces.
+//
+// WHICH properties: the ones the engine actually STORED, i.e. that something really
+// set (`native.storedPropertyNames`). Not every declared property — flushing those
+// runs a setter for a property nobody assigned, against state the ctor body has not
+// created yet, which is the Learn6502 SourceView `selectable` → `_signalHandlers`
+// forEach crash. "Was it set?" is the honest question and the store is its honest
+// answer; the CONSTRUCT flag is only a proxy for it (GObject applies a CONSTRUCT
+// property's default at construction, so it is stored too, and a plain READWRITE
+// property passed to `new` is stored as well — which GJS also routes through the
+// setter, and the old CONSTRUCT-only filter missed).
+//
+// Only properties whose name resolves to a prototype SETTER are touched, so a plain
+// GObject property (no JS accessor) keeps the store as its single backing store.
+function flushPropertiesToJsSetters(instance, handle, reg) {
+    const up = instance[USER_PROTO];
+    if (up === undefined) return;
+    for (const name of propertiesToReplay(handle, reg)) {
+        const set = findPropertySetter(up, name);
+        if (set === undefined) continue;
+        set.call(instance, wrapReturn(native.getProperty(handle, name)));
     }
 }
 
@@ -1605,7 +1673,7 @@ function makeClass(namespace, typeName) {
                 assignTemplateChildren(instance, handle, reg);
                 // Route construct-time property values through the class's JS setters now
                 // that USER_PROTO is attached — before the user ctor body runs (GJS order).
-                flushConstructProperties(instance, handle, reg);
+                flushPropertiesToJsSetters(instance, handle, reg);
                 return instance;
             }
             // `nt` is a subclass of this introspected GObject class but was NEVER passed to
@@ -2340,13 +2408,11 @@ function registerClass(metaOrClass, maybeClass) {
     // Record the registration so the introspected base ctor (makeClass) routes
     // `new X(args)` (where new.target === klass) to constructType(typeHandle, …) +
     // the canonical wrapper. Template children move here from the old Subclass.
-    // The names of CONSTRUCT / CONSTRUCT_ONLY properties — the ONLY ones GObject
-    // applies at construction. The flush (flushConstructProperties) must be limited to
-    // these: a plain READWRITE property is NOT set during construction, so running its
-    // JS setter early (GObject never would) fires the setter's side effects against
-    // still-uninitialised instance state (the SourceView `selectable` → `_signalHandlers`
-    // forEach crash). Matches GJS, which only runs setters for props GObject applies at
-    // construct. Flags are the ABI-stable G_PARAM_CONSTRUCT (1<<2) | CONSTRUCT_ONLY (1<<3).
+    // Which properties the construct-time flush replays is a question about this
+    // INSTANCE ("what was actually set?"), and the engine's per-instance store answers
+    // it directly. These CONSTRUCT / CONSTRUCT_ONLY names are only the FALLBACK for an
+    // addon too old to answer it — see propertiesToReplay. Flags are the ABI-stable
+    // G_PARAM_CONSTRUCT (1<<2) | CONSTRUCT_ONLY (1<<3).
     const PARAM_CONSTRUCT_MASK = 0x4 | 0x8;
     const constructPropertyNames = properties
         .filter((p) => typeof p.flags === 'number' && (p.flags & PARAM_CONSTRUCT_MASK) !== 0)
@@ -2356,7 +2422,6 @@ function registerClass(metaOrClass, maybeClass) {
         typeHandle,
         children: children.length > 0 ? children : undefined,
         internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
-        // CONSTRUCT-property names, for the construct-property flush (below).
         constructPropertyNames: constructPropertyNames.length > 0 ? constructPropertyNames : undefined,
     });
     // Reverse index for runCtorForCObject: the engine identifies a C-created instance

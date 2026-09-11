@@ -807,6 +807,23 @@ Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer) {
   return MakeGObjectHandle(env, obj);
 }
 
+// The canonical wrapper `obj` ALREADY has in this env, or an empty value when it has
+// none. Never creates one and never touches a refcount — the whole point is to ask
+// "is there a JS object to call into yet?" without bringing one into being, which is
+// gjs's `priv->wrapper()` test (refs/gjs/gi/gobject.cpp gjs_object_set_gproperty
+// bails when it is null). Same cross-env gate as WrapGObject's cache hit: a napi_ref
+// belongs to inst->env and dereferencing it from another env is a UAF.
+Napi::Value PeekGObjectHandle(Napi::Env env, GObject* obj) {
+  if (obj == nullptr) return Napi::Value();
+  NodeGiInstance* inst =
+      static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+  if (inst == nullptr || inst->env != static_cast<napi_env>(env)) return Napi::Value();
+  napi_value cached = nullptr;
+  if (napi_get_reference_value(env, inst->handle_ref, &cached) != napi_ok || cached == nullptr)
+    return Napi::Value();  // collected, teardown pending — there is nothing live to call
+  return Napi::Value(env, cached);
+}
+
 // ============================ TEST-ONLY ===============================
 // __stressRefUnrefOffThread(handle, iterations) — the GLib-thread vehicle the
 // cross-thread GC stress test needs (there is no headless JS way to make another

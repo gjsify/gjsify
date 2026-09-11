@@ -57,9 +57,12 @@ function needs(namespace, version) {
 }
 
 test('a by-value GValue array lands at the record’s own stride', () => {
-    // `GObject.signal_emitv(instance_and_params[], signal_id, detail)` is the core
-    // subject for this: one C array of GValue BY VALUE, and the callee reads BOTH cells
-    // — element 0 for the instance to emit on, element 1 for the signal's parameter.
+    // `GObject.signal_emitv(instance_and_params[], signal_id, detail, return_value)` is
+    // the core subject for this: one C array of GValue BY VALUE, and the callee reads
+    // BOTH cells — element 0 for the instance to emit on, element 1 for the signal's
+    // parameter. The trailing `return_value` is spelled out because gjs demands it
+    // (its arity is 4, measured on 1.88.1); a three-argument call throws there, so
+    // leaving it off would test a call shape that only ever worked on node-gi.
     //
     // That is what makes it a stride assertion rather than a smoke test. At an
     // eight-byte stride element 1 would be read out of element 0's interior, so the
@@ -79,7 +82,7 @@ test('a by-value GValue array lands at the record’s own stride', () => {
     parameter.init(GObject.TYPE_VARIANT);
     parameter.set_variant(GLib.Variant.new_string('the second cell'));
 
-    GObject.signal_emitv([instance, parameter], GObject.signal_lookup('activate', Gio.SimpleAction.$gtype), 0);
+    GObject.signal_emitv([instance, parameter], GObject.signal_lookup('activate', Gio.SimpleAction.$gtype), 0, null);
 
     assert.deepEqual(received, ['the second cell'], 'both cells must reach the callee intact');
 });

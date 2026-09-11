@@ -1,0 +1,15 @@
+-- construct with no arguments (CONSTRUCT default only)
+setter counted=7
+a.counted = 7
+a.plain   = <unset>
+-- set_property after construction
+setter plain=AFTER
+a.plain   = AFTER
+-- compound name reaches the camelCase accessor
+setter lineNumbers=true
+-- a property passed to the constructor
+setter counted=7
+setter plain=AT-NEW
+b.plain   = AT-NEW
+-- a property nobody set never ran its setter
+a._ran = []

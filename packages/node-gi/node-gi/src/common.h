@@ -95,6 +95,12 @@ struct NodeGiEnvData {
   // Reflect.construct(class) in adopt mode (see gi.js runCtorForCObject). Per-env
   // for the same reason as errorBuilder (a napi_ref is env-specific).
   napi_ref constructCallback = nullptr;
+  // L1 callback that pushes a just-set custom GObject property through the class's
+  // own JS setter — invoked by NodeGiSetProperty once the instance HAS a wrapper
+  // (handle, propertyName) → see gi.js runJsPropertySetter. gjs reaches the same
+  // setter from its set_property vfunc (refs/gjs/gi/gobject.cpp jsobj_set_gproperty).
+  // Per-env for the same reason as errorBuilder (a napi_ref is env-specific).
+  napi_ref propertySetCallback = nullptr;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -458,6 +464,9 @@ void NodeGiToggleDebugLog(const char* fmt, ...) G_GNUC_PRINTF(1, 2);
 
 Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj);
 Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer);
+// The wrapper `obj` already has in `env`, or an empty value — never creates one. See
+// toggle.cc; the caller that needs it is the set_property vfunc (class.cc).
+Napi::Value PeekGObjectHandle(Napi::Env env, GObject* obj);
 
 extern int g_syncEmitDepth;
 
@@ -665,6 +674,8 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info);
 Napi::Value HasClassVfunc(const Napi::CallbackInfo& info);
 Napi::Value CallClassVfunc(const Napi::CallbackInfo& info);
 Napi::Value SetConstructCallback(const Napi::CallbackInfo& info);
+Napi::Value SetPropertySetCallback(const Napi::CallbackInfo& info);
+Napi::Value StoredPropertyNames(const Napi::CallbackInfo& info);
 
 // template.cc
 Napi::Value GetTemplateChild(const Napi::CallbackInfo& info);
