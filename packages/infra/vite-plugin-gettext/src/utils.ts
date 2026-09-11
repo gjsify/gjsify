@@ -40,7 +40,23 @@ export async function findAvailableLanguages(
 ): Promise<string[]> {
     try {
         const files = await fs.readdir(poDirectory);
-        const languages = files.filter((file) => file.endsWith('.po')).map((file) => path.basename(file, '.po'));
+        const languages = files
+            .filter((file) => file.endsWith('.po'))
+            .map((file) => path.basename(file, '.po'))
+            // SORTED AT THE SOURCE, so every consumer is deterministic at once —
+            // the LINGUAS file, the compile order, and the locale-directory plan.
+            // `fs.readdir` returns filesystem order, which Node explicitly does
+            // not specify: on ext4 a small directory reads back in CREATION
+            // order, so a language that was removed and re-added moves to the end
+            // and LINGUAS is rewritten on a tree nobody touched
+            // (JumpLink/Learn6502#179).
+            //
+            // No comparator ON PURPOSE. The default is UTF-16 code-unit order —
+            // total, and identical on every host. `localeCompare` would order by
+            // the BUILDER's locale, which makes committed output depend on who
+            // built it: the same host-dependent-artifact bug in a new place.
+            // Locale names are ASCII, so code-unit order is also byte order.
+            .sort();
 
         if (verbose) {
             console.log(`[${pluginName}] Found languages: ${languages.join(', ')}`);
@@ -63,7 +79,12 @@ export async function findAvailableLanguages(
  */
 export async function generateLinguasFile(languages: string[], poDirectory: string, verbose = false) {
     const linguasPath = path.join(poDirectory, 'LINGUAS');
-    const content = languages.join('\n');
+    // Trailing newline: a POSIX text file ends with one. Without it git reports
+    // "\ No newline at end of file" on every regeneration, and any tool that
+    // appends to the list silently joins its first entry onto the last language.
+    // Sorted here as well as in `findAvailableLanguages` so a caller that
+    // assembles the list itself still gets a stable file.
+    const content = `${[...languages].sort().join('\n')}\n`;
 
     try {
         await fs.writeFile(linguasPath, content);
