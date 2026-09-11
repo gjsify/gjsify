@@ -35,16 +35,30 @@
 // GitHub release. VENDORING IT IS REFUSED for the reason ADR 0023 refuses a
 // from-source GTK: a binary in this tree is this tree's to license, to update and
 // to have audited, and appimagetool is GPL-3.0 while gjsify is MIT in 185
-// manifests. DOWNLOADING IT AT PACK TIME is refused for a different one: every
-// other packer here runs offline, and a pack step that fetches is a release step
-// that fails when GitHub does.
+// manifests. DOWNLOADING THE TOOL AT PACK TIME is refused for a different one:
+// every other packer here runs offline, and a pack step that fetches is a release
+// step that fails when GitHub does. That refusal is NOT achieved, because the tool
+// fetches on its own account — see the first measurement below, which is the one
+// open defect this module ships with.
 //
 // MEASURED ON appimagetool 1.9.1 (build 296, 2025-12-04), because three of its
 // behaviours decide this file and none of them are in its `--help`:
 //
-//   * IT EMBEDS ITS OWN RUNTIME. `--runtime-file` exists, and 1.9.1 needs none —
-//     "Embedding ELF…" appears with no network. So this packer passes no runtime
-//     and `gjsify ship --target appimage` stays offline like every other format.
+//   * IT FETCHES THE RUNTIME, AND THIS PACK IS THEREFORE NOT OFFLINE. Re-measured
+//     on the version `.docker/ci-fedora.Dockerfile` pins (1.9.1, build 296, git
+//     8c8c91f): every invocation prints `Downloading runtime file from
+//     https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-<arch>`
+//     BEFORE "Embedding ELF…", for the host's own architecture as much as for a
+//     foreign one, and it caches nothing — four consecutive packs, four downloads.
+//     With the network blocked it exits 1 having written no file, naming
+//     `--runtime-file` as the way across. So the bytes a user ends up executing
+//     come from a ROLLING tag with no digest behind it, while the Dockerfile pins
+//     the tool itself by SHA-256 — and `ship`'s byte-identical promise holds only
+//     between two packs close enough together that `continuous` did not move.
+//     `--runtime-file` is the fix and it needs a decision about where a pinned
+//     runtime comes from (licence, and who fetches it); until then this is
+//     `status/open-todos.md` → "The AppImage pack is not offline".
+//     The first draft of this header recorded the opposite as measured.
 //   * IT CANNOT GUESS OUR ARCHITECTURE. appimagetool reads the AppDir's binaries
 //     to decide, and a `--app gjs` payload is JavaScript and a `/bin/sh`
 //     launcher: there is no ELF to read. `ARCH` in the environment is therefore
@@ -436,6 +450,35 @@ export function appImageToolEnv(archLabel: string): Record<string, string> {
     return { ARCH: archLabel, [EXTRACT_AND_RUN]: '1' };
 }
 
+/**
+ * What a non-zero `appimagetool` exit is, in the order a host actually hits them.
+ *
+ * PURE, so the one message a user reads at the worst moment is assertable without
+ * a container — the same split {@link appImageToolArgs} draws. It was inline until
+ * the list was found to be missing its FIRST entry, which is the shape a message
+ * that nothing reads back tends to have.
+ *
+ * THE NETWORK IS CAUSE ZERO, and it was absent while the module claimed the pack
+ * was offline. Measured on 1.9.1 build 296 with the network blocked: exit 1, no
+ * file, `Failed to download runtime file … pass it to appimagetool with
+ * --runtime-file`. It is the first thing a firewalled or air-gapped CI hits and
+ * the only step in `ship` that needs a network at all, so a message listing three
+ * local causes sends the reader to install `file` on a machine that already has it.
+ */
+export function appImageToolFailureMessage(exit: string): string {
+    return (
+        `gjsify ship: ${APPIMAGE_TOOL} failed with ${exit}. ` +
+        'Four causes, measured in this order: the AppImage RUNTIME could not be downloaded — ' +
+        `${APPIMAGE_TOOL} fetches it from github.com/AppImage/type2-runtime on every pack, so this is the ` +
+        'one step in `ship` that needs a network, and an offline host fails here having written nothing; ' +
+        'or `file` is not installed — ' +
+        `${APPIMAGE_TOOL} requires file(1) and says so, even though this pack already tells it the ` +
+        'architecture; or FUSE is unavailable and the tool on PATH is a wrapper that dropped ' +
+        `${EXTRACT_AND_RUN}=1, which this pack sets so the extract path is taken instead of a mount; ` +
+        'or the work directory is full — the AppDir is copied into a squashfs image beside it.'
+    );
+}
+
 export interface AppImagePackInput {
     appDir: string;
     target: string;
@@ -449,14 +492,15 @@ export interface AppImagePackInput {
  * Run appimagetool over the AppDir.
  *
  * THE FAILURE PATHS ARE THE POINT. A packer that execs a foreign tool inherits
- * that tool's silence, and appimagetool's two container failures were MEASURED on
+ * that tool's silence, and appimagetool's container failures were MEASURED on
  * `fedora:44` rather than guessed. Without `APPIMAGE_EXTRACT_AND_RUN=1` it exits
  * **127** pointing at the AppImageKit FUSE wiki — which is why
  * {@link appImageToolEnv} sets that variable and this branch should never see it.
  * Without `file(1)` it exits **1** with "file command is missing but required",
  * EVEN with `ARCH` set, which is the failure a minimal image really hits and
- * which says nothing about packaging. So the message names both, plus the third
- * thing an exit after "Embedding ELF" can be — a full work directory.
+ * which says nothing about packaging. And without a network it exits **1** having
+ * written nothing, because the runtime is fetched rather than embedded — see the
+ * module header. {@link appImageToolFailureMessage} names all four.
  *
  * AND THE ARTIFACT IS VERIFIED TO EXIST. appimagetool prints "Success" and a
  * request to submit to AppImageHub; it does not guarantee the destination was
@@ -491,14 +535,7 @@ export async function buildAppImage(input: AppImagePackInput): Promise<void> {
             ),
     });
     if (result.code !== 0) {
-        throw new Error(
-            `gjsify ship: ${APPIMAGE_TOOL} failed with ${describeExit(result)}. ` +
-                'Three causes, measured on a minimal container in this order: `file` is not installed — ' +
-                `${APPIMAGE_TOOL} requires file(1) and says so, even though this pack already tells it the ` +
-                'architecture; or FUSE is unavailable and the tool on PATH is a wrapper that dropped ' +
-                `${EXTRACT_AND_RUN}=1, which this pack sets so the extract path is taken instead of a mount; ` +
-                'or the work directory is full — the AppDir is copied into a squashfs image beside it.',
-        );
+        throw new Error(appImageToolFailureMessage(describeExit(result)));
     }
     if (!existsSync(input.target)) {
         throw new Error(

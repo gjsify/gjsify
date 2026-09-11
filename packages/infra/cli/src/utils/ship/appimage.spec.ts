@@ -36,6 +36,7 @@ import {
     appImageHostRequirements,
     appImageToolArgs,
     appImageToolEnv,
+    appImageToolFailureMessage,
     assertAppImageIsPackable,
     EXTRACT_AND_RUN,
     renderAppRun,
@@ -152,13 +153,38 @@ export default async () => {
             expect(args.slice(-2)).toStrictEqual(['/out/ship/appimage/AppDir', '/out/ship/out/x.AppImage']);
         });
 
-        await it('passes NO runtime file, because 1.9.x embeds its own', async () => {
-            // Measured: appimagetool 1.9.1 prints "Embedding ELF…" with no network
-            // and needs no `--runtime-file`. Passing one would mean fetching or
-            // vendoring a GPL-3.0 binary into an MIT tree — see the module header —
-            // and this assertion is what keeps that decision from being reversed by
-            // an "it works locally" patch.
+        await it('passes NO runtime file, which is this row’s open cost', async () => {
+            // NOT because 1.9.1 embeds one. Re-measured on the build the Dockerfile
+            // pins: it DOWNLOADS the type2 runtime from a rolling `continuous` tag
+            // on every pack, the host's own architecture included, caches nothing,
+            // and with the network gone exits 1 having written no file. So this
+            // assertion records a COST rather than a property — passing a runtime
+            // means deciding where a pinned one comes from (licence, and who
+            // fetches it), and until then the artifact carries bytes nothing in
+            // this tree pins. `status/open-todos.md` → "The AppImage pack is not
+            // offline".
             expect(args).not.toContain('--runtime-file');
+        });
+    });
+
+    await describe('appImageToolFailureMessage', async () => {
+        const message = appImageToolFailureMessage('code 1');
+
+        await it('names the NETWORK first, which is where an offline host actually fails', async () => {
+            // The cause that was missing while the module claimed the pack was
+            // offline. A message listing three LOCAL causes sends the reader of an
+            // offline failure to install `file` on a machine that already has it.
+            expect(message).toContain('type2-runtime');
+            expect(message.indexOf('type2-runtime')).toBeLessThan(message.indexOf('file(1)'));
+        });
+
+        await it('still names the two container failures and the full disk', async () => {
+            expect(message).toContain('file(1)');
+            expect(message).toContain(EXTRACT_AND_RUN);
+            expect(message).toContain('work directory is full');
+            // The exit is the caller's `describeExit`, so the message cannot be
+            // asserted without carrying it through.
+            expect(message).toContain('code 1');
         });
     });
 
@@ -443,6 +469,26 @@ export default async () => {
             // Writing it here means appimagetool finds it and touches nothing.
             expect(text(DIR_ICON_NAME)).toBe(text('org.example.ShipDemo.png'));
             expect(at(DIR_ICON_NAME)?.mode).toBe(0o644);
+        });
+
+        await it('REFUSES an incomplete payload itself, not only through the assertion above', async () => {
+            // The mutation the three `assertAppImageIsPackable` tests above cannot
+            // see: they call it directly, so deleting its CALL from `appDirPayload`
+            // leaves them all green — and `packOne` is the only production caller.
+            // What would then happen is the `as PayloadEntry` cast one line down
+            // handing `undefined.data` to the root-file entries, i.e. a TypeError
+            // about `data` instead of the sentence naming `gjsify.ship.kind`.
+            let message = '';
+            try {
+                appDirPayload(
+                    packSettings(),
+                    payload().filter((entry) => !entry.path.endsWith('.desktop')),
+                    [],
+                );
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('gjsify.ship.kind');
         });
 
         await it('is ONE list, so the write that lays it down wipes the root once', async () => {
