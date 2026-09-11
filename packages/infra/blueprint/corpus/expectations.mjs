@@ -294,7 +294,7 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'layout',
                 line: 7,
-                detail: 'the `layout { column: 0; row: 1; }` block — properties of the PLACEMENT of the child, which `SharedNode` has no field for',
+                detail: 'the whole `layout { }` block — properties of the PLACEMENT of the child, which `SharedNode` has no field for. `halign` is in there to pin that the compiler does NOT type these against the widget, and it is lost with the rest',
             },
         ],
     },
@@ -305,7 +305,7 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'accessibility',
                 line: 6,
-                detail: 'the `accessibility { label: … }` block; note it collides by NAME with the `label` property of the widget itself, which is why it cannot simply be folded into `props`',
+                detail: 'the whole `accessibility { }` block — one ARIA property, relation and state; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
             },
         ],
     },

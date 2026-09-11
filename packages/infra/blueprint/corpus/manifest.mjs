@@ -26,14 +26,14 @@
 //
 // WHAT THE GOLDENS PROVED, MOST OF IT BEFORE ANY PARSER EXISTED
 //
-// Six facts the plan did not have, each reproducible from a `.ui` file in here and each
+// Seven facts the plan did not have, each reproducible from a `.ui` file in here and each
 // written up once, in this package's README: emission needs introspection and not only a
 // parse; `@girs` supplies it, in two releases rather than one; a member is spelled with
 // underscores where the nick has hyphens; a flag set is not numbered; values are normalised
-// rather than copied through; and neither `layout { }` nor `accessibility { }` resolves
-// through the widget. They are in the README and not here because they are findings about
-// the corpus rather than facts about this table, and a second copy of them beside the data
-// is what would drift.
+// rather than copied through; neither `layout { }` nor `accessibility { }` resolves through
+// the widget; and an `accessibility { }` block is three kinds of element and not one. They
+// are in the README and not here because they are findings about the corpus rather than
+// facts about this table, and a second copy of them beside the data is what would drift.
 //
 // WHAT THE ELEVEN REAL FILES DO NOT REACH
 //
@@ -155,10 +155,20 @@ export const CORPUS_RULES = [
         file: '18-multiple-imports.blp',
         isolates: 'two `using` imports, both used',
         surprise:
-            'only ONE of the two reaches the XML: `<requires lib="gtk" version="4.0"/>` and nothing for `Adw`. All 36 goldens carry exactly that one line, the seventeen files with `using Adw 1;` included',
+            'only ONE of the two reaches the XML: `<requires lib="gtk" version="4.0"/>` and nothing for `Adw`. Every golden carries exactly that one line, the seventeen files with `using Adw 1;` included',
     },
-    { file: '19-layout.blp', isolates: 'a `layout { }` block of layout-child properties' },
-    { file: '20-accessibility.blp', isolates: 'an `accessibility { }` block' },
+    {
+        file: '19-layout.blp',
+        isolates: 'a `layout { }` block of layout-child properties',
+        surprise:
+            'an entry is NOT resolved through the widget — `halign: center` stays `center` where the same line on the widget itself is `3`, because a layout entry belongs to the layout CHILD (`GtkGridLayoutChild`), which has no `halign` and which the compiler does not check it against either',
+    },
+    {
+        file: '20-accessibility.blp',
+        isolates: 'an `accessibility { }` block holding one entry of each ARIA kind',
+        surprise:
+            "the block is not a list of `<property>` elements: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `checked: true` is `1` and `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all",
+    },
     {
         file: '21-value-array.blp',
         isolates: 'a list-valued property, `strings [ … ]`',

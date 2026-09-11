@@ -10,6 +10,9 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="label">described</property>
     <accessibility>
       <property name="label">an accessible name</property>
+      <relation name="row-index">3</relation>
+      <state name="checked">1</state>
+      <property name="orientation">1</property>
     </accessibility>
   </object>
 </interface>

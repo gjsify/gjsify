@@ -1,10 +1,11 @@
 // What a bare identifier in a `.blp` means, answered from the `@girs` vocabulary.
 //
-// `emit-xml.mjs` has one seam through which introspection reaches it — `EmitOptions.resolveIdent`
-// — because `orientation: vertical` leaves `blueprint-compiler` as
-// `<property name="orientation">1</property>` and nothing in the syntax carries that `1`. This
-// module is the implementation of that seam, and it is a separate file so the emitter stays a
-// function of its AST and a table it is handed.
+// `emit-xml.mjs` has two seams through which introspection reaches it — `EmitOptions.resolveIdent`
+// and `EmitOptions.accessibilityElement` — because `orientation: vertical` leaves
+// `blueprint-compiler` as `<property name="orientation">1</property>` and `checked: true` leaves it
+// as `<state name="checked">1</state>`, and nothing in the syntax carries either answer. This
+// module is the implementation of both seams, and it is a separate file so the emitter stays a
+// function of its AST and the tables it is handed.
 //
 // WHY `@girs` AND NOT THE INSTALLED TYPELIB
 //
@@ -51,6 +52,21 @@
 // emitting the spelling would be silently wrong output, which is the failure ADR 0053 clause 3
 // exists to prevent. That throws, naming the line, the property, the enum and the member, the
 // way the oracle does.
+//
+// AN `accessibility { }` ENTRY NAMES ITS OWN ELEMENT, AND THE NAMES ARE ALSO DATA
+//
+// That block is not a list of `<property>` elements, which is what the emitter assumed for as
+// long as the rule file's only entry happened to be one. Measured on 0.20.4,
+// `accessibility { label: "n"; row-index: 3; checked: true; }` emits a `<property>`, a
+// `<relation>` and a `<state>`, and a name belonging to none of the three is refused ("is not an
+// accessibility property, relation, or state"). Which name is which is the nick list of
+// `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState`, so it is a lookup
+// and never a hand-kept list.
+//
+// The VALUE each slot takes is not derivable: `checked: true` is `1` and `orientation: vertical`
+// is `1` because GTK types the slots in C (`gtk_accessible_property_init_value`), and the GIR
+// carries that function and not its table. So this seam answers the element, the values stay the
+// source spelling, and `rules/20-accessibility.blp` is ledgered until ts-for-gir emits the table.
 
 import {
     DECLS as ADW_DECLS,
@@ -189,4 +205,39 @@ export function resolveIdent(typeName, propertyName, member, where) {
         .split('|')
         .map((part) => memberText(enumType, part.trim(), where))
         .join('|');
+}
+
+/**
+ * Every name an `accessibility { }` entry may carry, against the element it becomes.
+ *
+ * GTK's ARIA vocabulary is three registered enums and the nick of a member IS the name written
+ * in the block, so the table is built rather than typed. Deriving it also means a GTK that adds
+ * an ARIA slot adds it here on the next `@girs` bump, which a hand-kept list would not.
+ *
+ * @type {ReadonlyMap<string, 'property' | 'relation' | 'state'>}
+ */
+const ARIA_ELEMENTS = new Map(
+    [
+        ['GtkAccessibleProperty', 'property'],
+        ['GtkAccessibleRelation', 'relation'],
+        ['GtkAccessibleState', 'state'],
+    ].flatMap(([enumType, element]) => (ENUM_NICKS[enumType] ?? []).map((nick) => [nick, element])),
+);
+
+/**
+ * Which element one `accessibility { }` entry becomes, or a thrown error naming it.
+ *
+ * The signature the emitter's `EmitOptions.accessibilityElement` declares. There is no `null`
+ * answer and no default: every name in the block is one of the three or the oracle refuses the
+ * whole file, so falling back to `<property>` for an unrecognised name would emit an element
+ * GtkBuilder rejects at load — the plausible-looking wrong output ADR 0053 clause 3 is about.
+ *
+ * @param {string} name  the entry name, kebab-spelled as the ARIA nick is
+ * @param {string} where  `line N`, for an error message that can be acted on
+ * @returns {'property' | 'relation' | 'state'}
+ */
+export function accessibilityElement(name, where) {
+    const element = ARIA_ELEMENTS.get(name);
+    if (element !== undefined) return element;
+    throw new Error(`blueprint: ${where}: \`${name}\` is not an accessibility property, relation or state`);
 }

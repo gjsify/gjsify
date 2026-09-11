@@ -9,9 +9,10 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**Every corpus file is byte-equal.** That is the condition clause 5 names for the parser to
-become authoritative, so `corpus/divergences.mjs` is an empty list with its rules intact and
-the compiler's remaining role is the oracle one.
+**One divergence is left, on two lines.** Clause 5 makes the parser authoritative once the
+shadow run is silent; `corpus/divergences.mjs` holds a single entry, because an
+`accessibility { }` VALUE is typed by GTK's ARIA table — built in C, and the one thing the GIR
+does not carry. Everything else in the corpus is byte-equal.
 
 ## What is in here
 
@@ -27,7 +28,7 @@ the compiler's remaining role is the oracle one.
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
 | `src/emit-xml.mjs` | AST → GtkBuilder XML |
-| `src/resolve-ident.mjs` | what a bare identifier means, read from the `@girs` vocabulary |
+| `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element — read from the `@girs` vocabulary |
 | `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
 
 The real files are listed **by path** and read from where they live. A copy would be a second
@@ -100,10 +101,17 @@ would drift.
    (`rules/17-numeric-forms.ui`).
 6. **`layout { }` and `accessibility { }` do not resolve through the widget.**
    `Gtk.Grid { Gtk.Label { layout { halign: center; } } }` emits `center`, because a layout
-   entry belongs to `GtkGridLayoutChild` and not to the label; `Gtk.Label { accessibility {
-   orientation: vertical; } }` emits `1` although `GtkLabel` is not orientable at all, because
-   the ARIA table answers there. The widget is the table nearest to hand and it is the wrong
-   one in both blocks.
+   entry belongs to `GtkGridLayoutChild` and not to the label (`rules/19-layout.ui`);
+   `Gtk.Label { accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is
+   not orientable at all, because the ARIA table answers there. The widget is the table
+   nearest to hand and it is the wrong one in both blocks.
+7. **An `accessibility { }` block is three kinds of element, not one.** `label` is a
+   `<property>`, `row-index` a `<relation>` and `checked` a `<state>`, all spelled alike in
+   the block (`rules/20-accessibility.ui`). Which name is which IS in the vocabulary — the
+   nick lists of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState` —
+   so `src/resolve-ident.mjs` answers it; the VALUE each slot takes is not, which is the one
+   entry in `corpus/divergences.mjs`. The emitter wrote `<property>` for every entry until
+   this rule file had anything but a property in it.
 
 And one that writing the expectations found: `SharedNode.slot` carries both `[start]`
 (a `<child type="start">`) and `content:` (a `<property name="content">`), so the projection

@@ -10,7 +10,7 @@
 // reports green while proving nothing". So the first thing built is the thing to
 // compare against, and this is the gate that keeps it honest in the meantime.
 //
-// TWO STAGES, AND THE REPORT SAYS WHICH ONE RAN
+// FOUR STAGES, AND THE REPORT SAYS WHICH ONES RAN
 //
 //   A. COMPLETENESS — runs everywhere, needs no binary. Every rule file is listed
 //      exactly once, goldened and given a hand-written `SharedNode` expectation; every
@@ -20,8 +20,17 @@
 //      is what stops the probe from quietly falling behind the tree: a twelfth `.blp`
 //      added to a showcase fails this until it is listed.
 //
-//   B. ORACLE — runs only where `blueprint-compiler` is on PATH. Recompiles all 36
-//      files (25 rules + 11 reality probes) and diffs against the committed goldens.
+//   B. ORACLE — runs only where `blueprint-compiler` is on PATH. Recompiles every
+//      corpus file and diffs against the committed goldens.
+//
+//   C. SHADOW — runs everywhere. Emits every corpus file with the in-repo parser and
+//      holds it to the golden, excusing only what `corpus/divergences.mjs` names.
+//
+//   D. PROJECTION — runs everywhere. Holds every hand-written `SharedNode` tree against
+//      what the projection produces.
+//
+// The counts are printed, never written here: a live count in a comment is restatement,
+// and this one was stale at "25 rules" one rule file later.
 //
 // Stage B is skipped, loudly and by name, wherever the binary is absent. That is the
 // same two-stage shape ADR 0053 clause 7 asks of `check-doc-fences.mjs`, and it is the
@@ -515,7 +524,7 @@ let ledgered = 0;
 if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
-    const { resolveIdent } = await import(`file://${RESOLVER}`);
+    const { accessibilityElement, resolveIdent } = await import(`file://${RESOLVER}`);
 
     const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
     for (const entry of SHADOW_DIVERGENCES) {
@@ -572,6 +581,7 @@ if (haveParser) {
         let emitted;
         try {
             emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key), {
+                accessibilityElement,
                 resolveIdent,
             });
         } catch (error) {

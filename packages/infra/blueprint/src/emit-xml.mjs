@@ -38,8 +38,8 @@
  */
 
 /**
- * How the emitter is told what a bare identifier means, and the ONLY seam through which
- * introspection reaches this file.
+ * How the emitter is told what a bare identifier means — with `accessibilityElement` below, the
+ * only seam through which introspection reaches this file.
  *
  * `03-property-enum.ui` is the file that forces it: `orientation: vertical` leaves the
  * reference compiler as `1` and `halign: center` as `3`, because it resolves the member
@@ -61,21 +61,30 @@
  * enum does not have is a file the oracle refuses too, and passing it through would be
  * output that looks plausible and means something else.
  *
+ * The second seam answers a different question about a different identifier: which ELEMENT one
+ * `accessibility { }` entry becomes. GTK's ARIA slots are properties, relations and states, they
+ * are spelled alike in the block and they emit as three different elements, so the name has to be
+ * looked up the same way the value is. Without a resolver every entry stays `<property>`, which is
+ * right for the ones that are properties and a knowing divergence for the rest — the same stance
+ * `resolveIdent`'s absence takes.
+ *
  * @typedef {Object} EmitOptions
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
+ * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
  */
 
 /**
- * Shared state for one emit: the caller's resolver, plus the two things a value cannot be
+ * Shared state for one emit: the caller's resolvers, plus the two things a value cannot be
  * emitted without and a single node does not carry.
  *
  * @typedef {Object} EmitContext
  * @property {EmitOptions['resolveIdent']} resolveIdent
+ * @property {EmitOptions['accessibilityElement']} accessibilityElement
  * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
 
-/** Byte-identical in all 25 rule goldens and all 11 real ones, including the `@generated` marker. */
+/** Byte-identical in every golden in the corpus, including the `@generated` marker. */
 const GENERATED_NOTICE =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<!--\n' +
@@ -95,6 +104,7 @@ export function emitGtkBuilderXml(file, options) {
     /** @type {EmitContext} */
     const context = {
         resolveIdent: options?.resolveIdent,
+        accessibilityElement: options?.accessibilityElement,
         idTypes: indexObjectIds(file),
         templateClass: findTemplateClass(file),
     };
@@ -536,22 +546,35 @@ function emitExtension(xml, extension, context) {
     }
 
     if (extension.name === 'layout' || extension.name === 'accessibility') {
-        // 19-layout.ui and 20-accessibility.ui: same shape, one wrapper element named after
-        // the block, holding ordinary `<property>` elements.
+        // 19-layout.ui and 20-accessibility.ui: one wrapper element named after the block,
+        // holding one element per entry. The two blocks agree on the wrapper and on nothing
+        // else, and each half of that was MEASURED on 0.20.4 rather than assumed.
         //
-        // NEITHER resolves through the widget, and both were MEASURED on 0.20.4 rather than
-        // assumed, because the widget is the table lying nearest to hand and it is the wrong
-        // one in both blocks. `Gtk.Grid { Gtk.Label { layout { halign: center; } } }` emits
-        // `center` and not `3` — a layout entry belongs to the layout CHILD
-        // (`GtkGridLayoutChild`), which has no `halign`. And `Gtk.Label { accessibility {
-        // orientation: vertical; } }` emits `1` although `GtkLabel` is not orientable at all,
-        // because the ARIA table answers there and not the ParamSpecs. Passing the widget
-        // would be right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`, so this
-        // passes nothing and the source spelling stands. The a11y half is a real gap, not a
-        // decision: it needs the ARIA property table, which `@girs` does not carry.
+        // NEITHER resolves its VALUES through the widget, because the widget is the table
+        // lying nearest to hand and it is the wrong one in both. `Gtk.Grid { Gtk.Label {
+        // layout { halign: center; } } }` emits `center` and not `3` — a layout entry belongs
+        // to the layout CHILD (`GtkGridLayoutChild`), which has no `halign`. And `Gtk.Label {
+        // accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is not
+        // orientable at all, because the ARIA table answers there and not the ParamSpecs.
+        // Passing the widget would be right by accident inside `Gtk.Box` and wrong inside
+        // `Gtk.Label`, so this passes nothing and the source spelling stands;
+        // `corpus/divergences.mjs` holds what that costs.
+        //
+        // The ELEMENT NAME is where the two blocks differ, and this file wrote `<property>`
+        // for every entry until a corpus file held anything but a property: `row-index` is a
+        // `<relation>` and `checked` a `<state>`, and GtkBuilder rejects either spelled as
+        // the other. Which is which is vocabulary data, so it is asked per entry —
+        // `src/resolve-ident.mjs` says what can and cannot be answered there.
+        const elementOf =
+            extension.name === 'accessibility' && context.accessibilityElement !== undefined
+                ? context.accessibilityElement
+                : () => 'property';
         xml.startTag(extension.name, {});
         for (const entry of extension.entries) {
-            xml.startTag('property', { name: entry.name, ...translatedAttributes(entry.value) });
+            xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
+                name: entry.name,
+                ...translatedAttributes(entry.value),
+            });
             xml.text(scalarText(entry.value, null, null, context));
             xml.endTag();
         }

@@ -1,17 +1,13 @@
 // Where the in-repo parser and the reference compiler still disagree, one entry per file,
 // pinned to the exact lines.
 //
-// THE LIST IS EMPTY, AND THAT IS THE POINT OF THE FILE
+// ONE ENTRY, TWO LINES, AND IT IS WAITING ON A FACT
 //
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
-// divergence, and it becomes authoritative when it reports none. It reports none. Every
-// corpus file is byte-equal, which is the condition clause 5 names and the reason
-// `blueprint-compiler`'s demotion to oracle-only is now a deletion and not a plan.
-//
-// The file stays because the MECHANISM is what clause 6 asks for, not the data that happened
-// to be in it. It is also the shape the next divergence arrives in, and the rules below are
-// what stop that one from being written as an `if`.
+// divergence, and it becomes authoritative when it reports none. It is not silent yet, and
+// the one thing left is named below — so clause 7's demotion of `blueprint-compiler` to
+// oracle-only is still a plan and not a deletion.
 //
 // WHAT USED TO BE HERE
 //
@@ -24,6 +20,16 @@
 // `src/resolve-ident.mjs` performs both, and the twenty-three lines went with one change and
 // no entry here edited by hand — the second direction of the self-retirement rule below is
 // what turned the fix into eleven failures saying "delete me".
+//
+// AND WHAT AN EMPTY LIST NEARLY HID
+//
+// The list WAS empty for a while, on a corpus whose `accessibility { }` file held a single
+// string. Measured on 0.20.4, that block emits three different elements and resolves its
+// values against a table of its own, so the one entry in the fixture was the one case where
+// all of that is invisible: `label: "…"` is an ARIA property with a string value. The rule
+// file now carries a relation, a state and an enum too, which is what a rule file is for —
+// and what came back is the entry below. An exemption is data, and a corpus that does not
+// probe a construct is the other place a tolerated divergence can hide.
 //
 // AN EXEMPTION IS DATA, NEVER A CODE PATH
 //
@@ -80,8 +86,35 @@
  */
 
 /**
- * The known disagreements. There are none.
+ * The known disagreements. There is one.
  *
  * @type {readonly ShadowDivergence[]}
  */
-export const SHADOW_DIVERGENCES = [];
+export const SHADOW_DIVERGENCES = [
+    {
+        file: 'rules/20-accessibility.blp',
+        kind: 'aria-value-types',
+        lines: [
+            {
+                line: 14,
+                golden: '<state name="checked">1</state>',
+                inRepo: '<state name="checked">true</state>',
+            },
+            {
+                line: 15,
+                golden: '<property name="orientation">1</property>',
+                inRepo: '<property name="orientation">vertical</property>',
+            },
+        ],
+        reason:
+            "An `accessibility { }` entry is typed by GTK's ARIA table and not by the widget: `checked` " +
+            'is a GtkAccessibleTristate, so `true` is `1`, and `orientation` is a GtkOrientation there ' +
+            'even on a widget that is not orientable. The table is built in C by ' +
+            '`gtk_accessible_property_init_value`, and the GIR carries that function and not what it ' +
+            'writes — so `@girs` answers which ELEMENT each name becomes (the three nick lists, which is ' +
+            'why the two lines above are the only ones left) and cannot answer what value it takes. ' +
+            'Resolving it through the widget instead would be right by accident inside `Gtk.Box` and ' +
+            'wrong inside `Gtk.Label`. Retires when ts-for-gir emits the ARIA value types the way it now ' +
+            'emits `PROP_ENUMS`; tracked in `status/open-todos.md`.',
+    },
+];

@@ -278,9 +278,10 @@ typelib would have needed a GNOME runtime and would have reintroduced exactly th
 The vocabulary is a dependency, present wherever `gjsify install` has run, and it is generated
 from the same GIR as the nicks, so the artifact carries one provenance instead of two.
 
-**Measured, both directions.** With the resolver in place every corpus file is byte-equal —
-the silence clause 5 names — and `corpus/divergences.mjs` is an empty list with its rules
-intact. The numbers were also read back against the independent oracle: of the 737 values in
+**Measured, both directions.** With the resolver in place the eleven ledger entries retired
+themselves and one remains, on two lines: an `accessibility { }` VALUE is typed by GTK's ARIA
+table, which the GIR does not carry (below). The numbers were also read back against the
+independent oracle: of the 737 values in
 gtk-host's typelib-read table, 736 agree with `@girs` 4.9.0 and the single disagreement is the
 documented version gap (`GtkEditableProperties.num-properties` is 8 on the installed GTK
 4.22.4 and 10 in the GIR of 4.23.3), while `@girs` fills the two entries the generating host
@@ -293,16 +294,31 @@ A member is spelled with UNDERSCORES in Blueprint and with hyphens in the GIR, s
 numbered: `input-hints: word_completion | lowercase` stays `word-completion|lowercase`, which
 is why the seam returns text rather than a number. And neither `layout { }` nor
 `accessibility { }` resolves through the widget — the first belongs to the layout child, the
-second to the ARIA table — so both pass the source spelling through and the a11y half is a
-declared gap rather than a decision.
+second to the ARIA table — so both pass the source spelling through.
+
+**The a11y block is where the corpus was thinner than the claim.** Its rule file held one
+entry, `label: "an accessible name"`, which is an ARIA property with a string value — the one
+shape in that block where nothing shows. Widened to a relation, a state and an enum, it
+reports three things the emitter had never been asked: a relation emits `<relation>`, a state
+emits `<state>`, and both take values from the ARIA table (`checked: true` is `1`). The first
+two are answerable — the nick lists of `GtkAccessibleProperty`, `GtkAccessibleRelation` and
+`GtkAccessibleState` are vocabulary data, so the resolver classifies the name and the emitter
+stops writing `<property>` for everything. The third is not: GTK types the ARIA slots in C
+(`gtk_accessible_property_init_value`) and the GIR carries that function, not its table. That
+is the one ledger entry, and it is what clause 6 is for. **A corpus that does not probe a
+construct is the second place a tolerated divergence can hide, and the first place nobody
+looks** — the ledger at least prints itself on every run.
+
+**So clause 5 is not satisfied yet, and clause 7 stays planned.** The shadow run reports one
+divergence; `blueprint-compiler`'s demotion to oracle-only waits on the ARIA value types
+reaching `@girs` the way `PROP_ENUMS` did, which is tracked in `status/open-todos.md`.
 
 **What this changes for clause 4, exactly.** Its first sentence stands: a byte-equal diff
 proves the parser and the AST, and nothing downstream. Its last paragraph gains a second
 half — the compiler keeps validation, and the GIR, reached through `@girs`, answers emission.
 
-**What it does not change.** Clause 6 still holds: the resolver is DATA plus one seam, not an
+**What it does not change.** Clause 6 still holds: the resolver is DATA plus two seams, not an
 `if`. An unknown member of a known enum throws, naming the line, the property, the enum and
-the member, because passing it through would be output that looks plausible and means
-something else. And clause 7's deletion list is now due rather than done: every corpus file
-being byte-equal is the condition clause 5 sets, so the demotion of `blueprint-compiler` to
-oracle-only is the next piece of work and is tracked in `status/open-todos.md`.
+the member, and so does an `accessibility { }` entry that is none of the three ARIA kinds —
+the oracle refuses that file too, and passing it through would be output that looks plausible
+and means something else.
