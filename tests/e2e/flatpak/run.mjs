@@ -13,7 +13,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, readFileSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
+import { createTestEnvironment, cleanupTestEnvironment, setupProject, MONOREPO_ROOT } from '../helpers.mjs';
 
 describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
@@ -174,11 +174,60 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
         });
         const wfPath = join(projectDir, '.github/workflows/flatpak.yml');
         assert.ok(existsSync(wfPath), 'workflow missing');
+        // These four are about CONFIG RESOLUTION — that `gnome-50` came out of the
+        // fixture's `gjsify.flatpak.runtimeVersion` and the app id reached both
+        // paths. They say nothing about whether the DOCUMENT is a valid workflow,
+        // which is the next test's job; see it for what that cost.
         const yaml = readFileSync(wfPath, 'utf-8');
         assert.match(yaml, /image: ghcr\.io\/flathub-infra\/flatpak-github-actions:gnome-50/);
         assert.match(yaml, /manifest-path: org\.example\.FlatpakSmoke\.json/);
         assert.match(yaml, /bundle: org\.example\.FlatpakSmoke\.flatpak/);
         assert.match(yaml, /flatpak\/flatpak-github-actions\/flatpak-builder@v6/);
+    });
+
+    // THE DOCUMENT, read by tools that are not ours. Until this test existed, the
+    // four regexes above were the only thing that had ever looked at a workflow
+    // this repo generates for someone else's repository — and measured on the real
+    // output, all four still match a document with a misspelled `runs-on:`, an
+    // unpinned `uses:`, a `${{ }}` naming a property no context defines, or a
+    // misspelled `jobs:` key. Each mutation leaves the substrings they assert
+    // untouched, because a substring assertion cannot see what is around it.
+    //
+    // `actionlint` refuses all four and `check-workflow-run-syntax.mjs` covers the
+    // one it is blind to (shell inside a `run:` block, which it does not parse).
+    // The script drives both and self-tests its own discriminators first, so this
+    // suite cannot pass on readers that stopped reading. ADR 0024 names this class
+    // for `ship ci`, which will scaffold into the same harness.
+    it('flatpak ci writes a workflow independent tools accept', () => {
+        const check = spawnSync(
+            process.execPath,
+            [join(MONOREPO_ROOT, 'scripts/check-scaffolded-workflow.mjs'), '--root', projectDir],
+            { encoding: 'utf-8', timeout: 120 * 1000 },
+        );
+        assert.equal(
+            check.status,
+            0,
+            `scaffolded workflow refused:\n${check.stdout ?? ''}\n${check.stderr ?? ''}`,
+        );
+        // NAMED when it did not run, never silent: without `actionlint` on PATH the
+        // stronger of the two readers is absent and this test proves much less.
+        // `tests/e2e/flatpak-sdk-extension` set that rule for probed tools.
+        if ((check.stdout ?? '').includes('actionlint is NOT on PATH')) {
+            console.log('    ↳ actionlint absent on this host — only the shell reader ran');
+        }
+    });
+
+    // The static half: a scaffolder that lands with nothing reading its output
+    // fails here rather than in review. Runs in this suite because it costs
+    // milliseconds and belongs beside the scaffolder it is about; it needs no
+    // build, so `audit-runtimes.yml` can run it too.
+    it('every workflow scaffolder in the tree is accounted for', () => {
+        const check = spawnSync(
+            process.execPath,
+            [join(MONOREPO_ROOT, 'scripts/check-scaffolded-workflow.mjs'), '--coverage', '--repo', MONOREPO_ROOT],
+            { encoding: 'utf-8', timeout: 120 * 1000 },
+        );
+        assert.equal(check.status, 0, `${check.stdout ?? ''}\n${check.stderr ?? ''}`);
     });
 
     it('flatpak ci is idempotent — second invocation without --force is a no-op when content is byte-identical', () => {

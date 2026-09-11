@@ -3569,9 +3569,52 @@ Open, in order — each independently mergeable, each with its proof:
 **The console-window gap is CLOSED (ADR 0040), and here is what it cost to be sure.** `node.exe` is a CONSOLE-subsystem PE: `Subsystem` = 3, at offset 0xD4, measured on `node-v24.20.0-win-x64.zip`'s `node.exe` (`e_lfanew` 0x78, so 0x78 + 4 + 20 + 68 = 0xD4), and that release ships no `nodew.exe` (`unzip -Z1` lists exactly ONE `.exe`; the `nodewin` hits are corepack shim DIRECTORIES, the control string proving the grep was live). Two of the three fixes #1354 M3 listed do not work, for one reason: **the console is allocated for `cmd.exe`, which is a console image whatever `node.exe` is**, so `Subsystem`-patching the interpreter changes a field on a process started inside a console that already exists — and it would also discard every byte the app writes, because a console-less Node black-holes stdout/stderr and prints its uncaught-exception trace from C++ (`src/debug_utils.cc`), where no JS replacement of `process.stderr` can reach it (nodejs/node#12036). The `.msi`-shortcut fix reaches only the installed copy, not the zip. So the answer is the first of the three: the windows LAYOUT stages a GUI-subsystem launcher `gjsify ship` EMITS itself (`utils/ship/pe-launcher.ts`, 13 824 bytes, twelve kernel32 imports, no CRT and no vendored binary), the `.msi` shortcut points at it, and it runs the same `.cmd` — so no environment decision is duplicated in machine code. It preserves diagnosis: a terminal launch writes to the terminal, a redirected launch writes to the redirect, and only a launch with nowhere to write at all falls back to `%TEMP%\<binaryName>.launch.log`. **Still no CI leg can observe any of it** — every Windows job starts the app from a shell and already has a console. `verify-program-dir.py` now JUDGES the stub's subsystem (a claim about a file we write) and still PRINTS the interpreter's, and `tests/e2e/ship-windows` drives both refusals. The window measurement was made by hand on `win11-gjsify`, session 1, over a real staged program directory: the `.cmd` adds two visible console-host windows, the `.exe` adds none, both exit 7, and the control run with nothing started adds none. Instrument and method are in ADR 0040 § The measurement.
 **What #1354 M2b landed.** `utils/ship/app-runtime.ts` stages four things into the darwin layout, each resolved BY NAME and each `null`-not-throw: the interpreter (`@gjsify/node-runtime-darwin-<arch>` → `Contents/MacOS/node` + its LICENSE), the relocated GTK closure (`@gjsify/gtk-runtime-darwin-<arch>` → `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**`, TREE-PRESERVING), the addon (`@gjsify/node-gi`'s `prebuilds/<target>/node_gi.node`, SIBLING to that closure because its `@rpath` is `@loader_path/gtk/lib`), and — the one nobody predicted — **node-gi's JavaScript**, because `@gjsify/node-gi/*` is external in every `--app node` bundle by design, so a `gi://Gtk` import compiles to `require('@gjsify/node-gi/gi')` and a `.app` has no consumer `node_modules`. Measured on a bundle staged the M2a way, run from an unrelated directory: `Error: Cannot find module '@gjsify/node-gi/gi'`. The launcher execs `"$here/node"` and exports `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE` and (when the app carries GI libraries of its own) `GJSIFY_GI_LIBRARY_PATH` — all read by node-gi in JS, none by dyld, so § A4's signing rule survives. Two CI jobs in `node-gi.yml`: `macos-app-assemble` (Linux) and `macos-app-selfcontained` (`macos-latest` + `macos-15-intel`), which asserts brew gtk4/libadwaita are ABSENT and `PATH` reduced to the system directories has no `node`, then unzips the artifact and opens a window.
 
-9. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
-
 10. **The `.deb` changelog is not compressed with `gzip -9`.** `W: gjsify: changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]` — measured on lintian 2.117 (ubuntu-24.04) against the first `.deb` that carried a changelog at all, i.e. it arrived WITH the § 4.4 fix rather than surviving it. Debian Policy § 4.4 asks for `gzip -9 -n`, and lintian reads the claim off the gzip header's XFL byte. The gap is a missing capability in the core, not in `ship`: `utils/ship/gzip.ts` compresses through `@gjsify/tar`'s `gzip()`, which is `CompressionStream('gzip')`, and the Web API takes no level; `@gjsify/zlib`'s `gzipSync` accepts a `ZlibOptions` it names `_options` and ignores, on both its Gio (`Gio.ZlibCompressor`, which DOES take a level) and its browser path. So the fix is a level argument through `@gjsify/zlib` → `@gjsify/tar` → `gzipDeterministic`, with the two backends' levels proven to agree. What is NOT the fix, and is why this is ledgered rather than closed: stamping XFL to 2 in `gzipDeterministic` beside the mtime and OS bytes it already normalises. Those two are facts about the build ENVIRONMENT; XFL is a statement about the compression that was actually performed, and writing it would make the artifact lie to the tool that reads it.
+
+### A scaffolded workflow is read by actionlint, and a registry keeps it that way
+
+Item 9 of the `gjsify ship` roadmap, closed. `gjsify flatpak ci` writes a GitHub Actions
+workflow into somebody ELSE's repository and four `assert.match` regexes over raw text were
+the only thing that had ever looked at it — never parsed, never actionlint'd, never run.
+**Measured on the real scaffolded `flatpak.yml`, one mutation each (actionlint 1.7.7), where
+"yaml" is the plain `YAML.parse` a hand-rolled structural check would be built on:** unclosed
+`[` in `branches:` — both refuse; `runs-on:` → `runs_on:` — actionlint refuses, YAML accepts;
+`actions/checkout@v4` stripped of its ref — actionlint refuses, YAML accepts; `github.sha` →
+`github.shaX` — actionlint refuses, YAML accepts; `jobs:` → `jbos:` — actionlint refuses,
+YAML accepts; `on:` → `onn:` — actionlint refuses, YAML accepts; an unterminated `if` inside
+a `run:` block — **both ACCEPT**. All four original regexes still match every one of those
+seven documents, because each asserts a substring the mutation does not touch.
+
+Two things that follow, and both are in `scripts/check-scaffolded-workflow.mjs`. A YAML parse
+alone catches one of seven, so structural assertions of our own would be close to the vacuum
+they replace — actionlint is the reader, for the reason `audit-runtimes.yml` already gives
+about this repo's own workflows. And actionlint is BLIND to the last row, because it runs
+with `-shellcheck=` empty and parses workflow syntax rather than the shell inside `run:` — so
+the chain is two readers and neither is redundant, the second being the existing
+`check-workflow-run-syntax.mjs --root`, reused rather than reimplemented. `flatpak ci` emits
+no `run:` block today, which makes that reader vacuous ON THIS SCAFFOLDER and not on the
+class; the ledger's minimum bar for `ship ci` was `bash -n` on every extracted `run:` block,
+and it is already wired for the day `ship ci` exists.
+
+**Three traps worth not rediscovering.** (1) `actionlint` with no file arguments discovers
+workflows by walking a GIT REPOSITORY — pointed at a scratch directory it exits 3 with "no
+project was found in any parent directories", so generated output must be passed as an
+explicit file path (`git init` also works and costs more). (2) `bash -n` accepts
+`if [ -z "$x" ; then echo hi; fi`: a `[` missing its `]` is a RUNTIME error from the builtin,
+not a parse error, so the first negative control here proved nothing and had to be replaced
+with an unterminated `if`. (3) The coverage scan's first version read raw source and named
+`utils/gjsify-shim.ts`, which merely mentions `.github/workflows/release-cut.yml` in a prose
+comment — comments are stripped before the grep now, because a rule that cries wolf earns an
+exception list and an exception list is where the real scaffolder eventually hides.
+
+**What is NOT closed:** `actionlint` is on no runner image this repo uses and in no
+`dnf install` in `.docker/ci-fedora.Dockerfile`, so on CI today only the shell reader runs and
+the script SAYS SO rather than passing quietly. `--require-actionlint` exists and is not
+passed anywhere yet — turning it on means adding actionlint to the CI image in its OWN PR
+first, because `build-ci-image.yml` publishes only on a push to `main` and a PR that adds a
+package and a test hard-requiring it can never go green (the trap `msitools` hit in #1354 M5).
+Until then the strongest leg is a developer with actionlint on PATH, plus `--coverage`, which
+needs no tool at all and runs in `audit-runtimes.yml`.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 
