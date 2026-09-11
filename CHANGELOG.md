@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.50.0](https://github.com/gjsify/gjsify/compare/v0.49.0...v0.50.0) (2026-09-11)
+
+### ⚠ BREAKING CHANGES
+
+* **ship:** `gjsify ship darwin` and `gjsify ship windows` write
+`<binary>-<version>-<release>.<os>.<arch>.zip` where they wrote
+`<binary>-<version>-<release>.<arch>.zip`. Anything that downloads or
+globs those two artifacts by exact name — a release pipeline, an install
+script — needs updating; the names shipped in v0.47.0. Every other
+artifact name is unchanged: `.deb`, `.rpm`, `.flatpak`, `.dmg`, `.msi`,
+the `<App>.app` tree and the Windows program directory.
+
+Claude-Session: https://claude.ai/code/session_01U8QkeZTJyNXrniXhrsncT6
+* **adwaita-nativescript:** `GtkImage.iconSize` and `AdwImageButton.iconSize` no longer take a number of
+DIPs. Use `pixelSize` for that; `iconSize` now takes `'inherit' | 'normal' | 'large'` and throws
+on anything else. `pixelSize` reads back -1 while unset, as `gtk_image_get_pixel_size` does.
+
+### Features
+
+* **adwaita-nativescript:** icon-size is the enum, pixel-size is the number ([#1647](https://github.com/gjsify/gjsify/issues/1647)) ([ad686b6](https://github.com/gjsify/gjsify/commit/ad686b6a1d0e9603d74be59502c986c5aeefc970)), closes [#1579](https://github.com/gjsify/gjsify/issues/1579) [#1584](https://github.com/gjsify/gjsify/issues/1584) [#1584](https://github.com/gjsify/gjsify/issues/1584)
+* **blueprint:** resolve identifiers from the GIR, on @girs 4.9.0 ([#1644](https://github.com/gjsify/gjsify/issues/1644)) ([7b3b830](https://github.com/gjsify/gjsify/commit/7b3b830bb7b665051abcc775660a78750df985f9)), closes [#465](https://github.com/gjsify/gjsify/issues/465) [#467](https://github.com/gjsify/gjsify/issues/467)
+* win32 MP3 is bounded upstream, and the bound is now machine-held ([#1642](https://github.com/gjsify/gjsify/issues/1642)) ([5613ede](https://github.com/gjsify/gjsify/commit/5613ede2209459d9b58c9bbc781ca589b695e8c5)), closes [#1633](https://github.com/gjsify/gjsify/issues/1633)
+
+### Bug Fixes
+
+* **ci:** read the renamed windows ship zip ([#1658](https://github.com/gjsify/gjsify/issues/1658)) ([91f9cda](https://github.com/gjsify/gjsify/commit/91f9cdad4e63f4bbd6a291ffae8818f02d3255bb)), closes [#1655](https://github.com/gjsify/gjsify/issues/1655) [#1642](https://github.com/gjsify/gjsify/issues/1642)
+* **cli:** a reported failure carries its status ([#1653](https://github.com/gjsify/gjsify/issues/1653)) ([e3601e2](https://github.com/gjsify/gjsify/commit/e3601e2584a90b8211a91f68ca34030a7a0acaaa)), closes [#1568](https://github.com/gjsify/gjsify/issues/1568) [#1237](https://github.com/gjsify/gjsify/issues/1237)
+* **cli:** one definition of build inputs ([#1654](https://github.com/gjsify/gjsify/issues/1654)) ([d10548a](https://github.com/gjsify/gjsify/commit/d10548afb49194458c3a15dd80c5b6617b32c523)), closes [#821](https://github.com/gjsify/gjsify/issues/821)
+* **devtools:** a selector matches the type chain, not the exact GType ([#1639](https://github.com/gjsify/gjsify/issues/1639)) ([2dc844f](https://github.com/gjsify/gjsify/commit/2dc844f446582cb8b2a39cd145cfede0d820a91c))
+* **react-native:** name the element a refusal refused ([#1649](https://github.com/gjsify/gjsify/issues/1649)) ([5868ca4](https://github.com/gjsify/gjsify/commit/5868ca46ab22b67be28535e7901e3452324ea8f8)), closes [#1640](https://github.com/gjsify/gjsify/issues/1640) [#1641](https://github.com/gjsify/gjsify/issues/1641) [#1640](https://github.com/gjsify/gjsify/issues/1640)
+* **react-native:** the prop oracle reads the allow-list, not only the deny-list ([#1650](https://github.com/gjsify/gjsify/issues/1650)) ([22381dd](https://github.com/gjsify/gjsify/commit/22381ddf87691e489595a8cb1c481d899cd67c22))
+* **rolldown-native:** keep a failing hook's message ([#1656](https://github.com/gjsify/gjsify/issues/1656)) ([9fb9bd6](https://github.com/gjsify/gjsify/commit/9fb9bd62ec7595efedc8d0d64632e476794ec129))
+* **ship:** a symbolic icon is a context, and a zip says which OS it is for ([#1655](https://github.com/gjsify/gjsify/issues/1655)) ([86fed03](https://github.com/gjsify/gjsify/commit/86fed033e39bca223562056f12d048b72e0fc205)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* the Debian changelog at gzip -9, and a zlib that honours the level ([#1643](https://github.com/gjsify/gjsify/issues/1643)) ([75d7c16](https://github.com/gjsify/gjsify/commit/75d7c1657f388bf4230a4664c5d0f4a32c3f5a51))
+* **vite-plugin-gettext:** a catalog lands where gettext looks ([#1652](https://github.com/gjsify/gjsify/issues/1652)) ([f48b101](https://github.com/gjsify/gjsify/commit/f48b1011fcf2d38727d9f9cc58342795f3c02676))
+* **workspace:** a local dependency is not only a `workspace:` one ([#1646](https://github.com/gjsify/gjsify/issues/1646)) ([b39368e](https://github.com/gjsify/gjsify/commit/b39368ebc0467c1559a40ccce7a7d23f91afc6d1)), closes [#1587](https://github.com/gjsify/gjsify/issues/1587)
+
+### Documentation
+
+* **release-notes:** note the @girs major ([#1660](https://github.com/gjsify/gjsify/issues/1660)) ([1072322](https://github.com/gjsify/gjsify/commit/10723229d264c4200ec0f7dd6489f49f8c93f7e4)), closes [#1659](https://github.com/gjsify/gjsify/issues/1659)
+* **release-notes:** the v0.50.0 preamble ([#1657](https://github.com/gjsify/gjsify/issues/1657)) ([64ebee1](https://github.com/gjsify/gjsify/commit/64ebee1bdd55f6d2f988ec4440c54956df70a4af))
+
+### Maintenance
+
+* **deps:** @girs 5.0.0, and signals are typed ([#1659](https://github.com/gjsify/gjsify/issues/1659)) ([3f1f1f0](https://github.com/gjsify/gjsify/commit/3f1f1f03a1210650dd6fc43db7df8e12a85a047a)), closes [#464](https://github.com/gjsify/gjsify/issues/464)
+* update native prebuilds [skip ci] ([5b52065](https://github.com/gjsify/gjsify/commit/5b520657015aa8e4f03453dc4e84959feeb951bf))
+* update native prebuilds [skip ci] ([daf8f1c](https://github.com/gjsify/gjsify/commit/daf8f1cd3441cf10fb794fd58ef0c21a6cd90727))
+
+### Tests
+
+* a scaffolded workflow is read by actionlint, not by four regexes ([#1645](https://github.com/gjsify/gjsify/issues/1645)) ([6c7da9c](https://github.com/gjsify/gjsify/commit/6c7da9c434aab4c434b080a5c6094de4a122653e)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+
 ## [0.49.0](https://github.com/gjsify/gjsify/compare/v0.48.0...v0.49.0) (2026-09-11)
 
 ### ⚠ BREAKING CHANGES
