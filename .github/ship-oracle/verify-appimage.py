@@ -121,7 +121,13 @@ def assert_superblock(image: str, offset: int) -> None:
 LISTING_ROW = re.compile(r"^([-dlrwxsSt]{10})\s+\S+\s+\S+\s+\S+\s+\S+\s+squashfs-root/(.+)$")
 
 #: `rwx` triplets → mode bits, so a listing can be compared against a planned `0o755`.
-BIT = {"r": 0o4, "w": 0o2, "x": 0o1, "s": 0o1, "-": 0}
+#:
+#: `s`/`S` (setuid, setgid) and `t`/`T` (sticky) are here because `LISTING_ROW`'s
+#: character class accepts them: without the four, an image carrying one would end
+#: this reader in a `KeyError` traceback instead of an `::error` annotation — a red
+#: either way, but the kind that costs half an hour to read. Upper case is the bit
+#: set WITHOUT execute, which is exactly the distinction `ls` draws.
+BIT = {"r": 0o4, "w": 0o2, "x": 0o1, "s": 0o1, "S": 0, "t": 0o1, "T": 0, "-": 0}
 
 
 def parse_mode(flags: str) -> int:
