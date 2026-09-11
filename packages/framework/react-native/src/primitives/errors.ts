@@ -82,6 +82,34 @@ export const describeValue = (value: unknown): string =>
           ? Object.prototype.toString.call(value)
           : String(value);
 
+/**
+ * The refusal a value gets for being ABSENT from the list its route maps.
+ *
+ * ONE FORMATTER FOR THREE READERS, which is the whole point: `resolve.ts` throws it
+ * for a mapped property and for an `announce` route, and `prop-table.ts` returns it
+ * as the static answer. It was written out twice in `resolve.ts` and not at all in
+ * `prop-table.ts` — and the missing third copy is #1648, an oracle that answered
+ * ACCEPTED for `pointerEvents="box-none"` while the render threw this very sentence.
+ *
+ * `described` arrives already rendered rather than as the value, because the two
+ * modules that build this reach `describeValue` and the one that classifies routes
+ * may hold no relative value import (ADR 0039 § 2).
+ */
+export const unknownMappedValueDetail = (described: string, known: readonly string[]): string =>
+    `has no GTK equivalent for ${described}. Known: ${[...known].sort().join(', ')}. ` +
+    'A value absent from that list is absent because GTK has no member for it, not because the table is short';
+
+/**
+ * The refusal a KEY gets for not being a member of an accessible record.
+ *
+ * The same fact as {@link unknownMappedValueDetail} at the other grain the table has
+ * — `accessibilityState` enumerates its members rather than its values — so it is
+ * shared for the same reason: `accessibility.ts` decides it and `prop-table.ts` has
+ * to answer with it.
+ */
+export const unknownAccessibleKeyDetail = (key: string, known: readonly string[]): string =>
+    `carries "${key}", which is not a state this layer answers for. It takes: ${[...known].sort().join(', ')}`;
+
 /** A primitive, prop or combination this layer cannot answer for, and why. */
 export class PrimitiveError extends Error {
     override readonly name = 'PrimitiveError';

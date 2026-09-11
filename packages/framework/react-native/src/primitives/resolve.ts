@@ -35,7 +35,7 @@ import type { LayoutIntent, StyleProps, StyleTokens } from '@gjsify/gtk-host/sty
 import { resolveAccessible, type ResolvedAccessible } from './accessibility.js';
 import { unknownPrimitiveDetail, unknownPropDetail } from './answers.js';
 import type { ClassNameInput } from './classes.js';
-import { describeValue as describe, PrimitiveError } from './errors.js';
+import { describeValue as describe, PrimitiveError, unknownMappedValueDetail } from './errors.js';
 import {
     resolveIntent,
     type ChildContext,
@@ -597,8 +597,7 @@ function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteS
                 throw new PrimitiveError(
                     sink.primitive,
                     `prop "${prop}"`,
-                    `has no GTK equivalent for ${describe(value)}. Known: ${Object.keys(route.map).sort().join(', ')}. ` +
-                        'A value absent from that list is absent because GTK has no member for it, not because the table is short',
+                    unknownMappedValueDetail(describe(value), Object.keys(route.map)),
                 );
             }
             // `none` is a real answer and not an omission: React Native's own default
@@ -614,9 +613,11 @@ function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteS
             // number — and reports a bad value as a sentence rather than throwing,
             // so the one error this layer raises carries the PRIMITIVE's name.
             const { entries, problem } = resolveAccessible(route, prop, value);
-            if (problem !== null) {
-                throw new PrimitiveError(sink.primitive, `prop "${prop}"`, `${problem}; got ${describe(value)}`);
-            }
+            // Thrown VERBATIM: `problem` is the whole detail, `got …` included where a
+            // value is worth showing. Appending it here named the record for every
+            // key-level refusal, which read `[object Object]` and made the sentence
+            // one `prop-table.ts` could not reproduce from a key (#1648).
+            if (problem !== null) throw new PrimitiveError(sink.primitive, `prop "${prop}"`, problem);
             sink.accessibility.push(...entries);
             return;
         }
@@ -778,12 +779,7 @@ function lookup(route: PropertyRoute, prop: string, value: unknown, primitive: s
     if (refusal !== undefined) {
         throw new PrimitiveError(primitive, `prop "${prop}" = ${describe(value)}`, refusal);
     }
-    throw new PrimitiveError(
-        primitive,
-        `prop "${prop}"`,
-        `has no GTK equivalent for ${describe(value)}. Known: ${Object.keys(map).sort().join(', ')}. ` +
-            'A value absent from that list is absent because GTK has no member for it, not because the table is short',
-    );
+    throw new PrimitiveError(primitive, `prop "${prop}"`, unknownMappedValueDetail(describe(value), Object.keys(map)));
 }
 
 /**

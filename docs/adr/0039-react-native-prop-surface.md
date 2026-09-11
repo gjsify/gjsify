@@ -237,3 +237,81 @@ Two things it added that outlive it:
 What is still refused is stated where it is decided, not here: the VALUE of an
 accessible property or state cannot be read back in-process, so the vectors assert
 presence and zero GTK diagnostics as a pair.
+
+## Amendment (2026-09-11) — a refusal has TWO grains, and § 1 only answered one
+
+§ 1 says a consumer can ask before rendering, and § 2 says the answer is the string
+the throw would carry rather than a paraphrase. Both held for one shape of refusal
+and were silently false for the other, which is #1648.
+
+**A deny-list and an allow-list are not the same fact.** `PropertyRoute.refuses` — the
+Amendment above — enumerates the values a route recognises and will not answer, each
+with its own sentence. A `map` enumerates the values it WILL answer, and everything
+outside it is refused by OMISSION, with the "Known: …" sentence `resolve.ts` builds
+at the throw. `answerForRoute` reported the first and not the second, so
+`explainPropValue('View', 'pointerEvents', 'box-none')` was `null` — ACCEPTED — for a
+real React Native spelling that a render throws on.
+
+The cost is the one § 1 exists to prevent, arrived at from the other side. A consumer
+keeps a ledger of which props they still work around and holds every entry against
+this surface in their test suite, so a redundant workaround fails rather than
+lingering. `pointerEvents` entered that ledger as "caught up" on the oracle's word;
+removing their own `box-none` mapping on the strength of a green test would have
+broken four screens, and the test could not have said so.
+
+### The decision
+
+1. **`PropAnswer` grows `allows: ValueVocabulary | null`** beside `refuses` — the two
+   grains as two fields, because a consumer reading the table needs both: which
+   spellings have a reason, and which ones exist at all. `null` is "this prop
+   enumerates nothing", which is a different answer from an empty list.
+   `ValueVocabulary` carries `numbers` as well as `values`, because
+   `as: 'pixels-or-map'` accepts a pixel count beside its named steps and a list
+   alone would report `<ActivityIndicator size={24}>` as refused.
+2. **One classifier answers the question for every route kind.**
+   `routeValueVocabulary` in `answers.ts` is a switch with no `default` over
+   `PropRoute['to']`, with the coercions in their own switch over `Coercion`, so a
+   route kind or a coercion added later cannot compile without an answer. Three kinds
+   enumerate today — a mapped property, an `announce` map and an accessible record's
+   member keys — and all three were blind. A fix that taught only the `'property'`
+   arm would have left two of them exactly as they were.
+3. **The "Known: …" sentence moves into `errors.ts`**, where `primitiveErrorMessage`
+   already lives, and the throw and the static answer both build it there. It was
+   written out twice in `resolve.ts` and nowhere in `prop-table.ts`; the missing third
+   copy IS the defect, and § 2's "one string, not two copies of a template" is the
+   rule it broke.
+4. **`resolveAccessible` returns the COMPLETE detail.** Its caller appended
+   `; got <the whole prop value>` to every problem, which printed `[object Object]`
+   for each record-level refusal, named the record rather than the member for a bad
+   member value, and made the key-level sentences unreproducible by a surface that is
+   handed the KEY and never the record. The `got …` half now sits where the value is
+   worth showing.
+5. **`PROPS.md` prints what a prop TAKES.** `| pointerEvents | property | can-target |
+   — |` read as "everything lands" while a render refused `box-none`; the row now says
+   `takes auto, none`. Same defect, same fix, one surface over.
+
+### What it does NOT decide
+
+**The TYPE grain stays unanswered, deliberately.** `coerce` refuses a non-boolean for
+`editable` and a non-function for `onPress`, and neither is a list this table can
+publish — `acceptsPropValue` is an oracle for the vocabulary, not for the type, and
+`explainPropValue`'s own documentation says so rather than leaving a reader to find
+out. Making it one is a bigger change than this: it needs a per-coercion predicate on
+the answer and a story for `file`, whose refusals are computed from the value's shape.
+Recorded in `status/open-todos.md`.
+
+### The guard, because the single case is not the finding
+
+`prop-table.spec.ts` holds a census of every route SHAPE the table can carry —
+`property:<coercion>`, `accessible:<from>`, and one per remaining `to` — as a
+`Record` whose key type is built from `Coercion`, so a new shape does not compile.
+Each shape declares either a probe value of the right kind that no vocabulary can
+hold, or `null` with the reason it enumerates nothing. Two sweeps run off it: the
+census is cross-checked against `routeValueVocabulary`, which is written
+independently, so the two disagreeing fails; and every probed route is driven through
+`resolvePrimitive` with the answer required to be the render's exact string.
+
+MEASURED, both arms. With the allow-list arm removed, three vectors fail. With the
+classifier narrowed to the reported route alone — the shape of the fix this ADR
+rejects — the cross-check and the sweep fail together and name the two kinds left
+behind. On the state this amendment describes, 643 tests pass.

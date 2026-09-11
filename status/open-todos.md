@@ -4,6 +4,33 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `acceptsPropValue` is an oracle for the VOCABULARY, not for the type
+
+`@gjsify/react-native/prop-table` answers "would `<P prop={value}>` render" for the two
+grains the table ENUMERATES — the values a route refuses by name (`refuses`) and the
+values it maps (`allows`, ADR 0039 § Amendment 2026-09-11, #1648). It does not answer
+the third: `coerce` in `primitives/resolve.ts` refuses a non-boolean for `editable`, a
+non-number for `numberOfLines`, a non-function for `onPress` and a non-string for
+`accessibilityLabel`, and `explainPropValue` returns `null` for every one of them.
+
+MEASURED on the state that closed #1648, by driving `'x'` through every property route
+with no enumerable vocabulary: the render refuses and the oracle answers `null` on all
+of them — `<Text numberOfLines>` ("expects a number"), `<Text selectable>`,
+`<Pressable disabled>` and `<ActivityIndicator animating>` ("expects a boolean") among
+them. It is a smaller hazard than the one that was fixed — a type error is a TypeScript
+error first, and the props are typed — but it is the same shape of claim, and a
+consumer's ledger test cannot tell the two apart.
+
+What it would take, and why it was not done with #1648: the answer needs a per-coercion
+PREDICATE on `PropAnswer` rather than a list, which is a second kind of published field;
+`file` has no predicate at all (its refusals are computed from the value's shape —
+`http:`, a `require()` id, an array), so the surface would have to say "unknown" for one
+route kind and mean it; and `event`/`gesture` want "a function", which no JSON-shaped
+answer can express to a consumer reading `propTable()` as data. The route-shape census in
+`prop-table.spec.ts` is where it would be wired in: each shape already declares whether it
+enumerates a vocabulary, and a `typeProbe` beside `OUTSIDE` is the same mechanism one
+grain over.
+
 ### The `@girs/*` vocabulary carries no method table, so the method oracle is read from the typelib
 
 `check-vocabulary-alignment.mjs`'s method ledger (ADR 0034 § Amendment 14) holds a port's

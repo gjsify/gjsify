@@ -47,6 +47,8 @@
 // 'G_VALUE_HOLDS_INT (value)' failed`), and `visited` is an int rather than the
 // boolean its siblings are.
 
+import { describeValue, unknownAccessibleKeyDetail } from './errors.js';
+
 /**
  * One GTK accessible attribute, and the GValue GTK reads its value out of.
  *
@@ -198,6 +200,13 @@ const EXPECTED: Readonly<Record<AccessibleAttribute['as'], string>> = {
  *
  * Throws nothing itself: it reports a bad value as a `problem` so the caller raises
  * the one `PrimitiveError` this layer raises, with the primitive's own name in it.
+ *
+ * A `problem` is the COMPLETE detail, `got …` included where a value is worth
+ * showing. The caller used to append `; got <the whole prop value>` to all of them,
+ * which printed `[object Object]` for every record-level refusal — the fact the
+ * message already named the key made the tail noise, and for a bad MEMBER it named
+ * the wrong thing entirely. It also made the key-level sentences unreproducible by
+ * `prop-table.ts`, which is handed the KEY and never the record (#1648, ADR 0039 § 1).
  */
 export function resolveAccessible(
     route: AccessibleRoute,
@@ -209,7 +218,9 @@ export function resolveAccessible(
         if (coerced === null) {
             return {
                 entries: [],
-                problem: `writes the GTK accessible ${route.attribute.set} "${route.attribute.name}" and needs ${EXPECTED[route.attribute.as]}`,
+                problem:
+                    `writes the GTK accessible ${route.attribute.set} "${route.attribute.name}" and needs ` +
+                    `${EXPECTED[route.attribute.as]}; got ${describeValue(value)}`,
             };
         }
         return {
@@ -220,7 +231,9 @@ export function resolveAccessible(
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         return {
             entries: [],
-            problem: `is a record of accessibility states and needs an object — its keys are ${Object.keys(route.members).sort().join(', ')}`,
+            problem:
+                `is a record of accessibility states and needs an object — its keys are ` +
+                `${Object.keys(route.members).sort().join(', ')}; got ${describeValue(value)}`,
         };
     }
     const entries: ResolvedAccessible[] = [];
@@ -233,14 +246,14 @@ export function resolveAccessible(
         if (refusal !== undefined) return { entries: [], problem: `carries "${key}", which ${refusal}` };
         const attribute = route.members[key];
         if (attribute === undefined) {
-            return {
-                entries: [],
-                problem: `carries "${key}", which is not a state this layer answers for. It takes: ${Object.keys(route.members).sort().join(', ')}`,
-            };
+            return { entries: [], problem: unknownAccessibleKeyDetail(key, Object.keys(route.members)) };
         }
         const coerced = coerceAttribute(attribute, member);
         if (coerced === null) {
-            return { entries: [], problem: `carries "${key}", which needs ${EXPECTED[attribute.as]}` };
+            return {
+                entries: [],
+                problem: `carries "${key}", which needs ${EXPECTED[attribute.as]}; got ${describeValue(member)}`,
+            };
         }
         entries.push({ prop, set: attribute.set, name: attribute.name, value: coerced });
     }
