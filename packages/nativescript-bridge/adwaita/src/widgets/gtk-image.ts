@@ -22,6 +22,12 @@
 // `panDownSymbolic` from `@gjsify/adwaita-icons`). Both doors, one property — the two
 // grammars are disjoint, and `resolveIconSource` is where that is decided.
 //
+// SIZE IS TWO PROPERTIES, because it is two on `Gtk.Image` (#1584): {@link iconSize} is
+// the three-member `Gtk.IconSize` enum and {@link pixelSize} is the count of DIPs, with
+// the second overriding the first the way `gtk_image_set_pixel_size` does. Until #1584
+// this port had ONE, called `iconSize` and taking DIPs — GTK's `pixel-size` under GTK's
+// `icon-size` name, a false friend no name comparison could see.
+//
 // Reference: refs/libadwaita/src/stylesheet (symbolic icon usage).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
@@ -29,13 +35,29 @@ import { Image } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { resolveIconSource } from './icon-theme.js';
+import {
+    DEFAULT_ICON_PIXEL_SIZE,
+    type GtkIconSizeNick,
+    gtkIconSizeNick,
+    iconPixelSize,
+    PIXEL_SIZE_UNSET,
+    storedPixelSize,
+} from './gtk-icon-size.js';
 import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
-/** Default decorative-icon size, in DIPs — the Adwaita 16px symbolic grid. */
-export const DEFAULT_GTK_IMAGE_SIZE = 16;
+/**
+ * The size this image draws at when neither size property was set, in DIPs — the Adwaita
+ * 16px symbolic grid.
+ *
+ * PUBLISHED NAME, kept pointing at {@link DEFAULT_ICON_PIXEL_SIZE} rather than renamed:
+ * it predates #1584's split and means what it always meant, a NUMBER of DIPs. Read it as
+ * `pixelSize`'s default; `iconSize` now defaults to the nick `'inherit'`, which resolves
+ * to this same number.
+ */
+export const DEFAULT_GTK_IMAGE_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
 export class GtkImage extends withSignals(Image) {
     // The value the CALLER set, name or source, so the getter round-trips it the way
@@ -47,7 +69,11 @@ export class GtkImage extends withSignals(Image) {
     // on dark); an explicit `iconColor` pins it and stops following the theme.
     private _iconColor = themeIconColor();
     private _explicitColor = false;
-    private _iconSize = DEFAULT_GTK_IMAGE_SIZE;
+    // The two GTK size properties, each under its own name (#1584). `_pixelSize` carries
+    // `Gtk.Image:pixel-size`'s own -1 until a caller sets one: unset, so `_iconSize`
+    // decides. Neither IS the rendered size — {@link iconPixelSize} computes that.
+    private _iconSize: GtkIconSizeNick = 'inherit';
+    private _pixelSize = PIXEL_SIZE_UNSET;
     private _unsubScheme: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkImage>) {
@@ -61,8 +87,7 @@ export class GtkImage extends withSignals(Image) {
         // silently leaves that gate's sight.
         this.className = 'adw-icon';
         this.stretch = 'aspectFit';
-        this.width = this._iconSize;
-        this.height = this._iconSize;
+        this._applySize();
 
         // Re-render the pre-coloured bitmap in the light/dark fg when the scheme
         // flips — but only while on screen (subscribe on load, drop on unload, so
@@ -88,10 +113,23 @@ export class GtkImage extends withSignals(Image) {
         this._render();
     }
 
+    /** The size this image draws at right now: `pixelSize` when set, else `iconSize`. */
+    private get _renderedSize(): number {
+        return iconPixelSize(this._iconSize, this._pixelSize);
+    }
+
+    /** Resize the image box and re-rasterise the glyph into it. */
+    private _applySize(): void {
+        const size = this._renderedSize;
+        this.width = size;
+        this.height = size;
+        this._render();
+    }
+
     private _render(): void {
         const svg = resolveIconSource(this._icon);
         if (!svg) return;
-        const source = renderSymbolicIcon(svg, { size: this._iconSize, color: this._iconColor });
+        const source = renderSymbolicIcon(svg, { size: this._renderedSize, color: this._iconColor });
         if (source) this.imageSource = source;
     }
 
@@ -122,16 +160,40 @@ export class GtkImage extends withSignals(Image) {
         this._render();
     }
 
-    /** The icon size in DIPs (default 16). Re-renders + resizes the image box. */
-    get iconSize(): number {
+    /**
+     * `Gtk.Image:icon-size` — one of `inherit`, `normal` (16 DIPs) or `large` (32).
+     *
+     * THE ENUM, not a number, and that is the whole of #1584: this name used to take a
+     * count of DIPs, so `<gtk:Image iconSize="large" />` — which is what a reader of the
+     * GTK documentation writes — failed to parse, fell back, and rendered at 16 with
+     * nothing reported. For a size in DIPs use {@link pixelSize}, which is the GTK
+     * property that means one. A value that is not a member THROWS, naming it and the
+     * three that are accepted: there is no range here to be lenient about.
+     */
+    get iconSize(): GtkIconSizeNick {
         return this._iconSize;
     }
 
-    set iconSize(raw: number | string) {
-        const value = xmlNumber(raw, this.iconSize);
-        this._iconSize = Number.isFinite(value) && value > 0 ? value : DEFAULT_GTK_IMAGE_SIZE;
-        this.width = this._iconSize;
-        this.height = this._iconSize;
-        this._render();
+    set iconSize(value: GtkIconSizeNick) {
+        this._iconSize = gtkIconSizeNick(value, this._iconSize);
+        this._applySize();
+    }
+
+    /**
+     * `Gtk.Image:pixel-size` — the edge length in DIPs, overriding {@link iconSize}.
+     *
+     * This is what the property called `iconSize` did before #1584, under the name GTK
+     * gives it. It reads back `-1` while unset, which is what `gtk_image_get_pixel_size`
+     * answers and NOT the size the image draws at: a getter that answered the drawn size
+     * would make `image.pixelSize = image.pixelSize` pin it. Assigning any non-positive
+     * value clears the override and hands the size back to {@link iconSize}.
+     */
+    get pixelSize(): number {
+        return this._pixelSize;
+    }
+
+    set pixelSize(raw: number | string) {
+        this._pixelSize = storedPixelSize(xmlNumber(raw, this._pixelSize));
+        this._applySize();
     }
 }

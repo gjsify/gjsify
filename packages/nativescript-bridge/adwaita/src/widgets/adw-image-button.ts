@@ -22,14 +22,30 @@ import { GridLayout, Image, ItemSpec } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { resolveIconSource } from './icon-theme.js';
+import {
+    DEFAULT_ICON_PIXEL_SIZE,
+    type GtkIconSizeNick,
+    gtkIconSizeNick,
+    iconPixelSize,
+    PIXEL_SIZE_UNSET,
+    storedPixelSize,
+} from './gtk-icon-size.js';
 import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
-/** Default symbolic-icon size, in DIPs — the Adwaita 16px icon grid. */
-export const DEFAULT_ICON_BUTTON_ICON_SIZE = 16;
+/**
+ * The size this button's glyph draws at when neither size property was set, in DIPs — the Adwaita
+ * 16px symbolic grid.
+ *
+ * PUBLISHED NAME, kept pointing at {@link DEFAULT_ICON_PIXEL_SIZE} rather than renamed:
+ * it predates #1584's split and means what it always meant, a NUMBER of DIPs. Read it as
+ * `pixelSize`'s default; `iconSize` now defaults to the nick `'inherit'`, which resolves
+ * to this same number.
+ */
+export const DEFAULT_ICON_BUTTON_ICON_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
 export class AdwImageButton extends withSignals(GridLayout) {
     /** The centered icon image. */
@@ -40,7 +56,11 @@ export class AdwImageButton extends withSignals(GridLayout) {
     // Default fill follows the active color scheme; an explicit `iconColor` pins it.
     private _iconColor = themeIconColor();
     private _explicitColor = false;
-    private _iconSize = DEFAULT_ICON_BUTTON_ICON_SIZE;
+    // The two GTK size properties under their own names, exactly as `GtkImage` carries
+    // them (#1584) — this widget renders the same symbolic through the same engine, so a
+    // second vocabulary for its size would be the false friend one file over.
+    private _iconSize: GtkIconSizeNick = 'inherit';
+    private _pixelSize = PIXEL_SIZE_UNSET;
     private _unsubScheme: (() => void) | null = null;
 
     constructor(props?: ConstructProps<AdwImageButton>) {
@@ -56,8 +76,8 @@ export class AdwImageButton extends withSignals(GridLayout) {
         const image = new Image();
         image.className = 'adw-image-button-icon';
         image.stretch = 'aspectFit';
-        image.width = this._iconSize;
-        image.height = this._iconSize;
+        image.width = this._renderedSize;
+        image.height = this._renderedSize;
         image.horizontalAlignment = 'center';
         image.verticalAlignment = 'middle';
         this.addChild(image);
@@ -90,11 +110,24 @@ export class AdwImageButton extends withSignals(GridLayout) {
         this._render();
     }
 
+    /** The size the glyph draws at right now: `pixelSize` when set, else `iconSize`. */
+    private get _renderedSize(): number {
+        return iconPixelSize(this._iconSize, this._pixelSize);
+    }
+
+    /** Resize the icon box and re-rasterise the glyph into it. */
+    private _applySize(): void {
+        const size = this._renderedSize;
+        this._image.width = size;
+        this._image.height = size;
+        this._render();
+    }
+
     /** Re-render the icon bitmap from the current svg / colour / size. */
     private _render(): void {
         const svg = resolveIconSource(this._icon);
         if (!svg) return;
-        const source = renderSymbolicIcon(svg, { size: this._iconSize, color: this._iconColor });
+        const source = renderSymbolicIcon(svg, { size: this._renderedSize, color: this._iconColor });
         if (source) this._image.imageSource = source;
     }
 
@@ -109,9 +142,7 @@ export class AdwImageButton extends withSignals(GridLayout) {
 
     set iconName(value: string) {
         this._icon = value ?? '';
-        this._image.width = this._iconSize;
-        this._image.height = this._iconSize;
-        this._render();
+        this._applySize();
     }
 
     /** The icon fill colour (hex). Setting it PINS the colour (it no longer follows
@@ -126,17 +157,32 @@ export class AdwImageButton extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** The icon size in DIPs (default 16). Re-renders + resizes the image box. */
-    get iconSize(): number {
+    /**
+     * `Gtk.Image:icon-size` on the glyph — one of `inherit`, `normal` (16 DIPs) or
+     * `large` (32). THE ENUM, not a number: for a size in DIPs use {@link pixelSize}.
+     * A value that is not a member throws, naming it and the three that are (#1584).
+     */
+    get iconSize(): GtkIconSizeNick {
         return this._iconSize;
     }
 
-    set iconSize(raw: number | string) {
-        const value = xmlNumber(raw, this.iconSize);
-        this._iconSize = Number.isFinite(value) && value > 0 ? value : DEFAULT_ICON_BUTTON_ICON_SIZE;
-        this._image.width = this._iconSize;
-        this._image.height = this._iconSize;
-        this._render();
+    set iconSize(value: GtkIconSizeNick) {
+        this._iconSize = gtkIconSizeNick(value, this._iconSize);
+        this._applySize();
+    }
+
+    /**
+     * `Gtk.Image:pixel-size` on the glyph — its edge length in DIPs, overriding
+     * {@link iconSize}. This is what `iconSize` did before #1584. It reads back `-1` while
+     * unset, as `gtk_image_get_pixel_size` does; assigning a non-positive value clears it.
+     */
+    get pixelSize(): number {
+        return this._pixelSize;
+    }
+
+    set pixelSize(raw: number | string) {
+        this._pixelSize = storedPixelSize(xmlNumber(raw, this._pixelSize));
+        this._applySize();
     }
 
     /** The underlying icon {@link Image} (e.g. to tweak alignment). */

@@ -34,10 +34,12 @@ import labelTextTestSuite from './label-text.spec.js';
 import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
+import iconSizeTestSuite from './icon-size.spec.js';
 
 run({
     constructPropsTestSuite,
     signalsTestSuite,
+    iconSizeTestSuite,
     bannerNsTestSuite,
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,

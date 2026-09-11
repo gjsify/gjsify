@@ -790,13 +790,23 @@ claim.) Of the 95:
 | the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
 | the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
 | the type differs: nullability only | 1 |
-| **the type differs AND so does the kind of value** | **3** |
+| **the type differs AND so does the kind of value** | **2** (was 3 — #1584) |
 | **the type AGREES and the kind of value does not** | **5** |
 | the evidence does not decide | 1 |
 
-The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
-page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
-`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number).
+The two the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string) and `AdwTabView.defaultIcon` (`Gio.Icon` against a string).
+
+**The third is RESOLVED** (#1584) and is worth keeping here for the shape of that answer
+too. It was `GtkImage.iconSize`, a `Gtk.IconSize` enum against a DIP number — the port
+carrying `Gtk.Image:pixel-size`'s meaning under `icon-size`'s name, twice (`AdwImageButton`
+had the same pair). The fix was not to pick one: the port now carries BOTH GTK properties
+under their own names, `iconSize` taking the three nicks and `pixelSize` the number, with
+`pixel-size` overriding as it does on GTK, and the constant reaching `iconSize` through the
+construct-props bag the way `Gtk.Align`'s does. `widgets/gtk-icon-size.ts` holds the table;
+arm 7 of `check-nativescript-xml-doors.mjs` holds it against `GtkIconSizeNick` AND holds the
+derived constants against the typelib-read values in `generated/enum-values.mts` — the
+second oracle `gtk-align.ts` names as the thing that would retire its own caveat.
 
 **The five it does not have RESOLVED** (ADR 0034 § Amendment 18), and they are worth keeping
 here for the shape of the answer. They were one family — `GtkImage.iconName`,
@@ -1117,18 +1127,22 @@ The nine, each read from both sides:
 | `AdwTabView.selectedPage` | `Adw.TabPage \| null` | the page id, a string (ADR 0048) |
 | `AdwTabView.defaultIcon` | `Gio.Icon` | a symbolic SVG string |
 | `AdwSidebar.filter` | `Gtk.Filter \| null` | a predicate function |
-| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs |
+| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs — no longer, see below |
 
 Seven of the nine are DECIDED portable forms with an ADR behind them — the port has no list
 model, no menu model and no page type, and giving it one was the point of those changes.
-The last two are the interesting ones and they are the same defect twice:
+
+The last two were the interesting ones and they were the same defect twice:
 `Gtk.Image:icon-size` is a three-member enum (`inherit`/`normal`/`large`) and the port's
-`iconSize` is "the icon size in DIPs" (`gtk-image.ts:109`). GTK's number for that is
-`pixel-size` — which the coverage census above lists as a gap on both widgets. So the port
-carries GTK's `pixel-size` under GTK's `icon-size` name, and `<gtk:Image iconSize="large">`
-resolves to `NaN` and falls back to 16, silently. Not fixed here: it renames a published
-attribute on a surface `feat/ns-construct-props` is rewriting, and both censuses now make
-the question visible from two directions.
+`iconSize` was "the icon size in DIPs". GTK's number for that is `pixel-size` — which the
+coverage census above listed as a gap on both widgets, beside the property that WAS it. So
+the port carried GTK's `pixel-size` under GTK's `icon-size` name, and
+`<gtk:Image iconSize="large">` fell back to 16, silently. #1584 gave each GTK property its
+own name — `iconSize` the nicks, and the constant through the construct-props bag;
+`pixelSize` the number — so the last row of the table above is agreement on the value kind
+now and eight of the nine remain. It is kept in the table because the SHAPE is this entry's
+point: two censuses made the question visible from two directions, and neither could have
+FAILED on it.
 
 **Why this is not a gate.** Getting from 26 raw disagreements to those 9 took four
 normalisations, and every one of them is a judgement a gate would be encoding rather than
