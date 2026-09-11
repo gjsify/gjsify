@@ -13,7 +13,7 @@
 // Original: Copyright (c) Beabee Community Repo contributors. AGPL-3.0.
 // Reimplemented for gjsify under the project's MIT license.
 
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 
 export type BarrelExtension = 'js' | 'ts' | 'none';
@@ -46,7 +46,41 @@ export const DEFAULT_BARRELS_EXCLUDES: readonly string[] = ['\\.test\\.', '\\.sp
 const SOURCE_FILE_RE = /\.(ts|tsx|mts|cts)$/;
 
 /**
+ * The entries of `paths` that cannot be scanned as a directory, resolved against `baseDir`
+ * — each already phrased for printing.
+ *
+ * A SEPARATE pass rather than a behaviour change inside {@link generateBarrels}, because
+ * the two callers want opposite things. A programmatic caller may legitimately hand the
+ * generator a directory that is not there yet and still want the others written, which is
+ * why it skips; a COMMAND-LINE caller named these directories, so one that cannot be read
+ * is a typo or a rename and nothing else. So the command asserts first — the shape
+ * `assertEveryIncludeMatches` already has for `gjsify foreach --include`.
+ *
+ * THE INCIDENT: `gjsify barrels --check` counted a directory it could not read as 0 drift
+ * and exited 0, so the guard reported a clean barrel for a directory nothing had looked
+ * at, and the only trace was a line printed under `--verbose`. "Skipped" and "in sync"
+ * have to be told apart by the exit code — a guard that goes green for work it never did
+ * is worse than no guard, because a later step is measuring its output.
+ */
+export async function unscannableBarrelPaths(baseDir: string, paths: readonly string[]): Promise<string[]> {
+    const problems: string[] = [];
+    for (const p of paths) {
+        const dir = resolve(baseDir, p);
+        try {
+            if (!(await stat(dir)).isDirectory()) problems.push(`${dir} is not a directory`);
+        } catch (err) {
+            problems.push(`${dir}: ${(err as Error).message}`);
+        }
+    }
+    return problems;
+}
+
+/**
  * Regenerate `index.ts` in every directory in `args.paths`.
+ *
+ * A path that cannot be read is SKIPPED here, deliberately — see
+ * {@link unscannableBarrelPaths} for who refuses it instead, and why that is the command
+ * and not this.
  *
  * Returns the number of files that drifted from the canonical output —
  * always 0 when `check` is false (drift is rewritten in-place); non-zero
