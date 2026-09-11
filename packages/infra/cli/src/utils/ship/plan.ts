@@ -4,7 +4,7 @@
 // its own inputs can only be tested by building a real project.
 
 import { renderDebianChangelog } from './changelog.js';
-import { gzipDeterministic } from './gzip.js';
+import { gzipDeterministic, POLICY_MAX_COMPRESSION } from './gzip.js';
 import { renderMimePackage } from './mime.js';
 import { SHARE } from './share-dirs.js';
 import { basename, extname, posix } from 'node:path';
@@ -218,12 +218,19 @@ export async function planOverlay(
     // gzip performed on the packing host would put a second compressor's output in
     // an artifact whose every other byte came from the first. `gzipDeterministic`
     // zeroes the header stamp for the usual reason (utils/ship/gzip.ts).
+    //
+    // It is also the one gzip member in the artifact whose bytes cannot vary with
+    // the packing host, for the same reason: the two hosts' zlibs disagree (that
+    // file's header measurement), and this member is compressed once, here.
     if (format.changelogDest !== undefined) {
         const changelog = renderDebianChangelog(settings, inputs.changelogText, inputs.mtime);
         files.push({
             path: format.changelogDest(settings.binaryName),
             mode: 0o644,
-            source: { kind: 'bytes', data: await gzipDeterministic(new TextEncoder().encode(changelog)) },
+            source: {
+                kind: 'bytes',
+                data: await gzipDeterministic(new TextEncoder().encode(changelog), POLICY_MAX_COMPRESSION),
+            },
         });
     }
     return files;
