@@ -63,6 +63,13 @@ content is one prefix row (`/app`) plus `buildsystem: simple` + `cp -a stage/.` 
 removes meson from the sandbox — and the six `gjsify.flatpak` BUILD keys have a per-KEY deprecation
 window into `gjsify.ship.flatpak` that `flatpak init` resolves too (one-sided, it would silently
 rewrite the manifest that command commits); the `AppMetadata` half is an alias and is NOT deprecated.
+**`symbolic` is an icon CONTEXT, never a size** — its own hicolor directory
+(`refs/adwaita-icon-theme/index.theme`), and GTK looks one up as `<app id>-symbolic`, so the staged
+rename keeps the suffix. Answering `scalable` for every SVG collapsed the pair a GNOME app ships
+onto one path and refused the pack.
+**And a row's `fileName` must identify its FORMAT alone**: the two zips were separated only by a
+coincidence between two arch tables, so every row is asked for its name with the SAME arch label
+and the set must be unique.
 
 **AND WHICH OS'S LAYOUT IT WRAPS** — `FormatDescriptor.layoutOs`, NOT `host.finishOn`; `gjsify ship
 <linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare

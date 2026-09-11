@@ -655,6 +655,42 @@ Linux, `candle`+`light` (WiX Toolset v3.14, preinstalled on `windows-latest`) on
   shortcut points at the same `.cmd`, and `node.exe` is still a CONSOLE-subsystem image with no
   `nodew.exe` beside it.
 
+**Landed since, and it is § 2's "its icons" taken literally: `symbolic` is a CONTEXT, not a size.**
+`planIcons` sent every SVG to `scalable/` and renamed every icon to the bare app id, so the icon
+PAIR a modern GNOME app ships — `hicolor/scalable/apps/<id>.svg` beside
+`hicolor/symbolic/apps/<id>-symbolic.svg` — collapsed onto one destination and `ship` refused to run
+at all. Both halves were wrong, and `refs/adwaita-icon-theme/index.theme` is the measurement:
+`symbolic/apps` is listed in `Directories=` beside `scalable/apps`, with `Context=Applications`,
+`Size=16`, `MinSize=8`, `MaxSize=512`, `Type=Scalable` against the scalable row's `Size=128`. Its
+own directory, never a size — the freedesktop icon theme specification has no notion of it at all,
+which is exactly why reading the EXTENSION cannot see it. And GTK resolves a symbolic icon by the
+`-symbolic` name suffix, so the rename has to keep it: the same sentence `planIcons` already makes
+about `Icon=` pointing at the app id, applied to the other lookup. Cost of the gap, measured on
+Learn6502: its own Meson path installs both files and `ship` could install neither, so a `.deb` was
+a REGRESSION against the Flatpak of the same app. `isSymbolicIcon` reads the two signals the size
+logic already reads — a `symbolic/` path component or a `-symbolic` name — and SVG only, because the
+raster form `gtk-encode-symbolic-svg` writes is installed at a size instead.
+
+**Also landed, and it CHANGES A PUBLISHED NAME: the two zips say which OS they are.** § 2's table
+lists "zip" under macOS and "portable zip" under Windows and never asked what either is CALLED, so
+`windows-dir-zip` was written to `macos-app-zip`'s pattern and both emitted
+`<binary>-<version>-<release>.<arch>.zip`. What separated them inside one `ship/out/` was a
+coincidence between two unrelated arch tables — `MACOS_ARCH` maps `x64` to `x86_64`, `WINDOWS_ARCH`
+to `x64` — and `WINDOWS_ARCH` has one row only because gvsbuild publishes no arm64 GTK (#1117).
+That is a blocker standing in, not a design: the day it lifts, both formats write `…-1.arm64.zip`
+to the same directory and the second overwrites the first at exit 0. The user-facing half was
+already costing something, because the name is the whole of what a release page offers to choose
+by — a lone `…-1.arm64.zip` beside a Windows zip names no operating system. So the rows are
+`…-<release>.macos.<arch>.zip` and `…-<release>.windows.<arch>.zip`, in the user's spelling rather
+than `process.platform`'s, which is the call § A3's arch tables already make. `.deb`, `.rpm`,
+`.flatpak`, `.dmg` and `.msi` name their platform by extension and are untouched; `.zip` is the one
+container this table puts on two operating systems. **Breaking** for anything that downloads a
+darwin or windows zip by name — the rows shipped in v0.47.0 — and the rule is now held over the
+WHOLE table instead of by these two rows: every format is asked for its filename with the SAME arch
+label and the set must be unique, so holding the label fixed makes the latent collision red today
+and a row copied from its neighbour cannot reintroduce the class (`flatpak.spec.ts` § *format
+descriptors*; reasoning in `docs/ship-formats.md`).
+
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
 `7896c51b02` (#897): the reader is `@gjsify/manifest-conformance`'s `binary.mjs`

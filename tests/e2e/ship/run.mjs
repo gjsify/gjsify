@@ -73,6 +73,11 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             `share/applications/${APP_ID}.desktop`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
+            // The symbolic half of the pair, in its OWN context directory and
+            // keeping the suffix GTK looks it up by. Both facts are what the
+            // fixture's second icon holds: in a hicolor theme `symbolic` is a
+            // sibling of `scalable`, never a value of its size.
+            `share/icons/hicolor/symbolic/apps/${APP_ID}-symbolic.svg`,
             `share/metainfo/${APP_ID}.metainfo.xml`,
             `share/mime/packages/${APP_ID}.xml`,
         ]);

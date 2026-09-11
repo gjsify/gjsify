@@ -37,9 +37,9 @@
 # when it fails. Reproduce with
 #
 #   bash .github/ship-oracle/verify-app-zip.sh \
-#       "ship/out/ship-demo-1.2.3-1.arm64.zip" "ship/out/Ship Demo.app"
+#       "ship/out/ship-demo-1.2.3-1.macos.arm64.zip" "ship/out/Ship Demo.app"
 #   bash .github/ship-oracle/verify-app-zip.sh \
-#       "ship/out/ship-demo-1.2.3-1.x64.zip" "ship/out/Ship Demo" "program directory"
+#       "ship/out/ship-demo-1.2.3-1.windows.x64.zip" "ship/out/Ship Demo" "program directory"
 #
 # THE SECOND ARGUMENT IS THE `.app` ARTIFACT, not the stage, and the difference is
 # one file: both darwin formats pack the staged payload PLUS the format's licence

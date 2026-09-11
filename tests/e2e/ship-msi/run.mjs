@@ -316,7 +316,7 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         const out = join(twice, 'ship', 'out');
         assert.ok(existsSync(join(out, MSI_NAME)), 'the second run produced no installer');
         assert.ok(existsSync(join(out, APP_NAME)), 'the second run removed the first run\u2019s directory');
-        assert.ok(existsSync(join(out, `${BINARY}-1.2.3-1.${ARCH}.zip`)), 'the second run removed the zip');
+        assert.ok(existsSync(join(out, `${BINARY}-1.2.3-1.windows.${ARCH}.zip`)), 'the second run removed the zip');
         // And the installer the second run built describes the directory the first
         // one did — which is the claim the CI leg's oracle call depends on.
         oracle([join(out, MSI_NAME), join(out, APP_NAME), 'msitools']);
