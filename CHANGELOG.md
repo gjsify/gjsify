@@ -1,5 +1,189 @@
 # Changelog
 
+## [0.49.0](https://github.com/gjsify/gjsify/compare/v0.48.0...v0.49.0) (2026-09-11)
+
+### ⚠ BREAKING CHANGES
+
+* **adwaita-nativescript:** `Gtk.Box`, `Gtk.Label`, a button with an icon (#1623)
+* **adwaita-nativescript:** methods and signals as GJS spells them (#1615)
+* **adwaita-nativescript:** `showInitials` defaults to FALSE, as in the C
+(adw-avatar.c:434-435) and as `<adw-avatar>` already reads an absent
+attribute. An avatar that carried a name used to show initials
+unconditionally; it now shows the fallback person icon until a caller
+asks for initials, which is what `new Adw.Avatar()` does under GTK.
+
+The default glyph is the icon theme's `avatar-default-symbolic`, not
+libadwaita's own `adw-avatar-default-symbolic`: that file is `fill="none"`
+plus a 2px stroke, and this renderer fills every path it extracts, so it
+would paint a solid disc where GTK draws an outline.
+
+Claude-Session: https://claude.ai/code/session_01YQ87zT8bbwAhB1Hn264Krx
+
+* docs(adwaita): the avatar snippet says what is true now
+
+The gallery's NativeScript snippet told readers the port "always shows
+derived initials" and that `showInitials`/`iconName` have no equivalent.
+Both now exist, so the snippet sets them and explains the one real
+difference: `iconName` takes the SVG source, because nothing on this
+runtime resolves a theme name.
+
+The XML template gains `showInitials` and not `iconName`, for the reason
+`AdwStatusPage` reaches for `iconText` next door — an SVG source is not
+an attribute anyone would write, and an unset icon already falls back.
+Regenerated, not hand-edited.
+
+`custom-image` stays unported and is now declared. The blocker is not the
+value — `ImageSource` is its honest counterpart, and the browser element
+settled the same question with a URL — but the CIRCULAR CLIP, which
+neither refs nor any gate here can settle without a device. The entry
+records what WAS measured on both platforms and what a run has to answer.
+
+Claude-Session: https://claude.ai/code/session_01YQ87zT8bbwAhB1Hn264Krx
+
+* test(adwaita-nativescript): drive the avatar state
+
+The fallback the widget grew had no test that fails when it is deleted.
+Measured: revert `_applyMode` to "always initials" — the behaviour this
+branch exists to replace — and the whole `@gjsify/adwaita-nativescript`
+suite plus every gate that reads this tree stays green. The spec drove
+`avatarVisibilities` and `avatarIconSvg`, which are real shipping
+helpers, but the COMPOSITION over them lived inside `AdwAvatar`, and
+`extends GridLayout` puts that class out of reach of every unit test in
+the package.
+
+So the composition moves out: `avatarViewState` answers the whole
+question — mode, both visibilities, and the glyph — and the widget is
+three assignments over its result. Four cases drive it, including the
+break this branch is about (a bare avatar carrying a name falls back to
+the icon) and the hard-wired `hasCustomImage: false`.
+
+What is left unreachable is those three assignments. That limit is
+stated in both files rather than papered over; nothing here closes it,
+and only running the app does.
+
+Also trims the prose the three files repeated between them — the
+fallback story stood in full in all of `adw-avatar.ts`, `avatar-view.ts`
+and `avatar.spec.ts` — and corrects "seven widgets in this directory
+already take an SVG source" to six, which is what `set iconName` counted
+before this branch added the seventh.
+
+Claude-Session: https://claude.ai/code/session_01YQ87zT8bbwAhB1Hn264Krx
+
+* fix(adwaita-core): use the C's avatar icon size
+
+`avatarIconSize` was lifted into the core as `Math.round(size * 0.55)`
+with the written reason that "libadwaita has no number to port here —
+`_avatar.scss` carries no icon rule". The stylesheet reading is correct
+and the conclusion is not: `adw_avatar_set_size` sizes the icon child
+itself,
+
+    gtk_image_set_pixel_size (self->icon, size / 2);
+    refs/libadwaita/src/adw-avatar.c:756
+
+so there was a number, in the C rather than the SCSS, and 0.55 drew the
+fallback glyph about 10% larger than GTK does at every size. Looking in
+one of the two places and concluding libadwaita is silent is the shape
+this repo calls a claim wider than its measurement, and it was about to
+be shared by a second renderer, which is what makes it worth correcting
+now rather than keeping for symmetry.
+
+`size` is an `int` in the C, so the division truncates: `Math.trunc`,
+not `Math.round`. The browser renderer's glyph therefore shrinks — 48px
+inside a 96px avatar where it drew 53 — which is the visible half of
+this commit.
+
+`AVATAR_ICON_SIZE_VECTORS` pins it where the other avatar derivations
+are pinned, and both renderer suites drive it: the browser one through
+`<adw-avatar>` itself, so the box is asserted on the element and not
+only on the helper. Restoring `round(size * 0.55)` fails seven cases in
+Firefox and seven more on Node and GJS.
+
+Claude-Session: https://claude.ai/code/session_01YQ87zT8bbwAhB1Hn264Krx
+* **adwaita-nativescript:** a look is a class list (#1575)
+* **adwaita:** a page is chosen, not counted (#1573)
+* **adwaita-nativescript:** the sheet is just open (#1574)
+
+### Features
+
+* a runtime bundle declares what it decodes, and initFonts reports family names ([#1629](https://github.com/gjsify/gjsify/issues/1629)) ([9d87ba9](https://github.com/gjsify/gjsify/commit/9d87ba9c3cb610ed5a8889c75d54da62a45237f5))
+* **adwaita-app:** ship the app's own adwaita icon theme ([#1624](https://github.com/gjsify/gjsify/issues/1624)) ([e0b138d](https://github.com/gjsify/gjsify/commit/e0b138d7391afdaf7085c8cae6a4bff351443287)), closes [#1620](https://github.com/gjsify/gjsify/issues/1620)
+* **adwaita-core:** one authored tree, rendered ([#1627](https://github.com/gjsify/gjsify/issues/1627)) ([bae4b77](https://github.com/gjsify/gjsify/commit/bae4b77780047573663e26ad8f9f69de9a54d8ac))
+* **adwaita-nativescript:** `Gtk.Box`, `Gtk.Label`, a button with an icon ([#1623](https://github.com/gjsify/gjsify/issues/1623)) ([b67837c](https://github.com/gjsify/gjsify/commit/b67837c887b1fd2c8e5e38341f1c66671b38755b)), closes [#1622](https://github.com/gjsify/gjsify/issues/1622) [#1620](https://github.com/gjsify/gjsify/issues/1620) [#1620](https://github.com/gjsify/gjsify/issues/1620) [#1622](https://github.com/gjsify/gjsify/issues/1622) [#1620](https://github.com/gjsify/gjsify/issues/1620) [#1620](https://github.com/gjsify/gjsify/issues/1620)
+* **adwaita-nativescript:** a look is a class list ([#1575](https://github.com/gjsify/gjsify/issues/1575)) ([cdddcd3](https://github.com/gjsify/gjsify/commit/cdddcd31881d4538158480dca4479fa91708b239)), closes [#1574](https://github.com/gjsify/gjsify/issues/1574)
+* **adwaita-nativescript:** methods and signals as GJS spells them ([#1615](https://github.com/gjsify/gjsify/issues/1615)) ([37fcbdb](https://github.com/gjsify/gjsify/commit/37fcbdb37b8dcdcab400223fb0e9391448634913))
+* **adwaita-nativescript:** resolve adwaita icon theme names ([#1620](https://github.com/gjsify/gjsify/issues/1620)) ([4dc67b4](https://github.com/gjsify/gjsify/commit/4dc67b4611fd942311aa49cd1e01ae4899d029ea))
+* **adwaita-nativescript:** the avatar can fall back ([#1578](https://github.com/gjsify/gjsify/issues/1578)) ([806d531](https://github.com/gjsify/gjsify/commit/806d531358f52e83129b55f5dbc099533accfd1f)), closes [#1049](https://github.com/gjsify/gjsify/issues/1049)
+* **adwaita-nativescript:** the sheet is just open ([#1574](https://github.com/gjsify/gjsify/issues/1574)) ([6a0ea75](https://github.com/gjsify/gjsify/commit/6a0ea751f3f60db3d20a4a2b18a4e4f98d75b1f9)), closes [#1570](https://github.com/gjsify/gjsify/issues/1570) [#1528](https://github.com/gjsify/gjsify/issues/1528) [#1566](https://github.com/gjsify/gjsify/issues/1566) [#1570](https://github.com/gjsify/gjsify/issues/1570)
+* **adwaita-nativescript:** the third door into a widget ([#1579](https://github.com/gjsify/gjsify/issues/1579)) ([7f118b2](https://github.com/gjsify/gjsify/commit/7f118b274116e64a1565e7438f0dfea81af789e4)), closes [#1585](https://github.com/gjsify/gjsify/issues/1585)
+* **adwaita:** a page is chosen, not counted ([#1573](https://github.com/gjsify/gjsify/issues/1573)) ([0899bcc](https://github.com/gjsify/gjsify/commit/0899bcc9ac8a6d3dda54f9215d0525dcc64a9156))
+* **blueprint:** parse, emit, project ([#1635](https://github.com/gjsify/gjsify/issues/1635)) ([13e57e4](https://github.com/gjsify/gjsify/commit/13e57e44388dd636f8cb1fca44eabd19952aa538)), closes [#1632](https://github.com/gjsify/gjsify/issues/1632) [#1632](https://github.com/gjsify/gjsify/issues/1632) [#1632](https://github.com/gjsify/gjsify/issues/1632)
+* **blueprint:** the corpus before the parser ([#1632](https://github.com/gjsify/gjsify/issues/1632)) ([5a88958](https://github.com/gjsify/gjsify/commit/5a8895898dbedeefdef1c327be125b0effe7b37e))
+* **devtools:** a tree that says what it was given ([#1589](https://github.com/gjsify/gjsify/issues/1589)) ([e1f087e](https://github.com/gjsify/gjsify/commit/e1f087e221d5b2fada7e07bbee1eeb1d2c71ca12))
+* Effect on GJS, and a GNOME platform layer ([#1590](https://github.com/gjsify/gjsify/issues/1590)) ([e2750fa](https://github.com/gjsify/gjsify/commit/e2750fa4e069c81f42f9421279090dc1bcb5f373))
+* **event-bridge:** a finger is a pointer too ([#1591](https://github.com/gjsify/gjsify/issues/1591)) ([33fa040](https://github.com/gjsify/gjsify/commit/33fa040fbff57c9547ca3afb696405a6a66dde86))
+* **gtk-host:** a toplevel placement beside the portal ([#1628](https://github.com/gjsify/gjsify/issues/1628)) ([c68e34e](https://github.com/gjsify/gjsify/commit/c68e34e83d8282ae05f89a08af267808a1f22be5))
+* **gtk-host:** an enum value is read, never counted ([#1585](https://github.com/gjsify/gjsify/issues/1585)) ([1510edd](https://github.com/gjsify/gjsify/commit/1510edd2e88935d6ac64a2bfd9cef279e67807d4)), closes [#1579](https://github.com/gjsify/gjsify/issues/1579) [#1579](https://github.com/gjsify/gjsify/issues/1579)
+* **gtk-host:** curate Gtk.AspectFrame, the widget a ratio needs ([#1598](https://github.com/gjsify/gjsify/issues/1598)) ([7fdcf76](https://github.com/gjsify/gjsify/commit/7fdcf76b85e2262f34805cab3c6831116b446257))
+* **gtk-host:** list and adjustment at the seam ([#1612](https://github.com/gjsify/gjsify/issues/1612)) ([186b862](https://github.com/gjsify/gjsify/commit/186b862cc9c912d261de20c2ba4c8aa4e20d7208))
+* **prebuilds:** declare and ship the first musl targets ([#1607](https://github.com/gjsify/gjsify/issues/1607)) ([c8ae146](https://github.com/gjsify/gjsify/commit/c8ae146b84ec63e6d0fd2108433c571e85e4a8c6)), closes [#1602](https://github.com/gjsify/gjsify/issues/1602) [#1602](https://github.com/gjsify/gjsify/issues/1602)
+* **react-native:** let a tab layout contribute a persistent bottom bar ([#1617](https://github.com/gjsify/gjsify/issues/1617)) ([b75fa8e](https://github.com/gjsify/gjsify/commit/b75fa8ed5f06199749e102a86bb2a9f597c10e13))
+* **react-native:** move the tab switcher to a bottom bar when the window is narrow ([#1597](https://github.com/gjsify/gjsify/issues/1597)) ([e132c41](https://github.com/gjsify/gjsify/commit/e132c41b5ceadc383416defbae83d10301a76509))
+* **rolldown-plugin-gjsify:** the gi:// arms on browser and NativeScript ([#1580](https://github.com/gjsify/gjsify/issues/1580)) ([80a11ac](https://github.com/gjsify/gjsify/commit/80a11ac6a0ef69a37c9df01e303b53278f18ab3c))
+* **scripts:** hold the shared corpus against its preview fence ([#1637](https://github.com/gjsify/gjsify/issues/1637)) ([351526f](https://github.com/gjsify/gjsify/commit/351526f9b1cdcb386b4cd7b266a641a6ebedb693))
+* **scripts:** measure the gap the vocabulary gate cannot see ([#1583](https://github.com/gjsify/gjsify/issues/1583)) ([632a14c](https://github.com/gjsify/gjsify/commit/632a14c2896e605e2be47f312fd8b6975a52590c))
+* **scripts:** one authored tree where both agree ([#1577](https://github.com/gjsify/gjsify/issues/1577)) ([bad3e4f](https://github.com/gjsify/gjsify/commit/bad3e4f8e5b24c27f6fb718b38471c736d120043))
+* **website:** gloss fence attributes from the GIR ([#1621](https://github.com/gjsify/gjsify/issues/1621)) ([e6e5a2a](https://github.com/gjsify/gjsify/commit/e6e5a2af90f00679f263c1105d3e909bc474d8c6))
+* **website:** three gallery windows, one language per window ([#1622](https://github.com/gjsify/gjsify/issues/1622)) ([ffbac3e](https://github.com/gjsify/gjsify/commit/ffbac3edc9790093b0b46f69e49547deda3f4e93))
+* win32 decodes ogg/vorbis, and the licence rule cannot be switched off ([#1633](https://github.com/gjsify/gjsify/issues/1633)) ([c11ce0c](https://github.com/gjsify/gjsify/commit/c11ce0c3c8f746f2f843ef3bc44ef94468f554f7))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** rename shadowed fields ([#1593](https://github.com/gjsify/gjsify/issues/1593)) ([0c5e395](https://github.com/gjsify/gjsify/commit/0c5e3957c6ccc11f1bd76cca9ae7448f5721b973))
+* **ci:** a probe reader that cannot run reports nothing ([#1571](https://github.com/gjsify/gjsify/issues/1571)) ([71172eb](https://github.com/gjsify/gjsify/commit/71172eb93672f432d4d73fdb9d4f02d9f2d6a3b4)), closes [#1560](https://github.com/gjsify/gjsify/issues/1560)
+* **cli:** the gate demanded what the repair could not deliver ([#1576](https://github.com/gjsify/gjsify/issues/1576)) ([2511016](https://github.com/gjsify/gjsify/commit/251101622a443f145d40472fbd5ac46f5a8dfc93))
+* **cli:** warn on musl fallback to glibc prebuilds ([#1602](https://github.com/gjsify/gjsify/issues/1602)) ([03c49ed](https://github.com/gjsify/gjsify/commit/03c49edc5f9f40bc2456c79c511b0053b1283bc4))
+* **devtools:** let a declined screenshot say which absence it was ([#1611](https://github.com/gjsify/gjsify/issues/1611)) ([9fa1a2d](https://github.com/gjsify/gjsify/commit/9fa1a2da60fdd1e49f0f60251966147dcf8fc31f))
+* **gtk-host:** keep a flow box's per-line cap at its child count ([#1596](https://github.com/gjsify/gjsify/issues/1596)) ([2a6d8e6](https://github.com/gjsify/gjsify/commit/2a6d8e6075649c6d7a89558e1246ff73552ce074))
+* **gtk-runtime:** the bundle's plugin reached past the bundle ([#1634](https://github.com/gjsify/gjsify/issues/1634)) ([9484252](https://github.com/gjsify/gjsify/commit/948425206b1c3ee8110ac9c8f6ce9f51fc995978)), closes [#1536](https://github.com/gjsify/gjsify/issues/1536)
+* measure musl and glibc as different libcs ([#1613](https://github.com/gjsify/gjsify/issues/1613)) ([c3f31eb](https://github.com/gjsify/gjsify/commit/c3f31eb276b740c8960e044124be51cf1c971014)), closes [#1607](https://github.com/gjsify/gjsify/issues/1607)
+* **npm-registry:** retry past a registry blip, body included ([#1603](https://github.com/gjsify/gjsify/issues/1603)) ([d4e2fb0](https://github.com/gjsify/gjsify/commit/d4e2fb04aaf55cafcb155623cabf3cdddfd7eb01))
+* **react-native:** answer a horizontal ScrollView's height with a layout manager ([#1599](https://github.com/gjsify/gjsify/issues/1599)) ([54be65b](https://github.com/gjsify/gjsify/commit/54be65bb87645067cfb49b3a5c2da73e1e5582a7))
+* **rolldown-plugin-gjsify:** never inline a read of the host ([#1604](https://github.com/gjsify/gjsify/issues/1604)) ([1cbac2d](https://github.com/gjsify/gjsify/commit/1cbac2d035229e2ee134a559ed28d3dc5d0e407e)), closes [#1602](https://github.com/gjsify/gjsify/issues/1602)
+* **scripts:** drop the closed avatar gaps ([#1592](https://github.com/gjsify/gjsify/issues/1592)) ([9bf730c](https://github.com/gjsify/gjsify/commit/9bf730c9aabad47382724f05c38fa0d29f2c1998)), closes [#1583](https://github.com/gjsify/gjsify/issues/1583) [#1578](https://github.com/gjsify/gjsify/issues/1578)
+* **ship-oracle:** stop blaming the artifact for a fault in the reader ([#1605](https://github.com/gjsify/gjsify/issues/1605)) ([45adbda](https://github.com/gjsify/gjsify/commit/45adbdaa36ef3cb28ff4748ac7b0d4c82be7c351))
+
+### Performance Improvements
+
+* **prebuilds:** a checker need not rebuild what it checks ([#1609](https://github.com/gjsify/gjsify/issues/1609)) ([ac42cb7](https://github.com/gjsify/gjsify/commit/ac42cb74a68a89d06658bc8d1ddda966ef316164)), closes [#1607](https://github.com/gjsify/gjsify/issues/1607)
+
+### Documentation
+
+* **adr:** parse blueprint into SharedNode ([#1630](https://github.com/gjsify/gjsify/issues/1630)) ([79549ad](https://github.com/gjsify/gjsify/commit/79549ade77ae53d35b75a16135d9832602541856))
+* **adr:** the shared tree nobody renders ([#1610](https://github.com/gjsify/gjsify/issues/1610)) ([853165b](https://github.com/gjsify/gjsify/commit/853165b662fa80dad02ce3025b3f569385ddc179))
+* **framework:** move the detail out, keep the rules ([#1586](https://github.com/gjsify/gjsify/issues/1586)) ([49c0a39](https://github.com/gjsify/gjsify/commit/49c0a39a8b55aea704452d551fb372db65db3b26))
+* **release-notes:** the v0.49.0 preamble ([#1638](https://github.com/gjsify/gjsify/issues/1638)) ([6cb0b75](https://github.com/gjsify/gjsify/commit/6cb0b75a9ad8bd878eec6f0efa14a01162889781)), closes [#1627](https://github.com/gjsify/gjsify/issues/1627) [#1628](https://github.com/gjsify/gjsify/issues/1628) [#1629](https://github.com/gjsify/gjsify/issues/1629) [#1633](https://github.com/gjsify/gjsify/issues/1633) [#1634](https://github.com/gjsify/gjsify/issues/1634) [#1632](https://github.com/gjsify/gjsify/issues/1632) [#1635](https://github.com/gjsify/gjsify/issues/1635) [#1590](https://github.com/gjsify/gjsify/issues/1590) [#1602](https://github.com/gjsify/gjsify/issues/1602) [#1607](https://github.com/gjsify/gjsify/issues/1607) [#1613](https://github.com/gjsify/gjsify/issues/1613) [#1573](https://github.com/gjsify/gjsify/issues/1573) [#1574](https://github.com/gjsify/gjsify/issues/1574) [#1575](https://github.com/gjsify/gjsify/issues/1575) [#1579](https://github.com/gjsify/gjsify/issues/1579) [#1615](https://github.com/gjsify/gjsify/issues/1615) [#1623](https://github.com/gjsify/gjsify/issues/1623) [#1620](https://github.com/gjsify/gjsify/issues/1620) [#1624](https://github.com/gjsify/gjsify/issues/1624)
+* **status:** free an entry from the header comment ([#1581](https://github.com/gjsify/gjsify/issues/1581)) ([f4d7f71](https://github.com/gjsify/gjsify/commit/f4d7f7158a77cb397a0da350b1811f1d5585577d))
+* the incidents move one hop out ([#1616](https://github.com/gjsify/gjsify/issues/1616)) ([076a643](https://github.com/gjsify/gjsify/commit/076a6438ea6a4ed0c453721c694937490361c00e))
+* **website:** Effect, for people building apps ([#1595](https://github.com/gjsify/gjsify/issues/1595)) ([72c5e8a](https://github.com/gjsify/gjsify/commit/72c5e8ad7e45e04f252355460c1f325d7f669d10))
+* **website:** lighter, reader-facing documentation ([#1619](https://github.com/gjsify/gjsify/issues/1619)) ([193f137](https://github.com/gjsify/gjsify/commit/193f137a221e013905caa805c0da8a7ac32ed77e))
+* **website:** move Effect under a new Experiments rubric ([#1608](https://github.com/gjsify/gjsify/issues/1608)) ([ba6ddd7](https://github.com/gjsify/gjsify/commit/ba6ddd795cbe4682a53524947564dc113b30a658))
+* **website:** one React, two element vocabularies ([#1625](https://github.com/gjsify/gjsify/issues/1625)) ([4155d8b](https://github.com/gjsify/gjsify/commit/4155d8b889919edce34630bc744bb0132258c627)), closes [#1380](https://github.com/gjsify/gjsify/issues/1380) [#1502](https://github.com/gjsify/gjsify/issues/1502)
+* **website:** the gallery's two panes, converged and measured ([#1614](https://github.com/gjsify/gjsify/issues/1614)) ([48d1e87](https://github.com/gjsify/gjsify/commit/48d1e870894d74202ab6f53ceab8f45def043a88))
+
+### Continuous Integration
+
+* a keyword per issue, or the list closes one ([#1572](https://github.com/gjsify/gjsify/issues/1572)) ([f6f8ae2](https://github.com/gjsify/gjsify/commit/f6f8ae26e7ba87e828cd19fbe51f5a59fe373462)), closes [#1567](https://github.com/gjsify/gjsify/issues/1567) [#1568](https://github.com/gjsify/gjsify/issues/1568) [#1565](https://github.com/gjsify/gjsify/issues/1565) [#1570](https://github.com/gjsify/gjsify/issues/1570) [#1566](https://github.com/gjsify/gjsify/issues/1566) [#99001](https://github.com/gjsify/gjsify/issues/99001) [#99002](https://github.com/gjsify/gjsify/issues/99002) [#1453](https://github.com/gjsify/gjsify/issues/1453) [#1567](https://github.com/gjsify/gjsify/issues/1567) [#1568](https://github.com/gjsify/gjsify/issues/1568) [#1567](https://github.com/gjsify/gjsify/issues/1567) [#1565](https://github.com/gjsify/gjsify/issues/1565) [#1568](https://github.com/gjsify/gjsify/issues/1568)
+* lint the body a squash merge actually writes ([#1606](https://github.com/gjsify/gjsify/issues/1606)) ([6b9d8bd](https://github.com/gjsify/gjsify/commit/6b9d8bda2f13f9f1102858cb772de1c3064919df))
+* lint the string a squash merge actually writes ([#1594](https://github.com/gjsify/gjsify/issues/1594)) ([be1f385](https://github.com/gjsify/gjsify/commit/be1f385f036751b70757380510b8f2a098c45695)), closes [#1125](https://github.com/gjsify/gjsify/issues/1125) [#1275](https://github.com/gjsify/gjsify/issues/1275) [#1590](https://github.com/gjsify/gjsify/issues/1590)
+
+### Maintenance
+
+* **status:** untrack the STATUS.md render and hold it untracked ([#1636](https://github.com/gjsify/gjsify/issues/1636)) ([6a9c82d](https://github.com/gjsify/gjsify/commit/6a9c82dd283d54a922ab4856ea74c7975a086960)), closes [#1631](https://github.com/gjsify/gjsify/issues/1631)
+* update native prebuilds [skip ci] ([52214c7](https://github.com/gjsify/gjsify/commit/52214c721f5afd041fa9e99d7264491d48e4736a))
+* update native prebuilds [skip ci] ([e8f1616](https://github.com/gjsify/gjsify/commit/e8f161689920374471763f5761fd6f9a5513662a))
+* update native prebuilds [skip ci] ([4f1cdec](https://github.com/gjsify/gjsify/commit/4f1cdecf6b00a4e260d8407a950e72100f8ce747))
+* update native prebuilds [skip ci] ([d03d83d](https://github.com/gjsify/gjsify/commit/d03d83d4cc954f4ae24b5ecc8b7e193cf7701c47))
+
 ## [0.48.0](https://github.com/gjsify/gjsify/compare/v0.47.0...v0.48.0) (2026-09-05)
 
 ### ⚠ BREAKING CHANGES
