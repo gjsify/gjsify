@@ -77,6 +77,14 @@ export interface GettextPluginOptions {
     filename?: string;
     /** Enable verbose logging */
     verbose?: boolean;
+    /**
+     * Output names for catalogs whose name carries a script subtag the built-in
+     * table does not know, e.g. `{ az_Arab: ['az_IR'] }`.
+     *
+     * Per catalog rather than one blanket switch, so mapping one language does
+     * not disarm the check for the rest.
+     */
+    localeNames?: Record<string, readonly string[]>;
 }
 
 /**
@@ -119,6 +127,12 @@ export interface MsgfmtPluginOptions {
     useLocaleStructure?: boolean;
     /** Whether to remove XML comments from output files, defaults to true */
     removeComments?: boolean;
+    /**
+     * Locale directories for catalogs whose name carries a script subtag the
+     * built-in table does not know. Applies only to the gettext locale
+     * structure, which is the layout glibc looks up.
+     */
+    localeNames?: Record<string, readonly string[]>;
 }
 
 export interface PluginOptions {
@@ -156,4 +170,13 @@ export interface GettextPo2JsonPluginOptions {
      * The English text will be translated for non-default languages if translations exist
      */
     additionalTranslations?: Record<string, string>;
+
+    /**
+     * JSON basenames for catalogs whose name carries a script subtag with no
+     * Android resource qualifier, e.g. `{ sr_Latn: ['sr'] }`.
+     *
+     * The first entry is used, with `_` folded to `-`: a qualifier is
+     * `values-<lang>[-r<REGION>]` and cannot carry a script.
+     */
+    localeNames?: Record<string, readonly string[]>;
 }

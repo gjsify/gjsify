@@ -3,6 +3,8 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import * as gettextParser from 'gettext-parser';
 import type { GettextPo2JsonPluginOptions } from './types.js';
+import { GettextGuardError } from './guards.js';
+import { planCatalogNames } from './catalog-names.js';
 import { findAvailableLanguages, ensureDirectory } from './utils.js';
 
 /**
@@ -112,6 +114,7 @@ export function po2jsonPlugin(options: GettextPo2JsonPluginOptions): Plugin {
         defaultLanguage = 'en',
         verbose = false,
         additionalTranslations = {},
+        localeNames,
     } = options;
 
     const pluginName = 'vite-plugin-gettext-po2json';
@@ -146,8 +149,13 @@ export function po2jsonPlugin(options: GettextPo2JsonPluginOptions): Plugin {
             // Collection of all translations to create the default language file
             const allTranslations: Record<string, Record<string, string>> = {};
 
+            // The JSON filename is the ANDROID namespace, not the catalog name:
+            // `@nativescript/localize` turns it straight into a resource
+            // qualifier, where an underscore is illegal. See `catalog-names.ts`.
+            const plans = planCatalogNames(languages, { pluginName, namespace: 'bcp47', localeNames });
+
             // Skip the default language if it exists in the list
-            const nonDefaultLanguages = languages.filter((lang) => lang !== defaultLanguage);
+            const nonDefaultPlans = plans.filter((plan) => plan.catalog !== defaultLanguage);
 
             // Handle default language if it exists in the list
             if (languages.includes(defaultLanguage)) {
@@ -178,9 +186,10 @@ export function po2jsonPlugin(options: GettextPo2JsonPluginOptions): Plugin {
             }
 
             // Add additional translations for all languages
-            for (const lang of nonDefaultLanguages) {
+            for (const plan of nonDefaultPlans) {
+                const lang = plan.catalog;
                 const poFile = path.join(poDirectory, `${lang}.po`);
-                const jsonFile = path.join(jsonDirectory, `${lang}.json`);
+                const jsonFile = path.join(jsonDirectory, `${plan.bcp47}.json`);
 
                 if (verbose) {
                     console.log(`[${pluginName}] Converting ${poFile} to ${jsonFile}`);
@@ -224,6 +233,11 @@ export function po2jsonPlugin(options: GettextPo2JsonPluginOptions): Plugin {
                 additionalTranslations,
             );
         } catch (error) {
+            // A guard's message IS the guard — wrapping it buries the
+            // instruction that makes it useful.
+            if (error instanceof GettextGuardError) {
+                throw error;
+            }
             throw new Error(`Failed to convert PO files to JSON: ${error}`);
         }
     }
