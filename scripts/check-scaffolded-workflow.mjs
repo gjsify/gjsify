@@ -90,8 +90,7 @@ const value = (name, fallback) => {
 
 const ACTIONLINT = process.env.GJSIFY_ACTIONLINT ?? 'actionlint';
 
-const haveActionlint =
-    spawnSync(ACTIONLINT, ['-version'], { encoding: 'utf-8' }).status === 0;
+const haveActionlint = spawnSync(ACTIONLINT, ['-version'], { encoding: 'utf-8' }).status === 0;
 
 /** Run actionlint over explicit files. Returns null when clean, else its output. */
 function actionlint(files) {
@@ -151,7 +150,11 @@ const MUTANTS = [
     ['an action reference with no ref', (s) => s.replace('actions/checkout@v4', 'actions/checkout'), 'actionlint'],
     ['a property no context defines', (s) => s.replace('github.sha', 'github.shaX'), 'actionlint'],
     ['a misspelled jobs section', (s) => s.replace('\njobs:', '\njbos:'), 'actionlint'],
-    ['an unterminated shell block', (s) => s.replace('run: echo "sha', 'run: |\n          if [ -z "$x" ]; then\n            echo "sha'), 'run-syntax'],
+    [
+        'an unterminated shell block',
+        (s) => s.replace('run: echo "sha', 'run: |\n          if [ -z "$x" ]; then\n            echo "sha'),
+        'run-syntax',
+    ],
 ];
 
 function selfTest() {
@@ -222,10 +225,17 @@ function coverage(repo) {
             // wolf gets an exception list, and an exception list is where the real
             // scaffolder eventually hides.
             const code = stripComments(readFileSync(full, 'utf-8'));
-            // A path under `.github/workflows` reached by a writer. `writeFileSync`
-            // is how a scaffolder's output lands on disk; a file that only READS one
-            // (the CI checks in `scripts/`) is not a scaffolder.
-            if (/\.github\/workflows/.test(code) && /writeFileSync/.test(code)) found.push(full);
+            // A path under `.github/workflows` reached by a writer. BOTH SPELLINGS OF
+            // THE WRITER, measured: `actions/build.ts` already writes with `await
+            // writeFile` from `node:fs/promises` at three call sites, so a scan for
+            // `writeFileSync` alone lets the next scaffolder through in one of the two
+            // shapes this CLI writes files in — on the check whose only job is to catch
+            // that scaffolder. The two patterns are deliberately NOT required to be near
+            // each other: `flatpak ci` resolves its path lines earlier and then writes
+            // `writeFileSync(out, …)`, so proximity matching would miss the one
+            // scaffolder that exists. A file that only READS a workflow (the CI checks in
+            // `scripts/`) is out of scope by living outside the CLI source.
+            if (/\.github\/workflows/.test(code) && /\bwrite(File|FileSync)\s*\(/.test(code)) found.push(full);
         }
     };
     walk(cliSrc);
@@ -269,12 +279,23 @@ if (flag('--coverage')) {
         process.exit(1);
     }
     console.log(`OK — ${SCAFFOLDERS.length} workflow scaffolder(s), each named with the suite that reads its output.`);
+    if (!haveActionlint) {
+        // The negative control above ran five fewer mutants than it claims to, and
+        // `--coverage` is the invocation CI makes — so on CI this line is the only
+        // place that says the control was partial. The coverage verdict itself is
+        // unaffected (the registry needs no reader on PATH); saying so is what keeps
+        // the next reader from quoting "the mutants run on EVERY invocation" as if
+        // they all had.
+        console.log('   (self-test: actionlint absent, so only the shell mutant was judged)');
+    }
     process.exit(0);
 }
 
 const root = value('--root');
 if (root === undefined) {
-    console.error('usage: check-scaffolded-workflow.mjs --root <dir> [--require-actionlint] | --coverage [--repo <dir>]');
+    console.error(
+        'usage: check-scaffolded-workflow.mjs --root <dir> [--require-actionlint] | --coverage [--repo <dir>]',
+    );
     process.exit(2);
 }
 
@@ -312,10 +333,21 @@ if (failures.length > 0) {
     process.exit(1);
 }
 
-console.log(`OK — ${files.length} scaffolded workflow(s) parse and lint.`);
+// THE HEADLINE NAMES THE READERS THAT RAN, and that is not cosmetic. This line read
+// `parse and lint`, and on a host without `actionlint` neither verb had happened:
+// nothing parsed the document, and the shell reader parses `run:` blocks a
+// `flatpak ci` workflow does not contain. The first line of output is what a log
+// reader and a failing-test message quote, so it is the line that must not overstate
+// — the same rule `check-workflow-run-syntax.mjs` follows when it NAMES the blocks no
+// interpreter on the host could read instead of counting them.
+console.log(
+    `OK — ${files.length} scaffolded workflow(s), read by: ${haveActionlint ? 'actionlint + run-syntax' : 'run-syntax alone'}.`,
+);
 if (!haveActionlint) {
-    // NAMED, not silent: the stronger of the two readers did not run, and a reader
-    // that did not run must never look like one that passed.
-    console.log('   actionlint is NOT on PATH — the document-level reader did not run on this host.');
+    console.log(
+        '   actionlint is NOT on PATH — the DOCUMENT went unread. What ran reads the shell inside\n' +
+            '   `run:` blocks, so a scaffolder that emits none was checked for nothing at all. Pass\n' +
+            '   --require-actionlint on a host that is supposed to have it.',
+    );
 }
 process.exit(0);
