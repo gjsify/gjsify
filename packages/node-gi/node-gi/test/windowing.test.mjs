@@ -276,7 +276,45 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     const fontMap = PangoCairo.FontMap.get_default();
     const familyNames = () => fontMap.list_families().map((family) => family.get_name());
     const before = familyNames();
-    for (const face of faces) fontMap.add_font_file(face);
+
+    // A MAP MAY DECLINE RUNTIME REGISTRATION ENTIRELY, and macOS does: `add_font_file` is a
+    // vfunc the CoreText map does not implement, so it answers G_IO_ERROR_NOT_SUPPORTED —
+    // `Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
+    // reported that as `declined` rather than as a failure; this test called the raw vfunc and
+    // threw, which is how the macOS leg found it.
+    let declined = 0;
+    for (const face of faces) {
+        try {
+            fontMap.add_font_file(face);
+        } catch (error) {
+            if (error instanceof GLib.Error && error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED)) {
+                declined++;
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    if (declined === faces.length) {
+        // THE WHOLE MAP DECLINES, so the faces cannot arrive by this route and asserting that
+        // they did would be a lie. What is asserted instead is the fact itself — every face
+        // declined, none failed for another reason — and the gap is stated rather than passed
+        // over. This is a REAL LIMITATION of the darwin bundle and not a property of the test:
+        // the faces ship, and nothing in the runtime can put them on a CoreText map. The routes
+        // are ATSApplicationFontsPath (a shipped `.app` only, and it names one directory) or
+        // PANGOCAIRO_BACKEND=fc; both are out of this test's reach. Tracked in
+        // `status/open-todos.md`.
+        assert.equal(declined, faces.length);
+        console.log(
+            `fonts: ${faces.length} bundled face(s) from ${fontDir} were ALL declined by ` +
+                `${fontMap.constructor?.name ?? 'this font map'} — it implements no runtime registration ` +
+                '(macOS/CoreText). The faces ship and cannot be registered this way; see the darwin row in ' +
+                'status/open-todos.md. Nothing about the typeface is proven on this platform.',
+        );
+        return;
+    }
+    assert.equal(declined, 0, `${declined} of ${faces.length} face(s) were declined while others were accepted`);
+
     const after = familyNames();
 
     // The families the bundle DECLARES, spelled here rather than imported: this test runs

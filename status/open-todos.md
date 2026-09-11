@@ -4,6 +4,42 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The darwin bundle ships the GNOME typeface and cannot put it on the font map
+
+The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
+`@gjsify/gtk-host`'s `initFonts()` registers them with `pango_font_map_add_font_file()`. That
+works on fontconfig-backed Pango (Linux) and on win32, where it is the ONLY thing that works —
+pangowin32 reads no fontconfig path at all.
+
+**It does not work on macOS.** `add_font_file` is a vfunc the CoreText map does not implement, so
+every face answers `G_IO_ERROR_NOT_SUPPORTED` — measured on the darwin-arm64 windowing proof:
+`Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
+reported that as `declined` rather than as a failure, and the reasoning written there is about an
+application's OWN faces in a shipped `.app`, where `ATSApplicationFontsPath` has already
+activated the directory before any code runs. That reasoning does not extend to the RUNTIME
+bundle's faces: nothing points `ATSApplicationFontsPath` at `gtk/share/fonts`.
+
+So on macOS today the bundle carries ~7.3 MB of faces that no process can reach, and
+`adwaitaUiFontAvailability()` correctly answers `absent` — a preferences dialog will not offer
+the `adwaita` policy there, which is the honest outcome but not the intended one. The size half
+is unaffected: macOS measures 18.8 px against GNOME's 19.0 and needs no correction.
+
+Two routes, neither taken here:
+
+- **`ATSApplicationFontsPath`**, which is how `gjsify ship` already activates an application's own
+  staged faces. It names ONE directory relative to `Contents/Resources`, so covering both would
+  mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
+  change, in the layer that owns the `.app` layout, not in the runtime.
+- **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
+  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
+  rendering for the whole application, which is not a decision a runtime bundle may take for its
+  consumer.
+
+The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
+future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
+rather than passing over it, so the day a darwin map starts accepting registration the count
+stops matching and the row says so.
+
 ### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
 
 Measured on the published 0.50.0 tarballs, symbol by symbol out of each bundle's own

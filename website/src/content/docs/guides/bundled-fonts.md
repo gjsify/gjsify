@@ -331,8 +331,8 @@ every gjsify GTK app on that platform.
 `gtk/share/fonts` (OFL-1.1, named in the bundle's `THIRD-PARTY-NOTICES.md`), and
 `@gjsify/node-gi`'s loader publishes that directory as `GJSIFY_GTK_RUNTIME_FONT_DIR`.
 
-**You do not have to do anything about it.** The same `initFonts()` call registers both — the
-runtime's faces first, then yours:
+**You do not have to do anything about it** on Linux and Windows. The same `initFonts()` call
+registers both — the runtime's faces first, then yours:
 
 ```ts
 const fonts = initFonts({ expectedFamilies: ['Brand'] });
@@ -345,6 +345,16 @@ fonts.sources;
 Two variables and not one, deliberately: an app that ships a brand face must never have to
 choose between its face and the platform's. On Linux neither is usually set and the call stays
 the no-op it always was.
+
+:::caution[macOS cannot register them yet]
+The darwin bundles ship the faces, and nothing can put them on the font map. `add_font_file` is
+a vfunc the CoreText map does not implement, so every face comes back in `declined` with
+`G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner. `adwaitaUiFontAvailability()`
+therefore answers `absent` there, so don't offer the `adwaita` policy on macOS; `system` and
+`size` are unaffected, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
+The two routes out — `ATSApplicationFontsPath` at ship time, or `PANGOCAIRO_BACKEND=fc` — are in
+`status/open-todos.md`.
+:::
 
 ### …and the size, which the faces do not fix
 
