@@ -1,7 +1,8 @@
 # 56. What the Windows runtime bundle decodes is bounded by gvsbuild's project list
 
 - Status: **Accepted**
-- Date: 2026-09-10
+- Date: 2026-09-10, amended 2026-09-11 (§ 6, and the two routes out of the catalogue the first
+  draft never named)
 - Deciders: Pascal Garber
 - Related: [ADR 0037 (the bundles carry the URI source)](0037-gtk-runtime-bundles-carry-the-uri-source.md), [ADR 0055 (a declared media contract)](0055-declared-media-capabilities.md), [ADR 0023 (which GTK a node-gi process uses)](0023-gtk-source-precedence.md)
 
@@ -84,6 +85,20 @@ BSD-3-Clause: nothing here is a redistribution question. What is missing is a bu
 either gap means a project definition in gvsbuild itself — a single file of the shape
 `libvorbis.py` already has — after which step 2 above is a one-word change here.
 
+**Re-measured 2026-09-11 at the same pin, and the two formats are no longer one answer.** The
+project list settles MP3 on its own: the catalogue has no libmpg123, gvsbuild's own ffmpeg
+patch turns MP3 off (§ Alternatives rejected), gst-plugins-rs has no MP3 decoder at all, and
+gst-plugins-ugly 1.28.4 ships `ext/` = a52dec, cdio, dvdread, mpeg2dec, sidplay, x264 — `mad`
+was removed upstream. Every route out of this build system is shut, and #1626 closes on that.
+The NEXT gvsbuild release does not reopen it either: `2026.8.0`, published while `2026.6.0`
+was still the pin, carries the same 94 project modules with nothing added or removed — read
+with § 6's own `--update` against the newer tag, which is the first thing that tooling was
+asked and the answer a pin bump would otherwise have taken a Windows leg to discover.
+FLAC is not in the same position: `claxon` in gst-plugins-rs is a pure-Rust FLAC decoder and
+gvsbuild already defines that tree as a project. It stays a gap, but as a COSTED decision
+rather than an absence, and the cost is written down below rather than left to the next reader
+to rediscover.
+
 ### 4. An `auto` feature is silent, so a claim needs a NAMED assertion
 
 The whole class this area exists for. A meson `auto` feature whose dependency is absent
@@ -103,6 +118,42 @@ library, and the measured `bin/` accordingly carries `opus-0.dll` (opus is a mes
 no ogg DLL at all. If a bump flips libvorbis to shared, the coverage gate would fail the
 release on a binary belonging to no declared family — a red build over a licence question the
 corpus has already answered.
+
+### 6. The claim that bounds the payload is machine-held, and retires itself
+
+Every sentence above is about an artifact this repository does not own, at a version it pins.
+That pin is spelled in eight workflow `env:` blocks, gvsbuild 2026.8.0 was published while
+2026.6.0 was still the pin, and NOTHING in this area could have noticed the difference: the
+three mechanisms around the declaration all compare it to OUR artifact — `media-capabilities`
+to the shipped plugin files, `missingBundledGstPlugins` to what the builder copied,
+`gst-elements.test.mjs` to the registry on the target — and all three stay green on the day a
+gap's reason expires. That is #1544's class with the sign flipped: there a decoder was absent
+and nothing said so; here a gap outlives its cause and nothing says so.
+
+So the reason leaves prose and becomes data. A claim or a gap may carry
+`upstream: { catalogue, library }`, and the two halves are checked by who can read them — the
+same split ADR 0055 § 2 draws through `plugin` and `element`, one level up:
+
+| held by | what it holds | where |
+|---|---|---|
+| `media-capabilities` (portable) | the SHAPE — `catalogue` and `library` are both filled | any consumer's tree |
+| `gvsbuild-catalogue` (repo) | what the value SAYS — against a committed snapshot of gvsbuild's project modules, pinned to `GVSBUILD_VERSION` | every PR, no network |
+
+**Both directions, on every run, which is the only reason the matcher can be believed.** A
+GAP's library must match nothing in the snapshot; a CLAIM's must match something. The win32
+bundle carries both kinds — Ogg/Vorbis and Opus exist because `libvorbis.py` and `opus.py` do,
+MP3 and FLAC do not because nothing answers to them — so a matcher that had silently stopped
+matching would fail on the claims in the same run it passed the gaps. A bundle declaring only
+one direction is itself a finding, and so is a snapshot too short to be a catalogue: a
+truncated one answers "absent" to everything, which passes every gap and points the blame at
+the declarations.
+
+The snapshot is `packages/node-gi/scripts/gvsbuild-catalogue.json`, re-read by that file's
+sibling `--update`, and it is MODULE BASENAMES rather than project names on purpose. Project
+names need a Python parser — a first attempt at that regex silently missed `opus`, `cairo` and
+`dav1d`, and a parser that under-reports turns every absence assertion into a pass. A directory
+listing cannot be wrong in that direction, and a library gvsbuild learns to build arrives as
+its own module, the way `libvorbis.py`, `ogg.py`, `opus.py`, `dav1d.py` and `x264.py` each did.
 
 ## Consequences
 
@@ -171,12 +222,32 @@ corpus has already answered.
   claims, so `vorbisdec` resolving is what its green means, and `a declared decoder gap is
   still a gap` says `mpg123audiodec` and `flacdec` are still null there. The file and the
   element are different questions and both are now answered.
+- **#1626 closes on MP3, and it closes as a DECLARATION rather than a payload.** Every route
+  out of this build system was read rather than remembered: no `mpg123` module in the
+  catalogue (cross-read at 2026.6.0 from the GitHub contents API and from the PyPI wheel
+  `pipx install` unpacks — 95 entries, identical), no mp3 decoder in gvsbuild's ffmpeg
+  configure line, none in gst-plugins-rs 0.15.2, none left in gst-plugins-ugly 1.28.4. The
+  application that found this (a desktop reader whose bundled episode and live radio both
+  fail on Windows) gets no payload out of this decision and one thing it did not have: the
+  gap now says, in the metadata of the package it installs, that a product author willing to
+  make the redistribution call can add an MSVC-ABI `gstmpg123.dll` through `GST_PLUGIN_PATH`,
+  which `gtk-runtime.js` deliberately never sets. Measured that the additive path merges with
+  the bundle's `GST_PLUGIN_SYSTEM_PATH` and the bundle's own elements survive it.
+- **The gap can now expire loudly, which is the part that was missing.** § 6's rule is what
+  turns "gvsbuild has no project for this" from a sentence written once into a claim re-asked
+  on every pull request. The negative controls were run rather than argued: a gap library
+  spelled as one the catalogue HAS, a claim library it does not, a single workflow bumped to
+  2026.8.0, a snapshot truncated to two modules, the `upstream` fields deleted, and only one
+  direction left — six edits, six red runs, each naming the edit.
 
 ## What this does NOT decide
 
 - **Whether to build libmpg123 or libFLAC beside gvsbuild in our own workflow.** It is
   technically open — both have MSVC-capable CMake builds — and it is rejected below rather than
   ruled out forever; a gvsbuild project is the same work in the place that maintains it.
+- **Whether FLAC stays a gap once something needs it.** Unlike MP3 it has a route out of this
+  catalogue (`claxon`, below), so the entry is a price and not a wall. Its `why` says so, which
+  is the difference between the two gaps a consumer can now read off `npm view`.
 - **AAC**, which stays a gap on all three targets for the reason ADR 0055 gives: `faad` is GPL
   and `avdec_aac` brings the libav closure ADR 0037 refuses, so it is the product author's
   redistribution decision and not this bundle's.
@@ -200,7 +271,44 @@ both gaps and it makes this repository the maintainer of two more Windows builds
 that is otherwise one build system's output. The same work as a gvsbuild project file, in the
 place where nobody else benefits from it and where the next GStreamer bump is ours to chase.
 
+**Take `gst-libav`, which IS in the catalogue.** The first draft of this ADR never named this
+route, and that was its worst omission: a reader checking the catalogue finds `gst-libav` in
+`gstreamer.py` and `ffmpeg` in `ffmpeg.py` and concludes § 3 is simply wrong. It is not, and
+the reason is a fact rather than a principle — **gvsbuild's own ffmpeg is not a full ffmpeg.**
+Its `gvsbuild/patches/ffmpeg/build/build.sh` configures `--disable-everything` and then names
+what comes back: `h264`, `hevc`, `libdav1d` and `mpeg1video` on the video side, and on the
+audio side exactly three decoders, under the comment *"audio decoder which aren't available in
+native gst plugins"* — `mp2float`, `wmav2`, `wmapro`. No mp3, no flac, and no aac either, so
+this route closes neither gap and would not have closed the AAC one. Widening it means patching
+a build script inside a project we do not own, which is the same objection as the entry above
+with an extra maintenance surface. (ADR 0037 refuses the libav closure on size grounds anyway;
+worth separating, because "we will not ship it" and "it would not work" are different sentences
+and only one of them survives a bump.)
+
+**Take `claxon` out of gst-plugins-rs, which is also in the catalogue — the FLAC-only route.**
+gvsbuild defines gst-plugins-rs under the project name `gst-plugin-gtk4` (0.15.2, built
+`--auto-features=disabled -Dgtk4=enabled`), and that tree's `meson_options.txt` carries
+`claxon`: a pure-Rust FLAC decoder, `claxondec`, MPL-2.0. So FLAC is REACHABLE and this is the
+one place in this decision where "upstream-bounded" would be the wrong word. It is not taken,
+and the price is why: the project's gvsbuild dependencies are `meson, cargo, gst-plugins-base,
+gst-plugins-bad, gtk4` plus a `cargo install cargo-c --locked`, and the extracted GTK4 zip
+carries no gvsbuild build markers — so gvsbuild rebuilds gtk4 from source too, on the leg whose
+GStreamer build already runs under a 150-minute timeout and has been measured dying 25 minutes
+in on a toolchain mismatch. That is a large, unverifiable-from-Linux addition to close the one
+of the two gaps no consumer has been measured needing, while MP3 — the one a real application
+was measured failing on — stays absent either way. A `libFLAC` gvsbuild project closes it for
+one word and no new toolchain; `lewton`, the same tree's Vorbis decoder, is the control that
+says this is a real capability and not a misreading. Revisit if a consumer measures FLAC, or if
+the Rust toolchain arrives in that prefix for another reason.
+
 **Keep the narrowed contract and change nothing.** That was the state ADR 0055 declared, and
 declaring it is what made the omission findable — but a gap that could be closed by naming a
 project the build system already has is not a contract, it is an oversight with a reason
 attached.
+
+**Leave § 6's claim as prose, on the grounds that a pin bump is rare.** Rare is what makes it
+worse, not better: the reader who bumps `GVSBUILD_VERSION` is bumping it for GLib or GTK and
+has no reason to be thinking about libmpg123, and the eight `env:` blocks make a partial bump
+the likelier accident of the two. Rejecting a guard here would also have been inconsistent with
+the rest of this area — ADR 0055 § 1 is "no declaration without a check", and the `why` is
+where the declaration actually says something falsifiable.
