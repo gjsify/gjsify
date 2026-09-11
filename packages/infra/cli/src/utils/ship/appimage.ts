@@ -95,7 +95,7 @@
 //     names FUSE and both escape hatches.
 
 import { existsSync, utimesSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { join, posix, sep } from 'node:path';
 
 import { describeExit, spawnToCompletion } from '../spawn.js';
 import { encodeUtf8 } from './bytes.js';
@@ -384,7 +384,13 @@ export function findPinnedRuntime(
     exists: (path: string) => boolean = existsSync,
 ): string | undefined {
     const dir = env[APPIMAGE_RUNTIME_DIR_ENV] || APPIMAGE_RUNTIME_DIR;
-    const file = join(dir, `runtime-${archLabel}`);
+    // `posix.join`, not `join`: this path is a LINUX path by construction — the
+    // default is baked into the Linux CI image and the format is `finishOn:
+    // ['linux']`, so it never names a location on the host running this code.
+    // Composing it with the HOST's separator produced a backslash path on
+    // win32, where the unit suite runs: caught by CI as two red assertions,
+    // after every local run on Linux had agreed with itself.
+    const file = posix.join(dir, `runtime-${archLabel}`);
     return exists(file) ? file : undefined;
 }
 
