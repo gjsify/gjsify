@@ -13,7 +13,39 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, readFileSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createTestEnvironment, cleanupTestEnvironment, setupProject, MONOREPO_ROOT } from '../helpers.mjs';
+import {
+    createTestEnvironment,
+    cleanupTestEnvironment,
+    setupProject,
+    MONOREPO_ROOT,
+    e2eSkipReason,
+} from '../helpers.mjs';
+
+function hasCmd(cmd, args = ['--version']) {
+    const r = spawnSync(cmd, args, { stdio: 'ignore' });
+    return r.status === 0 && r.error === undefined;
+}
+
+/**
+ * `actionlint` is a PRECONDITION of the document test, not a nicety.
+ *
+ * MEASURED 2026-09-11. Without it on PATH nothing reads the scaffolded document at
+ * all: the other reader parses the shell inside `run:` blocks and `flatpak ci` emits
+ * none, so it reads zero of them and exits 0. Run the pair against a `flatpak.yml`
+ * whose `runs-on:` is misspelled `runs_on:` and the script prints OK — the assertion
+ * below then PASSES on exactly the defect it was written to catch. `actionlint` is on
+ * no runner image this repo uses and in no `dnf install` in
+ * `.docker/ci-fedora.Dockerfile`, so on CI that is not a corner case, it is every run.
+ *
+ * A SKIP says that; a green assertion does not (#1550). `GJSIFY_E2E_REQUIRE=flatpak`
+ * turns the absence into a named failure for a job that claims to provide the tool —
+ * which is what the `e2e` job should pass once actionlint reaches it. Ledgered in
+ * `status/open-todos.md` with the two ways to get it there and why neither belongs in
+ * this PR.
+ */
+const DOCUMENT_READER_SKIP = e2eSkipReason('flatpak', [
+    ['actionlint on PATH — the only reader of the scaffolded document', hasCmd('actionlint', ['-version'])],
+]);
 
 describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
@@ -198,23 +230,23 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     // The script drives both and self-tests its own discriminators first, so this
     // suite cannot pass on readers that stopped reading. ADR 0024 names this class
     // for `ship ci`, which will scaffold into the same harness.
-    it('flatpak ci writes a workflow independent tools accept', () => {
+    //
+    // Gated on the reader being present — DOCUMENT_READER_SKIP has what this test
+    // asserts when it is not, which is nothing. `--require-actionlint` closes the
+    // window the gate leaves: it probed the tool, and this makes the tool vanishing
+    // between probe and run a failure rather than a pass.
+    it('flatpak ci writes a workflow independent tools accept', { skip: DOCUMENT_READER_SKIP }, () => {
         const check = spawnSync(
             process.execPath,
-            [join(MONOREPO_ROOT, 'scripts/check-scaffolded-workflow.mjs'), '--root', projectDir],
+            [
+                join(MONOREPO_ROOT, 'scripts/check-scaffolded-workflow.mjs'),
+                '--root',
+                projectDir,
+                '--require-actionlint',
+            ],
             { encoding: 'utf-8', timeout: 120 * 1000 },
         );
-        assert.equal(
-            check.status,
-            0,
-            `scaffolded workflow refused:\n${check.stdout ?? ''}\n${check.stderr ?? ''}`,
-        );
-        // NAMED when it did not run, never silent: without `actionlint` on PATH the
-        // stronger of the two readers is absent and this test proves much less.
-        // `tests/e2e/flatpak-sdk-extension` set that rule for probed tools.
-        if ((check.stdout ?? '').includes('actionlint is NOT on PATH')) {
-            console.log('    ↳ actionlint absent on this host — only the shell reader ran');
-        }
+        assert.equal(check.status, 0, `scaffolded workflow refused:\n${check.stdout ?? ''}\n${check.stderr ?? ''}`);
     });
 
     // The static half: a scaffolder that lands with nothing reading its output

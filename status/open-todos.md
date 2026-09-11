@@ -3607,14 +3607,20 @@ with an unterminated `if`. (3) The coverage scan's first version read raw source
 comment — comments are stripped before the grep now, because a rule that cries wolf earns an
 exception list and an exception list is where the real scaffolder eventually hides.
 
-**What is NOT closed:** `actionlint` is on no runner image this repo uses and in no
-`dnf install` in `.docker/ci-fedora.Dockerfile`, so on CI today only the shell reader runs and
-the script SAYS SO rather than passing quietly. `--require-actionlint` exists and is not
-passed anywhere yet — turning it on means adding actionlint to the CI image in its OWN PR
-first, because `build-ci-image.yml` publishes only on a push to `main` and a PR that adds a
-package and a test hard-requiring it can never go green (the trap `msitools` hit in #1354 M5).
-Until then the strongest leg is a developer with actionlint on PATH, plus `--coverage`, which
-needs no tool at all and runs in `audit-runtimes.yml`.
+**What is NOT closed, and it is worse than "one of the two readers is missing".** `actionlint`
+is on no runner image this repo uses and in no `dnf install` in `.docker/ci-fedora.Dockerfile`.
+Without it NOTHING reads the scaffolded document: the other reader parses the shell inside
+`run:` blocks, `flatpak ci` emits none, so it reads zero of them and exits 0. Measured — on
+such a host the pair prints OK for a `flatpak.yml` whose `runs-on:` is misspelled `runs_on:`,
+which is the defect this whole exercise exists to catch. So the document test sits behind
+`e2eSkipReason('flatpak', …)` and SKIPS there instead of reporting a pass: a skip is visible in
+the shard output, a green assertion that read nothing is not (#1550). Two ways to make it RUN,
+in increasing cost — add the pinned + checksummed actionlint download `audit-runtimes.yml`
+already carries to `main.yml`'s `e2e` job and name the suite in `GJSIFY_E2E_REQUIRE`; or put
+actionlint in the CI image, which must be its OWN PR because `build-ci-image.yml` publishes
+only on a push to `main` and a PR that adds the tool and hard-requires it in one step can never
+go green (the trap `msitools` hit in #1354 M5). Until one of those lands, the leg that really
+runs is a developer with actionlint on PATH, plus `--coverage`, which needs no tool at all.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 
