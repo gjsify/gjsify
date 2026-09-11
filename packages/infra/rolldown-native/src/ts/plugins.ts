@@ -255,6 +255,84 @@ export function isResolveMiss(error: string): boolean {
     return error.startsWith('NotFound(');
 }
 
+/** Which plugin's which hook a failure came from. */
+interface HookSite {
+    plugin: string;
+    hook: string;
+}
+
+/**
+ * How many hook failures to spell out in full before summarising the rest.
+ *
+ * Not 1, and not unbounded. ONE is wrong because the COUNT is itself the
+ * diagnosis: 22 of a showcase's 24 `.blp` files failed in a fedora:43 container,
+ * and the two that loaded were the two without `using Adw 1;` — no single
+ * message said "libadwaita is missing", but "22, and exactly the Adw ones" did.
+ * UNBOUNDED is wrong because each blueprint-compiler failure is a five-line
+ * excerpt with a caret, and 22 of those bury the line carrying the count.
+ *
+ * Eight shows that the failures are the same failure repeated, which is the
+ * reader's actual question; the total is stated regardless.
+ */
+const HOOK_ERROR_DETAIL_LIMIT = 8;
+
+/**
+ * The plugin-hook failures of one bundle run, kept so the build can say WHY it
+ * failed.
+ *
+ * Every hook error is already known in JS — the plugin threw it and
+ * `respondError` serialised it — and then the round trip through Rust throws it
+ * away. `Bundler::generate`'s error is Debug-formatted (`session.rs`,
+ * `format!("… {e:?}")`) and rolldown's `BuildDiagnostic` has a
+ * `finish_non_exhaustive()` Debug impl, so everything past the short `message`
+ * collapses into a literal `..`. Measured on this tree, one deliberate syntax
+ * error in a `.blp`, whole output:
+ *
+ *     {"error":"rolldown: Bundler::generate: BatchedBuildDiagnostic([
+ *       BuildDiagnostic { severity: Error, kind: "UNLOADABLE_DEPENDENCY",
+ *         message: "Could not load src/header-bar.blp", .. }])"}
+ *
+ * The same build under the Node engine printed blueprint-compiler's own "Could
+ * not determine what kind of syntax is meant here" with the line and a caret.
+ * One build, two engines, and only one of them answers the question.
+ *
+ * So the JS side keeps its own copy instead of hoping the reason survives the
+ * crossing. Deliberately NOT a blueprint fix: `respondError` is the one place
+ * all twelve hooks of every plugin funnel through, so `xgettext`, `msgfmt`,
+ * `glib-compile-resources` and whatever a future plugin spawns are covered by
+ * construction.
+ */
+class HookErrorLog {
+    private readonly entries: (HookSite & { message: string })[] = [];
+
+    record(site: HookSite, message: string): void {
+        this.entries.push({ ...site, message });
+    }
+
+    /**
+     * The recorded failures as one block, or '' when there were none.
+     *
+     * COLLECTS rather than failing fast, because the JS side has no say in it:
+     * by the time a hook rejects, rolldown has already dispatched the other
+     * modules onto its worker pool, and it batches the diagnostics
+     * (`BatchedBuildDiagnostic`) before it stops. Aborting the session at the
+     * first error would therefore not save work — it would only discard the
+     * other failures, and with them the count that names the shared cause.
+     */
+    format(): string {
+        if (this.entries.length === 0) return '';
+        const shown = this.entries.slice(0, HOOK_ERROR_DETAIL_LIMIT);
+        const lines = shown.map(({ plugin, hook, message }) => `  [plugin ${plugin}] ${hook}: ${message}`);
+        const omitted = this.entries.length - shown.length;
+        if (omitted > 0) lines.push(`  … and ${omitted} more`);
+        const headline =
+            this.entries.length === 1
+                ? '1 plugin hook failed during this build:'
+                : `${this.entries.length} plugin hooks failed during this build:`;
+        return `${headline}\n${lines.join('\n')}`;
+    }
+}
+
 export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[]): Promise<BundleResult> {
     const native = loadNativeRolldown();
     if (!native) {
@@ -264,6 +342,9 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
 
     const session = new NativeMod.BundlerSession();
     activeSessions.add(session);
+    // Per call, so a second bundle in the same process never inherits the
+    // first one's failures (`--globals auto` alone runs three per build).
+    const hookErrors = new HookErrorLog();
     const ctxResolveSlots = new Map<
         number,
         { resolve: (v: { id: string; external: boolean } | null) => void; reject: (e: Error) => void }
@@ -339,16 +420,19 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
         pluginIndex: number,
         argsBytes: GLib.Bytes,
     ): Promise<void> {
+        // Named before `plugins[pluginIndex]` is known to exist, so the two
+        // bridge-internal failures below are still attributable to something.
+        const where: HookSite = { plugin: plugins[pluginIndex]?.name ?? `#${pluginIndex}`, hook: hookName };
         let args: HookArgs;
         try {
             args = JSON.parse(dec(argsBytes)) as HookArgs;
         } catch (e) {
-            respondError(reqId, e);
+            respondError(reqId, e, where);
             return;
         }
         const plugin = plugins[pluginIndex];
         if (!plugin) {
-            respondError(reqId, new Error(`@gjsify/rolldown-native: unknown plugin index ${pluginIndex}`));
+            respondError(reqId, new Error(`@gjsify/rolldown-native: unknown plugin index ${pluginIndex}`), where);
             return;
         }
         const ctx = makeContext(reqId);
@@ -364,13 +448,13 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
                 }
                 const code = dec(codeBytes);
                 const result = await plugin.transform.call(ctx, code, a.id, a.moduleType);
-                respondTransform(reqId, result);
+                respondTransform(reqId, result, where);
                 return;
             }
             const result = await runHook(plugin, hookName, args, ctx);
             respondOk(reqId, result);
         } catch (e) {
-            respondError(reqId, e);
+            respondError(reqId, e, where);
         }
     }
 
@@ -387,7 +471,7 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
      * via `hasCodeBytes: true`. Falls back to a normal `kind:'skip'`
      * when the handler returned null/undefined.
      */
-    function respondTransform(reqId: number, value: unknown): void {
+    function respondTransform(reqId: number, value: unknown, where: HookSite): void {
         if (value === undefined || value === null) {
             session.respond(reqId, enc(JSON.stringify({ kind: 'skip' })));
             return;
@@ -413,6 +497,7 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
             respondError(
                 reqId,
                 new Error(`@gjsify/rolldown-native: failed to stash transform response payload for reqId ${reqId}`),
+                where,
             );
             return;
         }
@@ -427,8 +512,17 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
         );
     }
 
-    function respondError(reqId: number, e: unknown): void {
+    /**
+     * Answer one hook request with a failure — and keep a copy.
+     *
+     * The `hookErrors.record` call is the whole fix: the response still goes to
+     * Rust exactly as before (rolldown needs it to mark the module unloadable),
+     * but the message no longer depends on surviving the crossing. See
+     * {@link HookErrorLog}.
+     */
+    function respondError(reqId: number, e: unknown, where: HookSite): void {
         const err = e instanceof Error ? e : new Error(String(e));
+        hookErrors.record(where, err.message);
         session.respond(
             reqId,
             enc(
@@ -467,7 +561,12 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
             }
         });
         session.connect('error_occurred', (_self: SessionInstance, msg: string) => {
-            reject(new Error(msg));
+            // `msg` stays FIRST and verbatim: it is the only line that carries
+            // rolldown's own diagnostics — a parse error, an unresolved import,
+            // anything no JS hook was involved in — and it names the modules.
+            // The hook log is what it cannot tell you, appended after it.
+            const detail = hookErrors.format();
+            reject(new Error(detail ? `${msg}\n${detail}` : msg));
         });
 
         try {
