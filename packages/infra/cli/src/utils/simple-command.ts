@@ -7,6 +7,28 @@
 // fast path, a wrong token list would run a different command than the script
 // says.
 
+/** Characters that make a string something only a shell may execute. */
+const SHELL_SPECIAL = '|&;<>`$()\\\n\r*?{}[]~#!';
+
+/** The same set minus `*` and `?` — see {@link TokenizeOptions.allowGlobs}. */
+const SHELL_SPECIAL_ALLOWING_GLOBS = SHELL_SPECIAL.replace('*', '').replace('?', '');
+
+export interface TokenizeOptions {
+    /**
+     * Accept an unquoted `*`/`?` as an ordinary token character.
+     *
+     * Off by default, and the default is about EXECUTION: a caller that RUNS
+     * the tokens must not pass `*.tsbuildinfo` through unexpanded, because the
+     * shell it replaces would have expanded it first. A caller that only READS
+     * the targets — `utils/package-inputs.ts`, asking which paths a package
+     * declares it produces — wants the pattern itself, and `gjsify clear`
+     * expands the same two characters in its own last segment anyway
+     * (`utils/clear-targets.ts`). Nothing else moves: every operator,
+     * substitution, brace and tilde still returns `null`.
+     */
+    allowGlobs?: boolean;
+}
+
 /**
  * Tokenize `cmd`, or return `null` if the string contains anything the shell
  * would treat specially — operators (`&& | ; < > &`), substitutions (`$(...)` /
@@ -16,7 +38,8 @@
  * single literal token, exactly as the shell would hand it to `gjsify` (which
  * does its own glob expansion).
  */
-export function tokenizeSimpleCommand(cmd: string): string[] | null {
+export function tokenizeSimpleCommand(cmd: string, options: TokenizeOptions = {}): string[] | null {
+    const special = options.allowGlobs === true ? SHELL_SPECIAL_ALLOWING_GLOBS : SHELL_SPECIAL;
     const tokens: string[] = [];
     let cur = '';
     let has = false;
@@ -49,7 +72,7 @@ export function tokenizeSimpleCommand(cmd: string): string[] | null {
             }
             continue;
         }
-        if ('|&;<>`$()\\\n\r*?{}[]~#!'.includes(c)) return null;
+        if (special.includes(c)) return null;
         cur += c;
         has = true;
     }
@@ -63,8 +86,8 @@ export function tokenizeSimpleCommand(cmd: string): string[] | null {
  * the tokens after `gjsify` — or `null` when it is anything else. `null` is the
  * signal to hand the literal to a shell.
  */
-export function gjsifyCommandArgv(literal: string): string[] | null {
-    const tokens = tokenizeSimpleCommand(literal);
+export function gjsifyCommandArgv(literal: string, options: TokenizeOptions = {}): string[] | null {
+    const tokens = tokenizeSimpleCommand(literal, options);
     if (!tokens || tokens.length < 2 || tokens[0] !== 'gjsify') return null;
     return tokens.slice(1);
 }

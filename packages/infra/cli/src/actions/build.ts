@@ -30,6 +30,7 @@ import { collectEntryPaths, describeJsxConfig, findJsxEntryPoint, jsxConfigMissi
 import { giSystemProbes } from '../utils/gi-runtime-paths.js';
 import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
+import { DEP_CHANGE_LOCKFILES } from '../utils/package-inputs.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -78,17 +79,18 @@ function isTruthyEnv(v: string | undefined): boolean {
 }
 
 /**
- * Lockfiles whose change implies a plugin's *transitive* deps may have moved.
+ * Newest mtime (ms) among known lockfiles in `cwd`, or 0 when none exist.
+ *
  * A dep bump (`npm/yarn/pnpm/gjsify install`) rewrites one of these but leaves
  * the plugin's own entry-file mtime untouched — so the plugin GJS-bundle cache
- * must invalidate on these too, not only on the entry.
+ * must invalidate on them too, not only on the entry. The LIST is
+ * {@link DEP_CHANGE_LOCKFILES}, shared with the package-input definition: two
+ * answers to "has the dependency tree moved" is how they come to disagree
+ * about a fifth package manager.
  */
-const PLUGIN_CACHE_DEP_SIGNALS = ['gjsify-lock.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-
-/** Newest mtime (ms) among known lockfiles in `cwd`, or 0 when none exist. */
 async function newestLockfileMtime(cwd: string): Promise<number> {
     let newest = 0;
-    for (const name of PLUGIN_CACHE_DEP_SIGNALS) {
+    for (const name of DEP_CHANGE_LOCKFILES) {
         try {
             const s = await stat(join(cwd, name));
             if (s.mtimeMs > newest) newest = s.mtimeMs;

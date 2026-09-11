@@ -4,6 +4,32 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### CI's build-output cache key is the third answer to "what are this package's build inputs"
+
+`packageBuildInputs` (`packages/infra/cli/src/utils/package-inputs.ts`) is now the ONE definition
+the build cache and `gjsify test` both read (#1651). The third copy is not TypeScript and was not
+closed with them: `.github/actions/gjsify-setup/action.yml`'s `actions/cache` key is
+`hashFiles('packages/*/*/src/**/*.{ts,mts,cts}')` plus the manifests, i.e. the same `src/**`
+allow-list, with the same blind spot — and the workflow comment beside it already NAMES the
+incident it cost (#821: `cli.gjs.mjs` inlines `packages/infra/resolve-npm/lib/*.mjs`, tracked
+source that is not under `src/**`, so two revisions differing only there share a cache key). The
+three `!` excludes there are documentation of intent, not enforcement; `Drop cache-restored
+toolchain bundles` is what actually holds that line today.
+
+A YAML `hashFiles()` glob cannot call a TypeScript function, so this needs a generated key input
+rather than a shared call — a step that runs `gjsify` to print one hash over every package's
+input set, fed into the `key:`. Two things to settle before writing it: the step runs BEFORE the
+cache restore, so it may only use what a checkout plus the setup action already provides; and a
+key computed from file CONTENTS (what `packageBuildInputs` hashes) differs from `hashFiles`'
+semantics on symlinks and on files a `.gitignore` keeps out of the checkout, so the two must be
+measured against each other on one revision before the swap, not assumed equal.
+
+Bounded meanwhile: `GJSIFY_BUILD_CACHE` is set nowhere under `.github/`, so only the
+`actions/cache` half is live, and its failure mode is a warm restore of a `lib/` tree that a
+change outside `src/**` should have invalidated — which `verify-package-outputs.mjs` (the
+warm-cache probe) does not see, because it asks whether the restored tree is COMPLETE, not
+whether it is CURRENT.
+
 ### The `@girs/*` vocabulary carries no method table, so the method oracle is read from the typelib
 
 `check-vocabulary-alignment.mjs`'s method ledger (ADR 0034 § Amendment 14) holds a port's
