@@ -169,8 +169,18 @@ it and the element that decodes it, and every format it does not, with the reaso
 `npm view @gjsify/gtk-runtime-win32-x64` answers the question that previously needed a Windows
 machine. A conformance rule holds the declaration against the shipped plugin files, and — with
 no payload in reach at all — against the other bundles' claims, so a format one target plays
-and another silently does not is a red build rather than a difference nobody wrote down. The
-win32 payload itself is #1626.
+and another silently does not is a red build rather than a difference nobody wrote down.
+
+**And asking the question of three artifacts at once answered part of it.** The win32 payload
+was #1626, and the three missing decoders turned out not to be one fact. `libvorbis` is a
+project the Windows GTK build system already has and nobody had ever named, so the Windows
+GStreamer build now names it and `@gjsify/gtk-runtime-win32-x64` claims Ogg/Vorbis instead of
+excusing it — a container it already demuxed, finally leading somewhere. MP3 and FLAC stay
+declared gaps, and their reason is now specific rather than general: gvsbuild defines no
+project for libmpg123 or libFLAC, so the elements that link them cannot be built in that prefix
+at all. Neither is a licensing question — libmpg123 is LGPL-2.1 and libFLAC is BSD-3-Clause —
+and closing either means a project file upstream. The measurement is in #1626 so nobody has to
+take it again.
 
 **`initFonts()` reports family NAMES.** It reported the files it registered, and a caller can
 act on none of them: `font-family` takes a family name, the name comes out of the font's naming

@@ -35,6 +35,12 @@
  * So the rule requires either a compound SPDX expression or npm's own documented
  * form for exactly this case, `SEE LICENSE IN <file>` — and, when that form is
  * used, that the file it names is one the package actually ships.
+ *
+ * AND THE TRIGGER IS HELD AGAINST ITSELF, because a rule a manifest edit can switch
+ * off is the more expensive defect: narrowing a bundle's `files` past the payload
+ * directory dropped it out of this rule with nothing red, and a package silently
+ * outside a check is indistinguishable from one that passed it.
+ * `noticeInsidePayload` is the second way in and the reason that edit now fails by name.
  */
 
 import { defineRule } from '../registry.mjs';
@@ -54,12 +60,15 @@ import { defineRule } from '../registry.mjs';
  *
  * Measured before adding it, because `bin` is a far more ordinary name than
  * `gtk` — and measured over THIS RULE'S OWN UNIVERSE, which is the part worth
- * copying: `createContext({ discoveryRoots: ['packages'] })` sees 329 packages,
- * and exactly three of them list `bin` in `files`, all three added with this
- * line. An earlier version of this note counted 337 by walking the working tree
- * for `package.json` files, which is a different set from the one the rule
- * scans; a number measured beside the check it justifies is not evidence about
- * the check.
+ * copying: `createContext({ discoveryRoots: ['packages'] })`, where exactly the
+ * three `@gjsify/node-runtime-*` packages list `bin` in `files` and nothing else
+ * in the tree does. An earlier version of this note walked the working tree for
+ * `package.json` files instead, which is a different set from the one the rule
+ * scans — and it wrote both totals down, so the note went stale the next time a
+ * package was added. A number measured beside the check it justifies is not
+ * evidence about the check; a number in a comment is not evidence at all. The
+ * set this establishes is asserted in `tests/e2e/bundled-license-trigger/`,
+ * against the real tree, by name.
  *
  * And the trigger is `files`, not the `bin` MANIFEST FIELD — a package declaring
  * executables via `"bin": {…}` is untouched.
@@ -68,6 +77,55 @@ const PAYLOAD_DIRS = new Set(['gtk', 'bin']);
 
 /** `SEE LICENSE IN <file>` — npm's documented form for a licence too complex to express. */
 const SEE_LICENSE_IN = /^SEE LICEN[CS]E IN\s+(.+)$/;
+
+/**
+ * The file a `SEE LICENSE IN <file>` value names, plus the first path SEGMENT of that
+ * file, or `null` for any other licence shape.
+ *
+ * One parse for both readers below — the trigger asks whether `dir` is a payload
+ * directory, the audit asks whether `named` is shipped — because a second `exec` of the
+ * same pattern is a second answer to "is this a deferral" that can drift from the first.
+ */
+function seeLicenseTarget(license) {
+    if (typeof license !== 'string') return null;
+    const match = SEE_LICENSE_IN.exec(license.trim());
+    if (match === null) return null;
+    const named = match[1].trim();
+    return { named, dir: named.replace(/^\.\/+/, '').split(/[\\/]/)[0] };
+}
+
+/**
+ * The same value, but only when the notice sits INSIDE a payload directory — `null` for
+ * `SEE LICENSE IN LICENSE.md`, an ordinary npm package deferring to its own file and no
+ * business of this rule.
+ *
+ * THIS IS THE SECOND WAY IN, and it is what keeps the trigger from being an escape
+ * hatch. `files` is an ordinary edit: narrowing the win32 bundle's from `gtk` to
+ * `gtk/bin` + `gtk/lib` + `gtk/share` — a plausible way to trim a tarball — drops the
+ * package out of `collectBundlingPackages` at exit 0, and the audit then reports one
+ * bundling package fewer than the repository publishes while the payload, the notice
+ * and the relocated LGPL libraries all still travel in it. Nothing else notices:
+ * `field-coverage` matches KEY NAMES across the tree, so the packages that stayed
+ * satisfy coverage for the one that left.
+ *
+ * A licence deferring to a notice inside a payload directory is the package's own
+ * statement that it redistributes a third-party payload, it survives the narrowing,
+ * and it travels in the tarball — so it collects the package and the audit fails it by
+ * name. Same mechanism `media-capabilities` uses with `gjsify.mediaCapabilities`, for
+ * the same reason and against the same edit.
+ *
+ * AND ITS LIMIT, because it reads the licence and this rule accepts TWO shapes. A
+ * bundling package declaring a compound SPDX expression instead names no notice path,
+ * so the narrowing still takes it out silently — measured, and held by
+ * `tests/e2e/bundled-license-trigger/`. All six bundles this repository publishes use
+ * the `SEE LICENSE IN <payload>/…` form and a test asserts that they do, so the day one
+ * switches shape the escape route is a red build rather than a rediscovery. What closes
+ * it for that package is then the enumerated list in the same suite, not this function.
+ */
+function noticeInsidePayload(license) {
+    const target = seeLicenseTarget(license);
+    return target !== null && PAYLOAD_DIRS.has(target.dir) ? target : null;
+}
 
 /**
  * Does this licence value acknowledge more than one project's terms?
@@ -82,18 +140,22 @@ function acknowledgesThirdParty(license) {
 }
 
 /**
- * Packages whose `files` list names a payload directory. `files` rather than the
- * filesystem on purpose: the payload is gitignored and built on a runner, so the
- * directory is absent in a checkout and present in the tarball — and it is the
- * TARBALL the licence field describes.
+ * Every package this rule answers for: one whose `files` list names a payload
+ * directory, OR one whose `license` defers to a notice inside such a directory while
+ * `files` names none ({@link noticeInsidePayload}).
+ *
+ * `files` rather than the filesystem on purpose: the payload is gitignored and built
+ * on a runner, so the directory is absent in a checkout and present in the tarball —
+ * and it is the TARBALL the licence field describes.
  */
 export function collectBundlingPackages(ctx) {
     const out = [];
     for (const pkg of ctx.allPackages) {
         const files = Array.isArray(pkg.manifest.files) ? pkg.manifest.files : [];
+        const license = pkg.manifest.license;
         const payload = files.filter((f) => PAYLOAD_DIRS.has(String(f).replace(/\/+$/, '')));
-        if (payload.length === 0) continue;
-        out.push({ name: pkg.manifest.name, path: pkg.rel, license: pkg.manifest.license, files, payload });
+        if (payload.length === 0 && noticeInsidePayload(license) === null) continue;
+        out.push({ name: pkg.manifest.name, path: pkg.rel, license, files, payload });
     }
     return out;
 }
@@ -109,6 +171,29 @@ export function auditBundledLicense(packages) {
 
     for (const pkg of packages) {
         const license = pkg.license;
+
+        // The trigger, held against itself. Everything below reads a package whose
+        // `files` says it ships a payload; one that arrived through the licence signal
+        // instead is a tarball carrying third-party binaries with no `files` entry this
+        // rule can key on — see `noticeInsidePayload` for what that edit costs. Skipped
+        // afterwards, so an untriggered package cannot also be judged on the licence
+        // shape it is already being failed for. Conditioned on the MATCH rather than on
+        // the payload count alone, so the message reads a directory the licence really
+        // named instead of dereferencing a match that was never made.
+        const notice = noticeInsidePayload(license);
+        if (notice !== null && pkg.payload.length === 0) {
+            failures.push(
+                `${pkg.name} (${pkg.path}): \`license\` is "${license}", deferring the terms of the whole tarball to ` +
+                    `a notice inside a \`${notice.dir}/\` payload directory, and \`files\` ships no \`${notice.dir}\` ` +
+                    `entry (\`files\`: ${pkg.files.join(', ') || '(none)'}). This rule keys on that entry, so the ` +
+                    'package would leave the rule while the payload, the notice and the relocated third-party ' +
+                    'libraries all still travel in the tarball — and `field-coverage` cannot notice, because it ' +
+                    `matches key NAMES across the tree rather than per package. Ship \`${notice.dir}\` in \`files\`, ` +
+                    'or state the terms in the `license` field itself.',
+            );
+            continue;
+        }
+
         if (typeof license !== 'string' || license.trim() === '') {
             failures.push(
                 `${pkg.name} (${pkg.path}): ships a third-party payload (${pkg.payload.join(', ')}) and declares no \`license\`. ` +
@@ -117,9 +202,9 @@ export function auditBundledLicense(packages) {
             continue;
         }
 
-        const seeIn = SEE_LICENSE_IN.exec(license.trim());
+        const seeIn = seeLicenseTarget(license);
         if (seeIn) {
-            const named = seeIn[1].trim();
+            const named = seeIn.named;
             // The file must be one the tarball carries, or the field points at nothing
             // for every consumer — the failure mode being fixed, one level down.
             const shipped = pkg.files.some((f) => {

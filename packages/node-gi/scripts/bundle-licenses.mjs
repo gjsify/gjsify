@@ -164,7 +164,28 @@ export const WIN32_LICENSE_FAMILIES = [
     },
     { components: ['orc'], pattern: /^orc-\d+\.\d+-\d+\.dll$/i },
     { components: ['opus'], pattern: /^opus-\d+\.dll$/i },
-    { components: ['ogg'], pattern: /^ogg-\d+\.dll$/i },
+    {
+        components: ['ogg'],
+        pattern: /^ogg(-\d+)?\.dll$/i,
+        why:
+            'declared before anything matches it: gvsbuild builds ogg with CMake, CMake defaults to a ' +
+            'STATIC library, and the measured win32 bin/ carries `opus-0.dll` (opus is a meson project, ' +
+            'hence shared) and no ogg DLL at all. BOTH spellings, because this entry knew only one and ' +
+            'it was the wrong build system`s: meson puts the soversion in the leaf, CMake does not — on ' +
+            'Windows VERSION/SOVERSION set the image-version RESOURCE and leave the file `ogg.dll`. So ' +
+            'the bump that flipped this project to shared would have landed a binary belonging to no ' +
+            'family and failed the release over terms the prefix-wide corpus already carries, which is ' +
+            'the exact accident the entry was written to prevent',
+    },
+    {
+        components: ['libvorbis'],
+        pattern: /^vorbis(enc|file)?(-\d+)?\.dll$/i,
+        why:
+            'the same shape as the `ogg` entry above, for the same measured reason and with the same two ' +
+            'spellings — a static CMake project that ships no DLL today. Three leaves, because libvorbis ' +
+            "builds three libraries. The terms travel either way: gvsbuild installs the project's COPYING " +
+            'into share/doc/libvorbis, and the prefix-wide corpus reads that whether a DLL ships or not',
+    },
     { components: ['gstreamer'], pattern: /^gst(reamer|base|controller|net|check)-1\.0-\d+\.dll$/i },
     {
         components: ['gst-plugins-base'],
