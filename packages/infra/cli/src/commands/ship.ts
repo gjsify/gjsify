@@ -383,7 +383,6 @@ async function assemble(args: ShipOptions): Promise<void> {
     // afterwards costs the whole build for a refusal that was knowable up
     // front. Skipped under `--stage`, which is precisely the phase that does
     // NOT need the format's tooling — that asymmetry is the point of the split.
-    if (!args.stage) for (const format of formats) assertCanPack(format);
     // THE THIRD REFUSAL THAT IS KNOWABLE UP FRONT, and it was the one paid for
     // with a whole build: `appimage` needs a desktop entry at its AppDir root,
     // `kind: 'cli'` stages none by design, and both facts are configuration. It
@@ -391,7 +390,16 @@ async function assemble(args: ShipOptions): Promise<void> {
     // project asking for an AppImage built everything first and was then told its
     // payload could never have become one. The ICON half stays in the packer,
     // because an icon is discovered and discovery legitimately reads build output.
+    //
+    // BEFORE `assertCanPack` AND NOT AFTER IT, which is an ordering between two
+    // refusals rather than a detail. `assertCanPack` says "not on THIS machine" and
+    // is answered by installing something; this one says "not for THIS PROJECT",
+    // which installing appimagetool would not fix. Reporting the machine first
+    // sends a CLI author to a GitHub release for a tool that was never going to
+    // help them — measured, because the e2e below asserted the message it wanted
+    // and only ever ran on a host that had the tool.
     if (!args.stage) assertKindCanPack(formats, resolveShipKind(ship, flatpak));
+    if (!args.stage) for (const format of formats) assertCanPack(format);
 
     if (!args['skip-build']) await runProjectBuild(projectDir);
 
