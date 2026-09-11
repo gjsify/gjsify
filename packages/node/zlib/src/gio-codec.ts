@@ -98,10 +98,21 @@ export const DEFAULT_LEVEL = -1;
  * as well and the Node leg of the spec failed it — which is what that leg is for
  * (tests/AGENTS.md rule 3: the Node run proves the TEST, the GJS run proves our
  * implementation). The truncation that keeps GI happy is {@link compressWithGio}'s.
+ * Node's boundary is the RAW float against the bound, not its integer part, so the
+ * asymmetry is real and this expression reproduces it: 2.5 passes, 9.9 throws.
  *
  * Written as `!(level >= -1 && level <= 9)` rather than `level < -1 || level > 9`
  * so `NaN` — which compares false against everything — is refused rather than
- * passed through to a `gint` marshaller.
+ * passed through to a `gint` marshaller, where `Math.trunc(NaN)` would earn the
+ * same CRITICAL as 42 above and the same silent STORE. THIS IS THE ONE PLACE THE
+ * GUARD IS DELIBERATELY STRICTER THAN NODE, and the number is written down so the
+ * next reader does not "restore parity" into that bug: measured on Node 24,
+ * `{level: NaN}` is ACCEPTED and yields default-level output (35 bytes, XFL 0, byte
+ * for byte what an omitted level produces) because `NaN < -1` and `NaN > 9` are
+ * both false. Matching that would mean mapping NaN to {@link DEFAULT_LEVEL}, which
+ * is a fine change to make deliberately and a bad one to make by deleting a `!`.
+ * The divergence reaches no Node consumer: `gjsify.runtimes.node` is `none`, so on
+ * the node target `node:zlib` is Node's own.
  */
 export function assertLevel(level: number): void {
     if (!(level >= DEFAULT_LEVEL && level <= 9)) {
