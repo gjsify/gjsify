@@ -4,6 +4,86 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The darwin bundle ships the GNOME typeface and cannot put it on the font map
+
+The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
+`@gjsify/gtk-host`'s `initFonts()` registers them with `pango_font_map_add_font_file()`. That
+works on fontconfig-backed Pango (Linux) and on win32, where it is the ONLY thing that works —
+pangowin32 reads no fontconfig path at all.
+
+**It does not work on macOS.** `add_font_file` is a vfunc the CoreText map does not implement, so
+every face answers `G_IO_ERROR_NOT_SUPPORTED` — measured on the darwin-arm64 windowing proof:
+`Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
+reported that as `declined` rather than as a failure, and the reasoning written there is about an
+application's OWN faces in a shipped `.app`, where `ATSApplicationFontsPath` has already
+activated the directory before any code runs. That reasoning does not extend to the RUNTIME
+bundle's faces: nothing points `ATSApplicationFontsPath` at `gtk/share/fonts`.
+
+So on macOS today the bundle carries ~7.3 MB of faces that no process can reach, and
+`adwaitaUiFontAvailability()` correctly answers `absent` — a preferences dialog will not offer
+the `adwaita` policy there, which is the honest outcome but not the intended one. The size half
+is unaffected: macOS measures 18.8 px against GNOME's 19.0 and needs no correction.
+
+Two routes, neither taken here:
+
+- **`ATSApplicationFontsPath`**, which is how `gjsify ship` already activates an application's own
+  staged faces. It names ONE directory relative to `Contents/Resources`, so covering both would
+  mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
+  change, in the layer that owns the `.app` layout, not in the runtime.
+- **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
+  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
+  rendering for the whole application, which is not a decision a runtime bundle may take for its
+  consumer.
+
+The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
+future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
+rather than passing over it, so the day a darwin map starts accepting registration the count
+stops matching and the row says so.
+
+### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
+
+Measured on the published 0.50.0 tarballs, symbol by symbol out of each bundle's own
+`Adw-1.typelib`: `adw_about_dialog_new_from_appdata` and
+`adw_about_dialog_get_appdata_resource_path` are PRESENT in both darwin bundles and ABSENT in
+win32-x64. On Windows 11 that is `no static method 'new_from_appdata'`, and the About dialog of
+an application built from its own AppStream metainfo does not open.
+
+The cause is gvsbuild's `patches/libadwaita/0001-remove-appstream-dependency.patch`, which wraps
+every `*_from_appdata` entry point in `#ifndef G_OS_WIN32` and makes `appstream_dep` conditional
+on `target_system != 'windows'`. It is still applied on gvsbuild `main` at libadwaita 1.9.3.
+Homebrew's formula `depends_on "appstream"`, which is the whole of the asymmetry.
+
+Nothing in this repository can compile that symbol, so what landed is the ratchet:
+`typelib-symbols.mjs` fails the build on a missing floor entry point unless a DECLARED gap names
+its upstream cause, and the gap is held against the committed gvsbuild patch snapshot.
+
+**When that expiry fires, precisely.** The snapshot is committed and nothing refreshes it on its
+own; `gvsbuild-catalogue.mjs --update` is run by a person. The forcing function is indirect and
+real: the `gvsbuild-catalogue` conformance rule fails whenever a workflow's `GVSBUILD_VERSION`
+disagrees with the snapshot's, so **raising the pin compels the re-read, and the re-read is what
+makes a dropped patch visible** — and raising the pin is the only way a newer gvsbuild ever builds
+these bundles. Between two bumps, a patch upstream has already deleted is a gap nothing here can
+yet see. That is correct for the bytes being built — the pinned gvsbuild still applies it — but it
+is not "the gap expires by itself", and the loose sentence is the kind that gets quoted back as
+evidence. If this gap survives several pin bumps, the direct expiry is a scheduled
+`gvsbuild-catalogue.mjs --update` that opens a PR on a diff; it is deliberately NOT here today,
+because a cron nobody reads is the same blind spot one level up.
+
+What is still OPEN is the fix itself, and there are exactly two routes:
+
+- **libadwaita >= 1.10 + `ministream` in the Windows prefix.** `ministream` replaced the
+  `appstream` dependency in libadwaita at 1.10.alpha (commit `7352d8c8`) and gvsbuild already
+  carries a `ministream` project — it is there for exactly this. gvsbuild's own `libadwaita`
+  recipe is still pinned to 1.9.3 and still patched, so taking this route today means building
+  libadwaita outside that recipe on the Windows runner. 1.10 is beta, and it would reach every
+  consumer of the bundle at once.
+- **gvsbuild drops the patch**, which is the same event from the other side and needs no change
+  here beyond bumping `GVSBUILD_VERSION`, re-reading the snapshot and deleting the gap entry.
+
+Until one of them happens, a Windows application that wants an About dialog fills
+`Adw.AboutDialog` itself. The dialog is fully constructible; only the metainfo-parsing
+constructor is gone.
+
 ### A renamed ship artifact broke a workflow, and only one of nine references noticed
 
 #1655 gave the two zip rows an OS label — `windows-dir-zip` became

@@ -16,6 +16,7 @@ import menuSuite from './menu.spec.js';
 import placementSuite from './placement.spec.js';
 import probeSuite from './probe.spec.js';
 import propsSuite from './props.spec.js';
+import uiFontSuite from './ui-font.spec.js';
 import sharedTreesSuite from './shared-trees.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
@@ -41,6 +42,7 @@ run({
     probeSuite,
     fontDirSuite,
     fontFamiliesSuite,
+    uiFontSuite,
     fontsSuite,
     hostSuite,
     menuSuite,

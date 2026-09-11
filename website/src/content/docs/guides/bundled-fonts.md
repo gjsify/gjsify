@@ -68,8 +68,12 @@ face to `PangoCairo.FontMap.get_default().add_font_file()`, and returns what hap
 
 ```ts
 interface InitFontsResult {
-    /** The directory that was read, or `undefined` when nothing named one. */
+    /** The APPLICATION's font directory that was read, or `undefined` when nothing named one. */
     dir: string | undefined;
+    /** Every directory registered, runtime first — see below. */
+    sources: readonly { dir: string; origin: 'runtime' | 'app' }[];
+    /** What the UI-font policy did, or `undefined` when none was asked for. See below. */
+    uiFont: { next: string | undefined; kind: 'raised' | 'family' | 'restored' | 'kept' | 'unparsed' } | undefined;
     /** Faces now on the default font map. */
     registered: readonly string[];
     /** Faces a font map that does no runtime registration refused. See below. */
@@ -312,6 +316,119 @@ because the OS activated the directory before your code ran. The check to run in
 `PANGOCAIRO_BACKEND=bogus ./YourApp` makes Pango print which backends it was actually built
 with.
 
+## The platform's own typeface comes from the runtime
+
+Everything above is about **your** face. There is a second one, and off Linux nobody installs
+it: the GNOME UI typeface itself.
+
+Measured on Windows 11 / GTK 4.22.4 against the published 0.50.0 runtime bundle — 82 font
+families on the map, and `Cantarell`, `Adwaita Sans` and `Adwaita Mono` among none of them.
+Every request for one came back as Tahoma, with the same `couldn't load font …, falling back`
+line and the same exit 0. An Adwaita stylesheet naming the GNOME font got a foreign face, in
+every gjsify GTK app on that platform.
+
+`@gjsify/gtk-runtime-<target>` now carries **Adwaita Sans + Adwaita Mono** under
+`gtk/share/fonts` (OFL-1.1, named in the bundle's `THIRD-PARTY-NOTICES.md`), and
+`@gjsify/node-gi`'s loader publishes that directory as `GJSIFY_GTK_RUNTIME_FONT_DIR`.
+
+**You do not have to do anything about it** on Linux and Windows. The same `initFonts()` call
+registers both — the runtime's faces first, then yours:
+
+```ts
+const fonts = initFonts({ expectedFamilies: ['Brand'] });
+
+fonts.sources;
+// [{ dir: 'C:\…\gtk\share\fonts', origin: 'runtime' },
+//  { dir: 'C:\…\share\fonts\org.example.App', origin: 'app' }]
+```
+
+Two variables and not one, deliberately: an app that ships a brand face must never have to
+choose between its face and the platform's. On Linux neither is usually set and the call stays
+the no-op it always was.
+
+:::caution[macOS cannot register them yet]
+The darwin bundles ship the faces, and nothing can put them on the font map. `add_font_file` is
+a vfunc the CoreText map does not implement, so every face comes back in `declined` with
+`G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner. `adwaitaUiFontAvailability()`
+therefore answers `absent` there, so don't offer the `adwaita` policy on macOS; `system` and
+`size` are unaffected, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
+The two routes out — `ATSApplicationFontsPath` at ship time, or `PANGOCAIRO_BACKEND=fc` — are in
+`status/open-todos.md`.
+:::
+
+### …and the size, which the faces do not fix
+
+GTK takes the system UI font from the shell. Windows' is **9 pt**; GNOME designs for **11**.
+Measured as `ascent + descent` — points are not comparable across platforms — that is **16.0 px
+against GNOME's 19.0**, about 16 % small, which is the whole of "the font looks a bit small" and
+is not something the typeface can answer. macOS measures 18.8 px and needs no correction, so the
+gap is Windows-alone.
+
+Which of those you want is a **policy**, and your app picks one of three:
+
+| policy | on Windows | what it means |
+|---|---|---|
+| `system` | `Segoe UI 9` — untouched | the host's font, size included. Someone who chose 9 pt keeps 9 pt |
+| `size` | `Segoe UI 11` | the host's face, drawn at the size Adwaita was designed for. Raise-only |
+| `adwaita` | `Adwaita Sans 11` | the GNOME font, identical on every platform |
+
+```ts
+import { applyUiFontPolicy, UI_FONT_POLICIES } from '@gjsify/gtk-host/fonts';
+
+applyUiFontPolicy('size');      // recommended for an app shipping a bundled GTK
+applyUiFontPolicy('adwaita');   // or let the user choose — UI_FONT_POLICIES enumerates them
+applyUiFontPolicy('system');    // and back again, at any time
+```
+
+You can also ask for it once, while registering the faces:
+
+```ts
+initFonts({ uiFont: 'size' });
+```
+
+**Nothing happens unless you ask.** Registering a typeface and rewriting the user's font
+setting are two different acts, and a runtime that does the second uninvited is a surprise.
+There is a second reason: if anything applied a policy by default, `system` would already be
+unreachable — the host's own value would have been overwritten before you could choose to
+keep it.
+
+Which is the other half of how this works. `initFonts()` records `gtk-font-name` **as the
+process first found it**, and `system` restores exactly that:
+
+```ts
+uiFontBaseline();   // "Segoe UI 9" — the host's own, before anything wrote
+```
+
+That capture is why switching `adwaita` → `system` in a preferences dialog lands on the
+user's real setting rather than an approximation. Once a value has been overwritten it is not
+recoverable: GTK keeps no previous value, Windows has no GSettings to re-read, and on Linux
+the value a session applied may itself be an override of the schema default.
+
+### Before you offer the `adwaita` option
+
+Forcing `Adwaita Sans 11` on a host where that family never arrived — an older bundle, a
+system GTK without adwaita-fonts — does not fail. Pango substitutes, and the user who picked
+"use the Adwaita font" gets Tahoma: one substitution traded for another, by a setting that now
+lies about what it did. So ask first:
+
+```ts
+const adwaita = adwaitaUiFontAvailability();
+if (!adwaita.available) {
+    // don't offer it, or offer it disabled — `adwaita.match` says why
+}
+```
+
+It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state — and on
+Windows it is the NORMAL one for this very font. `Adwaita Sans` is a variable font with an `opsz`
+axis whose value at 14 is named `Text`, so fontconfig puts **`Adwaita Sans`** on the map and
+gvsbuild's DirectWrite reader puts **`Adwaita Sans Text`**. Byte-identical file, two family names.
+
+`applyUiFontPolicy('adwaita')` handles that for you: it asks the map which name it holds and
+writes that one. If you set `gtk-font-name` yourself, do the same — writing the declared name on
+Windows asks for a family that host does not have, and Pango substitutes Tahoma without a word.
+
+Call it after `initFonts()`, which is what puts the bundled faces there.
+
 ## Who does what
 
 | Piece | Job |
@@ -319,6 +436,9 @@ with.
 | `gjsify.ship.fonts` | names the faces; `gjsify ship` copies them to `share/fonts/<appId>/` |
 | the generated launcher | exports `GJSIFY_FONT_DIR` at that directory, on every layout |
 | `initFonts()` from `@gjsify/gtk-host/fonts` | reads the variable and registers what it finds |
+| `applyUiFontPolicy()` from the same module | applies one of the three UI-font states, and undoes it |
+| `@gjsify/gtk-runtime-<target>` | carries the GNOME UI typeface in `gtk/share/fonts` |
+| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory |
 
 `gjsify ship` deliberately does not make the call for you. A packaging command that injected
 a startup step would be deciding your app's initialisation order, invisibly, and the

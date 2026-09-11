@@ -33,6 +33,7 @@
 //   node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle <dir>
 //                                                            [--expect-host-target <os>]
 //                                                            [--allow-legacy-license-record]
+//                                                            [--allow-legacy-api-record]
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,6 +62,14 @@ const expectHostTarget = flag('--expect-host-target');
 // Published-closure role only — see § TWO ROLES. Narrow (it excuses an ABSENT coverage
 // record, never a recorded zero) and self-retiring (the run says when it went unused).
 const allowLegacyLicenseRecord = args.includes('--allow-legacy-license-record');
+// The same narrow, self-retiring shape one field over, and for the same reason § TWO ROLES
+// gives: `typelibApi` postdates every tarball published before it, so requiring it outright
+// would turn all three published-closure legs red over a property no already-published
+// artifact can acquire — the exact mistake `--allow-legacy-license-record` was built to undo,
+// and whose removal from `gtk-os-suites.yml` is recorded there. It excuses the record being
+// ABSENT and nothing else: a recorded zero, or a gap that names no upstream cause, still fails
+// in every role. release.yml passes none of these — there the bundle was just built.
+const allowLegacyApiRecord = args.includes('--allow-legacy-api-record');
 
 const manifestPath = join(bundle, 'manifest.json');
 let manifest;
@@ -71,6 +80,9 @@ try {
 }
 
 const problems = [];
+// Declared beside `problems` because BOTH legacy allowances write here, and the first of
+// them is read further up the file than the licence section that used to own it.
+const legacyNotes = [];
 
 if (expectHostTarget) {
     // Both halves against the HOST, not against the caller's claim: the OS so a leg cannot verify
@@ -97,6 +109,48 @@ if (!(manifest.typelibSymmetry?.backed > 0)) {
     problems.push(`manifest records no verified typelib symmetry: ${JSON.stringify(manifest.typelibSymmetry)}`);
 }
 
+// A BACKED TYPELIB IS NOT A CALLABLE ONE. Symmetry answers "is the library behind this
+// namespace here"; it cannot answer "is the FUNCTION here", and the published 0.50.0
+// bundles are the proof: both darwin ones carry `adw_about_dialog_new_from_appdata`,
+// win32-x64 does not — same namespace, same version, same green symmetry record, and an
+// About dialog that does not open on Windows. So the builder's floor record is required,
+// which also refuses a bundle assembled by a builder from before the floor existed.
+//
+// A NARROW, SELF-RETIRING ALLOWANCE for the published-closure role, on the precedent
+// `licenses.binariesCovered` set and for the reason its own removal records: a check a
+// shipped artifact CANNOT pass is not a gate, it is a permanently red leg. `--allow-legacy-
+// api-record` excuses the record being ABSENT there and nothing else, and it SAYS when it
+// went unused — which is the day it is deleted from the two call sites.
+const typelibApi = manifest.typelibApi;
+if (typelibApi === undefined && allowLegacyApiRecord) {
+    legacyNotes.push(
+        'manifest carries no typelibApi record (allowed: --allow-legacy-api-record, published-closure role) — ' +
+            "the entry points of this tarball's namespaces were never checked; the next release carries the record",
+    );
+} else if (!(typelibApi?.checked > 0)) {
+    problems.push(
+        `manifest records no typelib API floor check: ${JSON.stringify(typelibApi)} — rebuild with a builder ` +
+            'that runs verifyTypelibApiFloor over the finished bundle (packages/node-gi/scripts/typelib-symbols.mjs)',
+    );
+} else if (!Array.isArray(typelibApi.gaps)) {
+    problems.push(`manifest's typelibApi record has no \`gaps\` array: ${JSON.stringify(typelibApi)}`);
+} else {
+    // A gap may exist; an UNEXPLAINED one may not. The builder already refuses a missing
+    // entry point that no gap covers, so what is left to hold here is the record's own
+    // honesty — a gap naming no upstream cause is a hole with a note attached, and that
+    // note is the only thing a consumer holding the tarball ever gets.
+    for (const [index, gap] of typelibApi.gaps.entries()) {
+        const named = typeof gap?.upstream?.catalogue === 'string' && gap.upstream.catalogue.length > 0;
+        const symbols = Array.isArray(gap?.symbols) && gap.symbols.length > 0;
+        const why = typeof gap?.why === 'string' && gap.why.length > 0;
+        if (named && symbols && why) continue;
+        problems.push(
+            `typelibApi.gaps[${index}] does not say what is missing and why upstream: ${JSON.stringify(gap)} — ` +
+                'every gap carries `symbols`, `why` and `upstream.catalogue`',
+        );
+    }
+}
+
 if (!(manifest.licenses?.texts > 0)) {
     problems.push(`manifest records no license texts: ${JSON.stringify(manifest.licenses)}`);
 }
@@ -111,7 +165,6 @@ if (!(manifest.licenses?.texts > 0)) {
 // RECORDED zero is a builder saying it covered nothing, which is fatal wherever it is
 // read; an ABSENT field is a manifest older than the record, which only the
 // published-closure role can legitimately be handed.
-const legacyNotes = [];
 if (manifest.licenses?.binariesCovered === undefined) {
     const problem =
         `manifest records no license coverage over the bundled binaries: ${JSON.stringify(manifest.licenses)} — ` +
@@ -169,11 +222,17 @@ for (const note of legacyNotes) console.log(`verify-bundle-manifest: LEGACY — 
 // one it patched. So on Actions it is an ANNOTATION, on the run summary and on the PR
 // beside the job, while the build stays green: this is a deletion to schedule, not a build
 // to break.
-if (allowLegacyLicenseRecord && legacyNotes.length === 0) {
+if ((allowLegacyLicenseRecord || allowLegacyApiRecord) && legacyNotes.length === 0) {
+    const flags = [
+        allowLegacyLicenseRecord ? '--allow-legacy-license-record' : null,
+        allowLegacyApiRecord ? '--allow-legacy-api-record' : null,
+    ]
+        .filter(Boolean)
+        .join(' and ');
     const expired =
-        'verify-bundle-manifest: --allow-legacy-license-record was not needed — this bundle records its ' +
-        'license coverage, so the published closure has caught up with the gate. DELETE the flag from ' +
-        'the two call sites in .github/workflows/gtk-os-suites.yml.';
+        `verify-bundle-manifest: ${flags} was not needed — this bundle records everything the gate asks ` +
+        'for, so the published closure has caught up with it. DELETE the flag from the two call sites in ' +
+        '.github/workflows/gtk-os-suites.yml.';
     console.log(process.env.GITHUB_ACTIONS ? `::warning::${expired}` : expired);
 }
 
@@ -181,7 +240,10 @@ const sets = verified.map((set) => `${set.id}:${set.files}`).join(' ');
 const probe = manifest.windowingData.decodeProbe;
 console.log(
     `verify-bundle-manifest: ${manifest.platform} clean — windowing superset, ` +
-        `${manifest.typelibSymmetry.backed} backed typelibs, ${manifest.licenses.texts} license texts ` +
+        `${manifest.typelibSymmetry.backed} backed typelibs carrying ` +
+        `${typelibApi === undefined ? 'an unrecorded number of' : `${typelibApi.present.length} of ${typelibApi.checked}`} ` +
+        `floor entry point(s) (${typelibApi?.gaps.length ?? 0} declared upstream gap(s)), ` +
+        `${manifest.licenses.texts} license texts ` +
         `covering ${manifest.licenses.binariesCovered ?? 'an unrecorded number of'} binaries, ` +
         `${manifest.dataBytes} data bytes, sets ${sets}, ` +
         `decoded ${probe.svg.file} ${probe.svg.width}x${probe.svg.height} + ` +

@@ -36,7 +36,10 @@
 // capture path). Copyright (c) GNOME contributors, MIT/LGPL.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { requireGi } from '../gi.js';
+import { gtkSource, resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import { haveDisplay } from './display-gate.mjs';
 
 // On win32/darwin the platform backend supplies the display; only Linux keys off
@@ -214,4 +217,201 @@ test('Adw.ApplicationWindow constructs + realizes + renders on node-gi', { skip 
     } else {
         console.log('windowing: surface did not realize (display-constrained runner) — DumpTree chrome proof only');
     }
+});
+
+// --- the bundle's own UI typeface, measured on the font map -----------------
+//
+// THE FILE-COUNT LESSON, APPLIED TO FONTS. The builder's `fonts` windowing-data set
+// proves the faces are IN the bundle, and that is the same kind of proof
+// `iconFiles: 860` was: the darwin-x64 0.28.0 bundle shipped 860 icon files of which
+// ZERO decoded, and every count was correct. A face is worse, because Pango does not
+// report a missing family — it substitutes, the window renders and the process exits 0
+// (measured on Windows 11: `Adwaita Sans 11` and `Cantarell 11` both came back as
+// Tahoma, with one `couldn't load font …, falling back` line on stderr).
+//
+// So this asserts the EFFECT, in a process that loaded the bundle: the faces the bundle
+// ships put their families on the default font map, and a request for one resolves to
+// something OTHER than what a nonexistent family resolves to.
+//
+// WHY IT BELONGS ON THIS PARTICULAR LEG. The win32 windowing proof runs on a host with
+// NO gvsbuild GTK, so the bundle is the only GTK there is — and win32 is the platform
+// where no environment variable can do this: GTK4 there is pangowin32, whose map is
+// filled exclusively from the DirectWrite system collection, and a `FONTCONFIG_FILE`
+// naming a directory of faces moves it by zero families (ADR 0038 § W1-W5). Only
+// `add_font_file` moves it, which is why `@gjsify/gtk-host`'s `initFonts()` exists and
+// why this test performs the same registration rather than trusting an env var.
+test("the runtime bundle's UI faces reach the font map", { skip }, () => {
+    // The loader names the directory; it cannot register anything, because it runs
+    // before the addon is loaded and has no Pango to talk to.
+    const fontDir = GLib.getenv('GJSIFY_GTK_RUNTIME_FONT_DIR');
+    if (!fontDir) {
+        // NOT A SILENT PASS, and a `console.log` is not what makes it one — an ASSERTION is.
+        // Everything below this point is gated on one environment variable, so the day the
+        // handover stops happening the strongest guard in this file returns GREEN with an
+        // explanatory line, the faces ship, nothing registers them, and every Adwaita family
+        // falls back exactly as it did in 0.50.0 — one layer up, with the `fonts` data set
+        // still counting six files and the manifest still naming two families. That is the
+        // shape this whole test exists against, so the absence has to be EARNED: it is
+        // legitimate only where `maybeWireGtkWindowingEnv()`'s own preconditions do not hold.
+        const bundle = resolveGtkRuntimeBundle();
+        const fonts = bundle ? join(bundle.dir, 'share', 'fonts') : undefined;
+        const windowingBundle =
+            fonts !== undefined &&
+            gtkSource() === 'bundle' &&
+            existsSync(join(bundle.dir, 'share', 'glib-2.0', 'schemas', 'gschemas.compiled'));
+        assert.ok(
+            !(windowingBundle && existsSync(fonts)),
+            `${fonts} is in the ACTIVE windowing bundle and nothing published ` +
+                'GJSIFY_GTK_RUNTIME_FONT_DIR. That variable is the only thing `initFonts()` reads, and on win32 ' +
+                'it is the only route onto the font map at all — see maybeWireGtkWindowingEnv() in gtk-runtime.js.',
+        );
+        console.log('fonts: GJSIFY_GTK_RUNTIME_FONT_DIR unset — system GTK or a display-free bundle, nothing to prove');
+        return;
+    }
+
+    const Pango = requireGi('Pango', '1.0');
+    const PangoCairo = requireGi('PangoCairo', '1.0');
+
+    // RECURSIVELY, because the reader this stands in for does. The loader names the
+    // PARENT (`<bundle>/share/fonts`) — the directory fontconfig's stock configuration
+    // already scans over XDG_DATA_DIRS — while the builder stages the faces one level
+    // down in `share/fonts/adwaita/`, and `@gjsify/gtk-host`'s `collectFaces()` walks the
+    // tree. A flat listing sees the subdirectory and no face, which is exactly what this
+    // test did on its first run against a real bundle: it failed a CORRECT bundle because
+    // it re-implemented the reader and got it wrong. Mirror the reader.
+    const faces = [];
+    const walk = (dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (entry.isDirectory()) walk(join(dir, entry.name));
+            else if (/\.(ttf|otf|ttc|otc)$/i.test(entry.name)) faces.push(join(dir, entry.name));
+        }
+    };
+    walk(fontDir);
+    assert.ok(
+        faces.length > 0,
+        `${fontDir} is named by the loader and holds no face — the bundle promised a typeface it did not ship`,
+    );
+
+    const fontMap = PangoCairo.FontMap.get_default();
+    const familyNames = () => fontMap.list_families().map((family) => family.get_name());
+    const before = familyNames();
+
+    // A MAP MAY DECLINE RUNTIME REGISTRATION ENTIRELY, and macOS does: `add_font_file` is a
+    // vfunc the CoreText map does not implement, so it answers G_IO_ERROR_NOT_SUPPORTED —
+    // `Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
+    // reported that as `declined` rather than as a failure; this test called the raw vfunc and
+    // threw, which is how the macOS leg found it.
+    let declined = 0;
+    for (const face of faces) {
+        try {
+            fontMap.add_font_file(face);
+        } catch (error) {
+            if (error instanceof GLib.Error && error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED)) {
+                declined++;
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    if (declined === faces.length) {
+        // THE WHOLE MAP DECLINES, so the faces cannot arrive by this route and asserting that
+        // they did would be a lie. What is asserted instead is the fact itself — every face
+        // declined, none failed for another reason — and the gap is stated rather than passed
+        // over. This is a REAL LIMITATION of the darwin bundle and not a property of the test:
+        // the faces ship, and nothing in the runtime can put them on a CoreText map. The routes
+        // are ATSApplicationFontsPath (a shipped `.app` only, and it names one directory) or
+        // PANGOCAIRO_BACKEND=fc; both are out of this test's reach. Tracked in
+        // `status/open-todos.md`.
+        assert.equal(declined, faces.length);
+        console.log(
+            `fonts: ${faces.length} bundled face(s) from ${fontDir} were ALL declined by ` +
+                `${fontMap.constructor?.name ?? 'this font map'} — it implements no runtime registration ` +
+                '(macOS/CoreText). The faces ship and cannot be registered this way; see the darwin row in ' +
+                'status/open-todos.md. Nothing about the typeface is proven on this platform.',
+        );
+        return;
+    }
+    assert.equal(declined, 0, `${declined} of ${faces.length} face(s) were declined while others were accepted`);
+
+    const after = familyNames();
+
+    // The families the bundle DECLARES, spelled here rather than imported: this test runs
+    // from the published tarball's own staging, where the builder's modules are not
+    // present. The builder asserts the same two names (BUNDLED_FONT_FAMILIES).
+    //
+    // RESOLVED, NOT MATCHED LITERALLY, and this is where the first version of this test was
+    // wrong on the platform it exists for. `Adwaita Sans` is a variable font with an `opsz`
+    // axis whose value at 14 is named `Text`: fontconfig puts nameID 1 — `Adwaita Sans` — on
+    // the map, and gvsbuild's DirectWrite reader composes the STAT name and puts
+    // `Adwaita Sans Text`. Byte-identical file, two family names, which is the documented
+    // `Merriweather` / `Merriweather 18pt` finding one spelling over. Asserting the declared
+    // string would fail a bundle whose face is present and usable — and, worse, it would hide
+    // the real defect this caught: the policy was WRITING the declared name too.
+    //
+    // THE SAME CLOSED SET `font-families.ts` uses, and it has to stay the same one: this copy
+    // exists only because the published tarball's staging cannot import that module, and a copy
+    // that resolves a name the PRODUCT refuses is a green test over a broken app. `Display` and
+    // `Poster` are deliberately absent from both — they are real family names as well as `opsz`
+    // value names.
+    const resolveFamily = (declared) => {
+        if (after.includes(declared)) return declared;
+        const variants = after.filter((name) =>
+            new RegExp(`^${declared} (\\d+pt|Text|Caption|Subhead|Banner)$`, 'i').test(name),
+        );
+        return variants.length === 1 ? variants[0] : undefined;
+    };
+    const resolvedFamilies = [];
+    for (const declared of ['Adwaita Sans', 'Adwaita Mono']) {
+        const family = resolveFamily(declared);
+        assert.ok(
+            family !== undefined,
+            `"${declared}" resolves to nothing on the font map after registering ${faces.length} bundled face(s) ` +
+                `from ${fontDir} — text asking for it renders in a substituted family. Map gained: ` +
+                `[${after.filter((n) => !before.includes(n)).join(', ')}]`,
+        );
+        resolvedFamilies.push(family);
+    }
+
+    // THE DISCRIMINATOR, and without it the assertions above prove nothing: being LISTED
+    // is not being LOADED. `list_families()` can name a family whose faces Pango then
+    // declines, and a substitution is silent.
+    //
+    // An invented family must not be on the map — that is what makes `includes()` above a
+    // membership test rather than a function that says yes. And a request for a bundled
+    // family must LOAD a face whose own family is that name: that is the property the
+    // defect violates, stated positively.
+    //
+    // NOT "it resolves to something other than the fallback", which was the first shape
+    // here and is measurably wrong: with the host's own fonts off the map — the runner's
+    // condition, and the one this leg exists for — the fallback for a nonexistent family
+    // IS one of the bundled faces, so a correct bundle failed. A discriminator that goes
+    // red on the healthy state is worse than none; the comparison has to be against the
+    // NAME asked for, which does not depend on what else the host happens to have.
+    const absent = 'ZzzNoSuchFamilyQx';
+    assert.ok(
+        !after.includes(absent),
+        `list_families() answered yes to "${absent}" — it is not a membership test here`,
+    );
+
+    const context = fontMap.create_context();
+    const resolve = (name) => {
+        const description = Pango.FontDescription.from_string(`${name} 11`);
+        const font = fontMap.load_font(context, description);
+        return font ? font.describe().get_family() : null;
+    };
+    for (const family of resolvedFamilies) {
+        assert.equal(
+            resolve(family),
+            family,
+            `"${family} 11" loads a face whose family is "${resolve(family)}" — Pango substituted it. This is the ` +
+                'measured Windows failure: the name is on the map and the text still renders in Tahoma.',
+        );
+    }
+    console.log(
+        `fonts: ${faces.length} bundled face(s) → map ${before.length} → ${after.length} families; ` +
+            `declared [Adwaita Sans, Adwaita Mono] resolve to [${resolvedFamilies.join(', ')}] and load as ` +
+            `[${resolvedFamilies.map((f) => resolve(f)).join(', ')}]; "${absent} 11" falls back to ` +
+            `"${resolve(absent)}"`,
+    );
 });

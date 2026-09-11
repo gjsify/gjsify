@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { FONT_FACE_EXTENSIONS, isFontFace, resolveFontDir } from './font-dir.js';
+import { FONT_FACE_EXTENSIONS, isFontFace, resolveFontDir, resolveFontSources } from './font-dir.js';
 
 export default async () => {
     await describe('resolveFontDir', async () => {
@@ -42,6 +42,68 @@ export default async () => {
 
         await it('trims, so a launcher line with a stray space still names the directory', async () => {
             expect(resolveFontDir({ env: { GJSIFY_FONT_DIR: '  /opt/app/fonts  ' } })).toBe('/opt/app/fonts');
+        });
+    });
+
+    await describe('resolveFontSources', async () => {
+        await it('finds the RUNTIME bundle faces with no application directory at all', async () => {
+            // The Windows shape the whole mechanism exists for: the app ships no face of its own,
+            // and the GNOME UI typeface still has to reach the font map — because on that host
+            // nothing installed it and pangowin32 reads no fontconfig path.
+            expect(resolveFontSources({ env: { GJSIFY_GTK_RUNTIME_FONT_DIR: '/app/gtk/share/fonts' } })).toStrictEqual([
+                { dir: '/app/gtk/share/fonts', origin: 'runtime' },
+            ]);
+        });
+
+        await it('registers BOTH, runtime first', async () => {
+            // Two sources answering two different questions: the platform's typeface and this
+            // application's brand face. An app must never have to choose between them, which is
+            // why they are separate variables rather than one contested one.
+            expect(
+                resolveFontSources({
+                    env: {
+                        GJSIFY_GTK_RUNTIME_FONT_DIR: '/app/gtk/share/fonts',
+                        GJSIFY_FONT_DIR: '/app/share/fonts/org.example.App',
+                    },
+                }),
+            ).toStrictEqual([
+                { dir: '/app/gtk/share/fonts', origin: 'runtime' },
+                { dir: '/app/share/fonts/org.example.App', origin: 'app' },
+            ]);
+        });
+
+        await it('collapses two variables naming ONE directory', async () => {
+            // `add_font_file` has no unregister and a doubled call is a doubled walk over the
+            // same faces; a dev tree that points both at the same place must not pay for it.
+            expect(
+                resolveFontSources({
+                    env: { GJSIFY_GTK_RUNTIME_FONT_DIR: '/fonts', GJSIFY_FONT_DIR: '/fonts' },
+                }),
+            ).toStrictEqual([{ dir: '/fonts', origin: 'runtime' }]);
+        });
+
+        await it('is empty when nothing names a directory, and treats "" as unset', async () => {
+            // The Linux shape, and the ordinary one: no bundle is active, so nothing is named and
+            // `initFonts` never touches Pango. An empty value must not read as the CURRENT
+            // directory — a font map that depends on the caller's cwd is the silent-substitution
+            // class this exists against.
+            expect(resolveFontSources({ env: {} })).toStrictEqual([]);
+            expect(
+                resolveFontSources({ env: { GJSIFY_GTK_RUNTIME_FONT_DIR: '  ', GJSIFY_FONT_DIR: '' } }),
+            ).toStrictEqual([]);
+        });
+
+        await it('lets explicit options win over both variables', async () => {
+            expect(
+                resolveFontSources({
+                    runtimeFontDir: 'tmp/bundle-fonts',
+                    fontDir: 'data/fonts',
+                    env: { GJSIFY_GTK_RUNTIME_FONT_DIR: '/app/gtk/share/fonts', GJSIFY_FONT_DIR: '/usr/share/x' },
+                }),
+            ).toStrictEqual([
+                { dir: 'tmp/bundle-fonts', origin: 'runtime' },
+                { dir: 'data/fonts', origin: 'app' },
+            ]);
         });
     });
 
