@@ -12,12 +12,13 @@
 // `xmlNumber`, failed to parse, fell back, and rendered at 16 DIPs with nothing reported.
 //
 // ADR 0034 § 4: for an enum the convergent spelling is the NICK, because a nick is a string
-// and a string is the only thing that survives an XML attribute. Unlike `gtk-align.ts` this
-// file declares NO constants: the numeric spelling would have to be coerced to a nick inside
-// the construct-props bag (a setter must not widen to admit it, or the number reaches the
-// ATTRIBUTE door, which has no coercer), and that coercion needs its own gate arm to be
-// worth having. `status/open-todos.md` carries it as an open item rather than as a table
-// nothing checks.
+// and a string is the only thing that survives an XML attribute, and the CONSTANT is a
+// second accepted spelling so a snippet ported off GJS keeps working. Like `gtk-align.ts`,
+// then, this file carries a value table — and the constant is coerced in the CONSTRUCT-PROPS
+// BAG and nowhere else: a setter widened to admit a number would drag it into the XML
+// ATTRIBUTE door, which has no coercer. The table is only worth having with an oracle beside
+// it, which is arm 7 of `check-nativescript-xml-doors.mjs`: it holds the derived constants
+// against the typelib-read `ENUM_VALUES`, so the derivation is CHECKED, not asserted.
 //
 // THE SIZES ARE MEASURED, not remembered. On GTK 4.22.4 under gjs 1.88.1, one `Gtk.Image`
 // per member with an icon-name set, presented and then `measure()`d on both axes:
@@ -88,7 +89,13 @@ export function isGtkIconSizeNick(value: unknown): value is GtkIconSizeNick {
 
 /**
  * A `Gtk.IconSize` value as its NICK — the nick itself, or the constant a GJS caller's
- * `Gtk.IconSize.LARGE` is. Anything else is returned unchanged, for the setter to refuse.
+ * `Gtk.IconSize.LARGE` is.
+ *
+ * A NON-NUMBER goes back unchanged, for the SETTER to refuse with the one message that names
+ * the three members — one refusal, not two. A number that is no member is refused HERE
+ * instead, and the two are not the same mistake: by writing a number the caller has said
+ * "constant", so the setter could only report it as a bad nick, where `24` is a size in DIPs
+ * written under the wrong name and the throw can say exactly that.
  *
  * ADR 0034 § 4's second spelling, and it lives HERE rather than in the setter on purpose: a
  * setter that widened its declared type to admit the constant would drag the number into the
