@@ -288,6 +288,13 @@ documented version gap (`GtkEditableProperties.num-properties` is 8 on the insta
 had to declare unavailable. Two independent readings of the library agree; where they do not,
 the reason is named.
 
+**And the number did not move across a MAJOR.** `@girs` 5.0.0 broke the type surface
+(`connect`/`emit` lost their string overloads, ts-for-gir #464) and left the vocabulary alone:
+the gtk and adw `*-vocabulary.js` files are byte-identical to 4.9.0's, and the measurement above
+re-run against 5.0.0 answers 737 / 736 / the same single gap. The corpus agrees — 38 goldens,
+37 byte-equal and 1 ledgered before and after. A major version is a claim about a package, not
+about the data in it, and this is the shape of check that tells the two apart.
+
 **What the corpus learned on the way, each one measured on 0.20.4 and none of it guessed.**
 A member is spelled with UNDERSCORES in Blueprint and with hyphens in the GIR, so
 `halign: baseline_fill` is `4` and `halign: baseline-fill` is an error. A flag set is NOT

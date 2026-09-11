@@ -346,3 +346,57 @@ ordered first because adopting the vocabulary clauses on
 `@gjsify/adwaita-react-native` was free before its first publish, the package then
 published at 0.44.0, and the row is left as written because deleting the premise
 deletes the ordering argument. Two instances make it a class, not a one-off.
+
+## A signal name the object's static type does not declare
+
+**Rule: `connect`/`connect_after`/`emit` take the names the object's own class
+declares, and nothing else. A name that arrives as DATA, or a signal an element
+installs at class-init time, goes through `GObject.signal_connect`,
+`GObject.signal_connect_after` or `GObject.signal_emit_by_name` — the lower-level
+entry points ts-for-gir names for exactly this — and a name the object really does
+have is spelled as a LITERAL on a receiver narrow enough to carry it.**
+
+Until `@girs` 4.9.0 every generated class also carried
+`connect(signal: string, callback: (...args: any[]) => any): number` and
+`emit(signal: string, ...args: any[]): void`. Those overloads checked nothing, so
+"is this signal on this object" was never a question the compiler asked. 5.0.0
+deleted them (ts-for-gir #464) and the question became unavoidable in 22 places
+across 9 packages at once, which is what makes the shapes below a measured class
+rather than a style note.
+
+**Two of the twenty-two were a workaround for a gap that was not there.**
+`@gjsify/http2` and `@gjsify/fetch` each wrote `const signalName: string =
+'accept-certificate'` with a comment saying the signal "isn't in the typed
+SignalSignatures map" — and it is, on `Soup.Message`, with its real arguments. The
+`string` annotation was the only thing standing between the call and a checked one.
+
+**One of them was dead code the widening had hidden.** `@gjsify/http2` connected
+`accept-certificate` on the `Soup.Session`, and libsoup 3 installs no signal of
+that name there: measured, `signal_list_ids` on `SoupSession` answers
+`request-queued, request-unqueued`, and the call throws
+`No signal 'accept-certificate' on object 'SoupSession'`. So `rejectUnauthorized:
+false` had never worked on that path, the option's only test is a live TLS server,
+and a string overload is what let it compile for as long as it did. The repair is
+the idiom `@gjsify/fetch` already used: connect it on the MESSAGE, which is also
+the only spelling that does not disable verification for every other stream on a
+shared session.
+
+**Eleven were an element's own signals, and the fix was to write them down.**
+`Gst.ElementFactory.make('webrtcbin')` is typed `Gst.Element`, so none of
+webrtcbin's action signals is visible; `packages/web/webrtc/src/internal/gst-types.ts`
+already declared the PROPERTIES that are invisible for the same reason, and it now
+declares the signals beside them, read out of the running element with
+`GObject.signal_query` rather than off a documentation page. Note what could NOT
+hold them: an interface extending `Gst.Element` may not redeclare `emit` over a
+different key union — measured: TS2430, "incorrectly extends" — so the table is a
+separate type and one helper applies it.
+
+**And a downcast can stop compiling without anything being wrong with it.**
+`widgetOf(node) as Adw.ApplicationWindow` became TS2352 "neither type sufficiently
+overlaps", while `as Gtk.Button` and `as Adw.Window` still compile: measured, the
+refusal follows `Gio.ActionMap`, which `Gtk.ApplicationWindow` implements and
+`Gtk.Widget` does not, and whose `connect` no longer has a member in common with
+`Gtk.Widget`'s. The permissive overload was what used to make those two types
+overlap. `as unknown as` would silence it; naming the type that actually declares
+the method — `Gtk.Window`, which owns `present()` — needs no escape hatch at all
+and says something truer about the call.

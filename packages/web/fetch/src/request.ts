@@ -439,11 +439,12 @@ export class Request extends Body {
         // peer cert for THIS message only — never the shared session, which would silently disable
         // verification for every other fetch. Mirrors the `accept-certificate` idiom in
         // @gjsify/{tls,http2}. `accept-certificate` lives on Soup.Message (not the session) in
-        // libsoup 3 and isn't in the typed SignalSignatures map, so widen to the string overload.
+        // libsoup 3, and `@girs` carries it there — the `const signalName: string` that used to
+        // stand here widened to `connect`'s string overload for a gap that was not real, and
+        // 5.0.0 (which has no such overload) is what said so.
         if (parsedURL.protocol === 'https:' && shouldAcceptAnyCert(this.rejectUnauthorized)) {
-            const signalName: string = 'accept-certificate';
             message.connect(
-                signalName,
+                'accept-certificate',
                 (_msg: Soup.Message, _cert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => true,
             );
         }

@@ -12,10 +12,13 @@
 // site, we declare thin interfaces here and narrow once through helper
 // casts.
 //
-// These types are PURE compile-time constructs — no runtime behavior is
-// added. Following AGENTS.md Rule 2c, this module lives under
-// `src/internal/` and is NOT in `package.json#exports`; it is a private
-// implementation helper, not part of the public API surface.
+// The types are PURE compile-time constructs. `emitWebRtcBin` is the one
+// runtime export, and it is here rather than beside the call sites because
+// the SIGNALS are the same kind of element-class fact as the properties
+// above: one file says what `webrtcbin` adds to `Gst.Element`. Following
+// AGENTS.md Rule 2c, this module lives under `src/internal/` and is NOT in
+// `package.json#exports`; it is a private implementation helper, not part of
+// the public API surface.
 //
 // References:
 //  - GStreamer webrtcbin element properties:
@@ -23,6 +26,7 @@
 //  - vp8enc / opusenc / capsfilter / valve / payloader properties:
 //      https://gstreamer.freedesktop.org/documentation/
 
+import GObject from 'gi://GObject?version=2.0';
 import type Gst from 'gi://Gst?version=1.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
@@ -60,6 +64,63 @@ export interface WebRtcBin extends Gst.Element {
  * properties (they are class-installed by GstWebRTCBin).
  */
 export const asWebRtcBin = (el: Gst.Element): WebRtcBin => el as WebRtcBin;
+
+/**
+ * `webrtcbin`'s ACTION signals — the half `WebRtcBin` above was missing, and the
+ * half every API call in this package goes through.
+ *
+ * READ FROM THE ELEMENT, not from the documentation: `GObject.signal_query` over
+ * `GstWebRTCBin`'s registered ids, GStreamer 1.28.6, 2026-09-11. That is the only
+ * source that can be right, because these signals exist nowhere a type generator
+ * can see them — `@girs/gst-1.0` types every element as the base `Gst.Element`,
+ * and webrtcbin installs its own at element-class init.
+ *
+ * `emit` COULD NOT hold this. An interface extending `Gst.Element` may not
+ * redeclare `emit` over a different key union (measured: TS2430, 'incorrectly
+ * extends'), so the names live here and the call goes through the lower-level
+ * entry point instead.
+ *
+ * The `| null` on three returns is NOT from the query — a GObject return type
+ * carries no nullability — it is measured on a fresh bin: `get-transceiver 0` and
+ * `create-data-channel` both answer `null` there, which is also what
+ * `_findNewGstTransceiver` walks indices against and what both creating calls
+ * refuse before using.
+ */
+export interface WebRtcBinSignals {
+    'add-ice-candidate': (mlineIndex: number, candidate: string | null) => void;
+    'add-transceiver': (
+        direction: GstWebRTC.WebRTCRTPTransceiverDirection,
+        caps: Gst.Caps,
+    ) => GstWebRTC.WebRTCRTPTransceiver | null;
+    'add-turn-server': (uri: string) => boolean;
+    'create-answer': (options: Gst.Structure | null, promise: Gst.Promise) => void;
+    'create-data-channel': (label: string, options: Gst.Structure | null) => GstWebRTC.WebRTCDataChannel | null;
+    'create-offer': (options: Gst.Structure | null, promise: Gst.Promise) => void;
+    'get-stats': (pad: Gst.Pad | null, promise: Gst.Promise) => void;
+    'get-transceiver': (index: number) => GstWebRTC.WebRTCRTPTransceiver | null;
+    'set-local-description': (description: GstWebRTC.WebRTCSessionDescription, promise: Gst.Promise | null) => void;
+    'set-remote-description': (description: GstWebRTC.WebRTCSessionDescription, promise: Gst.Promise | null) => void;
+}
+
+/**
+ * Emit one of webrtcbin's action signals, with its name and its arguments checked.
+ *
+ * `el.emit(name, …)` used to take any string and check nothing; `@girs` 5.0.0 ended
+ * that by typing `emit` on the object's OWN signal names, which for a
+ * `Gst.ElementFactory.make('webrtcbin')` result are `Gst.Element`'s and not
+ * webrtcbin's. `GObject.signal_emit_by_name` is the lower-level entry point
+ * ts-for-gir names for a signal a static type cannot know, and it is the same
+ * emission — A/B'd on a live webrtcbin under gjs 1.86, the two answer identically
+ * for a boolean (`add-turn-server`), for an object and for a null.
+ */
+export const emitWebRtcBin = <K extends keyof WebRtcBinSignals>(
+    el: Gst.Element,
+    signal: K,
+    ...args: Parameters<WebRtcBinSignals[K]>
+): ReturnType<WebRtcBinSignals[K]> =>
+    // `signal_emit_by_name` is declared `void` upstream while GJS hands the signal's
+    // return value straight back, so the table above is what says what comes out.
+    GObject.signal_emit_by_name(el, signal, ...args) as unknown as ReturnType<WebRtcBinSignals[K]>;
 
 /**
  * GStreamer pad augmented with the `transceiver` field that webrtcbin's

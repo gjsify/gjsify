@@ -31,6 +31,7 @@
 
 import { DOMException } from '@gjsify/dom-exception';
 import { withGstPromise } from '../gst-utils.js';
+import { emitWebRtcBin } from '../internal/gst-types.js';
 import { parseGstStats, filterStatsByTrackId } from '../gst-stats-parser.js';
 import { MediaStreamTrack } from '../media-stream-track.js';
 import type { RTCStatsReport } from '../rtc-stats-report.js';
@@ -64,7 +65,7 @@ const statsAndConfigMethods: StatsAndConfigMethods & ThisType<RTCPeerConnection>
         }
 
         const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('get-stats', null, p);
+            emitWebRtcBin(this._webrtcbin, 'get-stats', null, p);
         });
 
         const report = parseGstStats(reply);

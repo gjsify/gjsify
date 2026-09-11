@@ -33,7 +33,7 @@
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
-import type GObject from 'gi://GObject?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 
 import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
@@ -73,9 +73,14 @@ interface Ui {
  * not, so there is no typed way to read back what `key-pressed` answered. The cast
  * lives here, once, rather than at each call site — and it is the reason the probe
  * can test the sync boundary at all.
+ *
+ * `GObject.signal_emit_by_name` and not `source.emit`: the name is a parameter, and
+ * since `@girs` 5.0.0 `emit` takes only the names the object's own class declares.
+ * The lower-level entry point hands back the same value — measured on gjs 1.86, it
+ * answers `true`/`false` for an accumulated signal exactly as `emit` does.
  */
 const emitBoolean = (source: GObject.Object, signal: string, ...args: unknown[]): boolean =>
-    source.emit(signal, ...args) as unknown as boolean;
+    GObject.signal_emit_by_name(source, signal, ...args) as unknown as boolean;
 
 function buildUi(app: Adw.Application | null): Ui {
     return { window: new EffectServicesWindow(app ? { application: app } : {}) };

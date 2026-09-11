@@ -21,6 +21,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
+import { emitWebRtcBin } from '../internal/gst-types.js';
 import { withGstPromise } from '../gst-utils.js';
 import { rewriteIceCredentials } from '../sdp-params.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from '../rtc-session-description.js';
@@ -51,7 +52,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
             this._iceRestartNeeded = false;
         }
         const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('create-offer', opts, p);
+            emitWebRtcBin(this._webrtcbin, 'create-offer', opts, p);
         });
         // GJS unboxes `get_value` for boxed types directly to the underlying
         // struct; no GObject.Value wrapper involvement.
@@ -73,7 +74,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         this._rejectIfClosed('createAnswer');
         const opts = Gst.Structure.new_empty('answer-options');
         const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('create-answer', opts, p);
+            emitWebRtcBin(this._webrtcbin, 'create-answer', opts, p);
         });
         const desc = reply!.get_value('answer') as unknown as GstWebRTC.WebRTCSessionDescription;
         return RTCSessionDescription.fromGstDesc(desc).toJSON();
@@ -121,7 +122,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
             // promise replied) — no pipeline state bump needed.
             const gstDesc = new RTCSessionDescription(description).toGstDesc();
             await withGstPromise((p) => {
-                this._webrtcbin.emit('set-local-description', gstDesc, p);
+                emitWebRtcBin(this._webrtcbin, 'set-local-description', gstDesc, p);
             });
             // Rolling back the INITIAL offer detaches the never-connected
             // transports again (WPT RTCRtpSender.https.html "null transport
@@ -135,7 +136,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         this._pipeline.set_state(Gst.State.PLAYING);
         const gstDesc = new RTCSessionDescription(description).toGstDesc();
         await withGstPromise((p) => {
-            this._webrtcbin.emit('set-local-description', gstDesc, p);
+            emitWebRtcBin(this._webrtcbin, 'set-local-description', gstDesc, p);
         });
 
         // Applying a local description creates the transports — W3C § 4.4.1.5,
@@ -151,7 +152,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         this._pipeline.set_state(Gst.State.PLAYING);
         const gstDesc = new RTCSessionDescription(description).toGstDesc();
         await withGstPromise((p) => {
-            this._webrtcbin.emit('set-remote-description', gstDesc, p);
+            emitWebRtcBin(this._webrtcbin, 'set-remote-description', gstDesc, p);
         });
         // Track that at least one negotiation has completed (for restartIce)
         if (this.signalingState === 'stable') {
@@ -167,7 +168,7 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         if (!candidate) return; // end-of-candidates marker — webrtcbin handles implicitly
         const { candidate: cand, sdpMLineIndex } = candidate;
         if (typeof cand !== 'string' || typeof sdpMLineIndex !== 'number') return;
-        this._webrtcbin.emit('add-ice-candidate', sdpMLineIndex, cand);
+        emitWebRtcBin(this._webrtcbin, 'add-ice-candidate', sdpMLineIndex, cand);
     },
 };
 

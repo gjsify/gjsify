@@ -33,6 +33,7 @@
 //
 // Values through `gi://`, types through `@girs/*`.
 
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 /** Live `state-flags-changed` subscriptions. A spec seam, and the cheap path's guard. */
@@ -85,10 +86,15 @@ export function onPressStateChange(widget: Gtk.Widget, listener: (pressed: boole
  * The controller is REMOVED and the handler disconnected, in that order: a controller
  * left on a widget outlives every JS reference to it, and its handler is then one of
  * the callbacks GJS blocks during GC.
+ *
+ * `GObject.signal_connect` rather than `gesture.connect`: `ResolvedGesture.signal` is a
+ * `string` that `components.ts` joins into one key and splits back out, so the name is
+ * DATA by the time it arrives here — and since `@girs` 5.0.0 `connect` takes only the
+ * names `Gtk.GestureClick` itself declares. Same connection, same id.
  */
 export function onGesture(widget: Gtk.Widget, signal: string, listener: () => void): () => void {
     const gesture = new Gtk.GestureClick();
-    const handler = gesture.connect(signal, () => listener());
+    const handler = GObject.signal_connect(gesture, signal, () => listener());
     widget.add_controller(gesture);
     return () => {
         widget.remove_controller(gesture);

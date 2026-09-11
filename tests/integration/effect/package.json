@@ -18,7 +18,7 @@
     },
     "devDependencies": {
         "@effect/platform-node-shared": "4.0.0-rc.112",
-        "@girs/gjs": "4.9.0",
+        "@girs/gjs": "5.0.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/effect-platform": "workspace:^",
         "@gjsify/node-globals": "workspace:^",

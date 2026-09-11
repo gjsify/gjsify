@@ -28,6 +28,13 @@
 // member called `never` finds several. 4.8.0 added `ENUM_VALUES` (ts-for-gir #465) and 4.9.0
 // added `PROP_ENUMS` (#467), which is the join. Both lookups are now data.
 //
+// A MAJOR IS NOT AUTOMATICALLY A MOVE IN THIS DATA. `@girs` 5.0.0 is a TYPE-surface break
+// — `connect`/`emit` lost their permissive string overloads (ts-for-gir #464) — and it
+// touched none of these tables: `gtk-4.0-vocabulary.js` and `adw-1-vocabulary.js` are
+// BYTE-IDENTICAL between the two published tarballs, same sha256, so every name and number
+// this module reads is the one 4.9.0 shipped. Worth stating rather than assuming, because
+// the version is the only thing an upgrade shows you.
+//
 // THE MEMBER SPELLING IS BLUEPRINT'S, THE KEY SPELLING IS THE GIR'S
 //
 // Measured against blueprint-compiler 0.20.4: `halign: baseline-fill` is an ERROR ("not a
