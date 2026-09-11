@@ -63,12 +63,17 @@ import { APP_ID, CLI_ENTRY, MONOREPO_ROOT, listPayload, scaffold, STAGE_MANIFEST
  * implementation of one that would keep agreeing with itself after the first
  * moved. Same reason `fixture.mjs` imports `STAGE_MANIFEST_FILE` from the CLI.
  */
-const { appDirPayload, appImageHostRequirements, DIR_ICON_NAME } = await import(
+const { appDirPayload, appImageHostRequirements, DIR_ICON_NAME, EXTRACT_AND_RUN } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'appimage.js')).href
 );
 
 const BINARY = 'ship-demo';
-const ARTIFACT = `${BINARY}-1.2.3-1.x86_64.AppImage`;
+// DERIVED, the way `ship-flatpak` derives its ref: the label is `APPIMAGE_ARCH`'s
+// and `packOne` takes it from the host unless `--arch` says otherwise. Hardcoding
+// `x86_64` made tier 3 fail on an aarch64 workstation with "was not produced" —
+// a message about a filename, for a reason that has nothing to do with the format.
+const ARCH_LABEL = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
+const ARTIFACT = `${BINARY}-1.2.3-1.${ARCH_LABEL}.AppImage`;
 const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle', 'verify-appimage.py');
 
 /** Write an AppDir from the packer's own list, the way `packOne` does. */
@@ -278,14 +283,30 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
             path: entry.path.startsWith('usr/') ? entry.path.slice('usr/'.length) : entry.path,
         }));
         const appDir = writeAppDir(join(tmpDir, 'AppDir-flat'), flat);
-        const binDir = join(tmpDir, 'stub-bin');
-        assert.throws(
-            () =>
-                execFileSync(join(appDir, 'AppRun'), [], {
-                    env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` },
-                    stdio: 'pipe',
-                }),
-            'an AppDir with no usr/ prefix must fail to launch',
+        // ITS OWN STUB, not the one the prefix test left behind. Two reasons, and
+        // both are ways this control goes green while blind: borrowing a directory
+        // another `it()` created makes it depend on the order `node:test` happens
+        // to run them in, and on a host with no `gjs` at all `AppRun` would refuse
+        // at its FIRST line — exit 127 with the requirement list, the layout never
+        // reached, and the assertion below satisfied by the wrong failure.
+        const binDir = join(tmpDir, 'flat-bin');
+        stubInterpreter(binDir, join(tmpDir, 'flat-argv.txt'));
+        let status = 0;
+        let stderr = '';
+        try {
+            execFileSync(join(appDir, 'AppRun'), [], {
+                env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` },
+                stdio: 'pipe',
+            });
+        } catch (error) {
+            status = error.status ?? 1;
+            stderr = `${error.stderr ?? ''}`;
+        }
+        assert.notEqual(status, 0, 'an AppDir with no usr/ prefix must fail to launch');
+        assert.doesNotMatch(
+            stderr,
+            /carries the application, not its runtime/,
+            'this control must fail on the missing `usr/bin/<name>`, not on the interpreter probe above it',
         );
     });
 
@@ -310,7 +331,7 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
             encoding: 'utf-8',
         });
         assert.match(read, /superblock found at \d+, derived from the ELF section-header table/);
-        assert.match(read, /at exactly the planned mode, plus AppRun, entry and icon/);
+        assert.match(read, /at exactly the planned mode, plus AppRun, entry, icon and a regular-file \.DirIcon/);
 
         // AND IT STARTS. An AppImage that was built and does not run is not a
         // result — the whole promise of the format is that a stranger downloads
@@ -329,7 +350,18 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         });
         assert.match(extracted, /GIRepositoryNamespace/);
         if (existsSync('/dev/fuse')) {
-            assert.match(execFileSync(artifact, [], { encoding: 'utf-8', stdio: 'pipe' }), /GIRepositoryNamespace/);
+            // WITHOUT THE PACKER'S OWN VARIABLE IN THE ENVIRONMENT. `appImageToolEnv`
+            // sets `APPIMAGE_EXTRACT_AND_RUN` for appimagetool and the ARTIFACT reads
+            // the same name — so inherited from a shell or a CI step that exported it,
+            // this "mount" leg extracts instead and passes with FUSE never touched.
+            // The one assertion in this file that is about the kernel device has to
+            // be the one that cannot be answered by a variable.
+            const mountEnv = { ...process.env };
+            delete mountEnv[EXTRACT_AND_RUN];
+            assert.match(
+                execFileSync(artifact, [], { encoding: 'utf-8', stdio: 'pipe', env: mountEnv, cwd: tmpDir }),
+                /GIRepositoryNamespace/,
+            );
         } else {
             console.log('  ↳ the MOUNT path was not exercised: this host has no /dev/fuse.');
         }
@@ -338,14 +370,19 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         const first = sha256(artifact);
         runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--target', 'appimage'], { cwd: projectDir });
         assert.equal(sha256(artifact), first, 'two packs of one build must be byte-identical');
-        // And the file that makes it so is ours, in the image.
+        // AND THE FILE THAT MAKES IT SO IS OURS, IN THE IMAGE — which the sha256
+        // above cannot say. Two packs a second apart agree whenever the tool edits
+        // the tree the SAME way both times, so identical bytes are consistent with
+        // the repair having been removed. The oracle is what distinguishes the two:
+        // `.DirIcon` reaches its listing only as a regular file, and appimagetool's
+        // own is a symlink. The line this replaced compared `DIR_ICON_NAME` to its
+        // own literal and looked in no image at all.
         assert.match(
             execFileSync('python3', [ORACLE, artifact, join(stageDir, STAGE_MANIFEST_FILE), APP_ID], {
                 encoding: 'utf-8',
             }),
-            /at exactly the planned mode/,
+            new RegExp(`regular-file \\${DIR_ICON_NAME}`),
         );
-        assert.ok(DIR_ICON_NAME === '.DirIcon');
     });
 
     it('NEGATIVE CONTROL: the oracle refuses an AppImage with nothing behind the runtime', () => {
