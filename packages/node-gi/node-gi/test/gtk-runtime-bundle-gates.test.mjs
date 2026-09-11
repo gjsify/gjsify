@@ -88,6 +88,12 @@ import {
     verifyTypelibApiFloor,
 } from '../../scripts/typelib-symbols.mjs';
 import { PATCHED_PROJECTS, normalizeProject, readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
+import {
+    BUNDLED_FONT_FAMILIES,
+    bundledFontLicenseComponent,
+    formatMissingFontSource,
+    stageBundledFonts,
+} from '../../scripts/bundle-fonts.mjs';
 
 // --- a synthetic typelib ----------------------------------------------------
 // girepository's Header, built by hand so the parser is tested against the FORMAT
@@ -1020,6 +1026,7 @@ function windowingBundle({
     iconIndex = true,
     loaders = true,
     gioModules = true,
+    fonts = true,
 } = {}) {
     const root = fixtureDir();
     if (schemas) {
@@ -1037,7 +1044,18 @@ function windowingBundle({
     }
     if (loaders) writePixbufLoaders(root);
     if (gioModules) writeGioModules(root);
+    if (fonts) writeBundledFonts(root);
     return root;
+}
+
+/**
+ * The GNOME UI faces both builders stage from `refs/adwaita-fonts`. The set requires ONE
+ * non-empty file under `share/fonts` and never a name, for the same reason the loader set
+ * does not name a module: the face files are upstream's to rename.
+ */
+function writeBundledFonts(root) {
+    mkdirSync(join(root, 'share/fonts/adwaita'), { recursive: true });
+    writeFileSync(join(root, 'share/fonts/adwaita/AdwaitaSans-Regular.ttf'), 'face');
 }
 
 /**
@@ -1075,7 +1093,7 @@ test('a complete windowing bundle passes, and every set is REPORTED as applied',
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource', 'tls-backend'],
+        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource', 'fonts', 'tls-backend'],
     );
     // Positive counts, not merely "no complaints": every applied set found real files.
     for (const applied of result.applied) assert.ok(applied.files > 0, `${applied.id} counted no file`);
@@ -1122,6 +1140,7 @@ test('an icon theme with an index but NO icons fails the second half of the set'
     writeFileSync(join(root, 'share/gtksourceview-5/language.dtd'), '<!ELEMENT x EMPTY>');
     writePixbufLoaders(root); // present, so the count below is about the ICONS set alone
     writeGioModules(root); // ditto — the TLS backend set applies to every Gio-shipping bundle
+    writeBundledFonts(root); // ditto — the UI faces apply to every Gtk-shipping bundle
     const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
     assert.equal(result.problems.length, 2, 'both the index glob and the tree count must complain');
     assert.match(result.problems.join('\n'), /nothing matches share\/icons\/\*\/index\.theme/);
@@ -1142,7 +1161,7 @@ test('a set is required by the NAMESPACE the bundle ships, not by a flag', () =>
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons', 'tls-backend'],
+        ['schemas', 'icons', 'fonts', 'tls-backend'],
     );
     assert.deepEqual(result.skipped, [
         { id: 'pixbuf-loaders', namespace: 'GdkPixbuf' },
@@ -1524,6 +1543,7 @@ test('a target this does not bundle for is refused, not answered', () => {
         assert.throws(() => expectedGstPlugins(target), /names no platform this bundles for/);
     }
 });
+
 // --- the typelib API floor (the Adw appdata hole) ---------------------------
 // A BACKED TYPELIB IS NOT A CALLABLE ONE. Measured on the published 0.50.0 tarballs, one
 // symbol at a time out of each bundle's own `Adw-1.typelib`:
@@ -1705,4 +1725,101 @@ test('every declared gap names a project the snapshot actually covers', () => {
             `${gap.upstream.project} is blamed by a gap and absent from PATCHED_PROJECTS in gvsbuild-catalogue.mjs`,
         );
     }
+});
+
+// --- the bundled UI font ----------------------------------------------------
+// Measured on Windows 11 / GTK 4.22.4 with the published 0.50.0 bundle: 82 font families on
+// the map, `Cantarell` / `Adwaita Sans` / `Adwaita Mono` among none of them, and every
+// request for one answered by Tahoma. And on the tarballs themselves, all three of them: the
+// only `.ttf` anywhere is GtkSourceView's own BuilderBlocks, and `gtk/share/` holds
+// glib-2.0, gtksourceview-5 and icons. `etc/fonts` shipped — the CONFIG, with no faces for
+// it to find, which is why `windowing.fontconfig: true` was not the answer to this question.
+
+test('a bundle with no faces fails the fonts set, and every other set still passes', () => {
+    // The published 0.50.0 shape. The discriminator matters: if adding this set had broken
+    // an unrelated one, the red would say nothing about fonts.
+    const root = fixtureDir(
+        'share/glib-2.0/schemas',
+        'share/icons/Adwaita/scalable',
+        'lib/gdk-pixbuf-2.0/2.10.0/loaders',
+        'share/gtksourceview-5',
+        'lib/gio/modules',
+    );
+    writeFileSync(join(root, 'share/glib-2.0/schemas/gschemas.compiled'), 'x');
+    writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), '[Icon Theme]');
+    writeFileSync(join(root, 'share/icons/Adwaita/scalable/open-menu-symbolic.svg'), '<svg/>');
+    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache'), 'x');
+    writeFileSync(join(root, 'lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so'), 'x');
+    writeFileSync(join(root, 'share/gtksourceview-5/language-specs.rng'), 'x');
+    writeFileSync(join(root, 'lib/gio/modules/libgiognutls.so'), 'x');
+
+    const namespaces = ['Gio', 'Gtk', 'GdkPixbuf', 'GtkSource'];
+    const before = verifyWindowingData({ bundleDir: root, shippedNamespaces: namespaces });
+    assert.equal(before.problems.length, 1, `only the fonts set may fail here: ${before.problems.join(' | ')}`);
+    assert.match(before.problems[0], /^fonts: share\/fonts\//);
+    // The remedy names the submodule AND the thing not to do — realizing refs/ recursively
+    // is ~150 GB against a ~45 GB disk.
+    assert.match(before.problems[0], /refs\/adwaita-fonts/);
+
+    // GREEN with the faces staged — same bundle, one directory added.
+    mkdirSync(join(root, 'share/fonts/adwaita'), { recursive: true });
+    writeFileSync(join(root, 'share/fonts/adwaita/AdwaitaSans-Regular.ttf'), 'not really a face, but bytes');
+    const after = verifyWindowingData({ bundleDir: root, shippedNamespaces: namespaces });
+    assert.deepEqual(after.problems, []);
+    assert.equal(after.applied.find((set) => set.id === 'fonts').files, 1);
+});
+
+test('the font staging reads the pinned submodule, and says so when it is not realized', () => {
+    // An unrealized `refs/adwaita-fonts` must not produce a bundle that merely LOOKS thinner:
+    // the staging reports nothing staged, the operator message names the one-line repair, and
+    // the data set above turns it into a build failure.
+    const empty = stageBundledFonts({ repoRoot: fixtureDir(), outDir: fixtureDir() });
+    assert.deepEqual(empty.faces, []);
+    assert.match(formatMissingFontSource(empty.source), /submodule update --init --depth 1 refs\/adwaita-fonts/);
+    assert.match(formatMissingFontSource(empty.source), /NOT init\s+refs\/ recursively/);
+
+    // And with a checkout it stages the faces from BOTH halves, flat, skipping everything
+    // that is not a desktop face. Mono is not decoration: it is what GNOME's monospace slot
+    // resolves to, so a sans-only bundle moves every code view onto the host's default.
+    const repo = fixtureDir('refs/adwaita-fonts/sans', 'refs/adwaita-fonts/mono');
+    writeFileSync(join(repo, 'refs/adwaita-fonts/sans/AdwaitaSans-Regular.ttf'), 'x');
+    writeFileSync(join(repo, 'refs/adwaita-fonts/sans/update-fonts.sh'), '#!/bin/sh');
+    writeFileSync(join(repo, 'refs/adwaita-fonts/mono/AdwaitaMono-Regular.ttf'), 'x');
+    writeFileSync(join(repo, 'refs/adwaita-fonts/LICENSE'), 'SIL OPEN FONT LICENSE');
+    const out = fixtureDir();
+    const staged = stageBundledFonts({ repoRoot: repo, outDir: out });
+    assert.deepEqual(staged.faces, ['AdwaitaMono-Regular.ttf', 'AdwaitaSans-Regular.ttf']);
+    assert.ok(existsSync(join(out, 'share/fonts/adwaita/AdwaitaSans-Regular.ttf')));
+
+    // The terms travel as a licence COMPONENT, so the shared payload writer copies the text,
+    // the notice names it and `manifest.licenses.texts` counts it — rather than a second copy
+    // beside the faces that no coverage gate ever reads.
+    const component = bundledFontLicenseComponent({ repoRoot: repo });
+    assert.equal(component.name, 'adwaita-fonts');
+    assert.equal(component.license, 'OFL-1.1');
+    assert.equal(component.texts.length, 1);
+    assert.ok(component.texts[0].bytes > 0, 'a zero-byte licence text is the same missing signal as none');
+    // No binary claims a `.ttf`, and both coverage modes accept a component that ships a text
+    // and owns none — asserted here because the alternative fails the whole build.
+    assert.deepEqual(component.binaries, []);
+    assert.deepEqual(
+        assertLicenseCoverage({
+            components: [component, { name: 'glib', texts: component.texts, binaries: ['libglib.so'] }],
+            binaries: ['libglib.so'],
+            attribution: 'per-binary',
+            textCount: 2,
+        }),
+        [],
+    );
+});
+
+test('the bundled families are NAMES, because a file count cannot answer for a face', () => {
+    // `initFonts` reports the families the map GAINED and warns about each expected family
+    // that did not arrive; it needs names to do it. A face FreeType declines registers as
+    // zero new families while every count stays right — the lesson `windowingData.decodeProbe`
+    // records one data set over, where 860 icon files decoded zero times.
+    assert.deepEqual([...BUNDLED_FONT_FAMILIES], ['Adwaita Sans', 'Adwaita Mono']);
+    // Cantarell is deliberately absent: adwaita-fonts ships none, and claiming a family the
+    // bundle does not carry is the substitution this whole set exists against.
+    assert.ok(!BUNDLED_FONT_FAMILIES.includes('Cantarell'));
 });

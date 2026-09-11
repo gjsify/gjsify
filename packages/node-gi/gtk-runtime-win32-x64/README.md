@@ -23,7 +23,8 @@ siblings use.
 gtk/
   bin/                     GTK/GLib/cairo/pango/graphene/gdk-pixbuf DLLs (+ deps)
   girepository-1.0/        typelibs — ONLY those this bundle can back (see below)
-  lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig
+  lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig,
+                           and share/fonts — the GNOME UI typeface (see below)
   licenses/                license texts from the gvsbuild prefix, plus vendored ones
   THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and that it is unmodified
   manifest.json            counts + sizes + DLL list + symmetry/API-floor/license proof
@@ -63,6 +64,7 @@ not shipped):
    because `gi_repository_require` loads dependencies first), and re-verifies the
    finished bundle off disk against a floor of namespaces that must be present. Shared
    with the darwin builder: [`../scripts/typelib-backers.mjs`](../scripts/typelib-backers.mjs).
+
    **A backed typelib is not a callable one**, which is the hole that check cannot see.
    Measured on the published 0.50.0 tarballs, one symbol at a time out of each bundle's own
    `Adw-1.typelib`:
@@ -172,9 +174,41 @@ both sufficient and the simplest mechanism.
     share/glib-2.0/schemas/gschemas.compiled  (glib-compile-schemas)
     share/icons/{Adwaita,hicolor}/        icon themes + icon-theme.cache
     etc/fonts/fonts.conf                  Fontconfig config (+ cache), when present
+    share/fonts/adwaita/*.ttf             Adwaita Sans + Adwaita Mono (OFL-1.1)
     manifest.json                         windowing:true + windowingData counts
                                           + decodeProbe (measured pixel sizes)
   ```
+
+  **`etc/fonts` is the config; `share/fonts` is the typeface**, and until 0.50.0 only the
+  first shipped. Measured on Windows 11 / GTK 4.22.4 with the published bundle: 82 font
+  families on the map, `Cantarell` / `Adwaita Sans` / `Adwaita Mono` among none of them, and
+  every request for one answered by Tahoma with `couldn't load font …, falling back to
+  "Sans 11"` and exit 0. The only `.ttf` in any of the three published tarballs was
+  GtkSourceView's own `BuilderBlocks.ttf`. So every Adwaita stylesheet rule naming the GNOME
+  font, and every application that asks for one by name, silently drew in a foreign face.
+
+  The faces come from the pinned `refs/adwaita-fonts` submodule rather than from the prefix —
+  gvsbuild has no project for them, and a build-time download would put an unpinned artifact
+  in a published tarball. The bundle jobs realize that ONE submodule (`--depth 1`); missing it
+  is not silent, because `fonts` is a declared windowing-data set and an empty `share/fonts`
+  fails the build.
+
+  **Registration is a second step on this platform, not a path.** GTK4-on-Windows is
+  pangowin32, whose font map is filled exclusively from the DirectWrite system collection: a
+  `FONTCONFIG_FILE` naming a directory of faces moves it by ZERO families even when it is the
+  only configuration present (measured both ways — ADR 0038 § W1-W5). So node-gi's loader
+  publishes the directory as `GJSIFY_GTK_RUNTIME_FONT_DIR` and `@gjsify/gtk-host`'s
+  `initFonts()` hands each face to `add_font_file`, which moves it by one. On darwin the same
+  variable is a second route to files `XDG_DATA_DIRS` already reaches.
+
+  **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
+  shell, and Windows' is 9 pt where GNOME designs for 11 — at 96 dpi, 12 px against ~14.7 px,
+  about 20 % small, which is the whole of "the font is a bit small". `initFonts()` raises the
+  point size to GNOME's when it registered this bundle's faces, and **keeps the host's
+  family**: Segoe UI at 11 pt is a GNOME app respecting its host; Segoe UI at 9 pt is Adwaita
+  drawn at the wrong scale. It raises only, so an enlarged system text is never shrunk. Pass
+  `uiFontSize: false` to leave the setting alone, or `{ family: 'Adwaita Sans' }` to force the
+  GNOME face too.
 
   Built on the Windows runner:
   ```
@@ -239,8 +273,11 @@ both sufficient and the simplest mechanism.
 module load beside the PATH-prepend) detects the windowing data via the
 `gschemas.compiled` marker and sets — only when currently unset — the env vars that
 locate it: `GSETTINGS_SCHEMA_DIR`, `GDK_PIXBUF_MODULEDIR` + `GDK_PIXBUF_MODULE_FILE`,
-`XDG_DATA_DIRS` (prepends `<bundle>/share`) and, when bundled, `FONTCONFIG_PATH` +
-`FONTCONFIG_FILE`. Windows re-reads these at first use (schema / loader / icon-theme
+`XDG_DATA_DIRS` (prepends `<bundle>/share`), when bundled `FONTCONFIG_PATH` +
+`FONTCONFIG_FILE`, and `GJSIFY_GTK_RUNTIME_FONT_DIR` at `<bundle>/share/fonts` — which is
+a NAME rather than a mechanism: the loader runs before the addon and has no Pango to hand
+a face to, so `@gjsify/gtk-host`'s `initFonts()` reads it and registers them.
+Windows re-reads these at first use (schema / loader / icon-theme
 init runs after the addon loads), so the in-process mutation is sufficient — no
 re-exec, the DLL-search analog. A **display-free** bundle carries no windowing data,
 so the marker is absent and the wiring is a strict no-op: the display-free load is

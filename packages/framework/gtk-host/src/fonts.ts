@@ -42,11 +42,16 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
+// The SETTING half needs the toolkit: `gtk-font-name` lives on `Gtk.Settings`, which is the one
+// place a GTK program's UI font size can be moved. Pango has no equivalent — its own resolution
+// and description APIs describe a layout, not the display's default.
+import Gtk from 'gi://Gtk?version=4.0';
 import type Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 import { describeFontFamilyMatch, matchFontFamilies, type FontFamilyMatch } from './font-families.js';
-import { isFontFace, resolveFontDir, type ResolveFontDirOptions } from './font-dir.js';
+import { isFontFace, resolveFontSources, type FontSource, type ResolveFontSourcesOptions } from './font-dir.js';
+import { GNOME_UI_FONT_POINT_SIZE, planUiFont, type PlanUiFontOptions, type UiFontPlan } from './ui-font.js';
 
 // The resolution half of this module's subject, re-exported so a caller that has to ask "what do
 // I actually put in `font-family`" reaches it from the same entry point as `initFonts` — there is
@@ -59,8 +64,33 @@ export {
     type FontFamilyMatchKind,
 } from './font-families.js';
 
-/** Everything {@link resolveFontDir} takes except the environment, which {@link initFonts} reads. */
-export interface InitFontsOptions extends Omit<ResolveFontDirOptions, 'env'> {
+// The SIZE half, re-exported for the same reason: a caller reaching for "why is my GNOME app 20 %
+// small on Windows" and a caller reaching for "which face backs my family" are the same person on
+// two different days, and both arrive at this entry point.
+export { GNOME_UI_FONT_POINT_SIZE, planUiFont, type PlanUiFontOptions, type UiFontPlan } from './ui-font.js';
+export { resolveFontSources, type FontSource, type ResolveFontSourcesOptions } from './font-dir.js';
+
+/**
+ * Everything {@link resolveFontSources} takes except the environment, which {@link initFonts}
+ * reads.
+ */
+export interface InitFontsOptions extends Omit<ResolveFontSourcesOptions, 'env'> {
+    /**
+     * Correct the UI font SIZE to GNOME's when the GTK RUNTIME BUNDLE's faces were registered —
+     * that is, when this process is drawing GNOME UI on a host that supplies none of it.
+     *
+     * `true` applies it unconditionally, `false` never, a `PlanUiFontOptions` applies it with
+     * those settings. Default: apply it exactly when a `runtime` source was found.
+     *
+     * WHY THE DEFAULT IS CONDITIONAL AND NOT SIMPLY ON. The measurement behind it is a
+     * bundled-runtime one — Windows hands GTK its shell's 9 pt while Adwaita is drawn for 11 —
+     * and the condition is what keeps the correction where the measurement is: on a Linux host
+     * with a system GTK no runtime bundle is named, so this does nothing at all and a desktop's
+     * own font setting is never second-guessed by a toolkit. See `ui-font.ts` for the policy
+     * itself, including why the FAMILY is left alone.
+     */
+    readonly uiFontSize?: boolean | PlanUiFontOptions;
+
     /**
      * The family names this application will ASK FOR — checked against the map once registration
      * is done, and reported in {@link InitFontsResult.matches}.
@@ -82,8 +112,23 @@ export interface FontFaceFailure {
 
 /** What {@link initFonts} did, so a caller that cares can assert on it. */
 export interface InitFontsResult {
-    /** The directory that was read, or `undefined` when nothing named one. */
+    /**
+     * The APPLICATION's font directory that was read, or `undefined` when nothing named one.
+     *
+     * Unchanged in meaning since before the runtime bundle had faces of its own, which is why
+     * it is still singular: a caller asserting "my staged face was found" must not start
+     * answering `true` because the platform's were. {@link sources} is the full list.
+     */
     readonly dir: string | undefined;
+    /** Every directory registered, runtime first. See {@link FontSource}. */
+    readonly sources: readonly FontSource[];
+    /**
+     * What the UI-font-size policy did, or `undefined` when it did not run.
+     *
+     * `undefined` is the ordinary answer on Linux: no runtime bundle names a font directory
+     * there, so the default leaves `gtk-font-name` alone entirely.
+     */
+    readonly uiFont: UiFontPlan | undefined;
     /** Faces now on the default font map. */
     readonly registered: readonly string[];
     /** Faces the font map declined as unsupported — see {@link isUnsupportedByFontMap}. */
@@ -173,10 +218,14 @@ export function isUnsupportedByFontMap(error: unknown): boolean {
  * `gjsify ship` staged one, so an unset variable is the ordinary case and does nothing quietly.
  */
 export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
-    const dir = resolveFontDir({
+    const sources = resolveFontSources({
         ...options,
-        env: { GJSIFY_FONT_DIR: GLib.getenv('GJSIFY_FONT_DIR') ?? undefined },
+        env: {
+            GJSIFY_FONT_DIR: GLib.getenv('GJSIFY_FONT_DIR') ?? undefined,
+            GJSIFY_GTK_RUNTIME_FONT_DIR: GLib.getenv('GJSIFY_GTK_RUNTIME_FONT_DIR') ?? undefined,
+        },
     });
+    const dir = sources.find((source) => source.origin === 'app')?.dir;
 
     const registered: string[] = [];
     const declined: string[] = [];
@@ -185,15 +234,16 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
 
     // Nothing staged and nothing asked about: answer without touching Pango at all. Reading the
     // default font map INSTANTIATES it, and an application that ships no faces and names no family
-    // must not pay for that — `GJSIFY_FONT_DIR` is unset unless `gjsify ship` staged a directory,
-    // so this is the ordinary case and the one this call promises to pass through quietly.
+    // must not pay for that — neither variable is set unless something actually staged a
+    // directory, so this is the ordinary case and the one this call promises to pass through
+    // quietly.
     //
-    // The condition is `expectedFamilies` as well as `dir`, not `dir` alone: "is the family this
-    // application asks for actually here" is a fair question even when the application staged
-    // nothing, which is the macOS shape — a shipped `.app` had the OS activate the directory
+    // The condition is `expectedFamilies` as well as the sources, not the sources alone: "is the
+    // family this application asks for actually here" is a fair question even when nothing was
+    // staged, which is the macOS shape — a shipped `.app` had the OS activate the directory
     // declaratively, before any of this ran.
-    if (dir === undefined && expected.length === 0) {
-        return { dir, registered, declined, failed, families: [], matches: [] };
+    if (sources.length === 0 && expected.length === 0) {
+        return { dir, sources, uiFont: undefined, registered, declined, failed, families: [], matches: [] };
     }
 
     const fontMap = PangoCairo.FontMap.get_default();
@@ -201,11 +251,11 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // The BEFORE half of the diff, taken only when there is something to register: a family list
     // is a walk over every family the map knows, and with no directory there is nothing to
     // attribute to this call anyway.
-    const before = dir === undefined ? [] : familyNames(fontMap);
+    const before = sources.length === 0 ? [] : familyNames(fontMap);
 
-    if (dir !== undefined) {
+    for (const source of sources) {
         const faces: string[] = [];
-        collectFaces(Gio.File.new_for_path(dir), faces, failed);
+        collectFaces(Gio.File.new_for_path(source.dir), faces, failed);
 
         for (const path of faces.sort()) {
             try {
@@ -234,8 +284,15 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // a live one would report every family on the host as having been added by a call that
     // registered nothing — a field whose whole purpose is to say what THIS call contributed.
     const after = familyNames(fontMap);
-    const families = dir === undefined ? [] : after.filter((name) => !before.includes(name)).sort();
+    const families = sources.length === 0 ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
+
+    // THE SIZE, after the faces and before the warnings — it is the other half of what a GNOME
+    // application looks like off Linux, and shipping the typeface without it leaves Adwaita drawn
+    // at the host shell's point size (measured: Windows hands GTK 9 pt where GNOME designs for
+    // 11). `ui-font.ts` holds the decision and the reasoning; this is only the part that needs a
+    // real `Gtk.Settings` to run.
+    const uiFont = applyUiFontPolicy(options.uiFontSize, sources);
 
     for (const failure of failed) {
         console.warn(
@@ -255,7 +312,40 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         console.warn(`initFonts: ${describeFontFamilyMatch(match)}`);
     }
 
-    return { dir, registered, declined, failed, families, matches };
+    return { dir, sources, uiFont, registered, declined, failed, families, matches };
+}
+
+/**
+ * Correct `gtk-font-name`'s point size, when the policy says to.
+ *
+ * `Gtk.Settings.get_default()` answers null before `Gtk.init()`, and that is a legitimate state
+ * rather than an error: a program may register its faces before it initialises the toolkit, and
+ * this is the one part of `initFonts` that cannot run then. It reports `unparsed` — the arm that
+ * already means "nothing this can reason about, so nothing changed" — instead of throwing a
+ * caller out of a font call over a setting.
+ */
+function applyUiFontPolicy(
+    request: boolean | PlanUiFontOptions | undefined,
+    sources: readonly FontSource[],
+): UiFontPlan | undefined {
+    if (request === false) return undefined;
+    const explicit = request !== undefined && request !== true ? request : {};
+    // The default: only where the GNOME UI is being drawn on a host that supplies none of it.
+    if (request === undefined && !sources.some((source) => source.origin === 'runtime')) return undefined;
+
+    const settings = Gtk.Settings.get_default();
+    if (settings === null) {
+        return { next: undefined, kind: 'unparsed', family: undefined, size: undefined };
+    }
+    const plan = planUiFont(settings.gtk_font_name ?? undefined, explicit);
+    if (plan.next === undefined) return plan;
+    settings.gtk_font_name = plan.next;
+    console.info(
+        `initFonts: UI font size raised to GNOME's ${explicit.size ?? GNOME_UI_FONT_POINT_SIZE} pt — ` +
+            `gtk-font-name is now "${plan.next}". The host's own family is kept; pass ` +
+            '`uiFontSize: false` to leave the setting alone, or `{ family }` to force one.',
+    );
+    return plan;
 }
 
 /**

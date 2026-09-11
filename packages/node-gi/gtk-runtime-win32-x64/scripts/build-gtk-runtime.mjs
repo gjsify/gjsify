@@ -73,6 +73,12 @@ import {
     verifyTypelibApiFloor,
 } from '../../scripts/typelib-symbols.mjs';
 import { readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
+import {
+    BUNDLED_FONT_FAMILIES,
+    bundledFontLicenseComponent,
+    formatMissingFontSource,
+    stageBundledFonts,
+} from '../../scripts/bundle-fonts.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
@@ -87,6 +93,10 @@ import {
 } from '../../scripts/typelib-backers.mjs';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+// packages/node-gi/gtk-runtime-win32-x64 -> the repository root. Only the font staging
+// needs it: the faces come from a pinned `refs/` submodule rather than from the build
+// prefix, because neither gvsbuild nor Homebrew installs the GNOME UI typeface.
+const repoRoot = dirname(dirname(dirname(pkgRoot)));
 // Repo-relative path recorded in the shipped manifest so a consumer holding only the
 // tarball can find the recipe that produced its bytes — the tarball itself no longer
 // carries this script (the package's `files` no longer lists `scripts`, which would
@@ -469,6 +479,10 @@ const windowing = {
     schemas: false,
     iconThemes: [],
     fontconfig: false,
+    // The FACES, counted apart from `fontconfig` above, which records only that a CONFIG
+    // shipped. The published 0.50.0 bundle had `fontconfig: true` and no font at all.
+    fonts: 0,
+    fontFamilies: [],
     gtksource: false,
 };
 // Every loadable module § 4a/4g/4h PLACES in its own directory, for the rule-3 gate below
@@ -791,6 +805,22 @@ if (WINDOWING) {
         console.log('build-gtk-runtime: no etc/fonts (pango uses the win32/DirectWrite backend) — skipping fontconfig');
     }
 
+    // 4d2. The FACES themselves — the config above locates fonts, it does not supply any.
+    // Measured on the published 0.50.0 bundle on Windows 11: `etc/fonts` present, 82 font
+    // families on the map, Adwaita Sans and Cantarell among none of them, and every request
+    // for one answered by Tahoma with a `couldn't load font … falling back` line and exit 0.
+    // The faces come from the pinned `refs/adwaita-fonts` checkout, since gvsbuild has no
+    // project for them (§ bundle-fonts.mjs). Registration is the loader's + gtk-host's half:
+    // pangowin32's font map ignores fontconfig entirely, so a path alone would change nothing.
+    const fonts = stageBundledFonts({ repoRoot, outDir: OUT });
+    if (fonts.faces.length > 0) {
+        windowing.fonts = fonts.faces.length;
+        windowing.fontFamilies = [...BUNDLED_FONT_FAMILIES];
+        console.log(`build-gtk-runtime: UI fonts bundled — ${fonts.faces.join(', ')}`);
+    } else {
+        console.warn(`build-gtk-runtime: ${formatMissingFontSource(fonts.source)}`);
+    }
+
     // 4e. GtkSourceView's data tree — the WHOLE tree, loaded from
     // XDG_DATA_DIRS/gtksourceview-5 (node-gi prepends <bundle>/share).
     //
@@ -1021,6 +1051,11 @@ for (const component of upstreamLicenseComponents({
 })) {
     byComponent.set(component.name, component);
 }
+// The faces the bundle carries from `refs/adwaita-fonts`, whose terms come from a pinned
+// submodule rather than from the prefix — added here so the OFL text is written, named in
+// the notice and counted like every other component instead of by a second mechanism.
+const fontLicense = WINDOWING ? bundledFontLicenseComponent({ repoRoot }) : null;
+if (fontLicense) byComponent.set(fontLicense.name, fontLicense);
 const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 writeFileSync(
@@ -1131,7 +1166,7 @@ console.log(
         `  DLLs:     ${binDlls.size} (${mb(binBytes)} MiB)\n` +
         `  typelibs: ${typelibCount} (${mb(typelibBytes)} MiB)\n` +
         (WINDOWING
-            ? `  data:     loaders=${windowing.pixbufLoaders} schemas=${windowing.schemas} icons=[${windowing.iconThemes.join(',')}] fontconfig=${windowing.fontconfig} (${mb(dataBytes)} MiB)\n`
+            ? `  data:     loaders=${windowing.pixbufLoaders} schemas=${windowing.schemas} icons=[${windowing.iconThemes.join(',')}] fontconfig=${windowing.fontconfig} fonts=${windowing.fonts} (${mb(dataBytes)} MiB)\n`
             : '') +
         `  licenses: ${licensePayload.files.length} text(s) (${mb(licenseBytes)} MiB)\n` +
         `  total:    ${mb(manifest.totalBytes)} MiB`,

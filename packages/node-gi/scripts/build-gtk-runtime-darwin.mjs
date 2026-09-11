@@ -103,9 +103,19 @@ import {
     verifyBundleTypelibs,
 } from './typelib-backers.mjs';
 import { formatTypelibApiProblems, typelibApiRecord, verifyTypelibApiFloor } from './typelib-symbols.mjs';
+import {
+    BUNDLED_FONT_FAMILIES,
+    bundledFontLicenseComponent,
+    formatMissingFontSource,
+    stageBundledFonts,
+} from './bundle-fonts.mjs';
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
 const pillarDir = dirname(scriptsDir); // packages/node-gi
+// packages/node-gi -> the repository root. Only the font staging needs it: the faces come
+// from a pinned `refs/` submodule rather than from a keg, because Homebrew has no formula
+// for the GNOME UI typeface.
+const repoRoot = dirname(dirname(pillarDir));
 // Repo-relative path recorded in the shipped manifest, so a consumer holding only
 // the tarball can find the recipe that produced its bytes (the tarball no longer
 // carries a per-package copy of it).
@@ -1029,6 +1039,13 @@ const windowing = {
     schemas: false,
     iconThemes: [],
     iconFiles: 0,
+    // The GNOME UI faces. macOS degrades less visibly than Windows — the system font is a
+    // reasonable one — but `Adwaita Sans` and `Cantarell` are as absent here as they are
+    // there (measured on the published 0.50.0 tarballs: the only .ttf in any of the three
+    // is GtkSourceView's BuilderBlocks), so an Adwaita stylesheet naming the GNOME font
+    // silently gets the host's substitute on this platform too.
+    fonts: 0,
+    fontFamilies: [],
     gtksource: false,
 };
 if (WINDOWING) {
@@ -1115,6 +1132,21 @@ if (WINDOWING) {
             `build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled ` +
                 '(§ 4e will fail this build — `brew install gtksourceview5`)',
         );
+    }
+
+    // 4b-e. The GNOME UI faces, from the pinned `refs/adwaita-fonts` checkout — Homebrew
+    // has no formula for them, so unlike every other set here the source is not the keg
+    // prefix (§ bundle-fonts.mjs). On this platform fontconfig's stock config finds them
+    // over the `XDG_DATA_DIRS` node-gi already sets; `initFonts()` registers them anyway,
+    // because a CoreText map answers NOT_SUPPORTED and is reported as declined rather than
+    // failed, and that is the one path where "nothing registered" is the correct outcome.
+    const fonts = stageBundledFonts({ repoRoot, outDir: OUT });
+    if (fonts.faces.length > 0) {
+        windowing.fonts = fonts.faces.length;
+        windowing.fontFamilies = [...BUNDLED_FONT_FAMILIES];
+        console.log(`build-gtk-runtime: UI fonts bundled — ${fonts.faces.join(', ')}`);
+    } else {
+        console.warn(`build-gtk-runtime: ${formatMissingFontSource(fonts.source)}`);
     }
 }
 
@@ -1229,10 +1261,18 @@ const brewInfoLicense = (formula) => {
 // the per-binary table names them. They attribute through the same derivation as every
 // dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
 const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources, ...gioModuleSources]);
-const { components: licenseComponents, unattributed } = describeBrewKegs({
+const { components: kegComponents, unattributed } = describeBrewKegs({
     files: shippedBinaries,
     fallbackLicense: brewInfoLicense,
 });
+// The faces are the one payload whose terms do NOT come from a keg — no Homebrew formula
+// ships adwaita-fonts, so the OFL text travels from the pinned submodule. Appended as its
+// own component so the notice names it and the payload writer copies it, rather than by a
+// second copy nothing counts.
+const fontLicense = WINDOWING ? bundledFontLicenseComponent({ repoRoot }) : null;
+const licenseComponents = fontLicense
+    ? [...kegComponents, fontLicense].sort((a, b) => a.name.localeCompare(b.name))
+    : kegComponents;
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 const MODIFICATIONS = [
     '`install_name_tool -id` / `-change`: every install name and every reference to another library in this bundle ' +

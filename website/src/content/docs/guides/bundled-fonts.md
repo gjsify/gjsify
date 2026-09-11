@@ -68,8 +68,12 @@ face to `PangoCairo.FontMap.get_default().add_font_file()`, and returns what hap
 
 ```ts
 interface InitFontsResult {
-    /** The directory that was read, or `undefined` when nothing named one. */
+    /** The APPLICATION's font directory that was read, or `undefined` when nothing named one. */
     dir: string | undefined;
+    /** Every directory registered, runtime first — see below. */
+    sources: readonly { dir: string; origin: 'runtime' | 'app' }[];
+    /** What the UI-font-size policy did, or `undefined` when it did not run. See below. */
+    uiFont: { next: string | undefined; kind: 'raised' | 'family' | 'kept' | 'unparsed' } | undefined;
     /** Faces now on the default font map. */
     registered: readonly string[];
     /** Faces a font map that does no runtime registration refused. See below. */
@@ -312,6 +316,63 @@ because the OS activated the directory before your code ran. The check to run in
 `PANGOCAIRO_BACKEND=bogus ./YourApp` makes Pango print which backends it was actually built
 with.
 
+## The platform's own typeface comes from the runtime
+
+Everything above is about **your** face. There is a second one, and off Linux nobody installs
+it: the GNOME UI typeface itself.
+
+Measured on Windows 11 / GTK 4.22.4 against the published 0.50.0 runtime bundle — 82 font
+families on the map, and `Cantarell`, `Adwaita Sans` and `Adwaita Mono` among none of them.
+Every request for one came back as Tahoma, with the same `couldn't load font …, falling back`
+line and the same exit 0. An Adwaita stylesheet naming the GNOME font got a foreign face, in
+every gjsify GTK app on that platform.
+
+`@gjsify/gtk-runtime-<target>` now carries **Adwaita Sans + Adwaita Mono** under
+`gtk/share/fonts` (OFL-1.1, named in the bundle's `THIRD-PARTY-NOTICES.md`), and
+`@gjsify/node-gi`'s loader publishes that directory as `GJSIFY_GTK_RUNTIME_FONT_DIR`.
+
+**You do not have to do anything about it.** The same `initFonts()` call registers both — the
+runtime's faces first, then yours:
+
+```ts
+const fonts = initFonts({ expectedFamilies: ['Brand'] });
+
+fonts.sources;
+// [{ dir: 'C:\…\gtk\share\fonts', origin: 'runtime' },
+//  { dir: 'C:\…\share\fonts\org.example.App', origin: 'app' }]
+```
+
+Two variables and not one, deliberately: an app that ships a brand face must never have to
+choose between its face and the platform's. On Linux neither is usually set and the call stays
+the no-op it always was.
+
+### …and the size, which the faces do not fix
+
+GTK takes the system UI font from the shell. Windows' is **9 pt**; GNOME designs for **11**.
+At 96 dpi that is 12 px against ~14.7 px — about 20 % small, which is the whole of "the font
+looks a bit small" and is not something the typeface can answer.
+
+So when `initFonts()` registered the runtime bundle's faces, it also raises `gtk-font-name`'s
+point size to GNOME's, and **keeps the host's family**:
+
+| current | after |
+|---|---|
+| `Segoe UI 9` | `Segoe UI 11` |
+| `Cantarell 11` | unchanged — it raises only |
+| `Segoe UI 14` | unchanged — a user who enlarged their text keeps it |
+| `Segoe UI` (no size) | unchanged — a value it cannot read is never rewritten |
+
+Segoe UI at 11 pt is a GNOME app respecting its host; Segoe UI at 9 pt is Adwaita drawn at the
+wrong scale. If you want the GNOME face too, ask for it — and if you want none of this, say so:
+
+```ts
+initFonts({ uiFontSize: { family: 'Adwaita Sans' } });  // force both
+initFonts({ uiFontSize: false });                       // touch nothing
+```
+
+On Linux with a system GTK no runtime bundle names a font directory, so the default does
+nothing at all and a desktop's own font setting is never second-guessed by a toolkit.
+
 ## Who does what
 
 | Piece | Job |
@@ -319,6 +380,8 @@ with.
 | `gjsify.ship.fonts` | names the faces; `gjsify ship` copies them to `share/fonts/<appId>/` |
 | the generated launcher | exports `GJSIFY_FONT_DIR` at that directory, on every layout |
 | `initFonts()` from `@gjsify/gtk-host/fonts` | reads the variable and registers what it finds |
+| `@gjsify/gtk-runtime-<target>` | carries the GNOME UI typeface in `gtk/share/fonts` |
+| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory |
 
 `gjsify ship` deliberately does not make the call for you. A packaging command that injected
 a startup step would be deciding your app's initialisation order, invisibly, and the

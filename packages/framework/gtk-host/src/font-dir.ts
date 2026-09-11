@@ -25,6 +25,46 @@ export interface ResolveFontDirOptions {
     env?: Record<string, string | undefined>;
 }
 
+/** A directory of faces, and who put it there. */
+export interface FontSource {
+    readonly dir: string;
+    /**
+     * `runtime` = the GTK runtime bundle's own faces (the GNOME UI typeface, shipped by
+     * `@gjsify/gtk-runtime-<target>` and named by `@gjsify/node-gi`'s loader);
+     * `app` = the faces THIS application staged with `gjsify ship`.
+     */
+    readonly origin: 'runtime' | 'app';
+}
+
+export interface ResolveFontSourcesOptions extends ResolveFontDirOptions {
+    /** Wins over `GJSIFY_GTK_RUNTIME_FONT_DIR` — a bundle checkout, or a test fixture. */
+    runtimeFontDir?: string;
+}
+
+/**
+ * Every directory of faces this process should register, RUNTIME first.
+ *
+ * TWO SOURCES, NOT ONE, and they answer different questions. `GJSIFY_FONT_DIR` is the
+ * application's own brand face, staged by `gjsify ship` (ADR 0038).
+ * `GJSIFY_GTK_RUNTIME_FONT_DIR` is the GNOME UI typeface the GTK runtime bundle carries,
+ * because off Linux nothing installs it: measured on Windows 11 against the published 0.50.0
+ * bundle, `Adwaita Sans 11` and `Cantarell 11` both resolve to Tahoma, and Pango reports that
+ * substitution by rendering it. An application must never have to choose between its own face
+ * and the platform's, which is why this is a second variable rather than a contested one.
+ *
+ * RUNTIME FIRST, so the platform faces are on the map before an application's — the order the
+ * two were designed in. Duplicates collapse: pointing both variables at one directory
+ * registers it once instead of handing every face to `add_font_file` twice.
+ */
+export function resolveFontSources(options: ResolveFontSourcesOptions = {}): FontSource[] {
+    const runtime = nonEmpty(options.runtimeFontDir) ?? nonEmpty(options.env?.GJSIFY_GTK_RUNTIME_FONT_DIR);
+    const app = resolveFontDir(options);
+    const sources: FontSource[] = [];
+    if (runtime !== undefined) sources.push({ dir: runtime, origin: 'runtime' });
+    if (app !== undefined && app !== runtime) sources.push({ dir: app, origin: 'app' });
+    return sources;
+}
+
 /**
  * Resolve the directory holding the application's shipped faces, or `undefined` when none is named.
  *
