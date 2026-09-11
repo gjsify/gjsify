@@ -36,9 +36,10 @@
 // capture path). Copyright (c) GNOME contributors, MIT/LGPL.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireGi } from '../gi.js';
+import { gtkSource, resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import { haveDisplay } from './display-gate.mjs';
 
 // On win32/darwin the platform backend supplies the display; only Linux keys off
@@ -244,8 +245,26 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
     // before the addon is loaded and has no Pango to talk to.
     const fontDir = GLib.getenv('GJSIFY_GTK_RUNTIME_FONT_DIR');
     if (!fontDir) {
-        // Not a silent pass: say which of the two legitimate reasons it was, so a leg
-        // that stopped wiring the variable cannot read as "no bundle here".
+        // NOT A SILENT PASS, and a `console.log` is not what makes it one — an ASSERTION is.
+        // Everything below this point is gated on one environment variable, so the day the
+        // handover stops happening the strongest guard in this file returns GREEN with an
+        // explanatory line, the faces ship, nothing registers them, and every Adwaita family
+        // falls back exactly as it did in 0.50.0 — one layer up, with the `fonts` data set
+        // still counting six files and the manifest still naming two families. That is the
+        // shape this whole test exists against, so the absence has to be EARNED: it is
+        // legitimate only where `maybeWireGtkWindowingEnv()`'s own preconditions do not hold.
+        const bundle = resolveGtkRuntimeBundle();
+        const fonts = bundle ? join(bundle.dir, 'share', 'fonts') : undefined;
+        const windowingBundle =
+            fonts !== undefined &&
+            gtkSource() === 'bundle' &&
+            existsSync(join(bundle.dir, 'share', 'glib-2.0', 'schemas', 'gschemas.compiled'));
+        assert.ok(
+            !(windowingBundle && existsSync(fonts)),
+            `${fonts} is in the ACTIVE windowing bundle and nothing published ` +
+                'GJSIFY_GTK_RUNTIME_FONT_DIR. That variable is the only thing `initFonts()` reads, and on win32 ' +
+                'it is the only route onto the font map at all — see maybeWireGtkWindowingEnv() in gtk-runtime.js.',
+        );
         console.log('fonts: GJSIFY_GTK_RUNTIME_FONT_DIR unset — system GTK or a display-free bundle, nothing to prove');
         return;
     }
