@@ -48,7 +48,15 @@ import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
-/** Default decorative-icon size, in DIPs — the Adwaita 16px symbolic grid. */
+/**
+ * The size this image draws at when neither size property was set, in DIPs — the Adwaita
+ * 16px symbolic grid.
+ *
+ * PUBLISHED NAME, kept pointing at {@link DEFAULT_ICON_PIXEL_SIZE} rather than renamed:
+ * it predates #1584's split and means what it always meant, a NUMBER of DIPs. Read it as
+ * `pixelSize`'s default; `iconSize` now defaults to the nick `'inherit'`, which resolves
+ * to this same number.
+ */
 export const DEFAULT_GTK_IMAGE_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
 export class GtkImage extends withSignals(Image) {

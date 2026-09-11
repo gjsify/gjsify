@@ -775,8 +775,11 @@ too. It was `GtkImage.iconSize`, a `Gtk.IconSize` enum against a DIP number — 
 carrying `Gtk.Image:pixel-size`'s meaning under `icon-size`'s name, twice (`AdwImageButton`
 had the same pair). The fix was not to pick one: the port now carries BOTH GTK properties
 under their own names, `iconSize` taking the three nicks and `pixelSize` the number, with
-`pixel-size` overriding as it does on GTK. `widgets/gtk-icon-size.ts` holds the table and
-arm 7 of `check-nativescript-xml-doors.mjs` holds it against `GtkIconSizeNick`.
+`pixel-size` overriding as it does on GTK, and the constant reaching `iconSize` through the
+construct-props bag the way `Gtk.Align`'s does. `widgets/gtk-icon-size.ts` holds the table;
+arm 7 of `check-nativescript-xml-doors.mjs` holds it against `GtkIconSizeNick` AND holds the
+derived constants against the typelib-read values in `generated/enum-values.mts` — the
+second oracle `gtk-align.ts` names as the thing that would retire its own caveat.
 
 **The five it does not have RESOLVED** (ADR 0034 § Amendment 18), and they are worth keeping
 here for the shape of the answer. They were one family — `GtkImage.iconName`,
@@ -1097,18 +1100,22 @@ The nine, each read from both sides:
 | `AdwTabView.selectedPage` | `Adw.TabPage \| null` | the page id, a string (ADR 0048) |
 | `AdwTabView.defaultIcon` | `Gio.Icon` | a symbolic SVG string |
 | `AdwSidebar.filter` | `Gtk.Filter \| null` | a predicate function |
-| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs |
+| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs — no longer, see below |
 
 Seven of the nine are DECIDED portable forms with an ADR behind them — the port has no list
 model, no menu model and no page type, and giving it one was the point of those changes.
-The last two are the interesting ones and they are the same defect twice:
+
+The last two were the interesting ones and they were the same defect twice:
 `Gtk.Image:icon-size` is a three-member enum (`inherit`/`normal`/`large`) and the port's
-`iconSize` is "the icon size in DIPs" (`gtk-image.ts:109`). GTK's number for that is
-`pixel-size` — which the coverage census above lists as a gap on both widgets. So the port
-carries GTK's `pixel-size` under GTK's `icon-size` name, and `<gtk:Image iconSize="large">`
-resolves to `NaN` and falls back to 16, silently. Not fixed here: it renames a published
-attribute on a surface `feat/ns-construct-props` is rewriting, and both censuses now make
-the question visible from two directions.
+`iconSize` was "the icon size in DIPs". GTK's number for that is `pixel-size` — which the
+coverage census above listed as a gap on both widgets, beside the property that WAS it. So
+the port carried GTK's `pixel-size` under GTK's `icon-size` name, and
+`<gtk:Image iconSize="large">` fell back to 16, silently. #1584 gave each GTK property its
+own name — `iconSize` the nicks, and the constant through the construct-props bag;
+`pixelSize` the number — so the last row of the table above is agreement on the value kind
+now and eight of the nine remain. It is kept in the table because the SHAPE is this entry's
+point: two censuses made the question visible from two directions, and neither could have
+FAILED on it.
 
 **Why this is not a gate.** Getting from 26 raw disagreements to those 9 took four
 normalisations, and every one of them is a judgement a gate would be encoding rather than
@@ -6009,35 +6016,3 @@ cannot stay private forever and cannot export a type from a path outside its own
 candidate answers are a type-only package both sides import, and a declaration in the parser that a
 compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
 with a working projection in hand than without one.
-
-### `Gtk.IconSize` takes the nick and not the constant, and the second door has no gate arm
-
-ADR 0034 § 4 gives an enum TWO accepted spellings: the nick, because a nick is a string
-and a string is the only thing that survives an XML attribute, and the CONSTANT, so a
-snippet ported off GJS keeps working. `widgets/gtk-icon-size.ts` (#1584) declares only the
-first. `new Gtk.Image({ iconSize: Gtk.IconSize.LARGE })` is therefore a type error and a
-runtime refusal, where the same line spelled `'large'` works.
-
-That is a deliberate omission and not an oversight, because of where the second spelling
-has to live. A setter must NOT widen its declared type to admit the constant — that drags
-the number into the ATTRIBUTE door, which has no coercer — so the number is accepted by the
-construct-props BAG, which coerces it to a nick first. `Gtk.Align` does exactly this
-through `ALIGNMENT_AXES` + the `AlignmentProp` widening in `ConstructProps<T>`, and the
-reason it is safe there is that arm 5 of `check-nativescript-xml-doors.mjs` holds the
-table, and `construct-props.spec.ts` pins the derived constants literally. A second such
-table with no arm behind it would be the shape this repository calls a declaration nothing
-checks.
-
-**What would close it**: an `ICON_SIZE_PROPS` table beside `ALIGNMENT_AXES`, a second
-member of the `ConstructProps<T>` widening union, and one arm holding the constants against
-`ENUM_VALUES` in `packages/framework/gtk-host/src/generated/enum-values.mts` — which
-already carries `GtkIconSize.inherit` 0, `.normal` 1, `.large` 2, is committed, and is
-reachable from a `checkout` + `setup-node` job with no `@girs` install. That in-repo table
-is also what would retire `gtk-align.ts`'s own "the alias declaration is the one GIR fact
-no in-repo oracle can check" caveat, so the two are one piece of work rather than two.
-
-**Why the numbers are not simply authored here meanwhile**: no member of `Gtk.IconSize` is
-an alias, so the positions in the nick list ARE the constants — which is exactly the
-shortcut `Gtk.Align` measured to be wrong for 2 of its 7 members. Writing a derivation that
-happens to be right for this enum and is silently wrong for the next one is worse than not
-having the door.

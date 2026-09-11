@@ -65,9 +65,47 @@ export const GTK_ICON_SIZE_PIXELS: Readonly<Record<GtkIconSizeNick, number>> = {
 /** The size an icon draws at when neither property was set — the Adwaita 16px symbolic grid. */
 export const DEFAULT_ICON_PIXEL_SIZE = GTK_ICON_SIZE_PIXELS.inherit;
 
+/**
+ * Every `Gtk.IconSize` member, nick to constant.
+ *
+ * The positions ARE the values here, and that is a fact about THIS enum rather than a
+ * shortcut: no member of `Gtk.IconSize` is an alias, so nothing shifts below anything.
+ * `Gtk.Align` is the counter-example the sibling file is built around — `GTK_ALIGN_BASELINE`
+ * was deprecated into an alias in GTK 4.12, so 2 of its 7 members are not their position —
+ * which is why this is DERIVED from the nick order and then held against the committed,
+ * typelib-read `ENUM_VALUES` in `packages/framework/gtk-host/src/generated/enum-values.mts`
+ * by arm 7 of `check-nativescript-xml-doors.mjs`. A derivation that happens to be right is
+ * worth nothing without the oracle beside it.
+ */
+export const GTK_ICON_SIZE: Readonly<Record<GtkIconSizeNick, number>> = Object.freeze(
+    Object.fromEntries(GTK_ICON_SIZE_NICKS.map((nick, index) => [nick, index])),
+) as Readonly<Record<GtkIconSizeNick, number>>;
+
 /** Is `value` one of the three members? */
 export function isGtkIconSizeNick(value: unknown): value is GtkIconSizeNick {
     return typeof value === 'string' && (GTK_ICON_SIZE_NICKS as readonly string[]).includes(value);
+}
+
+/**
+ * A `Gtk.IconSize` value as its NICK — the nick itself, or the constant a GJS caller's
+ * `Gtk.IconSize.LARGE` is. Anything else is returned unchanged, for the setter to refuse.
+ *
+ * ADR 0034 § 4's second spelling, and it lives HERE rather than in the setter on purpose: a
+ * setter that widened its declared type to admit the constant would drag the number into the
+ * XML ATTRIBUTE door, which has no coercer. The construct-props bag is the one door that
+ * carries a real JS value, so it is the one that coerces — the arrangement `Gtk.Align`
+ * already has in `construct-props.ts`.
+ */
+export function iconSizeNickOf(value: unknown): unknown {
+    if (typeof value !== 'number') return value;
+    const nick = GTK_ICON_SIZE_NICKS.find((name) => GTK_ICON_SIZE[name] === value);
+    if (nick !== undefined) return nick;
+    throw new TypeError(
+        `${value} is not a Gtk.IconSize constant. The three members are ` +
+            `${GTK_ICON_SIZE_NICKS.join(', ')}, holding the values ` +
+            `${GTK_ICON_SIZE_NICKS.map((name) => GTK_ICON_SIZE[name]).join(', ')}. For a size in ` +
+            'DIPs use `pixelSize`, which is what `Gtk.Image:pixel-size` is.',
+    );
 }
 
 /**
@@ -81,8 +119,9 @@ export function isGtkIconSizeNick(value: unknown): value is GtkIconSizeNick {
  * `parseWidgetSelector`'s empty-selector refusal follows, and the opposite of `xmlNumber`,
  * which is lenient because a number genuinely has a sensible default.
  *
- * `fallback` is the value the caller keeps, and it is a parameter rather than a constant so
- * a widget's existing setting survives a rejected assignment.
+ * `fallback` is NAMED IN THE MESSAGE and never returned — this throws. The widget's current
+ * setting survives because nothing was assigned to it, not because of this parameter; the
+ * parameter is there so the error can say which setting that is.
  */
 export function gtkIconSizeNick(value: unknown, fallback: GtkIconSizeNick): GtkIconSizeNick {
     if (isGtkIconSizeNick(value)) return value;

@@ -69,15 +69,19 @@
 //      base is a widget a GJS event snippet cannot run on, and a second wrap is a second,
 //      identical copy of the door one prototype up. The count is PRINTED, split by which
 //      way each class got it, so "every class" is a number and not a sentence.
-//   7. THE `Gtk.IconSize` TABLE. Same shape as arm 5 and a different question: its nick
-//      list is `GtkIconSizeNick`'s, in that order and that spelling, and every member
-//      carries a pixel size. No member of this enum is an alias, so unlike `Gtk.Align` the
-//      positions ARE the values and there is no derivation to hold — what there is instead
-//      is a NUMBER PER MEMBER that no in-repo oracle can look up, measured on a live
-//      `Gtk.Image` and pinned literally by `icon-size.spec.ts`. The arm exists because the
-//      table is the whole of #1584's fix: the port used to carry `Gtk.Image:pixel-size`
-//      under `icon-size`'s name, and a name that agrees with a value that does not is
-//      invisible to every gate that compares names.
+//   7. THE `Gtk.IconSize` TABLE. Arm 5's shape with a second oracle. Its nick list is
+//      `GtkIconSizeNick`'s, in that order and that spelling; every member carries a pixel
+//      size; and the POSITIONS are held against the typelib-read values in
+//      `generated/enum-values.mts`. That last half is the one arm 5 wishes it had:
+//      `GTK_ICON_SIZE` derives its constants from the positions, which is legitimate only
+//      for an enum with no alias — `Gtk.Align` is the counter-example where it is wrong for
+//      2 of 7 members — so the premise is CHECKED rather than asserted, against a committed
+//      artifact a `checkout` + `setup-node` job can read with no `@girs` install. What no
+//      oracle here can look up is the PIXEL SIZE per member; that was measured on a live
+//      `Gtk.Image` and is pinned literally by `icon-size.spec.ts`. The arm exists because
+//      the table is the whole of #1584's fix: the port used to carry
+//      `Gtk.Image:pixel-size` under `icon-size`'s name, and a name that agrees with a value
+//      that does not is invisible to every gate that compares names.
 //
 // Plain Node over the repo's own files — no install, no build. It defines nothing that
 // writes, and `nativescript-xml-doors.mjs` beside it is a library for the same reason.
@@ -96,6 +100,7 @@ import {
     constructorOf,
     doorFor,
     extendsOf,
+    GTK_HOST_ENUM_VALUES,
     GTK_HOST_NICKS,
     JSON_DOORS,
     jsonDoors,
@@ -108,6 +113,7 @@ import {
     NS_WIDGETS_DIR,
     readCoreClasses,
     readElements,
+    readEnumValues,
     readNickUnion,
     readRecordLiteral,
     readStringArray,
@@ -626,10 +632,45 @@ if (iconSizeSource !== null && iconSizeNicks !== null) {
                 failures.push(`GTK_ICON_SIZE_PIXELS names '${nick}', which is not a Gtk.IconSize member.`);
             }
         }
+        // `GTK_ICON_SIZE` derives its constants from the POSITIONS above, which is only
+        // legitimate for an enum with no alias. That premise is exactly what `Gtk.Align`
+        // fails, so it is checked rather than asserted — against the committed,
+        // typelib-read table, the second oracle arm 5 says it does not have.
+        let enumValues = null;
+        try {
+            enumValues = readEnumValues(readFileSync(join(ROOT, GTK_HOST_ENUM_VALUES), 'utf8'), 'GtkIconSize');
+        } catch {
+            failures.push(`${GTK_HOST_ENUM_VALUES} is not readable — the positions would be held against nothing.`);
+        }
+        if (enumValues !== null && enumValues.size === 0) {
+            failures.push(`${GTK_HOST_ENUM_VALUES} declares no GtkIconSize value — the same silence, one file over.`);
+        }
+        if (enumValues !== null && enumValues.size > 0) {
+            for (const [index, nick] of order.entries()) {
+                const value = enumValues.get(nick);
+                if (value === undefined) {
+                    failures.push(`Gtk.IconSize '${nick}' has no value in ${GTK_HOST_ENUM_VALUES}.`);
+                } else if (value !== index) {
+                    failures.push(
+                        `Gtk.IconSize '${nick}' sits at position ${index} but the typelib registers it as ` +
+                            `${value}. GTK_ICON_SIZE derives its constants from the POSITIONS, which is only ` +
+                            'right for an enum with no alias — Gtk.Align is the member-shifting counter-example ' +
+                            'and this is the check that keeps the premise from being an assumption.',
+                    );
+                }
+            }
+            if (enumValues.size !== order.length) {
+                failures.push(
+                    `${GTK_HOST_ENUM_VALUES} declares ${enumValues.size} Gtk.IconSize member(s) where ` +
+                        `GTK_ICON_SIZE_NICKS has ${order.length}. A member the port does not know is one no ` +
+                        'setter can take.',
+                );
+            }
+        }
         notes.push(
-            `${order.length} Gtk.IconSize member(s) held against GtkIconSizeNick in order, each with a pixel ` +
-                'size; the sizes themselves are the one GIR fact no in-repo oracle can check and are pinned by ' +
-                'icon-size.spec.ts',
+            `${order.length} Gtk.IconSize member(s) held against GtkIconSizeNick in order and against the ` +
+                'typelib-read values in generated/enum-values.mts, each with a pixel size; the pixel sizes are ' +
+                'the one GIR fact no in-repo oracle can check and are pinned by icon-size.spec.ts',
         );
     }
 }

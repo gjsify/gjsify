@@ -10,8 +10,10 @@ import {
     DEFAULT_ICON_PIXEL_SIZE,
     GTK_ICON_SIZE_NICKS,
     GTK_ICON_SIZE_PIXELS,
+    GTK_ICON_SIZE,
     gtkIconSizeNick,
     iconPixelSize,
+    iconSizeNickOf,
     PIXEL_SIZE_UNSET,
     storedPixelSize,
 } from './widgets/gtk-icon-size.js';
@@ -23,6 +25,36 @@ export default async (): Promise<void> => {
             // `check-nativescript-xml-doors.mjs`; asserted literally here so the table
             // cannot drift without a test being edited to say so.
             expect([...GTK_ICON_SIZE_NICKS]).toStrictEqual(['inherit', 'normal', 'large']);
+        });
+
+        await it('holds the GIR constants, which ARE the positions for this enum', () => {
+            // No member of Gtk.IconSize is an alias, so nothing shifts below anything — the
+            // opposite of Gtk.Align, where a 4.12 deprecation made 2 of 7 members not their
+            // position. Held against the committed, typelib-read `ENUM_VALUES` by arm 7 of
+            // check-nativescript-xml-doors.mjs; asserted literally here so the derivation
+            // cannot drift without a test being edited to say so.
+            expect(GTK_ICON_SIZE.inherit).toBe(0);
+            expect(GTK_ICON_SIZE.normal).toBe(1);
+            expect(GTK_ICON_SIZE.large).toBe(2);
+        });
+
+        await it('takes the CONSTANT a ported GJS snippet carries, as its nick', () => {
+            // ADR 0034 § 4's second spelling. It is coerced HERE rather than widened into
+            // the setter, because a setter admitting a number would drag it into the XML
+            // attribute door, which has no coercer.
+            expect(iconSizeNickOf(2)).toBe('large');
+            expect(iconSizeNickOf(1)).toBe('normal');
+            expect(iconSizeNickOf(0)).toBe('inherit');
+        });
+
+        await it('leaves a non-number alone, and refuses a number that is no member', () => {
+            // A string goes through untouched so the SETTER refuses it, with the message
+            // that names the three members — one refusal, not two.
+            expect(iconSizeNickOf('large')).toBe('large');
+            expect(iconSizeNickOf('nonsense')).toBe('nonsense');
+            expect(() => iconSizeNickOf(3)).toThrow();
+            expect(() => iconSizeNickOf(-1)).toThrow();
+            expect(() => iconSizeNickOf(16)).toThrow();
         });
 
         await it('resolves each nick to the size GTK renders it at', () => {
