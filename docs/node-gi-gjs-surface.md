@@ -405,6 +405,32 @@ defaults to the class name. The parent namespace/type is read from the class's
 `extends` (its `$gtypeName`), so it works for both `GObject.Object` and real GI
 classes (`class extends Gio.SimpleAction { … }`).
 
+**A custom property's JS SETTER runs whenever the property is set.** A class may
+declare a GObject property AND a matching accessor over a backing field; gjs
+routes its set_property vfunc through the wrapper (`gjs_object_set_gproperty` →
+`jsobj_set_gproperty` → `JS_SetProperty`), and node-gi does the same. The lookup
+covers the three spellings gjs makes equivalent — dash, underscore and camelCase
+— so a `line-numbers` property reaches a `lineNumbers` setter, which is what
+`_checkAccessors` (refs/gjs/modules/core/_common.js) buys on gjs by mirroring the
+declared accessor onto all three. A property with NO accessor is untouched and
+keeps the engine's per-instance store as its single backing store.
+
+It happens at **two times, and the split is load-bearing**: a set that lands
+while the instance already has a wrapper (GtkBuilder applying a non-construct
+template property through `g_object_set`, a binding, `set_property`) delegates
+immediately; a set that lands during construction — g_object_new applying
+construct properties, before node-gi has built the wrapper — has nothing to call
+into and is replayed from the base constructor, before the user ctor body, in the
+order the values were actually applied. Only properties that were REALLY SET are
+replayed (the per-instance store's keys, in first-set order): replaying every
+declared property instead runs a setter for one nobody assigned, against state
+the ctor body has not created yet, which is the Learn6502 SourceView
+`selectable` → `_signalHandlers.forEach` crash. Until 0.51 only CONSTRUCT-flagged
+properties reached a setter at all, so a plain READWRITE one set from a
+GtkBuilder template never did — every Learn6502 tutorial code block rendered
+empty on `--app node` while the same source worked on gjs. Pinned by the
+`custom-property-js-setter` conformance program.
+
 Caveats (this is the no-toggle-ref object model): the user class's JS constructor
 body is not run — GObject-idiomatic init belongs in `vfunc_constructed`;
 instances are Proxies over a native handle (but `instanceof` still works — it is

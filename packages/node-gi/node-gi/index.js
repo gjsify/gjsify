@@ -277,6 +277,17 @@ export const setTemplateCallbackResolver = native.setTemplateCallbackResolver;
 // Reflect.constructs the class in adopt mode — see gi.js runCtorForCObject.
 export const setConstructCallback = native.setConstructCallback;
 
+// Registers the L1 callback the engine's set_property vfunc invokes after storing a
+// custom property: given (instanceHandle, propertyName) it runs the class's own JS
+// setter — see gi.js runJsPropertySetter. The engine calls it only once the instance
+// HAS a wrapper, so a construct-time set never reaches it; those are replayed from
+// the base ctor over storedPropertyNames.
+export const setPropertySetCallback = native.setPropertySetCallback;
+
+// The custom properties actually SET on an instance (the per-instance store's keys) —
+// what that construct-time replay has to push through the class's JS setters.
+export const storedPropertyNames = native.storedPropertyNames;
+
 export const logSetWriterFunc = native.logSetWriterFunc;
 export const logSetWriterDefault = native.logSetWriterDefault;
 export const bindPropertyFull = native.bindPropertyFull;

@@ -299,6 +299,17 @@ static GQuark NodeGiInstancePropsQuark() {
   static GQuark q = g_quark_from_static_string("node-gi-instance-props");
   return q;
 }
+// The ORDER in which this instance's custom properties were first set. A GHashTable
+// has no order, and the construct-time replay is visible output: gjs runs the JS
+// setters in the order g_object_new applied the values (CONSTRUCT properties, then
+// the rest), so replaying in hash order prints the same setters in a different
+// sequence. Recording what actually happened is cheaper than modelling GObject's
+// application order, and it stays right for paths that do not go through
+// g_object_new at all (GtkBuilder, a binding).
+static GQuark NodeGiInstancePropOrderQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-instance-prop-order");
+  return q;
+}
 
 static void FreeStoredGValue(gpointer p) {
   GValue* v = static_cast<GValue*>(p);
@@ -362,6 +373,72 @@ static void NodeGiGetProperty(GObject* obj, guint prop_id, GValue* value, GParam
   if (cd != nullptr && cd->parentGet != nullptr) cd->parentGet(obj, prop_id, value, pspec);
 }
 
+// Push a just-set custom property through the class's own JS setter, the way gjs's
+// set_property vfunc does (refs/gjs/gi/gobject.cpp gjs_object_set_gproperty →
+// jsobj_set_gproperty → JS_SetProperty on the wrapper).
+//
+// THE GATE IS THE WRAPPER, AND THAT IS THE WHOLE DESIGN — do not replace it with a
+// flag. gjs bails when `priv->wrapper()` is null and so do we, which means a set that
+// lands DURING construction (g_object_new applying construct properties, before
+// node-gi has built the wrapper) has nothing to call into and cannot run a setter
+// early. That is not an accident to tidy up: running a plain READWRITE property's
+// setter at construct time is what crashed Learn6502's SourceView (`selectable` →
+// `_signalHandlers.forEach` against state the ctor body had not created yet). The
+// construct-time values are replayed later, from the base ctor, once the wrapper
+// exists — see gi.js flushPropertiesToJsSetters. A set that lands AFTER construction
+// (GtkBuilder applying a non-construct template property via g_object_set, a
+// property binding, set_property) is the case this branch exists for, and it is the
+// one that left every Learn6502 tutorial code block empty on `--app node`.
+static void MaybeRunJsPropertySetter(NodeGiClassData* cd, GObject* obj, const char* name) {
+  if (cd == nullptr || cd->env == nullptr) return;
+  napi_env env = cd->env;
+  // Never enter JS during GC / env teardown (same gate as the vfunc trampoline and
+  // RunJsConstructorForCObject); the property is already stored either way.
+  if (!NodeGiJsAvailable(env)) return;
+  Napi::Env napiEnv(env);
+  Napi::HandleScope scope(napiEnv);
+  NodeGiPumpJsDispatchScope pumpWindow;
+
+  Napi::Value handle = PeekGObjectHandle(napiEnv, obj);
+  if (handle.IsEmpty()) return;  // construction has not reached the wrap yet
+
+  NodeGiEnvData* d = EnvData(env);
+  napi_value cb = nullptr;
+  if (d == nullptr || d->propertySetCallback == nullptr ||
+      napi_get_reference_value(env, d->propertySetCallback, &cb) != napi_ok || cb == nullptr) {
+    return;  // L1 hasn't registered the callback (nothing to run)
+  }
+  napi_value nameVal = nullptr;
+  napi_create_string_utf8(env, name, NAPI_AUTO_LENGTH, &nameVal);
+  napi_value args[2] = {handle, nameVal};
+  napi_value undef = nullptr;
+  napi_get_undefined(env, &undef);
+  napi_value ret = nullptr;
+  // A plain call, not napi_make_callback: g_object_set may be running inside GTK's
+  // own frame and must not get a microtask checkpoint in the middle of it — the same
+  // reasoning as RunJsConstructorForCObject, and gjs's JS_SetProperty takes no
+  // checkpoint either.
+  if (napi_call_function(env, undef, cb, 2, args, &ret) != napi_ok) {
+    // The setter threw. A pending JS exception must never cross back into GObject
+    // (g_object_set has no way to report one), so fold it into a g_warning — gjs logs
+    // the uncaught exception at the same point (gjs_log_exception_uncaught).
+    napi_value ex = nullptr;
+    if (napi_get_and_clear_last_exception(env, &ex) == napi_ok && ex != nullptr) {
+      napi_value msg = nullptr;
+      std::string detail;
+      if (napi_get_named_property(env, ex, "message", &msg) == napi_ok) {
+        size_t len = 0;
+        if (napi_get_value_string_utf8(env, msg, nullptr, 0, &len) == napi_ok) {
+          detail.resize(len);
+          napi_get_value_string_utf8(env, msg, detail.data(), len + 1, &len);
+        }
+      }
+      g_warning("node-gi: JS setter for %s.%s threw: %s", g_type_name(G_OBJECT_TYPE(obj)), name,
+                detail.empty() ? "(no message)" : detail.c_str());
+    }
+  }
+}
+
 static void NodeGiSetProperty(GObject* obj, guint prop_id, const GValue* value, GParamSpec* pspec) {
   NodeGiClassData* ownerCd =
       static_cast<NodeGiClassData*>(g_type_get_qdata(pspec->owner_type, NodeGiClassDataQuark()));
@@ -372,10 +449,26 @@ static void NodeGiSetProperty(GObject* obj, guint prop_id, const GValue* value, 
       g_object_set_qdata_full(obj, NodeGiInstancePropsQuark(), store,
                               reinterpret_cast<GDestroyNotify>(g_hash_table_destroy));
     }
+    // Record first-set order alongside the value (see NodeGiInstancePropOrderQuark).
+    // This is the ONLY writer of either structure, so they cannot drift.
+    if (!g_hash_table_contains(store, pspec->name)) {
+      GPtrArray* order =
+          static_cast<GPtrArray*>(g_object_get_qdata(obj, NodeGiInstancePropOrderQuark()));
+      if (order == nullptr) {
+        order = g_ptr_array_new_with_free_func(g_free);
+        g_object_set_qdata_full(obj, NodeGiInstancePropOrderQuark(), order,
+                                reinterpret_cast<GDestroyNotify>(g_ptr_array_unref));
+      }
+      g_ptr_array_add(order, g_strdup(pspec->name));
+    }
     GValue* copy = g_new0(GValue, 1);
     g_value_init(copy, G_VALUE_TYPE(value));
     g_value_copy(value, copy);
     g_hash_table_replace(store, g_strdup(pspec->name), copy);
+    // Before the notify, so a ::notify handler observes the JS-side state the setter
+    // wrote — GObject emits its own notify after this vfunc returns, which is the
+    // order gjs's handlers see.
+    MaybeRunJsPropertySetter(ownerCd, obj, pspec->name);
     g_object_notify_by_pspec(obj, pspec);
     return;
   }
@@ -1500,6 +1593,48 @@ Napi::Value SetConstructCallback(const Napi::CallbackInfo& info) {
   }
   napi_create_reference(env, info[0], 1, &d->constructCallback);
   return env.Undefined();
+}
+
+// setPropertySetCallback(cb) -> void. L1 registers the callback NodeGiSetProperty
+// invokes after storing a custom property: (instanceHandle, propertyName) → run the
+// class's own JS setter (see gi.js runJsPropertySetter). Mirrors
+// setConstructCallback.
+Napi::Value SetPropertySetCallback(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "setPropertySetCallback(cb: function)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr) return env.Undefined();
+  if (d->propertySetCallback != nullptr) {
+    napi_delete_reference(env, d->propertySetCallback);
+    d->propertySetCallback = nullptr;
+  }
+  napi_create_reference(env, info[0], 1, &d->propertySetCallback);
+  return env.Undefined();
+}
+
+// storedPropertyNames(handle) -> string[]. The custom properties that have actually
+// been SET on this instance, in the order they were first set — which is the only
+// honest record of it, since a property nobody set is absent (NodeGiGetProperty
+// answers such a read from the ParamSpec default instead). The base ctor reads it to
+// replay construct-time sets through the JS setters that did not exist yet, and
+// "actually set" is exactly the discriminator that keeps a declared-but-untouched
+// property's setter from firing early (the SourceView `selectable` crash). Order is
+// part of the contract, not a detail: the replay runs those setters, and gjs runs
+// them in the order g_object_new applied the values.
+Napi::Value StoredPropertyNames(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return Napi::Array::New(env, 0);
+  GPtrArray* order =
+      static_cast<GPtrArray*>(g_object_get_qdata(obj, NodeGiInstancePropOrderQuark()));
+  if (order == nullptr) return Napi::Array::New(env, 0);
+  Napi::Array out = Napi::Array::New(env, order->len);
+  for (guint i = 0; i < order->len; i++)
+    out.Set(i, Napi::String::New(env, static_cast<const char*>(g_ptr_array_index(order, i))));
+  return out;
 }
 
 }  // namespace nodegi
