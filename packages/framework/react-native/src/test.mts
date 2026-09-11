@@ -9,6 +9,7 @@ import childFactsSuite from './child-facts.spec.js';
 import eventEmitterSuite from './event-emitter.spec.js';
 import listsSuite from './lists/lists.spec.js';
 import classesSuite from './primitives/classes.spec.js';
+import errorsSuite from './primitives/errors.spec.js';
 import defaultsSuite from './primitives/defaults.spec.js';
 import primitivesSuite from './primitives/primitives.spec.js';
 import textMetricsSuite from './primitives/text-metrics.spec.js';
@@ -65,6 +66,7 @@ run({
     unsupportedSuite,
     eventEmitterSuite,
     classesSuite,
+    errorsSuite,
     childFactsSuite,
     defaultsSuite,
     stylesheetSuite,

@@ -450,11 +450,13 @@ jobs:
       - name: Check every Adwaita attribute gloss is the GIR's
         run: node scripts/generate-adwaita-attribute-comments.mjs --check
 
-      # The Blueprint corpus ADR 0053 puts before any parser: 25 one-rule `.blp` files
-      # and the 11 the build already compiles, each with the GtkBuilder XML the reference
-      # compiler produces and a hand-written `SharedNode` expectation. Stage A (complete
-      # corpus, valid expectations, no tracked `.blp` left unprobed) runs on every runner;
-      # stage B re-derives every golden and diffs it, and needs the binary.
+      # The Blueprint corpus ADR 0053 puts before any parser: one `.blp` per language rule
+      # plus every `.blp` the build already compiles, each with the GtkBuilder XML the
+      # reference compiler produces and a hand-written `SharedNode` expectation. The counts
+      # are the script's to print and are deliberately not repeated here — written out, they
+      # were stale one rule file later. Stage A (complete corpus, valid expectations, no
+      # tracked `.blp` left unprobed) runs on every runner; stage B re-derives every golden
+      # and diffs it, and needs the binary.
       #
       # HERE for the same reason `check-doc-fences.mjs` is here and not in
       # `audit-runtimes.yml`: stage B is the whole point and `blueprint-compiler` exists

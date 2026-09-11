@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-react-host-counter",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "The gtk-host counter written in React JSX — transformed by the automatic runtime and rendered by react-reconciler, with an in-process probe that asserts the real widget tree",
     "type": "module",
     "private": true,
@@ -27,11 +27,11 @@
         }
     },
     "devDependencies": {
-        "@girs/adw-1": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/gobject-2.0": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
+        "@girs/adw-1": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/gobject-2.0": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/gtk-host": "workspace:^",
         "@types/node": "^25.9.2",

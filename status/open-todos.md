@@ -3569,7 +3569,61 @@ Open, in order — each independently mergeable, each with its proof:
 **The console-window gap is CLOSED (ADR 0040), and here is what it cost to be sure.** `node.exe` is a CONSOLE-subsystem PE: `Subsystem` = 3, at offset 0xD4, measured on `node-v24.20.0-win-x64.zip`'s `node.exe` (`e_lfanew` 0x78, so 0x78 + 4 + 20 + 68 = 0xD4), and that release ships no `nodew.exe` (`unzip -Z1` lists exactly ONE `.exe`; the `nodewin` hits are corepack shim DIRECTORIES, the control string proving the grep was live). Two of the three fixes #1354 M3 listed do not work, for one reason: **the console is allocated for `cmd.exe`, which is a console image whatever `node.exe` is**, so `Subsystem`-patching the interpreter changes a field on a process started inside a console that already exists — and it would also discard every byte the app writes, because a console-less Node black-holes stdout/stderr and prints its uncaught-exception trace from C++ (`src/debug_utils.cc`), where no JS replacement of `process.stderr` can reach it (nodejs/node#12036). The `.msi`-shortcut fix reaches only the installed copy, not the zip. So the answer is the first of the three: the windows LAYOUT stages a GUI-subsystem launcher `gjsify ship` EMITS itself (`utils/ship/pe-launcher.ts`, 13 824 bytes, twelve kernel32 imports, no CRT and no vendored binary), the `.msi` shortcut points at it, and it runs the same `.cmd` — so no environment decision is duplicated in machine code. It preserves diagnosis: a terminal launch writes to the terminal, a redirected launch writes to the redirect, and only a launch with nowhere to write at all falls back to `%TEMP%\<binaryName>.launch.log`. **Still no CI leg can observe any of it** — every Windows job starts the app from a shell and already has a console. `verify-program-dir.py` now JUDGES the stub's subsystem (a claim about a file we write) and still PRINTS the interpreter's, and `tests/e2e/ship-windows` drives both refusals. The window measurement was made by hand on `win11-gjsify`, session 1, over a real staged program directory: the `.cmd` adds two visible console-host windows, the `.exe` adds none, both exit 7, and the control run with nothing started adds none. Instrument and method are in ADR 0040 § The measurement.
 **What #1354 M2b landed.** `utils/ship/app-runtime.ts` stages four things into the darwin layout, each resolved BY NAME and each `null`-not-throw: the interpreter (`@gjsify/node-runtime-darwin-<arch>` → `Contents/MacOS/node` + its LICENSE), the relocated GTK closure (`@gjsify/gtk-runtime-darwin-<arch>` → `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**`, TREE-PRESERVING), the addon (`@gjsify/node-gi`'s `prebuilds/<target>/node_gi.node`, SIBLING to that closure because its `@rpath` is `@loader_path/gtk/lib`), and — the one nobody predicted — **node-gi's JavaScript**, because `@gjsify/node-gi/*` is external in every `--app node` bundle by design, so a `gi://Gtk` import compiles to `require('@gjsify/node-gi/gi')` and a `.app` has no consumer `node_modules`. Measured on a bundle staged the M2a way, run from an unrelated directory: `Error: Cannot find module '@gjsify/node-gi/gi'`. The launcher execs `"$here/node"` and exports `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE` and (when the app carries GI libraries of its own) `GJSIFY_GI_LIBRARY_PATH` — all read by node-gi in JS, none by dyld, so § A4's signing rule survives. Two CI jobs in `node-gi.yml`: `macos-app-assemble` (Linux) and `macos-app-selfcontained` (`macos-latest` + `macos-15-intel`), which asserts brew gtk4/libadwaita are ABSENT and `PATH` reduced to the system directories has no `node`, then unzips the artifact and opens a window.
 
-10. **The `.deb` changelog is not compressed with `gzip -9`.** `W: gjsify: changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]` — measured on lintian 2.117 (ubuntu-24.04) against the first `.deb` that carried a changelog at all, i.e. it arrived WITH the § 4.4 fix rather than surviving it. Debian Policy § 4.4 asks for `gzip -9 -n`, and lintian reads the claim off the gzip header's XFL byte. The gap is a missing capability in the core, not in `ship`: `utils/ship/gzip.ts` compresses through `@gjsify/tar`'s `gzip()`, which is `CompressionStream('gzip')`, and the Web API takes no level; `@gjsify/zlib`'s `gzipSync` accepts a `ZlibOptions` it names `_options` and ignores, on both its Gio (`Gio.ZlibCompressor`, which DOES take a level) and its browser path. So the fix is a level argument through `@gjsify/zlib` → `@gjsify/tar` → `gzipDeterministic`, with the two backends' levels proven to agree. What is NOT the fix, and is why this is ledgered rather than closed: stamping XFL to 2 in `gzipDeterministic` beside the mtime and OS bytes it already normalises. Those two are facts about the build ENVIRONMENT; XFL is a statement about the compression that was actually performed, and writing it would make the artifact lie to the tool that reads it.
+
+### Two zlibs can compress one `gjsify ship` artifact, and they disagree
+
+Found while closing the `.deb` changelog's `gzip -9` gap, which is DONE: `@gjsify/zlib`
+honours `options.level` now (it was spelled `_options` and dropped on the floor, on the sync
+and the async path alike), `@gjsify/tar`'s `gzip()` takes one and routes a levelled request
+through `node:zlib` because `CompressionStream` has no level to give, and `plan.ts`
+compresses `changelog.Debian.gz` at `POLICY_MAX_COMPRESSION`. Measured with `lintian` 2.117
+on ubuntu-24.04 against gjsify's own `.deb`, before and after: `W: gjsify:
+changelog-not-compressed-with-max-compression [usr/share/doc/gjsify/changelog.Debian.gz]`
+present, then absent, with no error-severity tag in either run. `verify-deb.sh` gates the tag
+by name, so it cannot return quietly. **The file also settles the "just stamp XFL" argument
+with a number rather than a principle:** the two members differ in EXACTLY ONE BYTE —
+position 9, XFL, 0 against 2 — and are 1152 bytes either way, so for that input stamping
+would have produced the identical artifact. It is identical by coincidence of a small input;
+over the full `CHANGELOG.md` the same two levels differ by thousands of bytes.
+
+**What is open is what the work uncovered.** `gzipDeterministic` is deterministic for a
+given HOST, not for a given artifact, and its name says otherwise. `@gjsify/tar` compresses
+on the platform's zlib, and the two platforms this CLI runs on do not ship the same one:
+Fedora's `libz.so.1` is `zlib-ng-compat` 2.3.3, Node bundles `1.3.2.1-motley`. Measured
+2026-09-11 over this repo's `CHANGELOG.md` (876 192 bytes), gio-via-GJS against Node, output
+bytes per level — 0: 876 280 / 876 340 · 1: 295 057 / 297 789 · 6: 272 003 / 272 000 ·
+8: 270 255 / 270 260 · 9: 277 974 / 270 289. They agree at NO level on that input, including
+the default, and **zlib-ng's level 9 is worse than its own level 8** (~2.9 %), which is why
+the level is asked for only where a reader demands it and is not blanket-applied to
+`data.tar.gz` / `control.tar.gz`. Consequences: a `.deb` packed under GJS and one packed
+under Node differ in the two payload tarballs — those are compressed at PACK time — while
+`changelog.Debian.gz` is immune because `plan.ts` compresses it once at ASSEMBLY time and it
+travels as base64 in the sidecar. `tests/e2e/ship-from-stage` asserts byte-equality between a
+direct pack and a `--from-stage` pack and holds only because both run on one host; it is
+structurally blind to this, and a cross-host pack is the thing `--from-stage` exists for.
+Closing it means pinning ONE deflate implementation for the packers, which is a real
+decision (a vendored deflate, or declaring the packing host part of the artifact's identity)
+and not a patch.
+
+### The `.rpm` has no `%changelog`, and the blocker is the oracle rather than the writer
+
+Checked while doing the `.deb` half, so the next session does not re-derive it. `rpm.ts`
+writes no `CHANGELOGTIME` (1080) / `CHANGELOGNAME` (1081) / `CHANGELOGTEXT` (1082), so
+`rpm -qp --changelog` on a `gjsify ship` artifact prints nothing and `rpmlint` 2.8.0 raises
+`no-changelogname-tag` ("There is no changelog"). The entry text is NOT the missing piece —
+`changelogEntriesFor()` in `utils/ship/changelog.ts` already extracts the bullets per version
+and both formats would share it. Two things actually block it. **(a) `rpmlint` appears
+nowhere in this repository** — not in `.docker/ci-fedora.Dockerfile`, not in
+`.github/ship-oracle/verify-rpm.sh` — so the tag has no gate, and adding the package plus a
+test that hard-requires it in one PR is the ordering trap `build-ci-image.yml` imposes
+(the image publishes only on a push to `main`); `msitools` went in as its own PR first for
+exactly this, and this should too. The system `rpm`'s own `-qp --changelog` is a usable
+independent reader in the meantime and is already required by that suite. **(b) the RPM
+changelog is HEADER data built at PACK time, not an overlay file compressed at assembly
+time**, so `--from-stage` needs the entries inside `.gjsify-ship-stage.json` — a schema 6 → 7
+bump, which that file's own rules say must be justified in its header and which `readStage`
+must then validate. That is the whole cost, and it is why this is ledgered instead of folded
+into the changelog PR.
 
 ### A scaffolded workflow is read by actionlint, and a registry keeps it that way
 
@@ -5931,23 +5985,35 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. What is left here is the order of the work.
+beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 37 of
+the 38 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on two lines,
+the ARIA value types below. Clause 5's condition is that last entry, and after it come the flip
+and the deletions.
 
-The first PR carries the WRITTEN corpus, the hand-written `SharedNode` expectation per corpus
-file (clause 2) and the shadow harness — NOT a parser already claiming a subset, because a
-harness with nothing to compare reports green while proving nothing. The subset then grows one
-shadow divergence at a time.
+The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
+interface and changes what it calls, and byte-equality on the corpus is evidence about the
+corpus: the parser accepts a documented SUBSET (clause 3), and a `.blp` outside it is a hard
+error rather than wrong output, so the flip has to say what a build does when a real file trips
+one. `expr`, `typeof`, an inline `menu` as a property value and a response flag in a `setters`
+block are the refusals that exist today, each with its own message.
 
-Two things that suite has to settle before anything is claimed. The equivalence of the two
-notations is a READING and nothing has run it, so the honest expectation is that the first suite
-moves at least one row of the ADR's mapping table. And six construct classes have no `SharedNode`
-spelling at all — `template`, object ids, `_()`, `bind`, and `Adw.Breakpoint`'s `condition` and
-`setters`. The translatable marker is the one that costs: a caption parsed into a plain string
-loses exactly the attribute ADR 0033 prefers a template for.
+**And "outside the subset is a hard error, never wrong output" is a property to re-measure
+before the flip, not to assume.** It was untrue for `accessibility { }` until that rule file
+grew past the single string it held: relations and states were emitted as `<property>`, inside
+the subset, silently. What found it was widening the corpus, not reading the code — so the
+question for every construct with a thin rule file is what its SECOND case looks like.
 
 Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
 one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
-skip in `check-doc-fences.mjs`, and the MSYS2 branch of `gjsify system-check`.
+skip in `check-doc-fences.mjs` — which becomes two-stage rather than vanishing, per clause 7 —
+and the MSYS2 branch of `gjsify system-check`. The compiler itself stays, as the oracle stage B
+runs: deleting the binary from the image would delete the only independent reading the goldens
+have.
+
+One thing the corpus settled that the ADR's mapping table did not have: six construct classes
+have no `SharedNode` spelling at all — `template`, object ids, `_()`, `bind`, and
+`Adw.Breakpoint`'s `condition` and `setters`. The translatable marker is the one that costs: a
+caption parsed into a plain string loses exactly the attribute ADR 0033 prefers a template for.
 
 ### Does the shared corpus want a second authored notation?
 
@@ -5984,39 +6050,57 @@ this, per the policy above. No estimate of the web leg's cost belongs here until
 measures one: a browser binding that resolved custom elements directly would bypass the
 gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
 
-### Byte-equal GtkBuilder XML needs the GIR, not only a parse
+### The enum numbers exist twice now, with two provenances and one reader each
 
-ADR 0053 clause 4 makes `blueprint-compiler` the oracle for the emitted XML and reserves the
-installed typelib for VALIDATION — "a parser reading into a tree does not perform" a ParamSpec
-lookup. The corpus in `packages/infra/blueprint/corpus/` shows the reservation is too narrow.
-`orientation: vertical` does not reach the XML as `vertical`; the reference compiler resolves
-the enum member and writes `<property name="orientation">1</property>`, and `halign: center`
-as `3` (`corpus/rules/03-property-enum.ui`). Emission needs introspection, not only validation,
-and the ADR's cost estimate does not include it.
+`@girs` 4.9.0 carries `ENUM_VALUES` in every namespace's vocabulary, read from the same GIR as
+the nicks. `packages/framework/gtk-host/src/generated/enum-values.mts` carries the same numbers
+read from whatever typelib the maintainer had, written by `scripts/generate-enum-values.mjs`
+under GJS and held by `scripts/check-enum-values.mjs` plus `generated.spec.ts`. The second one
+exists because the first did not, and ADR 0029 § Amendment 2 said so in as many words: "it
+stays the right long-term home, and when it lands the generator here swaps its INPUT and its
+output does not change shape".
 
-The first version of this entry said the obvious source is the wrong one — that `@girs`
-declares `enum Orientation { HORIZONTAL, VERTICAL }` with no initialisers, so its members
-carry POSITIONAL values. That was measured on `node_modules/@girs/gtk-4.0`, which sits at
-**4.1.0** while `gjsify-lock.json` pins **4.6.0**, and it is wrong for the pinned version:
-from `@girs` 4.5.0 the `.d.ts` carries the GIR's own numbers, so `Gtk.ResponseType.NONE` is
-`-1` there as it is in the GIR. An independent review reached the same wrong answer from the
-same stale file. Two readings of one out-of-date artefact agree with each other and not with
-the tree, which is worth more than the claim they agreed on.
+It has landed, and the two agree: of the 737 values in the committed table 736 match `@girs`
+4.9.0 exactly, the one difference is the declared version gap
+(`GtkEditableProperties.num-properties` is 8 on the installed GTK 4.22.4 and 10 in the GIR of
+4.23.3), and `@girs` also carries the two entries the generating host had to list under
+`ENUM_VALUES_UNAVAILABLE`. So the swap is available and what it deletes is real: the GJS-only
+generation step, the `ENUM_VALUES_UNAVAILABLE` table with the host-version strings in it, and
+one of the artifact's two provenances.
 
-What is genuinely missing is the RUNTIME half. `@girs/<ns>/vocabulary` gives `ENUM_NICKS` —
-the names, in declaration order — and no numbers, which is why
-`scripts/generate-enum-values.mjs` reads them from the installed typelib through GIRepository
-instead, and why that artefact carries two provenances: nicks from the GIR the vocabulary was
-generated against, values from whatever GTK the maintainer had. That is fixed upstream rather
-than here — ts-for-gir now emits `ENUM_VALUES`, `ENUM_DEPRECATED` and a declared unreadable
-remainder from the same GIR as the nicks. What stays open on this side is what to do when it
-releases: the generator's own header says its INPUT changes and its output does not, so the
-committed table survives and the GJS-only generation step, the `ENUM_VALUES_UNAVAILABLE`
-entries and one of the two provenances can go.
+What it COSTS is the reason this is an entry and not a commit. `generated.spec.ts` holds every
+number against the typelib that is actually running, which is the genuinely independent oracle
+ADR 0034 § 7.3 names; a table read from `@girs` and checked against `@girs` would be a reader
+agreeing with itself. The swap therefore has to keep that spec pointed at the typelib while the
+DATA comes from the vocabulary — which is the arrangement that makes the disagreement above a
+finding rather than a failure. `packages/nativescript-bridge/adwaita/src/widgets/gtk-align.ts`
+is the other consumer and it reads the artifact, not the generator, so it is unaffected either
+way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
+is the shape the swap would generalise.
 
-Also measured, and smaller: values are normalised rather than copied through. `xalign: 1.0`
-comes out as `1` while `0.25` and `0.5` come out unchanged
-(`corpus/rules/17-numeric-forms.ui`).
+### `accessibility { }` VALUE types need the ARIA table, which `@girs` does not carry
+
+Measured on `blueprint-compiler` 0.20.4: `Gtk.Label { accessibility { orientation: vertical; } }`
+emits `<property name="orientation">1</property>` although `GtkLabel` is not orientable at all,
+`autocomplete: inline` beside it emits `1`, and `checked: true` emits `1` because the slot is a
+`GtkAccessibleTristate` and not a boolean. The block is typed by GTK's ARIA table and not by the
+widget's ParamSpecs, and that table is built in C by `gtk_accessible_property_init_value` — the
+GIR carries the function, not what it writes. `PROP_ENUMS` answers the ParamSpec question only,
+so `packages/infra/blueprint/src/emit-xml.mjs` passes nothing for that block and the source
+spelling stands.
+
+The NAME half is already answered and is not part of this: which element each entry becomes is
+the nick list of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState`, all
+three in the vocabulary, so `src/resolve-ident.mjs` classifies it. What is left is the value,
+and `rules/20-accessibility.blp` holds it as the one entry in `corpus/divergences.mjs` — which
+is the second half of what this entry used to say: the gap was written here because no corpus
+file probed it, and a gap nothing probes is one nothing prints either. Resolving it through the
+widget would be right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`, so the repair
+is upstream: ts-for-gir emits the ARIA value types the way it now emits `PROP_ENUMS`, the ledger
+entry fails with "byte-equal and still listed, delete the entry", and clause 5 is reached.
+`layout { }` is the same shape with a different answer — the entry there belongs to the layout
+CHILD (`GtkGridLayoutChild`), the compiler leaves an unresolvable one as written, and
+`rules/19-layout.blp` pins that with a `halign` the widget would have numbered.
 
 ### The Blueprint projection cannot be inverted, and three losses have no `SharedNode` spelling
 
@@ -6051,3 +6135,61 @@ cannot stay private forever and cannot export a type from a path outside its own
 candidate answers are a type-only package both sides import, and a declaration in the parser that a
 compile-time assignability check binds to the corpus's. Neither is free; both are cheaper to judge
 with a working projection in hand than without one.
+
+### Three more commands answer an empty selection with exit 0
+
+#1587 was one command resolving an empty set, doing nothing and reporting success. The
+fix is in, and a sweep of every command in `packages/infra/cli/src/commands/` asked the
+same question of each: *when the selection resolves to EMPTY, what happens?* Most answer
+well — `foreach --include`, `onboard --packages`, `storybook`, `ship`, `run`, `check`,
+`trust`, `dev` and every `flatpak` subcommand exit NON-ZERO, and `prune`, `upgrade`'s
+dependency filters, `install`, `info` and `affected` print a line saying they found
+nothing. Four did not.
+
+**The worst of them was a GUARD that goes green, and it is CLOSED** — kept here because
+the incident is the reason the remaining three are written down at all.
+`gjsify barrels --paths <dir>` skipped a directory it could not read and `--check` called
+that no drift: the generator caught the `readdir` failure, logged it only under
+`--verbose` and continued, while the command exited non-zero only on `drift > 0`, so a
+typo'd or renamed path contributed 0 and the check passed for a barrel nothing had looked
+at. It guarded "zero paths given" and never "this path is not there" — the exact
+asymmetry `assertEveryIncludeMatches` was written to close for `foreach`. Now
+`unscannableBarrelPaths` refuses every named path that is not a readable directory before
+anything is generated, and the generator stays tolerant for programmatic callers, which
+is the split the two callers actually want.
+
+The three that remain, ranked by what a later step then measures:
+
+1. **`gjsify build` has no guard for an entry / `--library` glob matching no files.**
+   `rolldown-plugin-gjsify/src/utils/entry-points.ts:102-105` returns `[]`, which flows
+   into `input` (`library/lib.ts:83`, `app/gjs.ts:153`) and on to `runBundle`. Every
+   post-build guard is offender-based and passes trivially on nothing:
+   `assertGjsBundleLoadable` returns when both offender lists are empty,
+   `assertGjsBundleParses` `continue`s on empty code, `computeCommonRoot` even has an
+   explicit `paths.length === 0 → 'src'` fallback. Whether rolldown itself refuses
+   `input: []` is NOT determined from this tree, and that is the point: the no-match path
+   is reachable (`commands/build.ts:6-26` records a win32-backslashed pattern where
+   "nothing ever matches, and no output file is written"), and build is precisely the
+   step whose artifact a later step measures.
+2. **`gjsify upgrade --workspace <glob>` prints one line and exits 0** where `foreach`
+   asserts (`commands/upgrade.ts:161-164`). `applyWorkspaceFilter` cannot tell "the
+   pattern named something that does not exist" from "the exclude emptied a real set", so
+   a stale name or a quoting mishap reports success having edited nothing, and the
+   following `install` + `build` measure the OLD versions. Cheapest of the three to fix:
+   the assert exists twice already (`commands/foreach.ts:593`,
+   `utils/onboard-discovery.ts:73`).
+3. **`gjsify pack` on an unbuilt package writes a `.tgz` of `package.json` + README and
+   prints its name at exit 0** (`commands/pack.ts:283-306`). The comment at `:276-282`
+   names the incident — `@gjsify/tsc` shipped an empty `lib/` for the whole v0.4.37-0.7.2
+   window — and puts the guard in `scripts/verify-tarball-outputs.mjs`, OUTSIDE the
+   command, so a `pack` → `publish` that does not run that script is unheld.
+
+Deliberate and left alone: `clear` and `copy` wildcards that match nothing (shell parity,
+argued for in `utils/clear-targets.ts:98-104` and `utils/copy-targets.ts:97-99`), and
+`ship --stage`'s `formats (none — …)` line.
+
+**What would close them**: one shared assert with the shape `assertEveryIncludeMatches`
+already has — *a pattern the caller wrote that matched nothing is an error, a filter that
+emptied a real set is not* — applied at the selection sites above, `barrels` having taken
+the first of them by hand. The distinction is the whole content of the rule, and it is why
+a blanket "empty is an error" would be wrong for `prune` and `foreach --exclude`.

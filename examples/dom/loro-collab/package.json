@@ -11,12 +11,12 @@
         "build:gjs": "gjsify build src/main.ts --app gjs --outfile dist/loro-collab.gjs.js --globals 'auto,crypto'"
     },
     "devDependencies": {
-        "@girs/adw-1": "4.6.0",
-        "@girs/gio-2.0": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/gobject-2.0": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
+        "@girs/adw-1": "4.9.0",
+        "@girs/gio-2.0": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/gobject-2.0": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.2",
         "loro-crdt": "^1.13.6",
@@ -25,5 +25,5 @@
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT",
     "private": true,
-    "version": "0.48.0"
+    "version": "0.49.0"
 }

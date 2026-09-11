@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/video",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "VideoBridge — GTK container for HTMLVideoElement backed by GStreamer gtk4paintablesink",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -29,13 +29,13 @@
         "bridge"
     ],
     "dependencies": {
-        "@girs/gdk-4.0": "4.6.0",
-        "@girs/gdkpixbuf-2.0": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/gobject-2.0": "4.6.0",
-        "@girs/gst-1.0": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
+        "@girs/gdk-4.0": "4.9.0",
+        "@girs/gdkpixbuf-2.0": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/gobject-2.0": "4.9.0",
+        "@girs/gst-1.0": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
         "@gjsify/bridge-types": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",

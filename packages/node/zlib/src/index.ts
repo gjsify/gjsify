@@ -26,7 +26,14 @@ export {
 } from './transform-streams.js';
 
 import type { ZlibOptions } from 'node:zlib';
-import { compressWithGio, decompressStreamWithGio, gunzipWithGio, type GioFormat } from './gio-codec.js';
+import {
+    assertLevel,
+    compressWithGio,
+    decompressStreamWithGio,
+    DEFAULT_LEVEL,
+    gunzipWithGio,
+    type GioFormat,
+} from './gio-codec.js';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
@@ -105,11 +112,39 @@ async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): P
     return runWebTransform(data, new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
 }
 
-async function compress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
-    if (hasWebCompression()) {
+/**
+ * A `level` the caller actually chose, or `undefined` for "whatever zlib picks".
+ *
+ * `undefined` and `-1` are the same REQUEST and deliberately not the same ROUTE:
+ * see {@link compress} for why only an explicit level leaves the Web fast path.
+ */
+function requestedLevel(options?: ZlibOptions): number | undefined {
+    const level = options?.level;
+    if (level === undefined || level === DEFAULT_LEVEL) return undefined;
+    assertLevel(level);
+    return level;
+}
+
+/**
+ * Async one-shot encode.
+ *
+ * AN EXPLICIT LEVEL LEAVES THE WEB PATH, because `CompressionStream` has no way to
+ * accept one: the Compression Streams spec takes a format and nothing else. Until
+ * this argument existed the option was read off `ZlibOptions` and dropped on the
+ * floor on both backends — the parameter was even spelled `_options` — so a caller
+ * asking for 9 got 6, and the gzip header's XFL byte said 6 to everything that
+ * reads it.
+ *
+ * Silently returning level-6 bytes to a caller who asked for 9 is the same class of
+ * lie as stamping XFL without doing the work, which is why the fix is to route
+ * rather than to ignore. With no level asked for, the Web path stays the default
+ * for the reason in {@link decompress}: it is the platform's own C zlib.
+ */
+async function compress(data: Uint8Array, format: GioFormat, level?: number): Promise<Uint8Array> {
+    if (level === undefined && hasWebCompression()) {
         return compressWithWeb(data, format as CompressionFormat);
     }
-    return compressWithGio(data, format);
+    return compressWithGio(data, format, level);
 }
 
 /**
@@ -171,7 +206,8 @@ export function gzip(
     callback?: ZlibCallback,
 ): void {
     const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    compress(toUint8Array(data), 'gzip').then(
+    const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
+    compress(toUint8Array(data), 'gzip', requestedLevel(options)).then(
         (result) => cb(null, result),
         (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
     );
@@ -199,7 +235,8 @@ export function deflate(
     callback?: ZlibCallback,
 ): void {
     const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    compress(toUint8Array(data), 'deflate').then(
+    const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
+    compress(toUint8Array(data), 'deflate', requestedLevel(options)).then(
         (result) => cb(null, result),
         (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
     );
@@ -227,7 +264,8 @@ export function deflateRaw(
     callback?: ZlibCallback,
 ): void {
     const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    compress(toUint8Array(data), 'deflate-raw').then(
+    const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
+    compress(toUint8Array(data), 'deflate-raw', requestedLevel(options)).then(
         (result) => cb(null, result),
         (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
     );
@@ -247,24 +285,24 @@ export function inflateRaw(
     );
 }
 
-export function gzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'gzip');
+export function gzipSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
+    return compressWithGio(toUint8Array(data), 'gzip', options?.level ?? DEFAULT_LEVEL);
 }
 
 export function gunzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
     return decompressWithGio(toUint8Array(data), 'gzip');
 }
 
-export function deflateSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'deflate');
+export function deflateSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
+    return compressWithGio(toUint8Array(data), 'deflate', options?.level ?? DEFAULT_LEVEL);
 }
 
 export function inflateSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
     return decompressWithGio(toUint8Array(data), 'deflate');
 }
 
-export function deflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'deflate-raw');
+export function deflateRawSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
+    return compressWithGio(toUint8Array(data), 'deflate-raw', options?.level ?? DEFAULT_LEVEL);
 }
 
 export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {

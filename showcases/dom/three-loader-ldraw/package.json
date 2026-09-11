@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-three-loader-ldraw",
-  "version": "0.48.0",
+  "version": "0.49.0",
   "description": "Three.js LDraw loader showcase ported from refs/three/examples/webgl_loader_ldraw.html with Adwaita controls",
   "main": "dist/gjs.js",
   "type": "module",
@@ -31,11 +31,11 @@
     "@gjsify/webgl": "workspace:^"
   },
   "devDependencies": {
-    "@girs/adw-1": "4.6.0",
-    "@girs/gio-2.0": "4.6.0",
-    "@girs/gjs": "4.6.0",
-    "@girs/gobject-2.0": "4.6.0",
-    "@girs/gtk-4.0": "4.6.0",
+    "@girs/adw-1": "4.9.0",
+    "@girs/gio-2.0": "4.9.0",
+    "@girs/gjs": "4.9.0",
+    "@girs/gobject-2.0": "4.9.0",
+    "@girs/gtk-4.0": "4.9.0",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/devtools": "workspace:^",

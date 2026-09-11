@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { parseTar, extractTarball, gunzip, BLOCK_SIZE, type TarEntry } from './index.js';
+import { parseTar, extractTarball, gunzip, gzip, BLOCK_SIZE, type TarEntry } from './index.js';
 
 interface BuildTarEntry {
     name: string;
@@ -239,6 +239,33 @@ export default async () => {
             } finally {
                 fs.rmSync(dest, { recursive: true, force: true });
             }
+        });
+    });
+
+    // BOTH LEGS, because the level is the one argument that changes which backend
+    // runs: without it `gzip()` uses `CompressionStream`, with it `node:zlib` —
+    // Node's own zlib on the Node leg, `@gjsify/zlib`'s `Gio.ZlibCompressor` on the
+    // GJS one. A Node-only test would leave the GJS route unexercised, and the GJS
+    // route is the one `gjsify ship` takes when the CLI runs under `gjs`.
+    //
+    // The assertion is XFL (byte 8), not the output size: the two backends' zlibs
+    // disagree about what level 9 produces, so a size assertion would encode one
+    // host's zlib. XFL is the byte `lintian` and `file` read.
+    await describe('@gjsify/tar — gzip compression level', async () => {
+        const LONG = new TextEncoder().encode('pack me tightly, please. '.repeat(64));
+
+        await it('records level 9 in the header', async () => {
+            expect((await gzip(LONG, { level: 9 }))[8]).toBe(2);
+        });
+
+        await it('leaves the header neutral with no level', async () => {
+            expect((await gzip(LONG))[8]).toBe(0);
+        });
+
+        await it('round-trips through gunzip either way', async () => {
+            expect(new TextDecoder().decode(await gunzip(await gzip(LONG, { level: 9 })))).toBe(
+                new TextDecoder().decode(LONG),
+            );
         });
     });
 

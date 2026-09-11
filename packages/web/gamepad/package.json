@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gamepad",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "Gamepad Web API for GJS using libmanette as backend",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -46,9 +46,9 @@
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/manette-0.2": "4.6.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/manette-0.2": "4.9.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

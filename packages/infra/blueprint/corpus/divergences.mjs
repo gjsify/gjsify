@@ -1,11 +1,35 @@
 // Where the in-repo parser and the reference compiler still disagree, one entry per file,
 // pinned to the exact lines.
 //
+// ONE ENTRY, TWO LINES, AND IT IS WAITING ON A FACT
+//
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
-// divergence, and it becomes authoritative when it reports none. This file is what "reports"
-// means — the shadow run is a GATE, not a log line, and a gate needs to know which
-// disagreements are known.
+// divergence, and it becomes authoritative when it reports none. It is not silent yet, and
+// the one thing left is named below — so clause 7's demotion of `blueprint-compiler` to
+// oracle-only is still a plan and not a deletion.
+//
+// WHAT USED TO BE HERE
+//
+// One cause over eleven files and twenty-three lines: `orientation: vertical` reached the XML
+// as `vertical` where the reference compiler writes `1`, because closing it needed two
+// lookups and this repository had one. `ENUM_VALUES` — the integer behind a nick — was
+// readable from the installed typelib; WHICH enum `GtkBox.orientation` is was not readable at
+// all, and searching the nick lists for an enum with a member called `never` finds several.
+// `@girs` 4.8.0 published the first as vocabulary data and 4.9.0 added `PROP_ENUMS`, the join.
+// `src/resolve-ident.mjs` performs both, and the twenty-three lines went with one change and
+// no entry here edited by hand — the second direction of the self-retirement rule below is
+// what turned the fix into eleven failures saying "delete me".
+//
+// AND WHAT AN EMPTY LIST NEARLY HID
+//
+// The list WAS empty for a while, on a corpus whose `accessibility { }` file held a single
+// string. Measured on 0.20.4, that block emits three different elements and resolves its
+// values against a table of its own, so the one entry in the fixture was the one case where
+// all of that is invisible: `label: "…"` is an ARIA property with a string value. The rule
+// file now carries a relation, a state and an enum too, which is what a rule file is for —
+// and what came back is the entry below. An exemption is data, and a corpus that does not
+// probe a construct is the other place a tolerated divergence can hide.
 //
 // AN EXEMPTION IS DATA, NEVER A CODE PATH
 //
@@ -22,9 +46,8 @@
 // emitter taught to write `<property name="THIS-IS-NOT-A-PROPERTY">SABOTAGE</property>` for
 // every `hscrollbar-policy` — five of the eleven files, none of the twenty-five byte-equal
 // ones — passed the gate with the headline unchanged at "25 byte-equal, 11 ledgered across 1
-// cause(s)". So each entry now names the lines it excuses and what stands on them, and any
-// other difference in the same file is a failure. The eleven files below hold 23 lines
-// between them; those 23 are excused and every other line is held to the golden.
+// cause(s)". So each entry names the lines it excuses and what stands on them, and any other
+// difference in the same file is a failure.
 //
 // The text is stored WITHOUT leading whitespace, and the indentation is compared separately:
 // a difference confined to indentation is a real divergence and must not hide behind a
@@ -45,37 +68,6 @@
 // naming its line, and a corpus file the parser refuses is either a gap in the parser or a
 // file that does not belong in the corpus. Neither is a divergence to tolerate.
 
-// THE ONE CAUSE LISTED TODAY, AND WHAT IT WOULD TAKE TO RETIRE IT
-//
-// `enum-member-unresolved`. `orientation: vertical` reaches the XML as
-// `<property name="orientation">1</property>`: the reference compiler resolves the member
-// against the installed typelib. The in-repo emitter takes a `resolveEnum` from its caller
-// and, with none, emits the identifier as written — it invents no number and carries no enum
-// table, because a special case in an emitter is invisible to every reader of the output.
-//
-// Three members across three enums account for all 23 lines: `GtkOrientation.vertical` (17),
-// `GtkPolicyType.never` (5) and `GtkAlign.center` (1). `hscrollbar-policy` is NOT confined to
-// one file — it stands in five of the eleven — which is why this ledger is keyed by file and
-// line rather than by member.
-//
-// Closing it needs TWO lookups and this repository has one. `ENUM_VALUES` in
-// `packages/framework/gtk-host/src/generated/enum-values.mts` already holds
-// `'GtkOrientation.vertical': 1`, `'GtkPolicyType.never': 2` and `'GtkAlign.center': 3` —
-// all three numbers these eleven files need. What is missing is the step before: WHICH enum
-// `GtkBox.orientation` is. Its neighbour `surface-data.mts` gives `OWN_PROPS`, which is
-// property NAMES per GType and carries no types; `props.ts` beside them does hold the join,
-// as a TypeScript type (`orientation?: GtkOrientationNick | Gtk.Orientation`), and a type is
-// erased exactly where an emitter needs a value. Both `.mts` files also say of themselves
-// that they are test-only and outside the library build glob, so importing them from a
-// package would be a second problem stacked on the first.
-//
-// Deriving the join instead of reading it is not available: searching the nick lists for a
-// member named `never` finds several enums, and guessing between them is the silent-wrong-
-// output failure clause 3 exists to prevent. So the entries below stay until some generated
-// artefact carries the property's enum type as a VALUE — the generator behind `props.ts`
-// already knows it, which is what makes this a small piece of work rather than an open
-// question.
-
 /**
  * @typedef {Object} DivergentLine
  * @property {number} line    1-based line number in the golden `.ui`
@@ -93,110 +85,36 @@
  *                            produce the other thing
  */
 
-const NO_RESOLVER = 'the emitter has no enum table and no caller gave it a resolver';
-
-/** `orientation: vertical`, the member behind 17 of the 23 lines. @param {number} line */
-const vertical = (line) => ({
-    line,
-    golden: '<property name="orientation">1</property>',
-    inRepo: '<property name="orientation">vertical</property>',
-});
-
-/** `orientation: horizontal`. @param {number} line */
-const horizontal = (line) => ({
-    line,
-    golden: '<property name="orientation">0</property>',
-    inRepo: '<property name="orientation">horizontal</property>',
-});
-
-/** `hscrollbar-policy: never`. @param {number} line */
-const never = (line) => ({
-    line,
-    golden: '<property name="hscrollbar-policy">2</property>',
-    inRepo: '<property name="hscrollbar-policy">never</property>',
-});
-
-/** `halign: center`, the only `GtkAlign` in the corpus. @param {number} line */
-const center = (line) => ({
-    line,
-    golden: '<property name="halign">3</property>',
-    inRepo: '<property name="halign">center</property>',
-});
-
 /**
- * The known disagreements, one entry per corpus file and one row per excused line.
- *
- * Eleven of the thirty-six, all one cause. That the count is eleven and the causes one is
- * the useful shape: a parser with eleven unrelated problems is unfinished, and a parser with
- * one problem eleven times is waiting on a fact it is not allowed to invent.
+ * The known disagreements. There is one.
  *
  * @type {readonly ShadowDivergence[]}
  */
 export const SHADOW_DIVERGENCES = [
     {
-        file: 'rules/03-property-enum.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(10), center(11)],
-        reason: `\`orientation: vertical\` and \`halign: center\` — the file written to isolate exactly this, and the only \`GtkAlign\` in the corpus — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'rules/15-comments.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(10)],
-        reason: `\`orientation: vertical\`, incidental here: the rule under test is comments — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/dom/canvas2d-fireworks/src/gjs/fireworks-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(29), never(55), vertical(58)],
-        reason: `two \`orientation: vertical\` and one \`hscrollbar-policy: never\` — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/dom/excalibur-jelly-jumper/src/gjs/jelly-jumper-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(15)],
-        reason: `\`orientation: vertical\` on the content box, the only enum in the file — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/dom/three-geometry-teapot/src/gjs/teapot-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(29), never(55), vertical(58)],
-        reason: `two \`orientation: vertical\` and one \`hscrollbar-policy: never\` — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/dom/three-loader-ldraw/src/gjs/ldraw-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(15), horizontal(21), never(28), vertical(31), vertical(96)],
-        reason: `the widest of the eleven: four \`orientation\` members across both nicks and one \`hscrollbar-policy: never\` — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/dom/three-postprocessing-pixel/src/gjs/pixel-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(29), never(55), vertical(58)],
-        reason: `two \`orientation: vertical\` and one \`hscrollbar-policy: never\` — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'showcases/gtk/effect-adw-services/src/window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [never(27), vertical(33)],
-        reason: `one \`hscrollbar-policy: never\` and one \`orientation: vertical\` — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'templates/adw-canvas2d/src/main-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(15)],
-        reason: `\`orientation: vertical\` on the content box, the only enum in the file — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'templates/adw-game/src/main-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(15)],
-        reason: `\`orientation: vertical\` on the content box, the only enum in the file — ${NO_RESOLVER}.`,
-    },
-    {
-        file: 'templates/adw-webgl/src/main-window.blp',
-        kind: 'enum-member-unresolved',
-        lines: [vertical(15)],
-        reason: `\`orientation: vertical\` on the content box, the only enum in the file — ${NO_RESOLVER}.`,
+        file: 'rules/20-accessibility.blp',
+        kind: 'aria-value-types',
+        lines: [
+            {
+                line: 14,
+                golden: '<state name="checked">1</state>',
+                inRepo: '<state name="checked">true</state>',
+            },
+            {
+                line: 15,
+                golden: '<property name="orientation">1</property>',
+                inRepo: '<property name="orientation">vertical</property>',
+            },
+        ],
+        reason:
+            "An `accessibility { }` entry is typed by GTK's ARIA table and not by the widget: `checked` " +
+            'is a GtkAccessibleTristate, so `true` is `1`, and `orientation` is a GtkOrientation there ' +
+            'even on a widget that is not orientable. The table is built in C by ' +
+            '`gtk_accessible_property_init_value`, and the GIR carries that function and not what it ' +
+            'writes — so `@girs` answers which ELEMENT each name becomes (the three nick lists, which is ' +
+            'why the two lines above are the only ones left) and cannot answer what value it takes. ' +
+            'Resolving it through the widget instead would be right by accident inside `Gtk.Box` and ' +
+            'wrong inside `Gtk.Label`. Retires when ts-for-gir emits the ARIA value types the way it now ' +
+            'emits `PROP_ENUMS`; tracked in `status/open-todos.md`.',
     },
 ];

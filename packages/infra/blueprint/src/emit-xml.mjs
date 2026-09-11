@@ -26,10 +26,11 @@
 //
 // ADR 0053 clause 6: "a tolerated divergence is a ledger entry, never an `if` inside the
 // parser." The same applies here. Where the goldens carry a value that syntax alone cannot
-// produce — an enum member resolved against the typelib — this file calls out to
-// `options.resolveEnum` and, given no answer, emits the source spelling. It does not carry
+// produce — an enum member resolved against the GIR — this file calls out to
+// `options.resolveIdent` and, given no answer, emits the source spelling. It does not carry
 // a table of enum members, and adding one for a single stubborn file would be exactly the
-// `if` clause 6 refuses. `corpus/divergences.mjs` is where such a case is recorded.
+// `if` clause 6 refuses. `corpus/divergences.mjs` is where such a case is recorded, and
+// `src/resolve-ident.mjs` is the resolver that answers from the `@girs` vocabulary.
 
 /**
  * @import { BlueprintFile, BlueprintImport, Child, Extension, MenuItem, MenuNode, ObjectBody,
@@ -37,35 +38,53 @@
  */
 
 /**
- * How the emitter is told what a bare identifier means, and the ONLY seam through which
- * introspection reaches this file.
+ * How the emitter is told what a bare identifier means — with `accessibilityElement` below, the
+ * only seam through which introspection reaches this file.
  *
  * `03-property-enum.ui` is the file that forces it: `orientation: vertical` leaves the
  * reference compiler as `1` and `halign: center` as `3`, because it resolves the member
- * against the typelib. Nothing in the syntax carries those numbers.
+ * against the GIR. Nothing in the syntax carries those numbers.
  *
- * `typeName` is the GType name of the object the property sits ON (`GtkBox`), not the name
- * of the enum (`GtkOrientation`) — the emitter cannot know the latter without the ParamSpec
- * that only GIR has. A resolver therefore has to search the owner's enum-valued properties
- * for `member`. That the property NAME is not in this signature is a real limit of it and
- * is recorded rather than worked around: two properties of one widget whose enum types
- * share a member name of different value would be indistinguishable here.
+ * `typeName` is the GType name of the object the property sits ON (`GtkBox`), never the name
+ * of the enum (`GtkOrientation`): the AST knows the first and the second is a fact about the
+ * library. `propertyName` is in the signature BECAUSE the second lookup needs it — the join
+ * from `GtkBox.orientation` to `GtkOrientation` is what `@girs` 4.9.0 added, and without it a
+ * resolver had to search every enum for a member spelled `never` and guess between the
+ * several that have one. Searching was never available; guessing is the silent-wrong-output
+ * ADR 0053 clause 3 refuses.
+ *
+ * The answer is TEXT and not a number because the two kinds of answer differ: an enum member
+ * becomes its integer, a flag set stays nicks joined by `|`. `null` means the identifier is
+ * not the library's — an object id — and the source spelling stands.
+ *
+ * A resolver MAY throw, and `src/resolve-ident.mjs` does: a member of a known enum that the
+ * enum does not have is a file the oracle refuses too, and passing it through would be
+ * output that looks plausible and means something else.
+ *
+ * The second seam answers a different question about a different identifier: which ELEMENT one
+ * `accessibility { }` entry becomes. GTK's ARIA slots are properties, relations and states, they
+ * are spelled alike in the block and they emit as three different elements, so the name has to be
+ * looked up the same way the value is. Without a resolver every entry stays `<property>`, which is
+ * right for the ones that are properties and a knowing divergence for the rest — the same stance
+ * `resolveIdent`'s absence takes.
  *
  * @typedef {Object} EmitOptions
- * @property {(typeName: string, member: string) => number | null} [resolveEnum]
+ * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
+ * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
  */
 
 /**
- * Shared state for one emit: the caller's resolver, plus the two things a value cannot be
+ * Shared state for one emit: the caller's resolvers, plus the two things a value cannot be
  * emitted without and a single node does not carry.
  *
  * @typedef {Object} EmitContext
- * @property {((typeName: string, member: string) => number | null) | undefined} resolveEnum
+ * @property {EmitOptions['resolveIdent']} resolveIdent
+ * @property {EmitOptions['accessibilityElement']} accessibilityElement
  * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
 
-/** Byte-identical in all 25 rule goldens and all 11 real ones, including the `@generated` marker. */
+/** Byte-identical in every golden in the corpus, including the `@generated` marker. */
 const GENERATED_NOTICE =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<!--\n' +
@@ -84,7 +103,8 @@ const GENERATED_NOTICE =
 export function emitGtkBuilderXml(file, options) {
     /** @type {EmitContext} */
     const context = {
-        resolveEnum: options?.resolveEnum,
+        resolveIdent: options?.resolveIdent,
+        accessibilityElement: options?.accessibilityElement,
         idTypes: indexObjectIds(file),
         templateClass: findTemplateClass(file),
     };
@@ -229,7 +249,7 @@ function emitBody(xml, body, ownerType, context) {
         if (kind === 'property') emitProperty(xml, /** @type {Property} */ (member), ownerType, context);
         else if (kind === 'child') emitChild(xml, /** @type {Child} */ (member), context);
         else if (kind === 'signal') emitSignal(xml, /** @type {Signal} */ (member), context);
-        else emitExtension(xml, /** @type {Extension} */ (member), ownerType, context);
+        else emitExtension(xml, /** @type {Extension} */ (member), context);
     }
 }
 
@@ -302,7 +322,7 @@ function emitProperty(xml, property, ownerType, context) {
     }
 
     xml.startTag('property', { name: property.name, ...translatedAttributes(value) });
-    xml.text(scalarText(value, ownerType, context));
+    xml.text(scalarText(value, ownerType, property.name, context));
     xml.endTag();
 }
 
@@ -394,17 +414,20 @@ function translatedAttributes(value) {
 
 // ------------------------------------------------------------------ scalar values
 
-/** @param {Value} value @param {string | null} ownerType @param {EmitContext} context */
-function scalarText(value, ownerType, context) {
+/**
+ * @param {Value} value @param {string | null} ownerType @param {string | null} propertyName
+ * @param {EmitContext} context
+ */
+function scalarText(value, ownerType, propertyName, context) {
     if (value.kind === 'string') return value.value;
     if (value.kind === 'bool') return value.value ? 'true' : 'false';
     if (value.kind === 'number') return numberText(value.raw);
-    if (value.kind === 'ident') return identText(value.name, ownerType, context);
+    if (value.kind === 'ident') return identText(value, ownerType, propertyName, context);
     throw new Error(`blueprint: line ${value.line}: a ${value.kind} value where a scalar was expected`);
 }
 
 /**
- * The enum seam. See `EmitOptions.resolveEnum` for what `typeName` is and is not.
+ * The introspection seam. See `EmitOptions.resolveIdent` for what each argument is and is not.
  *
  * With no resolver the identifier is emitted AS WRITTEN, which is a knowing divergence from
  * 03-property-enum.ui rather than a guess at its `1`: an emitter that shipped a table of
@@ -413,14 +436,20 @@ function scalarText(value, ownerType, context) {
  * enum member takes the same path and is right without a resolver — 12-menu.ui's
  * `menu-model: mainMenu` emits the id as plain text.
  *
- * @param {string} name @param {string | null} ownerType @param {EmitContext} context
+ * Both the owner type and the property name have to be known: a menu attribute has neither
+ * owner nor ParamSpec, and a `layout { }` entry belongs to a layout CHILD and not to the
+ * widget, so passing the widget there would ask about the wrong type. Both call sites pass
+ * `null` and take the source spelling, which is what their goldens hold.
+ *
+ * @param {import('./ast.d.mts').IdentValue} value @param {string | null} ownerType
+ * @param {string | null} propertyName @param {EmitContext} context
  */
-function identText(name, ownerType, context) {
-    if (ownerType !== null && context.resolveEnum !== undefined) {
-        const resolved = context.resolveEnum(ownerType, name);
-        if (resolved !== null && resolved !== undefined) return String(resolved);
+function identText(value, ownerType, propertyName, context) {
+    if (ownerType !== null && propertyName !== null && context.resolveIdent !== undefined) {
+        const resolved = context.resolveIdent(ownerType, propertyName, value.name, `line ${value.line}`);
+        if (resolved !== null && resolved !== undefined) return resolved;
     }
-    return objectId(name, context);
+    return objectId(value.name, context);
 }
 
 /**
@@ -499,8 +528,8 @@ function swappedAttribute(flags) {
 
 // ------------------------------------------------------------------ extension blocks
 
-/** @param {XmlWriter} xml @param {Extension} extension @param {string} ownerType @param {EmitContext} context */
-function emitExtension(xml, extension, ownerType, context) {
+/** @param {XmlWriter} xml @param {Extension} extension @param {EmitContext} context */
+function emitExtension(xml, extension, context) {
     if (extension.name === 'condition') {
         // 14-breakpoint.ui: the condition is element TEXT, not an attribute and not a property.
         xml.startTag('condition', {});
@@ -517,12 +546,36 @@ function emitExtension(xml, extension, ownerType, context) {
     }
 
     if (extension.name === 'layout' || extension.name === 'accessibility') {
-        // 19-layout.ui and 20-accessibility.ui: same shape, one wrapper element named after
-        // the block, holding ordinary `<property>` elements.
+        // 19-layout.ui and 20-accessibility.ui: one wrapper element named after the block,
+        // holding one element per entry. The two blocks agree on the wrapper and on nothing
+        // else, and each half of that was MEASURED on 0.20.4 rather than assumed.
+        //
+        // NEITHER resolves its VALUES through the widget, because the widget is the table
+        // lying nearest to hand and it is the wrong one in both. `Gtk.Grid { Gtk.Label {
+        // layout { halign: center; } } }` emits `center` and not `3` — a layout entry belongs
+        // to the layout CHILD (`GtkGridLayoutChild`), which has no `halign`. And `Gtk.Label {
+        // accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is not
+        // orientable at all, because the ARIA table answers there and not the ParamSpecs.
+        // Passing the widget would be right by accident inside `Gtk.Box` and wrong inside
+        // `Gtk.Label`, so this passes nothing and the source spelling stands;
+        // `corpus/divergences.mjs` holds what that costs.
+        //
+        // The ELEMENT NAME is where the two blocks differ, and this file wrote `<property>`
+        // for every entry until a corpus file held anything but a property: `row-index` is a
+        // `<relation>` and `checked` a `<state>`, and GtkBuilder rejects either spelled as
+        // the other. Which is which is vocabulary data, so it is asked per entry —
+        // `src/resolve-ident.mjs` says what can and cannot be answered there.
+        const elementOf =
+            extension.name === 'accessibility' && context.accessibilityElement !== undefined
+                ? context.accessibilityElement
+                : () => 'property';
         xml.startTag(extension.name, {});
         for (const entry of extension.entries) {
-            xml.startTag('property', { name: entry.name, ...translatedAttributes(entry.value) });
-            xml.text(scalarText(entry.value, ownerType, context));
+            xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
+                name: entry.name,
+                ...translatedAttributes(entry.value),
+            });
+            xml.text(scalarText(entry.value, null, null, context));
             xml.endTag();
         }
         xml.endTag();
@@ -548,7 +601,8 @@ function emitSetter(xml, setter, context) {
     });
     // The owner type here is the type of the object the setter POINTS AT, not the
     // breakpoint it sits in, so an enum-valued setter resolves against the right widget.
-    xml.text(scalarText(setter.value, context.idTypes.get(target) ?? null, context));
+    // Measured: `boxOne.halign: baseline_fill` inside an `Adw.Breakpoint` is `4`.
+    xml.text(scalarText(setter.value, context.idTypes.get(target) ?? null, property, context));
     xml.endTag();
 }
 
@@ -620,7 +674,7 @@ function emitMenu(xml, menu, context) {
         // No owner type: a menu attribute belongs to a GMenuModel, which has no ParamSpecs
         // for a resolver to search, and 22-menu-nested.ui's `item ("Deep", "app.deep")`
         // shorthand carries plain strings either way.
-        xml.text(scalarText(attribute.value, null, context));
+        xml.text(scalarText(attribute.value, null, null, context));
         xml.endTag();
     }
 

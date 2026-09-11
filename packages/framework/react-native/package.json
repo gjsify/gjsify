@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/react-native",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "The React Native view vocabulary rendered onto GTK4/Adwaita, over @gjsify/gtk-host",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -148,10 +148,10 @@
         }
     },
     "devDependencies": {
-        "@girs/adw-1": "4.6.0",
-        "@girs/gdk-4.0": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
+        "@girs/adw-1": "4.9.0",
+        "@girs/gdk-4.0": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/rolldown-plugin-gjsify": "workspace:^",
         "@gjsify/unit": "workspace:^",

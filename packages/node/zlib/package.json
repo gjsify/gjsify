@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/zlib",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "Node.js zlib module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -38,8 +38,8 @@
         "zlib"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
+        "@girs/gio-2.0": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
         "@gjsify/stream": "workspace:^"
     },
     "devDependencies": {

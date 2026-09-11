@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/ws",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "Drop-in replacement for the `ws` npm package on Gjs — wraps globalThis.WebSocket (Soup.WebsocketConnection) and Soup.Server for the WebSocketServer side",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -38,9 +38,9 @@
         "websocket"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/soup-3.0": "4.6.0",
+        "@girs/gio-2.0": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/soup-3.0": "4.9.0",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/crypto": "workspace:^",
         "@gjsify/events": "workspace:^",

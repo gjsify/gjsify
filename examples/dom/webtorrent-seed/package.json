@@ -17,8 +17,8 @@
     "build:node": "gjsify build src/node/node.ts --app node --outfile dist/node.js"
   },
   "devDependencies": {
-    "@girs/gjs": "4.6.0",
-    "@girs/glib-2.0": "4.6.0",
+    "@girs/gjs": "4.9.0",
+    "@girs/glib-2.0": "4.9.0",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
@@ -29,5 +29,5 @@
     "webtorrent": "^3.0.16"
   },
   "private": true,
-  "version": "0.48.0"
+  "version": "0.49.0"
 }

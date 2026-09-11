@@ -289,6 +289,77 @@ export default async () => {
         });
     });
 
+    // THE ASSERTION IS THE HEADER BYTE, not the output size, and that is the point.
+    // A level that is silently dropped still round-trips and still shrinks the
+    // input, so every other test in this file passed against an implementation
+    // whose options parameter was literally named `_options` and ignored. XFL (byte
+    // 8 of the gzip header) is the one place the requested level is observable from
+    // outside: 2 for "maximum compression", 4 for "fastest", 0 otherwise. It is
+    // also the byte `lintian` and `file` read, so this is the same claim a Debian
+    // package is judged on.
+    //
+    // Sizes are deliberately NOT asserted: the two backends' zlibs disagree about
+    // what level 9 produces (Fedora's zlib-ng is measurably worse than its own
+    // level 8 on large inputs), so asserting bytes-out would encode one host's zlib.
+    await describe('zlib: compression level', async () => {
+        const LONG = 'the quick brown fox jumps over the lazy dog. '.repeat(40);
+
+        await it('should record level 9 in the gzip header XFL byte', async () => {
+            expect(gzipSync(LONG, { level: 9 })[8]).toBe(2);
+        });
+
+        await it('should record level 1 in the gzip header XFL byte', async () => {
+            expect(gzipSync(LONG, { level: 1 })[8]).toBe(4);
+        });
+
+        await it('should leave XFL neutral when no level is asked for', async () => {
+            expect(gzipSync(LONG)[8]).toBe(0);
+        });
+
+        await it('should still round-trip with a level', async () => {
+            expect(new TextDecoder().decode(gunzipSync(gzipSync(LONG, { level: 9 })))).toBe(LONG);
+        });
+
+        await it('should store rather than compress at level 0', async () => {
+            // The discriminator for "the level reached the compressor at all": every
+            // other level shrinks this input, and only 0 must not.
+            expect(gzipSync(LONG, { level: 0 }).length > LONG.length).toBe(true);
+        });
+
+        await it('should honour the level on the async form too', async () => {
+            const out = await new Promise<Uint8Array>((resolve, reject) => {
+                gzip(LONG, { level: 9 }, (err, result) => (err ? reject(err) : resolve(result)));
+            });
+            expect(out[8]).toBe(2);
+        });
+
+        await it('should honour the level for deflate', async () => {
+            // A zlib header has no XFL, so the observable is the FLEVEL bits of byte
+            // 1 (>> 6): 0 = fastest, 3 = maximum.
+            expect(deflateSync(LONG, { level: 9 })[1]! >> 6).toBe(3);
+            expect(deflateSync(LONG, { level: 1 })[1]! >> 6).toBe(0);
+        });
+
+        // An out-of-range level must THROW rather than be quietly substituted.
+        // GObject discards a bad construct value with a non-fatal CRITICAL and
+        // leaves `level` at 0, so without this guard `level: 42` asks for maximum
+        // compression, returns a STORED stream larger than its input, and exits 0.
+        // RANGE only, matching Node exactly: measured on Node 24, `{level: 2.5}` is
+        // ACCEPTED (C casts it) while 42 and -7 throw. This list held 2.5 at first
+        // and the Node leg failed it, which is that leg's whole job.
+        await it('should refuse a level zlib has no name for', async () => {
+            for (const bad of [42, -7]) {
+                let threw = false;
+                try {
+                    gzipSync(LONG, { level: bad });
+                } catch {
+                    threw = true;
+                }
+                expect(threw).toBe(true);
+            }
+        });
+    });
+
     await describe('zlib: cross-format decompression errors', async () => {
         await it('should fail to inflate gzipped data', async () => {
             const input = Buffer.from('gzip data');
