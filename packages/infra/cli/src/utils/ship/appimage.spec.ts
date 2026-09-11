@@ -542,7 +542,10 @@ export default async () => {
             // ELF section-header read plus `unsquashfs` are neither appimagetool
             // nor the runtime it embeds.
             const { oracle } = FORMATS.appimage.host;
-            expect(oracle.readWith).toStrictEqual(['readelf', 'unsquashfs']);
+            // The tools the oracle RUNS, which is what the field is for: CPython
+            // does the ELF header read in twelve bytes of `struct`, and nothing
+            // execs `readelf` — the spelling this row shipped with.
+            expect(oracle.readWith).toStrictEqual(['python3', 'unsquashfs']);
             expect(oracle.readWith).not.toContain(APPIMAGE_TOOL);
             expect(oracle.readOn).toStrictEqual(['linux']);
             expect(oracle.selfReading).toBe(false);

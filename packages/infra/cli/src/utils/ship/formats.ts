@@ -454,20 +454,24 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
                 // `--appimage-extract` would be, the format reading what the format
                 // wrote (ADR 0024 § A3).
                 //
-                //   * an ELF SECTION-HEADER READ gives the offset the filesystem
-                //     starts at — `e_shoff + e_shnum * e_shentsize`, straight out
-                //     of the ELF specification, which is what `refs/` is for.
-                //     Measured against `--appimage-offset` on a real artifact: 944632
-                //     both ways. That agreement is the discriminator for the whole
-                //     container, because a truncated or empty image has no squashfs
-                //     superblock there.
+                //   * CPython reads the ELF SECTION-HEADER TABLE for the offset the
+                //     filesystem starts at — `e_shoff + e_shnum * e_shentsize`,
+                //     twelve bytes of `struct.unpack_from`, straight out of the ELF
+                //     specification. Measured against `--appimage-offset` on a real
+                //     artifact: 944632 both ways. That agreement is the
+                //     discriminator for the whole container, because a truncated or
+                //     empty image has no squashfs superblock there. `python3` and
+                //     NOT `readelf`, which the first draft of this row declared and
+                //     `verify-appimage.py` never execs — the field names the tools
+                //     the oracle RUNS, and binutils is not one of them here. Same
+                //     reader family the two `macos-app` rows already declare.
                 //   * `unsquashfs` (squashfs-tools) then lists the filesystem at
                 //     that offset with names, modes and sizes, which
                 //     `.github/ship-oracle/verify-appimage.py` compares against the
                 //     stage manifest. A different PROGRAM from the bundled
                 //     mksquashfs appimagetool packs with, and the leg that runs it
                 //     is the Linux one that already reads the `.deb`.
-                readWith: ['readelf', 'unsquashfs'],
+                readWith: ['python3', 'unsquashfs'],
                 readOn: ['linux'],
                 selfReading: false,
             },
