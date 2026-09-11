@@ -92,8 +92,8 @@ gst-plugins-ugly 1.28.4 ships `ext/` = a52dec, cdio, dvdread, mpeg2dec, sidplay,
 was removed upstream. Every route out of this build system is shut, and #1626 closes on that.
 The NEXT gvsbuild release does not reopen it either: `2026.8.0`, published while `2026.6.0`
 was still the pin, carries the same 94 project modules with nothing added or removed — read
-with § 6's own `--update` against the newer tag, which is the first thing that tooling was
-asked and the answer a pin bump would otherwise have taken a Windows leg to discover.
+with § 6's `--update` against the newer tag, which is the first thing that tooling was asked
+and the answer a pin bump would otherwise have taken a Windows leg to discover.
 FLAC is not in the same position: `claxon` in gst-plugins-rs is a pure-Rust FLAC decoder and
 gvsbuild already defines that tree as a project. It stays a gap, but as a COSTED decision
 rather than an absence, and the cost is written down below rather than left to the next reader
@@ -148,8 +148,8 @@ one direction is itself a finding, and so is a snapshot too short to be a catalo
 truncated one answers "absent" to everything, which passes every gap and points the blame at
 the declarations.
 
-The snapshot is `packages/node-gi/scripts/gvsbuild-catalogue.json`, re-read by that file's
-sibling `--update`, and it is MODULE BASENAMES rather than project names on purpose. Project
+The snapshot is `packages/node-gi/scripts/gvsbuild-catalogue.json`, re-read by the `--update`
+mode of the `.mjs` beside it, and it is MODULE BASENAMES rather than project names on purpose. Project
 names need a Python parser — a first attempt at that regex silently missed `opus`, `cairo` and
 `dav1d`, and a parser that under-reports turns every absence assertion into a pass. A directory
 listing cannot be wrong in that direction, and a library gvsbuild learns to build arrives as
@@ -293,8 +293,9 @@ one place in this decision where "upstream-bounded" would be the wrong word. It 
 and the price is why: the project's gvsbuild dependencies are `meson, cargo, gst-plugins-base,
 gst-plugins-bad, gtk4` plus a `cargo install cargo-c --locked`, and the extracted GTK4 zip
 carries no gvsbuild build markers — so gvsbuild rebuilds gtk4 from source too, on the leg whose
-GStreamer build already runs under a 150-minute timeout and has been measured dying 25 minutes
-in on a toolchain mismatch. That is a large, unverifiable-from-Linux addition to close the one
+GStreamer build already runs under a 150-minute timeout and is pinned to `windows-2022`
+because the same chain was measured dying 25 minutes into libvpx on a newer VS. That is a
+large, unverifiable-from-Linux addition to close the one
 of the two gaps no consumer has been measured needing, while MP3 — the one a real application
 was measured failing on — stays absent either way. A `libFLAC` gvsbuild project closes it for
 one word and no new toolchain; `lewton`, the same tree's Vorbis decoder, is the control that
