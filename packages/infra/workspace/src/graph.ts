@@ -1,7 +1,7 @@
 // Inter-workspace dependency graph: forward edges (build order via Kahn's
 // algorithm) and reverse edges (affected-closure for the CI test classifier).
 
-import { satisfies, validRange } from '@gjsify/semver';
+import { parse, satisfies, validRange } from '@gjsify/semver';
 
 import { indexByName } from './discover.js';
 import type { Workspace } from './types.js';
@@ -53,30 +53,50 @@ export interface BuildGraphOptions {
 }
 
 /**
- * The "any version" spellings npm accepts. `""` is one of them: an empty spec in a
- * dependency block means `*`.
- */
-const ANY_RANGE = new Set(['', '*', 'x', 'X']);
-
-/**
  * The registry RANGE a dependency spec states, or `null` when it states something a
  * local workspace cannot answer.
  *
- * Rejected, each for its own reason:
- *  - anything carrying a protocol or a path (`npm:`, `file:`, `link:`, `git+ssh:`, a
- *    URL) — it names a specific source, and that source is not this member;
- *  - a dist-tag (`latest`, `next`, `beta`) — only the registry can say which version a
- *    tag points at, so no local version satisfies it. Every real range carries a digit,
- *    which is what separates the two. (The check is needed rather than left to
- *    `validRange`: `@gjsify/semver` deliberately parses `latest` as `>=0.0.0` so
- *    registry packuments resolve, and that leniency is right there and wrong here.)
+ * npm's own rule, and deliberately nothing cleverer: a spec is a RANGE iff `validRange`
+ * accepts it and a dist-tag otherwise. Two subtractions on top of that, each for its own
+ * reason:
+ *
+ *  - anything carrying a protocol or a path (`npm:`, `file:`, `link:`, `git+ssh:`, a URL)
+ *    names a specific source, and that source is not this member;
+ *  - the literal `latest`, which is the ONE place `@gjsify/semver` deviates from
+ *    node-semver: `parseRangePart` reads it (case-insensitively) as `>=0.0.0` so registry
+ *    packuments resolve, and that leniency is right there and wrong here. Every other tag
+ *    — `next`, `beta`, `latest-3` — `validRange` already answers `null` for.
+ *
+ * `v2` and `2-legacy` ARE ranges here, and that is not an oversight: `semver.validRange`
+ * accepts both, so npm reads them as ranges too, and a registry that also publishes a tag
+ * of that name is a collision npm has already decided.
  */
 function registryRangeOf(spec: string): string | null {
     const trimmed = spec.trim();
-    if (ANY_RANGE.has(trimmed)) return '*';
     if (/[:/\\]/.test(trimmed)) return null;
-    if (!/\d/.test(trimmed)) return null;
+    if (trimmed.toLowerCase() === 'latest') return null;
     return validRange(trimmed) === null ? null : trimmed;
+}
+
+/**
+ * A member's version with its prerelease tag dropped — `0.49.0-rc.1` as `0.49.0`.
+ *
+ * THE COMPARISON THIS GRAPH MAKES IS NOT A RESOLVER'S. node-semver excludes a prerelease
+ * from a range that does not name one, so `satisfies('0.49.0-rc.1', '^0.49.0')` is false
+ * and — measured — even `satisfies('1.0.0-beta.1', '*')` is false. That rule exists so a
+ * RESOLVER does not surprise you with an unstable version it picked; here there is nothing
+ * to pick. There is one local package, and the only question is whether it is the package
+ * the consumer named, which its prerelease tag does not change.
+ *
+ * Without this, a monorepo mid-release-train loses EVERY plain-range edge — this one cuts
+ * `x.y.z-rc.N` on every release — and `--with-dependencies` rebuilds exactly the silent
+ * nothing #1587 is about, now with a confident wrong explanation pointing at the registry.
+ * A version this cannot parse is returned unchanged, so a malformed one still fails the
+ * range rather than passing it.
+ */
+function releaseVersionOf(version: string): string {
+    const parsed = parse(version);
+    return parsed === null ? version : `${parsed.major}.${parsed.minor}.${parsed.patch}`;
 }
 
 /**
@@ -121,6 +141,13 @@ export function buildDependencyGraph(
 
     for (const ws of workspaces) {
         const deps = new Set<string>();
+        // Collected per workspace rather than pushed straight out: the SAME dependency
+        // name legitimately appears in two blocks (npm documents an `optionalDependencies`
+        // entry overriding a same-named `dependencies` one), so one spelling can link while
+        // the other does not. Reporting the second would name a pair this graph HAS an edge
+        // for, which is worse than saying nothing — the report exists to explain a missing
+        // edge. The filter below is why the two are separated.
+        const candidates: UnlinkedDependency[] = [];
         const m = ws.manifest;
         for (const block of [
             m.dependencies,
@@ -141,9 +168,12 @@ export function buildDependencyGraph(
                 }
                 const range = registryRangeOf(spec);
                 if (range === null) continue;
-                if (satisfies(member.version, range)) deps.add(depName);
-                else unlinked.push({ from: ws.name, to: depName, spec, version: member.version });
+                if (satisfies(releaseVersionOf(member.version), range)) deps.add(depName);
+                else candidates.push({ from: ws.name, to: depName, spec, version: member.version });
             }
+        }
+        for (const candidate of candidates) {
+            if (!deps.has(candidate.to)) unlinked.push(candidate);
         }
         edges.set(ws.name, deps);
     }
@@ -214,9 +244,10 @@ export function topologicalSort(graph: DependencyGraph): Workspace[] {
  * need re-test / re-build. Same option semantics as
  * `buildDependencyGraph`; the result feeds `affectedClosure`.
  *
- * Implementation note: we share the forward graph's filtering rules
- * (workspace:* protocol, only edges where both endpoints are workspaces
- * in this monorepo) so the two graphs stay consistent — `topologicalSort`
+ * Implementation note: we share the forward graph's filtering rules — the
+ * `workspace:` protocol OR a range the named member satisfies, and only edges
+ * where both endpoints are workspaces in this monorepo — so the two graphs stay
+ * consistent, and `unlinked` is carried through unchanged. `topologicalSort`
  * order is the reverse of `affectedClosure` traversal order on any
  * acyclic DAG.
  */

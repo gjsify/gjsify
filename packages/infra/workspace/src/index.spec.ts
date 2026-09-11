@@ -255,7 +255,13 @@ export default async (): Promise<void> => {
                             exact: '1.0.0',
                             tilde: '~1.0.0',
                             star: '*',
+                            wild: 'x.x.x',
+                            blank: '',
+                            compound: '>=1.2 <2',
                             tagged: 'latest',
+                            'tagged-upper': 'LATEST',
+                            'tagged-word': 'next',
+                            'tagged-suffix': 'latest-3',
                             aliased: 'npm:other@^1.0.0',
                             filed: 'file:../elsewhere',
                         },
@@ -263,20 +269,76 @@ export default async (): Promise<void> => {
                     makeWs('exact', '1.0.0'),
                     makeWs('tilde', '1.0.9'),
                     makeWs('star', '3.1.4'),
+                    makeWs('wild', '7.2.0'),
+                    makeWs('blank', '0.0.1'),
+                    makeWs('compound', '1.5.0'),
                     makeWs('tagged', '1.0.0'),
+                    makeWs('tagged-upper', '1.0.0'),
+                    makeWs('tagged-word', '1.0.0'),
+                    makeWs('tagged-suffix', '1.0.0'),
                     makeWs('aliased', '1.0.0'),
                     makeWs('filed', '1.0.0'),
                 ];
                 const g = buildDependencyGraph(ws);
                 const deps = g.edges.get('app')!;
-                expect(deps.has('exact')).toBe(true);
-                expect(deps.has('tilde')).toBe(true);
-                expect(deps.has('star')).toBe(true);
+                for (const name of ['exact', 'tilde', 'star', 'wild', 'blank', 'compound']) {
+                    expect(deps.has(name)).toBe(true);
+                }
                 // A dist-tag, an alias and a `file:` spec are not ranges — nothing to
-                // satisfy, so nothing to link and nothing to report either.
-                expect(deps.has('tagged')).toBe(false);
-                expect(deps.has('aliased')).toBe(false);
-                expect(deps.has('filed')).toBe(false);
+                // satisfy, so nothing to link and nothing to report either. `x.x.x` and
+                // `''` ARE ranges and carry no digit, which is why the reader asks
+                // `validRange` rather than looking for one.
+                for (const name of ['tagged', 'tagged-upper', 'tagged-word', 'tagged-suffix', 'aliased', 'filed']) {
+                    expect(deps.has(name)).toBe(false);
+                }
+                expect(g.unlinked.length).toBe(0);
+            });
+
+            await it('links a member whose version is a PRERELEASE of the range', () => {
+                // node-semver excludes a prerelease from a range that does not name one, so
+                // `satisfies('0.49.0-rc.1', '^0.49.0')` is false and even
+                // `satisfies('1.0.0-beta.1', '*')` is false. That rule is a RESOLVER's: it
+                // stops one picking an unstable version by surprise. Here there is nothing
+                // to pick — one local package, and the question is only whether it is the
+                // one the consumer named. This monorepo cuts `x.y.z-rc.N` on every release,
+                // so without this a release train loses every plain-range edge and
+                // `--with-dependencies` builds nothing again (#1587).
+                const ws: Workspace[] = [
+                    makeWs('app', '0.49.0-rc.1', { dependencies: { lib: '^0.49.0', any: '*' } }),
+                    makeWs('lib', '0.49.0-rc.1'),
+                    makeWs('any', '1.0.0-beta.1'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(true);
+                expect(g.edges.get('app')!.has('any')).toBe(true);
+                expect(g.unlinked.length).toBe(0);
+            });
+
+            await it('still refuses a prerelease of the WRONG major', () => {
+                // Dropping the prerelease tag must not widen the range itself.
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', { dependencies: { lib: '^1.0.0' } }),
+                    makeWs('lib', '2.0.0-rc.1'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(false);
+                expect(g.unlinked.length).toBe(1);
+            });
+
+            await it('never reports a pair it DOES have an edge for', () => {
+                // One name, two blocks, two answers: npm documents an
+                // `optionalDependencies` entry overriding a same-named `dependencies` one.
+                // The report exists to explain a MISSING edge, so naming a pair that links
+                // would be worse than saying nothing.
+                const ws: Workspace[] = [
+                    makeWs('app', '1.0.0', {
+                        dependencies: { lib: '^1.0.0' },
+                        optionalDependencies: { lib: 'workspace:^' },
+                    }),
+                    makeWs('lib', '2.0.0'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('app')!.has('lib')).toBe(true);
                 expect(g.unlinked.length).toBe(0);
             });
 
