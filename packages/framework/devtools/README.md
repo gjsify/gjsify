@@ -130,7 +130,7 @@ A peer call carries no destination bus name at all, so `nameHasOwner` / `listIns
 | `DumpTree` | `-> s` | the widget tree as JSON, with stable `toplevel:N/child:M` paths. |
 | `GetProperty` | `(path, prop) -> s` | read one property off the widget at `path`. |
 | `GetFocused` / `ListToplevels` | `-> s` | the focused widget's path; the toplevel list. |
-| `FindWidget` | `(selector) -> s` | first VISIBLE+mapped match for `Type`, `:css-class` or `Type:css-class`, depth-first from the active window; `''` when none. |
+| `FindWidget` | `(selector) -> s` | first VISIBLE+mapped match for `Type`, `:css-class` or `Type:css-class`, depth-first from the active window; `''` when none. `Type` matches IS-A. |
 | `SendKey` | `(accel, path) -> b` | deliver a key to a widget's key controllers; an empty path means the FOCUSED widget. |
 | `ActivateWidget` | `(path) -> b` | click-drive: `gtk_widget_activate` for Button/Entry/Toggle, with a `GtkListBox` select-row / `row-activated` fallback for nav and preference rows. |
 | `GetStatus` | `-> s` | liveness + whatever extensions contribute. |
@@ -143,7 +143,7 @@ GActions are auto-bridged into the command registry (handling the `Adw.Applicati
 
 Three of those need their reason stated, because the obvious use is the wrong one:
 
-- **`FindWidget` exists because widget paths are POSITIONAL.** A `toplevel:0/child:3` written into a script is wrong the moment a widget is inserted above it, and every click-driving caller was re-walking `DumpTree` JSON in its own language to avoid that.
+- **`FindWidget` exists because widget paths are POSITIONAL.** A `toplevel:0/child:3` written into a script is wrong the moment a widget is inserted above it, and every click-driving caller was re-walking `DumpTree` JSON in its own language to avoid that. **Its `Type` half matches IS-A**, because an application subclassing `Adw.Dialog` or `Gtk.Box` is the ordinary way to write a GTK app, and the exact-GType comparison excluded exactly that: a rig waiting for `AdwDialog` reported "opened no AdwDialog" for a dialog the same run's `DumpTree` showed mapped and visible (#1582). An EXACT type still wins over a subclass **within one search**, so every selector that resolved before the widening resolves to the same path after it. `g_type_is_a` also answers for an INTERFACE, so `GtkOrientable` matches every box and `GtkAccessible` matches the first visible widget in any tree — name a capability on purpose, not by accident. The same is-a reading holds `ActivateWidget`'s `GtkListBox` parent check and `SendKey`'s `GtkEventControllerKey` check — `widgetIsA` is the one helper all three call.
 - **`SendKey` is the half of headless driving `ActivateWidget` does not cover.** Nothing could be TYPED, so every `Gtk.EventControllerKey` handler was unverifiable. It emits `key-pressed` on the widget's own controllers rather than fabricating a `Gdk.Event` — GTK4 made events opaque with no public constructor — so it proves the HANDLER, not GDK's routing. Pair it with `GetProperty(path, "focusable")`: an unfocusable widget swallows every real key silently.
 - **`ActivateWidget` is the mutating counterpart of `GetProperty`.**
 

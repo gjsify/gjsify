@@ -117,9 +117,9 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '03-property-enum.blp',
-        node: { tag: 'GtkBox', props: { orientation: 'vertical', halign: 'center' } },
+        node: { tag: 'GtkBox', props: { orientation: 'vertical', halign: 'center', valign: 'baseline_fill' } },
         lost: [],
-        note: 'The XML for the same two properties is `1` and `3`. The projection keeps the member NAME, which is the only spelling a renderer without a typelib can act on.',
+        note: 'The XML for the same three properties is `1`, `3` and `4`. The projection keeps the member NAME, which is the only spelling a renderer without a typelib can act on — and keeps it AS WRITTEN, underscores and all, because the `_`-to-`-` normalisation belongs to the GIR lookup the XML exit performs and a renderer that never does that lookup would be handed a spelling from nowhere.',
     },
     {
         file: '04-children-implicit.blp',
@@ -294,7 +294,7 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'layout',
                 line: 7,
-                detail: 'the `layout { column: 0; row: 1; }` block — properties of the PLACEMENT of the child, which `SharedNode` has no field for',
+                detail: 'the whole `layout { }` block — properties of the PLACEMENT of the child, which `SharedNode` has no field for. `halign` is in there to pin that the compiler does NOT type these against the widget, and it is lost with the rest',
             },
         ],
     },
@@ -305,7 +305,7 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'accessibility',
                 line: 6,
-                detail: 'the `accessibility { label: … }` block; note it collides by NAME with the `label` property of the widget itself, which is why it cannot simply be folded into `props`',
+                detail: 'the whole `accessibility { }` block — one ARIA property, relation and state; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
             },
         ],
     },
@@ -388,5 +388,11 @@ export const RULE_EXPECTATIONS = [
             },
         ],
         note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 4 and the signal before the property on line 6, and sorting by line alone cannot produce that. `SharedNode` has no signal, so the projection sees only half of what this file pins.',
+    },
+    {
+        file: '27-property-flags.blp',
+        node: { tag: 'GtkEntry', props: { 'input-hints': 'word_completion|lowercase', 'input-purpose': 'email' } },
+        lost: [],
+        note: 'The two identifiers leave the compiler as different KINDS of answer — `word-completion|lowercase` and `6` — from one lookup, so a resolver that only ever returns a number is wrong on half of this file. The projection keeps both as the source wrote them, `|` and underscores included, for the reason on `03-property-enum.blp`.',
     },
 ];

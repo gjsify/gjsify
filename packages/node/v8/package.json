@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/v8",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "Node.js v8 module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -39,7 +39,7 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@girs/glib-2.0": "4.6.0"
+        "@girs/glib-2.0": "4.9.0"
     },
     "gjsify": {
         "runtimes": {

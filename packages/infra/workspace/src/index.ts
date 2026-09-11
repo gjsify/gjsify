@@ -12,7 +12,9 @@
 //      yarn install does for every `workspace:^` in 60+ workspaces.
 //   3. `buildDependencyGraph(workspaces)` returns adjacency lists for the
 //      workspaces. Only inter-workspace edges are recorded (external
-//      registry deps are out of scope for this graph).
+//      registry deps are out of scope for this graph) — an edge is a
+//      `workspace:` protocol entry OR a plain range the named member's
+//      version satisfies, which is the rule the installer itself applies.
 //   4. `topologicalSort(graph)` returns the workspaces in build order —
 //      `--topological` flag in `gjsify foreach`. Uses Kahn's algorithm.
 //
@@ -40,6 +42,7 @@ export {
     buildReverseDependencyGraph,
     type DependencyGraph,
     topologicalSort,
+    type UnlinkedDependency,
 } from './graph.js';
 export { workspacesForChangedFiles } from './changed-files.js';
 

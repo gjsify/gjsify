@@ -1,6 +1,7 @@
 // @gjsify/devtools — GTK widget-tree introspection (toplevels, tree dump,
 // stable index paths, property read, focused-widget path). Original implementation.
 
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import type { NodeGeometry, NodeInfo } from '@gjsify/devtools-protocol';
 
@@ -64,6 +65,43 @@ function gtypeName(object: unknown): string | null {
 }
 
 /**
+ * Does `object`'s runtime GType derive from `typeName` — the type itself, an ancestor, or an
+ * INTERFACE it implements?
+ *
+ * The interface arm is `g_type_is_a`'s and is kept rather than filtered out: `GtkOrientable`,
+ * `GtkEditable` and `GtkAccessible` describe what a widget can DO, which is the same question
+ * a selector asks, and a rig author who tries one is not making a mistake. It does mean
+ * `GtkAccessible` and `GtkBuildable` match the first visible widget in any GTK tree — every
+ * widget implements both — so a selector that broad answers a widget rather than nothing.
+ *
+ * **The name comparison comes first and is the whole answer for a type GObject does not
+ * know.** That covers a unit-test shape and a runtime that never registered the type, and
+ * it is what makes every exact-name spec in this module still mean what it says.
+ *
+ * Where GObject does know both names, `g_type_is_a` answers. Registration is a RUNTIME
+ * fact and not a static one — measured under GJS 1.88.1, `GObject.type_from_name('AdwDialog')`
+ * answers null until something in JS touches `Adw.Dialog`, and registering a SUBCLASS
+ * registers its whole ancestor chain. So the lookup happens per call and is never cached:
+ * the base type of a live instance is always registered (the instance's class registered
+ * it), and a name that resolves to nothing today may resolve a moment later.
+ *
+ * Written against the NAME rather than `instanceof` for the same reason as
+ * {@link widgetType}: under node-gi a returned handle is a GENERIC wrapper, so
+ * `instanceof Gtk.ListBox` answers false for an object that is one.
+ */
+export function widgetIsA(object: unknown, typeName: string): boolean {
+    const name = gtypeName(object);
+    if (name === null || !typeName) return false;
+    if (name === typeName) return true;
+    const self = GObject.type_from_name(name);
+    const wanted = GObject.type_from_name(typeName);
+    // `g_type_from_name` answers NULL through GJS for an unregistered name, and
+    // `g_type_is_a` may not be handed one.
+    if (!self || !wanted) return false;
+    return GObject.type_is_a(self, wanted);
+}
+
+/**
  * Activate a widget — how external tooling click-drives a running GUI: resolve a
  * widget by path, then activate it. Two paths, tried in order:
  *
@@ -92,8 +130,10 @@ export function activateWidget(widget: Gtk.Widget): boolean {
     // 1. The widget's own default activation (Button/Entry/Toggle/…).
     if (typeof w.activate === 'function' && w.activate() === true) return true;
     // 2. Row fallback: reproduce a click on a GtkListBox row — select + activate.
+    // `widgetIsA`, not an exact GType: an app's own list-box subclass parents rows
+    // exactly the same way, and the exact comparison left those rows undrivable (#1582).
     const parent = typeof w.get_parent === 'function' ? w.get_parent() : null;
-    if (parent && widgetType(parent as Gtk.Widget) === 'GtkListBox') {
+    if (parent && widgetIsA(parent, 'GtkListBox')) {
         const box = parent as {
             select_row?: (row: unknown) => void;
             emit?: (signal: string, ...args: unknown[]) => void;
@@ -135,7 +175,9 @@ export function sendKeyToWidget(widget: Gtk.Widget, keyval: number, modifiers: n
     let handled = false;
     for (let i = 0; i < controllers.get_n_items(); i++) {
         const controller = controllers.get_item(i);
-        if (gtypeName(controller) !== 'GtkEventControllerKey') continue;
+        // Subclasses included (#1582): an app that derives its own key controller — to
+        // keep per-widget state beside the handler — still has a key controller.
+        if (!widgetIsA(controller, 'GtkEventControllerKey')) continue;
         // Signal return values are not surfaced by GJS' `emit`, so "handled" here means the key was
         // delivered to at least one key controller, not that a handler consumed it. A caller that
         // needs the outcome observes the EFFECT — which is the point of sending the key at all.
@@ -230,16 +272,49 @@ export function parseWidgetSelector(selector: string): WidgetSelector | null {
  * split view — and activating one of those proves nothing about what a user can reach. Skipping the
  * subtree as well as the node matters: the children of an unmapped stack page are unmapped too, but
  * a caller checking only the leaf would happily match one.
+ *
+ * ## The type half matches IS-A, with the exact type preferred
+ *
+ * `Type` used to mean the exact GType name, which excludes the ordinary way GTK applications
+ * are written: three of bauplaner's six dialogs are `Adw.Dialog` SUBCLASSES, so a rig waiting
+ * for `AdwDialog` reported "opened no AdwDialog" for a dialog the tree dump showed mapped and
+ * visible (#1582). The failure reads like a defect in the consumer, and the workaround every
+ * consumer invents — matching a STYLE CLASS instead — addresses the widget by how it looks
+ * rather than by what it is.
+ *
+ * An EXACT match anywhere in THIS CALL's subtree still wins over a subclass match, even one
+ * earlier in reading order, and that ordering is the compatibility guarantee: every selector
+ * that resolved before this widening resolves to the SAME path after it, and the subclass leg
+ * is consulted only where the answer used to be none. It costs one full walk in the case that
+ * used to walk the tree anyway — the miss.
+ *
+ * PER CALL is the whole scope of that guarantee, and a caller sweeping several roots has to
+ * say so itself: `FindWidget` passes ONE root (the active window), but a consumer looping over
+ * `ListToplevels` gets a subclass hit in an early toplevel ahead of an exact hit in a later
+ * one. Collect the per-root answers and prefer the exact one, or pass the exact type.
  */
 export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, basePath: string): string | null {
+    const derived: { path: string | null } = { path: null };
+    return walkForSelector(root, selector, basePath, derived) ?? derived.path;
+}
+
+/** {@link findWidgetPath}'s walk: returns the first EXACT hit, recording the first subclass hit. */
+function walkForSelector(
+    root: Gtk.Widget,
+    selector: WidgetSelector,
+    basePath: string,
+    derived: { path: string | null },
+): string | null {
     if (!root.get_visible() || !root.get_mapped()) return null;
-    const typeOk = !selector.type || widgetType(root) === selector.type;
     const classOk = !selector.cssClass || root.get_css_classes().includes(selector.cssClass);
-    if (typeOk && classOk) return basePath;
+    if (classOk) {
+        if (!selector.type || widgetType(root) === selector.type) return basePath;
+        if (derived.path === null && widgetIsA(root, selector.type)) derived.path = basePath;
+    }
     let child = root.get_first_child();
     let i = 0;
     while (child) {
-        const hit = findWidgetPath(child, selector, `${basePath}/child:${i}`);
+        const hit = walkForSelector(child, selector, `${basePath}/child:${i}`, derived);
         if (hit) return hit;
         child = child.get_next_sibling();
         i++;

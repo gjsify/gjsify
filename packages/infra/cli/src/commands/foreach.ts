@@ -687,21 +687,19 @@ async function runTopologicalParallel(
     exec: boolean,
     cache?: BuildCacheRunner,
 ): Promise<void> {
-    const selectedNames = new Set(workspaces.map((w) => w.name));
-    const remaining = new Map<string, Set<string>>();
-    for (const ws of workspaces) {
-        const wsDeps = new Set<string>();
-        const m = ws.manifest;
-        for (const block of [m.dependencies, includeDev ? m.devDependencies : undefined, m.optionalDependencies]) {
-            if (!block) continue;
-            for (const [name, spec] of Object.entries(block)) {
-                if (typeof spec !== 'string') continue;
-                if (!spec.startsWith('workspace:')) continue;
-                if (selectedNames.has(name)) wsDeps.add(name);
-            }
-        }
-        remaining.set(ws.name, wsDeps);
-    }
+    // The SHARED graph, walked once — never a private copy of the walk. `buildDependencyGraph`
+    // over the SELECTED set yields exactly these edges: it indexes by name from the list it is
+    // handed, so a dependency outside the selection resolves to no member and is not an edge.
+    //
+    // The copy this replaces followed `workspace:` only. Once #1587 widened the shared rule to
+    // include a plain range the local member satisfies, the two topological legs would have
+    // DISAGREED — `-t` ordering correctly off the shared graph while `-t -p` saw no edges at
+    // all and started every workspace at once, in a monorepo that declares its local deps by
+    // plain semver range. Wrong order, exit 0, and a build measured by a later step: the same
+    // shape #1587 is about, one flag over.
+    const remaining = new Map(
+        [...buildDependencyGraph(workspaces, { includeDev }).edges].map(([name, deps]) => [name, new Set(deps)]),
+    );
     const byName = new Map(workspaces.map((w) => [w.name, w]));
     const total = workspaces.length;
     const done = new Set<string>();

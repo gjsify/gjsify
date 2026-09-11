@@ -12,11 +12,11 @@
     "test": "gjsify run build && gjs -m dist/index.js src/fixture.txt"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "4.6.0",
-    "@girs/gjs": "4.6.0",
+    "@girs/gio-2.0": "4.9.0",
+    "@girs/gjs": "4.9.0",
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.3"
   },
   "private": true,
-  "version": "0.48.0"
+  "version": "0.49.0"
 }

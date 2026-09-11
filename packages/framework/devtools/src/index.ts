@@ -25,6 +25,7 @@ export {
     parseWidgetPath,
     pathOfWidget,
     resolveWidgetPath,
+    widgetIsA,
     widgetType,
 } from './widget-tree.js';
 export { dumpCss, removeCss, swapCss } from './css.js';

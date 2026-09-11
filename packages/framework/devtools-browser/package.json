@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-browser",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "Minimalist Adwaita web browser for GJS — shared BrowserCore + native Adw shell + a devtools extension so an agent can drive and inspect web apps over MCP",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -34,13 +34,13 @@
         "mcp"
     ],
     "dependencies": {
-        "@girs/adw-1": "4.6.0",
-        "@girs/gio-2.0": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/gobject-2.0": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
-        "@girs/webkit-6.0": "4.6.0",
+        "@girs/adw-1": "4.9.0",
+        "@girs/gio-2.0": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/gobject-2.0": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
+        "@girs/webkit-6.0": "4.9.0",
         "@gjsify/devtools": "workspace:^",
         "@gjsify/devtools-cdp": "workspace:^",
         "@gjsify/iframe": "workspace:^"

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/unit",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "A BDD-style testing framework for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -48,8 +48,8 @@
     },
     "homepage": "https://github.com/gjsify/unit#readme",
     "devDependencies": {
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

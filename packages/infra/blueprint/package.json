@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/blueprint",
-    "version": "0.48.0",
-    "description": "The GNOME Blueprint corpus and its reference-compiler goldens — the oracle ADR 0053 measures an in-repo parser against. Holds no parser yet. NOT published to npm.",
+    "version": "0.49.0",
+    "description": "The GNOME Blueprint parser, GtkBuilder-XML emitter and SharedNode projection of ADR 0053, with the corpus of reference-compiler goldens they are measured against. NOT published to npm.",
     "private": true,
     "type": "module",
     "main": "corpus/manifest.mjs",
@@ -9,6 +9,10 @@
         ".": "./corpus/manifest.mjs",
         "./corpus/expectations": "./corpus/expectations.mjs",
         "./corpus/real-expectations": "./corpus/real-expectations.mjs"
+    },
+    "dependencies": {
+        "@girs/adw-1": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0"
     },
     "scripts": {
         "clear": "echo 'nothing to do'",

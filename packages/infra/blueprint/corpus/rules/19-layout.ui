@@ -13,6 +13,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <layout>
           <property name="column">0</property>
           <property name="row">1</property>
+          <property name="halign">center</property>
         </layout>
       </object>
     </child>

@@ -14,6 +14,9 @@
 // dependency, in topological build order, then in the target package.
 // Skips deps that don't declare the script (`--if-present` behaviour).
 // Stops on the first failure unless `--continue-on-error` is passed.
+// A local dependency counts whether it is declared with the `workspace:`
+// protocol or with a plain range the local member satisfies (@gjsify/workspace
+// § buildDependencyGraph) — and the expansion SAYS when it found nothing.
 //
 // This replaces the manual `gjsify workspace <A> build && gjsify workspace
 // <B> build && …` chains in root `build:infra` scripts: cascade build
@@ -22,7 +25,14 @@
 
 import type { Command } from '../types/index.js';
 import { spawnToCompletion } from '../utils/spawn.js';
-import { buildDependencyGraph, discoverWorkspaces, topologicalSort, type Workspace } from '@gjsify/workspace';
+import {
+    affectedClosure,
+    buildDependencyGraph,
+    discoverWorkspaces,
+    topologicalSort,
+    type UnlinkedDependency,
+    type Workspace,
+} from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -165,11 +175,31 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
         // target itself.
         let runList: Workspace[];
         if (withDeps) {
-            const closure = collectTransitiveClosure(target, allWorkspaces, args['include-dev'] === true);
-            // Sort the closure topologically using the shared @gjsify/workspace
-            // algorithm — same code path that drives `gjsify foreach -t`.
-            const graph = buildDependencyGraph(closure, { includeDev: args['include-dev'] === true });
+            const includeDev = args['include-dev'] === true;
+            // The SHARED graph, walked by the shared closure — the same two calls
+            // `gjsify foreach --with-dependencies` makes. This used to be a private
+            // copy of the walk here, and the copy is where the defect lived: it
+            // followed `workspace:` edges only, so in a monorepo declaring its local
+            // deps by plain semver range it matched nothing, built nothing and exited
+            // 0 (#1587). One walk means the rule for "what is a local dependency" has
+            // one place to be wrong in.
+            const forward = buildDependencyGraph(allWorkspaces, { includeDev });
+            const names = affectedClosure(forward, [target.name]);
+            const closure = allWorkspaces.filter((ws) => names.has(ws.name));
+            reportUnlinked(forward.unlinked, names);
+            const graph = buildDependencyGraph(closure, { includeDev });
             runList = topologicalSort(graph);
+            if (runList.length === 1) {
+                // The expansion found nothing, and it SAYS so. A leaf package
+                // legitimately has no local dependencies, but "no local dependencies"
+                // and "the flag could not see them" produced the same silent exit 0,
+                // and that ambiguity is what cost a Flatpak build, a container run and
+                // a manual `ls` to resolve.
+                console.error(
+                    `gjsify workspace: --with-dependencies found no workspace dependencies of ` +
+                        `"${target.name}" — running "${script}" in it alone.`,
+                );
+            }
         } else {
             runList = [target];
         }
@@ -231,47 +261,31 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
 };
 
 /**
- * Walk the workspace-dep graph from `target`, collecting every transitive
- * workspace dependency (production + optional, plus devDependencies when
- * `includeDev`). The returned list includes `target` itself so the caller
- * can pass it straight to `buildDependencyGraph` / `topologicalSort`.
+ * Name a dependency that points at a local workspace but does not link to it, because
+ * the member's version does not satisfy the declared range.
+ *
+ * Only entries declared BY a package in the closure are printed: an unlinked pair
+ * elsewhere in the monorepo is somebody else's business, and printing all of them would
+ * bury the one that explains why this closure is the size it is.
+ *
+ * This is a warning, not a failure, and it deliberately asserts NO outcome, because the
+ * outcome depends on which installer placed `node_modules`: npm and yarn fetch such a
+ * dependency from the registry — the rule the graph follows, under which leaving it out of
+ * the build order is simply right — while `gjsify install` symlinks the local member
+ * whatever the range says. Under that one the build order really is short a package, so
+ * the message asks for the range and the version to be brought into agreement instead of
+ * telling the reader where the files came from.
  */
-function collectTransitiveClosure(
-    target: Workspace,
-    allWorkspaces: readonly Workspace[],
-    includeDev: boolean,
-): Workspace[] {
-    const byName = new Map<string, Workspace>();
-    for (const ws of allWorkspaces) byName.set(ws.name, ws);
-
-    const seen = new Set<string>();
-    const out: Workspace[] = [];
-    const stack: Workspace[] = [target];
-    while (stack.length > 0) {
-        const ws = stack.pop()!;
-        if (seen.has(ws.name)) continue;
-        seen.add(ws.name);
-        out.push(ws);
-
-        const m = ws.manifest;
-        const blocks = [
-            m.dependencies,
-            includeDev ? m.devDependencies : undefined,
-            m.optionalDependencies,
-            // peerDependencies excluded by default (yarn does the same)
-        ];
-        for (const block of blocks) {
-            if (!block) continue;
-            for (const [depName, spec] of Object.entries(block)) {
-                if (typeof spec !== 'string') continue;
-                if (!spec.startsWith('workspace:')) continue;
-                const dep = byName.get(depName);
-                if (!dep) continue;
-                if (!seen.has(dep.name)) stack.push(dep);
-            }
-        }
+function reportUnlinked(unlinked: readonly UnlinkedDependency[], closure: ReadonlySet<string>): void {
+    for (const entry of unlinked) {
+        if (!closure.has(entry.from)) continue;
+        console.error(
+            `gjsify workspace: "${entry.from}" depends on "${entry.to}": ${entry.spec}, which the local ` +
+                `workspace (${entry.to}@${entry.version}) does not satisfy — NOT built as a dependency. ` +
+                `npm and yarn take that one from the registry; \`gjsify install\` links the local one ` +
+                `anyway, so if it is the local one you mean, make the range admit ${entry.version}.`,
+        );
     }
-    return out;
 }
 
 async function runOne(

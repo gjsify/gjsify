@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-node-gi-quad",
   "description": "One source, four runtimes — the same gi:// GObject-Introspection program built and run byte-identically on GJS, Node.js, Bun and Deno via @gjsify/node-gi.",
-  "version": "0.48.0",
+  "version": "0.49.0",
   "type": "module",
   "private": true,
   "engines": {
@@ -40,10 +40,10 @@
   },
   "devDependencies": {
     "@gjsify/cli": "^0.13.0",
-    "@girs/gjs": "4.6.0",
-    "@girs/glib-2.0": "4.6.0",
-    "@girs/gobject-2.0": "4.6.0",
-    "@girs/gio-2.0": "4.6.0"
+    "@girs/gjs": "4.9.0",
+    "@girs/glib-2.0": "4.9.0",
+    "@girs/gobject-2.0": "4.9.0",
+    "@girs/gio-2.0": "4.9.0"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT"

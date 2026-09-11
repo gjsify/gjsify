@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools",
-    "version": "0.48.0",
+    "version": "0.49.0",
     "description": "In-app DBus devtools control plane for GJS/GTK apps — inspect, screenshot, and drive a running app over org.gjsify.Devtools (gdbus or the MCP bridge)",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -37,14 +37,14 @@
         "mcp"
     ],
     "dependencies": {
-        "@girs/adw-1": "4.6.0",
-        "@girs/gdk-4.0": "4.6.0",
-        "@girs/gio-2.0": "4.6.0",
-        "@girs/gjs": "4.6.0",
-        "@girs/glib-2.0": "4.6.0",
-        "@girs/gobject-2.0": "4.6.0",
-        "@girs/graphene-1.0": "4.6.0",
-        "@girs/gtk-4.0": "4.6.0",
+        "@girs/adw-1": "4.9.0",
+        "@girs/gdk-4.0": "4.9.0",
+        "@girs/gio-2.0": "4.9.0",
+        "@girs/gjs": "4.9.0",
+        "@girs/glib-2.0": "4.9.0",
+        "@girs/gobject-2.0": "4.9.0",
+        "@girs/graphene-1.0": "4.9.0",
+        "@girs/gtk-4.0": "4.9.0",
         "@gjsify/devtools-protocol": "workspace:^"
     },
     "devDependencies": {
