@@ -21,7 +21,9 @@ import PangoCairo from 'gi://PangoCairo?version=1.0';
 import {
     adwaitaUiFontAvailability,
     applyUiFontPolicy,
+    type FontFaceFailure,
     initFonts,
+    type InitFontsResult,
     isUnsupportedByFontMap,
     matchFontFamily,
     uiFontBaseline,
@@ -132,6 +134,36 @@ const NO_REGISTRATION_REASON =
     '`initFonts` reports these as DECLINED rather than failed. Retires itself if Pango ever ' +
     'implements the vfunc on CoreText, or on any host where PANGOCAIRO_BACKEND selects fc.';
 
+/** What ONE source contributed, which is what every assertion in this file is actually about. */
+interface Accounted {
+    readonly registered: readonly string[];
+    readonly declined: readonly string[];
+    readonly failed: readonly FontFaceFailure[];
+}
+
+/** No source of that origin was resolved, so it contributed nothing. */
+const NOTHING: Accounted = { registered: [], declined: [], failed: [] };
+
+/**
+ * What the APPLICATION's directory — the one each test below stages — contributed.
+ *
+ * THE READ THAT TURNED RED ON 0.51.0, and the reason these assertions no longer touch
+ * `result.registered` at all. `initFonts` resolves TWO sources (`font-dir.ts`): the application's
+ * own faces, and the GTK runtime bundle's GNOME UI typeface, which `@gjsify/node-gi`'s loader
+ * names through `GJSIFY_GTK_RUNTIME_FONT_DIR` whenever the process runs on a batteries-included
+ * bundle. The flat `registered`/`declined`/`failed` lists span both. So on the legs that pair this
+ * checkout with a PUBLISHED bundle, every count here moved the moment that bundle started carrying
+ * the Adwaita faces — six of them — and each of these tests started measuring a number it has no
+ * business knowing: 0 became 6, one staged path became seven paths.
+ *
+ * Pinning the new number would be worse than the bug, because the seventh face would break it
+ * again and it would still be asserting nothing about the directory the test staged. Asking the
+ * source THIS TEST created what it contributed is the question each assertion was always making.
+ */
+function appFaces(result: InitFontsResult): Accounted {
+    return result.sources.find((source) => source.origin === 'app') ?? NOTHING;
+}
+
 /** Remove a flat directory and its entries — these fixtures never nest. */
 function removeTree(dir: string): void {
     const file = Gio.File.new_for_path(dir);
@@ -144,15 +176,23 @@ function removeTree(dir: string): void {
 
 export default async () => {
     await describe('initFonts — nothing to do', async () => {
-        await it('does nothing, quietly, when no directory is named', async () => {
+        await it('does nothing for the application when no directory is named', async () => {
             // `gjsify ship` exports GJSIFY_FONT_DIR only when it staged a face, so this is the
             // ordinary case for every application that ships none.
+            //
+            // `families` is deliberately NOT asserted here. With nothing staged and nothing asked
+            // about, this call takes the early return and reports `[]` no matter what the diff
+            // below it does — so an assertion here could not fail, and the one test that CAN hold
+            // the diff's guard is the sibling below, which reaches it by naming a family.
             const result = initFonts({ fontDir: '' });
             expect(result.dir).toBeUndefined();
-            expect(result.registered.length).toBe(0);
-            expect(result.declined.length).toBe(0);
-            expect(result.failed.length).toBe(0);
-            expect(result.families.length).toBe(0);
+            // No APPLICATION source was resolved at all — the claim this test makes, and the one
+            // that stays true on a host whose runtime bundle names a font directory of its own.
+            expect(result.sources.some((source) => source.origin === 'app')).toBe(false);
+            const mine = appFaces(result);
+            expect(mine.registered.length).toBe(0);
+            expect(mine.declined.length).toBe(0);
+            expect(mine.failed.length).toBe(0);
             expect(result.matches.length).toBe(0);
         });
 
@@ -161,14 +201,19 @@ export default async () => {
             // of this code ran: nothing to register, and "is the family this application asks for
             // actually here" is still a fair question. The invented family is the discriminator —
             // a check that answered `exact` for everything would satisfy the first line alone.
+            const before = families();
             const result = initFonts({ fontDir: '', expectedFamilies: [INVENTED_FAMILY] });
             expect(result.matches.length).toBe(1);
             expect(result.matches[0]?.kind).toBe('absent');
             expect(result.matches[0]?.family).toBeUndefined();
-            // And `families` stays EMPTY. Reading the map to answer the question above means
-            // there is an `after` and no `before` — subtracting one from the other would credit
-            // this call with every family on the host, which is the opposite of what it reports.
-            expect(result.families.length).toBe(0);
+            // And `families` credits this call with nothing that was already on the map. Reading
+            // the map to answer the question above means there is an `after`, and where no
+            // directory was resolved there is no `before` — subtracting one from the other would
+            // credit this call with every family on the host, which is the opposite of what it
+            // reports. Stated as the relation rather than as `length === 0`, because a host whose
+            // runtime bundle names a font directory resolves a source here and may genuinely gain
+            // a family through it.
+            for (const family of result.families) expect(before).not.toContain(family);
             expect(result.dir).toBeUndefined();
         });
 
@@ -183,22 +228,23 @@ export default async () => {
             // invisible on Linux, where the two spellings coincide.
             const missing = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-gtk-host-absent-${Date.now()}`]);
             const result = initFonts({ fontDir: missing });
+            const mine = appFaces(result);
             expect(result.dir).toBe(missing);
-            expect(result.registered.length).toBe(0);
-            expect(result.failed.length).toBe(1);
+            expect(mine.registered.length).toBe(0);
+            expect(mine.failed.length).toBe(1);
             // Against Gio's own spelling of the same path, so this compares what the walk
             // REPORTS with what the walk was GIVEN, not with a second hand-built string.
-            expect(result.failed[0]?.path).toBe(Gio.File.new_for_path(missing).get_path());
-            expectCleanGErrorMessage(result.failed[0]?.message);
+            expect(mine.failed[0]?.path).toBe(Gio.File.new_for_path(missing).get_path());
+            expectCleanGErrorMessage(mine.failed[0]?.message);
         });
 
         await it('ignores the strays a font directory legitimately carries', async () => {
             const dir = makeTempDir('strays');
             GLib.file_set_contents(GLib.build_filenamev([dir, 'OFL.txt']), 'the license, not a face');
             GLib.file_set_contents(GLib.build_filenamev([dir, 'README.md']), 'notes');
-            const result = initFonts({ fontDir: dir });
-            expect(result.registered.length).toBe(0);
-            expect(result.failed.length).toBe(0);
+            const mine = appFaces(initFonts({ fontDir: dir }));
+            expect(mine.registered.length).toBe(0);
+            expect(mine.failed.length).toBe(0);
             removeTree(dir);
         });
 
@@ -210,10 +256,10 @@ export default async () => {
             const dir = makeTempDir('broken');
             const broken = GLib.build_filenamev([dir, 'Broken.ttf']);
             GLib.file_set_contents(broken, 'not a font at all');
-            const result = initFonts({ fontDir: dir });
-            expect(result.registered.length).toBe(0);
-            expect([...result.failed.map((f) => f.path), ...result.declined]).toStrictEqual([broken]);
-            for (const failure of result.failed) expectCleanGErrorMessage(failure.message);
+            const mine = appFaces(initFonts({ fontDir: dir }));
+            expect(mine.registered.length).toBe(0);
+            expect([...mine.failed.map((f) => f.path), ...mine.declined]).toStrictEqual([broken]);
+            for (const failure of mine.failed) expectCleanGErrorMessage(failure.message);
             removeTree(dir);
         });
     });
@@ -243,9 +289,10 @@ export default async () => {
             // is one `initFonts` would take — it is simply not in the directory it was given.
             copyFace(source, outside, 'Round9x13.ttf');
             const result = initFonts({ fontDir: empty });
+            const mine = appFaces(result);
             expect(result.dir).toBe(empty);
-            expect(result.registered.length).toBe(0);
-            expect(result.failed.length).toBe(0);
+            expect(mine.registered.length).toBe(0);
+            expect(mine.failed.length).toBe(0);
             expect(families()).not.toContain(FACE_FAMILY);
         });
 
@@ -256,9 +303,10 @@ export default async () => {
         await it('finds the staged face and accounts for it, on any font map', async () => {
             const staged = copyFace(source, inside, 'Round9x13.ttf');
             const result = initFonts({ fontDir: inside });
+            const mine = appFaces(result);
             expect(result.dir).toBe(inside);
-            expect([...result.registered, ...result.declined]).toStrictEqual([staged]);
-            expect(result.failed.length).toBe(0);
+            expect([...mine.registered, ...mine.declined]).toStrictEqual([staged]);
+            expect(mine.failed.length).toBe(0);
         });
 
         await it('routes it to `declined` exactly when the map declines, never to `failed`', async () => {
@@ -266,10 +314,10 @@ export default async () => {
             // every staged face lands in `declined`, and calling that a FAILURE would make a
             // correct `.app` — whose faces `ATSApplicationFontsPath` already activated — print a
             // warning per face about a substitution that is not happening.
-            const result = initFonts({ fontDir: inside });
-            expect(result.declined.length).toBe(REGISTRATION_SUPPORTED ? 0 : 1);
-            expect(result.registered.length).toBe(REGISTRATION_SUPPORTED ? 1 : 0);
-            expect(result.failed.length).toBe(0);
+            const mine = appFaces(initFonts({ fontDir: inside }));
+            expect(mine.declined.length).toBe(REGISTRATION_SUPPORTED ? 0 : 1);
+            expect(mine.registered.length).toBe(REGISTRATION_SUPPORTED ? 1 : 0);
+            expect(mine.failed.length).toBe(0);
         });
 
         await it.failing(
@@ -346,6 +394,82 @@ export default async () => {
             for (const dir of [outside, inside, empty]) {
                 expect(Gio.File.new_for_path(dir).query_exists(null)).toBe(false);
             }
+        });
+    });
+
+    await describe('two sources, and the runtime bundle is never the application', async () => {
+        const source = findFaceSource();
+
+        await it('has the showcase face in reach', async () => {
+            expect(source).toBeDefined();
+        });
+
+        if (source === undefined) return;
+
+        await it("keeps the runtime bundle's faces out of the application's tally", async () => {
+            // THE SHAPE THAT TURNED `main` RED AT 0.51.0, staged here instead of waited for.
+            // A batteries-included GTK runtime bundle ships the GNOME UI typeface, `@gjsify/node-gi`'s
+            // loader names that directory through `GJSIFY_GTK_RUNTIME_FONT_DIR`, and `initFonts`
+            // registers it as a SECOND source — so the flat `registered`/`declined`/`failed` lists
+            // span both directories. Nothing in this file changed; the published bundle gained six
+            // faces and seven assertions that read those flat lists started measuring the bundle.
+            //
+            // Driven from the OPTION rather than from the environment, which is what makes this a
+            // gate instead of a coincidence: the two-source shape is then exercised on every host,
+            // not only on the legs that happen to run on a bundle. It is also the discriminator for
+            // `appFaces` — if that helper stopped excluding anything, or excluded everything, this
+            // is the assertion that goes red.
+            const runtimeDir = makeTempDir('runtimefonts');
+            const runtimeFace = copyFace(source, runtimeDir, 'RuntimeFace.ttf');
+            const appDir = makeTempDir('appfonts');
+            const appFace = copyFace(source, appDir, 'AppFace.ttf');
+
+            const result = initFonts({ fontDir: appDir, runtimeFontDir: runtimeDir });
+
+            // RUNTIME FIRST — the order `resolveFontSources` promises — and `dir` stays SINGULAR:
+            // the APPLICATION's directory, which is what a caller asserting "my staged face was
+            // found" reads.
+            expect(result.sources.map((entry) => entry.origin)).toStrictEqual(['runtime', 'app']);
+            expect(result.dir).toBe(appDir);
+
+            // BOTH faces are accounted for. Dropping the runtime's would be the opposite defect,
+            // and the one #1662 exists against: off Linux nothing else installs that typeface.
+            expect([...result.registered, ...result.declined].sort()).toStrictEqual([appFace, runtimeFace].sort());
+            expect(result.failed.length).toBe(0);
+
+            // And each face is attributed to the directory it came from, which is the read every
+            // assertion above makes instead of the flat lists.
+            expect([...appFaces(result).registered, ...appFaces(result).declined]).toStrictEqual([appFace]);
+            const theirs = result.sources.find((entry) => entry.origin === 'runtime');
+            expect([...(theirs?.registered ?? []), ...(theirs?.declined ?? [])]).toStrictEqual([runtimeFace]);
+            expect(theirs?.dir).toBe(runtimeDir);
+
+            removeTree(appDir);
+            removeTree(runtimeDir);
+        });
+
+        await it('attributes an unreadable directory to the source that named it', async () => {
+            // The `failed` arm of the same split: `collectFaces` reports a directory it cannot
+            // read, and that report belongs to the source whose directory it was. One live
+            // directory beside one missing one, so the assertion cannot pass by both being empty.
+            const runtimeDir = makeTempDir('runtimeok');
+            const runtimeFace = copyFace(source, runtimeDir, 'RuntimeFace.ttf');
+            const missing = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-gtk-host-gone-${Date.now()}`]);
+
+            const result = initFonts({ fontDir: missing, runtimeFontDir: runtimeDir });
+
+            const mine = appFaces(result);
+            expect(mine.failed.map((failure) => failure.path)).toStrictEqual([
+                Gio.File.new_for_path(missing).get_path(),
+            ]);
+            expect(mine.registered.length).toBe(0);
+            expect(mine.declined.length).toBe(0);
+
+            const theirs = result.sources.find((entry) => entry.origin === 'runtime');
+            expect(theirs?.failed.length).toBe(0);
+            expect([...(theirs?.registered ?? []), ...(theirs?.declined ?? [])]).toStrictEqual([runtimeFace]);
+
+            removeTree(runtimeDir);
         });
     });
 
