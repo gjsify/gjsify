@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/blueprint",
-    "version": "0.50.0",
+    "version": "0.51.0",
     "description": "The GNOME Blueprint parser, GtkBuilder-XML emitter and SharedNode projection of ADR 0053, with the corpus of reference-compiler goldens they are measured against. NOT published to npm.",
     "private": true,
     "type": "module",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/effect-platform",
-    "version": "0.50.0",
+    "version": "0.51.0",
     "description": "Effect's platform services over GNOME: effect/FileSystem on Gio.File with cancellation that reaches GIO, effect/Path on GLib, GError mapped onto Effect's normalized platform errors, and a /gtk subpath binding GObject lifetimes to Effect Scopes",
     "keywords": [
         "effect",

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.51.0](https://github.com/gjsify/gjsify/compare/v0.50.0...v0.51.0) (2026-09-12)
+
+### Features
+
+* **cli:** ship an AppImage from the Linux payload ([#1664](https://github.com/gjsify/gjsify/issues/1664)) ([39b2d41](https://github.com/gjsify/gjsify/commit/39b2d41dfe5d742696e224ef910a25ecefa31b3c))
+* **gtk-runtime:** hold a typelib's entry points, and bundle the GNOME typeface ([#1662](https://github.com/gjsify/gjsify/issues/1662)) ([6954c74](https://github.com/gjsify/gjsify/commit/6954c741131ff09157340c6ba4ff6838eaa3e4b7))
+
+### Bug Fixes
+
+* **node-gi:** set the process locale at load ([#1663](https://github.com/gjsify/gjsify/issues/1663)) ([3df9b5b](https://github.com/gjsify/gjsify/commit/3df9b5b526bc4c1b37b08582a367604abe4ffa62))
+* **node-gi:** template property setters, and a call with too few arguments ([#1661](https://github.com/gjsify/gjsify/issues/1661)) ([2a3ac48](https://github.com/gjsify/gjsify/commit/2a3ac48969cf62dec785ff9486ff427cdb71cd91)), closes [#47](https://github.com/gjsify/gjsify/issues/47)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([c05674c](https://github.com/gjsify/gjsify/commit/c05674c89fdeb6c309ff70ba70510c396aee6514))
+* update native prebuilds [skip ci] ([249d2d6](https://github.com/gjsify/gjsify/commit/249d2d68147abcb77fee41de52d134ea9ebfe7c4))
+* update native prebuilds [skip ci] ([b1a694c](https://github.com/gjsify/gjsify/commit/b1a694cfe0746ede8eb45cce933108a813d49bc1))
+
 ## [0.50.0](https://github.com/gjsify/gjsify/compare/v0.49.0...v0.50.0) (2026-09-11)
 
 ### ⚠ BREAKING CHANGES
