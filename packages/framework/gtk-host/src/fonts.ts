@@ -126,6 +126,30 @@ export interface FontFaceFailure {
     readonly message: string;
 }
 
+/**
+ * A {@link FontSource} and the faces IT contributed.
+ *
+ * WHY THE ATTRIBUTION IS PART OF THE RESULT rather than something a caller re-derives. Since the
+ * GTK runtime bundle started carrying the GNOME UI typeface there are TWO sources, and the flat
+ * {@link InitFontsResult.registered}, {@link InitFontsResult.declined} and
+ * {@link InitFontsResult.failed} lists span both — so "did MY staged face arrive" stopped being
+ * answerable from them the day a published bundle gained a face, silently, with no caller
+ * changing a line. The loop that hands each file to the font map is the only place that knows
+ * which directory it came from; anything downstream is reduced to comparing path prefixes, which
+ * is a guess about filesystem layout rather than a measurement.
+ *
+ * The same argument {@link InitFontsResult.families} makes about the family diff, one field over:
+ * only the call that did the work is in a position to take the reading.
+ */
+export interface FontSourceOutcome extends FontSource {
+    /** Faces from THIS directory now on the default font map. */
+    readonly registered: readonly string[];
+    /** Faces from THIS directory the font map declined — see {@link isUnsupportedByFontMap}. */
+    readonly declined: readonly string[];
+    /** Faces from THIS directory that failed otherwise, plus the directory itself if unreadable. */
+    readonly failed: readonly FontFaceFailure[];
+}
+
 /** What {@link initFonts} did, so a caller that cares can assert on it. */
 export interface InitFontsResult {
     /**
@@ -136,8 +160,16 @@ export interface InitFontsResult {
      * answering `true` because the platform's were. {@link sources} is the full list.
      */
     readonly dir: string | undefined;
-    /** Every directory registered, runtime first. See {@link FontSource}. */
-    readonly sources: readonly FontSource[];
+    /**
+     * Every directory registered, runtime first, and what each one contributed.
+     *
+     * THE ONLY PLACE A FACE IS ATTRIBUTED TO A DIRECTORY. Read this, not the flat lists below,
+     * whenever the question is about ONE source — "did the face I staged arrive", "did the
+     * runtime bundle bring its own" — because the flat lists answer for all of them at once and
+     * their counts move whenever a published bundle changes what it carries. See
+     * {@link FontSourceOutcome}.
+     */
+    readonly sources: readonly FontSourceOutcome[];
     /**
      * What the UI-font-size policy did, or `undefined` when it did not run.
      *
@@ -145,11 +177,17 @@ export interface InitFontsResult {
      * there, so the default leaves `gtk-font-name` alone entirely.
      */
     readonly uiFont: UiFontPlan | undefined;
-    /** Faces now on the default font map. */
+    /** Faces now on the default font map, ACROSS EVERY {@link sources} entry. */
     readonly registered: readonly string[];
-    /** Faces the font map declined as unsupported — see {@link isUnsupportedByFontMap}. */
+    /**
+     * Faces the font map declined as unsupported, across every {@link sources} entry — see
+     * {@link isUnsupportedByFontMap}.
+     */
     readonly declined: readonly string[];
-    /** Faces that failed for any other reason. Each was warned about; none threw. */
+    /**
+     * Faces that failed for any other reason, across every {@link sources} entry. Each was warned
+     * about; none threw.
+     */
     readonly failed: readonly FontFaceFailure[];
     /**
      * The family names the default font map GAINED across this call, sorted.
@@ -234,15 +272,16 @@ export function isUnsupportedByFontMap(error: unknown): boolean {
  * `gjsify ship` staged one, so an unset variable is the ordinary case and does nothing quietly.
  */
 export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
-    const sources = resolveFontSources({
+    const requested = resolveFontSources({
         ...options,
         env: {
             GJSIFY_FONT_DIR: GLib.getenv('GJSIFY_FONT_DIR') ?? undefined,
             GJSIFY_GTK_RUNTIME_FONT_DIR: GLib.getenv('GJSIFY_GTK_RUNTIME_FONT_DIR') ?? undefined,
         },
     });
-    const dir = sources.find((source) => source.origin === 'app')?.dir;
+    const dir = requested.find((source) => source.origin === 'app')?.dir;
 
+    const sources: FontSourceOutcome[] = [];
     const registered: string[] = [];
     const declined: string[] = [];
     const failed: FontFaceFailure[] = [];
@@ -258,7 +297,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // family this application asks for actually here" is a fair question even when nothing was
     // staged, which is the macOS shape — a shipped `.app` had the OS activate the directory
     // declaratively, before any of this ran.
-    if (sources.length === 0 && expected.length === 0) {
+    if (requested.length === 0 && expected.length === 0) {
         return { dir, sources, uiFont: undefined, registered, declined, failed, families: [], matches: [] };
     }
 
@@ -267,27 +306,43 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // The BEFORE half of the diff, taken only when there is something to register: a family list
     // is a walk over every family the map knows, and with no directory there is nothing to
     // attribute to this call anyway.
-    const before = sources.length === 0 ? [] : familyNames(fontMap);
+    const before = requested.length === 0 ? [] : familyNames(fontMap);
 
-    for (const source of sources) {
+    for (const source of requested) {
         const faces: string[] = [];
-        collectFaces(Gio.File.new_for_path(source.dir), faces, failed);
+        // Per source, then concatenated — the flat lists are the SUM and the per-source lists are
+        // the attribution, and the sum cannot be split back up afterwards without guessing at path
+        // prefixes. See {@link FontSourceOutcome}.
+        const sourceRegistered: string[] = [];
+        const sourceDeclined: string[] = [];
+        const sourceFailed: FontFaceFailure[] = [];
+        collectFaces(Gio.File.new_for_path(source.dir), faces, sourceFailed);
 
         for (const path of faces.sort()) {
             try {
                 fontMap.add_font_file(path);
-                registered.push(path);
+                sourceRegistered.push(path);
             } catch (error) {
                 // `add_font_file` is `throws="1"` in `Pango-1.0.gir` (since 1.56), and both arms
                 // are live: a map that does no runtime registration answers NOT_SUPPORTED, and a
                 // file that FreeType cannot open answers something else.
                 if (isUnsupportedByFontMap(error)) {
-                    declined.push(path);
+                    sourceDeclined.push(path);
                     continue;
                 }
-                failed.push({ path, message: messageOf(error) });
+                sourceFailed.push({ path, message: messageOf(error) });
             }
         }
+
+        registered.push(...sourceRegistered);
+        declined.push(...sourceDeclined);
+        failed.push(...sourceFailed);
+        sources.push({
+            ...source,
+            registered: sourceRegistered,
+            declined: sourceDeclined,
+            failed: sourceFailed,
+        });
     }
 
     // AFTER, and it is read once for both questions. `families` is what this call added;
@@ -300,7 +355,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     // a live one would report every family on the host as having been added by a call that
     // registered nothing — a field whose whole purpose is to say what THIS call contributed.
     const after = familyNames(fontMap);
-    const families = sources.length === 0 ? [] : after.filter((name) => !before.includes(name)).sort();
+    const families = requested.length === 0 ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
 
     // THE SETTING, after the faces. Registering a typeface and rewriting `gtk-font-name` are two

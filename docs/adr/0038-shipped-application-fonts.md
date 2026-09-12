@@ -563,6 +563,20 @@ it once. `InitFontsResult.dir` still means the APPLICATION's directory alone, so
 caller asserting "my staged face was found" cannot start answering yes because the platform's
 arrived.
 
+**AND `InitFontsResult.sources` NOW CARRIES WHAT EACH SOURCE CONTRIBUTED, because keeping `dir`
+singular was not enough.** The flat `registered` / `declined` / `failed` lists SPAN both
+directories, and that widening stayed invisible for as long as the published bundles shipped no
+face. The day `@gjsify/gtk-runtime-*` started staging the six Adwaita faces, every count taken
+from those lists moved by six — including seven assertions in `fonts.spec.ts`, which turned the
+darwin legs of `gtk-os-suites.yml` red on the first scheduled run after the 0.51.0 prebuild
+pointer landed, with no source change behind it and five months after those assertions were
+written. Those legs pair the JS in the checkout with the PUBLISHED bundle, so the trigger was a
+release, not a commit. A caller cannot re-derive the attribution afterwards without comparing
+path prefixes, which is a guess about filesystem layout rather than a measurement; the loop that
+hands each file to the font map is the only place that knows which directory it came from. So
+each entry is a `FontSourceOutcome` — the same argument `families` makes about the family diff,
+one field over. Ask a source what it contributed; the flat lists are the SUM.
+
 **The per-OS honesty rows of § 3 carry over unchanged, and one of them now bites harder.** Linux
 finds `share/fonts` through the `XDG_DATA_DIRS` the loader already sets; Windows can only be
 reached by `add_font_file`, which is what makes the handover load-bearing there exactly as § 4
