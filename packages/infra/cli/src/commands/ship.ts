@@ -41,11 +41,21 @@ import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
 import { discoverPayload } from '../utils/ship/discover.js';
+import {
+    appDirFor,
+    appDirPayload,
+    appImageHostRequirements,
+    appImageRuntimeNotice,
+    buildAppImage,
+    findPinnedRuntime,
+    stampAppDirTimes,
+} from '../utils/ship/appimage.js';
 import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
+    assertKindCanPack,
     assertToolsInstalled,
     canCarryTicket,
     configuredFormats,
@@ -97,6 +107,7 @@ import { buildRpm } from '../utils/ship/rpm.js';
 import {
     resolveShipApp,
     resolveShipBundle,
+    resolveShipKind,
     resolveShipSettings,
     type ShipPackageManifest,
 } from '../utils/ship/settings.js';
@@ -372,6 +383,22 @@ async function assemble(args: ShipOptions): Promise<void> {
     // afterwards costs the whole build for a refusal that was knowable up
     // front. Skipped under `--stage`, which is precisely the phase that does
     // NOT need the format's tooling — that asymmetry is the point of the split.
+    // THE THIRD REFUSAL THAT IS KNOWABLE UP FRONT, and it was the one paid for
+    // with a whole build: `appimage` needs a desktop entry at its AppDir root,
+    // `kind: 'cli'` stages none by design, and both facts are configuration. It
+    // used to surface inside the packer — after `runProjectBuild` — so a CLI
+    // project asking for an AppImage built everything first and was then told its
+    // payload could never have become one. The ICON half stays in the packer,
+    // because an icon is discovered and discovery legitimately reads build output.
+    //
+    // BEFORE `assertCanPack` AND NOT AFTER IT, which is an ordering between two
+    // refusals rather than a detail. `assertCanPack` says "not on THIS machine" and
+    // is answered by installing something; this one says "not for THIS PROJECT",
+    // which installing appimagetool would not fix. Reporting the machine first
+    // sends a CLI author to a GitHub release for a tool that was never going to
+    // help them — measured, because the e2e below asserted the message it wanted
+    // and only ever ran on a host that had the tool.
+    if (!args.stage) assertKindCanPack(formats, resolveShipKind(ship, flatpak));
     if (!args.stage) for (const format of formats) assertCanPack(format);
 
     if (!args['skip-build']) await runProjectBuild(projectDir);
@@ -1124,6 +1151,63 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 verbose: input.verbose,
             });
             break;
+        case 'appimage': {
+            // FROM THE PAYLOAD, like every other container here and NOT from the
+            // stage directory, so the three properties `writePayload` guarantees
+            // hold: the modes are the plan's, the stage's own sidecar stays out
+            // because it was never payload, and `--target appimage` alone works
+            // without another row having run first.
+            //
+            // The host requirement list is derived HERE rather than inside the
+            // packer, because it is the same pair of inputs `deriveDepends` takes
+            // one branch up — `input.namespaces` from the stage manifest and
+            // `facts.bundledTypelibs` from the payload. Two derivations would be
+            // two answers to "what does this artifact need from the machine", from
+            // one build, in two files.
+            const hostRequirements = appImageHostRequirements({
+                app: settings.app,
+                minGjsVersion: settings.minGjsVersion,
+                minNodeVersion: settings.minNodeVersion,
+                namespaces: input.namespaces,
+                bundledTypelibs: facts.bundledTypelibs,
+            });
+            const appDir = appDirFor(outRoot);
+            const tree = appDirPayload(settings, payload, hostRequirements);
+            // ONE `writePayload` FOR THE WHOLE AppDir, prefix and root files
+            // together, because that call WIPES: two of them would leave the
+            // previous run's `<appId>.desktop` and icon at a root the second call
+            // never cleaned, and appimagetool packs an AppDir with two desktop
+            // files without complaining about either.
+            writePayload(appDir, tree, '');
+            // AND THEN THE TIMES, which are the single difference between two packs
+            // of one build (measured, sha256): mksquashfs stores per-file mtimes
+            // and `writePayload`'s own `mkdir`/`writeFileSync` leave the wall clock.
+            stampAppDirTimes(appDir, tree, mtime);
+            // PRINTED, not logged at `--verbose`. ADR 0024 § 9's objection to this
+            // format is that "runs anywhere" is a claim the file cannot keep, and
+            // the answer is that the file says what it does not carry — to the
+            // person building it, every time, and not only in a document.
+            console.log(`${LOG} the AppImage takes these from the host: ${hostRequirements.join(', ')}`);
+            // AND WHAT IT EMBEDS, on the same terms and for the same reason. The
+            // requirement list above says what the file does NOT carry; this says
+            // where the one thing it DOES carry that this tree did not write came
+            // from. With a pin that is a checkable claim (no network, and two packs
+            // of one build embed identical bytes); without one appimagetool fetches
+            // from a rolling tag, which still works and must still be said —
+            // ADR 0024 § A26.1. Unconditional, never behind `--verbose`: the person
+            // who can pin a runtime is the one reading a pack log.
+            const runtimeFile = findPinnedRuntime(archLabel);
+            console.log(`${LOG} ${appImageRuntimeNotice(archLabel, runtimeFile)}`);
+            await buildAppImage({
+                appDir,
+                target,
+                archLabel,
+                runtimeFile,
+                workDir: dirname(appDir),
+                verbose: input.verbose,
+            });
+            break;
+        }
         case 'macos-app':
         case 'windows-dir':
             // ONE STATEMENT FOR TWO ROWS, folded because the code really is

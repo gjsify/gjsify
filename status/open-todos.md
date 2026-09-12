@@ -83,6 +83,87 @@ What is still OPEN is the fix itself, and there are exactly two routes:
 Until one of them happens, a Windows application that wants an About dialog fills
 `Adw.AboutDialog` itself. The dialog is fully constructible; only the metainfo-parsing
 constructor is gone.
+### Three of the four AppImage architectures have no pinned runtime
+
+`.docker/ci-fedora.Dockerfile` pins `runtime-x86_64` from type2-runtime's dated `20251108`
+release under a `sha256sum -c`, so an `x86_64` pack is offline and byte-reproducible
+(ADR 0024 § A26.1). `aarch64`, `i686` and `armhf` have no pinned file, so a `--arch` pack for one
+of them still asks appimagetool to fetch `runtime-<arch>` from the ROLLING `continuous` tag — the
+pack needs a network and embeds ~940 KB that no checksum in this tree covers.
+
+That is ANNOUNCED rather than silent (`appImageRuntimeNotice`, printed on every pack) and not
+refused, because those packs do produce correct containers. What closes it is one `curl` + digest
+each in the image, beside the `x86_64` one — cheap, and deliberately not done blind: the image is
+`linux/amd64` only, so nothing here would run what those three produce, and a pinned runtime
+nobody exercises is a digest guarding an untested path.
+
+Do it together with the arch entry below, whose blocker is the same `platforms:` line.
+
+### The AppImage row names four architectures and one of them is exercised
+
+`APPIMAGE_ARCH` (`utils/ship/formats.ts`) maps `x64`, `arm64`, `ia32` and `arm` to `x86_64`,
+`aarch64`, `i686` and `armhf`, and that is a PROMISE about a label a user downloads. Only
+`x86_64` is behind a run: `.docker/ci-fedora.Dockerfile` bakes the `x86_64` appimagetool release
+and `build-ci-image.yml` publishes `linux/amd64` only, so `tests/e2e/ship-appimage`'s real tier
+can never see the other three.
+
+The table is short on purpose — an arch it does not know is REFUSED rather than guessed — but
+"refused rather than guessed" is not the same as "produced and run". PRODUCED is now measured, and
+it is better than this entry first claimed: because appimagetool fetches its runtime per `$ARCH`
+(see the entry above), `--arch` packs from ONE x86_64 host produced a correct-arch container for
+all four labels — `file(1)` reports x86-64, AArch64, Intel i386 and ARM EABI5 respectively, from
+`runtime-{x86_64,aarch64,i686,armhf}`. So `i686`/`armhf` are not "a runtime nobody has looked for";
+they are runtimes nothing here has RUN. What stays unexercised is exactly that: no leg starts one
+of the three, and the payload's own arch-dependence is a separate question from the container's.
+
+What would close it: widening `build-ci-image.yml`'s `platforms:` (which three other jobs already
+wait on — see *"runs on arm64, ghcr.io/gjsify/ci-fedora is built for amd64 only"* in
+`check-ci-image-packages.mjs`), plus an `aarch64` appimagetool pin beside the `x86_64` one. Until
+then, treat `aarch64` as declared-and-unproven and `ia32`/`armhf` as declared-and-unlikely.
+### `packages/framework/AGENTS.md` is over its own 20 KB target
+
+**20729 B**, against the 20480 B target the root AGENTS.md sets for every agent context
+file — 249 B over, and the first time this file has crossed it. It was 20421 B before
+rule (9) grew to cover `/fonts`' second directory and the UI-font policy (ADR 0038
+§ Amendment 2).
+
+Nothing is broken: `check-agent-context-size.mjs` gates on the EXACT per-file ratchet
+(re-baselined in the same commit) and on the 32 KiB hard cap where Codex silently
+truncates the tail. This is a target, not a gate — `packages/infra/cli/AGENTS.md`
+(27792) and `rolldown-plugin-gjsify/AGENTS.md` (24972) are further over.
+
+Recorded because a target nobody notes is not a target the next time. **The lever is
+cutting elsewhere in the same file**, not trimming rule (9) further: it is already at
+the "rule plus one link" shape the budget section asks for.
+
+### Three CI legs fetch at build time, and two of them are booked as "flakes"
+
+Measured in one evening, 2026-09-11, across four parallel PRs:
+
+- `Build @gjsify/node-gi native addon (node-gyp)` fetches `node-vX-headers.tar.gz`
+  from nodejs.org — `attempt 1 failed with ECONNRESET`, no retry, job red.
+- `brew install gtk4 libadwaita …` (darwin-x64) — exit 1 over `cairo … already
+  installed and up-to-date`, red before `actions/checkout` had even run.
+- The AppImage pack fetched its runtime from a **rolling** tag — fixed on this
+  branch: pinned, digest-checked, `--runtime-file`.
+
+The third was treated as a blocker because what it fetches ends up INSIDE a shipped
+artifact. The first two are treated as flakes because they only cost a re-run. That is
+a difference in consequence, not in kind: all three make a containerised job depend on
+a third party being reachable and unchanged at the moment it runs.
+
+The node-gyp one is the cheapest to close and the most frequent — bake the headers for
+the pinned Node version into `.docker/ci-fedora.Dockerfile`, beside the `appimagetool`
+and `runtime-x86_64` pins already there. node-gyp reads them directly; verified in its
+own source and README rather than assumed:
+
+    --tarball=$path   read the headers from a local tarball  (lib/install.js:175)
+    --devdir=$path    where the headers are cached
+    --nodedir=$path   skip the install step entirely         (lib/install.js:40)
+
+Recorded because "re-run it, it's flaky" is how a systematic dependency stays
+invisible: each occurrence looks like weather.
+
 
 ### A renamed ship artifact broke a workflow, and only one of nine references noticed
 

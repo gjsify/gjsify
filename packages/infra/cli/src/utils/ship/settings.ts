@@ -214,6 +214,23 @@ const CATEGORY_SECTIONS: Array<[string, { section: string; group: string }]> = [
     ['Utility', { section: 'utils', group: 'Applications/System' }],
 ];
 
+/**
+ * `gjsify.ship.kind`, falling back to `gjsify.flatpak`'s and then to `'app'`.
+ *
+ * LIFTED OUT because a second caller appeared BEFORE this file runs: `ship`
+ * refuses a `kind: 'cli'` project asking for a format whose container needs a
+ * desktop entry, and it does that ahead of the project's build, where
+ * `resolveShipSettings` has not run and its `discovered` input does not exist
+ * yet. The fallback chain is `{ ...flatpak, ...definedOnly(ship) }`'s for exactly
+ * this key, and a second spelling of it is the kind that stays right until
+ * somebody changes the first one — here with the artifact-shaped consequence that
+ * a project would be refused before the build for a `kind` the stage then
+ * resolves differently.
+ */
+export function resolveShipKind(ship: ConfigDataShip, flatpak: ConfigDataFlatpak): 'app' | 'cli' {
+    return ship.kind ?? flatpak.kind ?? 'app';
+}
+
 export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const warnings: string[] = [];
     const { pkg, ship, flatpak, discovered } = input;
@@ -238,7 +255,9 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const binaryName = ship.binaryName ?? deriveBinaryName(pkg.name);
     const appId = ship.appId ?? flatpak.appId ?? reverseDnsOrThrow(pkg.name, binaryName);
     const name = metadata.name ?? titleCase(binaryName);
-    const kind = metadata.kind ?? 'app';
+    // Through the shared resolver, so the PRE-BUILD gate and this function cannot
+    // answer "is this a GUI application" differently — see {@link resolveShipKind}.
+    const kind = resolveShipKind(ship, flatpak);
     // NOT resolved here: `resolveShipApp` already did, before the format list was
     // decided from it. A second defaulting rule in this function would be the
     // second path those two answers could come apart on.

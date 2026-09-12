@@ -107,8 +107,8 @@ can spell stops the run.
 
 ## Where each format can be packed
 
-Nine formats wrap three layouts. Seven of them pack on any host, offline, with
-no tool outside this CLI. Two do not, and ship refuses those on the wrong host
+Ten formats wrap three layouts. Seven of them pack on any host, offline, with
+no tool outside this CLI. Three do not, and ship refuses those on the wrong host
 rather than writing a broken file.
 
 | Format | Layout | In the default set | Packs on | Needs installed |
@@ -116,12 +116,21 @@ rather than writing a broken file.
 | `deb` | linux | yes | any host | nothing |
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | Linux | `flatpak-builder`, `flatpak` |
+| `appimage` | linux | no | Linux | `appimagetool`, which no distribution packages |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | macOS | `hdiutil`, which is part of macOS |
 | `windows-dir` | windows | yes | any host | `glib-compile-schemas` |
 | `windows-dir-zip` | windows | yes | any host | `glib-compile-schemas` |
 | `msi` | windows | no | Linux or Windows | `wixl` from `msitools`, or WiX Toolset v3.14 |
+
+`appimage` is the one row that embeds something this project did not write: the
+AppImage runtime the finished file starts with. `gjsify ship` passes a pinned one
+when your machine has it at
+`/usr/local/share/gjsify/appimage-runtime/runtime-<arch>` (or wherever
+`GJSIFY_APPIMAGE_RUNTIME_DIR` points), and says so on every pack. Without one,
+`appimagetool` downloads a runtime — so that pack needs a network, and the pack
+log says that too.
 
 `glib-compile-schemas` ships in `glib2` on Fedora and `libglib2.0-bin` on
 Debian and Ubuntu. It is a tool rather than a host, so the four formats that
@@ -201,6 +210,7 @@ feeds all of them.
 |---|---|---|
 | A file a Linux user installs with their own package manager | `gjsify ship linux` | [Linux packages](/gjsify/ship/linux-packages/) |
 | A single Flatpak file, sandboxed, with a pinned GTK on every distro | `gjsify ship linux --target flatpak` | [Linux packages](/gjsify/ship/linux-packages/#the-flatpak-bundle) |
+| One portable file for someone else's distro, with no install and no root | `gjsify ship linux --target appimage` | [Linux packages](/gjsify/ship/linux-packages/#the-appimage) |
 | An application a Mac user drags into `/Applications` | `gjsify ship darwin` | [macOS app bundles](/gjsify/ship/macos/) |
 | An installer a Windows user double-clicks | `gjsify ship windows --target msi` | [Windows artifacts](/gjsify/ship/windows/) |
 | A GUI app on Flathub, with the manifest and metadata files in your repo | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
@@ -215,8 +225,11 @@ the manifest and the AppStream files committed in your repository. The one-line
 installer suits early adopters while you are still iterating, and dlx suits a
 tool nobody wants permanently installed.
 
-There is no AppImage target. The nearest thing that exists is the Flatpak
-bundle, which is also one file, needs no repository and works offline.
+The AppImage and the Flatpak bundle are both one file with no repository behind
+it, and they answer different questions. An AppImage needs no installation and
+no root at all, and takes GJS and GTK from the machine it runs on — `gjsify
+ship` prints that list and the file repeats it if the runtime is missing. A
+Flatpak carries its own runtime and needs flatpak installed to put it anywhere.
 
 ## Next
 

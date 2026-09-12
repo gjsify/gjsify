@@ -75,6 +75,7 @@ export type FormatId =
     | 'deb'
     | 'rpm'
     | 'flatpak'
+    | 'appimage'
     | 'macos-app'
     | 'macos-app-zip'
     | 'macos-app-dmg'
@@ -288,6 +289,23 @@ export interface FormatDescriptor {
      * makes this a property of the CONTAINER rather than "macOS is special".
      */
     artifactKind: 'file' | 'directory';
+
+    /**
+     * This container cannot hold a `kind: 'cli'` project at all.
+     *
+     * A ROW'S FACT, so the refusal fires BEFORE the project's build like
+     * `assertCanPack`'s two do, and for the identical reason: `gjsify.ship.kind`
+     * is configuration, so the answer is knowable up front and discovering it
+     * after `runProjectBuild` costs the whole build for a refusal nothing learned
+     * from building. `appimage` is the only row that sets it — appimagetool
+     * refuses an AppDir with no `.desktop` at its root, and a CLI project stages
+     * none by design. A `.deb`, an `.rpm` and a Flatpak all ship a CLI perfectly.
+     *
+     * NOT the same question as the ICON half of `assertAppImageIsPackable`, which
+     * stays on the pack path: an icon is DISCOVERED, and discovery legitimately
+     * reads files the build produces.
+     */
+    requiresDesktopEntry?: true;
 }
 
 /** One shared-mime-info type definition (`gjsify.ship.mimeTypes`). */

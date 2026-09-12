@@ -307,6 +307,85 @@ application, and either may carry it.
 For a Flathub submission you want [`gjsify flatpak init`](/gjsify/guides/flatpak-app/)
 instead, which commits the manifest and the AppStream files to your repository.
 
+## The AppImage
+
+One file, no installation, no root. Double-click it, or `chmod +x` and run it.
+
+```bash
+gjsify ship --target appimage
+chmod +x ./ship/out/my-app-1.2.3-1.x86_64.AppImage
+./ship/out/my-app-1.2.3-1.x86_64.AppImage
+```
+
+Like the Flatpak it is not in the default set, because it needs a tool on your
+machine — and this one no distribution packages. Take the release from
+[AppImage/appimagetool](https://github.com/AppImage/appimagetool/releases),
+`chmod +x` it and put it on `PATH` as `appimagetool`. A missing tool is a
+message naming it, before your build script runs. As always, `gjsify ship
+--stage` needs none of it: assemble on any machine and pack where the tool is.
+
+**Read this before you publish one.** The AppImage carries your application and
+NOT its runtime. GJS, GTK4, libadwaita and the typelibs still come from the
+machine it runs on — there is no relocatable Linux GTK closure to put inside it,
+because on Linux GTK has always come from the distribution. So `gjsify ship`
+prints exactly what the file expects to find:
+
+```
+[gjsify ship] the AppImage takes these from the host: gjs (>= 1.86), the Adw-1 typelib, the Gtk-4.0 typelib
+```
+
+and the file says the same thing for itself when the interpreter is missing,
+instead of dying with a loader error nobody can read:
+
+```
+My App needs gjs, and this system has none.
+This AppImage carries the application, not its runtime. It needs:
+  - gjs (>= 1.86)
+  - the Adw-1 typelib
+  - the Gtk-4.0 typelib
+```
+
+That makes it the right artifact for *someone else's distribution, no root* —
+which is what the `.deb`, the `.rpm` and the Flatpak between them cannot do —
+and the wrong one for a machine with no GNOME stack at all. There, the Flatpak
+bundle above is what carries its own runtime.
+
+**FUSE.** An AppImage mounts itself to run, which needs FUSE 2. On a host or
+container without it, the runtime's own escape hatch is
+`./my-app.AppImage --appimage-extract-and-run` (or `--appimage-extract`, which
+unpacks the tree beside the file). Building has the same requirement one layer
+up, and `gjsify ship` already handles it: `appimagetool` is itself an AppImage,
+so the pack sets `APPIMAGE_EXTRACT_AND_RUN=1` on it for you.
+
+One thing it cannot handle for you in a minimal container: appimagetool needs
+`file(1)` and says so, even though `gjsify ship` already tells it the
+architecture. Install `file` and the build works with no FUSE at all.
+
+**The runtime, and whether your pack needs a network.** An AppImage starts with
+an ELF runtime that is not your application and not written by this project.
+appimagetool downloads one on every pack — for your own architecture too, with no
+cache — unless it is given one, so `gjsify ship` gives it one when it can:
+
+```
+[gjsify ship] the AppImage runtime is pinned: /usr/local/share/gjsify/appimage-runtime/runtime-x86_64 — this pack needs no network
+```
+
+Put a `runtime-<arch>` from a
+[type2-runtime release](https://github.com/AppImage/type2-runtime/releases) at
+`/usr/local/share/gjsify/appimage-runtime/`, or point
+`GJSIFY_APPIMAGE_RUNTIME_DIR` at a directory holding one. Then the pack is
+offline, and two packs of one build produce byte-identical files.
+
+Without one the pack still works and still produces a correct file — it just
+needs a network, and embeds bytes from a rolling tag that no checksum here
+covers. `gjsify ship` prints that instead, on every such pack, so it is never
+something you find out later. `gjsify ship linux --stage` needs neither:
+assemble anywhere, pack where the runtime is.
+
+Your project needs a desktop entry and an icon for this format — an AppImage has
+nowhere to put an application that has neither. A `kind: "cli"` project is
+refused by name; ship it as a `.deb`, an `.rpm` or a Flatpak instead.
+
 ## Pick the architecture
 
 You usually do not have to. `gjsify ship` looks at the bytes in the payload. If
@@ -325,15 +404,18 @@ gjsify ship --arch arm64
 
 `--arch` takes `process.arch` spelling and maps it per format:
 
-| `--arch` | deb | rpm |
-|---|---|---|
-| `x64` | `amd64` | `x86_64` |
-| `arm64` | `arm64` | `aarch64` |
-| `ia32` | `i386` | `i686` |
-| `arm` | `armhf` | `armv7hl` |
-| `riscv64` | `riscv64` | `riscv64` |
-| `ppc64` | `ppc64el` | `ppc64le` |
-| `s390x` | `s390x` | `s390x` |
+| `--arch` | deb | rpm | appimage |
+|---|---|---|---|
+| `x64` | `amd64` | `x86_64` | `x86_64` |
+| `arm64` | `arm64` | `aarch64` | `aarch64` |
+| `ia32` | `i386` | `i686` | `i686` |
+| `arm` | `armhf` | `armv7hl` | `armhf` |
+| `riscv64` | `riscv64` | `riscv64` | — |
+| `ppc64` | `ppc64el` | `ppc64le` | — |
+| `s390x` | `s390x` | `s390x` | — |
+
+An AppImage begins with an ELF runtime, so there is no `all`/`noarch` row for it
+and an architecture it has no runtime for is refused rather than labelled.
 
 It labels the artifact and cross-builds nothing. Use it when you have already
 produced a payload for that architecture, typically from a CI job running on

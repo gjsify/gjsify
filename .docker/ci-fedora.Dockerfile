@@ -138,6 +138,9 @@ RUN dnf install -y \
     desktop-file-utils \
     appstream \
     msitools \
+    squashfs-tools \
+    file \
+    curl \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
@@ -156,6 +159,90 @@ RUN dnf install -y \
     mesa-libGL \
     weston \
     && dnf clean all
+
+# `appimagetool`, and the ONLY thing in this file that is downloaded rather than
+# installed — because nothing packages it. Neither Fedora nor Debian ships it, so
+# `tests/e2e/ship-appimage`'s real tier would otherwise be a printed skip on every
+# CI run, which is the same vacuum `msitools` is baked here to avoid: a
+# probed-and-skipped tool leaves every assertion behind it proving nothing.
+#
+# THIS IS NOT THE VENDORING ADR 0024 § A25 REFUSES. That refusal is about putting
+# a GPL-3.0 binary in an MIT source tree and shipping it; this is a build tool on
+# a build machine, which is what `wixl` and `blueprint-compiler` are too. Nothing
+# from it reaches an artifact: appimagetool embeds an AppImage RUNTIME into what
+# it writes, and that runtime is `type2-runtime`, whose licence travels with the
+# file the packer produces rather than with this image.
+#
+# PINNED BY DIGEST, not by tag: a release asset can be replaced in place, and a
+# packer whose tool changed under it would produce different bytes for the same
+# payload with nothing to say so. `sha256sum -c` FAILS the image build, which is
+# the loudest place for this to go wrong. The pin covers the TOOL only — what it
+# embeds into every artifact is fetched from `type2-runtime`'s rolling
+# `continuous` tag at pack time, which no digest here reaches
+# (`status/open-todos.md` → "The AppImage pack is not offline").
+#
+# `curl` IS DECLARED IN THE dnf BLOCK ABOVE and not only in the later one. This
+# layer execs it, and until it was declared it ran on `fedora:44`'s base
+# `curl-minimal` — an undeclared dependency the image installs forty lines
+# further DOWN, so a base that stopped shipping it would fail here with
+# `curl: not found`, which reads as a network problem rather than a package one.
+#
+# MEASURED ON `fedora:44` WITH NO `/dev/fuse`, because two of its failure modes
+# are exactly what a container hits and neither says what it is:
+#
+#   * without `APPIMAGE_EXTRACT_AND_RUN=1` it exits 127 — appimagetool is itself
+#     an AppImage and mounts itself through libfuse to start. `utils/ship/appimage.ts`
+#     sets that variable on every invocation, so nothing here has to.
+#   * without `file(1)` it exits 1 with "file command is missing but required",
+#     EVEN when `ARCH` is set — which is why `file` is in the dnf list above
+#     rather than assumed. `squashfs-tools` is beside it for the other half:
+#     `unsquashfs` is what `.github/ship-oracle/verify-appimage.py` reads the
+#     artifact back with, and it is not in the base image either.
+#
+# With both present the whole chain runs in a FUSE-less container: build, derive
+# the offset from the ELF section headers, list the tree with `unsquashfs`, and
+# run the artifact with `--appimage-extract-and-run` (a bare mount still fails
+# there, and the e2e suite asks for the extract path for that reason).
+ARG APPIMAGETOOL_VERSION=1.9.1
+ARG APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+RUN curl -fsSL -o /usr/local/bin/appimagetool \
+        "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" \
+    && echo "${APPIMAGETOOL_SHA256}  /usr/local/bin/appimagetool" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/appimagetool
+
+# THE APPIMAGE RUNTIME, PINNED — the half of the artifact this tree does not write.
+#
+# Pinning appimagetool alone was a pin with a hole under it: the tool FETCHES
+# `runtime-<arch>` from `type2-runtime`'s ROLLING `continuous` tag on every pack
+# (measured on 1.9.1 build 296, for the host's own architecture as much as for a
+# foreign one, with no cache), and that ~940 KB of ELF is what a user downloads
+# and executes. So the digest above covered the packer and not the payload.
+#
+# NOT a theoretical drift. `continuous`'s `runtime-x86_64` and the dated
+# `20251108` release's are the same 944632 bytes and DIFFERENT CONTENT — measured
+# by sha256 on 2026-09-11, which is also what makes `ship`'s byte-identical
+# promise real only between two packs close enough together that the tag did not
+# move. With this file present the pack passes `--runtime-file` and neither is
+# true any more: measured, the whole pack succeeds with the network blocked, and
+# two packs of one build are byte-identical.
+#
+# A DATED RELEASE AND NOT `continuous`, which is the entire point, and the same
+# `sha256sum -c` shape as the tool above so a replaced asset fails the image build
+# rather than the artifact.
+#
+# x86_64 ONLY, because this image is `linux/amd64` only. A `--arch` pack for one
+# of the other three still works and is ANNOUNCED as unpinned by `gjsify ship` —
+# `appImageRuntimeNotice` in `utils/ship/appimage.ts`, the declare-rather-than-
+# imply rule the host-requirement list already follows. Pinning those three is one
+# `curl` each on the day a leg exists to run them (`status/open-todos.md`).
+ARG APPIMAGE_RUNTIME_VERSION=20251108
+ARG APPIMAGE_RUNTIME_X86_64_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+RUN mkdir -p /usr/local/share/gjsify/appimage-runtime \
+    && curl -fsSL -o /usr/local/share/gjsify/appimage-runtime/runtime-x86_64 \
+        "https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_RUNTIME_VERSION}/runtime-x86_64" \
+    && echo "${APPIMAGE_RUNTIME_X86_64_SHA256}  /usr/local/share/gjsify/appimage-runtime/runtime-x86_64" \
+        | sha256sum -c - \
+    && chmod 0644 /usr/local/share/gjsify/appimage-runtime/runtime-x86_64
 
 # Meson + Vala + Blueprint compiler for the native bridge builds
 # (@gjsify/{webrtc-native, tls-native, terminal-native, sab-native,

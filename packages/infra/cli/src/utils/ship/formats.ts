@@ -9,6 +9,7 @@
 // a format can be host-bound (§ A3), so `host` is a descriptor field now.
 
 import { isOnPath } from '../check-system-deps.js';
+import { APPIMAGE_TOOL } from './appimage.js';
 import { DMG_TOOL } from './dmg.js';
 import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import { SCHEMA_COMPILER, SCHEMA_COMPILER_HINT } from './schemas.js';
@@ -82,6 +83,35 @@ function rpmArch(arch: string, archIndependent: boolean): string {
  */
 function flatpakArch(arch: string, _archIndependent: boolean): string {
     return lookupArch(FLATPAK_ARCH, arch, 'Flatpak');
+}
+
+/**
+ * `process.arch` → the name appimagetool uses, which is `uname -m`'s.
+ *
+ * A TABLE OF ITS OWN even though it currently equals `RPM_ARCH` on every row it
+ * has, and the reason is that the two answer different questions: rpm's is a
+ * package-manager namespace with `noarch`, `i686` and `ppc64le` in it, while this
+ * one is the string appimagetool puts in `$ARCH` and matches against the runtimes
+ * it can embed. Sharing the table would make an rpm row addition silently claim
+ * an AppImage architecture that has no runtime — `ppc64le` is exactly that case
+ * today. So the short list is the honest one, and an arch not in it is REFUSED
+ * rather than guessed, which is `FLATPAK_ARCH`'s rule for `FLATPAK_ARCH`'s reason:
+ * the value ends up in a filename a user is asked to download.
+ *
+ * `archIndependent` is IGNORED, like Flatpak's and unlike deb's and rpm's. There
+ * is no `noarch` AppImage: the file BEGINS with an ELF runtime, so a payload of
+ * pure JavaScript still ships in an x86-64 executable and labelling it otherwise
+ * would name a file nothing can run.
+ */
+const APPIMAGE_ARCH: Record<string, string> = {
+    x64: 'x86_64',
+    arm64: 'aarch64',
+    ia32: 'i686',
+    arm: 'armhf',
+};
+
+function appImageArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(APPIMAGE_ARCH, arch, 'AppImage');
 }
 
 /**
@@ -375,6 +405,111 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // installs as, and it is what `flatpak install ./file.flatpak` prints.
         fileName: (s: PackSettings, archLabel: string) => `${s.appId}-${s.version}-${s.release}.${archLabel}.flatpak`,
         artifactKind: 'file',
+    },
+    // THE FOURTH CONTAINER OVER THE LINUX TREE, and the first row added to this
+    // table that needed NOTHING staged: `deb`, `rpm` and `flatpak` already wrap
+    // this exact payload, so ADR 0024 § 2's "one payload, a handful of layouts"
+    // is here a row plus a packer and no change to `plan.ts` at all. ADR 0024
+    // § 9 deferred it and § A24 lifts the deferral; `appimage.ts`'s header
+    // carries the argument, and the short form is that the two promises an
+    // AppImage can keep with no relocatable Linux closure — no install, no root
+    // — are the two nothing else in this table offers, and the third is
+    // DECLARED rather than implied.
+    appimage: {
+        id: 'appimage',
+        layoutOs: 'linux',
+        // `/usr`, exactly as the `.deb` — and that is the whole layout difference
+        // between the two formats. An AppImage mounts its squashfs and the AppDir's
+        // `usr/` becomes the prefix, which the staged launcher computes for itself
+        // (ADR 0024 § 3): `readlink -f "$0"` then two `dirname`s, measured inside a
+        // mount as `/tmp/.mount_xxxx/usr`. So the same `bin/<name>` works under
+        // `/usr`, under `/app` and under a mountpoint nobody chose.
+        prefix: '/usr',
+        host: {
+            // Linux-bound the way the Flatpak row is, and NOT the way the `.dmg`
+            // is: the container is an ELF runtime for Linux with a Linux filesystem
+            // behind it, so the format is bound the way the application is.
+            finishOn: ['linux'],
+            // The SCHEMA COMPILER IS ABSENT here, unlike the two windows rows and
+            // for the `.dmg`'s reason inverted: this layout HAS an install step in
+            // every other format, and inside an AppImage it does not — there is no
+            // `postinst` to run `glib-compile-schemas` in a read-only squashfs. But
+            // `compileSchemasForStage` has already run at ASSEMBLY time and
+            // `gschemas.compiled` is in the payload, so declaring the compiler on
+            // the PACK path would refuse a `--from-stage` pack that works.
+            requiredTools: [APPIMAGE_TOOL],
+            // A URL AND NOT A PACKAGE NAME, and it is the first hint in this table
+            // that has to be. `flatpak-builder` and `msitools` are in Fedora and in
+            // Debian; `appimagetool` is in neither, so pointing at a distro would
+            // send the reader to an `E: Unable to locate package`. The `--stage`
+            // half is repeated here because it is the answer for a CI image that is
+            // not going to grow a hand-installed binary.
+            installHint:
+                'no distribution packages it — take the release from ' +
+                'https://github.com/AppImage/appimagetool/releases, `chmod +x` it and put it on PATH as ' +
+                '`appimagetool`; or assemble here with `gjsify ship linux --stage` and pack where it is',
+            oracle: {
+                // TWO READERS, NEITHER OF THEM appimagetool AND NEITHER OF THEM THE
+                // ARTIFACT'S OWN RUNTIME — which is what `--appimage-offset` and
+                // `--appimage-extract` would be, the format reading what the format
+                // wrote (ADR 0024 § A3).
+                //
+                //   * CPython reads the ELF SECTION-HEADER TABLE for the offset the
+                //     filesystem starts at — `e_shoff + e_shnum * e_shentsize`,
+                //     twelve bytes of `struct.unpack_from`, straight out of the ELF
+                //     specification. Measured against `--appimage-offset` on a real
+                //     artifact: 944632 both ways. That agreement is the
+                //     discriminator for the whole container, because a truncated or
+                //     empty image has no squashfs superblock there. `python3` and
+                //     NOT `readelf`, which the first draft of this row declared and
+                //     `verify-appimage.py` never execs — the field names the tools
+                //     the oracle RUNS, and binutils is not one of them here. Same
+                //     reader family the two `macos-app` rows already declare.
+                //   * `unsquashfs` (squashfs-tools) then lists the filesystem at
+                //     that offset with names, modes and sizes, which
+                //     `.github/ship-oracle/verify-appimage.py` compares against the
+                //     stage manifest. A different PROGRAM from the bundled
+                //     mksquashfs appimagetool packs with, and the leg that runs it
+                //     is the Linux one that already reads the `.deb`.
+                readWith: ['python3', 'unsquashfs'],
+                readOn: ['linux'],
+                selfReading: false,
+            },
+        },
+        // No `Depends:` FIELD — which is not the same as no dependencies, and this
+        // row is the one place in the table where that distinction has teeth. A
+        // `.deb` declares `gir1.2-gtk-4.0` and apt refuses to install without it;
+        // an AppImage has nowhere to write that down, so `appImageHostRequirements`
+        // derives the same set from the same scan and `ship` PRINTS it while
+        // `AppRun` carries the interpreter half as a refusal. See `depends.ts`'s
+        // `DistroFormatId`: this is `null` because there is no field, never because
+        // there is nothing to say.
+        depends: null,
+        // BOTH, like `deb` and `rpm` and for the same reason: the interpreter comes
+        // from the machine. The difference from those two is that nothing declares
+        // it — see the `depends` note above and `interpreterGap` below.
+        interpreters: ['gjs', 'node'],
+        interpreterGap:
+            'an AppImage carries the application and takes its interpreter from the host, exactly as a distro ' +
+            'package does — but with no dependency field to declare it in, so the requirement is printed at ' +
+            'pack time and checked by `AppRun` at launch instead',
+        licenseDest: SHARE_LICENSE_DEST,
+        licenseKind: 'plain',
+        archName: appImageArch,
+        // The BINARY name, like the `.dmg` and the two zips and for their reason:
+        // this artifact is a DOWNLOAD that lands in a browser's folder beside other
+        // files, so it carries the version and the architecture and avoids the
+        // spaces a display name may contain. Not the app id, which is the Flatpak's
+        // convention because a Flatpak ref IS the id; an AppImage installs as
+        // nothing and is addressed by its path.
+        fileName: (s: PackSettings, archLabel: string) =>
+            `${s.binaryName}-${s.version}-${s.release}.${archLabel}.AppImage`,
+        artifactKind: 'file',
+        // THE ONLY ROW THAT SETS IT. appimagetool refuses an AppDir with no
+        // `.desktop` at its root, and `kind: 'cli'` stages none by design — a
+        // refusal `gjsify.ship.kind` decides on its own, so it belongs before the
+        // build beside the tool gate rather than after it inside the packer.
+        requiresDesktopEntry: true,
     },
     // ── macOS (#1354 M2a) ────────────────────────────────────────────────
     //
@@ -1059,6 +1194,26 @@ export function configuredFormats(
  * the two questions are separate, and a `.app` is precisely the item Apple's
  * remedy above tells you to staple after submitting the archive around it.
  */
+/**
+ * Refuse a project whose `kind` no chosen container can hold.
+ *
+ * DERIVED FROM THE TABLE (`FormatDescriptor.requiresDesktopEntry`), never from a
+ * list of format ids here — a fourth format that also needs an entry would
+ * otherwise be refused by appimagetool's own "Desktop file not found, aborting"
+ * after a full build, which is the message this replaced.
+ */
+export function assertKindCanPack(formats: readonly FormatDescriptor[], kind: 'app' | 'cli'): void {
+    if (kind === 'app') return;
+    const needsEntry = formats.filter((format) => format.requiresDesktopEntry);
+    if (needsEntry.length === 0) return;
+    throw new Error(
+        `gjsify ship: ${needsEntry.map((format) => format.id).join(', ')} cannot package a ` +
+            '`kind: "cli"` project — the container needs a desktop entry at its root and a CLI stages none ' +
+            'by design. Set `gjsify.ship.kind` to "app" if this is a GUI application, or ship it as a `.deb`, ' +
+            'an `.rpm` or a Flatpak, none of which need one.',
+    );
+}
+
 export function canCarryTicket(id: FormatId): boolean {
     switch (id) {
         case 'macos-app':
@@ -1071,6 +1226,7 @@ export function canCarryTicket(id: FormatId): boolean {
         case 'deb':
         case 'rpm':
         case 'flatpak':
+        case 'appimage':
         case 'windows-dir':
         case 'windows-dir-zip':
         case 'msi':
