@@ -59,7 +59,8 @@ import {
 } from './formats.js';
 import { LAYOUTS } from './layout.js';
 import type { PayloadEntry } from './payload.js';
-import { SCHEMA_COMPILER } from './schemas.js';
+import { isSchemaSource, SCHEMA_CACHE, SCHEMA_COMPILER } from './schemas.js';
+import { SHARE } from './share-dirs.js';
 import type { PackSettings } from './types.js';
 
 function packSettings(overrides: Partial<PackSettings> = {}): PackSettings {
@@ -117,6 +118,28 @@ function payload(extra: readonly PayloadEntry[] = []): PayloadEntry[] {
         },
         ...extra,
     ];
+}
+
+/** A GSettings schema SOURCE, the file whose presence makes a cache mandatory. */
+function schemaSource(): PayloadEntry {
+    return {
+        path: `${SHARE.schemas}/org.example.ShipDemo.gschema.xml`,
+        mode: 0o644,
+        data: bytes('<schemalist/>\n'),
+    };
+}
+
+/**
+ * The compiled cache, prefix-relative — the shape `compileSchemasForPayload`
+ * returns, not the shape it lands at.
+ *
+ * The bytes are a stand-in on purpose: nothing in this file reads GVDB, and a
+ * real `glib-compile-schemas` run here would make a pure-function suite depend on
+ * a tool. What the compile PRODUCES is measured where it is run — the e2e, which
+ * asserts the effect (`gsettings` resolves the schema) rather than the path.
+ */
+function schemaCache(): PayloadEntry {
+    return { path: SCHEMA_CACHE, mode: 0o644, data: bytes('GVariant') };
 }
 
 /** The value appimagetool receives for a flag, so an assertion names the pair and not an index. */
@@ -444,6 +467,28 @@ export default async () => {
         });
     });
 
+    await describe('isSchemaSource', async () => {
+        // ONE PREDICATE, TWO READERS — `compileSchemasForPayload` decides what to
+        // compile with it and `assertAppImageIsPackable` decides whether a cache
+        // was owed. A second spelling would let them disagree, and the way they
+        // disagree is silent: one compiles nothing, the other demands nothing, and
+        // the AppDir ships a source with no cache exactly as before.
+        await it('matches a schema source under the schema directory', async () => {
+            expect(isSchemaSource(`${SHARE.schemas}/org.example.ShipDemo.gschema.xml`)).toBe(true);
+        });
+
+        await it('does not match the CACHE, which is an output and not an input', async () => {
+            // The state that would make `compileSchemasForPayload` feed its own
+            // output back in on a second pack.
+            expect(isSchemaSource(SCHEMA_CACHE)).toBe(false);
+        });
+
+        await it('does not match by extension alone, nor by directory alone', async () => {
+            expect(isSchemaSource('share/doc/org.example.ShipDemo.gschema.xml')).toBe(false);
+            expect(isSchemaSource(`${SHARE.schemas}/README.xml`)).toBe(false);
+        });
+    });
+
     await describe('assertAppImageIsPackable', async () => {
         await it('refuses a payload with no desktop entry, and names the config key', async () => {
             // appimagetool's own answer is "Desktop file not found, aborting" —
@@ -478,6 +523,40 @@ export default async () => {
 
         await it('passes a complete payload', async () => {
             assertAppImageIsPackable(payload(), packSettings());
+        });
+
+        await it('refuses schema SOURCES with no compiled cache — the 0.8.0 defect', async () => {
+            // THE ONE REFUSAL IN THIS FUNCTION THAT NO TOOL WOULD HAVE MADE FOR US.
+            // appimagetool packs this AppDir happily, the oracle reads it back,
+            // every listing agrees — and the application dies on its first
+            // `Gio.Settings.new()`, because GSettings aborts on a schema directory
+            // holding a source with no `gschemas.compiled` beside it. Learn6502
+            // 0.8.0's first CI-built AppImage shipped exactly this tree.
+            let message = '';
+            try {
+                assertAppImageIsPackable(payload([schemaSource()]), packSettings());
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('gschemas.compiled');
+            expect(message).toContain('NO INSTALL STEP');
+        });
+
+        await it('passes the same payload once the cache is supplied', async () => {
+            assertAppImageIsPackable(payload([schemaSource()]), packSettings(), schemaCache());
+        });
+
+        await it('asks for no cache when nothing under the schema dir is a SCHEMA', async () => {
+            // THE DISCRIMINATOR FOR THE RULE ABOVE, and the state that produces the
+            // same output as the healthy one if it is written as "is there anything
+            // under share/glib-2.0/schemas". `glib-compile-schemas` reads
+            // `*.gschema.xml` and ignores every other name, so a stray file there is
+            // a file GSettings never reads — demanding a cache for it would refuse a
+            // payload that works.
+            assertAppImageIsPackable(
+                payload([{ path: `${SHARE.schemas}/README.xml`, mode: 0o644, data: bytes('<x/>') }]),
+                packSettings(),
+            );
         });
     });
 
@@ -524,6 +603,37 @@ export default async () => {
 
         await it('makes AppRun executable, which is the difference between mounting and running', async () => {
             expect(at('AppRun')?.mode).toBe(0o755);
+        });
+
+        await it('maps the compiled schema cache through the SAME `usr/` prefix', async () => {
+            // The cache arrives prefix-relative, like every other entry, and takes
+            // the prefix from the same `map`. A second spelling of `usr/` here is
+            // what this packer spent a comment saying it must not have — and it
+            // would land the cache where the launcher's XDG_DATA_DIRS does not
+            // look, which is the same crash with a longer path in it.
+            const withSchemas = appDirPayload(
+                packSettings(),
+                payload([schemaSource()]),
+                ['gjs (>= 1.86)'],
+                schemaCache(),
+            );
+            const cache = withSchemas.find((entry) => entry.path === `usr/${SCHEMA_CACHE}`);
+            expect(cache?.mode).toBe(0o644);
+            // BESIDE ITS OWN SOURCE, which is the whole requirement: GSettings reads
+            // the cache from the directory the sources are in, not from a sibling.
+            expect(
+                withSchemas.some((entry) => entry.path === `usr/${SHARE.schemas}/org.example.ShipDemo.gschema.xml`),
+            ).toBe(true);
+            // NOT at the AppDir root, the negative control the prefix test above
+            // draws for the rest of the payload.
+            expect(withSchemas.some((entry) => entry.path === SCHEMA_CACHE)).toBe(false);
+        });
+
+        await it('adds NOTHING when the payload carries no schemas', async () => {
+            // `undefined` is legal and means "there was nothing to compile". A
+            // packer that invented an empty cache would put a file in the image
+            // that says a schema directory exists when none does.
+            expect(tree.some((entry) => entry.path.includes('gschemas.compiled'))).toBe(false);
         });
 
         await it('copies the desktop entry rather than rendering it a second time', async () => {
@@ -645,16 +755,27 @@ export default async () => {
             expect(FORMATS.appimage.interpreterGap).toContain('AppRun');
         });
 
-        await it('is Linux-bound the way flatpak is, and execs appimagetool alone', async () => {
+        await it('is Linux-bound the way flatpak is, and execs the schema compiler too', async () => {
             // NOT the `.dmg`'s kind of host-boundness: the container is an ELF
             // runtime for Linux, so the format is bound the way the application is.
             expect(FORMATS.appimage.host.finishOn).toStrictEqual(['linux']);
-            expect(FORMATS.appimage.host.requiredTools).toStrictEqual([APPIMAGE_TOOL]);
+            expect(FORMATS.appimage.host.requiredTools).toStrictEqual([APPIMAGE_TOOL, SCHEMA_COMPILER]);
             expect(APPIMAGE_TOOL).toBe('appimagetool');
-            // The schema compiler is an ASSEMBLY tool and `assertToolsInstalled`
-            // fires on the PACK path — declaring it here would refuse a
-            // `--from-stage` pack whose `gschemas.compiled` already arrived.
-            expect(FORMATS.appimage.host.requiredTools).not.toContain(SCHEMA_COMPILER);
+            // THE ASSERTION THAT WAS INVERTED — and it was inverted on a sentence
+            // rather than on a measurement: "the schema compiler is an assembly
+            // tool, and a `--from-stage` pack arrives with `gschemas.compiled`
+            // already in it". No Linux stage has ever carried one.
+            // `commands/ship.ts` skips the compile for `layout.os === 'linux'`,
+            // because that stage is shared with the `.deb` and the `.rpm`, whose
+            // schema directory is the SYSTEM one. So this is the only row that both
+            // needs the cache and has no install step to produce it, and it
+            // compiles its own on the pack path.
+            //
+            // THE OTHER TWO LINUX ROWS STILL MUST NOT DECLARE IT, which is the half
+            // that keeps the line above from being a blanket: they run
+            // `glib-compile-schemas` from a postinst, on the user's machine.
+            expect(FORMATS.deb.host.requiredTools).not.toContain(SCHEMA_COMPILER);
+            expect(FORMATS.rpm.host.requiredTools).not.toContain(SCHEMA_COMPILER);
         });
 
         await it('reads back with two tools, neither of them appimagetool', async () => {
@@ -763,8 +884,24 @@ export default async () => {
             expect(message).toContain('--stage');
         });
 
-        await it('passes when appimagetool is present', async () => {
-            assertToolsInstalled(FORMATS.appimage, (cmd) => cmd === APPIMAGE_TOOL, 'linux');
+        await it('names the SCHEMA COMPILER when that is the half that is missing', async () => {
+            // Separate from the assertion above rather than folded into it: a probe
+            // answering `false` to everything cannot tell "names the tool it needs"
+            // from "names the first tool in the list". This one has appimagetool and
+            // is still refused, and the message has to say which half is absent —
+            // the two are different fixes, a download and a `dnf install`.
+            let message = '';
+            try {
+                assertToolsInstalled(FORMATS.appimage, (cmd) => cmd === APPIMAGE_TOOL, 'linux');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain(SCHEMA_COMPILER);
+            expect(message).toContain('glib2');
+        });
+
+        await it('passes when both tools are present', async () => {
+            assertToolsInstalled(FORMATS.appimage, (cmd) => cmd === APPIMAGE_TOOL || cmd === SCHEMA_COMPILER, 'linux');
         });
 
         await it('refuses a `kind: "cli"` project BEFORE its build, and names the key', async () => {

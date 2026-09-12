@@ -25,6 +25,18 @@
 //      the file does not carry, and an AppDir whose payload was written at the
 //      root instead of under `usr/` must fail to launch at all.
 //
+//      AND THE SCHEMA IS RESOLVED RATHER THAN LISTED. `gsettings` — glib's own
+//      CLI, not ours — is handed the `XDG_DATA_DIRS` the launcher exports,
+//      recorded from inside the chain, and must read a key out of the app's
+//      schema. Asserting instead that `gschemas.compiled` EXISTS in the AppDir is
+//      the shape that passes over a cache compiled from the wrong directory, one
+//      written beside the schemas instead of among them, an empty `<schemalist/>`
+//      that compiles to a valid GVDB with no schema in it, and a launcher pointing
+//      somewhere else — four states that each ship an application dying at
+//      `Gio.Settings.new()` with the file present. Its negative control deletes
+//      the cache and requires the read to FAIL, which is how we learn that the
+//      AppDir answered and not the host's own `/usr/share`.
+//
 //   3. REAL (only where `appimagetool` is installed — a workstation, not this
 //      project's Fedora CI image, and the skip is PRINTED). Build the image, read
 //      it back with `.github/ship-oracle/verify-appimage.py` — an ELF
@@ -66,6 +78,74 @@ import { APP_ID, CLI_ENTRY, MONOREPO_ROOT, listPayload, scaffold, STAGE_MANIFEST
 const { appDirPayload, appImageHostRequirements, DIR_ICON_NAME, EXTRACT_AND_RUN } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'appimage.js')).href
 );
+
+/**
+ * The real compile, IMPORTED for `appDirPayload`'s reason one line up.
+ *
+ * This suite must not hold its own `glib-compile-schemas` invocation: the whole
+ * question it exists to answer is whether the file `packOne` puts in the AppDir
+ * makes the application start, and a suite compiling its own cache would answer
+ * that about a file `gjsify ship` never writes.
+ */
+const { compileSchemasForPayload, SCHEMA_CACHE } = await import(
+    pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'schemas.js')).href
+);
+
+/**
+ * A REAL schema with a key in it, replacing the fixture's `<schemalist/>`.
+ *
+ * THE EMPTY ONE IS PART OF WHY THIS DEFECT SHIPPED. `<schemalist/>` compiles to a
+ * cache containing no schema, so any assertion about schemas would have been
+ * satisfiable by a file with nothing in it — and there were none. A schema with
+ * an id and a key is what lets a reader that is not us (`gsettings`) answer "can
+ * this AppDir resolve its own settings", which is the question GSettings asks at
+ * `Gio.Settings.new()` and the one Learn6502 0.8.0 failed:
+ *
+ *     JS ERROR: Error: GSettings schema eu.jumplink.Learn6502 not found
+ *
+ * SUITE-LOCAL, written over the fixture's after `scaffold()` returns, because
+ * `ship`, `ship-from-stage` and `ship-flatpak` assert on the FILE and not on its
+ * content: a schema with a key changes what the `.deb`'s postinst compiles, and
+ * that belongs in a commit about the `.deb`.
+ */
+const SCHEMA_KEY = 'window-width';
+const SCHEMA_DEFAULT = '640';
+const SCHEMA_XML = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<schemalist>',
+    `  <schema id="${APP_ID}" path="/${APP_ID.split('.').join('/')}/">`,
+    `    <key name="${SCHEMA_KEY}" type="i">`,
+    `      <default>${SCHEMA_DEFAULT}</default>`,
+    '    </key>',
+    '  </schema>',
+    '</schemalist>',
+    '',
+].join('\n');
+
+/**
+ * The fixture's bundle, plus the ONE line that killed the 0.8.0 AppImage.
+ *
+ * `print(Gtk, Adw)` proves the typelibs resolved and proves nothing about
+ * `share/`. This constructs a `Gio.Settings` before it prints — what every GTK
+ * application does in its first few lines, and what GSettings aborts on when the
+ * schema directory holds a source with no compiled cache beside it. So tier 3's
+ * "and it starts" becomes a claim about the PAYLOAD and not only about the
+ * container: with the cache missing the process dies and the assertion reading
+ * its output has nothing to read.
+ *
+ * THE VALUE IS READ BACK, not merely the object constructed. `new Gio.Settings()`
+ * is where the abort happens, but `get_int` is what proves the cache carries the
+ * SCHEMA rather than only a valid GVDB header — which is exactly what an empty
+ * `<schemalist/>` compiles to, and what this suite used to ship.
+ */
+const SCHEMA_BUNDLE = [
+    `import Gtk from 'gi://Gtk?version=4.0';`,
+    `import Adw from 'gi://Adw?version=1';`,
+    `import Gio from 'gi://Gio?version=2.0';`,
+    `const settings = new Gio.Settings({ schema_id: ${JSON.stringify(APP_ID)} });`,
+    `print(Gtk, Adw, settings.get_int(${JSON.stringify(SCHEMA_KEY)}));`,
+    '',
+].join('\n');
 
 const BINARY = 'ship-demo';
 // DERIVED, the way `ship-flatpak` derives its ref: the label is `APPIMAGE_ARCH`'s
@@ -118,6 +198,37 @@ function stubInterpreter(dir, log, version = '') {
     return stub;
 }
 
+/**
+ * The `XDG_DATA_DIRS` the chain actually hands the interpreter, RECORDED from
+ * inside it.
+ *
+ * NOT RECONSTRUCTED, and that is the whole point of going through `AppRun` for a
+ * value this file could have composed in one line. The variable is written by the
+ * staged launcher (`renderPrefixLauncher`) from a prefix it computes with
+ * `readlink -f "$0"` and two `dirname`s — three things that can each be wrong, in
+ * a script generated by code this suite is testing. A helper that built the
+ * string itself would prove the schema compiled and quietly assume the half that
+ * has to find it.
+ *
+ * A SECOND STUB SHAPE rather than a flag on {@link stubInterpreter}: that one
+ * records argv, this one records an environment variable, and folding them would
+ * give both tests a log whose lines mean two different things.
+ */
+function launcherDataDirs(appDir, stubDir) {
+    mkdirSync(stubDir, { recursive: true });
+    const log = join(stubDir, 'data-dirs.txt');
+    writeFileSync(
+        join(stubDir, 'gjs'),
+        `#!/bin/sh\nif [ "$1" = "--version" ]; then exit 1; fi\nprintf '%s' "$XDG_DATA_DIRS" > ${JSON.stringify(log)}\n`,
+    );
+    chmodSync(join(stubDir, 'gjs'), 0o755);
+    execFileSync(join(appDir, 'AppRun'), [], {
+        env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}` },
+        stdio: 'pipe',
+    });
+    return readFileSync(log, 'utf-8');
+}
+
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
 
 describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
@@ -133,6 +244,12 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ship-appimage-'));
         projectDir = scaffold(join(tmpDir, 'app'));
         mkdirSync(projectDir, { recursive: true });
+        // AFTER `scaffold`, which writes both of these itself — see SCHEMA_XML and
+        // SCHEMA_BUNDLE. The shared fixture stays what the other three ship suites
+        // agreed on; this suite is the only one that asks whether GSettings can
+        // resolve the schema, so it is the only one that needs one with a key in it.
+        writeFileSync(join(projectDir, 'data', `${APP_ID}.gschema.xml`), SCHEMA_XML);
+        writeFileSync(join(projectDir, 'dist', 'gjs.js'), SCHEMA_BUNDLE);
         stageDir = join(projectDir, 'ship', 'stage');
         // TWICE, and the pair IS a measurement rather than setup: a BARE stage,
         // whose format list is what a project gets when it asks for nothing, and
@@ -239,16 +356,16 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         );
     });
 
-    // ── tier 2: the AppDir, executed ──────────────────────────────────────────
-
-    it('mounts as a prefix the staged launcher can resolve — AppRun, run for real', () => {
-        // WHAT NO LISTING CAN SEE. Every other assertion in this file is about
-        // names and modes; this one is about the one number that decides whether
-        // the application starts: how far up `readlink -f "$0"` plus two
-        // `dirname`s lands. The staged launcher expects `<prefix>/bin/<name>`, and
-        // the AppDir puts the prefix at `usr/` — get that wrong and the app looks
-        // for its schemas one directory too high, at exit 0, until the first
-        // `Gio.Settings.new()`.
+    /**
+     * The AppDir `packOne` would lay down, assembled the way `packOne` assembles
+     * it — read the stage back as a payload, compile the schemas from it, hand
+     * both to `appDirPayload`.
+     *
+     * ONE HELPER RATHER THAN THREE COPIES, because the SHAPE of this call is part
+     * of what the suite asserts: the compile takes the PAYLOAD, which is what
+     * makes a `--from-stage` pack on a host that never saw the project work.
+     */
+    async function appDirTree() {
         const payload = staged.map((path) => ({
             path,
             mode: statSync(join(stageDir, path.split('/').join(sep))).mode & 0o777,
@@ -256,7 +373,21 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         }));
         const settings = JSON.parse(readFileSync(join(stageDir, STAGE_MANIFEST_FILE), 'utf-8')).settings;
         const needs = appImageHostRequirements({ ...settings, namespaces: ['Gtk-4.0'] });
-        const appDir = writeAppDir(join(tmpDir, 'AppDir'), appDirPayload(settings, payload, needs));
+        const cache = await compileSchemasForPayload({ payload, workDir: join(tmpDir, 'schemas-work') });
+        return appDirPayload(settings, payload, needs, cache);
+    }
+
+    // ── tier 2: the AppDir, executed ──────────────────────────────────────────
+
+    it('mounts as a prefix the staged launcher can resolve — AppRun, run for real', async () => {
+        // WHAT NO LISTING CAN SEE. Every other assertion in this file is about
+        // names and modes; this one is about the one number that decides whether
+        // the application starts: how far up `readlink -f "$0"` plus two
+        // `dirname`s lands. The staged launcher expects `<prefix>/bin/<name>`, and
+        // the AppDir puts the prefix at `usr/` — get that wrong and the app looks
+        // for its schemas one directory too high, at exit 0, until the first
+        // `Gio.Settings.new()`.
+        const appDir = writeAppDir(join(tmpDir, 'AppDir'), await appDirTree());
 
         const binDir = join(tmpDir, 'stub-bin');
         const log = join(tmpDir, 'gjs-argv.txt');
@@ -275,6 +406,76 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
             `the bundle path must sit under the AppDir’s usr/, got ${JSON.stringify(argv)}`,
         );
         assert.ok(argv.includes('--flag'), 'AppRun must forward its arguments');
+    });
+
+    it('resolves its own GSettings schema — read by `gsettings`, not by a file listing', async () => {
+        // THE EFFECT AND NOT THE FILE. An assertion that `gschemas.compiled` is in
+        // the AppDir is exactly the shape this repo keeps being burned by: it
+        // passes over a cache compiled from the wrong directory, a cache written
+        // beside the schemas instead of among them, an empty `<schemalist/>` that
+        // produced a valid GVDB with no schema in it, and a launcher that points
+        // XDG_DATA_DIRS somewhere else entirely. Every one of those ships an
+        // application that dies at `Gio.Settings.new()` with the file present.
+        //
+        // SO THE ORACLE IS GSETTINGS ITSELF — glib's own CLI, resolving the schema
+        // through `g_settings_schema_source_get_default()`, which is the code path
+        // `Gio.Settings` uses and is not ours. It is given the environment the
+        // LAUNCHER exports, recorded from inside the chain rather than
+        // reconstructed here: `AppRun` execs `usr/bin/<name>`, that script computes
+        // its own prefix, and the stub prints what it was handed. A test that built
+        // `XDG_DATA_DIRS` itself would prove the compile and assume the launcher.
+        const appDir = writeAppDir(join(tmpDir, 'AppDir-schema'), await appDirTree());
+        const dataDirs = launcherDataDirs(appDir, join(tmpDir, 'schema-stub'));
+        assert.ok(
+            dataDirs.split(':').includes(join(appDir, 'usr', 'share')),
+            `the launcher must export the AppDir’s own share/, got ${dataDirs}`,
+        );
+
+        // `GSETTINGS_BACKEND=memory` so this needs no dconf and no session bus: the
+        // question is whether the SCHEMA resolves, and a backend is where values
+        // are stored, not where schemas are found.
+        const env = { ...process.env, XDG_DATA_DIRS: dataDirs, GSETTINGS_BACKEND: 'memory' };
+        const read = execFileSync('gsettings', ['get', APP_ID, SCHEMA_KEY], { encoding: 'utf-8', env });
+        assert.equal(read.trim(), SCHEMA_DEFAULT);
+
+        // NEGATIVE CONTROL, and it is the assertion that makes the one above mean
+        // something. `XDG_DATA_DIRS` ends in `/usr/share`, so a host that happened
+        // to have this schema installed would answer for the AppDir and the test
+        // would pass with the cache deleted. Deleting it is how we find out which
+        // directory answered.
+        rmSync(join(appDir, 'usr', SCHEMA_CACHE.split('/').join(sep)));
+        let status = 0;
+        try {
+            execFileSync('gsettings', ['get', APP_ID, SCHEMA_KEY], { encoding: 'utf-8', env, stdio: 'pipe' });
+        } catch (error) {
+            status = error.status ?? 1;
+        }
+        assert.notEqual(status, 0, 'with the compiled cache gone the schema must NOT resolve — see #1664');
+    });
+
+    it('REFUSES to assemble an AppDir whose schemas were never compiled', async () => {
+        // THE MECHANISM, not the instance. The test above proves this build is
+        // right; this one proves the next one cannot be wrong in the same way, and
+        // it is placed on the pure function so every assembler inherits it —
+        // `packOne`, this suite, and whatever calls it next.
+        //
+        // Learn6502 0.8.0 is the incident: `commands/ship.ts` skipped the compile
+        // for `layout.os === 'linux'`, which was true of every Linux format until a
+        // format with no install step arrived. The AppImage built, the oracle read
+        // it back, and the first line it ran was
+        // `GSettings schema eu.jumplink.Learn6502 not found`.
+        const payload = staged.map((path) => ({
+            path,
+            mode: statSync(join(stageDir, path.split('/').join(sep))).mode & 0o777,
+            data: readFileSync(join(stageDir, path.split('/').join(sep))),
+        }));
+        const settings = JSON.parse(readFileSync(join(stageDir, STAGE_MANIFEST_FILE), 'utf-8')).settings;
+        const needs = appImageHostRequirements({ ...settings, namespaces: ['Gtk-4.0'] });
+        assert.ok(
+            payload.some((entry) => entry.path.endsWith('.gschema.xml')),
+            'the fixture must stage a schema source, or this refusal is unreachable',
+        );
+        assert.throws(() => appDirPayload(settings, payload, needs), /gschemas\.compiled/);
     });
 
     it('NEGATIVE CONTROL: refuses with a sentence, not a loader error, when the interpreter is missing', () => {
@@ -372,19 +573,13 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
         }
     });
 
-    it('NEGATIVE CONTROL: an AppDir without the `usr/` prefix does not launch', () => {
+    it('NEGATIVE CONTROL: an AppDir without the `usr/` prefix does not launch', async () => {
         // The discriminator for the prefix assertion two tests up. Written flat,
         // the launcher is at `<AppDir>/bin/<name>` and resolves the MOUNTPOINT as
         // its prefix — so `AppRun`'s `usr/bin/<name>` is simply not there, and the
         // failure is loud. A layout check that cannot produce this failure is not
         // checking the layout.
-        const payload = staged.map((path) => ({
-            path,
-            mode: statSync(join(stageDir, path.split('/').join(sep))).mode & 0o777,
-            data: readFileSync(join(stageDir, path.split('/').join(sep))),
-        }));
-        const settings = JSON.parse(readFileSync(join(stageDir, STAGE_MANIFEST_FILE), 'utf-8')).settings;
-        const flat = appDirPayload(settings, payload, []).map((entry) => ({
+        const flat = (await appDirTree()).map((entry) => ({
             ...entry,
             path: entry.path.startsWith('usr/') ? entry.path.slice('usr/'.length) : entry.path,
         }));
@@ -455,6 +650,14 @@ describe('CLI ship AppImage E2E', { timeout: 10 * 60 * 1000 }, () => {
             cwd: tmpDir,
         });
         assert.match(extracted, /GIRepositoryNamespace/);
+        // AND IT FOUND ITS SCHEMA, which is the half `GIRepositoryNamespace` cannot
+        // see: that string proves the typelibs resolved — `GI_TYPELIB_PATH`, the
+        // interpreter, the bundle — and says nothing about `share/`. The fixture
+        // constructs a `Gio.Settings` and prints a key off it BEFORE that line, so
+        // a mounted image whose `share/glib-2.0/schemas` holds a source with no
+        // compiled cache beside it produces no output at all and `execFileSync`
+        // throws. This is the assertion Learn6502 0.8.0 would have failed.
+        assert.match(extracted, new RegExp(`${SCHEMA_DEFAULT}\\s*$`));
         if (existsSync('/dev/fuse')) {
             // WITHOUT THE PACKER'S OWN VARIABLE IN THE ENVIRONMENT. `appImageToolEnv`
             // sets `APPIMAGE_EXTRACT_AND_RUN` for appimagetool and the ARTIFACT reads

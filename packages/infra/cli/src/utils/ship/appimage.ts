@@ -102,6 +102,7 @@ import { encodeUtf8 } from './bytes.js';
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR, hostProvidedNamespaces } from './depends.js';
 import { LAYOUTS } from './layout.js';
 import type { PayloadEntry } from './payload.js';
+import { isSchemaSource, SCHEMA_CACHE } from './schemas.js';
 import { SHARE } from './share-dirs.js';
 import type { PackSettings } from './types.js';
 
@@ -260,6 +261,17 @@ export function interpreterFloor(input: {
  * would be a second answer to a question the payload answers, and the copy that
  * drifts is the one nothing tests: `tests/e2e/ship-layout` compares the staged
  * trees, not this script.
+ *
+ * THAT CLAIM WAS RE-MEASURED AGAINST THE ARTIFACT and it holds — which is worth
+ * writing down, because when Learn6502 0.8.0's AppImage died on `GSettings schema
+ * … not found` this script was the obvious suspect and adding
+ * `GSETTINGS_SCHEMA_DIR` here was the obvious fix. It would have changed nothing.
+ * Measured on the real 0.8.0 image, by compiling `gschemas.compiled` into the
+ * extracted AppDir and touching NO environment variable anywhere: the application
+ * started. The launcher's `XDG_DATA_DIRS` was already pointing GSettings at the
+ * right directory; the directory had no cache in it. An extra export would have
+ * been a second name for a path that was already correct, and it would have
+ * "fixed" the bug by sitting next to the change that did.
  *
  * WHAT IT DOES ADD is the refusal ADR 0024 § 9 asks for. An AppImage whose
  * interpreter is missing exits with the loader's own message — `gjs: not found`
@@ -468,7 +480,11 @@ function rootIconRank(path: string, appId: string): number | undefined {
  * those two are separate from each other (ADR 0024 § A3): three failures, three
  * different fixes — a different machine, a package, or a line in package.json.
  */
-export function assertAppImageIsPackable(payload: readonly PayloadEntry[], settings: PackSettings): void {
+export function assertAppImageIsPackable(
+    payload: readonly PayloadEntry[],
+    settings: PackSettings,
+    schemaCache?: PayloadEntry,
+): void {
     const desktopEntry = `${SHARE.applications}/${settings.appId}.desktop`;
     if (!payload.some((entry) => entry.path === desktopEntry)) {
         throw new Error(
@@ -487,11 +503,43 @@ export function assertAppImageIsPackable(payload: readonly PayloadEntry[], setti
                 'or an SVG and it is renamed into the theme for you.',
         );
     }
+    // THE THIRD REFUSAL, and the only one whose failure is invisible until a user
+    // double-clicks the file. The two above are decided by `package.json` and
+    // appimagetool would have caught both eventually; this one is decided by the
+    // PACK PATH and nothing catches it — the image builds, the oracle reads it
+    // back, every listing agrees, and the app dies at its first
+    // `Gio.Settings.new()` because `share/glib-2.0/schemas` holds a source with no
+    // compiled cache beside it. That is exactly what Learn6502 0.8.0 shipped.
+    //
+    // A GUARD ON THE PURE FUNCTION rather than a step in `packOne`, because this
+    // is the INVARIANT and not the procedure: whoever assembles an AppDir from a
+    // payload carrying schema sources owes it a cache, and an assembler that
+    // forgets must not be able to produce a tree. It is also what keeps the e2e
+    // honest — the suite calls this function to build its own AppDir, so it
+    // inherits the refusal instead of quietly modelling the defect.
+    if (schemaCache === undefined && payload.some((entry) => isSchemaSource(entry.path))) {
+        throw new Error(
+            `gjsify ship: this payload stages GSettings schema sources under ${SHARE.schemas}/ and no ` +
+                `${SCHEMA_CACHE} was compiled for it. An AppImage has NO INSTALL STEP — that is the whole ` +
+                'point of the format — so the `.deb`/`.rpm` postinst that compiles the system schema ' +
+                'directory never runs, and GSettings aborts on a directory holding only sources. The AppDir ' +
+                `must carry ${SCHEMA_CACHE}; \`compileSchemasForPayload\` produces it from this payload.`,
+        );
+    }
 }
 
 /**
- * The whole AppDir as one payload: the prefix under `usr/`, plus the three files
- * at its root.
+ * The whole AppDir as one payload: the prefix under `usr/`, plus the compiled
+ * schema cache, plus the three files at its root.
+ *
+ * THE SCHEMA CACHE IS AN ARGUMENT AND NOT A COMPILE, so this function stays pure
+ * and so the one impure step in the AppDir has exactly one home (`packOne`). It
+ * is prefix-relative on the way in — `share/glib-2.0/schemas/gschemas.compiled`,
+ * the same shape every other entry has — and gets the `usr/` prefix from the same
+ * map below, because a second spelling of that prefix is the thing this packer
+ * spent a comment explaining it must not have. `undefined` is legal and means the
+ * payload has no schemas at all; a payload that HAS them and no cache is refused
+ * by {@link assertAppImageIsPackable}, not silently packed.
  *
  * PURE, AND ONE LIST RATHER THAN A WRITER, which is the shape `msi.ts` and
  * `dmg.ts` already have — `packOne` owns the single `writePayload` call for every
@@ -513,15 +561,19 @@ export function appDirPayload(
     settings: PackSettings,
     payload: readonly PayloadEntry[],
     hostRequirements: readonly string[],
+    schemaCache?: PayloadEntry,
 ): PayloadEntry[] {
-    assertAppImageIsPackable(payload, settings);
+    assertAppImageIsPackable(payload, settings, schemaCache);
     // Non-null by construction: the assertion above refuses a payload with
     // neither, and both reads are the SAME selection it made.
     const icon = selectAppDirIcon(payload, settings.appId) as PayloadEntry;
     const desktopPath = `${SHARE.applications}/${settings.appId}.desktop`;
     const desktop = payload.find((entry) => entry.path === desktopPath) as PayloadEntry;
     return [
-        ...payload.map((entry) => ({ ...entry, path: `${APPDIR_PREFIX_DIR}/${entry.path}` })),
+        ...[...payload, ...(schemaCache === undefined ? [] : [schemaCache])].map((entry) => ({
+            ...entry,
+            path: `${APPDIR_PREFIX_DIR}/${entry.path}`,
+        })),
         { path: APPRUN_NAME, mode: 0o755, data: encodeUtf8(renderAppRun(settings, hostRequirements)) },
         // THE SAME BYTES, TWICE, and that is the AppImage specification rather
         // than a duplication to lift: the entry under `usr/share/applications` is

@@ -430,24 +430,57 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
             // is: the container is an ELF runtime for Linux with a Linux filesystem
             // behind it, so the format is bound the way the application is.
             finishOn: ['linux'],
-            // The SCHEMA COMPILER IS ABSENT here, unlike the two windows rows and
-            // for the `.dmg`'s reason inverted: this layout HAS an install step in
-            // every other format, and inside an AppImage it does not — there is no
-            // `postinst` to run `glib-compile-schemas` in a read-only squashfs. But
-            // `compileSchemasForStage` has already run at ASSEMBLY time and
-            // `gschemas.compiled` is in the payload, so declaring the compiler on
-            // the PACK path would refuse a `--from-stage` pack that works.
-            requiredTools: [APPIMAGE_TOOL],
+            // THE SCHEMA COMPILER IS DECLARED HERE, and this row is the one place
+            // in the table where it sits on a PACK path. It used to be absent, on
+            // an argument that read well and was false: "this layout has an install
+            // step in every other format, and `compileSchemasForStage` has already
+            // run at assembly time, so declaring the compiler here would refuse a
+            // `--from-stage` pack that works." The second clause never held.
+            // `compileSchemasForStage` is skipped for `layout.os === 'linux'` —
+            // deliberately, because the Linux stage is SHARED with the `.deb` and
+            // the `.rpm`, whose `share/glib-2.0/schemas` is the SYSTEM directory
+            // that a postinst compiles and that our cache must never be installed
+            // over. So no Linux stage carries `gschemas.compiled`, a `--from-stage`
+            // AppImage pack has to produce it, and this row needs the tool.
+            //
+            // MEASURED, not reasoned: Learn6502 0.8.0's first CI-built AppImage
+            // shipped `eu.jumplink.Learn6502.gschema.xml` with nothing beside it
+            // and died at `Gio.Settings.new()` on the first line it ran.
+            //
+            // AND ONLY THIS ONE OF THE FOUR, which is the question the fix had to
+            // answer next and which is measured rather than argued.
+            // `cacheRefreshCommands` (`scripts.ts`) names four install-time steps,
+            // and an AppImage runs none of them. Three DEGRADE and one ABORTS:
+            //
+            //   * `glib-compile-schemas` — ABORTS. GSettings refuses a schema
+            //     directory holding a source with no cache; there is no fallback.
+            //   * `gtk-update-icon-cache` — does not. Measured against the rebuilt
+            //     0.8.0 image on GTK 4 / glib 2.88.3: with `XDG_DATA_DIRS` pointing
+            //     at the mounted `usr/share` and no `icon-theme.cache` anywhere,
+            //     `Gtk.IconTheme.has_icon('eu.jumplink.Learn6502')` is `true` — and
+            //     `false` for a name that is not there, so the probe discriminates.
+            //     GTK scans the directory; the cache is a lookup optimisation.
+            //   * `update-desktop-database`, `update-mime-database` — about a
+            //     SYSTEM database an install writes into. An AppImage is not
+            //     installed, so there is nothing for them to update: what a desktop
+            //     reads is the entry at the AppDir root, via the runtime's own
+            //     integration.
+            //
+            // `share/locale` needs no step on any layout — the launcher exports
+            // `GJSIFY_LOCALE_DIR` and gettext reads the `.mo` directly.
+            requiredTools: [APPIMAGE_TOOL, SCHEMA_COMPILER],
             // A URL AND NOT A PACKAGE NAME, and it is the first hint in this table
             // that has to be. `flatpak-builder` and `msitools` are in Fedora and in
             // Debian; `appimagetool` is in neither, so pointing at a distro would
             // send the reader to an `E: Unable to locate package`. The `--stage`
             // half is repeated here because it is the answer for a CI image that is
-            // not going to grow a hand-installed binary.
+            // not going to grow a hand-installed binary. The compiler IS packaged,
+            // so its half of the hint is the ordinary one.
             installHint:
-                'no distribution packages it — take the release from ' +
+                'no distribution packages appimagetool — take the release from ' +
                 'https://github.com/AppImage/appimagetool/releases, `chmod +x` it and put it on PATH as ' +
-                '`appimagetool`; or assemble here with `gjsify ship linux --stage` and pack where it is',
+                '`appimagetool`; or assemble here with `gjsify ship linux --stage` and pack where it is. ' +
+                `The schema compiler is packaged: ${SCHEMA_COMPILER_HINT}`,
             oracle: {
                 // TWO READERS, NEITHER OF THEM appimagetool AND NEITHER OF THEM THE
                 // ARTIFACT'S OWN RUNTIME — which is what `--appimage-offset` and

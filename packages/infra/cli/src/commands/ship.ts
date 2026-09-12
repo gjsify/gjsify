@@ -78,7 +78,7 @@ import {
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
 import { isUnder, SHARE } from '../utils/ship/share-dirs.js';
-import { compileSchemasForStage } from '../utils/ship/schemas.js';
+import { compileSchemasForPayload, compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
@@ -532,7 +532,14 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `.deb`/`.rpm` postinst compiles the SYSTEM directory at install time
     // (`utils/ship/scripts.ts`), where our schemas merge with every other
     // package's — shipping a prebuilt cache there would be a file the install step
-    // overwrites. So the compile is conditional on the layout and nothing else.
+    // overwrites, and one `rpm -e` takes away with it.
+    //
+    // WHICH IS WHY THIS CONDITION IS ABOUT THE STAGE AND NOT ABOUT INSTALL STEPS,
+    // a distinction that used to be invisible because the two agreed. They stopped
+    // agreeing when the AppImage landed: it takes the Linux layout and has no
+    // install step at all. It does not get its cache from here — a Linux stage
+    // serves three formats and only one of them wants one — it compiles its own
+    // into the AppDir, on its own pack path (`packOne`, `case 'appimage'`).
     const planned = [
         ...planStage(settings, stageInputs),
         ...(layout.os === 'linux'
@@ -1172,7 +1179,24 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 bundledTypelibs: facts.bundledTypelibs,
             });
             const appDir = appDirFor(outRoot);
-            const tree = appDirPayload(settings, payload, hostRequirements);
+            // THE ONE FILE THIS FORMAT ADDS TO THE PAYLOAD, and the reason it is
+            // added HERE and not where every other layout's is (the stage, above).
+            // An AppImage has no install step; the Linux layout it inherits assumes
+            // one, because until this format existed every Linux artifact had a
+            // `postinst`. The compile cannot move up into the stage: the Linux stage
+            // is shared with the `.deb` and the `.rpm`, whose `share/glib-2.0/schemas`
+            // is `/usr/share/glib-2.0/schemas` — the SYSTEM directory — and a cache
+            // staged there is this app's 700 bytes installed over every other
+            // package's schemas, then taken away with `rpm -e`.
+            //
+            // FROM THE PAYLOAD, like the host requirements two lines up and for the
+            // same reason: `--from-stage` has the schema BYTES and not the project
+            // directory they were read from.
+            const schemaCache = await compileSchemasForPayload({
+                payload,
+                workDir: join(outRoot, 'appimage-schemas'),
+            });
+            const tree = appDirPayload(settings, payload, hostRequirements, schemaCache);
             // ONE `writePayload` FOR THE WHOLE AppDir, prefix and root files
             // together, because that call WIPES: two of them would leave the
             // previous run's `<appId>.desktop` and icon at a root the second call
