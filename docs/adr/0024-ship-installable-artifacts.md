@@ -1729,3 +1729,102 @@ desktop entry's second copy and the icon — are the PACKER's, assembled as one 
 the single `writePayload` call `packOne` makes for every format. Two calls would be two wipes, and
 the second would not clean the first: an AppDir still holding a previous run's `<appId>.desktop` is
 one appimagetool packs without complaint, because it looks for *a* desktop file and finds two.
+
+## Amendment, 2026-09-12 — an install step is a property of the ARTIFACT, not of the layout
+
+§ 2 says one payload, one layout per OS, one packer per format, and § A27 has just finished
+claiming the AppImage needs nothing staged of its own. Both hold. What did not hold is a premise
+underneath them that nobody wrote down, because until § A24 landed it was never false.
+
+### A28. The Learn6502 0.8.0 AppImage built, mounted, and died on its first line
+
+Measured, on the first AppImage this project ever produced in real CI:
+
+```
+JS ERROR: Error: GSettings schema eu.jumplink.Learn6502 not found
+  _init@resource:///org/gnome/gjs/modules/core/overrides/Gio.js:833:23
+```
+
+The image carried `usr/share/glib-2.0/schemas/eu.jumplink.Learn6502.gschema.xml` and no
+`gschemas.compiled` beside it. GSettings does not fall back to reading sources, so the abort is at
+the first `Gio.Settings.new()` — which for a GTK application is roughly its first statement.
+
+**The premise.** `commands/ship.ts` compiles the cache for every layout except Linux, and that was
+correct when it was written: on Linux the `.deb`/`.rpm` postinst compiles the SYSTEM schema
+directory at install, where our schemas merge with every other package's, so a cache staged there
+would be a file the install step overwrites — and one `rpm -e` then takes the system's own cache
+away with it. The condition was spelled `layout.os === 'linux'`, and what it MEANT was "this
+artifact has an install step". Those two were the same sentence for a year.
+
+An AppImage is the first artifact for which they differ. It takes the Linux layout because it wraps
+the same `/usr` payload (§ A27), and it has no install step because not having one is the entire
+point of the format. It inherited a skip written for a postinst it does not have.
+
+**A layout is not a claim about install steps.** So the compile moves to where the artifact is,
+not to where the layout is: `compileSchemasForPayload` runs on the AppImage's own pack path and
+adds `share/glib-2.0/schemas/gschemas.compiled` to the AppDir. It reads the PAYLOAD rather than the
+project's files, which is what keeps `--from-stage` working on a host that never saw the project —
+the same argument `packOne` already makes for every other container. The Linux stage is untouched,
+so § A27's assertion that the AppImage stages nothing of its own still passes unchanged.
+
+`FORMATS.appimage.host.requiredTools` gains `glib-compile-schemas`, and it is the only row in the
+table where that tool sits on a PACK path. The comment that had it absent argued a `--from-stage`
+pack would arrive with the cache already in it; no Linux stage has ever carried one.
+
+### A28.1. The AppDir refuses, because nothing downstream can see this failure
+
+`appDirPayload` throws when the payload stages `*.gschema.xml` and no cache was compiled for it.
+That is a guard on a pure function rather than a step in `packOne`, because the invariant belongs to
+whoever assembles an AppDir and not to one procedure — and because every reader downstream is blind
+to it. appimagetool packs the tree without complaint. `verify-appimage.py` reads it back and agrees
+with the plan. The determinism assertion passes twice. Every listing in `tests/e2e/ship-appimage`
+was green over an artifact that could not start.
+
+### A28.2. What made the suite blind, and what it asserts now
+
+Two things, and the second is the more useful one to remember. The fixture's schema was
+`<schemalist/>` — an empty schema list compiles to a valid cache containing nothing, so any
+assertion about schemas would have been satisfiable by a file with no schema in it. And the fixture
+bundle was `print(Gtk, Adw)`, which proves the typelibs resolved and says nothing about `share/`.
+
+The gate now asserts the EFFECT. `gsettings` — glib's own CLI, resolving through
+`g_settings_schema_source_get_default()`, which is the code path `Gio.Settings` uses and is not
+ours — is handed the `XDG_DATA_DIRS` the staged launcher exports, RECORDED from inside the chain
+rather than composed by the test, and must read a key out of the app's schema. Its negative control
+deletes the cache and requires the read to FAIL, which is how the suite learns that the AppDir
+answered and not the host's own `/usr/share`. Tier 3's fixture now constructs a `Gio.Settings` and
+prints a key off it, so "and it starts" became a claim about the payload.
+
+Asserting instead that `gschemas.compiled` EXISTS in the AppDir is the shape this repo keeps paying
+for. It passes over a cache compiled from the wrong directory, one written beside the schemas
+instead of among them, an empty `<schemalist/>`, and a launcher pointing somewhere else — four
+states that each ship an application dying at `Gio.Settings.new()` with the file present. Both
+remaining states were mutated into the packer and the suite went red on each.
+
+### A28.3. AppRun was the obvious suspect and was innocent
+
+Worth recording, because the obvious fix would have been to export `GSETTINGS_SCHEMA_DIR` from
+`AppRun` and it would have changed nothing. § A24 says `AppRun` execs the staged launcher and adds
+nothing to it, on the grounds that `bin/<name>` already resolves its own prefix and exports every
+locator relative to it. Re-measured against the real 0.8.0 artifact: compiling `gschemas.compiled`
+into the extracted AppDir and touching NO environment variable anywhere, the application starts.
+The launcher's `XDG_DATA_DIRS` was pointing GSettings at the right directory the whole time; the
+directory had nothing in it. An extra export would have been a second name for a correct path,
+shipped beside the change that actually fixed the bug.
+
+### A28.4. Only one of the four install-time refreshes aborts
+
+The question this defect raises next is what ELSE the missing install step costs, and it is
+measured rather than argued. `cacheRefreshCommands` names four steps and an AppImage runs none:
+
+- `glib-compile-schemas` — ABORTS. No fallback exists.
+- `gtk-update-icon-cache` — does not. Measured against the rebuilt image on GTK 4 / glib 2.88.3,
+  with the mounted `usr/share` on `XDG_DATA_DIRS` and no `icon-theme.cache` anywhere:
+  `Gtk.IconTheme.has_icon('eu.jumplink.Learn6502')` is `true`, and `false` for a name that is not
+  there, so the probe discriminates. GTK scans the directory; the cache is a lookup optimisation.
+- `update-desktop-database`, `update-mime-database` — both write into a SYSTEM database that an
+  install owns. An AppImage is not installed; what a desktop reads is the entry at the AppDir root,
+  through the runtime's own integration.
+
+`share/locale` needs no step on any layout: the launcher exports `GJSIFY_LOCALE_DIR` and gettext
+reads the `.mo` directly.

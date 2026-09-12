@@ -87,11 +87,36 @@ no listing of names reads as wrong.
 
 `appimage` (ADR 0024 § A24-§ A27) is `finishOn: ['linux']` for flatpak's reason and not the
 `.dmg`'s — the container is an ELF runtime for Linux, so the format is bound the way the
-application is — and `requiredTools: ['appimagetool']`. It is the first row whose `installHint`
-cannot name a package: neither Fedora nor Debian ships `appimagetool`, so the hint names the GitHub
-release and the `--stage` route for a CI image that will not grow a hand-installed binary. Writing
-the format ourselves stays refused by § A6's rule (a squashfs writer is a project, not a target)
-and vendoring the binary by licence (GPL-3.0 into an MIT tree, ADR 0023's argument).
+application is — and `requiredTools: ['appimagetool', 'glib-compile-schemas']`. It is the first row
+whose `installHint` cannot name a package: neither Fedora nor Debian ships `appimagetool`, so the
+hint names the GitHub release and the `--stage` route for a CI image that will not grow a
+hand-installed binary. Writing the format ourselves stays refused by § A6's rule (a squashfs writer
+is a project, not a target) and vendoring the binary by licence (GPL-3.0 into an MIT tree,
+ADR 0023's argument).
+
+**The schema compiler is the second tool, and it is on the PACK path — the only row where it is.**
+An AppImage takes the Linux layout and has no install step, which is the entire point of the
+format. Those two facts were never both true before, so the compile was written as "every layout
+but Linux" (`commands/ship.ts`) and the AppImage inherited a skip meant for a `.deb`'s postinst.
+Learn6502 0.8.0's first CI-built AppImage shipped `eu.jumplink.Learn6502.gschema.xml` with no
+`gschemas.compiled` beside it and died on its first line with `GSettings schema … not found`.
+
+The compile cannot move up into the stage: one Linux stage serves `deb`, `rpm` and `appimage`, and
+for the first two `share/glib-2.0/schemas` is the SYSTEM directory — a cache staged there is this
+app's ~700 bytes installed over every other package's schemas, and taken away again by `rpm -e`. So
+`compileSchemasForPayload` runs on the AppImage's own pack path, from the PAYLOAD (which is what
+keeps `--from-stage` working), and `appDirPayload` REFUSES to assemble an AppDir that stages schema
+sources without one.
+
+**Only one of the four install-time refreshes matters here, and that is measured.**
+`cacheRefreshCommands` names four; an AppImage runs none. `glib-compile-schemas` ABORTS the
+application — GSettings has no fallback for a source-only schema directory. `gtk-update-icon-cache`
+does not: measured against the rebuilt 0.8.0 image (GTK 4, glib 2.88.3), with the mounted
+`usr/share` on `XDG_DATA_DIRS` and no `icon-theme.cache` anywhere,
+`Gtk.IconTheme.has_icon('eu.jumplink.Learn6502')` is `true` — and `false` for a name that is not
+there, so the probe discriminates. `update-desktop-database` and `update-mime-database` write into a
+SYSTEM database an install owns; an AppImage is not installed, and what a desktop reads is the entry
+at the AppDir root. `share/locale` needs no step on any layout.
 
 **The oracle must not be the artifact.** `--appimage-offset` and `--appimage-extract` are the
 embedded runtime answering questions about the file it is embedded in — `selfReading` with extra
