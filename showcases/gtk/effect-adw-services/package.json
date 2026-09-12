@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-effect-adw-services",
-    "version": "0.51.0",
+    "version": "0.51.1",
     "description": "Effect 4 running the services behind an Adwaita window on GJS: a Gio-backed effect/FileSystem layer, GError mapped onto Effect's tagged platform errors, a Scope closed by GObject destroy, and a GTK signal read as a Stream",
     "type": "module",
     "private": true,

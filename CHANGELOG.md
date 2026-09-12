@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.51.1](https://github.com/gjsify/gjsify/compare/v0.51.0...v0.51.1) (2026-09-12)
+
+### Bug Fixes
+
+* **cli:** compile the AppImage's own schemas ([#1665](https://github.com/gjsify/gjsify/issues/1665)) ([f739bf6](https://github.com/gjsify/gjsify/commit/f739bf68cf3eb306218c7aa01187bc70ab9d567f)), closes [#1664](https://github.com/gjsify/gjsify/issues/1664)
+* **gtk-host:** attribute a face to its font source ([#1666](https://github.com/gjsify/gjsify/issues/1666)) ([f85965a](https://github.com/gjsify/gjsify/commit/f85965ab947d76124d2acb1c2600f14feacde6da))
+* **gtk-host:** say when the UI font policy never ran ([#1667](https://github.com/gjsify/gjsify/issues/1667)) ([1d56904](https://github.com/gjsify/gjsify/commit/1d569042103983c9a77481ec473faa0cf637fb8e))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([b84c214](https://github.com/gjsify/gjsify/commit/b84c2141b25aec0f023c926833480a155399577c))
+
 ## [0.51.0](https://github.com/gjsify/gjsify/compare/v0.50.0...v0.51.0) (2026-09-12)
 
 ### Features
