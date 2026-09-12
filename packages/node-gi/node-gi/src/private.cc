@@ -18,6 +18,9 @@
 // node-gi mirrors that architecture 1:1 so the JS-visible contract matches gjs
 // byte-for-byte (verified: scratch gold runs vs gjs 1.88 — see the test file).
 
+#include <libintl.h>  // bindtextdomain / bind_textdomain_codeset / textdomain
+#include <locale.h>   // setlocale + the LC_* categories (and, on POSIX, locale_t)
+
 #include <cstring>
 
 #include "common.h"
@@ -346,6 +349,232 @@ Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info) {
       data != nullptr && data->fromFn != nullptr ? NodeGiBindingTransformFrom : nullptr, data,
       data != nullptr ? NodeGiBindingTransformsFree : nullptr);
   return env.Undefined();
+}
+
+// ---- locale + gettext ------------------------------------------------------
+//
+// THE DEFECT THIS CLOSES. A C program starts in the "C" locale, where GNU gettext
+// returns the untranslated msgid whatever LANG says and whatever bindtextdomain was
+// told. Node never leaves it and neither did node-gtk, so every `--app node`
+// application shipped untranslated with its catalogs present and correctly bound;
+// gjs's entry point opens with `setlocale(LC_ALL, "")` (refs/gjs/gjs/console.cpp),
+// so the SAME source translated under `--app gjs` and not under `--app node`.
+// Why it hid for so long, why LC_NUMERIC is taken along, and the divergences from
+// gjs: docs/node-gi-gjs-surface.md § Locale and gettext.
+
+// LC_MESSAGES is a POSIX category MSVC's <locale.h> does not define; GNU gettext
+// answers for it anyway and its <libintl.h> picks 1729 for the constant. Mirror
+// that rather than dropping the category, so the JS-visible enum has the same
+// members everywhere.
+#ifndef LC_MESSAGES
+#define LC_MESSAGES 1729
+#endif
+
+void NodeGiInitProcessLocale() {
+  static std::once_flag once;
+  std::call_once(once, [] {
+    // gjs ignores the result here; we log at debug level instead of warning,
+    // because the failure is silent in a way that has already cost a release:
+    // a LANG naming a locale the host never generated leaves the process in C
+    // and the whole UI in English, with nothing printed anywhere.
+    if (setlocale(LC_ALL, "") == nullptr)
+      g_debug("node-gi: setlocale(LC_ALL, \"\") failed — the locale named by the "
+              "environment is not available on this host; messages stay untranslated");
+  });
+}
+
+// The per-thread locale gjs keeps behind GjsPrivate.set_thread_locale. The NAME
+// cache is not an optimisation: gjs reports the locale through `setlocale(category,
+// NULL)`, which answers for the GLOBAL locale and is therefore unchanged by the
+// `uselocale` that did the work. Measured against gjs 1.88 with LC_ALL=de_DE.UTF-8:
+// setting LC_MESSAGES to "C" stops translation immediately, yet the next query
+// still answers "de_DE.UTF-8". Keeping the cache reproduces that answer exactly.
+namespace {
+
+struct ThreadLocale {
+    std::map<int, std::string> names;  // last name set on this thread, per category
+#ifndef _WIN32
+    locale_t id = static_cast<locale_t>(0);
+
+    // Cleanup beside creation: a worker thread that set a locale owns a locale_t
+    // nothing else can reach, so without this it leaks once per such thread.
+    // Uninstall BEFORE freeing — freelocale() on the locale still installed by
+    // uselocale() is undefined, and the thread is ending, so the global locale is
+    // the right thing to fall back to. gjs frees the same object from its GPrivate
+    // destructor for the same reason.
+    ~ThreadLocale() {
+        if (id == static_cast<locale_t>(0)) return;
+        uselocale(LC_GLOBAL_LOCALE);
+        freelocale(id);
+        id = static_cast<locale_t>(0);
+    }
+#endif
+};
+
+thread_local ThreadLocale t_locale;
+
+#ifndef _WIN32
+int LocaleCategoryMask(int category) {
+  // The header tells you not to compute this as (1 << category).
+  switch (category) {
+    case LC_ALL: return LC_ALL_MASK;
+    case LC_COLLATE: return LC_COLLATE_MASK;
+    case LC_CTYPE: return LC_CTYPE_MASK;
+    case LC_MONETARY: return LC_MONETARY_MASK;
+    case LC_NUMERIC: return LC_NUMERIC_MASK;
+    case LC_TIME: return LC_TIME_MASK;
+#ifdef LC_MESSAGES_MASK
+    case LC_MESSAGES: return LC_MESSAGES_MASK;
+#endif
+    default: return 0;
+  }
+}
+#endif
+
+// Returns the prior locale name for `category`, or nullptr when the locale could
+// not be set — gjs's contract, and the JS layer turns nullptr into null.
+const char* SetThreadLocaleImpl(int category, const char* name) {
+  auto reportCurrent = [category]() -> const char* {
+    auto it = t_locale.names.find(category);
+    if (it != t_locale.names.end()) return it->second.c_str();
+    return setlocale(category, nullptr);
+  };
+
+  if (name == nullptr) return reportCurrent();  // query form
+
+  const char* current = reportCurrent();
+  std::string prior = current == nullptr ? std::string() : std::string(current);
+
+#ifdef _WIN32
+  // MSVC has no newlocale/uselocale. `_configthreadlocale` switches setlocale
+  // itself to per-thread, which is the same contract in a different spelling.
+  //
+  // LC_MESSAGES goes through the SAME call as every other category, deliberately.
+  // The MSVC CRT has no such category and answers NULL for it, and null is the
+  // honest report: the caller learns the category did not take. Special-casing it
+  // to "cache the name and skip the call" was worse than useless — it returned the
+  // PRIOR name for `setlocale(MESSAGES, 'no-such-locale.invalid')`, so a failure
+  // was indistinguishable from success. Messages still resolve on Windows, because
+  // GNU gettext reads them from the environment there rather than from the CRT
+  // locale; that is the divergence, and it is documented rather than papered over.
+  _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
+  if (setlocale(category, name) == nullptr) return nullptr;
+#else
+  int mask = LocaleCategoryMask(category);
+  if (mask == 0) return nullptr;
+
+  locale_t base = uselocale(static_cast<locale_t>(0));
+  // duplocale() of LC_GLOBAL_LOCALE is the documented way to start from the
+  // global locale; newlocale() takes ownership of what it is handed.
+  locale_t seed = duplocale(base == LC_GLOBAL_LOCALE ? LC_GLOBAL_LOCALE : base);
+  if (seed == static_cast<locale_t>(0)) return nullptr;
+
+  locale_t composed = newlocale(mask, name, seed);
+  if (composed == static_cast<locale_t>(0)) {
+    freelocale(seed);  // not consumed on failure
+    return nullptr;
+  }
+  if (uselocale(composed) == static_cast<locale_t>(0)) {
+    freelocale(composed);
+    return nullptr;
+  }
+  // Only now is the previous object unreferenced — freeing it while installed
+  // would leave every subsequent locale-sensitive call reading freed memory.
+  if (t_locale.id != static_cast<locale_t>(0)) freelocale(t_locale.id);
+  t_locale.id = composed;
+#endif
+
+  t_locale.names[category] = prior;  // gjs answers queries with the PRIOR name
+  // gjs returns prior_name, and the cache above now holds the same string — so
+  // hand back the cached copy rather than `prior`, which is about to go out of scope.
+  return t_locale.names[category].c_str();
+}
+
+}  // namespace
+
+// setThreadLocale(category: number, locale: string | null) -> string | null
+Napi::Value ApplyThreadLocale(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsNumber()) {
+    Napi::TypeError::New(env, "setThreadLocale: expected (category: number, locale: string|null)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  int category = info[0].As<Napi::Number>().Int32Value();
+  std::string name;
+  bool query = info.Length() < 2 || info[1].IsNull() || info[1].IsUndefined();
+  if (!query) {
+    if (!info[1].IsString()) {
+      Napi::TypeError::New(env, "setThreadLocale: locale must be a string or null")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    name = info[1].As<Napi::String>().Utf8Value();
+  }
+  const char* result = SetThreadLocaleImpl(category, query ? nullptr : name.c_str());
+  if (result == nullptr) return env.Null();
+  return Napi::String::New(env, result);
+}
+
+// textdomain(domain: string | null) -> string | null
+Napi::Value Textdomain(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool query = info.Length() < 1 || info[0].IsNull() || info[0].IsUndefined();
+  std::string domain;
+  if (!query) {
+    if (!info[0].IsString()) {
+      Napi::TypeError::New(env, "textdomain: expected a string or null")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    domain = info[0].As<Napi::String>().Utf8Value();
+  }
+  const char* result = textdomain(query ? nullptr : domain.c_str());
+  if (result == nullptr) return env.Null();
+  return Napi::String::New(env, result);
+}
+
+// bindtextdomain(domain: string, location: string | null) -> string | null
+//
+// The codeset is pinned to UTF-8 exactly as gjs_bindtextdomain does it: JS strings
+// are UTF-16 and every marshalling path here assumes UTF-8 on the C side, so a
+// catalog delivered in the locale's legacy charset would arrive as mojibake.
+Napi::Value Bindtextdomain(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "bindtextdomain: expected (domain: string, location: string|null)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string domain = info[0].As<Napi::String>().Utf8Value();
+  std::string location;
+  bool query = info.Length() < 2 || info[1].IsNull() || info[1].IsUndefined();
+  if (!query) {
+    if (!info[1].IsString()) {
+      Napi::TypeError::New(env, "bindtextdomain: location must be a string or null")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    location = info[1].As<Napi::String>().Utf8Value();
+  }
+  const char* result = bindtextdomain(domain.c_str(), query ? nullptr : location.c_str());
+  if (!query) bind_textdomain_codeset(domain.c_str(), "UTF-8");
+  if (result == nullptr) return env.Null();
+  return Napi::String::New(env, result);
+}
+
+// localeCategories() -> { ALL, COLLATE, CTYPE, MESSAGES, MONETARY, NUMERIC, TIME }
+Napi::Value LocaleCategories(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object out = Napi::Object::New(env);
+  out.Set("ALL", Napi::Number::New(env, LC_ALL));
+  out.Set("COLLATE", Napi::Number::New(env, LC_COLLATE));
+  out.Set("CTYPE", Napi::Number::New(env, LC_CTYPE));
+  out.Set("MESSAGES", Napi::Number::New(env, LC_MESSAGES));
+  out.Set("MONETARY", Napi::Number::New(env, LC_MONETARY));
+  out.Set("NUMERIC", Napi::Number::New(env, LC_NUMERIC));
+  out.Set("TIME", Napi::Number::New(env, LC_TIME));
+  return out;
 }
 
 }  // namespace nodegi

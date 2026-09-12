@@ -35,7 +35,12 @@
             "-std=c++17"
           ],
           "libraries": [
-            "<!@(pkg-config --libs girepository-2.0 cairo)"
+            "<!@(pkg-config --libs girepository-2.0 cairo)",
+            # libintl for the gettext binders (private.cc). Empty off darwin: glibc
+            # absorbs bindtextdomain/textdomain into libc, macOS's libSystem has no
+            # gettext at all and a two-level-namespace Mach-O must name the library
+            # it takes them from. See scripts/mac-intl-gyp-flags.mjs.
+            "<!@(node scripts/mac-intl-gyp-flags.mjs)"
           ],
           "xcode_settings": {
             "OTHER_CFLAGS": [

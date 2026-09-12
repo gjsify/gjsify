@@ -42,6 +42,11 @@ export function catalogueSourceUrl(version) {
     return `https://api.github.com/repos/wingtk/gvsbuild/contents/gvsbuild/projects?ref=${version}`;
 }
 
+/** Where one project's patch directory is read from, for a given tag. */
+export function patchSourceUrl(version, project) {
+    return `https://api.github.com/repos/wingtk/gvsbuild/contents/gvsbuild/patches/${project}?ref=${version}`;
+}
+
 /**
  * The committed snapshot.
  *
@@ -50,14 +55,19 @@ export function catalogueSourceUrl(version) {
  * exists to keep shut.
  *
  * @param {string} [path]
- * @returns {{version: string, readAt: string, source: string, modules: string[]}}
+ * @returns {{version: string, readAt: string, source: string, modules: string[],
+ *   patches: Record<string, string[]>}}
  */
 export function readGvsbuildCatalogue(path = CATALOGUE_PATH) {
     const raw = JSON.parse(readFileSync(path, 'utf8'));
     if (typeof raw?.version !== 'string' || !Array.isArray(raw?.modules)) {
         throw new Error(`gvsbuild-catalogue: ${path} has no \`version\` string and \`modules\` array`);
     }
-    return raw;
+    // `patches` defaults to an EMPTY OBJECT, never to "no patch list here means no patches":
+    // a gap whose project is missing from it is reported as uncompared by
+    // `gapUpstreamProblems`, which is the one answer that cannot be wrong in the quiet
+    // direction. A missing entry must never read as "upstream stopped patching".
+    return { patches: {}, ...raw };
 }
 
 /**
@@ -113,6 +123,53 @@ export async function fetchCatalogueModules(version) {
         .sort();
 }
 
+/**
+ * The patch file names gvsbuild applies to one project at `version`, sorted.
+ *
+ * An ABSENT patch directory answers `[]` and nothing else: a project upstream patches today
+ * and stops patching tomorrow loses its directory entirely, and that is exactly the event a
+ * gap resting on a patch has to notice. Every other non-OK status throws, because "could not
+ * read it" must not be spelled the same way as "there are none".
+ */
+export async function fetchProjectPatches(version, project) {
+    const url = patchSourceUrl(version, project);
+    const response = await fetch(url, {
+        headers: { accept: 'application/vnd.github+json', 'user-agent': 'gjsify-gvsbuild-catalogue' },
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) {
+        throw new Error(`gvsbuild-catalogue: ${url} answered ${response.status}`);
+    }
+    const entries = await response.json();
+    if (!Array.isArray(entries)) {
+        throw new Error(`gvsbuild-catalogue: ${url} did not list a directory`);
+    }
+    return entries
+        .filter((entry) => entry.type === 'file')
+        .map((entry) => String(entry.name))
+        .sort();
+}
+
+/**
+ * The projects whose patch list the snapshot carries.
+ *
+ * A SECOND KIND OF UPSTREAM BOUND. `modules` answers "can gvsbuild build this library at
+ * all", which is what the MP3/FLAC gaps rest on. It cannot answer the question the Adw
+ * appdata gap rests on: gvsbuild builds libadwaita perfectly and then applies a patch that
+ * compiles two entry points out on Windows (`typelib-symbols.mjs` § THE CAUSE IS UPSTREAM).
+ * So the patch directory is read too — for the projects a declared gap actually blames, not
+ * for all 94, because every extra entry is a request `--update` makes and a line somebody has
+ * to believe.
+ *
+ * A LIST HERE RATHER THAN A DERIVATION FROM `TYPELIB_API_GAPS`, which is the direction that
+ * reads better and does not work: that module imports this one, and a dynamic import back
+ * closes the cycle around this file's own top-level `await main()` — measured, the process
+ * printed "Detected unsettled top-level await" and wrote nothing. The un-forgettable half is
+ * kept by a test instead (`every declared typelib-API gap names a project the snapshot
+ * covers`), which fails on a gap naming a project absent from here.
+ */
+export const PATCHED_PROJECTS = ['libadwaita'];
+
 /** `--update <version>`: re-read the catalogue and print what moved. */
 async function main(argv) {
     const current = readGvsbuildCatalogue();
@@ -124,6 +181,20 @@ async function main(argv) {
     const added = modules.filter((m) => !before.has(m));
     const removed = current.modules.filter((m) => !after.has(m));
 
+    const patches = {};
+    const patchMoves = [];
+    for (const project of PATCHED_PROJECTS) {
+        const key = normalizeProject(project);
+        const list = await fetchProjectPatches(version, project);
+        patches[key] = list;
+        const was = current.patches?.[key] ?? [];
+        const gone = was.filter((p) => !list.includes(p));
+        const arrived = list.filter((p) => !was.includes(p));
+        if (gone.length || arrived.length) {
+            patchMoves.push(`  ${project}: -${gone.join(' -') || '(none)'} +${arrived.join(' +') || '(none)'}`);
+        }
+    }
+
     writeFileSync(
         CATALOGUE_PATH,
         `${JSON.stringify(
@@ -132,6 +203,7 @@ async function main(argv) {
                 readAt: new Date().toISOString().slice(0, 10),
                 source: catalogueSourceUrl(version),
                 modules,
+                patches,
             },
             null,
             4,
@@ -142,9 +214,17 @@ async function main(argv) {
     console.log(added.length === 0 ? '  added:   (none)' : `  added:   ${added.join(', ')}`);
     console.log(removed.length === 0 ? '  removed: (none)' : `  removed: ${removed.join(', ')}`);
     console.log(
+        patchMoves.length === 0
+            ? `  patches: unchanged for ${Object.keys(patches).join(', ') || '(no project)'}`
+            : `  patches moved:\n${patchMoves.join('\n')}`,
+    );
+    console.log(
         '\nEvery `GVSBUILD_VERSION` in .github/workflows/ must now name this version, and a module that\n' +
             'ARRIVED may retire a declared gap in packages/node-gi/gtk-runtime-win32-x64/package.json —\n' +
-            'the `gvsbuild-catalogue` rule fails on both until they agree (ADR 0056 § 1).',
+            'the `gvsbuild-catalogue` rule fails on both until they agree (ADR 0056 § 1).\n' +
+            'A PATCH that DISAPPEARED may retire a TYPELIB_API_GAPS entry in\n' +
+            'packages/node-gi/scripts/typelib-symbols.mjs the same way: rebuild the bundle and let the\n' +
+            'floor say whether the entry points are there now.',
     );
 }
 

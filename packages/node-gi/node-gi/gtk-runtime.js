@@ -437,6 +437,28 @@ export function maybeWireGtkWindowingEnv() {
         setIfUnset('FONTCONFIG_FILE', fontsConf);
     }
 
+    // THE FACES, which are a different question from the two lines above and on one of the
+    // two platforms not answerable by an environment variable at all.
+    //
+    // `XDG_DATA_DIRS` already reaches `<bundle>/share/fonts` wherever fontconfig drives
+    // Pango — its stock configuration carries `<dir prefix="xdg">fonts</dir>` — so on darwin
+    // the set above is enough and this variable is a second, cheaper route to the same files.
+    // On WIN32 it is the only route there is: GTK4 uses pangowin32, whose font map is filled
+    // exclusively by `pango_font_map_dwrite_populate()` from the DirectWrite system
+    // collection, and a `FONTCONFIG_FILE` naming a directory of faces moves that map by ZERO
+    // families even when it is the only configuration present (measured on Windows 11 /
+    // GTK 4.22.4, both directions — ADR 0038 § W1-W5). The face has to be handed to the map
+    // through `add_font_file`, which is a RUNTIME call somebody has to make.
+    //
+    // So the loader's job here is to name the directory, not to register anything: it runs
+    // before the addon loads and has no Pango to talk to. `@gjsify/gtk-host`'s `initFonts()`
+    // is the reader — the same handover `gjsify ship` makes for an application's OWN faces
+    // through `GJSIFY_FONT_DIR`, one layer down, because these faces belong to the RUNTIME
+    // and every application on it needs them. Two variables and not one: an app that ships a
+    // brand face must not have to choose between its face and the platform's.
+    const runtimeFontDir = join(shareDir, 'fonts');
+    if (existsSync(runtimeFontDir)) setIfUnset('GJSIFY_GTK_RUNTIME_FONT_DIR', runtimeFontDir);
+
     // GStreamer, which finds its plugins the way GTK finds its schemas: by env,
     // read at init. Without this the bundle can ship every Gst typelib and still
     // play nothing — `Gst.init()` succeeds against an EMPTY registry, so the

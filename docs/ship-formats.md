@@ -700,6 +700,16 @@ the variable is unset (which is what the launcher leaves when the payload carrie
 treats the `G_IO_ERROR_NOT_SUPPORTED` a CoreText font map answers as "already activated" rather
 than as a failure — so a consumer needs no OS branch around it.
 
+**The same call also registers a face this table does not own.** `@gjsify/gtk-runtime-<target>`
+carries the GNOME UI typeface (Adwaita Sans + Adwaita Mono) — off Linux nothing installs it, and a
+shipped app on Windows measured `Adwaita Sans 11` resolving to Tahoma — and `@gjsify/node-gi`'s
+loader publishes that directory as `GJSIFY_GTK_RUNTIME_FONT_DIR`. `initFonts()` reads BOTH, runtime
+first. Two variables and not one, deliberately: an app that ships a brand face must never have to
+choose between its face and the platform's. `gjsify ship` stages and names only the app's, which is
+what every row above is about; `InitFontsResult.dir` likewise still means the app's directory alone.
+The runtime half, the three-state UI-font SIZE policy that comes with it, and the macOS limitation
+(a CoreText map registers neither) are ADR 0038 § Amendment 2 and the `bundled-fonts` guide.
+
 Three things follow, each of which looks wrong until the reason is read:
 
 - **`share/fonts` is in `SHARE_PORTABLE`, and that is a narrower claim than it looks.** The list

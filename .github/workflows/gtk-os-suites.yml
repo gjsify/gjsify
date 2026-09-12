@@ -382,8 +382,15 @@ jobs:
       # allowance is gone, which is the point of a flag that reports its own
       # obsolescence. release.yml has always passed none: there the bundle was just
       # built.
+      #
+      # `--allow-legacy-api-record` is the same shape, one gate newer: `typelibApi`
+      # postdates every published tarball, so without it these three legs would go red
+      # over a property no already-published artifact can acquire — the mistake the
+      # paragraph above records, repeated. It excuses the record being ABSENT and
+      # nothing else, and it prints that it is droppable the first time a published
+      # bundle carries one. Delete it then, from both call sites.
       - name: Verify the published bundle's manifest
-        run: node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle "packages/node-gi/node-gi/prebuilds/$TARGET/gtk" --expect-host-target darwin
+        run: node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle "packages/node-gi/node-gi/prebuilds/$TARGET/gtk" --expect-host-target darwin --allow-legacy-api-record
 
       # Which two halves this run paired, in the log rather than in a reader's head.
       - name: Report the pairing this run measured
@@ -587,8 +594,10 @@ jobs:
       # No `--allow-legacy-license-record`, dropped with the darwin leg's above and for
       # the same reason: the published bundle now records `licenses.binariesCovered`,
       # so the allowance the pre-0.46.0 tarballs needed has retired itself.
+      # `--allow-legacy-api-record` is the newer one, on the same terms — see the darwin
+      # leg for what it excuses and when it goes.
       - name: Verify the published bundle's manifest
-        run: node packages\node-gi\scripts\verify-bundle-manifest.mjs --bundle "packages\node-gi\node-gi\prebuilds\%TARGET%\gtk" --expect-host-target win32
+        run: node packages\node-gi\scripts\verify-bundle-manifest.mjs --bundle "packages\node-gi\node-gi\prebuilds\%TARGET%\gtk" --expect-host-target win32 --allow-legacy-api-record
 
       - name: Report the pairing this run measured
         run: |

@@ -23,10 +23,11 @@ siblings use.
 gtk/
   bin/                     GTK/GLib/cairo/pango/graphene/gdk-pixbuf DLLs (+ deps)
   girepository-1.0/        typelibs — ONLY those this bundle can back (see below)
-  lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig
+  lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig,
+                           and share/fonts — the GNOME UI typeface (see below)
   licenses/                license texts from the gvsbuild prefix, plus vendored ones
   THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and that it is unmodified
-  manifest.json            counts + sizes + DLL list + symmetry/license proof
+  manifest.json            counts + sizes + DLL list + symmetry/API-floor/license proof
 ```
 
 Note the native code lives in **`gtk/bin`** (DLLs), not `gtk/lib` — on Windows the
@@ -63,6 +64,36 @@ not shipped):
    because `gi_repository_require` loads dependencies first), and re-verifies the
    finished bundle off disk against a floor of namespaces that must be present. Shared
    with the darwin builder: [`../scripts/typelib-backers.mjs`](../scripts/typelib-backers.mjs).
+
+   **A backed typelib is not a callable one**, which is the hole that check cannot see.
+   Measured on the published 0.50.0 tarballs, one symbol at a time out of each bundle's own
+   `Adw-1.typelib`:
+
+   | symbol | win32-x64 | darwin-arm64 | darwin-x64 |
+   |---|---|---|---|
+   | `adw_about_dialog_new` | present | present | present |
+   | `adw_about_dialog_new_from_appdata` | **absent** | present | present |
+   | `adw_about_dialog_get_appdata_resource_path` | **absent** | present | present |
+
+   So on Windows an application whose About dialog is built from its own AppStream metainfo
+   does not open at all — `no static method 'new_from_appdata'` — while symmetry, the data
+   sets, the decode probe and the licence coverage were every one of them green. The cause is
+   upstream and deliberate: gvsbuild applies
+   `patches/libadwaita/0001-remove-appstream-dependency.patch`, which wraps every
+   `*_from_appdata` entry point in `#ifndef G_OS_WIN32` and makes `appstream_dep` conditional
+   on `target_system != 'windows'`. libadwaita 1.9.3 (what gvsbuild *and* Homebrew build)
+   still parses AppStream through the heavy `appstream` library, for which gvsbuild defines no
+   project; the small `ministream` replacement landed in libadwaita 1.10.alpha and gvsbuild
+   already carries a `ministream` project for it. Homebrew's formula `depends_on "appstream"`,
+   which is why darwin has the functions.
+
+   Nothing here can compile that symbol, so what the builder enforces instead is that the hole
+   cannot ship UNANNOUNCED: [`../scripts/typelib-symbols.mjs`](../scripts/typelib-symbols.mjs)
+   holds an API floor per namespace, a missing entry point is a build failure unless a
+   DECLARED gap names its upstream cause, the gap is recorded in `manifest.typelibApi.gaps`,
+   and the gap EXPIRES — it is held against the committed gvsbuild patch snapshot, so the day
+   upstream drops that patch the build reds and names the symbols to re-measure. A gap whose
+   symbol turns out to be present fails too.
 4. **Licenses** — copy the license corpus the gvsbuild prefix documents
    (`share/doc/<project>/COPYING|LICENSE`, `share/licenses/<project>/*`) into
    `gtk/licenses/` and write `gtk/THIRD-PARTY-NOTICES.md`, which lists every bundled
@@ -143,9 +174,64 @@ both sufficient and the simplest mechanism.
     share/glib-2.0/schemas/gschemas.compiled  (glib-compile-schemas)
     share/icons/{Adwaita,hicolor}/        icon themes + icon-theme.cache
     etc/fonts/fonts.conf                  Fontconfig config (+ cache), when present
+    share/fonts/adwaita/*.ttf             Adwaita Sans + Adwaita Mono (OFL-1.1)
     manifest.json                         windowing:true + windowingData counts
                                           + decodeProbe (measured pixel sizes)
   ```
+
+  **`etc/fonts` is the config; `share/fonts` is the typeface**, and until 0.50.0 only the
+  first shipped. Measured on Windows 11 / GTK 4.22.4 with the published bundle: 82 font
+  families on the map, `Cantarell` / `Adwaita Sans` / `Adwaita Mono` among none of them, and
+  every request for one answered by Tahoma with `couldn't load font …, falling back to
+  "Sans 11"` and exit 0. The only `.ttf` in any of the three published tarballs was
+  GtkSourceView's own `BuilderBlocks.ttf`. So every Adwaita stylesheet rule naming the GNOME
+  font, and every application that asks for one by name, silently drew in a foreign face.
+
+  The faces come from the pinned `refs/adwaita-fonts` submodule rather than from the prefix —
+  gvsbuild has no project for them, and a build-time download would put an unpinned artifact
+  in a published tarball. The bundle jobs realize that ONE submodule (`--depth 1`); missing it
+  is not silent, because `fonts` is a declared windowing-data set and an empty `share/fonts`
+  fails the build.
+
+  **Registration is a second step on this platform, not a path.** GTK4-on-Windows is
+  pangowin32, whose font map is filled exclusively from the DirectWrite system collection: a
+  `FONTCONFIG_FILE` naming a directory of faces moves it by ZERO families even when it is the
+  only configuration present (measured both ways — ADR 0038 § W1-W5). So node-gi's loader
+  publishes the directory as `GJSIFY_GTK_RUNTIME_FONT_DIR` and `@gjsify/gtk-host`'s
+  `initFonts()` hands each face to `add_font_file`, which moves it by one. On darwin the same
+  variable is a second route to files `XDG_DATA_DIRS` already reaches.
+
+  **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
+  shell, and Windows' is 9 pt where GNOME designs for 11. Measured as `ascent + descent` rather
+  than in points — points are not comparable across platforms — that is **16.0 px against
+  GNOME's 19.0**, i.e. 16 % small, which is the whole of "the font is a bit small". macOS
+  measures 18.8 px and has no size problem at all, so the gap is Windows-alone.
+
+  That is a POLICY, not a defect with one right answer, so `@gjsify/gtk-host` offers three
+  states and the application picks (`UI_FONT_POLICIES`):
+
+  | policy | `gtk-font-name` on Windows | for |
+  |---|---|---|
+  | `system` | `Segoe UI 9`, untouched | honouring the host exactly, size included |
+  | `size` | `Segoe UI 11` | the host's face at the size Adwaita is drawn for |
+  | `adwaita` | `Adwaita Sans 11` | a GNOME app that looks identical on every platform |
+
+  **Nothing is applied unless asked for.** A runtime that rewrites a font setting nobody asked
+  it to change is a surprise, and applying anything by default would also make `system`
+  unreachable — the host's own value would be gone before a consumer could choose to keep it.
+  `size` is the recommended value for an app shipping a bundled GTK; it is a recommendation in
+  the documentation, not a default in the code.
+
+  `initFonts()` captures `gtk-font-name` as the process first found it, which is what makes
+  `system` reachable again after `adwaita`: once a value has been overwritten the host's own is
+  not recoverable from GTK, from the display or from any schema.
+
+  **The family name differs on this platform**, which `adwaita` resolves rather than assumes:
+  `Adwaita Sans` is a variable font with an `opsz` axis whose value at 14 is named `Text`, so
+  fontconfig reports `Adwaita Sans` and gvsbuild's DirectWrite reader reports `Adwaita Sans
+  Text` — byte-identical file, two names. Writing the declared name here would ask for a family
+  Windows does not have and Pango would substitute Tahoma silently. Found by CI, on the one
+  platform it happens on.
 
   Built on the Windows runner:
   ```
@@ -210,8 +296,11 @@ both sufficient and the simplest mechanism.
 module load beside the PATH-prepend) detects the windowing data via the
 `gschemas.compiled` marker and sets — only when currently unset — the env vars that
 locate it: `GSETTINGS_SCHEMA_DIR`, `GDK_PIXBUF_MODULEDIR` + `GDK_PIXBUF_MODULE_FILE`,
-`XDG_DATA_DIRS` (prepends `<bundle>/share`) and, when bundled, `FONTCONFIG_PATH` +
-`FONTCONFIG_FILE`. Windows re-reads these at first use (schema / loader / icon-theme
+`XDG_DATA_DIRS` (prepends `<bundle>/share`), when bundled `FONTCONFIG_PATH` +
+`FONTCONFIG_FILE`, and `GJSIFY_GTK_RUNTIME_FONT_DIR` at `<bundle>/share/fonts` — which is
+a NAME rather than a mechanism: the loader runs before the addon and has no Pango to hand
+a face to, so `@gjsify/gtk-host`'s `initFonts()` reads it and registers them.
+Windows re-reads these at first use (schema / loader / icon-theme
 init runs after the addon loads), so the in-process mutation is sufficient — no
 re-exec, the DLL-search analog. A **display-free** bundle carries no windowing data,
 so the marker is absent and the wiring is a strict no-op: the display-free load is

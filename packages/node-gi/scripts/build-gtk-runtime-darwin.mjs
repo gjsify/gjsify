@@ -102,9 +102,20 @@ import {
     readTypelibDir,
     verifyBundleTypelibs,
 } from './typelib-backers.mjs';
+import { formatTypelibApiProblems, typelibApiRecord, verifyTypelibApiFloor } from './typelib-symbols.mjs';
+import {
+    BUNDLED_FONT_FAMILIES,
+    bundledFontLicenseComponent,
+    formatMissingFontSource,
+    stageBundledFonts,
+} from './bundle-fonts.mjs';
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
 const pillarDir = dirname(scriptsDir); // packages/node-gi
+// packages/node-gi -> the repository root. Only the font staging needs it: the faces come
+// from a pinned `refs/` submodule rather than from a keg, because Homebrew has no formula
+// for the GNOME UI typeface.
+const repoRoot = dirname(dirname(pillarDir));
 // Repo-relative path recorded in the shipped manifest, so a consumer holding only
 // the tarball can find the recipe that produced its bytes (the tarball no longer
 // carries a per-package copy of it).
@@ -1028,6 +1039,14 @@ const windowing = {
     schemas: false,
     iconThemes: [],
     iconFiles: 0,
+    // The GNOME UI faces. macOS has no SIZE problem — measured in the shipped `.app` on
+    // macOS 15.7.9: `.AppleSystemUIFont 12` at 18.8 px ascent+descent against GNOME's 19.0 —
+    // but the FAMILIES are as absent here as on Windows, and that half is now measured on
+    // real hardware rather than derived from the tarball: 187 families on the map, `Adwaita
+    // Sans` and `Cantarell` ABSENT from both, and both falling back to Helvetica at 14.7 px.
+    // So an Adwaita stylesheet naming the GNOME font silently gets a substitute here too.
+    fonts: 0,
+    fontFamilies: [],
     gtksource: false,
 };
 if (WINDOWING) {
@@ -1115,6 +1134,21 @@ if (WINDOWING) {
                 '(§ 4e will fail this build — `brew install gtksourceview5`)',
         );
     }
+
+    // 4b-e. The GNOME UI faces, from the pinned `refs/adwaita-fonts` checkout — Homebrew
+    // has no formula for them, so unlike every other set here the source is not the keg
+    // prefix (§ bundle-fonts.mjs). On this platform fontconfig's stock config finds them
+    // over the `XDG_DATA_DIRS` node-gi already sets; `initFonts()` registers them anyway,
+    // because a CoreText map answers NOT_SUPPORTED and is reported as declined rather than
+    // failed, and that is the one path where "nothing registered" is the correct outcome.
+    const fonts = stageBundledFonts({ repoRoot, outDir: OUT });
+    if (fonts.faces.length > 0) {
+        windowing.fonts = fonts.faces.length;
+        windowing.fontFamilies = [...BUNDLED_FONT_FAMILIES];
+        console.log(`build-gtk-runtime: UI fonts bundled — ${fonts.faces.join(', ')}`);
+    } else {
+        console.warn(`build-gtk-runtime: ${formatMissingFontSource(fonts.source)}`);
+    }
 }
 
 // --- 4d. the runtime DATA must be real files, not links into this machine ----
@@ -1160,6 +1194,33 @@ console.log(
         `namespaces ${requiredNamespaces.join(', ')} all present`,
 );
 
+// --- 4d2. the ENTRY POINTS a shipped namespace must carry ------------------
+// Symmetry one level in, shared with the win32 builder (typelib-symbols.mjs). It is the
+// win32 bundle that fails this today — gvsbuild patches `adw_about_dialog_new_from_appdata`
+// out — and the check is here because THIS side is what makes that measurable: Homebrew's
+// libadwaita `depends_on "appstream"`, so both darwin bundles carry the function, and the
+// day the formula stops doing so this leg goes red instead of inheriting the other
+// platform's excuse. No gap is declared for darwin, and one would fail on sight.
+//
+// No `gapUpstreamProblems` call here, deliberately: the only catalogue it answers for is
+// gvsbuild, which does not build this bundle. The win32 leg checks every gap, including
+// this platform's if one is ever declared, so the expiry is covered exactly once.
+const typelibApi = verifyTypelibApiFloor({ typelibDir: typelibOut, platform: 'darwin' });
+if (typelibApi.problems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibApiProblems(typelibApi.problems, {
+            stage: 'verifying the finished bundle',
+            typelibDir: typelibOut,
+        })}`,
+    );
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: typelib API floor verified — ${typelibApi.present.length} entry point(s) present, ` +
+        `${typelibApi.declared.length} covered by a declared upstream gap, ${typelibApi.skipped.length} not ` +
+        'applicable to this bundle',
+);
+
 // --- 4e. the DECLARED windowing data must BE in the finished bundle ---------
 // The data-side twin of § 4c, and the reason § 4b's steps may keep warning: a set is
 // required iff the finished bundle ships the namespace it belongs to — the namespaces
@@ -1201,10 +1262,18 @@ const brewInfoLicense = (formula) => {
 // the per-binary table names them. They attribute through the same derivation as every
 // dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
 const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources, ...gioModuleSources]);
-const { components: licenseComponents, unattributed } = describeBrewKegs({
+const { components: kegComponents, unattributed } = describeBrewKegs({
     files: shippedBinaries,
     fallbackLicense: brewInfoLicense,
 });
+// The faces are the one payload whose terms do NOT come from a keg — no Homebrew formula
+// ships adwaita-fonts, so the OFL text travels from the pinned submodule. Appended as its
+// own component so the notice names it and the payload writer copies it, rather than by a
+// second copy nothing counts.
+const fontLicense = WINDOWING ? bundledFontLicenseComponent({ repoRoot }) : null;
+const licenseComponents = fontLicense
+    ? [...kegComponents, fontLicense].sort((a, b) => a.name.localeCompare(b.name))
+    : kegComponents;
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 const MODIFICATIONS = [
     '`install_name_tool -id` / `-change`: every install name and every reference to another library in this bundle ' +
@@ -1385,6 +1454,9 @@ const manifest = {
         dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
         requiredNamespaces,
     },
+    // What the shipped namespaces can be CALLED with — symmetry one level in, and the
+    // record `verify-bundle-manifest.mjs` requires before a bundle may publish.
+    typelibApi: typelibApiRecord(typelibApi),
     licenses: {
         notice: 'THIRD-PARTY-NOTICES.md',
         dir: 'licenses',

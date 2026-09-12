@@ -124,9 +124,22 @@ if (mode === '--includes') {
     //   glib/gobject/gio/gmodule-2.0  g_*/GObject/GValue/GSignal/GClosure/Gio
     //   ffi  ffi_call / ffi_closure_alloc (girffi + the vfunc/callback trampolines)
     //   cairo  the native cairo foreign-struct binding (src/cairo.cc)
+    //   intl   bindtextdomain / textdomain / bind_textdomain_codeset (src/private.cc);
+    //          glibc absorbs these into libc so Linux names nothing, but the MSVC CRT
+    //          has no gettext and gvsbuild ships GNU gettext as `intl.dll` — the same
+    //          library GLib itself links for g_dgettext
     // Pango/GdkPixbuf/Graphene are NOT linked — the conformance programs load their
     // typelibs at RUNTIME (girepository dlopens the DLL by soname), not at link time.
-    const DIRECT_LIBS = ['girepository-2.0', 'gio-2.0', 'gobject-2.0', 'gmodule-2.0', 'glib-2.0', 'ffi', 'cairo'];
+    const DIRECT_LIBS = [
+        'girepository-2.0',
+        'gio-2.0',
+        'gobject-2.0',
+        'gmodule-2.0',
+        'glib-2.0',
+        'ffi',
+        'cairo',
+        'intl',
+    ];
     // Locate the import-lib dir: GTK_PREFIX/lib, else pkg-config's -L.
     const searchDirs = [];
     if (process.env.GTK_PREFIX) searchDirs.push(join(process.env.GTK_PREFIX, 'lib'));
@@ -146,10 +159,15 @@ if (mode === '--includes') {
             }
             if (found) break;
         }
+        // gmodule is optional (girepository may pull it internally). `intl` is too,
+        // and for a sharper reason: throwing here BLANKS the whole libraries list, so
+        // a gvsbuild that spells its gettext import lib differently would turn one
+        // missing library into "nothing links at all". Skipping leaves the linker to
+        // name the three undefined gettext symbols, which says what is actually wrong.
+        const OPTIONAL = new Set(['gmodule-2.0', 'intl']);
         if (found) resolved.push(found);
-        else if (name !== 'gmodule-2.0') {
-            // gmodule is optional (girepository may pull it internally); everything
-            // else is required — surface a missing import lib loudly.
+        else if (!OPTIONAL.has(name)) {
+            // Everything else is required — surface a missing import lib loudly.
             throw new Error(`win-gi-gyp-flags: import lib for '${name}' not found under ${searchDirs.join(', ')}`);
         }
     }

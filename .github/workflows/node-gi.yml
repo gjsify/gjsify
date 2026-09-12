@@ -824,8 +824,14 @@ jobs:
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
             meson ninja-build \
+            glibc-langpack-de \
             pango gdk-pixbuf2 dejavu-sans-fonts
           gjs --version
+          # A generated non-C locale is a test REQUIREMENT, not a nicety: gettext
+          # answers with the msgid while LC_MESSAGES is C, so `test/locale.test.mjs`
+          # can only measure a translation where one exists. Print it so a leg that
+          # lost the langpack says so instead of quietly gating itself off.
+          echo "locales: $(locale -a | grep -c -v -E '^(C|POSIX|C\.)') non-C generated"
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
           echo "arch: $(uname -m)"
 
@@ -1557,7 +1563,7 @@ jobs:
           node scripts/cross-runtime.mjs node --only \
             arrays,boxed-out,async-error,bytes,cairo-canvas2d,call-function,callbacks,closure-exception,construct-camelcase,dbus-async,enums-constants,gclosure-in-args,gettext,gi,globals,gobject,gtype,int64,methods,multilevel-subclass,out-params,paramspec,paramspec-object,proxy-fallback,register-class,register-class-decorator,register-class-props,registerclass-inplace,signals,smoke,static-camel,system,variant,vfunc,vfunc-chainup
 
-      # Leg 2 — FULL display-free subset (37 files), also env-free (NO DYLD set by
+      # Leg 2 — FULL display-free subset (38 files), also env-free (NO DYLD set by
       # the job). The same one-shot re-exec covers the NON-addon-linked backers
       # (Pango→cairo.test, Gdk/Graphene→struct-construct) from the bundle.
       - name: Conformance FULL subset — env-free, no brew GTK (Node)
@@ -1629,6 +1635,34 @@ jobs:
         with:
           name: node-gi-prebuild-darwin-${{ matrix.arch }}
           path: addon
+
+      # The GNOME UI typeface the bundle ships under `share/fonts`, from the PINNED
+      # upstream checkout: neither Homebrew nor gvsbuild packages adwaita-fonts, and a
+      # build-time download would put an unpinned third-party artifact in a published
+      # tarball. TARGETED — realizing every `refs/` submodule costs ~150 GB, against
+      # ~7.5 MB for this one; `submodules:` on actions/checkout is never used here.
+      #
+      # Retried and time-boxed for the reason `audit-runtimes.yml` records at its own
+      # `refs/libadwaita` step: this puts gitlab.gnome.org in the path of a required
+      # check, and a non-retrying fetch reddened two unrelated PRs on 2026-08-12. git
+      # re-clones a failed fetch on its own, but that is a repeat, not a back-off.
+      #
+      # Missing it is not silent: the builder warns where the cause is visible and the
+      # `fonts` windowing-data set fails the build at the verify step — which is the
+      # point, because 0.50.0 shipped with no UI font and nothing said anything.
+      - name: Check out refs/adwaita-fonts (the bundle ships its faces)
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 refs/adwaita-fonts; then break; fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::could not check out refs/adwaita-fonts after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::refs/adwaita-fonts checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       # --windowing adds libadwaita + libgtksourceview (+ their otool deps) to the
       # relocated closure, and the runtime data tree. The builder derives its own target
@@ -2669,6 +2703,34 @@ jobs:
         with:
           name: node-gi-prebuild-win32-x64
           path: addon
+
+      # The GNOME UI typeface the bundle ships under `share/fonts`, from the PINNED
+      # upstream checkout: neither Homebrew nor gvsbuild packages adwaita-fonts, and a
+      # build-time download would put an unpinned third-party artifact in a published
+      # tarball. TARGETED — realizing every `refs/` submodule costs ~150 GB, against
+      # ~7.5 MB for this one; `submodules:` on actions/checkout is never used here.
+      #
+      # Retried and time-boxed for the reason `audit-runtimes.yml` records at its own
+      # `refs/libadwaita` step: this puts gitlab.gnome.org in the path of a required
+      # check, and a non-retrying fetch reddened two unrelated PRs on 2026-08-12. git
+      # re-clones a failed fetch on its own, but that is a repeat, not a back-off.
+      #
+      # Missing it is not silent: the builder warns where the cause is visible and the
+      # `fonts` windowing-data set fails the build at the verify step — which is the
+      # point, because 0.50.0 shipped with no UI font and nothing said anything.
+      - name: Check out refs/adwaita-fonts (the bundle ships its faces)
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 refs/adwaita-fonts; then break; fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::could not check out refs/adwaita-fonts after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::refs/adwaita-fonts checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       - name: Build the FULL-windowing GTK runtime bundle (--windowing)
         shell: pwsh

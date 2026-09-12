@@ -95,6 +95,12 @@ struct NodeGiEnvData {
   // Reflect.construct(class) in adopt mode (see gi.js runCtorForCObject). Per-env
   // for the same reason as errorBuilder (a napi_ref is env-specific).
   napi_ref constructCallback = nullptr;
+  // L1 callback that pushes a just-set custom GObject property through the class's
+  // own JS setter — invoked by NodeGiSetProperty once the instance HAS a wrapper
+  // (handle, propertyName) → see gi.js runJsPropertySetter. gjs reaches the same
+  // setter from its set_property vfunc (refs/gjs/gi/gobject.cpp jsobj_set_gproperty).
+  // Per-env for the same reason as errorBuilder (a napi_ref is env-specific).
+  napi_ref propertySetCallback = nullptr;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -458,6 +464,9 @@ void NodeGiToggleDebugLog(const char* fmt, ...) G_GNUC_PRINTF(1, 2);
 
 Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj);
 Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer);
+// The wrapper `obj` already has in `env`, or an empty value — never creates one. See
+// toggle.cc; the caller that needs it is the set_property vfunc (class.cc).
+Napi::Value PeekGObjectHandle(Napi::Env env, GObject* obj);
 
 extern int g_syncEmitDepth;
 
@@ -665,6 +674,8 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info);
 Napi::Value HasClassVfunc(const Napi::CallbackInfo& info);
 Napi::Value CallClassVfunc(const Napi::CallbackInfo& info);
 Napi::Value SetConstructCallback(const Napi::CallbackInfo& info);
+Napi::Value SetPropertySetCallback(const Napi::CallbackInfo& info);
+Napi::Value StoredPropertyNames(const Napi::CallbackInfo& info);
 
 // template.cc
 Napi::Value GetTemplateChild(const Napi::CallbackInfo& info);
@@ -698,6 +709,30 @@ Napi::Value LogSetWriterFunc(const Napi::CallbackInfo& info);
 Napi::Value LogSetWriterDefault(const Napi::CallbackInfo& info);
 Napi::Value BindPropertyFull(const Napi::CallbackInfo& info);
 Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
+
+// private.cc — the locale + gettext binders (gjs_set_thread_locale /
+// gjs_textdomain / gjs_bindtextdomain, and the LC_* constants GjsPrivate exports
+// as GjsLocaleCategory). These need C because libintl is not introspectable:
+// GLib publishes the LOOKUP half (g_dgettext/g_dngettext/g_dpgettext2) in its GIR
+// and nothing else, so `bindtextdomain` has no `gi://` spelling on any runtime.
+// NOT named SetThreadLocale, though that is what it mirrors: `<windows.h>` (pulled
+// in by uv.h) defines SetThreadLocale as an object-like macro for the kernel32 API,
+// which rewrote the token at the `Napi::Function::New(env, SetThreadLocale)` call
+// site and failed the MSVC build with C2665 — the same collision the `#undef
+// RegisterClass` above exists for. Renaming the C++ symbol keeps that undef list at
+// one entry; `SetThreadLocaleImpl` is a distinct token and needs nothing.
+Napi::Value ApplyThreadLocale(const Napi::CallbackInfo& info);
+Napi::Value Textdomain(const Napi::CallbackInfo& info);
+Napi::Value Bindtextdomain(const Napi::CallbackInfo& info);
+// The LC_* values THIS platform's <locale.h> defines, as a JS object. Read from
+// the headers rather than written down: the numbers differ per C library
+// (LC_MESSAGES is 5 on glibc, 6 on darwin, and gettext's own 1729 on MSVC, which
+// has no such category), so a literal table is correct on one platform and
+// silently addresses the wrong category on every other one.
+Napi::Value LocaleCategories(const Napi::CallbackInfo& info);
+// Put the process in the locale the environment names — the `setlocale(LC_ALL,
+// "")` gjs's entry point runs before anything else. Idempotent, process-wide.
+void NodeGiInitProcessLocale();
 
 // loop.cc
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);

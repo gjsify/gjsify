@@ -71,13 +71,13 @@ export function createPackage({ requireGi, gettext, imports }) {
         },
 
         initGettext() {
+            // No try/catch: these were no-ops returning null when node-gi had no
+            // gettext binding, and the catch that tolerated that would now swallow
+            // the one failure worth seeing — a localedir that does not hold the
+            // app's catalogs, whose only other symptom is an untranslated UI.
             if (pkg.name) {
-                try {
-                    gettext.bindtextdomain?.(pkg.name, pkg.localedir ?? null);
-                    gettext.textdomain?.(pkg.name);
-                } catch {
-                    /* passthrough gettext — no catalog, ignore */
-                }
+                gettext.bindtextdomain(pkg.name, pkg.localedir ?? null);
+                gettext.textdomain(pkg.name);
             }
             // The globals GJS apps + compiled Blueprint use pervasively.
             globalThis._ = (msgid) => gettext.gettext(msgid);

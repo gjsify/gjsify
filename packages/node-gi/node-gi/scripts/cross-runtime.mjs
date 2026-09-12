@@ -60,6 +60,10 @@ const CONFORMANCE = [
     'gobject',
     'gtype',
     'int64',
+    // The process locale is set by the ADDON's Init, so bun and deno inherit the
+    // fix from the same binary node loads — this leg is what proves that rather
+    // than assuming it.
+    'locale',
     'methods',
     'multilevel-subclass',
     'out-params',

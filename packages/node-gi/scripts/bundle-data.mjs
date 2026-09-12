@@ -182,6 +182,22 @@ export const WINDOWING_DATA_SETS = [
         remedy: 'brew install gtksourceview5 (darwin) / use a gvsbuild prefix that ships share/gtksourceview-5 (win32)',
     },
     {
+        // The set that shipped EMPTY in every bundle up to and including 0.50.0, and the
+        // cheapest one to have missed: `gtk/share/` carried glib-2.0, gtksourceview-5 and
+        // icons, and the only `.ttf` anywhere in any of the three tarballs is GtkSourceView's
+        // own BuilderBlocks. Nothing said so, because nothing here ever asked.
+        id: 'fonts',
+        namespace: 'Gtk',
+        what: 'the GNOME UI typeface (Adwaita Sans + Adwaita Mono)',
+        // Keyed on Gtk rather than Pango for the same reason the icons set is: the promise is
+        // "a GNOME application looks like one off Linux", which is a toolkit-level claim, and
+        // `REQUIRED_NAMESPACES` guarantees Gtk in every bundle — so this set can never be
+        // skipped by a bundle that draws a window.
+        why: 'off Linux nothing installs the GNOME font: measured on Windows 11, "Adwaita Sans 11" and "Cantarell 11" both resolve to Tahoma, and Pango reports a substitution by RENDERING it — no error, no non-zero exit',
+        requires: [{ tree: 'share/fonts' }],
+        remedy: 'realize the pinned upstream checkout before the builder — `git submodule update --init --depth 1 refs/adwaita-fonts` — and do NOT init refs/ recursively (~150 GB)',
+    },
+    {
         // The `pixbuf-loaders` shape one layer down: a bundle that brings its OWN libgio brings
         // its own GIO module dir, and shipped nothing to put in it. GIO resolves
         // `GTlsBackend` by g_module_open out of that dir, so with no module every https request

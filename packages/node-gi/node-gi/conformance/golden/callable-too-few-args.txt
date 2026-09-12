@@ -1,0 +1,8 @@
+get_property/1: TypeError: method GObject.Object.get_property: At least 2 arguments required, but only 1 passed
+get_property/0: TypeError: method GObject.Object.get_property: At least 2 arguments required, but only 0 passed
+set_property/1: TypeError: method GObject.Object.set_property: At least 2 arguments required, but only 1 passed
+method/0 of 1: TypeError: method Gio.File.get_child: At least 1 argument required, but only 0 passed
+function/0 of 1: TypeError: function GLib.path_is_absolute: At least 1 argument required, but only 0 passed
+function/3 of 4: TypeError: function GObject.signal_emitv: At least 4 arguments required, but only 3 passed
+get_property/2: "probe"
+too many: true

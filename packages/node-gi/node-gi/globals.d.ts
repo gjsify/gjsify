@@ -13,7 +13,7 @@ export interface GjsImports {
     };
     /** `imports.system` — the `@gjsify/node-gi/system` module (process identity + lifecycle). */
     system: SystemModule;
-    /** `imports.gettext` — the `@gjsify/node-gi/gettext` module (no-translation passthrough). */
+    /** `imports.gettext` — the `@gjsify/node-gi/gettext` module (real gettext via GLib + libintl). */
     gettext: GettextModule;
     /** `imports.byteArray` — the legacy GJS byte-array module (GJS semantics: zero-terminated, fatal decode). */
     byteArray: {

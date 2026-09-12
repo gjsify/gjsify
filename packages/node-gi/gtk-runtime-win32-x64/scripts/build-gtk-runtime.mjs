@@ -66,6 +66,19 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import {
+    formatTypelibApiProblems,
+    gapUpstreamProblems,
+    typelibApiRecord,
+    verifyTypelibApiFloor,
+} from '../../scripts/typelib-symbols.mjs';
+import { readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
+import {
+    BUNDLED_FONT_FAMILIES,
+    bundledFontLicenseComponent,
+    formatMissingFontSource,
+    stageBundledFonts,
+} from '../../scripts/bundle-fonts.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
@@ -80,6 +93,10 @@ import {
 } from '../../scripts/typelib-backers.mjs';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+// packages/node-gi/gtk-runtime-win32-x64 -> the repository root. Only the font staging
+// needs it: the faces come from a pinned `refs/` submodule rather than from the build
+// prefix, because neither gvsbuild nor Homebrew installs the GNOME UI typeface.
+const repoRoot = dirname(dirname(dirname(pkgRoot)));
 // Repo-relative path recorded in the shipped manifest so a consumer holding only the
 // tarball can find the recipe that produced its bytes — the tarball itself no longer
 // carries this script (the package's `files` no longer lists `scripts`, which would
@@ -462,6 +479,10 @@ const windowing = {
     schemas: false,
     iconThemes: [],
     fontconfig: false,
+    // The FACES, counted apart from `fontconfig` above, which records only that a CONFIG
+    // shipped. The published 0.50.0 bundle had `fontconfig: true` and no font at all.
+    fonts: 0,
+    fontFamilies: [],
     gtksource: false,
 };
 // Every loadable module § 4a/4g/4h PLACES in its own directory, for the rule-3 gate below
@@ -784,6 +805,22 @@ if (WINDOWING) {
         console.log('build-gtk-runtime: no etc/fonts (pango uses the win32/DirectWrite backend) — skipping fontconfig');
     }
 
+    // 4d2. The FACES themselves — the config above locates fonts, it does not supply any.
+    // Measured on the published 0.50.0 bundle on Windows 11: `etc/fonts` present, 82 font
+    // families on the map, Adwaita Sans and Cantarell among none of them, and every request
+    // for one answered by Tahoma with a `couldn't load font … falling back` line and exit 0.
+    // The faces come from the pinned `refs/adwaita-fonts` checkout, since gvsbuild has no
+    // project for them (§ bundle-fonts.mjs). Registration is the loader's + gtk-host's half:
+    // pangowin32's font map ignores fontconfig entirely, so a path alone would change nothing.
+    const fonts = stageBundledFonts({ repoRoot, outDir: OUT });
+    if (fonts.faces.length > 0) {
+        windowing.fonts = fonts.faces.length;
+        windowing.fontFamilies = [...BUNDLED_FONT_FAMILIES];
+        console.log(`build-gtk-runtime: UI fonts bundled — ${fonts.faces.join(', ')}`);
+    } else {
+        console.warn(`build-gtk-runtime: ${formatMissingFontSource(fonts.source)}`);
+    }
+
     // 4e. GtkSourceView's data tree — the WHOLE tree, loaded from
     // XDG_DATA_DIRS/gtksourceview-5 (node-gi prepends <bundle>/share).
     //
@@ -856,6 +893,35 @@ console.log(
     `build-gtk-runtime: typelib symmetry verified — ${symmetry.backed.length} backed typelib(s), every ` +
         `shared_library present in bin/; ${symmetry.headerOnly.length} header-only (no library by design); ` +
         `namespaces ${requiredNamespaces.join(', ')} all present`,
+);
+
+// --- 5a. the ENTRY POINTS a shipped namespace must carry ------------------
+// The hole § 5 cannot see. Symmetry proves `Adw-1.typelib` has its DLL; it says nothing
+// about what is IN the typelib, and gvsbuild's libadwaita patch compiles
+// `adw_about_dialog_new_from_appdata` out on Windows. Measured on the published 0.50.0
+// tarballs: absent here, present in both darwin bundles — so the About dialog of an
+// application built from its own AppStream metainfo does not open on Windows, while every
+// gate in this builder was green. The floor + its declared gaps live in
+// typelib-symbols.mjs, shared with the darwin builder.
+const typelibApi = verifyTypelibApiFloor({ typelibDir: typelibOut, platform: 'win32' });
+// AND the gap's own reason, held against the committed gvsbuild snapshot. A declared gap
+// that upstream has closed is the failure this direction exists for: nothing else in the
+// build would ever notice, because a bundle that GAINED a function looks exactly like one
+// that never needed it.
+const gapProblems = gapUpstreamProblems({ catalogue: readGvsbuildCatalogue() }).problems;
+if (typelibApi.problems.length > 0 || gapProblems.length > 0) {
+    console.error(
+        `build-gtk-runtime: ${formatTypelibApiProblems([...typelibApi.problems, ...gapProblems], {
+            stage: 'verifying the finished bundle',
+            typelibDir: typelibOut,
+        })}`,
+    );
+    process.exit(1);
+}
+console.log(
+    `build-gtk-runtime: typelib API floor verified — ${typelibApi.present.length} entry point(s) present, ` +
+        `${typelibApi.declared.length} covered by a declared upstream gap, ${typelibApi.skipped.length} not ` +
+        'applicable to this bundle',
 );
 
 // --- 5b. the DECLARED windowing data must BE in the finished bundle --------
@@ -985,6 +1051,11 @@ for (const component of upstreamLicenseComponents({
 })) {
     byComponent.set(component.name, component);
 }
+// The faces the bundle carries from `refs/adwaita-fonts`, whose terms come from a pinned
+// submodule rather than from the prefix — added here so the OFL text is written, named in
+// the notice and counted like every other component instead of by a second mechanism.
+const fontLicense = WINDOWING ? bundledFontLicenseComponent({ repoRoot }) : null;
+if (fontLicense) byComponent.set(fontLicense.name, fontLicense);
 const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 writeFileSync(
@@ -1063,6 +1134,11 @@ const manifest = {
         dropped: typelibPlan.dropped.map((t) => ({ namespace: t.key, missing: t.missing })),
         requiredNamespaces,
     },
+    // What the shipped namespaces can be CALLED with — symmetry one level in. A consumer
+    // holding only the tarball can read which floor entry points are here and which are
+    // not, with the upstream fact behind each absence; `verify-bundle-manifest.mjs`
+    // requires the record, so a bundle built before this check existed cannot publish.
+    typelibApi: typelibApiRecord(typelibApi),
     // Windowing-only: a display-free bundle is not expected to rasterise anything,
     // so the absence of GL there is by design and recording it would read as a gap.
     ...(WINDOWING ? { glImplementation } : {}),
@@ -1090,7 +1166,7 @@ console.log(
         `  DLLs:     ${binDlls.size} (${mb(binBytes)} MiB)\n` +
         `  typelibs: ${typelibCount} (${mb(typelibBytes)} MiB)\n` +
         (WINDOWING
-            ? `  data:     loaders=${windowing.pixbufLoaders} schemas=${windowing.schemas} icons=[${windowing.iconThemes.join(',')}] fontconfig=${windowing.fontconfig} (${mb(dataBytes)} MiB)\n`
+            ? `  data:     loaders=${windowing.pixbufLoaders} schemas=${windowing.schemas} icons=[${windowing.iconThemes.join(',')}] fontconfig=${windowing.fontconfig} fonts=${windowing.fonts} (${mb(dataBytes)} MiB)\n`
             : '') +
         `  licenses: ${licensePayload.files.length} text(s) (${mb(licenseBytes)} MiB)\n` +
         `  total:    ${mb(manifest.totalBytes)} MiB`,
