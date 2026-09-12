@@ -392,6 +392,14 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
 /** Everything {@link planUiFontPolicy} takes except what this module supplies itself. */
 export interface ApplyUiFontPolicyOptions extends PlanUiFontOptions {
     readonly policy: UiFontPolicy;
+    /**
+     * The settings object to act on. Defaults to `Gtk.Settings.get_default()`.
+     *
+     * A seam, not a knob: the null arm below is the one a real consumer hit, and on a host with a
+     * display there is no way to reach it through the default — `get_default()` never answers null
+     * once GTK is up. Passing `null` explicitly is how the test for it exists at all.
+     */
+    readonly settings?: Gtk.Settings | null;
 }
 
 // THE BASELINE: `gtk-font-name` as this process first saw it.
@@ -446,16 +454,26 @@ export function uiFontBaseline(): string | undefined {
  * captured before the first write, which is why switching `adwaita` → `system` at runtime
  * returns the host's own `Segoe UI 9` rather than an approximation of it.
  *
- * `Gtk.Settings.get_default()` answers null before `Gtk.init()`, and that is a legitimate state
- * rather than an error: a program may register its faces before it initialises the toolkit. It
- * reports `unparsed` — the arm that already means "nothing to act on, so nothing changed" —
- * instead of throwing a caller out of a font call over a setting.
+ * `Gtk.Settings.get_default()` answers null before `Gtk.init()`. That is not an error to throw
+ * over — a program may register its faces before it initialises the toolkit — but it is NOT the
+ * same answer as "the policy ran and had nothing to do", and reporting it as `unparsed` said it
+ * was. A consumer that called this at module scope got a plan indistinguishable from a host that
+ * needed no correction, so its setting silently did nothing: measured in Learn6502 0.8.0, where
+ * `ui-font: policy=size -> unparsed (unchanged)` was printed on macOS and on Windows — the one
+ * platform whose 16 px against GNOME's 19 is the reason the policy exists. It now reports
+ * `uninitialised` and says so once, because a caller that is too early can only find out from
+ * here.
  */
 export function applyUiFontPolicy(request: UiFontPolicy | ApplyUiFontPolicyOptions): UiFontPlan {
     const options: ApplyUiFontPolicyOptions = typeof request === 'string' ? { policy: request } : request;
-    const settings = Gtk.Settings.get_default();
+    const settings = options.settings === undefined ? Gtk.Settings.get_default() : options.settings;
     if (settings === null) {
-        return { next: undefined, kind: 'unparsed', family: undefined, size: undefined };
+        console.warn(
+            'applyUiFontPolicy: no Gtk.Settings — the toolkit is not initialised yet, so the ' +
+                "policy was NOT applied. Call this after Gtk.init() (or from an application's " +
+                '`startup`), which is still before any window is built.',
+        );
+        return { next: undefined, kind: 'uninitialised', family: undefined, size: undefined };
     }
     // BEFORE the read of `current`, so the very first call through this function still records
     // the host's own value even when it is about to overwrite it.
