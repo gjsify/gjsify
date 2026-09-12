@@ -80,7 +80,7 @@ export type UiFontPolicy = 'system' | 'size' | 'adwaita';
 export const UI_FONT_POLICIES: readonly UiFontPolicy[] = ['system', 'size', 'adwaita'];
 
 /** The reasons a plan gives. See {@link UiFontPlan.kind}. */
-export type UiFontPlanKind = 'raised' | 'family' | 'restored' | 'kept' | 'unparsed';
+export type UiFontPlanKind = 'raised' | 'family' | 'restored' | 'kept' | 'unparsed' | 'uninitialised';
 
 /** What {@link planUiFont} or {@link planUiFontPolicy} decided, and why. */
 export interface UiFontPlan {
@@ -91,7 +91,17 @@ export interface UiFontPlan {
      * `family` — a family override was asked for and applied;
      * `restored` — the host's ORIGINAL value is being put back (the `system` policy);
      * `kept` — nothing to do: the setting already says what the policy wants;
-     * `unparsed` — the current value carries no point size this can reason about.
+     * `unparsed` — the current value carries no point size this can reason about;
+     * `uninitialised` — there was no `Gtk.Settings` to act on, so the policy did NOT run.
+     *
+     * THE LAST TWO ARE NOT THE SAME ANSWER and used to be reported as one. Both leave
+     * `gtk-font-name` alone, which is why collapsing them looked harmless — but `unparsed` means
+     * the policy ran and correctly declined, while `uninitialised` means it never ran at all. A
+     * consumer that calls this before `Gtk.init()` gets a plan that reads exactly like a host
+     * that needed nothing, so the setting it built is dead and its own log line says so in words
+     * that look fine. Learn6502 shipped that: `ui-font: policy=size -> unparsed (unchanged)` on
+     * macOS AND Windows, from a call at module scope, with the size correction never applied on
+     * the one platform it exists for.
      */
     readonly kind: UiFontPlanKind;
     /** The family in effect after the plan, for reporting. */

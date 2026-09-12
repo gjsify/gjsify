@@ -26,6 +26,7 @@ import {
     type InitFontsResult,
     isUnsupportedByFontMap,
     matchFontFamily,
+    planUiFontPolicy,
     uiFontBaseline,
 } from './fonts.js';
 import { ADWAITA_UI_FONT_FAMILY, GNOME_UI_FONT_POINT_SIZE, UI_FONT_POLICIES } from './ui-font.js';
@@ -700,6 +701,35 @@ export default async () => {
                 expect(back.kind).toBe('restored');
                 expect(back.next).toBe(baseline);
                 expect(settings.gtk_font_name).toBe(baseline);
+            });
+
+            await it('says it never ran when there is no Gtk.Settings to act on', async () => {
+                // THE ARM A CONSUMER ACTUALLY HIT, and the reason it is now its own `kind`.
+                // `Gtk.Settings.get_default()` answers null before `Gtk.init()`, so an
+                // application that applies its stored policy at module scope — which reads like
+                // the right place, because the baseline must be captured before anything writes —
+                // gets a plan back that is indistinguishable from "this host needed nothing".
+                // Learn6502 0.8.0 shipped exactly that and printed `-> unparsed (unchanged)` on
+                // Windows, the platform the policy exists for.
+                //
+                // Reached through the `settings` seam because on a host with a display there is
+                // no other way in: once GTK is up, `get_default()` never answers null again.
+                const plan = applyUiFontPolicy({ policy: 'size', settings: null });
+                expect(plan.kind).toBe('uninitialised');
+                expect(plan.next).toBeUndefined();
+
+                // And it is DISTINCT from the arm it used to be reported as. An unreadable font
+                // name is the policy running and correctly declining; this is the policy not
+                // running. Asserting both keeps a future "simplification" from merging them back.
+                expect(planUiFontPolicy({ policy: 'size', current: 'Segoe UI' }).kind).toBe('unparsed');
+
+                // The real settings object is untouched — the null arm writes nothing anywhere.
+                const live = Gtk.Settings.get_default();
+                if (live !== null) {
+                    const before = live.gtk_font_name;
+                    applyUiFontPolicy({ policy: 'adwaita', settings: null });
+                    expect(live.gtk_font_name).toBe(before);
+                }
             });
 
             await it('re-applying a state writes nothing the second time', async () => {
