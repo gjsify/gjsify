@@ -236,11 +236,19 @@ export default async () => {
             expect(dialog.version).toBe('2.1.0');
         });
 
-        // THE POINT OF THE PRECEDING TEST IS THAT THE PROCESS IS STILL ALIVE. libadwaita
-        // reports a resource it cannot read with `g_error()`, which ABORTS — a mistyped
-        // resource path would kill the application the moment the user opens About, with no
-        // exception for any `catch` to see. `createAboutDialog` asks `Gio.resources_get_info`
-        // first, so an unregistered resource becomes a dialog built from the other source.
+        // THE POINT OF THE PRECEDING TEST IS THAT THE PROCESS IS STILL ALIVE, and this one
+        // says so on its own. libadwaita reports a resource it cannot read with `g_error()`,
+        // which ABORTS — a mistyped resource path would kill the application the moment the
+        // user opens About, with no exception for any `catch` to see. `createAboutDialog`
+        // asks `Gio.resources_get_info` first, so an unregistered resource becomes a dialog
+        // built from whatever else answered.
+        //
+        // MEASURED by deleting that guard: this suite died at the previous test with
+        // `Adwaita-ERROR **: Could not parse metadata file: The resource at
+        // "/org/example/Nowhere/metainfo.xml" does not exist`, `gjs exited with signal
+        // SIGTERM`, 11 of 22 tests reported and the remaining 11 never run. So the arm here
+        // does not go RED when the guard goes — it takes the whole run with it, which is the
+        // shape every `g_error()` regression has.
         await it('survives a resource path that does not resolve', () => {
             const dialog = createAboutDialog({ appdataResource: '/nonexistent/metainfo.xml' });
             expect(dialog).toBeInstanceOf(Adw.AboutDialog);

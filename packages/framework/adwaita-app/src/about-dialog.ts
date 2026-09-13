@@ -170,9 +170,13 @@ export function applyAppdataFields(
     if (fields.supportUrl !== null) dialog.supportUrl = fields.supportUrl;
     if (fields.issueUrl !== null) dialog.issueUrl = fields.issueUrl;
     if (fields.license !== null) dialog.licenseType = licenseTypeFor(fields.license);
-    // BEFORE the notes: the "What's new" page takes its heading from this property and falls
-    // back to `version` only when it is empty, and libadwaita renders the heading when the
-    // notes are set. Upstream gets the order for free — both are construct properties.
+    // Set at all, because the "What's new" page takes its heading from this property and
+    // falls back to `version` only when it is empty — upstream passes it as a construct
+    // property and the heading would otherwise read the wrong version for a prerelease.
+    // ORDER against `release-notes` does NOT matter: `adw_about_dialog_set_release_notes`
+    // and `..._set_release_notes_version` both call `update_release_notes`. Measured, after
+    // a red-arm swap of the two lines left the suite green and an earlier comment here
+    // claimed an ordering constraint that does not exist.
     if (releaseNotesVersion !== undefined && releaseNotesVersion !== '') {
         dialog.releaseNotesVersion = releaseNotesVersion;
     }
