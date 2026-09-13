@@ -345,12 +345,10 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         assert.equal(existsSync(join(stubDir, 'GH_CALLS')), false, 'gh should not be called');
     });
 
-    // THE HALF OF A BUMP THAT IS NOT THE PIN. A Flathub build runs with the
-    // network unshared, so an app whose install reads a generated tarball list
-    // needs that list in the Flathub repo and named in the manifest. The list
-    // changes whenever a dependency does, which means a release can need a PR
-    // with the tag unmoved — the case an "is the pin current?" test answers
-    // "nothing to do" for, over a Flathub repo carrying a stale list.
+    // THE HALF OF A BUMP THAT IS NOT THE PIN. The tarball list changes whenever
+    // a dependency does, so a release can need a PR with the tag unmoved — the
+    // case an "is the pin current?" test answers "nothing to do" for, over a
+    // Flathub repo carrying a stale list.
     it('opens a PR for a changed source list even when the pin is current', () => {
         const projectDir = join(tmpDir, 'srcs');
         scaffoldProject(projectDir, { appId: 'org.example.SyncSrcs' });

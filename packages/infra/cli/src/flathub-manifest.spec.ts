@@ -1,26 +1,15 @@
 // Coverage for `editManifest` — the surgical edit `gjsify flatpak sync-flathub`
-// makes to a Flathub tracking-repo's manifest after a release.
+// makes to a Flathub tracking-repo's manifest after a release. Why naming the
+// offline source list is half of that edit, and the Learn6502 0.8.0 build it
+// was paid for with, are stated once beside the code that does it.
 //
-// THE CASE THIS FILE EXISTS FOR: a Flathub build runs with the network
-// unshared. An app whose install reads a generated offline tarball list cannot
-// build from the git checkout alone, so that list has to live in the Flathub
-// repo AND be named in the module's sources. Repointing tag and commit is only
-// half the bump, and the missing half is invisible: the manifest parses, the
-// linters pass, and the build dies far away in whatever the app's build system
-// says when its dependency install fails. Measured on Learn6502 0.8.0, the
-// first release after its vendored dependency cache was dropped.
-//
-// The second thing asserted here is the SHAPE of `sources`. A flatpak source
-// list holds objects and bare strings, the string naming a file beside the
-// manifest, and the surrounding code used to type it as objects alone.
-//
-// Worth being exact about what that buys, because a mutation test says so: in
-// JS the old code SURVIVED a string, since `"file.json".type` is `undefined`
-// and the search skipped it either way. Restoring the unguarded predicate keeps
-// every test here green. The type fix is therefore about the next reader, who
-// would write `source.url.startsWith(...)` and get a compile error instead of a
-// crash. What these tests do hold is the search itself: replacing it with
-// "index 0 is the git source" turns one of them red.
+// Worth being exact about what the `sources` TYPE buys, because a mutation test
+// says so: in JS the old code SURVIVED a string, since `"file.json".type` is
+// `undefined` and the search skipped it either way. Restoring the unguarded
+// predicate keeps every test here green. The type fix is therefore about the
+// next reader, who would write `source.url.startsWith(...)` and get a compile
+// error instead of a crash. What these tests do hold is the search itself:
+// replacing it with "index 0 is the git source" turns one of them red.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { editManifest } from './commands/flatpak/sync-flathub.js';
