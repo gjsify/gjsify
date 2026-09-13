@@ -64,7 +64,8 @@ promise-job queue under `run()`).
 
 - `runAdwaitaApp(options): Promise<number>` — construct + run, resolve with the
   exit code. `AdwaitaAppOptions`: `applicationId`, `createWindow`, optional
-  `flags`, `css`, `about` (`AboutInfo`), `quitAction` (default on, `<primary>q`),
+  `flags`, `css`, `about` (`AboutInfo`) or `aboutAppdata`
+  (`CreateAboutDialogOptions`, see below), `quitAction` (default on, `<primary>q`),
   `devtools` (`true` | `InstallDevtoolsOptions` | omitted = env-gated),
   `bundledIcons` (default on — see below), `onStartup`.
 - `AdwaitaApp` — the configured `Adw.Application` subclass, if you need the
@@ -127,6 +128,88 @@ has nothing behind it but GTK's own builtins. Register your own with
 > `Adw.ButtonRow`, `Adw.SplitButton`, `Adw.Toggle`, … have none), which is why
 > the guarantee is built on the icon THEME rather than on handing widgets an
 > imported SVG: for most of them there is no property to hand it to.
+
+### About dialog from AppStream metainfo
+
+`Adw.AboutDialog.new_from_appdata()` builds the whole dialog out of the metainfo
+file an application already ships — name, developer, licence, urls, version,
+release notes, translated. **It does not exist in the Windows GTK runtime.**
+gvsbuild applies `patches/libadwaita/0001-remove-appstream-dependency.patch`,
+which wraps every `*_from_appdata` entry point in `#ifndef G_OS_WIN32`, because
+libadwaita 1.9.x parses AppStream through the heavyweight `appstream` library
+and gvsbuild defines no project for it. Homebrew's formula `depends_on
+"appstream"`, so **both darwin bundles have it and win32-x64 does not** —
+measured symbol by symbol out of each published bundle's own `Adw-1.typelib`
+([gjsify/gjsify#1662](https://github.com/gjsify/gjsify/issues/1662)). On Windows
+11 the ordinary call site reads `no static method 'new_from_appdata'` and the
+About dialog does not open at all.
+
+`createAboutDialog` is the drop-in that works on all three:
+
+```ts
+import { createAboutDialog } from '@gjsify/adwaita-app';
+
+createAboutDialog({
+    appdataResource: '/org/example/App/metainfo/org.example.App.metainfo.xml',
+    releaseNotesVersion: PACKAGE_VERSION,
+    version: PACKAGE_VERSION,
+}).present(window);
+```
+
+Or let the shell wire the `app.about` action to it:
+
+```ts
+runAdwaitaApp({
+    applicationId: 'org.example.App',
+    createWindow,
+    aboutAppdata: { appdataResource: '/org/example/App/metainfo/org.example.App.metainfo.xml' },
+});
+```
+
+Where the constructor exists it is used, unchanged. Where it does not, the same
+dialog is assembled from the same document by `parseAppdata` — which **ports
+`ministream`'s selection rules rule for rule** (the small parser libadwaita 1.10
+replaced the `appstream` dependency with): BCP-47 segment scoring for
+translations, the `+1024` shift that ranks `<developer><name>` over the legacy
+`<developer_name>`, the `.desktop` id rule, per-language release-note buffers.
+Picking fields by our own taste would show a *different* About dialog on Windows
+than on the two platforms that run the real constructor, which is the whole
+failure this closes.
+
+It sets exactly what upstream's `populate_from_appdata` sets and nothing else —
+application icon (from `<id>`), application name, developer name, version,
+website, support url, issue url, licence **type**, and the release notes of one
+named release. No `comments`, no `copyright`, no `translator-credits`, no
+`developers`: AppStream's `<summary>` is not `Adw.AboutDialog:comments` and
+upstream never treats it as one. Set those on the returned dialog yourself.
+
+Three things it does that upstream does not, each for a measured reason:
+
+| | why |
+|---|---|
+| checks the resource with `Gio.resources_get_info` **before** calling the constructor | libadwaita reports an unreadable resource with `g_error()`, which **aborts the process** — a mistyped resource path would kill the app the moment the user opens About, with no exception for any `catch` to see |
+| accepts `appdataPath`, a plain file | a `gjsify ship` artifact may carry the metainfo beside the bundle rather than inside a GResource; upstream's constructor cannot read that at all, so such an app would have no About dialog on *any* platform |
+| `forceParsedAppdata: true` | the parsed path is what every Windows user sees and what no Linux or macOS run would otherwise execute — this is how you look at it before shipping, and how the suite covers it |
+
+**Two divergences, both named.** Releases are read in document order rather than
+sorted by ministream's dpkg-style version comparison (AppStream requires
+newest-first, and `appstreamcli validate` reports `releases-not-in-order`
+otherwise) — pass `version` to remove the question on every platform at once. And
+an SPDX id GTK does not know becomes `Gtk.License.CUSTOM` with **no** licence
+text, exactly as upstream leaves it; filling the text with the raw id would be
+more helpful and would show a licence line on Windows that Linux does not.
+
+- `createAboutDialog(options?): Adw.AboutDialog` — `appdataResource`,
+  `appdataPath`, `releaseNotesVersion`, `version`, `applicationIcon`,
+  `forceParsedAppdata`.
+- `buildAboutDialogFromAppdata(xml, { releaseNotesVersion?, locale? }): Adw.AboutDialog`
+  — the parsed path on its own, given the document.
+- `applyAppdataFields(dialog, fields, releaseNotesVersion?)` — for an app that
+  already has a dialog.
+- `parseAppdata(xml, { locale?, releaseNotesVersion? }): AppdataFields` and
+  `appdataLocale(GLib.get_language_names(), { LANG })` — the reading half, with
+  **no GI imports**, so it runs (and is tested) under Node as well as GJS.
+- `licenseTypeFor(spdxId): Gtk.License`, `hasAppdataConstructor(namespace?): boolean`.
 
 ### Navigation shell
 
