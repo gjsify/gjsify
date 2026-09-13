@@ -88,6 +88,33 @@ export default async () => {
             expect((sources[0] as { tag: string }).tag).toBe('v1.2.0');
         });
 
+        await it('takes ./<list> for the list it already names', async () => {
+            // flatpak-builder resolves a bare-string source against the
+            // manifest's own directory, so the two spellings are one file. Told
+            // apart, the manifest grows a second reference and the same
+            // tarballs are spliced in twice.
+            const dotted =
+                JSON.stringify(
+                    {
+                        modules: [
+                            {
+                                name: 'App',
+                                sources: [
+                                    { type: 'git', url: 'u', tag: 'v1.0.0', commit: 'aaa' },
+                                    './gjsify-sources.json',
+                                ],
+                            },
+                        ],
+                    },
+                    null,
+                    4,
+                ) + '\n';
+            const out = editManifest(dotted, { tag: 'v2.0.0', commit: 'ddd', sourcesFile: 'gjsify-sources.json' });
+            const named = sourcesOf(out).filter((s) => typeof s === 'string');
+            expect(named.length).toBe(1);
+            expect(named[0]).toBe('./gjsify-sources.json');
+        });
+
         await it('finds the git source when a string comes first', async () => {
             // Order is the manifest author's choice, so the walk cannot assume
             // index 0 is an object.

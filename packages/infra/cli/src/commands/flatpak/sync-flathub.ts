@@ -495,9 +495,8 @@ export function editManifest(
     //
     // Measured: Learn6502 0.8.0 was the first release after its vendored
     // dependency cache was dropped, and its Flathub build died on exactly this.
-    if (args.sourcesFile && !sources.includes(args.sourcesFile)) {
+    if (args.sourcesFile && !namesFile(sources, args.sourcesFile)) {
         sources.push(args.sourcesFile);
-        mainModule.sources = sources;
     }
 
     // Detect the original indent (2 vs 4 spaces) by inspecting the second
@@ -505,6 +504,25 @@ export function editManifest(
     // older ones might be 4. Preserve original convention.
     const indent = detectIndent(original);
     return JSON.stringify(manifest, null, indent) + (original.endsWith('\n') ? '\n' : '');
+}
+
+/**
+ * Is `file` already among the module's bare-string sources?
+ *
+ * Compared with `./` stripped, because flatpak-builder resolves a string source
+ * against the manifest's own directory: `./gjsify-sources.json` and
+ * `gjsify-sources.json` are one file. Compared as written, a manifest holding
+ * the dotted spelling grows a second reference and the same tarballs are
+ * spliced in twice — the duplicate `dest`/`dest-filename` pairs `gjsify flatpak
+ * sources` dedupes its own output to avoid.
+ */
+function namesFile(sources: (FlathubManifestSource | string)[], file: string): boolean {
+    const want = stripDotSlash(file);
+    return sources.some((entry) => typeof entry === 'string' && stripDotSlash(entry) === want);
+}
+
+function stripDotSlash(ref: string): string {
+    return ref.replace(/^\.\//, '');
 }
 
 function detectIndent(json: string): number {
