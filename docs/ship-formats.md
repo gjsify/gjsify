@@ -758,6 +758,39 @@ the packaging host — measured: `fc-query` reads one fine on Fedora 44 — and 
 inside `@gjsify/gtk-runtime-<target>`. A face that fails to open is not an error; it is Pango
 substituting a different typeface at exit 0, which is the whole class this key exists against.
 
+### The icon: one source, one raster step, a writer per OS (ADR 0024 § A26)
+
+A GNOME app declares ONE icon, a scalable SVG under `hicolor/scalable/apps/`, and neither Windows
+nor macOS reads an SVG. Until § A26 the Windows launcher had no resource directory and the `.app`
+had no `.icns` and no `CFBundleIconFile`, so both platforms shipped with the generic icon and
+nothing said so — measured on the released 0.8.0 of one app. Now `gjsify ship` converts:
+
+| layout | `Layout.icon.sizes` | writer | where it lands | readers in CI | readers elsewhere |
+|---|---|---|---|---|---|
+| `linux` | none | none — the theme carries the SVG, GTK renders it | `share/icons/hicolor/…` | — | — |
+| `windows` | 16/24/32/48/64/256 | `ico.ts` → `pe-launcher.ts` (`.rsrc`), `msi.ts` (Icon table = the launcher) | inside `<binaryName>.exe` | CPython `struct` walk + `objdump -p` | `wrestool`, `icotool`, Pillow, ImageMagick |
+| `darwin` | 16/32/64/128/256/512/1024 | `icns.ts` → `plist.ts` (`CFBundleIconFile`) | `Contents/Resources/<binaryName>.icns` | CPython `struct` walk (ONE family) | Pillow (all ten elements), `icns2png` (three of ten — not relied on), `iconutil` on a Mac (authority) |
+
+`utils/ship/icons.ts` is the seam. `resolveAppIcon` uses a project's own sized PNG at its size
+(its IHDR decides, not its path) and renders every other size from the SVG through librsvg in a
+child GJS — `gjs -c` with a script that is a string constant, `Rsvg.Handle` onto a cairo surface.
+NOT gdk-pixbuf, whose SVG support is a loader module the CI image does not carry; NOT
+`rsvg-convert` or ImageMagick, which are in neither the image nor on the workstation; a child
+rather than an in-process `gi://` import because the CLI runs under Node in the leg that assembles
+the Windows artifact. Byte-identical output on the workstation and in the CI image (librsvg
+2.62.3 on both).
+
+**Absence is a refusal, on both rows.** An `app` with no icon source, or with PNGs that leave a
+declared size uncovered and no SVG to render it from, fails the STAGE naming the file to add. The
+row itself checks again (`iconFor` in `layout.ts`), so no caller can stage an iconless
+application quietly. A `kind: 'cli'` project is owed no icon and gets none — no `.rsrc`, no
+`.icns`, no key.
+
+Every arm is watched red from `tests/e2e/ship-windows`, `ship-macos` and `ship-msi`: an emptied
+resource data directory, a corrupted `RT_ICON`, a group entry whose size lies, a deleted `.icns`,
+a stripped `CFBundleIconFile`, a corrupted `ic07`, an emptied Icon table, a blanked `Icon_`, a
+removed `ARPPRODUCTICON`.
+
 ### The label is checked against the payload at STAGE time
 
 `assertPayloadMatchesArch` has always guarded the artifact, inside `packOne`. Darwin and windows
