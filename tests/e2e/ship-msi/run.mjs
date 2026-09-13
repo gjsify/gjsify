@@ -97,16 +97,27 @@ function oracleExpectingFailure(args, opts) {
  * suite's first run found in `verify-msi.sh`. Three header lines come first: the
  * column names, the column types, and a `<table>\t<key columns>` line.
  */
+/**
+ * Where `msiinfo export` runs, and it is not the suite's cwd for a measured
+ * reason: exporting a table with a BINARY column (`Icon`) writes that column's
+ * data to `<Table>/<name>` in the current directory — the IDT format's own
+ * convention — so `table(msi, 'Icon')` run from the repository root left an
+ * `Icon/Icon.i_ship_demo.exe_….exe` there. `verify-msi.sh` runs its exports from
+ * a scratch directory for the same reason.
+ */
+const EXPORT_SCRATCH = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ship-msi-export-'));
+process.on('exit', () => rmSync(EXPORT_SCRATCH, { recursive: true, force: true }));
+
 /** The column names of one table — the first IDT header line. */
 function columns(msi, name) {
-    return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8' })
+    return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8', cwd: EXPORT_SCRATCH })
         .replace(/\r/g, '')
         .split('\n')[0]
         .split('\t');
 }
 
 function table(msi, name) {
-    return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8' })
+    return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8', cwd: EXPORT_SCRATCH })
         .replace(/\r/g, '')
         .split('\n')
         .slice(3)

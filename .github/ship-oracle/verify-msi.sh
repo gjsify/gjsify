@@ -114,9 +114,23 @@ require msiinfo msiextract find sort cmp awk tr
 # unexplained; what is settled is that the artifact was not at fault, and a
 # diagnostic pointing at the file for a fault in the reader is the direction the
 # header of this file calls the worst one.
+# ONE scratch directory for everything this script writes: the IDT exports,
+# the extracted icon stream, the cabinet round trip. `msiinfo export` of a table
+# with a BINARY column — `Icon`, `Binary` — writes that column's data to
+# `<Table>/<name>` in the current directory, because that is what the IDT format
+# is (the cell holds a file name, the file sits beside the table). Measured:
+# `msiinfo export x.msi Icon` in an empty directory leaves
+# `Icon/Icon.i_ship_demo.exe_….exe` behind; `Shortcut`, `Property` and an empty
+# `Binary` leave nothing. Run from the caller's directory, that is a 15 KiB
+# launcher dropped into whatever the caller was standing in — the repository
+# root, for the e2e suite. So every export runs from here, and here is removed.
+SCRATCH=$(mktemp -d)
+trap 'rm -rf "$SCRATCH"' EXIT
+mkdir -p "$SCRATCH/export"
+
 idt() {
     local out
-    if ! out=$(msiinfo export "$MSI" "$1" | tr -d '\r'); then
+    if ! out=$(cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r'); then
         fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
     fi
     local lines
@@ -286,15 +300,15 @@ LAUNCHER_NAME=$(awk -F'\t' -v c="$SHORTCUT_COMPONENT" 'NR > 3 && $2 == c { print
 LAUNCHER_NAME=${LAUNCHER_NAME##*|}
 [ -n "$LAUNCHER_NAME" ] || fail "the shortcut's component \"$SHORTCUT_COMPONENT\" has no File row to name the launcher by"
 [ -f "$DIR/$LAUNCHER_NAME" ] || fail "the shortcut targets $LAUNCHER_NAME, which is not at the root of the program directory"
-ICON_STREAM=$(mktemp)
-trap 'rm -f "$ICON_STREAM"' EXIT
+ICON_STREAM=$SCRATCH/icon-stream.bin
+# `msiinfo extract` writes the stream to STDOUT and nothing to disk — measured,
+# unlike `export` above — so the redirect is the whole transfer.
 msiinfo extract "$MSI" "Icon.$ICON_ID" >"$ICON_STREAM" ||
     fail "msiinfo extract found no stream Icon.$ICON_ID — the Icon row names a binary the database does not carry"
 [ -s "$ICON_STREAM" ] || fail "the stream Icon.$ICON_ID is empty"
 cmp -s "$ICON_STREAM" "$DIR/$LAUNCHER_NAME" ||
     fail "the Icon table's binary differs from $LAUNCHER_NAME in the program directory — the shortcut would show one icon and the running app another"
 ICON_BYTES=$(wc -c <"$ICON_STREAM")
-rm -f "$ICON_STREAM"
 
 # ── 6. THE ENTRY A USER REMOVES IT BY ────────────────────────────────────────
 # Add/Remove Programs is generated from these four properties. A missing one is an
@@ -309,8 +323,8 @@ printf '%s\n' "$PROPERTIES" | awk -F'\t' '$1 == "ProductName" || $1 == "ProductV
 # payload out of the embedded cab and compares it with the directory the
 # installer was built from, which is the only assertion here that would catch a
 # correct table over the wrong bytes.
-OUT=$(mktemp -d)
-trap 'rm -rf "$OUT" "$ICON_STREAM"' EXIT
+OUT=$SCRATCH/out
+mkdir -p "$OUT"
 (cd "$OUT" && msiextract "$MSI" >/dev/null)
 # `msiextract` EXITS 0 HAVING EXTRACTED NOTHING when it cannot open the database.
 # Measured: `msiextract does-not-exist.msi` prints `WARNING: open file failed`,
