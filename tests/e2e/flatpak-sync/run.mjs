@@ -430,6 +430,94 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
             /pr create --repo flathub\/org\.example\.SyncSrcs/,
         );
     });
+
+    // A FAILED `git show` IS NOT PROOF THE TAG LACKS THE FILE. Measured: path
+    // absent, unknown tag and not-a-git-repository are all exit 128, and the
+    // message is translated, so neither the status nor the text separates them.
+    // Read as absence, a tag nobody fetched moves the pin and leaves the old
+    // list in the Flathub repo — this command's own bug, silent. `--commit`
+    // is what puts it in reach: it is the one path that resolves the tag for
+    // nothing else.
+    it('refuses a tag it cannot resolve rather than skipping the list', () => {
+        const projectDir = join(tmpDir, 'badtag');
+        scaffoldProject(projectDir, { appId: 'org.example.SyncBadTag' });
+
+        const fixtureDir = join(tmpDir, 'fixture-badtag');
+        mkdirSync(fixtureDir, { recursive: true });
+        writeFileSync(
+            join(fixtureDir, 'org.example.SyncBadTag.json'),
+            JSON.stringify(
+                {
+                    id: 'org.example.SyncBadTag',
+                    modules: [
+                        {
+                            name: 'syncbadtag',
+                            sources: [
+                                {
+                                    type: 'git',
+                                    url: 'https://github.com/example/syncbadtag.git',
+                                    tag: 'v1.0.0',
+                                    commit: 'feedfacefeedfacefeedfacefeedfacefeedface',
+                                },
+                                'gjsify-sources.json',
+                            ],
+                        },
+                    ],
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        writeFileSync(
+            join(fixtureDir, 'gjsify-sources.json'),
+            JSON.stringify([{ type: 'file', url: 'https://registry.invalid/old.tgz', sha512: 'aa' }], null, 2) + '\n',
+            'utf-8',
+        );
+
+        const stubDir = join(tmpDir, 'stub-badtag');
+        mkdirSync(stubDir, { recursive: true });
+        // No `show` answer — exit 128, exactly as for a path the tag lacks —
+        // and a `rev-parse` that cannot name the tag either.
+        writeGitStub(stubDir, fixtureDir, { tagResolves: false });
+        writeShim(stubDir, 'gh', 'GH_CALLS');
+
+        const xdgCache = join(tmpDir, 'xdg-badtag');
+        mkdirSync(xdgCache, { recursive: true });
+
+        let threw = false;
+        try {
+            runCliSync(
+                CLI_ENTRY,
+                [
+                    'flatpak',
+                    'sync-flathub',
+                    '--version',
+                    'v2.0.0',
+                    '--commit',
+                    'feedfacefeedfacefeedfacefeedfacefeedface',
+                ],
+                {
+                    cwd: projectDir,
+                    env: {
+                        ...process.env,
+                        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+                        XDG_CACHE_HOME: xdgCache,
+                    },
+                },
+            );
+        } catch (err) {
+            threw = true;
+            assert.match(`${err.stderr ?? ''}${err.stdout ?? ''}`, /v2\.0\.0 does not resolve/);
+            assert.match(`${err.stderr ?? ''}${err.stdout ?? ''}`, /git fetch --tags/);
+        }
+        assert.ok(threw, 'expected a non-zero exit on a tag that does not resolve');
+
+        const clone = join(xdgCache, 'gjsify/flathub-sync/flathub__org.example.SyncBadTag');
+        // The old list is still the old list, and no PR carries it anywhere.
+        assert.match(readFileSync(join(clone, 'gjsify-sources.json'), 'utf-8'), /old\.tgz/);
+        assert.equal(existsSync(join(stubDir, 'GH_CALLS')), false, 'gh must not be called');
+    });
 });
 
 // ── helpers ─────────────────────────────────────────────────────────────
@@ -473,6 +561,12 @@ function writeGitStub(binDir, fixtureDir, answers = {}) {
     // then believes the file exists and is empty.
     const showFile = join(binDir, 'GIT_SHOW_OUT');
     if (answers.show !== undefined) writeFileSync(showFile, answers.show, 'utf-8');
+    // `rev-parse` needs an arm of its own for the same reason `show` does: the
+    // catch-all answers exit 0 with NOTHING, which a caller reading the status
+    // takes for a tag that exists. The default is a repo whose tag is there,
+    // which is what every case but the bad-tag one means by a failed `show`.
+    const revParse =
+        answers.tagResolves === false ? '    exit 1 ;;' : '    echo "feedfacefeedfacefeedfacefeedfacefeedface" ;;';
     const script =
         [
             '#!/bin/sh',
@@ -481,6 +575,8 @@ function writeGitStub(binDir, fixtureDir, answers = {}) {
             '  show)',
             `    if [ -f ${shellQuote(showFile)} ]; then cat ${shellQuote(showFile)}; exit 0; fi`,
             '    exit 128 ;;',
+            '  rev-parse)',
+            revParse,
             '  clone)',
             '    dir="$3"',
             '    mkdir -p "$dir/.git"',

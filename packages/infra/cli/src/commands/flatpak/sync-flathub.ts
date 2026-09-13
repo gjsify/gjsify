@@ -259,7 +259,8 @@ async function readSourceListAtTag(cwd: string, tag: string, path: string, verbo
     try {
         const { stdout } = await execFileAsync('git', ['show', `${tag}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 });
         raw = stdout;
-    } catch {
+    } catch (error) {
+        await assertGitMeantAbsent(cwd, tag, path, error);
         if (verbose) console.log(`[gjsify flatpak sync-flathub] ${path} not present at ${tag} — skipping`);
         return null;
     }
@@ -280,6 +281,44 @@ async function readSourceListAtTag(cwd: string, tag: string, path: string, verbo
         throw new Error(`[gjsify flatpak sync-flathub] ${path} at ${tag} is not a non-empty array of flatpak sources`);
     }
     return raw;
+}
+
+/**
+ * Throw unless a failed `git show <tag>:<path>` really did mean "that tag does
+ * not carry that file".
+ *
+ * MEASURED, and it is why the failure cannot be read on its own: path absent,
+ * unknown tag and not-a-git-repository are ALL exit 128, and git translates the
+ * message (`Pfad … existiert nicht in …` on a German host), so neither the
+ * status nor the text separates them. Taken for absence, a tag nobody fetched
+ * moves the pin and leaves the Flathub repo's old list in place — the failure
+ * this file exists to prevent, now silent. `--commit <sha>` is what puts it in
+ * reach: it is the one path on which nothing else resolves the tag.
+ *
+ * The tag is therefore asked about separately, and a SHA is believed rather
+ * than an exit code — the same lesson as the read above, since a `git` that
+ * answers 0 with nothing must not pass for a tag that exists.
+ */
+async function assertGitMeantAbsent(cwd: string, tag: string, path: string, error: unknown): Promise<void> {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (typeof code !== 'number') {
+        // Not git's verdict at all: ENOENT is no `git` on PATH, and
+        // ERR_CHILD_PROCESS_STDIO_MAXBUFFER a list past the cap set above.
+        throw new Error(
+            `[gjsify flatpak sync-flathub] could not run \`git show ${tag}:${path}\` — ` +
+                (error instanceof Error ? error.message : String(error)),
+        );
+    }
+    // `--quiet` exits 1 rather than printing for a name it cannot resolve.
+    const sha = await execFileAsync('git', ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`], { cwd })
+        .then(({ stdout }) => stdout.trim())
+        .catch(() => '');
+    if (!sha) {
+        throw new Error(
+            `[gjsify flatpak sync-flathub] ${tag} does not resolve in ${cwd}, so whether it carries ${path} is unanswered. ` +
+                'Run `git fetch --tags`, pass --version <an existing tag>, or run from the app checkout.',
+        );
+    }
 }
 
 async function resolveLatestTag(cwd: string, verbose?: boolean): Promise<string | null> {
