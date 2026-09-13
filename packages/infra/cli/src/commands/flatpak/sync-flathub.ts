@@ -187,7 +187,7 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
         // nobody can get. Absent is the ordinary case for an app that installs
         // online or vendors its dependencies, so it is a skip and not an error.
         const sourcesFile = args.sourcesFile ?? 'gjsify-sources.json';
-        const offline = await readFileAtTag(process.cwd(), version, sourcesFile, args.verbose);
+        const offline = await readSourceListAtTag(process.cwd(), version, sourcesFile, args.verbose);
         let offlineCopied = false;
         if (offline !== null) {
             const dest = join(cloneDir, sourcesFile);
@@ -236,19 +236,50 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
 // ─── Internal helpers ────────────────────────────────────────────────────
 
 /**
- * One file's contents as of `tag`, or null when the tag does not carry it.
+ * The generated source list as of `tag`, or null when the tag does not carry one.
  *
  * `git show <tag>:<path>` rather than reading the working tree, so the file that
  * travels to Flathub is the one the pinned commit actually contains.
+ *
+ * WHAT COMES BACK IS CHECKED, not just whether the command succeeded. A missing
+ * path makes real `git show` exit non-zero, so the obvious version of this
+ * function looks complete — and it treats an EMPTY answer as "the file exists
+ * and is empty", which then writes an empty file into the Flathub repo and
+ * names it in the manifest. That is strictly worse than skipping: the build
+ * still cannot install, and now the manifest says it can. Caught by the
+ * sync-flathub E2E, whose git stub answers every unknown subcommand with exit 0
+ * and no output.
+ *
+ * A blank answer is a skip. Content that is not a non-empty array of sources is
+ * an ERROR, because this file has exactly one producer (`gjsify flatpak
+ * sources`) and anything else means something upstream is broken.
  */
-async function readFileAtTag(cwd: string, tag: string, path: string, verbose?: boolean): Promise<string | null> {
+async function readSourceListAtTag(cwd: string, tag: string, path: string, verbose?: boolean): Promise<string | null> {
+    let raw: string;
     try {
         const { stdout } = await execFileAsync('git', ['show', `${tag}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 });
-        return stdout;
+        raw = stdout;
     } catch {
         if (verbose) console.log(`[gjsify flatpak sync-flathub] ${path} not present at ${tag} — skipping`);
         return null;
     }
+    if (raw.trim() === '') {
+        if (verbose) console.log(`[gjsify flatpak sync-flathub] ${path} is empty at ${tag} — skipping`);
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        throw new Error(
+            `[gjsify flatpak sync-flathub] ${path} at ${tag} is not JSON: ` +
+                (error instanceof Error ? error.message : String(error)),
+        );
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+        throw new Error(`[gjsify flatpak sync-flathub] ${path} at ${tag} is not a non-empty array of flatpak sources`);
+    }
+    return raw;
 }
 
 async function resolveLatestTag(cwd: string, verbose?: boolean): Promise<string | null> {
