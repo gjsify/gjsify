@@ -64,12 +64,10 @@
 // the other two, and silence is how two platforms shipped without an icon for
 // every release until someone opened the Start menu.
 
-import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { spawnToCompletion } from '../spawn.js';
 
 /** The runtime that renders. On `PATH`, like `glib-compile-schemas` — a GJS host has it by definition. */
 export const RASTERIZER = 'gjs';
@@ -240,31 +238,42 @@ export interface RasterizeInput {
  */
 export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, Uint8Array>> {
     if (input.sizes.length === 0) return new Map();
-    let stdout: string;
-    try {
-        ({ stdout } = await execFileAsync(RASTERIZER, ['-c', RASTERIZE_SCRIPT, input.svg, ...input.sizes.map(String)], {
-            encoding: 'utf-8',
-            // A 1024 px PNG of a detailed icon is a few hundred kilobytes; base64
-            // adds a third. The default 1 MiB is within reach of one large element.
+    // THE CLI'S OWN SPAWN WRAPPER, not `promisify(execFile)`. Measured under the
+    // GJS-built CLI (`dist/cli.gjs.mjs`, gjs 1.88): `node:util`'s `promisify` over
+    // `@gjsify/child_process`'s `execFile` resolves with the bare stdout string —
+    // the polyfill has no `promisify.custom` producing Node's `{ stdout, stderr }`
+    // — so a destructured `stdout` was `undefined` on that runtime and only that
+    // one. `schemas.ts` uses the same pattern and never noticed, because it ignores
+    // the result. `spawnToCompletion` captures on both paths and picks the blocking
+    // one under GJS per its teardown contract; `'return'` is what every packer here
+    // declares, for the reason `msi.ts` gives at its own call.
+    const result = await spawnToCompletion(
+        RASTERIZER,
+        ['-c', RASTERIZE_SCRIPT, input.svg, ...input.sizes.map(String)],
+        {
+            completion: 'return',
+            stdio: 'capture',
+            // A 1024 px PNG of a detailed icon is a few hundred kilobytes; base64 adds
+            // a third. Node's default 1 MiB is within reach of one large element.
             maxBuffer: 64 * 1024 * 1024,
-        }));
-    } catch (error) {
-        const failure = error as NodeJS.ErrnoException & { stderr?: string };
-        if (failure.code === 'ENOENT') {
-            throw new Error(
-                `gjsify ship: \`${RASTERIZER}\` is not on PATH, and it is what renders ${input.svg} into the ` +
-                    `sizes an icon needs on this OS. ${RASTERIZER_HINT}.`,
-            );
-        }
-        const stderr = (failure.stderr ?? '').trim();
+            notFound: () =>
+                new Error(
+                    `gjsify ship: \`${RASTERIZER}\` is not on PATH, and it is what renders ${input.svg} into the ` +
+                        `sizes an icon needs on this OS. ${RASTERIZER_HINT}.`,
+                ),
+        },
+    );
+    const stdout = result.stdout ?? '';
+    if (result.code !== 0) {
+        const stderr = (result.stderr ?? '').trim();
         // The two typelib-shaped failures GJS reports, spelled by their symptom
         // rather than by GJS's wording, which is translated and changes.
         const hint = /Rsvg|Typelib|cairo/i.test(stderr)
             ? ` The Rsvg typelib or GJS's cairo binding is missing. ${RASTERIZER_HINT}.`
             : '';
         throw new Error(
-            `gjsify ship: rendering ${input.svg} through ${RASTERIZER} failed.${hint}` +
-                (stderr === '' ? '' : `\n    ${stderr.split('\n').join('\n    ')}`),
+            `gjsify ship: rendering ${input.svg} through ${RASTERIZER} failed (exit ${result.code ?? result.signal}).` +
+                `${hint}${stderr === '' ? '' : `\n    ${stderr.split('\n').join('\n    ')}`}`,
         );
     }
     let parsed: Record<string, string>;
