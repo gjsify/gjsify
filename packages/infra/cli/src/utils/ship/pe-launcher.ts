@@ -791,7 +791,10 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     const rsrcRaw = rsrc === undefined ? 0 : align(rsrc.length, FILE_ALIGNMENT);
     const rsrcOffset = dataOffset + dataRaw;
     const sectionCount = rsrc === undefined ? 2 : 3;
-    const lastRva = rsrc === undefined ? dataRva + align(dataSize, SECTION_ALIGNMENT) : rsrcRva + align(rsrc.length, SECTION_ALIGNMENT);
+    const lastRva =
+        rsrc === undefined
+            ? dataRva + align(dataSize, SECTION_ALIGNMENT)
+            : rsrcRva + align(rsrc.length, SECTION_ALIGNMENT);
 
     const image = Buffer.alloc(rsrcOffset + rsrcRaw);
 
