@@ -141,8 +141,16 @@ jobs:
       # is NOT installed: every suite in this leg is Node-pillar and reaches at
       # most GLib/Gio/GioUnix, and a leg that installs a toolkit it does not use
       # buys 10x-billed minutes for nothing.
+      # `librsvg` rides along for ONE reason, and it is not a toolkit: since
+      # `gjsify ship` renders the app icon itself, staging an app needs the
+      # `Rsvg-2.0` typelib, and a host without it now REFUSES to stage rather
+      # than shipping an iconless bundle. Measured here: a `gjs` with no Rsvg
+      # reds 4 of 21 in `ship-signing` — a macOS runner carries the former and
+      # not the latter, which is exactly the gap the refusal exists to name.
+      # The gtk4 argument above still stands and is untouched: this is the
+      # rasterizer the run USES, not a toolkit it might.
       - name: Install GJS + SpiderMonkey via Homebrew
-        run: brew install gjs
+        run: brew install gjs librsvg
 
       # THE ENV-FREE REPAIR, AND WHY IT MUST BE ENV-FREE.
       #
