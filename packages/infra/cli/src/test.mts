@@ -108,6 +108,7 @@ import rewriteNodeModulesSpecSuite from './rewrite-node-modules-spec.spec.js';
 import buildArgsSuite from './build-args.spec.js';
 import clearTargetsSuite from './utils/clear-targets.spec.js';
 import copyTargetsSuite from './utils/copy-targets.spec.js';
+import flathubManifestSuite from './flathub-manifest.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
 import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
@@ -322,6 +323,7 @@ run(
         buildArgsSuite,
         clearTargetsSuite,
         copyTargetsSuite,
+        flathubManifestSuite,
         pinHintSuite,
         configSuite,
         libraryOutputSuite,

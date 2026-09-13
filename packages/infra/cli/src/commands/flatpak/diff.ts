@@ -43,7 +43,14 @@ interface FlathubSource {
 
 interface FlathubManifest {
     id?: string;
-    modules?: Array<{ sources?: FlathubSource[] } | null>;
+    /**
+     * Objects AND bare strings — a string names a file beside the manifest whose
+     * contents are spliced in as sources, which is how the generated offline
+     * tarball list is wired and what `sync-flathub` now writes here. Typed as
+     * objects alone, this array hands a reader a `FlathubSource` that is really
+     * a string, and `source.url.startsWith(...)` compiles and throws.
+     */
+    modules?: Array<{ sources?: (FlathubSource | string)[] } | null>;
     [key: string]: unknown;
 }
 
@@ -176,9 +183,16 @@ async function loadFlathubSource(
     const modules = manifest.modules ?? [];
     const sources = modules[0]?.sources ?? [];
     if (sources.length === 0) return null;
-    const idx = sourceIndex ?? sources.findIndex((s) => s?.type === 'git');
+    const idx = sourceIndex ?? sources.findIndex((s) => isSourceObject(s) && s.type === 'git');
     if (idx < 0 || idx >= sources.length) return null;
-    return sources[idx] ?? null;
+    // A `--source-index` aimed at a file reference has no tag to compare, which
+    // the caller already reports as a manifest without one.
+    const entry = sources[idx];
+    return isSourceObject(entry) ? entry : null;
+}
+
+function isSourceObject(entry: FlathubSource | string | null | undefined): entry is FlathubSource {
+    return typeof entry === 'object' && entry !== null;
 }
 
 async function fetchFlathubManifest(flathubRepo: string, appId: string, verbose: boolean | undefined): Promise<string> {

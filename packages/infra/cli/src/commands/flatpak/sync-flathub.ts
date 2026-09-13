@@ -11,7 +11,8 @@
 //   3. Resolve commit SHA via `git rev-list -n 1 <version>`
 //   4. Clone (or update) the flathub tracking-repo into $XDG_CACHE_HOME
 //   5. Surgically edit the manifest: modules[].sources[].{tag,commit}
-//      plus x-checker-data block (inject if missing)
+//      plus x-checker-data block (inject if missing), and carry over the
+//      offline source list (see `offline sources` below)
 //   6. Create a branch, commit the changes
 //   7. (unless --no-pr) push + open a PR via `gh pr create`
 
@@ -23,12 +24,13 @@ import { describeExit, spawnToCompletion } from '../../utils/spawn.js';
 import { promisify } from 'node:util';
 import type { Command, ConfigData } from '../../types/index.js';
 import { Config } from '../../config.js';
-import { readPackageJson } from './utils.js';
+import { FLATPAK_SOURCES_FILE, readPackageJson } from './utils.js';
 
 const execFileAsync = promisify(execFile);
 
 interface SyncFlathubOptions {
     version?: string;
+    sourcesFile?: string;
     appId?: string;
     flathubRepo?: string;
     commit?: string;
@@ -50,7 +52,15 @@ interface FlathubManifestSource {
 
 interface FlathubManifestModule {
     name?: string;
-    sources?: FlathubManifestSource[];
+    /**
+     * Objects AND bare strings. A string names a file next to the manifest whose
+     * contents are spliced in as sources, which is how the generated offline
+     * tarball list is wired. Typing this as objects alone is what let
+     * `sources.find((s) => s.type === 'git')` read `.type` off a string: harmless
+     * in JS, where it is `undefined`, and a crash in any other consumer of the
+     * same array.
+     */
+    sources?: (FlathubManifestSource | string)[];
     [key: string]: unknown;
 }
 
@@ -90,6 +100,13 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
                 .option('branch', {
                     description: 'Branch name in the flathub-repo. Default: `update-to-<version>`.',
                     type: 'string',
+                })
+                .option('sources-file', {
+                    description:
+                        'Generated offline tarball list to carry into the Flathub repo and name in the manifest. ' +
+                        `Default: \`${FLATPAK_SOURCES_FILE}\`. Skipped when the tag does not carry it.`,
+                    type: 'string',
+                    default: FLATPAK_SOURCES_FILE,
                 })
                 .option('source-index', {
                     description:
@@ -165,13 +182,34 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
             );
         }
 
+        // Read AT THE TAG, not from the working tree: the manifest is about to pin
+        // that tag, and a list taken from an edited checkout would describe a tree
+        // nobody can get. Absent is the ordinary case for an app that installs
+        // online or vendors its dependencies, so it is a skip and not an error.
+        const sourcesFile = args.sourcesFile ?? FLATPAK_SOURCES_FILE;
+        const offline = await readSourceListAtTag(cwd, version, sourcesFile, args.verbose);
+        let offlineCopied = false;
+        if (offline !== null) {
+            const dest = join(cloneDir, sourcesFile);
+            offlineCopied = !existsSync(dest) || readFileSync(dest, 'utf-8') !== offline;
+            if (offlineCopied) {
+                writeFileSync(dest, offline, 'utf-8');
+                console.log(`[gjsify flatpak sync-flathub] ${sourcesFile} copied from ${version}`);
+            }
+        }
+
         const original = readFileSync(manifestPath, 'utf-8');
         const updated = editManifest(original, {
             tag: version,
             commit: commitSha,
             sourceIndex: args.sourceIndex,
+            sourcesFile: offline !== null ? sourcesFile : undefined,
         });
-        if (updated === original) {
+        // NOT `updated === original` alone: the tarball list changes whenever a
+        // dependency does, so a release can need a PR with the pin unmoved. That
+        // test used to be the only one, and it would have returned "nothing to do"
+        // over a Flathub repo carrying a stale list.
+        if (updated === original && !offlineCopied) {
             console.log(`[gjsify flatpak sync-flathub] manifest already at ${version} — nothing to do.`);
             return;
         }
@@ -196,6 +234,92 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
 };
 
 // ─── Internal helpers ────────────────────────────────────────────────────
+
+/**
+ * The generated source list as of `tag`, or null when the tag does not carry one.
+ *
+ * `git show <tag>:<path>` rather than reading the working tree, so the file that
+ * travels to Flathub is the one the pinned commit actually contains.
+ *
+ * WHAT COMES BACK IS CHECKED, not just whether the command succeeded. A missing
+ * path makes real `git show` exit non-zero, so the obvious version of this
+ * function looks complete — and it treats an EMPTY answer as "the file exists
+ * and is empty", which then writes an empty file into the Flathub repo and
+ * names it in the manifest. That is strictly worse than skipping: the build
+ * still cannot install, and now the manifest says it can. Caught by the
+ * sync-flathub E2E, whose git stub answers every unknown subcommand with exit 0
+ * and no output.
+ *
+ * A blank answer is a skip. Content that is not a non-empty array of sources is
+ * an ERROR, because this file has exactly one producer (`gjsify flatpak
+ * sources`) and anything else means something upstream is broken.
+ */
+async function readSourceListAtTag(cwd: string, tag: string, path: string, verbose?: boolean): Promise<string | null> {
+    let raw: string;
+    try {
+        const { stdout } = await execFileAsync('git', ['show', `${tag}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 });
+        raw = stdout;
+    } catch (error) {
+        await assertGitMeantAbsent(cwd, tag, path, error);
+        if (verbose) console.log(`[gjsify flatpak sync-flathub] ${path} not present at ${tag} — skipping`);
+        return null;
+    }
+    if (raw.trim() === '') {
+        if (verbose) console.log(`[gjsify flatpak sync-flathub] ${path} is empty at ${tag} — skipping`);
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        throw new Error(
+            `[gjsify flatpak sync-flathub] ${path} at ${tag} is not JSON: ` +
+                (error instanceof Error ? error.message : String(error)),
+        );
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+        throw new Error(`[gjsify flatpak sync-flathub] ${path} at ${tag} is not a non-empty array of flatpak sources`);
+    }
+    return raw;
+}
+
+/**
+ * Throw unless a failed `git show <tag>:<path>` really did mean "that tag does
+ * not carry that file".
+ *
+ * MEASURED, and it is why the failure cannot be read on its own: path absent,
+ * unknown tag and not-a-git-repository are ALL exit 128, and git translates the
+ * message (`Pfad … existiert nicht in …` on a German host), so neither the
+ * status nor the text separates them. Taken for absence, a tag nobody fetched
+ * moves the pin and leaves the Flathub repo's old list in place — the failure
+ * this file exists to prevent, now silent. `--commit <sha>` is what puts it in
+ * reach: it is the one path on which nothing else resolves the tag.
+ *
+ * The tag is therefore asked about separately, and a SHA is believed rather
+ * than an exit code — the same lesson as the read above, since a `git` that
+ * answers 0 with nothing must not pass for a tag that exists.
+ */
+async function assertGitMeantAbsent(cwd: string, tag: string, path: string, error: unknown): Promise<void> {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (typeof code !== 'number') {
+        // Not git's verdict at all: ENOENT is no `git` on PATH, and
+        // ERR_CHILD_PROCESS_STDIO_MAXBUFFER a list past the cap set above.
+        throw new Error(
+            `[gjsify flatpak sync-flathub] could not run \`git show ${tag}:${path}\` — ` +
+                (error instanceof Error ? error.message : String(error)),
+        );
+    }
+    // `--quiet` exits 1 rather than printing for a name it cannot resolve.
+    const sha = await execFileAsync('git', ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`], { cwd })
+        .then(({ stdout }) => stdout.trim())
+        .catch(() => '');
+    if (!sha) {
+        throw new Error(
+            `[gjsify flatpak sync-flathub] ${tag} does not resolve in ${cwd}, so whether it carries ${path} is unanswered. ` +
+                'Run `git fetch --tags`, pass --version <an existing tag>, or run from the app checkout.',
+        );
+    }
+}
 
 async function resolveLatestTag(cwd: string, verbose?: boolean): Promise<string | null> {
     try {
@@ -322,7 +446,10 @@ async function ghCreate(
  * by parsing through JSON.parse + re-stringifying with the detected
  * indent.
  */
-export function editManifest(original: string, args: { tag: string; commit: string; sourceIndex?: number }): string {
+export function editManifest(
+    original: string,
+    args: { tag: string; commit: string; sourceIndex?: number; sourcesFile?: string },
+): string {
     const manifest: FlathubManifest = JSON.parse(original);
     const modules = manifest.modules ?? [];
     if (modules.length === 0) {
@@ -334,18 +461,19 @@ export function editManifest(original: string, args: { tag: string; commit: stri
         throw new Error('[gjsify flatpak sync-flathub] modules[0] has no sources');
     }
 
-    let idx = args.sourceIndex ?? sources.findIndex((s) => s.type === 'git');
+    const isObject = (s: FlathubManifestSource | string): s is FlathubManifestSource => typeof s === 'object';
+    let idx = args.sourceIndex ?? sources.findIndex((s) => isObject(s) && s.type === 'git');
     if (idx < 0 || idx >= sources.length) {
         throw new Error(
             `[gjsify flatpak sync-flathub] no git source found in modules[0].sources (use --source-index <n>)`,
         );
     }
-    const source = sources[idx]!;
-    if (source.type !== 'git') {
-        throw new Error(
-            `[gjsify flatpak sync-flathub] modules[0].sources[${idx}].type is "${source.type}", expected "git"`,
-        );
+    const entry = sources[idx]!;
+    if (!isObject(entry) || entry.type !== 'git') {
+        const what = isObject(entry) ? `type is "${entry.type}"` : `is the file reference "${entry}"`;
+        throw new Error(`[gjsify flatpak sync-flathub] modules[0].sources[${idx}] ${what}, expected a git source`);
     }
+    const source = entry;
 
     source.tag = args.tag;
     source.commit = args.commit;
@@ -357,11 +485,44 @@ export function editManifest(original: string, args: { tag: string; commit: stri
         };
     }
 
+    // THE OFFLINE TARBALL LIST, which is the half of a Flathub bump that is easy
+    // to forget because nothing points at it. Flathub builds with the network
+    // unshared, so an app whose install reads a generated source list cannot
+    // build from the git checkout alone; the list has to live in the Flathub repo
+    // and be named here. Repointing tag and commit alone produces a manifest that
+    // looks correct and cannot build, and the error it eventually gives is
+    // whatever the app's build system says when its install fails.
+    //
+    // Measured: Learn6502 0.8.0 was the first release after its vendored
+    // dependency cache was dropped, and its Flathub build died on exactly this.
+    if (args.sourcesFile && !namesFile(sources, args.sourcesFile)) {
+        sources.push(args.sourcesFile);
+    }
+
     // Detect the original indent (2 vs 4 spaces) by inspecting the second
     // line — Flathub manifests are all 2-space in practice, but some
     // older ones might be 4. Preserve original convention.
     const indent = detectIndent(original);
     return JSON.stringify(manifest, null, indent) + (original.endsWith('\n') ? '\n' : '');
+}
+
+/**
+ * Is `file` already among the module's bare-string sources?
+ *
+ * Compared with `./` stripped, because flatpak-builder resolves a string source
+ * against the manifest's own directory: `./gjsify-sources.json` and
+ * `gjsify-sources.json` are one file. Compared as written, a manifest holding
+ * the dotted spelling grows a second reference and the same tarballs are
+ * spliced in twice — the duplicate `dest`/`dest-filename` pairs `gjsify flatpak
+ * sources` dedupes its own output to avoid.
+ */
+function namesFile(sources: (FlathubManifestSource | string)[], file: string): boolean {
+    const want = stripDotSlash(file);
+    return sources.some((entry) => typeof entry === 'string' && stripDotSlash(entry) === want);
+}
+
+function stripDotSlash(ref: string): string {
+    return ref.replace(/^\.\//, '');
 }
 
 function detectIndent(json: string): number {
