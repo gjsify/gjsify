@@ -16,6 +16,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 // bridge (AGENTS.md § The legacy imports.* object is NOT an API).
 import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
+import { type CreateAboutDialogOptions, createAboutDialog } from './about-dialog.js';
 import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
@@ -46,6 +47,17 @@ export interface AdwaitaAppOptions {
     bundledIcons?: boolean | BundledIconThemeOptions;
     /** When set, wires an `app.about` action opening an `Adw.AboutDialog`. */
     about?: AboutInfo;
+    /**
+     * Build the `app.about` dialog from the application's AppStream metainfo instead of from
+     * literal fields. Wins over {@link AdwaitaAppOptions.about} when both are given.
+     *
+     * Prefer it: the metainfo is already written, already translated and already installed, so
+     * restating its name, developer, licence and urls in `about` is a second copy that drifts
+     * — and the drift is invisible until somebody opens the dialog. See
+     * {@link CreateAboutDialogOptions}; it works where `Adw.AboutDialog.new_from_appdata()`
+     * does not exist.
+     */
+    aboutAppdata?: CreateAboutDialogOptions;
     /** Wire `app.quit` (`<primary>q`). Default `true`. */
     quitAction?: boolean;
     /**
@@ -88,7 +100,7 @@ export class AdwaitaApp extends Adw.Application {
             this.add_action(quit);
             this.set_accels_for_action('app.quit', ['<primary>q']);
         }
-        if (this._options.about) {
+        if (this._options.about || this._options.aboutAppdata) {
             const about = new Gio.SimpleAction({ name: 'about' });
             about.connect('activate', () => this._showAbout());
             this.add_action(about);
@@ -137,6 +149,11 @@ export class AdwaitaApp extends Adw.Application {
     }
 
     private _showAbout(): void {
+        const appdata = this._options.aboutAppdata;
+        if (appdata) {
+            createAboutDialog(appdata).present(this.get_active_window());
+            return;
+        }
         const info = this._options.about;
         if (!info) return;
         const dialog = new Adw.AboutDialog({

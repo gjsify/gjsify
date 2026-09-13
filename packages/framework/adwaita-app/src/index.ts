@@ -28,6 +28,21 @@ export type { LoadIntoStackOptions } from './view-loader.js';
 
 export { LoadingStack } from './loading-stack.js';
 
+// The About dialog an application's own AppStream metainfo describes — on every platform,
+// including the one whose libadwaita has no `*_from_appdata` entry point at all
+// (gjsify/gjsify#1662). `parseAppdata` is the GI-free half and is useful on its own.
+export {
+    applyAppdataFields,
+    buildAboutDialogFromAppdata,
+    createAboutDialog,
+    hasAppdataConstructor,
+    licenseTypeFor,
+} from './about-dialog.js';
+export type { AppdataSource, CreateAboutDialogOptions } from './about-dialog.js';
+
+export { appdataLocale, parseAppdata } from './appdata.js';
+export type { AppdataFields, ParseAppdataOptions } from './appdata.js';
+
 export { confirmDialog, errorDialog } from './dialogs.js';
 export type { ConfirmOptions } from './dialogs.js';
 
