@@ -21,6 +21,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Buffer } from 'node:buffer';
 import type { Command } from '../../types/index.js';
+import { FLATPAK_SOURCES_FILE } from './utils.js';
 
 type LockfileType = 'gjsify' | 'npm' | 'yarn' | 'pnpm';
 
@@ -249,7 +250,7 @@ export const flatpakSourcesCommand: Command<unknown, FlatpakSourcesOptions> = {
             .option('out', {
                 description: 'Output JSON sources file',
                 type: 'string',
-                default: 'gjsify-sources.json',
+                default: FLATPAK_SOURCES_FILE,
                 normalize: true,
             })
             .option('cache-root', {
@@ -311,7 +312,7 @@ export const flatpakSourcesCommand: Command<unknown, FlatpakSourcesOptions> = {
         // Stable order (by url) so the generated file diffs cleanly across runs.
         const sources = [...byHex.values()].sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
 
-        const out = resolve(cwd, (args.out as string | undefined) ?? 'gjsify-sources.json');
+        const out = resolve(cwd, (args.out as string | undefined) ?? FLATPAK_SOURCES_FILE);
         mkdirSync(dirname(out), { recursive: true });
         writeFileSync(out, JSON.stringify(sources, null, 2) + '\n');
 
@@ -323,7 +324,7 @@ export const flatpakSourcesCommand: Command<unknown, FlatpakSourcesOptions> = {
         );
 
         if (args.printModule) {
-            console.error(buildModuleSnippet(args.out ?? 'gjsify-sources.json', cacheRoot));
+            console.error(buildModuleSnippet(args.out ?? FLATPAK_SOURCES_FILE, cacheRoot));
         }
     },
 };

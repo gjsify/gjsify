@@ -24,7 +24,7 @@ import { describeExit, spawnToCompletion } from '../../utils/spawn.js';
 import { promisify } from 'node:util';
 import type { Command, ConfigData } from '../../types/index.js';
 import { Config } from '../../config.js';
-import { readPackageJson } from './utils.js';
+import { FLATPAK_SOURCES_FILE, readPackageJson } from './utils.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -104,9 +104,9 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
                 .option('sources-file', {
                     description:
                         'Generated offline tarball list to carry into the Flathub repo and name in the manifest. ' +
-                        'Default: `gjsify-sources.json`. Skipped when the tag does not carry it.',
+                        `Default: \`${FLATPAK_SOURCES_FILE}\`. Skipped when the tag does not carry it.`,
                     type: 'string',
-                    default: 'gjsify-sources.json',
+                    default: FLATPAK_SOURCES_FILE,
                 })
                 .option('source-index', {
                     description:
@@ -186,8 +186,8 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
         // that tag, and a list taken from an edited checkout would describe a tree
         // nobody can get. Absent is the ordinary case for an app that installs
         // online or vendors its dependencies, so it is a skip and not an error.
-        const sourcesFile = args.sourcesFile ?? 'gjsify-sources.json';
-        const offline = await readSourceListAtTag(process.cwd(), version, sourcesFile, args.verbose);
+        const sourcesFile = args.sourcesFile ?? FLATPAK_SOURCES_FILE;
+        const offline = await readSourceListAtTag(cwd, version, sourcesFile, args.verbose);
         let offlineCopied = false;
         if (offline !== null) {
             const dest = join(cloneDir, sourcesFile);

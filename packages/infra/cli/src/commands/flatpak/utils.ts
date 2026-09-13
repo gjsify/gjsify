@@ -7,6 +7,17 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+/**
+ * The generated offline tarball list, by the name both halves have to agree on.
+ *
+ * `gjsify flatpak sources` WRITES it; `gjsify flatpak sync-flathub` carries it
+ * into the Flathub repo and names it in the manifest. Each spelled the default
+ * itself, so changing one would have left the other reading a file nobody
+ * writes — and that shows up as a Flathub build which cannot install, four
+ * steps from its cause.
+ */
+export const FLATPAK_SOURCES_FILE = 'gjsify-sources.json';
+
 /** Read package.json from a directory. Throws a helpful error if missing/invalid. */
 export function readPackageJson(dir: string): Record<string, unknown> {
     const path = resolve(dir, 'package.json');
