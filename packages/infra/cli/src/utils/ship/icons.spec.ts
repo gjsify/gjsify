@@ -1,11 +1,10 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pngSize, tinyPng } from './icon-fixture.spec.js';
-import { RASTERIZER, rasterizeSvg, readPngSize, resolveAppIcon } from './icons.js';
+import { RASTERIZER, RASTERIZER_HINT, rasterizeSvg, readPngSize, resolveAppIcon } from './icons.js';
 
 /** The message of the error an async call rejects with, or null when it resolves. */
 async function refusal(run: () => Promise<unknown>): Promise<string | null> {
@@ -25,15 +24,6 @@ function fakeRasterizer(
         asked.push([...sizes]);
         return new Map(sizes.map((size) => [size, tinyPng(size)]));
     };
-}
-
-function hasCommand(name: string): boolean {
-    try {
-        execFileSync(name, ['--version'], { stdio: 'ignore' });
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 export default async () => {
@@ -154,13 +144,29 @@ export default async () => {
         rmSync(dir, { recursive: true, force: true });
     });
 
+    await describe('ship icons: the rasterizer hint', async () => {
+        // ASSERTED ON THE CONSTANT, not through the message, because
+        // `toContain(RASTERIZER_HINT)` over a message built FROM that constant
+        // can only fail if the hint vanishes entirely — it cannot see a row
+        // going missing. A row went missing once: the hint named two Linuxes,
+        // and the host that reached it was a macOS runner carrying a Homebrew
+        // `gjs` and no `Rsvg-2.0` typelib.
+        await it('tells all three host families what to install', async () => {
+            expect(RASTERIZER_HINT).toContain('dnf install');
+            expect(RASTERIZER_HINT).toContain('apt install');
+            expect(RASTERIZER_HINT).toContain('brew install');
+            // The typelib, not just the binary: a `gjs` alone is what made the
+            // PATH probe answer yes and the render fail.
+            expect(RASTERIZER_HINT).toContain('rsvg');
+        });
+    });
+
     await describe('ship icons: the GJS rasterizer', async () => {
         // BOTH ARMS DISCRIMINATE, and which one runs is a fact about the host,
         // printed in the test name rather than hidden in a skip. With a `gjs` on
         // PATH the child renders and the PNGs are read back by arithmetic; without
         // one the refusal has to name the tool and the packages that provide it —
         // which is the message a stranger's build sees.
-        const present = hasCommand(RASTERIZER);
         const dir = mkdtempSync(join(tmpdir(), 'gjsify-rasterize-'));
         const svg = join(dir, 'icon.svg');
         writeFileSync(
@@ -168,12 +174,27 @@ export default async () => {
             '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' +
                 '<rect width="8" height="8" fill="#204080"/></svg>\n',
         );
+        // WHETHER THIS HOST CAN RENDER, not whether `gjs` is on PATH. The two are
+        // different and the difference was a red CI run: GitHub's macOS runners
+        // carry a Homebrew `gjs` and NO `Rsvg-2.0` typelib, so a PATH probe said
+        // yes, the render arm ran, and it failed with the very refusal the ABSENT
+        // arm exists to assert — a test that reported a missing typelib as a
+        // product defect. Rendering needs three things (the binary, the typelib
+        // and GJS's cairo binding) and only a render proves all three.
+        const present = await rasterizeSvg({ svg, sizes: [8] }).then(
+            () => true,
+            () => false,
+        );
 
         await it(`renders through ${RASTERIZER} at every asked size (${RASTERIZER} ${present ? 'present' : 'absent'})`, async () => {
             if (!present) {
                 const message = await refusal(() => rasterizeSvg({ svg, sizes: [16] }));
                 expect(message).toContain(RASTERIZER);
-                expect(message).toContain('dnf install');
+                // The whole hint, not one distribution's word for it: a host that
+                // cannot render is told what to install wherever it is, and the
+                // macOS row is in the constant because a macOS runner is what
+                // reached this branch.
+                expect(message).toContain(RASTERIZER_HINT);
                 return;
             }
             const png = await rasterizeSvg({ svg, sizes: [16, 24, 256] });

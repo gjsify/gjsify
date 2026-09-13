@@ -78,9 +78,19 @@ export const RASTERIZER = 'gjs';
  * `librsvg2` on Fedora carries the typelib itself (measured: `rpm -qf
  * /usr/lib64/girepository-1.0/Rsvg-2.0.typelib` → `librsvg2-2.62.3`); Debian
  * splits it into `gir1.2-rsvg-2.0`.
+ *
+ * The macOS row is NOT measured here and is the weaker claim: it is Homebrew's
+ * formula name, and a Homebrew `gjs` finds the typelib because both land in one
+ * prefix's `lib/girepository-1.0`. What IS measured is that the row is needed —
+ * GitHub's macOS runners carry a `gjs` and no `Rsvg-2.0` typelib, which is the
+ * host that turned this message from theory into the one a build actually
+ * prints. Assembly is a Linux step by ADR 0024 § A2, so a darwin host reaching
+ * this line is running `ship` outside the documented arrangement; the message
+ * should still tell it what to install rather than name two Linuxes at it.
  */
 export const RASTERIZER_HINT =
-    'Fedora: `sudo dnf install gjs librsvg2`, Debian/Ubuntu: `sudo apt install gjs gir1.2-rsvg-2.0`';
+    'Fedora: `sudo dnf install gjs librsvg2`, Debian/Ubuntu: `sudo apt install gjs gir1.2-rsvg-2.0`, ' +
+    'macOS: `brew install gjs librsvg`';
 
 /**
  * The pixels of the app icon, one PNG per square edge length.
