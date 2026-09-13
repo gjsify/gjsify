@@ -45,7 +45,8 @@
 #
 # DISCRIMINATOR (run it, do not trust it): `tests/e2e/ship-msi/run.mjs` drives
 # every refusal below against a MUTATED copy — a file deleted from the directory,
-# the shortcut row emptied, a wrong producer claimed — and asserts exit 1. Without
+# the shortcut row emptied, a wrong producer claimed, the Icon row deleted, the
+# shortcut's Icon_ blanked, ARPPRODUCTICON removed — and asserts exit 1. Without
 # those, a script that returned 0 unconditionally would leave the whole suite green.
 #
 # EVERY LOOP THAT CAN FAIL READS FROM `< <(…)`, never from a pipe: the right-hand
@@ -237,7 +238,8 @@ INSTALL_NAME=$(cut -f3 <<<"$INSTALL_ROW")
 # ── 5. SOMETHING TO CLICK ────────────────────────────────────────────────────
 # An installer that lays files down and gives a user no way to start them is a
 # zip with extra steps.
-SHORTCUTS=$(idt Shortcut | awk -F'\t' 'NR > 3 && NF >= 4 { print }')
+SHORTCUT_TABLE=$(idt Shortcut)
+SHORTCUTS=$(awk -F'\t' 'NR > 3 && NF >= 4 { print }' <<<"$SHORTCUT_TABLE")
 SHORTCUT_COUNT=$(grep -c . <<<"${SHORTCUTS:-}" || true)
 [ "$SHORTCUT_COUNT" = 1 ] ||
     fail "the installer defines $SHORTCUT_COUNT shortcut(s); it must define exactly one, or the user has nothing to start (or several things that look like copies)"
@@ -247,10 +249,56 @@ SHORTCUT_COMPONENT=$(cut -f4 <<<"$SHORTCUTS")
 grep -q "^$SHORTCUT_COMPONENT	" <<<"$COMPONENTS" ||
     fail "the shortcut belongs to component \"$SHORTCUT_COMPONENT\", which has no row — the shortcut would never be created"
 
+# ── 5b. THE ICON THE SHORTCUT AND ADD/REMOVE PROGRAMS SHOW ───────────────────
+# An ADVERTISED shortcut shows the Icon table's icon, not its target's — the
+# target is a descriptor until the feature resolves — and ARPPRODUCTICON is the
+# only route to an icon in Add/Remove Programs at all. Both name ONE Icon row, and
+# that row's binary is the launcher itself, whose resource directory already
+# carries the pixels (`utils/ship/pe-launcher.ts`). So the floor here is a byte
+# comparison against a real file, not a row count: the stream behind the row has
+# to BE the launcher in the program directory.
+ICONS=$(idt Icon)
+ICON_ROWS=$(awk -F'\t' 'NR > 3 && NF >= 2 { print $1 }' <<<"$ICONS")
+ICON_COUNT=$(grep -c . <<<"${ICON_ROWS:-}" || true)
+[ "$ICON_COUNT" = 1 ] ||
+    fail "the Icon table has $ICON_COUNT row(s); the installer names exactly one icon, the launcher, or the shortcut and Add/Remove Programs draw the generic one"
+ICON_ID=$(head -n1 <<<"$ICON_ROWS")
+case "$ICON_ID" in
+*.exe) : ;;
+*) fail "the Icon row is named \"$ICON_ID\"; Windows Installer types an icon by its name's extension, and this one is the launcher, so it must end in .exe" ;;
+esac
+# BY NAME out of the IDT header, not by position: `Icon_` is the NINTH column
+# of the Shortcut table (Shortcut, Directory_, Name, Component_, Target,
+# Arguments, Description, Hotkey, Icon_, …), and the first cut of this line read
+# the fifth — the Target, which for an advertised shortcut is the feature name
+# — and accused a correct installer of naming no icon.
+ICON_COLUMN=$(head -n1 <<<"$SHORTCUT_TABLE" | tr '\t' '\n' | grep -nx 'Icon_' | cut -d: -f1)
+[ -n "$ICON_COLUMN" ] || fail "the Shortcut table has no Icon_ column, which every Windows Installer database defines"
+SHORTCUT_ICON=$(cut -f"$ICON_COLUMN" <<<"$SHORTCUTS")
+[ "$SHORTCUT_ICON" = "$ICON_ID" ] ||
+    fail "the shortcut's Icon_ column is \"$SHORTCUT_ICON\" and the Icon table's one row is \"$ICON_ID\" — an advertised shortcut with no icon of its own shows the generic one"
+PROPERTIES=$(idt Property)
+ARP_ICON=$(awk -F'\t' '$1 == "ARPPRODUCTICON" { print $2 }' <<<"$PROPERTIES")
+[ "$ARP_ICON" = "$ICON_ID" ] ||
+    fail "ARPPRODUCTICON is \"$ARP_ICON\" and the Icon row is \"$ICON_ID\" — Add/Remove Programs would show no icon"
+# The launcher the shortcut hangs on, by its File row, then the bytes.
+LAUNCHER_NAME=$(awk -F'\t' -v c="$SHORTCUT_COMPONENT" 'NR > 3 && $2 == c { print $3 }' <<<"$FILES")
+LAUNCHER_NAME=${LAUNCHER_NAME##*|}
+[ -n "$LAUNCHER_NAME" ] || fail "the shortcut's component \"$SHORTCUT_COMPONENT\" has no File row to name the launcher by"
+[ -f "$DIR/$LAUNCHER_NAME" ] || fail "the shortcut targets $LAUNCHER_NAME, which is not at the root of the program directory"
+ICON_STREAM=$(mktemp)
+trap 'rm -f "$ICON_STREAM"' EXIT
+msiinfo extract "$MSI" "Icon.$ICON_ID" >"$ICON_STREAM" ||
+    fail "msiinfo extract found no stream Icon.$ICON_ID — the Icon row names a binary the database does not carry"
+[ -s "$ICON_STREAM" ] || fail "the stream Icon.$ICON_ID is empty"
+cmp -s "$ICON_STREAM" "$DIR/$LAUNCHER_NAME" ||
+    fail "the Icon table's binary differs from $LAUNCHER_NAME in the program directory — the shortcut would show one icon and the running app another"
+ICON_BYTES=$(wc -c <"$ICON_STREAM")
+rm -f "$ICON_STREAM"
+
 # ── 6. THE ENTRY A USER REMOVES IT BY ────────────────────────────────────────
 # Add/Remove Programs is generated from these four properties. A missing one is an
 # installer that installs and cannot be found again.
-PROPERTIES=$(idt Property)
 for key in ProductName ProductVersion ProductCode UpgradeCode Manufacturer; do
     grep -q "^$key	" <<<"$PROPERTIES" || fail "the database has no $key property — Add/Remove Programs would have no entry to offer"
 done
@@ -262,7 +310,7 @@ printf '%s\n' "$PROPERTIES" | awk -F'\t' '$1 == "ProductName" || $1 == "ProductV
 # installer was built from, which is the only assertion here that would catch a
 # correct table over the wrong bytes.
 OUT=$(mktemp -d)
-trap 'rm -rf "$OUT"' EXIT
+trap 'rm -rf "$OUT" "$ICON_STREAM"' EXIT
 (cd "$OUT" && msiextract "$MSI" >/dev/null)
 # `msiextract` EXITS 0 HAVING EXTRACTED NOTHING when it cannot open the database.
 # Measured: `msiextract does-not-exist.msi` prints `WARNING: open file failed`,
@@ -288,4 +336,4 @@ done < <(cd "$DIR" && find . -type f -printf '%P\n' | sort)
 [ "$EXTRACTED" = "$COUNT" ] ||
     fail "the cabinet holds $EXTRACTED file(s) and the program directory $COUNT — the installer would lay down something the directory artifact does not have"
 
-echo "verify-msi.sh: $COUNT file(s) round-tripped byte for byte out of the embedded cabinet, $ROWS component(s), 1 Start-Menu shortcut, INSTALLDIR = ProgramFiles64Folder\\$APP"
+echo "verify-msi.sh: $COUNT file(s) round-tripped byte for byte out of the embedded cabinet, $ROWS component(s), 1 Start-Menu shortcut with icon $ICON_ID ($ICON_BYTES bytes, the launcher), INSTALLDIR = ProgramFiles64Folder\\$APP"

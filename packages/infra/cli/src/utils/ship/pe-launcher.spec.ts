@@ -38,11 +38,16 @@ function readPeHeader(image: Uint8Array): {
 function dataDirectory(image: Uint8Array, index: number): { rva: number; size: number } {
     const view = new DataView(image.buffer, image.byteOffset, image.byteLength);
     const optional = view.getUint32(0x3c, true) + 24;
-    return { rva: view.getUint32(optional + 112 + index * 8, true), size: view.getUint32(optional + 116 + index * 8, true) };
+    return {
+        rva: view.getUint32(optional + 112 + index * 8, true),
+        size: view.getUint32(optional + 116 + index * 8, true),
+    };
 }
 
 /** Section headers, read from the table — name, RVA, raw offset, sizes, characteristics. */
-function sections(image: Uint8Array): { name: string; rva: number; virtualSize: number; raw: number; rawSize: number; characteristics: number }[] {
+function sections(
+    image: Uint8Array,
+): { name: string; rva: number; virtualSize: number; raw: number; rawSize: number; characteristics: number }[] {
     const view = new DataView(image.buffer, image.byteOffset, image.byteLength);
     const peOffset = view.getUint32(0x3c, true);
     const count = view.getUint16(peOffset + 6, true);
@@ -52,7 +57,11 @@ function sections(image: Uint8Array): { name: string; rva: number; virtualSize: 
     for (let index = 0; index < count; index++) {
         const at = table + index * 40;
         out.push({
-            name: Buffer.from(image.subarray(at, at + 8)).toString('latin1').replace(/\0+$/, ''),
+            // Up to the first NUL: the field is NUL-padded to eight bytes.
+            name:
+                Buffer.from(image.subarray(at, at + 8))
+                    .toString('latin1')
+                    .split('\0')[0] ?? '',
             virtualSize: view.getUint32(at + 8, true),
             rva: view.getUint32(at + 12, true),
             rawSize: view.getUint32(at + 16, true),
@@ -96,7 +105,11 @@ function readResources(image: Uint8Array): { leaves: ResourceLeaf[]; typeIds: nu
         for (let index = 0; index < named + ids; index++) {
             const entry = base + at + 16 + index * 8;
             const target = view.getUint32(entry + 4, true);
-            out.push({ id: view.getUint32(entry, true), offset: target & 0x7fffffff, subdirectory: (target & 0x80000000) !== 0 });
+            out.push({
+                id: view.getUint32(entry, true),
+                offset: target & 0x7fffffff,
+                subdirectory: (target & 0x80000000) !== 0,
+            });
         }
         return out;
     };
@@ -254,7 +267,9 @@ export default async () => {
         await it('is deterministic with an icon too, and differs from the bare image', async () => {
             const again = buildGuiLauncher({ logLeaf: 'ship-demo.launch.log', icon: iconResources(icon) });
             expect(Buffer.from(image).equals(Buffer.from(again))).toBe(true);
-            expect(Buffer.from(image).equals(Buffer.from(buildGuiLauncher({ logLeaf: 'ship-demo.launch.log' })))).toBe(false);
+            expect(Buffer.from(image).equals(Buffer.from(buildGuiLauncher({ logLeaf: 'ship-demo.launch.log' })))).toBe(
+                false,
+            );
         });
 
         await it('is still read as an x64 PE by the readers that hold the payload', async () => {

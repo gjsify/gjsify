@@ -14,8 +14,10 @@
 // (`.github/ship-oracle/verify-modes.py`), and it parses the XML form.
 //
 // EVERY KEY BELOW IS CITED to a file in `refs/` that a real macOS toolchain
-// produced or consumes. Keys that are merely plausible — `CFBundleIconFile`,
-// `LSMinimumSystemVersion`, `NSHighResolutionCapable`, `LSApplicationCategoryType`,
+// produced or consumes, or — for the two MECHANISM keys, `ATSApplicationFontsPath`
+// and `CFBundleIconFile` — to Apple's own key reference plus a measurement on a
+// Mac. Keys that are merely plausible — `LSMinimumSystemVersion`,
+// `NSHighResolutionCapable`, `LSApplicationCategoryType`,
 // `NSHumanReadableCopyright` — are not emitted, because nothing a reader here can
 // open contains them.
 //
@@ -35,6 +37,8 @@ import type { LayoutMetadataInput } from './layout.js';
 /** Where the two files live inside a bundle. Apple's names, not ours. */
 export const BUNDLE_INFO_PLIST = 'Contents/Info.plist';
 export const BUNDLE_PKGINFO = 'Contents/PkgInfo';
+/** Where `CFBundleIconFile` is resolved: the bundle's resources directory, and nowhere else. */
+export const BUNDLE_RESOURCES = 'Contents/Resources';
 
 /**
  * The four-character bundle type of an application, and the signature that says
@@ -150,19 +154,12 @@ function arrayEntry(key: string, values: readonly string[]): string {
  * release). Emitting `version` twice would throw the distinction away on the one
  * OS that has a field for it.
  *
- * KEYS DELIBERATELY ABSENT are listed in this module's header. `CFBundleIconFile`
- * is the one a reader will reach for first, and it is absent for a reason that
- * outlives the key: M2a ships NO icon. `png2icns`, `icnsutil` and `iconutil` are
- * all absent from this workstation and from the CI image, so an `.icns` written
- * here could only be read back by a reader written here — `selfReading: true`,
- * which `flatpak.spec.ts` reds. The unblocker is an independent Linux ICNS reader
- * entering the CI image; until one does, the hicolor PNG/SVG the payload already
- * carries stays the only icon, unread on macOS.
+ * KEYS DELIBERATELY ABSENT are listed in this module's header.
  *
  * A TWELFTH KEY, `ATSApplicationFontsPath`, is emitted when the bundle carries
  * faces, and it is the first one here NOT cited to `refs/` — so the exception is
  * stated rather than left to be noticed (ADR 0038). The rule this module opens
- * with exists against DECORATION: the five absent keys are cosmetic, nothing a
+ * with exists against DECORATION: the four absent keys are cosmetic, nothing a
  * reader here can open contains them, and emitting one would be a guess with no
  * observable behind it. This key is a MECHANISM, and its citation is Apple's own
  * *Information Property List Key Reference*, which states the scope in the terms
@@ -170,6 +167,21 @@ function arrayEntry(key: string, values: readonly string[]): string {
  * path for use by the bundled app. The fonts are activated only for the bundled
  * app and not for the system as a whole."* The value is a path relative to
  * `Contents/Resources`.
+ *
+ * A THIRTEENTH, `CFBundleIconFile`, is the same shape of exception and closes the
+ * gap the previous version of this comment recorded: M2a shipped NO icon because
+ * nothing on Linux could read an `.icns` back. Two things changed. `icns.ts` now
+ * writes the container from rasters `icons.ts` renders through librsvg, and the
+ * readers were measured rather than assumed: CPython `struct` walks the element
+ * table in `verify-app-plist.py` (in CI), Pillow 12.3 opens all ten elements (on
+ * the workstation), `icns2png` reads three of ten and is NOT relied on, and
+ * `iconutil` on macOS is the reader with authority — a VM run, recorded with the
+ * change that lands this key. The citation is the same key reference: *"The name
+ * of the bundle's icon file, located in the Resources folder"*, and the
+ * measurement that motivates it is the released 0.8.0 bundle of one app on macOS
+ * 15.7 with no key, no `.icns` and the generic Finder icon. `CFBundleIconName` is
+ * NOT emitted: it names an asset-catalog entry (`Assets.car`), which this tree
+ * does not produce, and a name with no catalog is a dangling reference.
  *
  * It is also the only route there is. Pango on macOS is CoreText-backed, GTK is
  * not built against fontconfig on that platform, and
@@ -183,7 +195,7 @@ function arrayEntry(key: string, values: readonly string[]): string {
  * Pango's CoreText map then holds the family, is unverified here — which is what
  * `Layout.fontGap` says out loud rather than letting a green stage imply.
  */
-export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string): string {
+export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string, iconFile?: string): string {
     const name = assertPlistText(input.name, 'CFBundleName', 'gjsify.ship.name');
     const executable = assertPlistText(input.binaryName, 'CFBundleExecutable', 'gjsify.ship.binaryName');
     const appId = assertPlistText(input.appId, 'CFBundleIdentifier', 'gjsify.ship.appId');
@@ -206,6 +218,11 @@ export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string):
         stringEntry('CFBundleDevelopmentRegion', 'en'),
         stringEntry('CFBundleDisplayName', name),
         stringEntry('CFBundleExecutable', executable),
+        // Between Executable and Identifier is where the alphabet puts it. Absent,
+        // not empty, for a bundle that carries no icon (`kind: 'cli'`): an empty
+        // name is a file lookup that fails, which macOS answers with the same
+        // generic icon and no diagnostic.
+        ...(iconFile === undefined ? [] : [stringEntry('CFBundleIconFile', iconFile)]),
         stringEntry('CFBundleIdentifier', appId),
         stringEntry('CFBundleInfoDictionaryVersion', '6.0'),
         stringEntry('CFBundleName', name),

@@ -38,6 +38,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,6 +97,14 @@ function oracleExpectingFailure(args, opts) {
  * suite's first run found in `verify-msi.sh`. Three header lines come first: the
  * column names, the column types, and a `<table>\t<key columns>` line.
  */
+/** The column names of one table — the first IDT header line. */
+function columns(msi, name) {
+    return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8' })
+        .replace(/\r/g, '')
+        .split('\n')[0]
+        .split('\t');
+}
+
 function table(msi, name) {
     return execFileSync('msiinfo', ['export', msi, name], { encoding: 'utf-8' })
         .replace(/\r/g, '')
@@ -251,6 +260,64 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(batchRow, 'the installer dropped the batch launcher the stub runs');
         assert.notEqual(component, batchRow[1]);
     });
+
+    it('names the launcher as the icon the shortcut and Add/Remove Programs show', () => {
+        // THE HALF THE EMBEDDED ICON CANNOT REACH. The `.exe` carries the pixels
+        // in its resource directory, and Explorer reads them there; an ADVERTISED
+        // shortcut shows the Icon table's icon (its target is a descriptor until
+        // the feature resolves), and Add/Remove Programs shows ARPPRODUCTICON or
+        // nothing. Both name one Icon row whose binary IS the launcher — read here
+        // through the tables, and byte-compared by `verify-msi.sh` against the
+        // file in the program directory.
+        const icons = table(msi, 'Icon');
+        assert.equal(icons.length, 1, 'the installer names no icon, or several');
+        const [iconId] = icons[0];
+        assert.ok(iconId.endsWith('.exe'), `the Icon row ${iconId} is not typed as an executable`);
+        // BY NAME out of the header line: `Icon_` is the ninth column of the
+        // Shortcut table, after Target (the feature, for an advertised shortcut),
+        // and reading it by position is how the oracle's first cut accused a
+        // correct installer.
+        const iconColumn = columns(msi, 'Shortcut').indexOf('Icon_');
+        assert.ok(iconColumn > 0, 'the Shortcut table has no Icon_ column');
+        const [shortcut] = table(msi, 'Shortcut');
+        assert.equal(shortcut[iconColumn], iconId, "the shortcut's Icon_ does not name the Icon row");
+        const arp = table(msi, 'Property').find((row) => row[0] === 'ARPPRODUCTICON');
+        assert.ok(arp, 'no ARPPRODUCTICON property — Add/Remove Programs would show no icon');
+        assert.equal(arp[1], iconId);
+        const out = oracle([msi, programDir, 'msitools']);
+        assert.match(
+            out,
+            new RegExp(
+                `1 Start-Menu shortcut with icon ${iconId.replace(/\./g, '\\.')} \\(\\d+ bytes, the launcher\\)`,
+            ),
+        );
+    });
+
+    for (const [what, sql, expected] of [
+        ['an installer whose Icon table is empty', 'DELETE FROM `Icon`', /the Icon table has 0 row\(s\)/],
+        [
+            'a shortcut whose Icon_ names nothing',
+            "UPDATE `Shortcut` SET `Icon_` = ''",
+            /the shortcut's Icon_ column is ""/,
+        ],
+        [
+            'an installer with no ARPPRODUCTICON',
+            "DELETE FROM `Property` WHERE `Property` = 'ARPPRODUCTICON'",
+            /ARPPRODUCTICON is ""/,
+        ],
+    ]) {
+        it(`RED: the oracle refuses ${what}`, () => {
+            // A COPY of the database, mutated through `msibuild -q` — the same
+            // package's SQL, which is the one route to a row change without
+            // recompiling — and the program directory untouched, so every other
+            // check keeps passing and only the icon chain can be what reds.
+            const copy = join(tmpDir, `red-msi-${createHash('sha256').update(what).digest('hex').slice(0, 8)}.msi`);
+            cpSync(msi, copy);
+            execFileSync('msibuild', [copy, '-q', sql], { encoding: 'utf-8' });
+            const failure = oracleExpectingFailure([copy, programDir, 'msitools']);
+            assert.match(failure, expected);
+        });
+    }
 
     it('installs under ProgramFiles64Folder as the directory the zip also expands to', () => {
         const directories = table(msi, 'Directory');

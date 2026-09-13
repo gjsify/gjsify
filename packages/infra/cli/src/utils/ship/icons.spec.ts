@@ -18,7 +18,9 @@ async function refusal(run: () => Promise<unknown>): Promise<string | null> {
 }
 
 /** A fake renderer: solid PNGs at the asked sizes, recording what it was asked for. */
-function fakeRasterizer(asked: number[][]): (input: { svg: string; sizes: readonly number[] }) => Promise<Map<number, Uint8Array>> {
+function fakeRasterizer(
+    asked: number[][],
+): (input: { svg: string; sizes: readonly number[] }) => Promise<Map<number, Uint8Array>> {
     return async ({ sizes }) => {
         asked.push([...sizes]);
         return new Map(sizes.map((size) => [size, tinyPng(size)]));
@@ -97,7 +99,12 @@ export default async () => {
 
         await it('refuses an app with no icon at all, naming the file to add', async () => {
             const message = await refusal(() =>
-                resolveAppIcon({ iconFiles: [symbolic], appId: 'org.example.App', sizes: [16], target: 'the Windows icon' }),
+                resolveAppIcon({
+                    iconFiles: [symbolic],
+                    appId: 'org.example.App',
+                    sizes: [16],
+                    target: 'the Windows icon',
+                }),
             );
             expect(message).toContain('the Windows icon');
             expect(message).toContain('data/icons/hicolor/scalable/apps/org.example.App.svg');
@@ -107,7 +114,12 @@ export default async () => {
         await it('refuses PNGs that leave a size uncovered when there is no SVG to render it from', async () => {
             const png48 = sized(48);
             const message = await refusal(() =>
-                resolveAppIcon({ iconFiles: [png48], appId: 'org.example.App', sizes: [16, 48, 256], target: 'the test' }),
+                resolveAppIcon({
+                    iconFiles: [png48],
+                    appId: 'org.example.App',
+                    sizes: [16, 48, 256],
+                    target: 'the test',
+                }),
             );
             // Names exactly the sizes missing and the two ways to supply them.
             expect(message).toContain('16, 256 px');
