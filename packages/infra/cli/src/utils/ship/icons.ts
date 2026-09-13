@@ -79,9 +79,13 @@ export const RASTERIZER = 'gjs';
  * /usr/lib64/girepository-1.0/Rsvg-2.0.typelib` → `librsvg2-2.62.3`); Debian
  * splits it into `gir1.2-rsvg-2.0`.
  *
- * The macOS row is NOT measured here and is the weaker claim: it is Homebrew's
- * formula name, and a Homebrew `gjs` finds the typelib because both land in one
- * prefix's `lib/girepository-1.0`. What IS measured is that the row is needed —
+ * The macOS row IS measured, on the `macos-suites` darwin leg, and its first
+ * spelling was WRONG: `brew install gjs librsvg` alone still failed, with the
+ * error moving from `namespace 'Rsvg' not found` to `namespace 'cairo', version
+ * '1.0' not found`. The script imports both, and `Cairo-1.0.typelib` belongs to
+ * `gobject-introspection` rather than to the `cairo` formula (`rpm -qf` says so
+ * for the Fedora twin). A hint that names two thirds of what is needed sends a
+ * stranger round the same loop this one went round. What IS measured too is —
  * GitHub's macOS runners carry a `gjs` and no `Rsvg-2.0` typelib, which is the
  * host that turned this message from theory into the one a build actually
  * prints. Assembly is a Linux step by ADR 0024 § A2, so a darwin host reaching
@@ -90,7 +94,7 @@ export const RASTERIZER = 'gjs';
  */
 export const RASTERIZER_HINT =
     'Fedora: `sudo dnf install gjs librsvg2`, Debian/Ubuntu: `sudo apt install gjs gir1.2-rsvg-2.0`, ' +
-    'macOS: `brew install gjs librsvg`';
+    'macOS: `brew install gjs librsvg gobject-introspection`';
 
 /**
  * The pixels of the app icon, one PNG per square edge length.

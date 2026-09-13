@@ -158,6 +158,17 @@ export default async () => {
             // The typelib, not just the binary: a `gjs` alone is what made the
             // PATH probe answer yes and the render fail.
             expect(RASTERIZER_HINT).toContain('rsvg');
+            // BOTH imports, per row. The script needs `gi://Rsvg` AND
+            // `gi://cairo`, and the macOS row first named only the former — the
+            // leg stayed red and the error simply moved from one missing
+            // namespace to the other. `Cairo-1.0.typelib` ships with
+            // gobject-introspection, not with the `cairo` formula, so naming
+            // the renderer alone sends a stranger round the loop this went
+            // round. Asserted on the macOS row because that is the one that was
+            // short; the apt and dnf rows carry cairo through their gjs.
+            const macos = RASTERIZER_HINT.slice(RASTERIZER_HINT.indexOf('macOS:'));
+            expect(macos).toContain('rsvg');
+            expect(macos).toContain('gobject-introspection');
         });
     });
 
