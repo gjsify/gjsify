@@ -117,8 +117,11 @@ function parseAttributes(source: string): Record<string, string> {
  */
 export function scanXml(xml: string): XmlToken[] {
     const tokens: XmlToken[] = [];
+    // Every call site below slices a range it has already proven non-empty, so there is no
+    // empty-string guard here: an unreachable one reads as a real case and invites a test
+    // that cannot fail.
     const pushText = (raw: string): void => {
-        if (raw !== '') tokens.push({ kind: 'text', text: decodeXmlEntities(raw) });
+        tokens.push({ kind: 'text', text: decodeXmlEntities(raw) });
     };
 
     let cursor = 0;

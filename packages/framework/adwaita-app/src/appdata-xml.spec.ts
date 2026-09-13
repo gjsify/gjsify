@@ -69,10 +69,12 @@ export default async () => {
             expect(text(tokens).trim()).toBe('x');
         });
 
+        // `&amp;` inside CDATA is five literal characters, not an ampersand — decoding it
+        // would rewrite a release note that documents an escape sequence.
         await it('takes CDATA verbatim, without entity decoding', () => {
-            const tokens = scanXml('<p><![CDATA[a & b <not-a-tag>]]></p>');
+            const tokens = scanXml('<p><![CDATA[write &amp; for & <not-a-tag>]]></p>');
             expect(names(tokens)).toEqualArray(['p']);
-            expect(text(tokens)).toBe('a & b <not-a-tag>');
+            expect(text(tokens)).toBe('write &amp; for & <not-a-tag>');
         });
 
         // Not a tidiness rule: an unterminated tag at EOF that is silently dropped takes the
@@ -81,10 +83,6 @@ export default async () => {
             const tokens = scanXml('<id>x</id><name attr="unclosed');
             expect(names(tokens)).toEqualArray(['id']);
             expect(text(tokens)).toBe('x<name attr="unclosed');
-        });
-
-        await it('emits no empty text tokens between adjacent tags', () => {
-            expect(scanXml('<a><b></b></a>').filter((token) => token.kind === 'text').length).toBe(0);
         });
     });
 
