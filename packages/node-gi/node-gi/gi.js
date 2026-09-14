@@ -2693,7 +2693,7 @@ let windowingEnvMirrored = false;
  * Give the bundled GTK's `getenv()` readers the variables the loader wrote, on win32.
  *
  * THE VARIABLE WAS SET AND UNREACHABLE, which reads in a log exactly like a platform
- * declining a request — and was read that way for a day (#1668). A Windows process carries
+ * declining a request — and was read that way once (#1668). A Windows process carries
  * two environments: the Win32 block, which `GetEnvironmentVariableW()`, `g_getenv()`, the DLL
  * loader and every child process read, and the C runtime's own copy, which is what `getenv()`
  * returns. Node's `process.env` setter is `uv_os_setenv()` → `SetEnvironmentVariableW()` and

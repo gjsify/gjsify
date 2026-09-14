@@ -110,24 +110,62 @@ let backendsMemo;
  * $PANGOCAIRO_BACKEND value.\n  Available backends are: fontconfig". That line is the only way a
  * running program can find out, and ADR 0038 § 3 already recommends it to a human holding a Mac.
  *
+ * SPLIT ON WHITESPACE, NOT COMMAS, and the difference is not cosmetic. Pango concatenates the
+ * names as adjacent string literals — `" coretext" " win32" " fontconfig"` — so a build with two
+ * backends prints `  Available backends are: win32 fontconfig`, one token on Linux and TWO on
+ * win32. A comma split reads that as the single name "win32 fontconfig", which is in no table
+ * here, so `fontconfigIsCompiledIn()` answers false and every branch below takes the arm for a
+ * pango that has no fontconfig backend — the exact wrong conclusion this file exists to have
+ * caught. Indistinguishable from correct on Linux, where there is only ever one name.
+ *
+ * @param {string} stderr the child's stderr
  * @returns {string[]} lower-cased backend names; empty when the line did not appear
  */
+function parseAvailableBackends(stderr) {
+    const match = /Available backends are:\s*(.+)/.exec(stderr);
+    if (!match) return [];
+    return match[1]
+        .split(/[,\s]+/)
+        .map((name) => name.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+/** @returns {string[]} the backends this pango was built with, asked once per process. */
 function availableBackends() {
     if (backendsMemo === undefined) {
-        const { stderr } = probe({ backend: 'gjsify-no-such-backend' });
-        const match = /Available backends are:\s*(.+)/.exec(stderr);
-        backendsMemo = match
-            ? match[1]
-                  .split(',')
-                  .map((name) => name.trim().toLowerCase())
-                  .filter(Boolean)
-            : [];
+        backendsMemo = parseAvailableBackends(probe({ backend: 'gjsify-no-such-backend' }).stderr);
     }
     return backendsMemo;
 }
 
 /** True when pango here can build an Fc map at all, under either spelling it accepts. */
 const fontconfigIsCompiledIn = () => availableBackends().some((name) => MAP_TYPE_OF[name] === FC_MAP);
+
+// THE PARSER IS HELD ON EVERY PLATFORM, including the ones that cannot produce the input that
+// breaks it. Linux pango has exactly ONE backend, so a comma split and a whitespace split agree
+// there and a wrong parser is invisible; win32 has two, and reading them as the single name
+// "win32 fontconfig" makes `fontconfigIsCompiledIn()` answer false and sends every branch below
+// into the arm for a pango with no fontconfig backend — which is the wrong conclusion this whole
+// file exists to have caught. The inputs are the real ones: the Linux line is measured, the win32
+// line is what `pangocairo-fontmap.c` composes from adjacent string literals.
+test('the backend-list parser reads a two-backend line, which only one platform can produce', () => {
+    const linux = 'Unknown $PANGOCAIRO_BACKEND value.\n  Available backends are: fontconfig\n';
+    const win32 = 'Unknown $PANGOCAIRO_BACKEND value.\n  Available backends are: win32 fontconfig\n';
+    const darwin = 'Unknown $PANGOCAIRO_BACKEND value.\n  Available backends are: coretext fontconfig\n';
+
+    assert.deepEqual(parseAvailableBackends(linux), ['fontconfig']);
+    assert.deepEqual(parseAvailableBackends(win32), ['win32', 'fontconfig']);
+    assert.deepEqual(parseAvailableBackends(darwin), ['coretext', 'fontconfig']);
+    assert.deepEqual(parseAvailableBackends('nothing pango said'), []);
+
+    // The consequence, spelled out, because the list is only ever read through this predicate.
+    for (const line of [linux, win32, darwin]) {
+        assert.ok(
+            parseAvailableBackends(line).some((name) => MAP_TYPE_OF[name] === FC_MAP),
+            `"${line.trim().split('\n').pop()}" does not resolve to ${FC_MAP}`,
+        );
+    }
+});
 
 test('the tofu counter answers in both directions before anything is concluded from it', (t) => {
     const result = probe();

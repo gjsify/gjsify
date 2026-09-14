@@ -229,9 +229,12 @@ The mechanism the sources predicted, and which W1 is the outcome of:
 - `pangocairo-fontmap.c` picks the first backend **compiled in**, in the order
   coretext → win32 → fc — not per platform. cairo's meson adds `cairo-win32`
   unconditionally on a Windows host, and gvsbuild builds pango with
-  `-Dfontconfig=enabled`. So **both** are compiled in, win32 wins, and the fc font
-  map is built and never selected. The `etc/fonts` copy and the `FONTCONFIG_PATH`
-  / `FONTCONFIG_FILE` plumbing have never affected text rendering.
+  `-Dfontconfig=enabled`. So **both** are compiled in, win32 wins by ordering, and the
+  fc font map is built and not selected. The `etc/fonts` copy and the `FONTCONFIG_PATH`
+  / `FONTCONFIG_FILE` plumbing therefore affected nothing — until something selected
+  the other backend, which § Amendment 3 does. Read "`-Dfontconfig=enabled`" there: it
+  is this ADR's own record that the backend EXISTS on win32, and Amendment 3's first
+  draft contradicted it.
 - GTK's `meson.build` (4.23.x): `pangoft_dep` is required only for Wayland/X11,
   `if win32_enabled` hard-requires `pangowin32`, and `pango_pkgname` is
   `pangowin32` on Windows. `fontconfig_dep = []` is set outside `if x11_enabled`.
@@ -681,6 +684,12 @@ too: `fc` and `fontconfig` are both accepted (exact match, two aliases), while a
 cannot match the digits in `Win32`, so the type list looked shorter than it was; and `strings`
 defaults to a 4-character minimum, which is one more than `fc` has, so the alias was invisible in
 the very dump that was supposed to settle the question.
+
+**This ADR had already recorded the answer.** § W1-W5's third bullet says gvsbuild builds pango
+with `-Dfontconfig=enabled` and that "**both** are compiled in, win32 wins" — which is exactly
+the claim the wrong reading denied. A research note two hundred lines up did not stop it; only
+re-reading the binary did. That is the case for keeping the trail in the document rather than
+only in a commit message.
 
 **The evidence against the wrong reading was already in the log.** An invalid value is LOUD — a
 `g_critical` naming every compiled-in backend, and a NULL font map. The CI run printed no such
