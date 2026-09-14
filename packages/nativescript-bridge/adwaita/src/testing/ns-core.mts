@@ -15,17 +15,27 @@
 // hand-written contract with that platform: `src/ns-core.d.ts`, an ambient `declare module
 // '@nativescript/core'` holding the narrow slice these widgets touch, which `gjsify tsc`
 // holds every widget against on every run — and which WINS over the real package even when a
-// consumer installs it. This file is the runtime half of that same declaration and nothing
-// more: it implements the slice the `.d.ts` declares, so the port's own composition can run,
-// and it implements nothing the `.d.ts` does not. A widget reaching past the declared slice
-// fails HERE, loudly, instead of compiling against a promise nobody executes.
+// consumer installs it. This file is the runtime half of that declaration: it implements the
+// part of that slice the port REACHES off a device, so the port's own composition can run.
+//
+// WHAT HOLDS THE TWO TOGETHER is the bundler, and it is worth knowing which half it holds.
+// `--alias @nativescript/core=…` makes every widget's bare import resolve HERE, so a name the
+// port imports that this file does not export fails the build — measured, by renaming
+// `Button` away: rolldown answers `MISSING_EXPORT "Button" is not exported by ns-core.mts`,
+// exit 1, no bundle. That is the reachable slice held exactly. The other direction is not
+// held by anything: `ListPicker` and `Screen` are in the `.d.ts` and deliberately absent
+// here, because the only modules importing them are `*.android.ts` / `*.ios.ts`, which no
+// off-device bundle resolves. If one of them ever moves into a platform-neutral module the
+// build will say so on the next run.
 //
 // WHAT IT IS NOT, and the driver's header says this again where a reader of the result will
 // look: it is not a device and it is not a measurement of NativeScript. It carries no layout
 // pass, no CSS engine, no native view, no animation clock. What it makes measurable is the
-// port's OWN tree — which widget it builds, which child lands where, which value survives
-// the setter it went through. Anything whose answer belongs to Android or iOS (a rasterised
-// icon, a dialog, a measured size) is either absent here or answers the same null the
+// port's OWN tree — which widget it builds, whether a child reaches the tree at all and in
+// which order, which value survives the setter it went through. It does NOT make WHICH SLOT
+// a child landed in measurable, and the driver's header carries the two mutations that
+// establish that. Anything whose answer belongs to Android or iOS (a rasterised icon, a
+// dialog, a measured size) is either absent here or answers the same null the
 // unsupported-platform module already answers off-device.
 //
 // Reference: @nativescript/core 9.1.x — ui/core/view-base, ui/core/view, ui/layouts/*.
@@ -235,20 +245,44 @@ export class Page extends View {}
 export class LayoutBase extends View {
     private readonly _childViews: View[] = [];
 
-    addChild(view: View): void {
-        this._childViews.push(view);
+    /**
+     * THE THREE REFUSALS `ViewBase._addView` MAKES, reproduced rather than simplified away.
+     *
+     * An insertion path that cannot fail is the failure mode a double HAS: every placement
+     * mistake then builds a tree, here, and only a device would ever say otherwise. Upstream
+     * throws on a falsy child, on a non-view, and — the one that matters — on a child that
+     * ALREADY HAS A PARENT (`ui/core/view-base/index.ts`: "View already has a parent"),
+     * because a view lives in exactly one native hierarchy. A port that parents a view twice
+     * ships a tree no device can hold, and without this it composes it quietly.
+     */
+    private _adopt(view: View): void {
+        if (!view) throw new Error('Expecting a valid View instance.');
+        if (!(view instanceof View)) throw new Error(`${String(view)} is not a valid View instance.`);
+        const parent = PARENTS.get(view);
+        if (parent !== undefined) {
+            throw new Error(
+                `View already has a parent. View: ${view.constructor.name} Parent: ${parent.constructor.name}`,
+            );
+        }
         PARENTS.set(view, this);
+    }
+
+    addChild(view: View): void {
+        this._adopt(view);
+        this._childViews.push(view);
     }
 
     insertChild(view: View, atIndex: number): void {
+        this._adopt(view);
         this._childViews.splice(atIndex, 0, view);
-        PARENTS.set(view, this);
     }
 
+    /** `_removeView` refuses a view that is not this parent's; a silent no-op would hide it. */
     removeChild(view: View): void {
-        const at = this._childViews.indexOf(view);
-        if (at === -1) return;
-        this._childViews.splice(at, 1);
+        if (PARENTS.get(view) !== this) {
+            throw new Error(`View not added to this instance. View: ${view?.constructor.name}`);
+        }
+        this._childViews.splice(this._childViews.indexOf(view), 1);
         PARENTS.delete(view);
     }
 
