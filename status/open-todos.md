@@ -6313,6 +6313,35 @@ this, per the policy above. No estimate of the web leg's cost belongs here until
 measures one: a browser binding that resolved custom elements directly would bypass the
 gtk-host ops entirely, so it would not even be evidence for the parameterisation above.
 
+**A long-term GOAL was stated for this gap on 2026-09-14, and is recorded as a goal — not a
+plan, not a promise, nothing scheduled**: a developer who writes Vue should reach MOBILE
+through NativeScript, the way React, Solid and Vue reach GTK today through `gtk-host`. What
+writing it down changes is only that the gap has a direction, so a measurement bearing on it
+is worth keeping. What it does NOT change is the gate: ADR 0051 Decision 5 still says a
+consumer that needs it is what starts the work, and a stated direction is not one.
+
+Its preconditions, measured ones only:
+
+- **A renderer DRIVER is not a framework binding, and one arriving does not move this
+  entry.** A driver builds an AUTHORED tree through a renderer and holds it against the
+  `adwaita-core` vectors; a binding reconciles a framework's component tree onto that
+  renderer's ops. ADR 0051 § Amendment 1 is why the distinction is load-bearing rather than
+  pedantic — it withdrew the NativeScript tree driver of its own stage 2 on the measurement
+  that every widget there extends an `@nativescript/core` base, that the package ships no
+  platform-neutral module for one (9.1.1 has `index.android.js` / `index.ios.js` and no
+  `index.js`), and that installing the optional peer does not repair it. Whatever a driver
+  for that surface establishes, it is a claim about what the PORT can build.
+- **The element door is unmeasured.** `registerElement`, how a NativeScript framework
+  binding resolves a custom element, is not in `@nativescript/core` at all — measured on 9.1
+  under ADR 0033 § Consequences, where the identifier is absent from the package and belongs
+  to `@nativescript/angular` / `nativescript-vue` — and the port's own documented way in is
+  NativeScript's rule that an `xmlns` IS a module, over an app-local barrel. Which of those
+  two doors a Vue binding here would use has not been measured, and the answer decides
+  whether this is a parameterisation of the gtk-host ops or a second reconciler.
+- **The same caveat as the web leg above applies twice over**: a binding that resolved the
+  port's classes directly would bypass the gtk-host ops, so it would be no evidence for the
+  parameterisation either.
+
 ### The enum numbers exist twice now, with two provenances and one reader each
 
 `@girs` 4.9.0 carries `ENUM_VALUES` in every namespace's vocabulary, read from the same GIR as
