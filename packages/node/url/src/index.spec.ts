@@ -653,7 +653,14 @@ export default async () => {
 
         await it('is a no-op where the URL cannot have credentials', async () => {
             // "Cannot have a username/password/port" is host-null, host-empty, or scheme file.
-            for (const href of ['file:///home/you/index.html', 'unix:/run/foo.socket', 'mailto:you@example.net', 'javascript:alert(1)', 'sc:///', 'file://test/']) {
+            for (const href of [
+                'file:///home/you/index.html',
+                'unix:/run/foo.socket',
+                'mailto:you@example.net',
+                'javascript:alert(1)',
+                'sc:///',
+                'file://test/',
+            ]) {
                 const u = new URL(href);
                 u.username = 'me';
                 u.password = 'secret';
@@ -667,7 +674,7 @@ export default async () => {
             const u = new URL('http://example.net');
             u.username = '\u0000\u0001\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
             expect(u.username).toBe(
-                '%00%01%1F%20!%22%23$%&\'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9',
+                "%00%01%1F%20!%22%23$%&'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
             );
         });
 
@@ -1084,7 +1091,7 @@ export default async () => {
             const u = new URL('a:/');
             u.pathname = '\u0000\u0001\t\n\r\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
             expect(u.pathname).toBe(
-                '/%00%01%1F%20!%22%23$%&\'()*+,-./09:;%3C=%3E%3F@AZ[\\]%5E_%60az%7B|%7D~%7F%C2%80%C2%81%C3%89%C3%A9',
+                "/%00%01%1F%20!%22%23$%&'()*+,-./09:;%3C=%3E%3F@AZ[\\]%5E_%60az%7B|%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
             );
         });
 
@@ -1210,7 +1217,7 @@ export default async () => {
             const u = new URL('a:/');
             u.hash = '\u0000\u0001\t\n\r\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
             expect(u.hash).toBe(
-                '#%00%01%1F%20!%22#$%&\'()*+,-./09:;%3C=%3E?@AZ[\\]^_%60az{|}~%7F%C2%80%C2%81%C3%89%C3%A9',
+                "#%00%01%1F%20!%22#$%&'()*+,-./09:;%3C=%3E?@AZ[\\]^_%60az{|}~%7F%C2%80%C2%81%C3%89%C3%A9",
             );
         });
 
