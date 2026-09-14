@@ -201,16 +201,26 @@ both sufficient and the simplest mechanism.
   `@gjsify/gtk-host`'s `initFonts()` hands each face to `add_font_file`, which moves it by one.
   That handover is unchanged by the paragraph below, and it is still what puts the face there.
 
-  **AND THE BACKEND IS REQUESTED BUT REFUSED HERE.** `pangocairo` builds the first backend
-  COMPILED IN (coretext → win32 → fc), so this bundle draws through DirectWrite and macOS's
-  through CoreText, whose script fallback does not reach every face the system installs —
-  non-Latin text rendered as empty boxes in every shipped app, Tamil measured on Windows 11 and
-  macOS 15.7.9 with the system's own Tamil face installed throughout. node-gi's loader asks for
-  `PANGOCAIRO_BACKEND=fc` on both platforms (only when you have not set it yourself), and
-  **this bundle cannot honour it**: gvsbuild's pango is built with no FreeType/fontconfig cairo
-  backend, measured in CI — the variable is set, the map is still `PangoCairoWin32FontMap`, and
-  Tamil is still tofu. So `etc/fonts` here remains configuration nothing reads, and the
-  non-Latin gap is open on this platform. ADR 0038 § Amendment 3 and `status/open-todos.md`.
+  **AND THE BACKEND IS NOW SELECTED, WHICH IS WHY THAT IS A SECOND STEP AND NOT THE ONLY ONE.**
+  `pangocairo` builds the first backend COMPILED IN (coretext → win32 → fc), so by default this
+  bundle draws through DirectWrite and macOS's through CoreText, whose script fallback does not
+  reach every face the system installs — non-Latin text rendered as empty boxes in every shipped
+  app, Tamil measured on Windows 11 and macOS 15.7.9 with the system's own Tamil face installed
+  throughout. node-gi's loader sets `PANGOCAIRO_BACKEND=fc` on both platforms (only when you have
+  not set it yourself), and this bundle's pango can honour it: `pangocairo-1.0-0.dll` from
+  gvsbuild 2026.6.0 registers `PangoCairoFcFontMap`, imports `fontconfig-1.dll`, and lists
+  ` win32 fontconfig`. So `etc/fonts` here is configuration that IS read, and a process on this
+  bundle draws through FreeType rather than ClearType — pin `PANGOCAIRO_BACKEND=win32` to get
+  the platform map back, and `initFonts()` still hands it the faces.
+
+  **A WINDOWS PROCESS HAS TWO ENVIRONMENTS, and that cost a day.** The loader writes
+  `process.env`, which on win32 is `SetEnvironmentVariableW()` — the Win32 block that
+  `g_getenv()`, the DLL loader and every child process read, and NOT the C runtime copy that
+  `getenv()` returns. `pango_cairo_font_map_new()` and fontconfig's config lookup both use
+  `getenv()`, so a CI run measured `PANGOCAIRO_BACKEND=fc` in the environment and a
+  `PangoCairoWin32FontMap` anyway, and that was first read as the bundle having no fontconfig
+  backend at all. node-gi mirrors the loader's writes into the C runtime copy with `g_setenv()`
+  on the first `requireGi()`. ADR 0038 § Amendment 3 has the measurement trail.
 
   **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
   shell, and Windows' is 9 pt where GNOME designs for 11. Measured as `ascent + descent` rather

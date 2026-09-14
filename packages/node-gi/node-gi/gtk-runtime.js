@@ -25,6 +25,31 @@ const here = dirname(fileURLToPath(import.meta.url)); // package root
 // Sentinel: set on the re-exec so a bundle-activated child never re-execs again.
 const REEXEC_SENTINEL = 'GJSIFY_GTK_REEXEC';
 
+/** @type {Array<[string, string]>} every write maybeWireGtkWindowingEnv() made, in order. */
+let windowingEnvWritesMade = [];
+
+/**
+ * What `maybeWireGtkWindowingEnv()` wrote into `process.env`, as `[name, value]` pairs.
+ *
+ * A WINDOWS PROCESS HAS TWO ENVIRONMENTS and a JS `process.env` write reaches one of them.
+ * Node's setter is `uv_os_setenv()`, which is `SetEnvironmentVariableW()` and nothing else:
+ * that updates the Win32 environment block — what `GetEnvironmentVariableW()`, `g_getenv()`,
+ * the DLL loader and every child process read — and never the C runtime's own copy, which is
+ * what `getenv()` returns. Libraries in the bundle use BOTH: GLib, GIO, gdk-pixbuf and GTK go
+ * through `g_getenv()` and saw every variable all along, while `pango_cairo_font_map_new()`
+ * and fontconfig's config lookup call `getenv()` and saw none of them. That is measured
+ * rather than reasoned: see the PANGOCAIRO_BACKEND note in `maybeWireGtkWindowingEnv()`.
+ *
+ * The repair is `g_setenv()`, which glib implements as `_wputenv()` + `SetEnvironmentVariableW()`
+ * for exactly this reason — so it needs a loaded GLib, which does not exist when the loader
+ * runs. `mirrorWindowingEnvIntoCrt()` in `gi.js` replays this list on the first `requireGi()`.
+ * Empty off win32 (POSIX `setenv()` has one environment) and empty when the wiring no-opped.
+ * @returns {Array<[string, string]>}
+ */
+export function windowingEnvWrites() {
+    return process.platform === 'win32' ? windowingEnvWritesMade.slice() : [];
+}
+
 /**
  * Resolve the GTK runtime bundle directory for this platform, or `null`. A valid
  * bundle dir contains the native-code dir (`lib/` relocated dylibs on darwin,
@@ -371,7 +396,12 @@ export function maybePrependGtkRuntimeDllPath() {
  * --windowing build produces, so the DEFAULT display-free bundle is byte-unchanged.
  * Windows re-reads these vars at first use (schema/loader/icon-theme init runs AFTER
  * the addon loads), so an in-process mutation here suffices — no re-exec, the DLL-
- * search analog. Each var is set only when currently unset (a host override wins).
+ * search analog. TRUE OF EVERY `g_getenv()` READER, and only of those: on win32 an
+ * in-process write lands in the WIN32 environment block alone, which is where
+ * `g_getenv()` looks and where `getenv()` does not. What every write here is recorded
+ * in `windowingEnvWrites()` for is the repair of that second half — see the
+ * `PANGOCAIRO_BACKEND` note below and `mirrorWindowingEnvIntoCrt()` in `gi.js`.
+ * Each var is set only when currently unset (a host override wins).
  * Idempotent; MUST run at module top-level with maybePrependGtkRuntimeDllPath, before
  * the app initializes GTK. GLib uses `;` as the win32 search-path separator.
  * @returns {void}
@@ -394,8 +424,17 @@ export function maybeWireGtkWindowingEnv() {
     if (!existsSync(join(schemaDir, 'gschemas.compiled'))) return;
 
     const pathSep = process.platform === 'win32' ? ';' : ':';
+    // Recorded, not just written. On win32 `process.env.X = v` reaches ONE of the two
+    // environments this process has (see `windowingEnvWrites` and the PANGOCAIRO_BACKEND
+    // note below), and the mirror that reaches the other one needs a GLib, which does not
+    // exist yet at module top level. Reset per call so the function stays idempotent.
+    windowingEnvWritesMade = [];
+    const write = (name, value) => {
+        process.env[name] = value;
+        windowingEnvWritesMade.push([name, value]);
+    };
     const setIfUnset = (name, value) => {
-        if (!process.env[name]) process.env[name] = value;
+        if (!process.env[name]) write(name, value);
     };
     setIfUnset('GSETTINGS_SCHEMA_DIR', schemaDir);
 
@@ -428,7 +467,7 @@ export function maybeWireGtkWindowingEnv() {
     if (existsSync(shareDir)) {
         const cur = process.env.XDG_DATA_DIRS ?? '';
         if (!cur.split(pathSep).filter(Boolean).includes(shareDir)) {
-            process.env.XDG_DATA_DIRS = cur ? `${shareDir}${pathSep}${cur}` : shareDir;
+            write('XDG_DATA_DIRS', cur ? `${shareDir}${pathSep}${cur}` : shareDir);
         }
     }
 
@@ -446,7 +485,9 @@ export function maybeWireGtkWindowingEnv() {
     // fontconfig, which everything else here configures, drives nothing.
     //
     // MEASURED 2026-09-12 on real hardware — Learn6502 0.8.0 on the published windowing
-    // bundle, macOS 15.7.9 and Windows 11:
+    // bundle, macOS 15.7.9 and Windows 11, with the variable exported BY HAND into the
+    // process before launch (nothing in the loader set it then — this line is what changed
+    // that, and the distinction turns out to be the whole story on win32):
     //
     //   Tamil    தமிழ்   default backend: TOFU     PANGOCAIRO_BACKEND=fc: renders
     //   Japanese 日本語   default backend: renders  PANGOCAIRO_BACKEND=fc: renders
@@ -464,19 +505,38 @@ export function maybeWireGtkWindowingEnv() {
     // bundle already ships `etc/fonts/fonts.conf` and the two lines above already point at it.
     // The configuration was being read by nobody.
     //
-    // THIS IS A REQUEST, NOT A GUARANTEE, and on win32 it is currently REFUSED. Measured in CI
-    // run 34873488108 on the bundle built from this tree: with the variable set, the process
-    // still built a PangoCairoWin32FontMap — `Adwaita Sans` was on it under the DirectWrite
-    // spelling `Adwaita Sans Text` — and Tamil still counted 5 unknown glyphs. gvsbuild's pango
-    // has no FreeType/fontconfig cairo backend to select, so #1668 is NOT fixed on Windows by
-    // this line, and `etc/fonts` there is still configuration nobody reads (open-todos).
+    // ON WIN32 THIS WRITE ALONE DOES NOT REACH PANGO, and the first reading of that is kept
+    // here because it is the kind of wrong answer that gets re-derived. CI run 34873488108
+    // measured `PANGOCAIRO_BACKEND=fc` in `process.env` and a `PangoCairoWin32FontMap` anyway,
+    // and that was written up as "gvsbuild's pango has no fontconfig backend to select". It has
+    // one. `bin/pangocairo-1.0-0.dll` out of GTK4_Gvsbuild_2026.6.0_x64.zip registers
+    // `PangoCairoFcFontMap` as well as `PangoCairoWin32FontMap`, imports `pangoft2-1.0-0.dll`
+    // and `fontconfig-1.dll`, and carries ` win32 fontconfig` — the string pango prints for an
+    // unknown value — beside the three literals it compares against: `win32`, `fc`,
+    // `fontconfig`. Two things hid that: a `PangoCairo[A-Za-z]*FontMap` regex cannot match the
+    // digits in `Win32`, and `strings` defaults to a 4-character minimum, one more than `fc`
+    // has. An invalid value is also LOUD (`Unknown $PANGOCAIRO_BACKEND value` + a NULL map),
+    // and the run printed none — which was the evidence against the first reading all along.
     //
-    // The line stays on BOTH platforms anyway: the request is correct on both, the refusal is
-    // the platform's, and it is measured to change nothing on win32 today. The reason that is
-    // not a silent trap waiting for a gvsbuild bump — the failure shape § WHICH GTK WINS warns
-    // about two hundred lines up — is `test/font-script-coverage.test.mjs`: it asks the process
-    // which backends it HAS and asserts the branch it is in, so the day win32 gains fontconfig
-    // the suite changes its answer instead of the rasteriser changing under a user.
+    // WHAT IS ACTUALLY WRONG IS THE REACH OF THE WRITE. `pango_cairo_font_map_new()` reads
+    // plain `getenv()`, not `g_getenv()`. On win32 Node's `process.env` setter is
+    // `uv_os_setenv()`, which is `SetEnvironmentVariableW()` and nothing else — the WIN32
+    // environment block, never the C runtime's own copy, and `getenv()` returns the copy. So
+    // `process.env.PANGOCAIRO_BACKEND` reads back `fc` (Node reads it through
+    // `GetEnvironmentVariableW`), every CHILD process inherits it, every `g_getenv()` reader on
+    // this list sees it — and pango in THIS process sees nothing, takes the `!backend` branch
+    // and builds the platform map. glib documents the split in `g_setenv()` itself and repairs
+    // it by calling `_wputenv()` first and `SetEnvironmentVariableW()` second; that is the
+    // repair here too, and it needs a GLib, which does not exist at module top level. So it
+    // happens on the first `requireGi()` — `mirrorWindowingEnvIntoCrt()` in `gi.js`, over
+    // exactly the writes recorded above. This write stays: it is what the mirror copies, what a
+    // child inherits, and what every GLib reader already uses.
+    //
+    // NOTHING ABOVE CONTRADICTS THE 2026-09-12 WINDOWS MEASUREMENT — both readings are kept
+    // because together they name which half is which. There the variable was in the process at
+    // LAUNCH, so the C runtime had it before any code of ours ran, and Tamil rendered. The
+    // gvsbuild pin was already 2026.6.0 on that date, so those are the same DLLs CI builds
+    // against: same backend, same value, different reach.
     //
     // `setIfUnset`, because an operator who pins `coretext`/`win32` has to win: the price of
     // this line is a different RASTERISER (FreeType instead of ClearType/CoreText), which is a
@@ -487,21 +547,22 @@ export function maybeWireGtkWindowingEnv() {
     // arbitrary host's Pango does not owe us.
     setIfUnset('PANGOCAIRO_BACKEND', 'fc');
 
-    // THE FACES, which are a different question from the three settings above and on one of
-    // the two platforms not answerable by an environment variable at all.
+    // THE FACES, which are a different question from the three settings above and on the
+    // platform font maps not answerable by an environment variable at all.
     //
     // `XDG_DATA_DIRS` reaches `<bundle>/share/fonts` wherever fontconfig drives Pango — its
-    // stock configuration carries `<dir prefix="xdg">fonts</dir>` — which on darwin is true
-    // only BECAUSE of the backend request above. This comment used to read "so on darwin the
-    // set above is enough", and that sentence WAS the defect: nothing made fontconfig the
-    // darwin backend, so the directory was being named to a reader nobody had asked.
-    // On WIN32 it remains the only route there is, backend request or not: gvsbuild's pango
-    // has no fontconfig backend to select, so GTK4 there is pangowin32, whose font map is
-    // filled exclusively by `pango_font_map_dwrite_populate()` from the DirectWrite system
-    // collection, and a `FONTCONFIG_FILE` naming a directory of faces moves that map by ZERO
-    // families even when it is the only configuration present (measured on Windows 11 /
-    // GTK 4.22.4, both directions — ADR 0038 § W1-W5). The face has to be handed to the map
-    // through `add_font_file`, which is a RUNTIME call somebody has to make.
+    // stock configuration carries `<dir prefix="xdg">fonts</dir>` — which is true only BECAUSE
+    // of the backend selection above. This comment used to read "so on darwin the set above is
+    // enough", and that sentence WAS the defect: nothing made fontconfig the darwin backend, so
+    // the directory was being named to a reader nobody had asked.
+    // It stays the route for any process that ends up on a PLATFORM map — an operator pinning
+    // `win32`/`coretext`, a host GTK, a pango built without the fontconfig backend. GTK4 on
+    // pangowin32 has a font map filled exclusively by `pango_font_map_dwrite_populate()` from
+    // the DirectWrite system collection, so a `FONTCONFIG_FILE` naming a directory of faces
+    // moves THAT map by ZERO families however it is set (measured on Windows 11 / GTK 4.22.4,
+    // both directions — ADR 0038 § W1-W5). The face has to be handed to the map through
+    // `add_font_file`, which is a RUNTIME call somebody has to make — so `initFonts()` stays
+    // wired on both platforms and is not conditional on which map won.
     //
     // So the loader's job here is to name the directory, not to register anything: it runs
     // before the addon loads and has no Pango to talk to. `@gjsify/gtk-host`'s `initFonts()`

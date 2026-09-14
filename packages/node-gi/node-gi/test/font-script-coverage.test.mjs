@@ -12,16 +12,23 @@
 // Linux the shipped bundle drew through CoreText or pangowin32/DirectWrite, whose script
 // fallback does not reach the Indic faces those systems install (`Tamil Sangam MN.ttc`,
 // `Nirmala.ttf`: present on both machines the whole time). Every `FONTCONFIG_*` line the loader
-// sets was being read by nobody. `maybeWireGtkWindowingEnv()` now also REQUESTS the backend that
+// sets was being read by nobody. `maybeWireGtkWindowingEnv()` now also SELECTS the backend that
 // reads them.
 //
-// REQUESTS, NOT GETS, and that distinction is this file's reason to exist rather than a caveat
-// inside it. Measured on the win32 windowing bundle in CI run 34873488108: with
-// `PANGOCAIRO_BACKEND=fc` set, the process still drew through a win32 map — `Adwaita Sans` was
-// on it as `Adwaita Sans Text`, the DirectWrite spelling — and Tamil still counted 5 unknown
-// glyphs. A platform can decline the request and nothing in the environment says so. So this
-// file asks the PROCESS which backends it has, by making pango print the list, and branches on
-// that measurement rather than on a platform name.
+// A SET VARIABLE IS NOT A READ ONE, and that distinction is this file's reason to exist rather
+// than a caveat inside it. Measured on the win32 windowing bundle in CI run 34873488108: with
+// `PANGOCAIRO_BACKEND=fc` in `process.env`, the process still drew through a win32 map and Tamil
+// still counted 5 unknown glyphs. That was first written up as "gvsbuild's pango has no
+// fontconfig backend to select", and it was WRONG — that DLL registers `PangoCairoFcFontMap`,
+// imports `fontconfig-1.dll`, and lists ` win32 fontconfig`. What Windows has instead is TWO
+// ENVIRONMENTS: Node's `process.env` writer is `SetEnvironmentVariableW()`, which updates the
+// Win32 block that `g_getenv()` reads and never the C runtime copy that `getenv()` reads — and
+// `pango_cairo_font_map_new()` calls `getenv()`. `gi.js` mirrors the loader's writes across with
+// `g_setenv()` on the first `requireGi()`, and this file is what holds that: it measures the
+// LOADER-SET value against the same value placed in the LAUNCH environment, where the C runtime
+// picks it up at startup and the question does not arise. It also asks the PROCESS which
+// backends it has, by making pango print the list, so every branch below is taken on a
+// measurement rather than on a platform name.
 //
 // JAPANESE PROVES NOTHING, AND THAT IS WHY IT IS NOT HERE. It came out right in the same window
 // of the same run in which Tamil was empty boxes — both platform maps carry a CJK fallback — so
@@ -157,9 +164,9 @@ test('the tofu counter answers in both directions before anything is concluded f
     );
 });
 
-test('the backend the bundle asks for is the backend it gets, or the gap is named', (t) => {
+test('the backend the bundle selects is the backend it gets, or the gap is named', (t) => {
     if (!windowingBundleIsActive()) {
-        t.skip('no active windowing bundle — the backend request is scoped to the bundle, so nothing made it');
+        t.skip('no active windowing bundle — the backend selection is scoped to the bundle, so nothing made it');
         return;
     }
 
@@ -167,8 +174,9 @@ test('the backend the bundle asks for is the backend it gets, or the gap is name
     assert.ok(
         backends.length > 0,
         'an unknown PANGOCAIRO_BACKEND value did not make pango print its compiled-in backend list, so this ' +
-            'file cannot tell "the platform declined" from "the request was never made" — and those are the ' +
-            'two explanations for every count below. See ADR 0038 § 3.',
+            'file cannot tell "this pango has no such backend" from "the value never reached it" — and those ' +
+            'are the two explanations for every count below, one of which has already been read as the other ' +
+            'once. See ADR 0038 § Amendment 3.',
     );
 
     const shipped = probe();
@@ -177,46 +185,64 @@ test('the backend the bundle asks for is the backend it gets, or the gap is name
         return;
     }
 
-    // What is asserted is the MAP, never the variable. `PANGOCAIRO_BACKEND=fc` being in the
-    // environment says the request was made and nothing about whether it was honoured — which is
-    // the whole finding this file was rewritten around.
+    // What is asserted is the MAP, never the variable. `PANGOCAIRO_BACKEND=fc` being in
+    // `process.env` says a write happened and nothing about whether the library that reads it saw
+    // it — which is the whole finding this file was rewritten around.
     const gotFc = shipped.mapTypes.includes(FC_MAP);
     console.log(
-        `backends compiled in: [${backends}]; asked for fc and got [${shipped.mapTypes}] ` +
-            `(${shipped.familyCount} families)`,
+        `backends compiled in: [${backends}]; loader set fc and the process built [${shipped.mapTypes}] ` +
+            `(${shipped.familyCount} families). env at entry ${JSON.stringify(shipped.envAtEntry)}, ` +
+            `after load ${JSON.stringify(shipped.envAfterLoad)}, g_getenv ${JSON.stringify(shipped.glibEnv)}; ` +
+            `map types registered before the default map was built: [${shipped.mapTypesBefore}]`,
     );
 
     if (fontconfigIsCompiledIn()) {
-        // The request CAN be honoured here, so it must have been. A fontconfig-capable pango that
-        // still builds the platform map means something overrode the loader, which would be a
-        // defect in this change rather than a property of the host.
+        // THE REACH ARM, and it is the discriminator the first diagnosis of #1668 did not have.
+        // The same value, in the LAUNCH environment instead of written by the loader, so the C
+        // runtime has it before any of our code runs and `getenv()` cannot miss it. If this arm
+        // gets the Fc map and the loader-set one does not, the backend was never the subject.
+        const launched = probe({ backend: 'fc' });
+        assert.ok(
+            launched.mapTypes?.includes(FC_MAP),
+            `this pango lists [${backends}], so fontconfig can be built, and PANGOCAIRO_BACKEND=fc in the ` +
+                `LAUNCH environment still produced [${launched.mapTypes}]. That is not a reach problem and ` +
+                'not a host property: either the backend list is wrong or something in the process is ' +
+                'overriding the value.',
+        );
+
+        // The value CAN be honoured here and the loader set it, so it must have been honoured.
         assert.ok(
             gotFc,
-            `this pango lists [${backends}], so fontconfig was available, and the process still built ` +
-                `[${shipped.mapTypes}]. The loader's PANGOCAIRO_BACKEND=fc was set and did not take effect.`,
+            `this pango lists [${backends}] and PANGOCAIRO_BACKEND=fc in the launch environment builds ` +
+                `[${launched.mapTypes}] — but the value written by the loader, which process.env reports as ` +
+                `${JSON.stringify(shipped.envAfterLoad?.PANGOCAIRO_BACKEND)} and g_getenv as ` +
+                `${JSON.stringify(shipped.glibEnv?.PANGOCAIRO_BACKEND)}, produced [${shipped.mapTypes}]. ` +
+                'The variable is set and the library reading it cannot see it: on win32 that is the Win32 ' +
+                'environment block vs the C runtime copy, which mirrorWindowingEnvIntoCrt() in gi.js exists ' +
+                'to close (#1668).',
         );
         return;
     }
 
-    // THE MEASURED GAP, asserted rather than skipped so that it retires itself. gvsbuild's pango
-    // is built without the FreeType/fontconfig cairo backend, so `PANGOCAIRO_BACKEND=fc` is inert
-    // on win32 — CI run 34873488108, where the map stayed win32 and Tamil stayed 5 unknown
-    // glyphs. The day that build gains the backend, `backends` changes, the branch above runs
-    // instead, and the ledger entry naming this gap has to go with it.
+    // THE GAP, asserted rather than skipped so that it retires itself: a pango built without the
+    // FreeType/fontconfig cairo backend has nothing to select, and then `PANGOCAIRO_BACKEND=fc`
+    // genuinely is inert. NOT what win32 turned out to be — gvsbuild's pango lists ` win32
+    // fontconfig` — so this branch is currently reached by no CI leg, and that is the point: it
+    // is the shape the wrong diagnosis claimed, kept as a check rather than as a belief.
     assert.ok(
         !gotFc,
         `this pango lists [${backends}] — no fontconfig — and yet an Fc map was built. One of the two ` +
             'measurements is wrong, and which branch this file takes depends on which one.',
     );
     console.log(
-        `PANGOCAIRO_BACKEND=fc is INERT here: pango lists [${backends}]. #1668 is NOT fixed on this ` +
-            'platform; see the win32 fontconfig entry in status/open-todos.md.',
+        `PANGOCAIRO_BACKEND=fc is INERT here: pango lists [${backends}], which carries no fontconfig ` +
+            'backend to select. #1668 is NOT fixed on this platform; see status/open-todos.md.',
     );
 });
 
 test('Tamil renders wherever the fontconfig backend can actually be selected', (t) => {
     if (!windowingBundleIsActive()) {
-        t.skip('no active windowing bundle — nothing requested a backend here');
+        t.skip('no active windowing bundle — nothing selected a backend here');
         return;
     }
 
@@ -243,16 +269,8 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
 
     const seen = counts(shipped);
     const tamil = shipped.samples.find((s) => s.id === 'tamil');
-    assert.equal(
-        seen.tamil,
-        0,
-        `Tamil draws ${seen.tamil} unknown glyph(s) out of ${tamil.characters} characters on an Fc map ` +
-            `reading ${shipped.fontconfigFile ?? 'fontconfig defaults'}. The host lists ${shipped.familyCount} ` +
-            `families and [${shipped.tamilFamilies}] that could carry the script — an EMPTY list there means ` +
-            'this machine has no Tamil face at all, which is a statement about the host and not about #1668.',
-    );
 
-    // THE CONTROL, and without it everything above is a claim about a machine rather than about
+    // THE CONTROL, and without it everything below is a claim about a machine rather than about
     // this change. The platform's own backend must reproduce the defect — and, incidentally, this
     // proves the `setIfUnset` half: an operator's explicit value wins over the loader's.
     const control = probe({ backend: platformBackend });
@@ -269,6 +287,32 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
             'the PANGOCAIRO_BACKEND line and proves nothing. That is a finding, not a pass: the platform font ' +
             'map now reaches the script it did not reach on 2026-09-12, and the line in gtk-runtime.js needs ' +
             're-justifying against a fresh measurement.',
+    );
+
+    // A HOST WITH NO TAMIL FACE AT ALL is the one state in which the claim below cannot be put to
+    // this machine, and it is a real one: a Windows SERVER image carries a far smaller font set
+    // than the Windows 11 desktop the defect was measured on. Three conditions together, so that
+    // this can never absorb a genuine failure — the count is non-zero (nothing is being hidden
+    // that passed), NEITHER map lists a family that could carry the script, and both facts are
+    // printed. A face the family heuristic misses still counts 0 and takes the assertion below.
+    if (seen.tamil > 0 && shipped.tamilFamilies.length === 0 && control.tamilFamilies?.length === 0) {
+        t.skip(
+            `this host has no Tamil-capable font family under EITHER map — fc lists ${shipped.familyCount} ` +
+                `families and none matching, ${platformBackend} lists ${control.familyCount} and none ` +
+                `matching, and Tamil counts ${seen.tamil} on both. #1668 is about which faces a backend ` +
+                'reaches, and this machine has none to reach; the map assertion in the test above is what ' +
+                'holds the change here.',
+        );
+        return;
+    }
+
+    assert.equal(
+        seen.tamil,
+        0,
+        `Tamil draws ${seen.tamil} unknown glyph(s) out of ${tamil.characters} characters on an Fc map ` +
+            `reading ${shipped.fontconfigFile ?? 'fontconfig defaults'}. The host lists ${shipped.familyCount} ` +
+            `families and [${shipped.tamilFamilies}] that could carry the script, against ` +
+            `[${control.tamilFamilies}] on the ${platformBackend} map.`,
     );
 
     console.log(
@@ -293,7 +337,7 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
 // `/usr/share/fonts`, latin=0 tamil=0.
 test('a host with no fontconfig configuration at all still has fonts', (t) => {
     if (!windowingBundleIsActive()) {
-        t.skip('no active windowing bundle — nothing requested a backend here');
+        t.skip('no active windowing bundle — nothing selected a backend here');
         return;
     }
     const shipped = probe();

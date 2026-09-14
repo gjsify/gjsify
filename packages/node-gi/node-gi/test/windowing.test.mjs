@@ -320,13 +320,12 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
         // declined, none failed for another reason — and the gap is stated rather than passed
         // over.
         //
-        // THIS ARM WAS THE DARWIN OUTCOME, and the loader now asks for a backend that would
-        // change it: `PANGOCAIRO_BACKEND=fc` on a windowing bundle, which where it is honoured
-        // gives a PangoCairoFcFontMap that implements `add_font_file`, so the assertions below
-        // run there like everywhere else (ADR 0038 § Amendment 3). A request, not a guarantee —
-        // win32's pango has no such backend to select, measured — so this arm stays reachable:
-        // a CoreText map, a system GTK on macOS, or the backend pinned back by hand, where the
-        // route is `ATSApplicationFontsPath`, a shipped `.app` only and out of this test's
+        // THIS ARM WAS THE DARWIN OUTCOME, and the loader now selects a backend that changes
+        // it: `PANGOCAIRO_BACKEND=fc` on a windowing bundle gives a PangoCairoFcFontMap, which
+        // implements `add_font_file`, so the assertions below run there like everywhere else
+        // (ADR 0038 § Amendment 3). The arm stays reachable rather than dead: a system GTK on
+        // macOS, or the backend pinned back by hand, still builds a CoreText map, and there the
+        // route is `ATSApplicationFontsPath` — a shipped `.app` only, and out of this test's
         // reach.
         assert.equal(declined, faces.length);
         console.log(

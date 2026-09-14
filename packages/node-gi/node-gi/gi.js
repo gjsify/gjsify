@@ -18,6 +18,9 @@ import { setImmediate, setInterval, clearInterval } from 'node:timers';
 // loop-liveness hooks below would silently never fire.
 import runtimeProcess from 'node:process';
 import { createGioDBus } from './overrides/gio-dbus.js';
+// The windowing loader's record of what it wrote into process.env. Read here and not there
+// because replaying it needs a GLib (mirrorWindowingEnvIntoCrt below).
+import { windowingEnvWrites } from './gtk-runtime.js';
 
 // The raw native GObject handle on a wrapped instance, so it can be unwrapped again
 // when passed back into the engine as a GI argument.
@@ -2682,6 +2685,45 @@ function namespaceObject(namespace) {
 // startMainLoop is itself idempotent; this just avoids the extra call.
 let loopAttached = false;
 
+// Whether the windowing loader's win32 env writes have been copied into the C runtime's
+// environment yet. Set BEFORE the copy runs, because the copy calls requireGi() again.
+let windowingEnvMirrored = false;
+
+/**
+ * Give the bundled GTK's `getenv()` readers the variables the loader wrote, on win32.
+ *
+ * THE VARIABLE WAS SET AND UNREACHABLE, which reads in a log exactly like a platform
+ * declining a request — and was read that way for a day (#1668). A Windows process carries
+ * two environments: the Win32 block, which `GetEnvironmentVariableW()`, `g_getenv()`, the DLL
+ * loader and every child process read, and the C runtime's own copy, which is what `getenv()`
+ * returns. Node's `process.env` setter is `uv_os_setenv()` → `SetEnvironmentVariableW()` and
+ * nothing else, so it writes the first and not the second. `pango_cairo_font_map_new()` reads
+ * `getenv("PANGOCAIRO_BACKEND")` and fontconfig reads `getenv("FONTCONFIG_FILE")`: both saw
+ * an empty environment while `process.env` reported the values back correctly.
+ *
+ * `g_setenv()` is the repair because glib already solved this — it calls `_wputenv()` first
+ * and `SetEnvironmentVariableW()` second, and says why in its own source. Called through the
+ * bundle's OWN GLib, so the runtime copy written is the one pango and fontconfig link against.
+ * `overwrite` is true and that is not a policy decision: every value replayed came from
+ * `setIfUnset`, so a value the operator set is already the value being written back.
+ *
+ * TIMING is why this is not in the loader: both readers are lazy — pango at the first font
+ * map, fontconfig at the first config load — and neither can fire before a namespace is
+ * required, while GLib cannot be called before the addon is loaded. The first `requireGi()` is
+ * the one moment after the second and before the first.
+ *
+ * Strict no-op off win32 (POSIX `setenv()` is the only environment there, and Node uses it)
+ * and when the windowing wiring made no writes. Held by `test/font-script-coverage.test.mjs`,
+ * which measures the loader-set value against the same value put in the LAUNCH environment.
+ * @returns {void}
+ */
+function mirrorWindowingEnvIntoCrt() {
+    const writes = windowingEnvWrites();
+    if (writes.length === 0) return;
+    const GLib = requireGi('GLib', '2.0');
+    for (const [name, value] of writes) GLib.setenv(name, value, true);
+}
+
 /**
  * Require a GObject-Introspection namespace and return a GJS-shaped namespace
  * object. The Node twin of `import Ns from 'gi://Ns?version=X'` /
@@ -2692,6 +2734,13 @@ let loopAttached = false;
  */
 export function requireGi(namespace, version) {
     native.requireNamespace(namespace, version);
+    // The one moment the win32 CRT-environment mirror can run: the addon is loaded, so there
+    // is a GLib to call, and nothing has built a font map or loaded a fontconfig
+    // configuration yet. Flag first — mirrorWindowingEnvIntoCrt() re-enters here for GLib.
+    if (!windowingEnvMirrored) {
+        windowingEnvMirrored = true;
+        mirrorWindowingEnvIntoCrt();
+    }
     // Attach the libuv↔GLib integration once. On Node this arms BOTH directions:
     // the uv-in-GLib bridge (a blocking GLib.MainLoop.run / Gio.Application.run
     // keeps Node's event loop alive) AND the uv-driven auto-pump (pending GLib

@@ -1882,9 +1882,12 @@ jobs:
       # The test asks the PROCESS which backends its pango was built with rather than assuming
       # from the OS, then asserts the branch it is in: where fontconfig can be selected, Tamil
       # must render AND a child with the platform backend pinned back must still show the tofu
-      # (so a pass cannot mean the check is inert); where it cannot — gvsbuild's pango on win32,
-      # measured — it asserts that gap instead, so the entry retires itself the day that build
-      # gains the backend. No display and no GSK renderer needed.
+      # (so a pass cannot mean the check is inert); where it cannot, it asserts that gap instead,
+      # so the entry retires itself the day that build gains the backend. It also measures the
+      # LOADER-SET value against the same value placed in the launch environment, which is the
+      # discriminator win32 needed: there `process.env` reaches the Win32 environment block and
+      # not the C runtime copy pango's getenv() reads, and a set-but-unreachable variable looks
+      # exactly like a declined one. No display and no GSK renderer needed.
       - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
         working-directory: packages/node-gi/node-gi
         env:
@@ -2920,9 +2923,12 @@ jobs:
       # The test asks the PROCESS which backends its pango was built with rather than assuming
       # from the OS, then asserts the branch it is in: where fontconfig can be selected, Tamil
       # must render AND a child with the platform backend pinned back must still show the tofu
-      # (so a pass cannot mean the check is inert); where it cannot — gvsbuild's pango on win32,
-      # measured — it asserts that gap instead, so the entry retires itself the day that build
-      # gains the backend. No display and no GSK renderer needed.
+      # (so a pass cannot mean the check is inert); where it cannot, it asserts that gap instead,
+      # so the entry retires itself the day that build gains the backend. It also measures the
+      # LOADER-SET value against the same value placed in the launch environment, which is the
+      # discriminator win32 needed: there `process.env` reaches the Win32 environment block and
+      # not the C runtime copy pango's getenv() reads, and a set-but-unreachable variable looks
+      # exactly like a declined one. No display and no GSK renderer needed.
       - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
         working-directory: packages/node-gi/node-gi
         env:

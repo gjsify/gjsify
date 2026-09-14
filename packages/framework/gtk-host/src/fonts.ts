@@ -241,10 +241,10 @@ const ENUMERATE_ATTRIBUTES = 'standard::name,standard::type';
  * capability test and a guess about who is asking. It costs no `gjsify.os` declaration (this
  * package makes no OS decision, and ADR 0018's candidate set is derived from the code that reads
  * the host), and it stays right for any other map that declines. The OS name was never the thing
- * being asked — which stopped being hypothetical: the backend is whichever one is compiled in
- * rather than one per platform, and `@gjsify/node-gi`'s loader asks for `PANGOCAIRO_BACKEND=fc`
- * on the bundled windowing runtime (ADR 0038 § Amendment 3), so a darwin process on it can reach
- * this arm's other side and REGISTER the faces. A `process.platform` branch would have had to be
+ * being asked — which stopped being hypothetical: the backend is whichever one is selected rather
+ * than one per platform, and `@gjsify/node-gi`'s loader selects `PANGOCAIRO_BACKEND=fc` on the
+ * bundled windowing runtime (ADR 0038 § Amendment 3), so a darwin process on it reaches this
+ * arm's other side and REGISTERS the faces. A `process.platform` branch would have had to be
  * found and reversed instead.
  */
 export function isUnsupportedByFontMap(error: unknown): boolean {

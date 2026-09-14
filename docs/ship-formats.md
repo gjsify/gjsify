@@ -736,14 +736,15 @@ The runtime half and the three-state UI-font SIZE policy that comes with it are 
 § Amendment 2 and the `bundled-fonts` guide.
 
 **The darwin and windows rows describe the map GTK resolves by DEFAULT, and the bundled runtime
-now asks for a different one.** `pangocairo` builds the first backend compiled in
+selects a different one.** `pangocairo` builds the first backend compiled in
 (coretext → win32 → fc), and neither platform map's script fallback reaches every face the system
 installs — non-Latin text was tofu in every shipped app, so `@gjsify/node-gi`'s loader sets
-`PANGOCAIRO_BACKEND=fc` for a windowing bundle (ADR 0038 § Amendment 3). On darwin that is
-honoured, `add_font_file` works on the resulting map, and the declarative
-`ATSApplicationFontsPath` route stays emitted and stays correct for a CoreText map. **On windows
-it is refused** — gvsbuild's pango carries no fontconfig backend to select, measured — so that row
-is unchanged in every respect, `add_font_file` included.
+`PANGOCAIRO_BACKEND=fc` for a windowing bundle (ADR 0038 § Amendment 3). Both bundles' pango can
+honour it, so on both a `--app node` artifact carrying the bundle reads its faces through
+fontconfig and `add_font_file` works on the resulting map. The declarative
+`ATSApplicationFontsPath` route stays emitted and stays correct for a CoreText map, and the
+`add_font_file` handover stays wired on both platforms: neither `gjsify ship` nor the loader can
+know whether a given process ends up on the bundle's map or on the platform's.
 
 Three things follow, each of which looks wrong until the reason is read:
 
