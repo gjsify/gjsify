@@ -625,6 +625,21 @@ export default async () => {
             expect(u.href).toBe('file:///test');
         });
 
+        // THE SAME REFUSAL, SPELLED THE OTHER WAY — and the spelling that got through.
+        //
+        // `file://localhost/` is a file URL with an EMPTY host, not one hosted at `localhost`:
+        // file host state maps the label away at parse time. The refusal above was written and
+        // measured against `file:///test`, where the host is empty however it is derived, so it
+        // passed while `file://localhost/` walked straight past the same check and turned into
+        // `http://localhost/` — a different origin, silently, from a setter documented as
+        // refusing. Two WPT cases cover it and both were failing.
+        await it('refuses to leave "file" when the host is a mapped localhost', async () => {
+            const u = new URL('file://localhost/');
+            u.protocol = 'http';
+            expect(u.protocol).toBe('file:');
+            expect(u.href).toBe('file:///');
+        });
+
         await it('drops a port that is the new scheme default', async () => {
             const u = new URL('http://foo.com:443/');
             u.protocol = 'https';
@@ -996,6 +1011,24 @@ export default async () => {
             const u = new URL('file://hi/x');
             u.hostname = '';
             expect(u.href).toBe('file:///x');
+        });
+
+        // `localhost` on a `file:` URL IS the empty host — file host state maps it away, so
+        // `file://localhost/x` and `file:///x` are one URL and neither side may keep the label.
+        //
+        // Both halves are asserted here because for a while only one of them did it: the setter
+        // mapped `localhost` and the constructor kept whatever GLib returned. Deleting the
+        // setter's mapping left the whole suite green, and the constructor's absence of one was
+        // invisible until it took a REFUSAL down with it — see the protocol setter's case below.
+        await it('maps localhost to the empty host, on both sides', async () => {
+            const assigned = new URL('file://hi/x');
+            assigned.hostname = 'localhost';
+            expect(assigned.hostname).toBe('');
+            expect(assigned.href).toBe('file:///x');
+
+            const parsed = new URL('file://localhost/x');
+            expect(parsed.hostname).toBe('');
+            expect(parsed.href).toBe('file:///x');
         });
 
         await it('lower-cases an assigned domain', async () => {
