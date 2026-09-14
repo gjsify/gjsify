@@ -362,14 +362,14 @@ Two variables and not one, deliberately: an app that ships a brand face must nev
 choose between its face and the platform's. On Linux neither is usually set and the call stays
 the no-op it always was.
 
-:::caution[macOS cannot register them yet]
-The darwin bundles ship the faces, and nothing can put them on the font map. `add_font_file` is
-a vfunc the CoreText map does not implement, so every face comes back in `declined` with
-`G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner. `adwaitaUiFontAvailability()`
-therefore answers `absent` there, so don't offer the `adwaita` policy on macOS; `system` and
-`size` are unaffected, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
-The two routes out — `ATSApplicationFontsPath` at ship time, or `PANGOCAIRO_BACKEND=fc` — are in
-`status/open-todos.md`.
+:::note[On a CoreText map they cannot be registered, and that is not an error]
+`add_font_file` is a vfunc the CoreText map does not implement, so on such a map every face comes
+back in `declined` with `G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner — and
+`adwaitaUiFontAvailability()` answers `absent`. A process on the bundled GTK runtime does not get
+that map: the loader selects the fontconfig backend, `initFonts()` registers the faces, and the
+`adwaita` policy is available. Branch on what `initFonts()` reports, never on `process.platform`
+— the same process can get either map depending on which GTK it found. `system` and `size` are
+unaffected either way, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
 :::
 
 ### …and the size, which the faces do not fix
@@ -457,7 +457,7 @@ Call it after `initFonts()`, which is what puts the bundled faces there.
 | `initFonts()` from `@gjsify/gtk-host/fonts` | reads the variable and registers what it finds |
 | `applyUiFontPolicy()` from the same module | applies one of the three UI-font states, and undoes it |
 | `@gjsify/gtk-runtime-<target>` | carries the GNOME UI typeface in `gtk/share/fonts` |
-| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory, and on macOS/Windows asks for the Pango backend that reads any of it (`PANGOCAIRO_BACKEND=fc`, only if you have not set it) |
+| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory, and on macOS/Windows selects the Pango backend that reads any of it (`PANGOCAIRO_BACKEND=fc`, only if you have not set it) |
 
 `gjsify ship` deliberately does not make the call for you. A packaging command that injected
 a startup step would be deciding your app's initialisation order, invisibly, and the
