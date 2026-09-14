@@ -20,10 +20,12 @@
     "strict": false
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "src/**/*.mts"
   ],
   "exclude": [
     "src/test.ts",
-    "src/test.mts"
+    "src/test.mts",
+    "src/test.trees.mts"
   ]
 }

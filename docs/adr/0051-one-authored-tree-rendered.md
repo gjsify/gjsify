@@ -1,11 +1,14 @@
 # 51. One authored tree, rendered: ADR 0027 § 9's criterion becomes a suite
 
-- Status: **Accepted** (2026-09-10) — amended twice, both times by a measurement that
-  overturned a stage as written. § Amendment 1: the second driver is `adwaita-web` and
-  not the NativeScript port, because the port has no widget an off-device suite can
-  build. § Amendment 2: stage 5 points the wrong way — the `preview` fence is the
-  authority and the corpus is the subset, so the corpus is held AGAINST the fence
-  rather than emitted into it. What was actually built is § What landed.
+- Status: **Accepted** (2026-09-10) — amended three times, each time by a measurement.
+  § Amendment 1: the second driver is `adwaita-web` and not the NativeScript port,
+  because the port has no widget an off-device suite can build. § Amendment 2: stage 5
+  points the wrong way — the `preview` fence is the authority and the corpus is the
+  subset, so the corpus is held AGAINST the fence rather than emitted into it.
+  § Amendment 3: stage 2 revives — not because Amendment 1's measurement failed, but
+  because the port's own ambient declaration of the platform can be RUN — and the
+  driver that buys proves narrower things than its two siblings do. What was actually
+  built is § What landed.
 - Date: 2026-09-09
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0030 (one corpus, GJS as oracle)](0030-one-corpus-gjs-as-oracle.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md)
@@ -424,3 +427,95 @@ portable values is untouched and stays a corpus question, with the ledger as its
 backlog. And the containment claim is made only over the shared corpus; the framework
 tree of a ledgered block is not held against its fence by anything, which is a wider
 arm and a separate measurement.
+
+## Amendment 3 — the third driver exists, by routing around Amendment 1 and not by refuting it
+
+Amendment 1 withdrew stage 2 on a measurement, and this amendment leaves that measurement
+exactly where it stands. `@nativescript/core` ships no platform-neutral module for a widget
+class at all: `ui/label/`, `ui/core/view/` and `ui/layouts/grid-layout/` each hold an
+`index.android.js`, an `index.ios.js` and a `*-common.js`, and no `index.js`. Choosing
+between the two flavours is NativeScript's own platform-aware module resolution, not Node's
+and not a bundler's, so `class AdwBanner extends GridLayout` still has no base class to
+extend in any runtime that is not a device, and adding the devDependency still buys nothing.
+None of that is revised below.
+
+What it did not weigh is that the port already carries a hand-written CONTRACT with that
+platform, and that the contract can be executed.
+`packages/nativescript-bridge/adwaita/src/ns-core.d.ts` is an ambient
+`declare module '@nativescript/core'` holding the narrow slice these widgets touch; `gjsify
+tsc` holds every widget class against it on every run, and that file's own header records the
+measurement that it WINS over the real package even where a consumer installs one.
+`src/testing/ns-core.mts` is the runtime half of the same declaration — it implements the
+slice the `.d.ts` declares and nothing the `.d.ts` does not — put behind the specifier by
+`gjsify build --alias`, which exists for stubbing a dependency a scenario does not execute.
+Amendment 1 asked whether the real package could be loaded and answered no; this asks whether
+the port's own declaration of it can be run, which is a different question with a different
+answer. Absorbing one into the other would leave a standing decision that the tree
+contradicts, which is the drift these files exist to stop.
+
+**What the third driver proves, stated narrowly on purpose.** The other two build on real
+toolkits — `gtk-host` on libadwaita with `installDiagnosticsGate()` watching, `adwaita-web`
+on custom elements in Firefox. This one builds `@gjsify/adwaita-nativescript`'s own classes
+on a double. It is therefore evidence about the PORT: which class an element name resolves to
+through the `xmlns` barrel, whether an authored attribute reaches a setter the widget declares
+and whether that setter is inert, and whether the tree the port composed carries every
+authored node in the authored order. It is NOT evidence about NativeScript. No layout pass, no
+CSS engine, no native view, no animation clock and no icon rasteriser runs, so anything whose
+answer belongs to Android or iOS is out of reach here and must not be cited as reached — in a
+review, in a job summary, or in this file. ADR 0053 clause 4 draws the same line one axis over
+and gives the reason: stating the claim narrowly now is cheaper than retracting it later.
+
+**Two bounds this amendment claimed past on its first writing, both then measured on the
+port.** A driver of this shape cannot see WHICH SLOT a child landed in: its walks filter the
+realised tree down to the authored classes, so an `AdwPreferencesGroup` row placed beside the
+boxed list instead of inside it, and an `AdwExpanderRow`'s rows placed in its header instead
+of its disclosure, each keep every authored node in every authored position — both mutations
+were applied to the port and both stayed GREEN. Door 2 of `docs/nativescript-xml.md` is where
+that class of defect comes from and `check-nativescript-xml-doors.mjs` is still its only
+guard. The coercion half is bounded by the CORPUS rather than by the driver: every boolean the
+seven blocks author is `true`, which `Boolean('true')` also gets right, so the `'false'` case
+`widgets/xml-values.ts` exists for is not exercised — dropping `xmlBoolean` from
+`AdwSwitchRow.active` stays green. Both are recorded here rather than in a backlog, because a
+claim retracted in the file that made it is the only kind that stops being repeated.
+
+**A device-based driver stays refused, on Amendment 1's own ground.** An emulator can host
+the real classes, and a driver that needs one cannot be the check that fails a PR — which is
+the only thing this rung is for. Nothing here routes around that half, and it is not reopened.
+
+**What separates a double from a suite agreeing with itself.** A double is a second
+implementation, and a green run over one proves whatever the double was written to allow. So
+the driver's own refusals were broken on purpose, five times, and each went red: a barrel
+member missing under the name the corpus authors, a member bound to another class, every tag
+resolving to one consistent wrong class, no child ever handed to a parent, no attribute ever
+written. The attribute door's own silent drop is refused BEFORE the write rather than after —
+`instance[name] = value` on a name nothing declares leaves a dead own-property at exit 0, and
+after the write that property answers the membership test. Three behaviours of the double are
+reproduced for the same reason rather than simplified away:
+`LayoutBase._addChildFromBuilder` ignores the child's name and calls `addChild`, which is the
+default every placement rule in that package overrides; `Switch.checked` fires
+`checkedChange` for a PROGRAMMATIC write, which is the re-entry `AdwSwitchRow`'s single funnel
+exists to stop; and `addChild` makes the three refusals `ViewBase._addView` makes — a falsy
+child, a non-view, and a child that ALREADY HAS A PARENT — because an insertion path that
+cannot fail is the failure mode a double has, and a port that parents a view twice would
+otherwise compose a tree no device can hold, quietly. A double that left any of the three out
+would make its renderer green by absence.
+
+**And the reads were where it went wrong once, which is why they are now all of the tree.**
+Two of this port's four observables are served by a headless `@gjsify/adwaita-core` state
+object that the SETTER writes and the render only consumes: `AdwSwitchRow.active` returns
+`SwitchRowState.active`, `AdwEntryRow.textLength` returns `EntryRowState.textLength`. A driver
+reading those reads the port's bookkeeping, and the first revision of this driver did —
+measured, deleting `this._switch.checked = …` from `AdwSwitchRow._apply` and
+`views.field.text = state.text` from `applyEntryRowState` each left the suite GREEN over a row
+rendering an off switch and an empty field. Both reads now go to the control in the tree, with
+the character count still taken from the core so the driver does not re-derive
+`g_utf8_strlen`, and both mutations are red. The same shape is unexamined on `adwaita-web`,
+whose elements serve both observables from the same state object; that is a finding for that
+driver and not a stage of this ADR.
+
+No count of what this driver reaches is written here, as decision 4 requires of all three: the
+suite derives its own denominator and prints it, and the blocks that reach no row are declared
+in the binding rather than silently absent. One of those declarations is now
+renderer-specific in a renderer-free place — `Adw.ShortcutLabel`'s reason is libadwaita
+drawing a translated `gtk_accelerator_get_label`, which this port does not do — and that is a
+finding for the binding to answer, not a stage of this ADR.
