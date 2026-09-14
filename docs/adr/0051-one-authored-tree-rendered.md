@@ -458,13 +458,25 @@ toolkits — `gtk-host` on libadwaita with `installDiagnosticsGate()` watching, 
 on custom elements in Firefox. This one builds `@gjsify/adwaita-nativescript`'s own classes
 on a double. It is therefore evidence about the PORT: which class an element name resolves to
 through the `xmlns` barrel, whether an authored attribute reaches a setter the widget declares
-and what that setter makes of the string the XML door hands it, which child lands in which
-slot, and whether the tree the port composed carries the authored nodes in the authored order.
-It is NOT evidence about NativeScript. No layout pass, no CSS engine, no native view, no
-animation clock and no icon rasteriser runs, so anything whose answer belongs to Android or
-iOS is out of reach here and must not be cited as reached — in a review, in a job summary, or
-in this file. ADR 0053 clause 4 draws the same line one axis over and gives the reason:
-stating the claim narrowly now is cheaper than retracting it later.
+and whether that setter is inert, and whether the tree the port composed carries every
+authored node in the authored order. It is NOT evidence about NativeScript. No layout pass, no
+CSS engine, no native view, no animation clock and no icon rasteriser runs, so anything whose
+answer belongs to Android or iOS is out of reach here and must not be cited as reached — in a
+review, in a job summary, or in this file. ADR 0053 clause 4 draws the same line one axis over
+and gives the reason: stating the claim narrowly now is cheaper than retracting it later.
+
+**Two bounds this amendment claimed past on its first writing, both then measured on the
+port.** A driver of this shape cannot see WHICH SLOT a child landed in: its walks filter the
+realised tree down to the authored classes, so an `AdwPreferencesGroup` row placed beside the
+boxed list instead of inside it, and an `AdwExpanderRow`'s rows placed in its header instead
+of its disclosure, each keep every authored node in every authored position — both mutations
+were applied to the port and both stayed GREEN. Door 2 of `docs/nativescript-xml.md` is where
+that class of defect comes from and `check-nativescript-xml-doors.mjs` is still its only
+guard. The coercion half is bounded by the CORPUS rather than by the driver: every boolean the
+seven blocks author is `true`, which `Boolean('true')` also gets right, so the `'false'` case
+`widgets/xml-values.ts` exists for is not exercised — dropping `xmlBoolean` from
+`AdwSwitchRow.active` stays green. Both are recorded here rather than in a backlog, because a
+claim retracted in the file that made it is the only kind that stops being repeated.
 
 **A device-based driver stays refused, on Amendment 1's own ground.** An emulator can host
 the real classes, and a driver that needs one cannot be the check that fails a PR — which is
@@ -477,12 +489,29 @@ member missing under the name the corpus authors, a member bound to another clas
 resolving to one consistent wrong class, no child ever handed to a parent, no attribute ever
 written. The attribute door's own silent drop is refused BEFORE the write rather than after —
 `instance[name] = value` on a name nothing declares leaves a dead own-property at exit 0, and
-after the write that property answers the membership test. Two behaviours of the double are
+after the write that property answers the membership test. Three behaviours of the double are
 reproduced for the same reason rather than simplified away:
 `LayoutBase._addChildFromBuilder` ignores the child's name and calls `addChild`, which is the
-default every placement rule in that package overrides, and `Switch.checked` fires
+default every placement rule in that package overrides; `Switch.checked` fires
 `checkedChange` for a PROGRAMMATIC write, which is the re-entry `AdwSwitchRow`'s single funnel
-exists to stop. A double that left either out would make its renderer green by absence.
+exists to stop; and `addChild` makes the three refusals `ViewBase._addView` makes — a falsy
+child, a non-view, and a child that ALREADY HAS A PARENT — because an insertion path that
+cannot fail is the failure mode a double has, and a port that parents a view twice would
+otherwise compose a tree no device can hold, quietly. A double that left any of the three out
+would make its renderer green by absence.
+
+**And the reads were where it went wrong once, which is why they are now all of the tree.**
+Two of this port's four observables are served by a headless `@gjsify/adwaita-core` state
+object that the SETTER writes and the render only consumes: `AdwSwitchRow.active` returns
+`SwitchRowState.active`, `AdwEntryRow.textLength` returns `EntryRowState.textLength`. A driver
+reading those reads the port's bookkeeping, and the first revision of this driver did —
+measured, deleting `this._switch.checked = …` from `AdwSwitchRow._apply` and
+`views.field.text = state.text` from `applyEntryRowState` each left the suite GREEN over a row
+rendering an off switch and an empty field. Both reads now go to the control in the tree, with
+the character count still taken from the core so the driver does not re-derive
+`g_utf8_strlen`, and both mutations are red. The same shape is unexamined on `adwaita-web`,
+whose elements serve both observables from the same state object; that is a finding for that
+driver and not a stage of this ADR.
 
 No count of what this driver reaches is written here, as decision 4 requires of all three: the
 suite derives its own denominator and prints it, and the blocks that reach no row are declared
