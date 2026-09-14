@@ -15,9 +15,9 @@
 // imports — every name below is imported by at least one live spec, which makes a rename
 // over there a build error over here. A declaration nobody imports has no such backstop: it is a
 // claim about the module that can quietly stop being true, which is this file's own failure
-// mode. The `.mjs`'s other exports (`nativeScriptTree`,
-// `ADWAITA_GALLERY_TREE_DIVERGENCES`) have plain-`.mjs` consumers only and are deliberately
-// absent; add one here when, and only when, a spec imports it.
+// mode. The `.mjs`'s remaining export (`ADWAITA_GALLERY_TREE_DIVERGENCES`) has plain-`.mjs`
+// consumers only and is deliberately absent; add one here when, and only when, a spec
+// imports it.
 
 /** One node of an authored tree, spelled in GIR class names. */
 export interface SharedNode {
@@ -46,3 +46,13 @@ export declare const attributeOf: (prop: string) => string;
 
 /** The shared block in `gtk-host` tags. */
 export declare const gtkHostTree: (widget: string) => SharedTree;
+
+/**
+ * The shared block as the NativeScript dialect needs it — the GIR class names unchanged.
+ *
+ * The identity today, and declared rather than assumed for exactly that reason: the port's
+ * widget classes already carry the GIR names the corpus is authored in (ADR 0034 clause 1),
+ * so this emitter has nothing to transform. Its tree driver reads it anyway, so the day that
+ * stops being true the driver follows instead of quietly building the old spelling.
+ */
+export declare const nativeScriptTree: (widget: string) => SharedTree;
