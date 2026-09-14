@@ -42,7 +42,13 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isSpecFile, registeredSymbols, resolveToSource, stripComments } from './suite-registration.mjs';
+import {
+    isSpecFile,
+    registeredSymbols,
+    resolveToSource,
+    stripComments,
+    testEntryFiles,
+} from './suite-registration.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
@@ -78,7 +84,16 @@ function browserPackages() {
             const dir = join(pillarDir, pkg.name);
             const src = join(dir, 'src');
             const manifest = join(dir, 'package.json');
-            const entry = ENTRY_NAMES.map((n) => join(src, n)).find((path) => existsSync(path));
+            // `src/`, plus wherever this package's own build scripts say its entries live.
+            // Reading `src/` alone is the blindness `suite-registration.mjs` was fixed for:
+            // five packages keep their entries in `src/ts/` because `src/vala`, `src/rust`
+            // and `src/c` sit beside it, and a browser entry landing there would drop the
+            // package out of this gate while the pairing arm below accused it of shipping no
+            // entry at all. None has one today; the set is derived so the first does not wait
+            // for someone to remember this file.
+            const entryDirs = [...new Set([src, ...testEntryFiles(dir).map((file) => dirname(file))])];
+            const at = (names) => entryDirs.flatMap((base) => names.map((n) => join(base, n)));
+            const entry = at(ENTRY_NAMES).find((path) => existsSync(path));
             const declared =
                 existsSync(manifest) &&
                 Boolean(JSON.parse(readFileSync(manifest, 'utf8')).scripts?.['build:test:browser']);
@@ -93,10 +108,10 @@ function browserPackages() {
             }
             if (!declared)
                 unpaired.push(
-                    `${name}: ships \`src/test.browser.mts\` but declares no \`build:test:browser\` —`,
+                    `${name}: ships \`${relative(dir, entry)}\` but declares no \`build:test:browser\` —`,
                     '  the entry is never bundled, so every suite in it runs NOWHERE. Add the script.',
                 );
-            const shared = SHARED_ENTRY_NAMES.map((n) => join(src, n)).filter((path) => existsSync(path));
+            const shared = at(SHARED_ENTRY_NAMES).filter((path) => existsSync(path));
             found.push({ name, src, entry, browserOnly: shared.length === 0 });
         }
     }
