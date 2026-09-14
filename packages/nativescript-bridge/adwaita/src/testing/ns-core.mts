@@ -308,6 +308,12 @@ export class LayoutBase extends View {
      * override of exactly this method (`widgets/builder-slots.ts`), so a double that
      * quietly did something smarter here would test the driver's manners rather than the
      * port's.
+     *
+     * ONE DELIBERATE DIVERGENCE, so it is not read later as an oversight. Upstream guards
+     * `if (value instanceof View)` and DROPS anything else, silently; here the non-view
+     * reaches `_adopt` and throws. Stricter than the platform on purpose: a child door
+     * handed a non-view is a port defect either way, and this surface's whole problem is
+     * that its two doors fail without saying anything.
      */
     _addChildFromBuilder(_name: string, view: View): void {
         this.addChild(view);
