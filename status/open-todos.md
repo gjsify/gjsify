@@ -6256,10 +6256,11 @@ and the MSYS2 branch of `gjsify system-check`. The compiler itself stays, as the
 runs: deleting the binary from the image would delete the only independent reading the goldens
 have.
 
-One thing the corpus settled that the ADR's mapping table did not have: six construct classes
-have no `SharedNode` spelling at all — `template`, object ids, `_()`, `bind`, and
-`Adw.Breakpoint`'s `condition` and `setters`. The translatable marker is the one that costs: a
-caption parsed into a plain string loses exactly the attribute ADR 0033 prefers a template for.
+One thing the corpus settled that the ADR's mapping table did not have: more construct classes
+fall outside `SharedNode` than the census of the eleven real files found, and the translatable
+marker is the one that costs — a caption parsed into a plain string loses exactly the attribute
+ADR 0033 prefers a template for. The per-kind count is below, under "Inverting the Blueprint
+projection needs the GIR", and is not repeated here.
 
 ### Does the shared corpus want a second authored notation?
 
@@ -6268,17 +6269,33 @@ the one both renderers already carry and authoring in either renderer's markup w
 them the reference and the other a translation. ADR 0053 adds a Blueprint READER over the same
 shape and explicitly does not propose replacing the authored form. Whether it should is open,
 and 0053 § Context has the level argument that makes it a real question rather than a
-preference: neither notation contains the other. Against a move, concretely — six Blueprint
-constructs have no `SharedNode` spelling, and `SharedNode.props` is `string | number | boolean`,
-so none of ADRs 0042, 0046 and 0047's portable values can be written in a shared tree at all,
-while Blueprint writes all three as inline objects.
+preference: neither notation contains the other.
 
-The opposite direction costs less and is also unclaimed: `.blp` as a third EMITTED dialect of
-the corpus beside `gtkHostTree()` and `nativeScriptTree()`. It needs no parser, it leaves 0051's
-reasoning untouched, and it is the shape ADR 0034 § 8 already names as this repository's answer
-to the neighbouring translator question — write the tree once in the vocabulary that runs and
-emit the dialects. Either could land first. Deciding the authored form belongs to whoever brings
-a measurement: a supersession of 0051 needs more than an argument about levels.
+**The measurement this entry asked for is in, and it prices the two directions apart** — ADR
+0058 § Context, read at `702470a628`. Making `.blp` the AUTHORED form is the expensive one:
+**0 of the 11 real `.blp` files this repo builds round-trip through `SharedNode`**, and the
+constructs that stop them are `template` (11 of 11), a `slot` (11 of 11) and object ids (10
+of 11) — GtkBuilder's ADDRESSING model, which the other two surfaces have no use for at all,
+a web custom element having neither a composite template nor a builder id. Emitting `.blp`
+is the cheap one: **6 of the 7 shared blocks are blocked by the translatable marking and by
+nothing else**, and closing that one loss moves 0 of the 11 real files, so the two
+directions do not share a step.
+
+Emitting is also the shape ADR 0034 § 8 already names as this repository's answer to the
+neighbouring translator question — write the tree once in the vocabulary that runs and emit
+the dialects — and it needs no parser and leaves 0051's reasoning untouched. Either could
+still land first. What has changed is only that the emit direction now has a price and a
+proposed shape (ADR 0058, **Proposed** — the decision is unmade); a supersession of 0051
+still needs its own measurement, and the numbers above are an argument against one rather
+than a plan for it.
+
+**What an emitter would serve is larger than the corpus, and nothing holds it.** The gallery
+carries 40 hand-authored ` ```blueprint ` fences across 9 pages, with 165 `_()` calls in 37
+of them and 30 `styles [...]` blocks in 13; only 2 of the 40 project through `SharedNode`
+with no loss at all, and 1 — `Adw.AlertDialog` — the parser refuses outright, on the
+`responses` response flag already recorded above. Arm 13 of
+`check-generated-website-data.mjs` holds each block's `preview` fence against the shared
+corpus; no arm holds its `blueprint` fence against anything.
 
 ### A developer who picks Vue gets the desktop and nothing else
 
@@ -6348,31 +6365,67 @@ entry fails with "byte-equal and still listed, delete the entry", and clause 5 i
 CHILD (`GtkGridLayoutChild`), the compiler leaves an unresolvable one as written, and
 `rules/19-layout.blp` pins that with a `halign` the widget would have numbered.
 
-### The Blueprint projection cannot be inverted, and three losses have no `SharedNode` spelling
+### Inverting the Blueprint projection needs the GIR, and one loss needs a field
 
-Writing the hand-written expectations ADR 0053 clause 2 asks for turned up four things the
-census of the eleven real files could not, because a corpus written per LANGUAGE RULE reaches
-constructs no real file happens to use.
+Writing the hand-written expectations ADR 0053 clause 2 asks for turned up the losses; ADR
+0058 counted them and then asked which are shape problems at all. **Two of the three this
+entry used to name are not.**
 
-`slot` conflates two GtkBuilder constructs. `[start]` is `<child type="start">`, a placement on
-the child wrapper; `content:` is `<property name="content">`, an object as a property value.
-`SharedNode` has one field for both, so from `slot: 'content'` alone nothing says which to
-emit. Round-tripping Blueprint through `SharedNode` is therefore not available without a shape
-change — which no ADR had said, and which matters the day `.blp` is considered as an EMITTED
-dialect (the cheaper direction already recorded above).
+The census, over the 38 corpus files (27 written rule files, 11 real `.blp`) at
+`702470a628`: **119 losses over 26 files**, in 12 produced kinds, of which the three largest
+are object ids (53), the translatable marking (25) and `template` (12). **Six of the twelve
+kinds are unreachable from the eleven shipped files** — `menu`, `signal`, `accessibility`,
+`layout`, `sibling-object`, `value-list` — which is ADR 0053 clause 6's written corpus
+earning its keep, and a standing warning that a construct no real file uses is one whose
+SECOND case nobody has seen. The same figures are already held per line by stage D of
+`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
+one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
+holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence).
 
-`styles [...]` has nowhere to go: ADR 0049 decided style classes are a LIST and
-`SharedNode['props']` is `Record<string, string | number | boolean>`. A space-joined string
-would be a lie about the shape 0049 chose, so the corpus records a loss. Same for `layout { }`
-and `accessibility { }`, neither of which has a field. That is evidence for — not an answer to
-— the open question 0053 leaves about whether `SharedNode` grows to hold the portable values
-of ADRs 0042 / 0046 / 0047.
+`slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
+placement on the child wrapper; `content:` is `<property name="content">`, an object as a
+property value — so from `slot: 'content'` alone nothing says which to emit. **That is not a
+shape change, it is a lookup.** Measured: 53 slot uses, 26 bracket-derived and 27
+property-derived; six distinct bracket names against five property names with an EMPTY
+intersection; the question "is this name a property of the parent class?" answers all 17
+distinct (construct, name, class) triples those 53 uses reduce to, with 0 disagreements and
+no class missing from the table it is asked of; and across all 191 interfaces / 169
+widgets of `gtk-host/src/generated/props.ts` **no class declares a property named `start`,
+`end`, `top`, `bottom`, `center` or `breakpoint`**. Same for the props: a string literal, an
+enum member and an id reference all land on one JS string, and the property's GIR type
+separates them (`orientation` enum-typed, `menu-model` object-typed, `label` string-typed) —
+no prop name in the corpus carries both an ident and a string value. What the lookup does
+NOT restore is the object an id names, which leaves with the id.
 
-An id REFERENCE survives as a plain string. `menu-model: mainMenu` projects to `props: {
-'menu-model': 'mainMenu' }`, indistinguishable from the literal string `"mainMenu"` — the
-reference is kept and its reference-ness is lost, together with the object it names.
+**The empty intersection is a fact about today's GTK, not a law**, so an inverter needs a
+guard over the widget table saying no class declares a property named like a child type it
+accepts. Without it the day GTK adds one, an inverter picks the wrong construct and emits
+output that is plausible and wrong — the failure ADR 0053 clause 3 exists to prevent,
+reached through the one door that clause does not watch.
 
-And where `SharedNode` must live is still open, deliberately.
+**`styles [...]` is a vocabulary gap, not a shape gap, and this entry had it wrong.** It
+used to say a space-joined string "would be a lie about the shape 0049 chose". ADR 0049 § 3
+chose exactly that: `set styleClasses(value: string | null | undefined) // space-separated,
+as in XML`, with an array-taking door rejected on a measurement — the LIST is the read-back.
+`props` already holds that string. What blocks it is three spellings on three surfaces —
+`cssClasses` on `gtk-host` (`props.ts:5772`), `styleClasses` on the NativeScript port (the
+GIR name is taken by `@nativescript/core`'s `ViewBase`), boolean attributes on `adwaita-web`
+— against ADR 0051's rule that a block joins the shared corpus only when it needs no alias
+at all. That is ADR 0034's ledger and its gate's countdown. A finding written by reading a
+decision's TITLE rather than its clause reads exactly like a measurement, which is why this
+is recorded rather than quietly corrected.
+
+Widening `props` to hold ADRs 0042 / 0046 / 0047's portable values would move **zero**
+blocks into the shared corpus: all 17 ledgered divergences are `property` (5),
+`composition` (7), `content` (3) or `vocabulary` (2), and **none is a shape limit**.
+`Adw.SpinRow` is the closest and is the case against — its ledger entry records that one
+surface authors `adjustment` as an object and the other as the JSON string its XML door
+parses, and a shared node cannot be authored in two doors whatever `props` admits.
+
+So one loss is left needing a field, and ADR 0058 proposes it (**Proposed** — unmade): the
+translatable marking, spelled as `StringValue['translatable']` already is in the AST and
+landing with the `.blp` emitter that reads it, never before. And where `SharedNode` must
+live is still open, deliberately.
 `scripts/adwaita-gallery-shared-trees.d.mts` is a hand-written declaration whose own header refuses
 a second transcript, and the corpus reads it the way every other consumer does. The question
 becomes forced — not sooner — by the first PR that PUBLISHES a package producing the projection:
