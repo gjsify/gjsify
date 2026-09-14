@@ -217,6 +217,8 @@ export interface MenuItem {
     readonly attributes: readonly Property[];
     readonly items: readonly MenuItem[];
     readonly line: number;
+    /** Position among the members of ONE menu body, as `Property.order` is for an object body. */
+    readonly order: number;
 }
 
 /** `menu <id> { … }` — a `GMenuModel`, a sibling of the objects and not a widget. */

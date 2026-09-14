@@ -18,6 +18,14 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
           <attribute name="label" translatable="yes">Marked</attribute>
           <attribute name="action">app.marked</attribute>
         </item>
+        <item>
+          <attribute name="label" translatable="yes" context="verb">Context</attribute>
+          <attribute name="action">app.context</attribute>
+          <attribute name="icon">edit-copy-symbolic</attribute>
+        </item>
+        <item>
+          <attribute name="label">Alone</attribute>
+        </item>
       </submenu>
     </section>
   </menu>

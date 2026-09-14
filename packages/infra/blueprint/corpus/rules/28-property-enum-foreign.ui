@@ -6,16 +6,13 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <object class="GtkCenterBox">
-    <property name="orientation">1</property>
-    <child type="start">
+  <object class="AdwToolbarView">
+    <property name="top-bar-style">1</property>
+    <property name="content">
       <object class="GtkLabel">
-        <property name="label">commented</property>
-        <style>
-          <class name="a"/>
-          <class name="b"/>
-        </style>
+        <property name="ellipsize">3</property>
+        <property name="wrap-mode">2</property>
       </object>
-    </child>
+    </property>
   </object>
 </interface>

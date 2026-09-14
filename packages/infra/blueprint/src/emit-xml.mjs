@@ -36,6 +36,7 @@
  * @import { BlueprintFile, BlueprintImport, Child, Extension, MenuItem, MenuNode, ObjectBody,
  *   ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
  */
+import { numberLiteral } from './number-literal.mjs';
 
 /**
  * How the emitter is told what a bare identifier means — with `accessibilityElement` below, the
@@ -68,9 +69,18 @@
  * right for the ones that are properties and a knowing divergence for the rest — the same stance
  * `resolveIdent`'s absence takes.
  *
+ * The third seam answers what GType NAME a type reference spells. `Adw.Bin` is `AdwBin`, and
+ * every corpus file imports one of two namespaces whose C prefix IS the namespace name — which is
+ * the only reason concatenating the two ever produced a golden. `Gio.ListStore` is `GListStore`.
+ * Without the seam the emitter concatenates, right for those two and a knowing divergence for
+ * any other; with it, a namespace the resolver has no vocabulary for is refused by name. The
+ * projection (`project.mjs`) takes the same seam: a tag is the one thing that exit must spell
+ * right, and it concatenated too until it did.
+ *
  * @typedef {Object} EmitOptions
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
  * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
+ * @property {(type: TypeRef, where: string) => string} [gtypeName]
  */
 
 /**
@@ -80,6 +90,7 @@
  * @typedef {Object} EmitContext
  * @property {EmitOptions['resolveIdent']} resolveIdent
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
+ * @property {EmitOptions['gtypeName']} gtypeName
  * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
@@ -101,13 +112,13 @@ const GENERATED_NOTICE =
  * @returns {string}  the GtkBuilder XML, including the trailing newline
  */
 export function emitGtkBuilderXml(file, options) {
-    /** @type {EmitContext} */
-    const context = {
+    const seams = {
         resolveIdent: options?.resolveIdent,
         accessibilityElement: options?.accessibilityElement,
-        idTypes: indexObjectIds(file),
-        templateClass: findTemplateClass(file),
+        gtypeName: options?.gtypeName,
     };
+    /** @type {EmitContext} */
+    const context = { ...seams, idTypes: indexObjectIds(file, seams), templateClass: findTemplateClass(file) };
 
     const xml = new XmlWriter();
     xml.startTag('interface', {});
@@ -206,7 +217,7 @@ function formatAttributes(attrs) {
 
 /** @param {XmlWriter} xml @param {ObjectNode} object @param {EmitContext} context */
 function emitObject(xml, object, context) {
-    const className = gtypeName(object.type);
+    const className = gtypeName(object.type, context);
     xml.startTag('object', { class: className, id: object.id });
     emitBody(xml, object.body, className, context);
     xml.endTag();
@@ -217,8 +228,9 @@ function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
     // type after the colon. The owner type for value resolution is the PARENT — the
     // template class is the one being defined and has no ParamSpecs of its own yet.
-    xml.startTag('template', { class: template.className, parent: gtypeName(template.parent) });
-    emitBody(xml, template.body, gtypeName(template.parent), context);
+    const parent = gtypeName(template.parent, context);
+    xml.startTag('template', { class: template.className, parent });
+    emitBody(xml, template.body, parent, context);
     xml.endTag();
 }
 
@@ -265,10 +277,10 @@ function emitBody(xml, body, ownerType, context) {
  * whichever array a member had landed in, which put the property first where the oracle puts
  * the child first. `26-one-line-members.blp` is that case, pinned.
  *
- * Menu attributes and items carry no `order` and fall back to the stable sort's insertion
- * order, which is this function's other caller and a KNOWN gap: two menu members on one line
- * would interleave the same way and nothing here would notice. No file in the corpus has one,
- * and the fix is the same counter one level down.
+ * Menu attributes and items carry the same counter, and they did not always: without it the
+ * stable sort kept the group order below, attributes before items, and `submenu { item (…)
+ * label: "…"; }` on one line emitted the attribute first where the oracle emits the item.
+ * `26-one-line-members.blp` holds that case since it was found.
  */
 function inSourceOrder(groups) {
     /** @type {[string, { readonly line: number, readonly order?: number }][]} */
@@ -355,9 +367,10 @@ function bindFlags(flags) {
  * 23-widget-reference-list.ui (`<widgets><widget name="…"/></widgets>`, so the ids they
  * point at are load-bearing) are three files that would otherwise collapse into one rule.
  *
- * Any other list-valued property throws rather than guessing a shape, in the spirit of ADR
- * 0053 clause 3: output that looks plausible and means something else is the defect worth
- * refusing.
+ * Any other `name: [ … ]` is an ArrayValue on a string-array PROPERTY and not an extension at
+ * all — the `:` is what tells them apart in the source, and the shape is different again:
+ * `css-classes: ["flat", "narrow"]` is ONE `<property>` whose text is the items joined by a
+ * newline, the spelling GtkBuilder's GStrv parser splits on (21-value-array.ui).
  *
  * @param {XmlWriter} xml @param {Property} property @param {Extract<Value, { kind: 'list' }>} value
  */
@@ -387,8 +400,23 @@ function emitListProperty(xml, property, value) {
         return;
     }
 
+    xml.startTag('property', { name: property.name });
+    xml.text(value.items.map((item) => arrayItemText(item)).join('\n'));
+    xml.endTag();
+}
+
+/**
+ * An ArrayValue item is a plain string. The oracle's `_emit_value` has no arm for a translated
+ * one and dies with a CompilerBugError, so `_()` inside `css-classes: [ … ]` is refused here by
+ * name rather than emitted as something the reference never produces.
+ *
+ * @param {Value} item
+ */
+function arrayItemText(item) {
+    if (item.kind === 'string' && item.translatable === undefined) return item.value;
     throw new Error(
-        `blueprint: line ${property.line}: no emitter rule for the list-valued property "${property.name}"`,
+        `blueprint: line ${item.line}: a property array holds plain strings only — ` +
+            `${item.kind === 'string' ? 'a translated string' : `a ${item.kind}`} is not one the reference compiler emits`,
     );
 }
 
@@ -481,9 +509,7 @@ function identText(value, ownerType, propertyName, context) {
  * @param {string} raw
  */
 function numberText(raw) {
-    const cleaned = raw.replaceAll('_', '');
-    const negative = cleaned.startsWith('-');
-    const digits = negative || cleaned.startsWith('+') ? cleaned.slice(1) : cleaned;
+    const { negative, digits } = numberLiteral(raw);
 
     if (!digits.includes('.')) {
         const whole = BigInt(digits);
@@ -571,11 +597,30 @@ function emitExtension(xml, extension, context) {
                 : () => 'property';
         xml.startTag(extension.name, {});
         for (const entry of extension.entries) {
-            xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
-                name: entry.name,
-                ...translatedAttributes(entry.value),
-            });
-            xml.text(scalarText(entry.value, null, null, context));
+            // `labelled-by: [labelA, labelB]` is one ELEMENT PER VALUE under the same name, not a
+            // list inside one element (20-accessibility.ui). Only the a11y block takes the form.
+            const values = entry.value.kind === 'list' ? entry.value.items : [entry.value];
+            for (const value of values) {
+                xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
+                    name: entry.name,
+                    ...translatedAttributes(value),
+                });
+                xml.text(scalarText(value, null, null, context));
+                xml.endTag();
+            }
+        }
+        xml.endTag();
+        return;
+    }
+
+    if (extension.name === 'responses') {
+        // 31-responses.ui: `<responses>` of `<response id="…">`, translatable attributes after
+        // the id. The response FLAGS would add `enabled="false"` and `appearance="…"`, and the
+        // parser refuses them by name, so neither attribute is ever owed here.
+        xml.startTag('responses', {});
+        for (const response of extension.entries) {
+            xml.startTag('response', { id: response.name, ...translatedAttributes(response.value) });
+            xml.text(scalarText(response.value, null, null, context));
             xml.endTag();
         }
         xml.endTag();
@@ -688,13 +733,14 @@ function emitMenu(xml, menu, context) {
  *
  * An unqualified type is a Gtk type and nothing else — 24-unqualified-type.ui's `Box` is
  * `GtkBox` under `using Gtk 4.0;`, and the manifest records that `using Adw 1;` does not
- * make a bare `Bin` legal. For a qualified one the goldens only ever show namespace and
- * name concatenated (`Adw.Bin` -> `AdwBin`), which is what the GIR C-prefix happens to be
- * for both namespaces every corpus file uses.
+ * make a bare `Bin` legal. For a qualified one the answer is the seam's, because the C prefix
+ * is a fact about the namespace and not its spelling; the fallback concatenates, which is what
+ * the prefix happens to be for the two namespaces every corpus file uses and wrong for `Gio`.
  *
- * @param {TypeRef} type
+ * @param {TypeRef} type @param {Pick<EmitContext, 'gtypeName'>} context
  */
-function gtypeName(type) {
+function gtypeName(type, context) {
+    if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`);
     return `${type.namespace ?? 'Gtk'}${type.name}`;
 }
 
@@ -731,36 +777,36 @@ function findTemplateClass(file) {
  * Every object id in the file with the GType it was declared as, so a `<setter>` can resolve
  * an enum against the object it targets rather than against the breakpoint it is written in.
  *
- * @param {BlueprintFile} file
+ * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
  */
-function indexObjectIds(file) {
+function indexObjectIds(file, seams) {
     /** @type {Map<string, string>} */
     const byId = new Map();
     for (const root of file.roots) {
-        if (root.kind === 'object') indexObject(root, byId);
-        else if (root.kind === 'template') indexBody(root.body, byId);
+        if (root.kind === 'object') indexObject(root, byId, seams);
+        else if (root.kind === 'template') indexBody(root.body, byId, seams);
     }
     return byId;
 }
 
-/** @param {ObjectNode} object @param {Map<string, string>} byId */
-function indexObject(object, byId) {
-    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type));
-    indexBody(object.body, byId);
+/** @param {ObjectNode} object @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexObject(object, byId, seams) {
+    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type, seams));
+    indexBody(object.body, byId, seams);
 }
 
-/** @param {ObjectBody} body @param {Map<string, string>} byId */
-function indexBody(body, byId) {
-    for (const property of body.properties) indexValue(property.value, byId);
+/** @param {ObjectBody} body @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexBody(body, byId, seams) {
+    for (const property of body.properties) indexValue(property.value, byId, seams);
     for (const child of body.children) {
-        if (child.object.kind === 'object') indexObject(child.object, byId);
+        if (child.object.kind === 'object') indexObject(child.object, byId, seams);
     }
 }
 
-/** @param {Value} value @param {Map<string, string>} byId */
-function indexValue(value, byId) {
-    if (value.kind === 'object') indexObject(value.object, byId);
+/** @param {Value} value @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexValue(value, byId, seams) {
+    if (value.kind === 'object') indexObject(value.object, byId, seams);
     else if (value.kind === 'list') {
-        for (const item of value.items) indexValue(item, byId);
+        for (const item of value.items) indexValue(item, byId, seams);
     }
 }

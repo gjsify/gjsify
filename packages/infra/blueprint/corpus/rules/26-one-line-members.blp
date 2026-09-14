@@ -1,7 +1,13 @@
 using Gtk 4.0;
 
+menu oneLineMenu {
+  submenu { item ("Deep", "app.deep") label: "More"; }
+}
+
 Gtk.Button {
   Gtk.Label { } label: "on one line";
 
   clicked => $onClicked(); margin-top: 4;
+
+  styles ["flat"] margin-bottom: 4;
 }

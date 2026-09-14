@@ -1,15 +1,21 @@
+// a line comment before the directive
 using Gtk 4.0;
-
-// a line comment before the object
 
 /* a block comment
    spanning two lines */
-Gtk.Box {
+Gtk.CenterBox {
   // a line comment before a property
-  orientation: vertical; // and one after it
+  orientation: /* between the colon and the value */ vertical; // and one after it
 
-  /* and a block comment before a child */
+  [start] // after a slot bracket
   Gtk.Label {
     label: "commented";
+
+    styles [
+      "a", // inside a list
+      /* and before an item */ "b",
+    ]
   }
+  /* before the closing brace */
 }
+// and after it

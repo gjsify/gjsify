@@ -1,6 +1,12 @@
 using Gtk 4.0;
 
-Gtk.Entry {
-  input-hints: word_completion | lowercase;
-  input-purpose: email;
+Gtk.Box {
+  Gtk.Entry {
+    input-hints: word_completion | lowercase;
+    input-purpose: email;
+  }
+
+  Gtk.Entry {
+    input-hints: lowercase;
+  }
 }

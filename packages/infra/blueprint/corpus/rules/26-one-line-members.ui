@@ -6,6 +6,15 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
+  <menu id="oneLineMenu">
+    <submenu>
+      <item>
+        <attribute name="label">Deep</attribute>
+        <attribute name="action">app.deep</attribute>
+      </item>
+      <attribute name="label">More</attribute>
+    </submenu>
+  </menu>
   <object class="GtkButton">
     <child>
       <object class="GtkLabel"></object>
@@ -13,5 +22,9 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="label">on one line</property>
     <signal name="clicked" handler="onClicked"/>
     <property name="margin-top">4</property>
+    <style>
+      <class name="flat"/>
+    </style>
+    <property name="margin-bottom">4</property>
   </object>
 </interface>

@@ -6,8 +6,20 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <object class="GtkButton">
-    <property name="label">press</property>
-    <signal name="clicked" handler="onClicked"/>
+  <object class="GtkBox">
+    <child>
+      <object class="GtkLabel" id="labelOne"></object>
+    </child>
+    <child>
+      <object class="GtkButton">
+        <property name="label">press</property>
+        <signal name="clicked" handler="onClicked"/>
+        <signal name="activate" handler="onActivate" swapped="True"/>
+        <signal name="map" handler="onMap" after="True"/>
+        <signal name="realize" handler="onRealize" object="labelOne"/>
+        <signal name="unrealize" handler="onUnrealize" swapped="False" object="labelOne"/>
+        <signal name="notify::sensitive" handler="onSensitive"/>
+      </object>
+    </child>
   </object>
 </interface>

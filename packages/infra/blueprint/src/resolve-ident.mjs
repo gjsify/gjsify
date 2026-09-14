@@ -1,11 +1,12 @@
 // What a bare identifier in a `.blp` means, answered from the `@girs` vocabulary.
 //
-// `emit-xml.mjs` has two seams through which introspection reaches it — `EmitOptions.resolveIdent`
-// and `EmitOptions.accessibilityElement` — because `orientation: vertical` leaves
-// `blueprint-compiler` as `<property name="orientation">1</property>` and `checked: true` leaves it
-// as `<state name="checked">1</state>`, and nothing in the syntax carries either answer. This
-// module is the implementation of both seams, and it is a separate file so the emitter stays a
-// function of its AST and the tables it is handed.
+// `emit-xml.mjs` has three seams through which introspection reaches it — `EmitOptions.resolveIdent`,
+// `EmitOptions.accessibilityElement` and `EmitOptions.gtypeName` — because `orientation: vertical`
+// leaves `blueprint-compiler` as `<property name="orientation">1</property>`, `checked: true` leaves
+// it as `<state name="checked">1</state>` and `Gio.ListStore` as `<object class="GListStore">`, and
+// nothing in the syntax carries any of the three answers. This module is the implementation of all
+// three seams, and it is a separate file so the emitter stays a function of its AST and the tables
+// it is handed.
 //
 // WHY `@girs` AND NOT THE INSTALLED TYPELIB
 //
@@ -43,13 +44,25 @@
 // nick, so exactly one transform stands between them and it is applied here rather than assumed
 // anywhere else. `rules/03-property-enum.blp` pins it.
 //
-// A FLAG SET IS NOT A NUMBER
+// A FLAG SET IS NOT A NUMBER — BUT A LONE FLAG IS
 //
 // Also measured on 0.20.4: `input-hints: word_completion | lowercase` compiles to
 // `<property name="input-hints">word-completion|lowercase</property>` — the nicks survive,
-// hyphenated, joined with no spaces. So the same join that numbers an enum normalises a flag
-// set, and the two answers differ in kind, which is why this seam returns TEXT and not a
-// number. `rules/27-property-flags.blp` pins it.
+// hyphenated, joined with no spaces — while `input-hints: lowercase` on its own compiles to `8`.
+// The oracle reads a `|`-joined set as `Flags` and emits nicks, and a single identifier as a
+// `Literal`, which it numbers whatever the type is. So the `|` selects the answer and not the
+// kind of type, the two answers differ in kind, and this seam returns TEXT and not a number.
+// `rules/27-property-flags.blp` pins both — and it pinned only the set, with this module
+// returning the nick for a lone member too, until the file held a second entry.
+//
+// A `|`-SET ON AN ENUM IS AN ERROR
+//
+// The `|` selects the form, and the form carries a type check of its own: the oracle's `Flags`
+// node refuses a type that is not a bitfield ("Gtk.Orientation is not a bitfield type").
+// Answering by member count alone wrote `orientation: vertical | horizontal` out as
+// `vertical|horizontal` — XML GtkBuilder cannot read as a GtkOrientation, for a file the
+// oracle refuses, the plausible wrong output clause 3 exists to prevent.
+// `corpus/refused/flags-on-enum.blp` holds it.
 //
 // AN UNKNOWN MEMBER OF A KNOWN ENUM IS AN ERROR
 //
@@ -59,6 +72,17 @@
 // emitting the spelling would be silently wrong output, which is the failure ADR 0053 clause 3
 // exists to prevent. That throws, naming the line, the property, the enum and the member, the
 // way the oracle does.
+//
+// A GTYPE NAME IS NOT NAMESPACE PLUS NAME
+//
+// `Adw.Bin` is `AdwBin` and `Gtk.Box` is `GtkBox`, and every corpus file imports one of those two
+// namespaces — the only reason concatenating ever produced a golden. Measured on 0.20.4,
+// `Gio.ListStore` is `<object class="GListStore">`: the GIR's `c:identifier-prefixes` for Gio is
+// `G`, and an emitter concatenating writes `GioListStore`, a class GtkBuilder cannot find, with no
+// error anywhere. The prefix is a fact about the namespace, this module holds it for exactly the
+// namespaces it imports vocabulary for, and a `using` outside that set is refused at the first type
+// that spells it — a hard error naming its line, per ADR 0053 clause 3, rather than plausible XML.
+// `corpus/refused/namespace-without-vocabulary.blp` holds the case.
 //
 // AN `accessibility { }` ENTRY NAMES ITS OWN ELEMENT, AND THE NAMES ARE ALSO DATA
 //
@@ -136,20 +160,20 @@ function typeOfProperty(typeName, propertyName) {
 }
 
 /**
- * The text one member of a known enum or flags type becomes, or a thrown error naming it.
+ * One member of a known enum or flags type — its nick, its number and which of the two kinds
+ * of type it belongs to — or a thrown error naming it.
  *
  * @param {string} enumType @param {string} member @param {string} where
- * @returns {string}
+ * @returns {{ nick: string, value: number, flags: boolean }}
  */
-function memberText(enumType, member, where) {
+function lookupMember(enumType, member, where) {
     const nick = member.replaceAll('_', '-');
     const key = `${enumType}.${nick}`;
 
-    const value = ENUM_VALUES[key];
-    if (value !== undefined) return String(value);
-    // A flag member keeps its nick; the caller joins a set of them. The value is read anyway so
-    // an unknown flag name reaches the error below instead of being passed through.
-    if (FLAG_VALUES[key] !== undefined) return nick;
+    const asEnum = ENUM_VALUES[key];
+    if (asEnum !== undefined) return { nick, value: asEnum, flags: false };
+    const asFlag = FLAG_VALUES[key];
+    if (asFlag !== undefined) return { nick, value: asFlag, flags: true };
 
     // Two different failures, and the repair differs. A nick the enum HAS but whose value the
     // GIR could not read is a declared gap upstream — today both namespaces declare none, and
@@ -208,10 +232,46 @@ function membersOf(enumType) {
 export function resolveIdent(typeName, propertyName, member, where) {
     const enumType = typeOfProperty(typeName, propertyName);
     if (enumType === null) return null;
-    return member
-        .split('|')
-        .map((part) => memberText(enumType, part.trim(), where))
-        .join('|');
+    const members = member.split('|').map((part) => lookupMember(enumType, part.trim(), where));
+    // A lone member is a literal to the oracle and emits its NUMBER whatever the type, `8` for
+    // `input-hints: lowercase`; only a `|`-joined set keeps the nicks (27-property-flags.ui).
+    if (members.length === 1) return String(members[0].value);
+    // …and the set form is refused where the oracle refuses it, on a type that is not flags.
+    if (!members.every((entry) => entry.flags)) {
+        throw new Error(
+            `blueprint: ${where}: \`${member}\` joins members with \`|\`, and ${enumType} is not a flags type`,
+        );
+    }
+    return members.map((entry) => entry.nick).join('|');
+}
+
+/** The GIR `c:identifier-prefixes` of each namespace this module imports vocabulary for. */
+const C_PREFIXES = new Map([
+    ['Gtk', 'Gtk'],
+    ['Adw', 'Adw'],
+]);
+
+/**
+ * The GType name a type reference spells, or a thrown error naming the namespace it cannot answer.
+ *
+ * The signature the emitter's `EmitOptions.gtypeName` declares. An unqualified name is a Gtk type
+ * — `24-unqualified-type.blp` pins that `using Adw 1;` does not make a bare `Bin` legal.
+ *
+ * @param {{ namespace?: string, name: string }} type
+ * @param {string} where  `line N`, for an error message that can be acted on
+ * @returns {string}
+ */
+export function gtypeName(type, where) {
+    const namespace = type.namespace ?? 'Gtk';
+    const prefix = C_PREFIXES.get(namespace);
+    if (prefix === undefined) {
+        throw new Error(
+            `blueprint: ${where}: \`${namespace}.${type.name}\` names a namespace this resolver has no ` +
+                `vocabulary for (it has ${[...C_PREFIXES.keys()].join(', ')}), so its GType name cannot be ` +
+                'derived — the C prefix is not the namespace name (`Gio.ListStore` is `GListStore`)',
+        );
+    }
+    return `${prefix}${type.name}`;
 }
 
 /**

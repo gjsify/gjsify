@@ -2,15 +2,19 @@ using Gtk 4.0;
 using Adw 1;
 
 Adw.Window {
-  content: Adw.Bin binOne {
+  content: Gtk.Box boxOne {
+    Gtk.Label labelOne {
+    }
   };
 
   Adw.Breakpoint {
     condition ("max-width: 400px")
 
     setters {
-      binOne.visible: false;
-      binOne.opacity: 0.5;
+      boxOne.visible: false;
+      boxOne.opacity: 0.5;
+      boxOne.orientation: vertical;
+      labelOne.label: _("narrow");
     }
   }
 }
