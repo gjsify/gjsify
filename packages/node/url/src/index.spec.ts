@@ -10,25 +10,39 @@ import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, reso
 const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
 
 /**
- * Whether the host refuses an undecodable IDNA label, which only real Node does
- * and only up to a point. See the `xn--` case for the measurement; the boundary
- * sits somewhere in (26.4.0, 26.8.2] and 26.8 is where it is drawn, because those
- * are the two majors CI runs.
+ * Real Node older than 26.8 — the line where TWO of this file's answers moved at once, and the
+ * reason the boundary is written down rather than inlined twice.
+ *
+ * Measured on the same binaries: 24.19.0, 25.2.1 and 26.4.0 agree with each other and 26.8.2
+ * disagrees with all three, on both an undecodable IDNA label (`xn--`) and an empty host
+ * assigned to a path-only URL (`foo:/path`). One dependency bump, two behaviours, the same
+ * boundary — so 26.8 is where it is drawn, because 24 and 26.8 are the two majors CI runs and
+ * no single literal is right on both.
  *
  * `IS_GJS` IS CHECKED FIRST, and not out of tidiness: `@gjsify/process` reports
- * `process.versions.node === '20.0.0'` under GJS, so a version test alone reads
- * GJS as an old Node and takes the refusing branch. Measured — written that way
- * this gate turned the GJS leg red while Node stayed green, which is the same
- * shape as the `instanceof Error` mistake recorded two packages over: one signal,
- * two hosts, and the leg that disagrees is the one you did not have in mind.
+ * `process.versions.node === '20.0.0'` under GJS, so a version test alone reads GJS as an old
+ * Node and takes the wrong branch. Measured — written that way this gate turned the GJS leg red
+ * while Node stayed green, which is the same shape as the `instanceof Error` mistake recorded
+ * two packages over: one signal, two hosts, and the leg that disagrees is the one you did not
+ * have in mind.
  */
-const NODE_REFUSES_UNDECODABLE_IDNA = (() => {
+const NODE_BEFORE_26_8 = (() => {
     if (IS_GJS) return false;
     const version = (globalThis as { process?: { versions?: { node?: string } } }).process?.versions?.node;
     if (typeof version !== 'string') return false;
     const [major = 0, minor = 0] = version.split('.').map(Number);
     return major < 26 || (major === 26 && minor < 8);
 })();
+
+/** See the `xn--` case: only real Node refuses it, and only before 26.8. */
+const NODE_REFUSES_UNDECODABLE_IDNA = NODE_BEFORE_26_8;
+
+/**
+ * Whether the host leaves a path-only URL's host null when the empty string is assigned to it.
+ * See the `foo:/path` case: `@gjsify/url` installs the empty host, which is what the spec text
+ * says and what Node itself does from 26.8 on.
+ */
+const HOST_REFUSES_EMPTY_ON_PATH_ONLY = NODE_BEFORE_26_8;
 
 export default async () => {
     // The live-view contract between `url.searchParams` and `url.href`.
@@ -1044,22 +1058,31 @@ export default async () => {
             expect(u.href).toBe('mailto:me@example.net');
         });
 
-        // A PATH-ONLY URL CAN GAIN AN EMPTY HOST — and here @gjsify/url follows the spec text
-        // where Node does not, so the expectation is selected by host rather than asserted flat.
+        // A PATH-ONLY URL CAN GAIN AN EMPTY HOST — the second case in this file where the
+        // REFERENCE moved, and the expectation is selected by host rather than asserted flat.
         //
         // Host state has exactly one refusal for an empty buffer: "if state override is given,
         // buffer is the empty string, and either url includes credentials or url's port is
         // non-null, then return". `foo:/path` has neither, so the empty host is installed and the
         // URL serialises with an authority. WPT pins the neighbouring case — `non-spec:/.//p` <-
-        // `''` gives `non-spec:////p`, which this implementation passes — but leaves this one
-        // uncovered, and Node keeps the host null instead. Pinned on both sides so the difference
-        // is a recorded decision rather than something that drifts unnoticed.
-        await it('installs an empty host on a path-only URL, as the spec text has it', async () => {
+        // `''` gives `non-spec:////p`, which both sides pass — but leaves this one uncovered.
+        //
+        // Measured, same three lines each: 24.19.0, 25.2.1 and 26.4.0 keep the host null and
+        // answer `foo:/path`; 26.8.2 installs it and answers `foo:///path`, which is what
+        // `@gjsify/url` has always done here. Node moved onto the side the spec text is on, at
+        // the SAME boundary as the `xn--` case above — one dependency bump, two behaviours. It
+        // cannot pin one literal: CI runs both 24 and 26.8, and written flat against 24 this case
+        // turned the 26.8 leg red, measured, before the gate went in.
+        await it('handles an empty host on a path-only URL as its host does', async () => {
             const u = new URL('foo:/path');
             u.hostname = '';
-            expect(u.href).toBe(IS_GJS ? 'foo:///path' : 'foo:/path');
+            expect(u.href).toBe(HOST_REFUSES_EMPTY_ON_PATH_ONLY ? 'foo:/path' : 'foo:///path');
 
-            // The case WPT does pin, where the two agree.
+            const viaHost = new URL('foo:/path');
+            viaHost.host = '';
+            expect(viaHost.href).toBe(HOST_REFUSES_EMPTY_ON_PATH_ONLY ? 'foo:/path' : 'foo:///path');
+
+            // The case WPT does pin, where every version agrees.
             const escaped = new URL('non-spec:/.//p');
             escaped.hostname = '';
             expect(escaped.href).toBe('non-spec:////p');
