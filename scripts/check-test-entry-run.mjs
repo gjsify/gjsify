@@ -43,15 +43,11 @@
 //
 // WHICH FILES ARE ENTRIES — the package's own scripts, not a filename walk
 //
-// The subject is the set CI BUILDS AND RUNS, so it is read from where that is decided: a
-// `gjsify build … --app <target>` in one of the package's own scripts, narrowed to the
-// test-entry naming convention so the app builds (`src/index.ts --app gjs`) drop out. Walking
-// `src/` for the same names instead finds one extra file — `packages/infra/cli`'s own
-// `src/commands/test.ts`, the CLI command, which is not a test entry and would be a permanent
-// false accusation. Measured the other way round, the script-derived set misses nothing the
-// walk finds: it covers all five entries kept in `src/ts/`, which a flat read of `src/` does
-// not. An entry no script builds is deliberately out of scope — nothing runs it, so it cannot
-// report a false green.
+// `testEntryFiles` in `scripts/suite-registration.mjs` answers it, and carries the reasoning
+// and the measurement. It lived here as a private copy while that file read `src/` flat
+// instead, and the two answers disagreed about five packages for as long as both existed —
+// this one graded their entries, the other declared the packages outside its subject and left
+// their 18 spec files held to nothing.
 //
 // WHAT THIS DOES NOT ASK
 //
@@ -63,10 +59,10 @@
 // Usage: node scripts/check-test-entry-run.mjs [--root <dir>]
 
 import { existsSync, readFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isTestEntry, packageDirs, relativeImports, stripComments } from './suite-registration.mjs';
+import { packageDirs, relativeImports, stripComments, testEntryFiles } from './suite-registration.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -87,32 +83,6 @@ const ROOT =
 const TREES = ['packages', 'tests', 'examples', 'showcases'];
 
 const RUNNER = '@gjsify/unit';
-
-/** One `gjsify build …` clause per match, cut at the shell operator that ends the command. */
-const BUILD_CLAUSE = /\bbuild\b([^&|;]*)/g;
-/** A TypeScript source named inside such a clause, quoted or bare. */
-const CLAUSE_SOURCE = /(?:^|\s)['"]?([^\s'"]+\.(?:mts|ts|tsx))['"]?/g;
-
-/**
- * The entry files a package's scripts hand to `gjsify build … --app <target>`.
- *
- * `--app` is what separates a runnable bundle from `build:gjsify`'s `--library` pass over the
- * whole of `src/`, which emits modules and runs nothing.
- */
-function scriptedEntries(pkgDir) {
-    const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
-    const found = new Set();
-    for (const command of Object.values(manifest.scripts ?? {})) {
-        if (typeof command !== 'string') continue;
-        for (const [, clause] of command.matchAll(BUILD_CLAUSE)) {
-            if (!/--app\s+\S/.test(clause)) continue;
-            for (const [, file] of clause.matchAll(CLAUSE_SOURCE)) {
-                if (isTestEntry(basename(file))) found.add(join(pkgDir, file));
-            }
-        }
-    }
-    return [...found].filter((file) => existsSync(file));
-}
 
 /**
  * The local name(s) `source` binds to the runner's `run` export.
@@ -145,7 +115,7 @@ for (const tree of TREES) {
     if (!existsSync(treeDir)) continue;
 
     for (const pkg of packageDirs(treeDir)) {
-        const entries = scriptedEntries(pkg);
+        const entries = testEntryFiles(pkg);
         if (entries.length === 0) continue;
         packagesChecked++;
         entriesChecked += entries.length;

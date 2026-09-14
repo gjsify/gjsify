@@ -273,13 +273,14 @@ const WALKERS = [
             'scripts/suite-registration.mjs — which `*.spec.*` files a package REACHES and which it ' +
             'actually runs, read by the node, browser and Adwaita-driver registration gates',
         extensions: TS_SOURCE_EXTENSIONS,
-        // A package with no test entry directly under `src/` is one this reader declares
-        // outside its own subject — `check-node-test-registration.mjs` skips it on the
-        // same condition — so the scope is taken from that answer rather than from a
-        // guess made here. It is a real gap and it is NOT this gate's: five packages keep
-        // their entry a directory down (`packages/framework/webgl/src/test/`) and their
-        // 18 specs are graded by nothing. Recorded in `status/open-todos.md`; widening
-        // the entry search is a change to what those gates assert, not to what they see.
+        // A package with no test entry is one this reader declares outside its own
+        // subject — `check-node-test-registration.mjs` skips it on the same condition —
+        // so the scope is taken from that answer rather than from a guess made here.
+        // That answer used to be a flat read of `src/`, which declared five packages
+        // subject-less because they keep their entry a directory down (`src/ts/`), and
+        // this gate's scope narrowed with it: their 18 specs were reported by nobody,
+        // here included. `testEntryFiles` now reads the entries off the package's own
+        // build scripts, so the same `continue` means what it says.
         measure: () => {
             const scope = [];
             const reads = [];

@@ -32,7 +32,7 @@
 // from this reader and each caller says which it is asking for.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import { TS_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
@@ -70,6 +70,8 @@ export function packageDirs(dir, out = []) {
 /** `foo.spec.ts`, `foo.spec.tsx`, … — the spec-file half of the vocabulary. */
 export const SPEC_RE = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
 const ENTRY_EXT_RE = new RegExp(`\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+/** `test`, then dot-separated LEG qualifiers, then a TypeScript extension. */
+const ENTRY_NAME_RE = new RegExp(`^test(?:\\.[A-Za-z0-9_-]+)*\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** A `*.spec.*` file, at any of the TypeScript extensions. @param {string} name */
 export const isSpecFile = (name) => SPEC_RE.test(name);
@@ -84,11 +86,69 @@ export const isSpecFile = (name) => SPEC_RE.test(name);
  * here before: a spec or an entry that renders JSX is a `.tsx` file, and a walker that
  * does not open it reports the same green as one that found nothing wrong.
  *
+ * The NAME is `test` plus dot-separated leg qualifiers, which is what every entry in the
+ * tree spells, and not the `startsWith('test')` this replaces: that form also accepted
+ * the helper modules sitting beside a real entry — `test-utils.ts` (`@gjsify/webgl`),
+ * `test-server.ts` (`integration/axios`), `test-helpers.ts` (`integration/webtorrent`)
+ * — which register nothing and would each be read as an entry whose registration cannot
+ * be read. A hyphen after `test` starts a different word; a dot after it names a leg.
+ *
  * @param {string} name
  */
 export function isTestEntry(name) {
-    if (!name.startsWith('test') || isSpecFile(name)) return false;
-    return ENTRY_EXT_RE.test(name);
+    if (isSpecFile(name)) return false;
+    return ENTRY_NAME_RE.test(name);
+}
+
+/** One `gjsify build …` clause per match, cut at the shell operator that ends the command. */
+const BUILD_CLAUSE = /\bbuild\b([^&|;]*)/g;
+/** A TypeScript source named inside such a clause, quoted or bare. */
+const CLAUSE_SOURCE = new RegExp(`(?:^|\\s)['"]?([^\\s'"]+\\.(?:${TS_SOURCE_EXTENSIONS.join('|')}))['"]?`, 'g');
+
+/**
+ * The test entry files of `pkgDir` — the ones its own scripts hand to
+ * `gjsify build … --app <target>`.
+ *
+ * WHY THE SCRIPTS AND NOT A FILENAME WALK
+ *
+ * The subject is the set CI BUILDS AND RUNS, so it is read from where that is decided.
+ * A flat `readdirSync(src)` — what this file did before — is blind to the entry a
+ * package keeps one directory down, and five do: `@gjsify/webgl` (`src/ts/test.ts` and
+ * `src/ts/test.conformance.ts`) plus `lightningcss-native`, `http2-native`,
+ * `sab-native` and `tls-native` (`src/ts/test.mts`), because their `src/` is
+ * multi-language — `src/vala`, `src/rust`, `src/c` sit beside `src/ts`. An empty entry
+ * list is how `check-node-test-registration.mjs` decides a package is not its subject,
+ * so every spec file in those five packages was graded by NOTHING: an unimported spec
+ * there would have read as reachable, because the reader never looked.
+ *
+ * Walking `src/` at any depth instead is how the blindness comes back as a false
+ * accusation: it finds `packages/infra/cli/src/commands/test.ts`, the CLI's own `test`
+ * COMMAND, which registers no suite and never will. Measured the other way round, the
+ * script-derived set misses nothing a walk finds under `packages/`.
+ *
+ * `--app` is what separates a runnable bundle from `build:gjsify`'s `--library` pass
+ * over the whole of `src/`, which emits modules and runs nothing; the name filter is
+ * what drops the app builds (`src/index.ts --app gjs`). An entry no script builds is
+ * deliberately out of scope — nothing runs it, so it cannot report a false green.
+ *
+ * `check-test-entry-run.mjs` asked this same question and answered it with its own copy
+ * of this function; two readers of "which files are entries" is two chances to disagree
+ * about what runs, which is the defect this whole file exists to remove.
+ */
+export function testEntryFiles(pkgDir) {
+    const manifest = join(pkgDir, 'package.json');
+    if (!existsSync(manifest)) return [];
+    const found = new Set();
+    for (const command of Object.values(JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {})) {
+        if (typeof command !== 'string') continue;
+        for (const [, clause] of command.matchAll(BUILD_CLAUSE)) {
+            if (!/--app\s+\S/.test(clause)) continue;
+            for (const [, file] of clause.matchAll(CLAUSE_SOURCE)) {
+                if (isTestEntry(basename(file))) found.add(join(pkgDir, file));
+            }
+        }
+    }
+    return [...found].filter((file) => existsSync(file));
 }
 
 /**
@@ -303,9 +363,7 @@ export function readSuiteRegistration(pkgDir) {
     const src = join(pkgDir, 'src');
     const empty = { src, entries: [], specs: [], reachable: new Set(), live: new Set(), opaque: [] };
     if (!existsSync(src) || !statSync(src).isDirectory()) return empty;
-    const entries = readdirSync(src)
-        .filter(isTestEntry)
-        .map((name) => join(src, name));
+    const entries = testEntryFiles(pkgDir);
     if (entries.length === 0) return empty;
     const specs = walk(src, isSpecFile);
     if (specs.length === 0) return { ...empty, entries };
