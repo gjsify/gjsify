@@ -139,6 +139,17 @@ export function mergeBundlerOptions(base: BundlerOptions, overrides: BundlerOpti
         if (base.transform?.define || overrides.transform?.define) {
             out.transform.define = { ...base.transform?.define, ...overrides.transform?.define };
         }
+        // `inject` is a map like `define` and merges the same way. Replacing it wholesale
+        // meant a user who injected ONE identifier silently lost the orchestrator's
+        // `console` → `@gjsify/rolldown-plugin-gjsify/shims/console-gjs` rewrite, which
+        // `--app gjs` cannot express any other way: GJS defines `globalThis.console`
+        // non-writable and non-configurable, so assigning to it from a register module
+        // no-ops. It also has to stay in lockstep with `mergeTransformOptions` in the
+        // plugin's auto-globals analyser — when the two merge the same options
+        // differently, the detector measures a bundle that is not the one that ships.
+        if (base.transform?.inject || overrides.transform?.inject) {
+            out.transform.inject = { ...base.transform?.inject, ...overrides.transform?.inject };
+        }
     }
     if (base.resolve || overrides.resolve) {
         out.resolve = { ...base.resolve, ...overrides.resolve };

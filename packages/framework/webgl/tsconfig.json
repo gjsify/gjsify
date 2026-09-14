@@ -39,7 +39,7 @@
   ],
   "exclude": [
     "src/ts/test.ts",
-    "src/ts/conformance-test.ts",
+    "src/ts/test.conformance.ts",
     "src/ts/**/*.spec.ts"
   ]
 }

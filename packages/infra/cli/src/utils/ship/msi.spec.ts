@@ -226,6 +226,26 @@ export default async () => {
             expect(component).not.toContain('ship-demo.cmd');
         });
 
+        await it('gives the shortcut and Add/Remove Programs the launcher as their icon', async () => {
+            const wxs = render();
+            const line = (wxs.split('\n').find((l) => l.includes('<Shortcut ')) ?? '').trim();
+            const iconId = /Icon="([^"]+)"/.exec(line)?.[1];
+            // ADVERTISED shortcuts show the Icon table's icon, not the target's —
+            // the target is a descriptor until the feature resolves — and
+            // ARPPRODUCTICON is the only route to an icon in Add/Remove Programs.
+            // Both name the SAME row, and that row's file is the launcher itself,
+            // which already carries the pixels in its resource directory.
+            expect(iconId).toBeDefined();
+            expect(iconId?.endsWith('.exe')).toBe(true); // the installer types the icon by the name's extension
+            expect(iconId?.length).toBeLessThan(73);
+            expect(line).toContain('IconIndex="0"');
+            expect(wxs).toContain(`<Icon Id="${iconId}" SourceFile="root/ship-demo.exe" />`);
+            expect(wxs).toContain(`<Property Id="ARPPRODUCTICON" Value="${iconId}" />`);
+            // ONE icon row: a second file named as an icon would be a second
+            // source for the pixels to drift from.
+            expect(wxs.split('<Icon ').length).toBe(2);
+        });
+
         await it('declares ProgramMenuFolder without asking to delete it', async () => {
             // `<RemoveFolder>` on ProgramMenuFolder would ask the installer to
             // remove the Start Menu's Programs folder itself. The shortcut is

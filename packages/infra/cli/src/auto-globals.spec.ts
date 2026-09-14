@@ -26,6 +26,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { isRegisterSubpath, isGjsifyShim, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
 import {
     detectAutoGlobals,
+    detectNodeGiGlobals,
     detectFreeGlobals,
     detectGjsAmbientGlobals,
     detectNodeGiModuleImports,
@@ -33,6 +34,7 @@ import {
     filterResolvableRegisterPaths,
     describeGiBackedInjection,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
+import { mergeBundlerOptions } from './utils/normalize-bundler-options.js';
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 
@@ -634,6 +636,151 @@ export default async () => {
 
         await it('ignores name-alike packages outside @gjsify/node-gi', () => {
             expect(detectNodeGiModuleImports('import "@gjsify/node-gi-tools";')).toBe(false);
+        });
+    });
+    // -------------------------------------------------------------------------
+    // The analysis bundle must be transformed like the FINAL one
+    // -------------------------------------------------------------------------
+    await describe('auto-globals: the analysis bundle is transformed like the FINAL one', async () => {
+        // `@gjsify/cli` `src/config.ts` does `bundler.transform ??= {}`, so the
+        // analysis side of this merge is ALWAYS a non-nullish object. The old
+        // whole-object `analysisOptions.transform ?? orchestratorOptions?.transform`
+        // therefore always took it and dropped the orchestrator's `target`, `define`
+        // and `inject` from EVERY analysis pass — the detector reading a bundle
+        // transformed differently from the one that ships.
+        //
+        // MEASURED on `--app gjs`, whose orchestrator defines
+        // `process.env.READABLE_STREAM` to `"disable"`. Entry:
+        //     if (process.env.READABLE_STREAM !== 'disable') document.getElementById('app');
+        // The emitted bundle has no `document` reference at all, yet the build
+        // injected `document` + `HTMLCanvasElement` + `Path2D`: 24 globals and
+        // 276_726 bytes instead of 21 and 176_487 — 100 KB of DOM/canvas register
+        // code, including a GI-backed register that makes the artifact hard-require
+        // a GTK runtime at load. Silently, at exit 0.
+        const ORCHESTRATOR_TRANSFORM = {
+            target: 'firefox140',
+            define: { global: 'globalThis', 'process.env.READABLE_STREAM': '"disable"' },
+            inject: { console: ['/shims/console-gjs.js', 'console'] },
+        } as const;
+
+        const factory = () =>
+            ({
+                options: { transform: { ...ORCHESTRATOR_TRANSFORM }, resolve: { conditionNames: ['browser'] } },
+                plugins: [],
+            }) as never;
+
+        /** Run one analysis pass and return the `transform` the bundler was handed. */
+        const analysisTransformFor = async (analysisTransform: object | undefined) => {
+            let seen: Record<string, never> | undefined;
+            const spyBundler = async ({ rolldownInput }: { rolldownInput: Record<string, never> }) => {
+                seen ??= rolldownInput;
+                return ['export {};\n'];
+            };
+            await detectAutoGlobals(
+                { input: 'virtual-entry.ts', format: 'esm', transform: analysisTransform } as never,
+                { app: 'gjs', format: 'esm' } as never,
+                factory,
+                false,
+                {},
+                spyBundler as never,
+            );
+            return seen as unknown as { transform?: Record<string, never>; resolve?: Record<string, never> };
+        };
+
+        /** Same, with the analysis side setting `resolve` instead of `transform`. */
+        const analysisTransformForResolve = async (analysisResolve: object) => {
+            let seen: Record<string, never> | undefined;
+            const spyBundler = async ({ rolldownInput }: { rolldownInput: Record<string, never> }) => {
+                seen ??= rolldownInput;
+                return ['export {};\n'];
+            };
+            await detectAutoGlobals(
+                { input: 'virtual-entry.ts', format: 'esm', transform: {}, resolve: analysisResolve } as never,
+                { app: 'gjs', format: 'esm' } as never,
+                factory,
+                false,
+                {},
+                spyBundler as never,
+            );
+            return seen as unknown as { resolve?: Record<string, never> };
+        };
+
+        await it("keeps the orchestrator's defines when the CLI hands in an EMPTY transform", async () => {
+            // The shape every real `gjsify build` produces: `bundler.transform ??= {}`.
+            const input = await analysisTransformFor({});
+            expect(input.transform?.define?.['process.env.READABLE_STREAM']).toBe('"disable"');
+            expect(input.transform?.target).toBe('firefox140');
+        });
+
+        await it('merges `define` PER KEY — a user --define does not evict the target defines', async () => {
+            const input = await analysisTransformFor({ define: { FEATURE_X: 'false', global: 'window' } });
+            // analysis-only key survives
+            expect(input.transform?.define?.FEATURE_X).toBe('false');
+            // orchestrator-only key survives
+            expect(input.transform?.define?.['process.env.READABLE_STREAM']).toBe('"disable"');
+            // a clash goes to the analysis side, which is the caller's explicit override
+            expect(input.transform?.define?.global).toBe('window');
+        });
+
+        await it('merges `inject` PER KEY — injecting one identifier keeps the console shim', async () => {
+            const input = await analysisTransformFor({ inject: { Buffer: ['/x/buffer.js', 'Buffer'] } });
+            expect(input.transform?.inject?.console).toBeDefined();
+            expect(input.transform?.inject?.Buffer).toBeDefined();
+        });
+
+        await it('an analysis-side scalar still overrides the orchestrator', async () => {
+            const input = await analysisTransformFor({ target: 'es2022' });
+            expect(input.transform?.target).toBe('es2022');
+            expect(input.transform?.define?.['process.env.READABLE_STREAM']).toBe('"disable"');
+        });
+
+        await it('merges `resolve` PER KEY as well', async () => {
+            // Same two-line shape, third field. The analysis side has to SET something
+            // for the row to discriminate: with an empty/absent `resolve` the old `??`
+            // already fell through to the orchestrator and the test passed either way.
+            const input = await analysisTransformForResolve({ mainFields: ['module'] });
+            expect(input.resolve?.conditionNames?.[0]).toBe('browser');
+            expect(input.resolve?.mainFields?.[0]).toBe('module');
+        });
+
+        // Same two lines, same defect, the other call site: the `--app node` reverse
+        // bridge, whose orchestrator carries `target: 'node24'` and
+        // `define: { global, window }`.
+        await it('holds for the --app node reverse-bridge analysis too', async () => {
+            let seen: Record<string, never> | undefined;
+            const spyBundler = async ({ rolldownInput }: { rolldownInput: Record<string, never> }) => {
+                seen ??= rolldownInput;
+                return ['export {};\n'];
+            };
+            const nodeFactory = () =>
+                ({
+                    options: { platform: 'node', transform: { target: 'node24', define: { global: 'globalThis' } } },
+                    plugins: [],
+                }) as never;
+            await detectNodeGiGlobals(
+                { input: 'virtual-entry.ts', format: 'esm', transform: { define: { FEATURE_X: 'false' } } } as never,
+                { app: 'node', format: 'esm' } as never,
+                nodeFactory,
+                spyBundler as never,
+            );
+            const input = seen as unknown as { transform?: Record<string, never> };
+            expect(input.transform?.target).toBe('node24');
+            expect(input.transform?.define?.global).toBe('globalThis');
+            expect(input.transform?.define?.FEATURE_X).toBe('false');
+        });
+
+        // The FINAL build merges through `mergeBundlerOptions`. If the two merges
+        // disagree about a key, the analysis is measuring a different bundle again —
+        // so `inject` merges there too, and losing it costs the `console` rewrite
+        // `--app gjs` cannot express any other way (GJS's `globalThis.console` is
+        // non-writable and non-configurable).
+        await it('mergeBundlerOptions merges `inject` per key, like the analysis side', () => {
+            const merged = mergeBundlerOptions(
+                { transform: { inject: { console: ['/shims/console-gjs.js', 'console'] } } } as never,
+                { transform: { inject: { Buffer: ['/x/buffer.js', 'Buffer'] } } } as never,
+            );
+            expect(merged.transform?.inject?.console).toBeDefined();
+            expect(merged.transform?.inject?.Buffer).toBeDefined();
         });
     });
 };

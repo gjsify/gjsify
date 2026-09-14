@@ -141,8 +141,22 @@ jobs:
       # is NOT installed: every suite in this leg is Node-pillar and reaches at
       # most GLib/Gio/GioUnix, and a leg that installs a toolkit it does not use
       # buys 10x-billed minutes for nothing.
+      # `librsvg` and `gobject-introspection` ride along for ONE reason, and it
+      # is not a toolkit: since `gjsify ship` renders the app icon itself,
+      # staging an app needs to `import gi://Rsvg` AND `gi://cairo`, and a host
+      # without them now REFUSES to stage rather than shipping an iconless
+      # bundle. The gtk4 argument above still stands and is untouched — that is
+      # a toolkit this leg does not use; these are the renderer it does.
+      #
+      # BOTH ROWS ARE MEASURED, and the second one cost a CI round: with only
+      # `librsvg` added, this leg still failed, and the error moved from
+      # `Typelib file for namespace 'Rsvg' not found` to `namespace 'cairo',
+      # version '1.0' not found`. `Cairo-1.0.typelib` does not come from the
+      # `cairo` formula — on Fedora it is `gobject-introspection`'s file
+      # (`rpm -qf` says so), and `napi.yml` already installs that formula on
+      # macOS for the same reason.
       - name: Install GJS + SpiderMonkey via Homebrew
-        run: brew install gjs
+        run: brew install gjs librsvg gobject-introspection
 
       # THE ENV-FREE REPAIR, AND WHY IT MUST BE ENV-FREE.
       #

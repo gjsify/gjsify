@@ -1828,3 +1828,76 @@ measured rather than argued. `cacheRefreshCommands` names four steps and an AppI
 
 `share/locale` needs no step on any layout: the launcher exports `GJSIFY_LOCALE_DIR` and gettext
 reads the `.mo` directly.
+
+## Amendment, 2026-09-13 — the icon is CONVERTED, and § A6's `.icns` bullet is superseded
+
+### A26. One source, one raster step, a writer per OS — and absence is a refusal
+
+**The defect, measured on the released artifacts of one app** (Learn6502 0.8.0). Windows 11: the
+Start-menu entry showed the generic blank-document icon; the taskbar button was iconed because GTK
+sets the window icon at runtime, but the shortcut asks the `.exe`, and `pe-launcher.ts` emitted no
+resource directory at all. macOS 15.7: `Info.plist` carried no `CFBundleIconFile`, no
+`CFBundleIconName`, and no `.icns` existed anywhere under `Contents/` — the Finder drew the generic
+application icon. The app declares ONE icon, a scalable SVG under `hicolor/scalable/apps/`, which
+is what a GNOME app ships, and neither OS reads an SVG. Nothing in the pipeline said so.
+
+**The decision is that `gjsify ship` converts.** The alternative — refuse the pack until the
+project adds `16x16/…256x256/` PNGs — costs every SVG-only GNOME app a project-side change to ship
+the icon it already has, and costs it per platform. A build system owns that translation the way
+it owns the launcher and the desktop entry. So:
+
+- `utils/ship/icons.ts` is the seam: `resolveAppIcon` takes `iconFiles`, the sizes a layout
+  declares, and returns one PNG per size. A project's own sized PNG wins at its size (its IHDR
+  decides the size, not its path — a `32x32/` file that is 48 px is refused by name); every other
+  size is rendered from the scalable SVG; a size with neither source is a refusal naming the file
+  to add. The `-symbolic` icon is never a source.
+- The renderer is **librsvg through GJS, in a child process** — `Rsvg.Handle.render_document`
+  onto a cairo `ImageSurface`, `gjs -c` with a script that is a string constant. Each half was
+  measured: the gdk-pixbuf route depends on a loader module the CI image does not have
+  (`/usr/lib64/gdk-pixbuf-2.0/2.10.0/loaders/` holds only xpm on the workstation and does not
+  exist in the image); `rsvg-convert` and ImageMagick are in neither; `Rsvg-2.0.typelib` and
+  `cairo-1.0.typelib` are in both. A child rather than an in-process `gi://` import because the CLI
+  runs under Node in the leg that assembles Windows artifacts, and its source has no GI import
+  anywhere. The same SVG rendered on the workstation and inside `ghcr.io/gjsify/ci-fedora:44` is
+  byte-identical (one sha256, librsvg 2.62.3 on both).
+- `Layout.icon` declares, per row, the sizes its writer embeds and what it writes; the orchestrator
+  renders exactly those before `placeStage`, and the row REFUSES an `app` that arrives without
+  them (`iconFor`) — two guards, so no path stages an iconless application quietly again. Linux
+  declares nothing: the theme carries the SVG and GTK renders it.
+- **win32**: `ico.ts` writes the `RT_GROUP_ICON` (14-byte entries naming `RT_ICON`s by id — not the
+  `.ico` file form with its offsets) and `pe-launcher.ts` appends a `.rsrc` section: type → id →
+  language, ids ascending because the loader binary-searches, data entries as RVAs. Six sizes,
+  16/24/32/48/64/256, PNG payloads at every size. The MSI names the LAUNCHER as its Icon-table
+  binary (`IconIndex="0"`), on the advertised shortcut and as `ARPPRODUCTICON` — the two consumers
+  the embedded icon cannot reach.
+- **darwin**: `icns.ts` writes the ten PNG-backed elements `iconutil` produces (`icp4 ic11 icp5
+  ic12 ic07 ic13 ic08 ic14 ic09 ic10`, seven distinct sizes 16..1024, `TOC ` first) to
+  `Contents/Resources/<binaryName>.icns`, and `plist.ts` emits `CFBundleIconFile` — both halves or
+  neither. `CFBundleIconName` is not emitted: it names an asset catalog this tree does not produce.
+
+**The readers, measured rather than assumed, and where each one is.** For the `.exe`: CPython
+`struct` walks the resource tree, reassembles the `.ico` and inflates every PNG
+(`verify-program-dir.py`, `png_check.py`); binutils' `objdump -p` prints the same tree from its
+own parser and must agree on the types and the leaf count. Both in the CI image. On the
+workstation additionally: `wrestool -l` (icoutils) lists 6 × `RT_ICON` + 1 × `RT_GROUP_ICON`,
+`icotool -l`, Pillow 12.3 and ImageMagick each decode all six PNG entries. For the `.icns`: CPython
+walks the element table and inflates every PNG (`verify-app-plist.py`) — ONE independent family in
+CI, and the amendment says so rather than implying more. `icns2png` (libicns 0.8.1) parses `ic08`,
+`ic09`, `ic10` and refuses the other seven types by name, so it is not relied on; Pillow reads all
+ten and is not in the image; `iconutil -c iconset` on a Mac is the reader with authority and is a
+VM run, not a CI leg. Every oracle arm is driven RED from the e2e suites: an emptied resource
+directory, a corrupted `RT_ICON`, a group entry whose size lies, a deleted `.icns`, a stripped key,
+a corrupted element, an emptied Icon table, a blanked `Icon_`, a removed `ARPPRODUCTICON`.
+
+**§ A6's `.icns` bullet is superseded.** Its unblocker was "an independent Linux ICNS reader in
+the CI image — `icnsutil` is the candidate"; what unblocked it was different: a reader written
+over the format's own framing in a language this tree does not write the container in, plus
+the measurement that the candidate tool reads three of ten element types. The rule the bullet
+applied — `selfReading` is legal to declare and illegal to release — is unchanged and is what the
+CPython walk satisfies.
+
+**What is NOT measured here and needs a run on the target OS** (both are VM runs, recorded with
+the change): whether Windows 11's shell draws the small PNG-compressed entries at the quality of
+BMP ones — the 256 entry is documented PNG, the smaller ones are PNG because one encoding is one
+code path; and whether the Finder picks the `.icns` up and `iconutil` accepts it. Neither can be
+observed from Linux, and the amendment does not pretend otherwise.

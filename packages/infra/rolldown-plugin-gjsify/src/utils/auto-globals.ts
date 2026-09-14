@@ -283,6 +283,74 @@ function isFullConfig(v: GjsifyFactoryReturn): v is { options: InputOptions; plu
 }
 
 /**
+ * Merge the orchestrator's `transform` with the analysis side's, PER KEY — the
+ * analysis side wins for the keys it actually sets.
+ *
+ * `analysisOptions.transform ?? orchestratorOptions?.transform` was wrong for a
+ * MEASURED reason, not a stylistic one: the CLI's config merge does
+ * `bundler.transform ??= {}` (`@gjsify/cli` `src/config.ts`), so the analysis side is
+ * ALWAYS a non-nullish object and `??` therefore always took it — dropping the
+ * orchestrator's `target`, `define` and `inject` from every single analysis pass. The
+ * detector then reads a bundle transformed differently from the one that ships, which
+ * is exactly what the "analyse the bundled output AFTER tree-shaking" invariant exists
+ * to prevent.
+ *
+ * What that cost, measured on `--app gjs`, whose orchestrator defines
+ * `process.env.READABLE_STREAM` to `"disable"`. Entry:
+ *
+ *     if (process.env.READABLE_STREAM !== 'disable') document.getElementById('app');
+ *
+ * The define makes that branch dead, so the emitted bundle carries no `document`
+ * reference at all — and the build injected `document` + `HTMLCanvasElement` + `Path2D`
+ * anyway: 24 globals and 276_726 bytes where the same entry now yields 21 and 176_487.
+ * 100 KB of DOM/canvas register code, one of it a GI-backed register that makes the
+ * artifact hard-require a GTK runtime at load. Silently, at exit 0.
+ *
+ * Note what does NOT discriminate here, so the next reproduction does not start with
+ * it: `process` is detected on every `--app gjs` build regardless, because the process
+ * stub the target prepends in `renderChunk` writes `globalThis.process` and the
+ * detector reads its own banner back.
+ *
+ * `define` and `inject` are string maps and merge per key; every other transform key is
+ * a scalar (`target`, `lang`, `sourceType`) or a coherent option bag (`typescript`,
+ * `decorator`, `assumptions`, `tsconfig`) that is replaced whole. This is deliberately
+ * the same shape as `mergeBundlerOptions` in `@gjsify/cli`, which merges the FINAL
+ * build's options: the two must agree, or the analysis is measuring a different bundle
+ * again one key further down.
+ */
+function mergeTransformOptions(
+    orchestrator: TransformOptions | undefined,
+    analysis: TransformOptions | undefined,
+): TransformOptions | undefined {
+    if (!orchestrator) return analysis;
+    if (!analysis) return orchestrator;
+    const merged: TransformOptions = { ...orchestrator, ...analysis };
+    if (orchestrator.define || analysis.define) {
+        merged.define = { ...orchestrator.define, ...analysis.define };
+    }
+    if (orchestrator.inject || analysis.inject) {
+        merged.inject = { ...orchestrator.inject, ...analysis.inject };
+    }
+    return merged;
+}
+
+/**
+ * Same per-key rule for `resolve`. No caller sets `analysisOptions.resolve` today, so
+ * this is inert right now — it is here because `resolve` is the third plain-object
+ * field on the same code path and a whole-object `??` on it would silently drop the
+ * orchestrator's `conditionNames`/`mainFields`, which is the divergence the class
+ * comment above describes.
+ */
+function mergeResolveOptions(
+    orchestrator: InputOptions['resolve'],
+    analysis: InputOptions['resolve'],
+): InputOptions['resolve'] {
+    if (!orchestrator) return analysis;
+    if (!analysis) return orchestrator;
+    return { ...orchestrator, ...analysis };
+}
+
+/**
  * Run the iterative in-memory build with acorn-based global detection, each pass
  * seeded by the previous pass's globals, until the detected set is stable. Returns the
  * inject stub path the caller passes to the final build via
@@ -344,10 +412,16 @@ export async function detectAutoGlobals(
 
         // Take resolve/external/transform from the orchestrator so the analysis bundle
         // goes through the same module resolution as the final build; explicit
-        // analysis-side overrides win.
-        const mergedResolve = analysisOptions.resolve ?? orchestratorOptions?.resolve;
+        // analysis-side overrides win PER KEY (see `mergeTransformOptions`).
+        //
+        // `external` stays a whole-value choice on purpose: it is not a plain object
+        // (string | RegExp | array | predicate), the orchestrator's array has already
+        // folded the caller's own entries in, and the shape rules an array cannot
+        // express live in `externalsPlugin` — which is part of `gjsifyPluginsArray`
+        // below, so it applies to the analysis bundle whichever array wins here.
+        const mergedResolve = mergeResolveOptions(orchestratorOptions?.resolve, analysisOptions.resolve);
         const mergedExternal = analysisOptions.external ?? orchestratorOptions?.external;
-        const mergedTransform = analysisOptions.transform ?? orchestratorOptions?.transform;
+        const mergedTransform = mergeTransformOptions(orchestratorOptions?.transform, analysisOptions.transform);
         const orchTreeshake = (orchestratorOptions as { treeshake?: unknown } | undefined)?.treeshake;
 
         const gjsifyPluginsArray = Array.isArray(gjsifyInstance) ? gjsifyInstance : [gjsifyInstance];
@@ -544,8 +618,12 @@ export async function detectNodeGiGlobals(
                 ...baseOptions,
                 input: analysisOptions.input,
                 external: analysisOptions.external ?? baseOptions.external,
-                resolve: analysisOptions.resolve ?? baseOptions.resolve,
-                transform: analysisOptions.transform ?? baseOptions.transform,
+                // Per key, for the reason spelled out on `mergeTransformOptions`: the
+                // CLI always hands an object here, so a whole-object `??` dropped this
+                // target's `target: 'node24'` and `define: { global, window }` from
+                // every reverse-bridge analysis pass.
+                resolve: mergeResolveOptions(baseOptions.resolve, analysisOptions.resolve),
+                transform: mergeTransformOptions(baseOptions.transform, analysisOptions.transform),
                 plugins: [...callerPlugins, ...gjsifyPluginsArray],
                 logLevel: 'silent',
             } as InputOptions,
