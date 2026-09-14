@@ -51,7 +51,7 @@
         "build:types": "gjsify tsc",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
         "build:test": "gjsify build src/ts/test.ts --app gjs --outfile test.gjs.js",
-        "build:conformance": "gjsify build src/ts/conformance-test.ts --app gjs --outfile conformance.gjs.js",
+        "build:conformance": "gjsify build src/ts/test.conformance.ts --app gjs --outfile conformance.gjs.js",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.js",
         "test:conformance": "gjsify run build:gjsify && gjsify run build:conformance && gjsify run conformance.gjs.js"

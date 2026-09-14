@@ -3,7 +3,14 @@
 // Reimplemented for GJS using Gda-6.0
 
 import Gda from '@girs/gda-6.0';
-import { IllegalConstructorError, InvalidArgTypeError, InvalidArgValueError, SqliteError } from './errors.ts';
+import {
+    IllegalConstructorError,
+    InvalidArgTypeError,
+    InvalidArgValueError,
+    isNodeSqliteError,
+    SqliteError,
+    sqliteErrorMessage,
+} from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
 import { bindStringHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
@@ -281,22 +288,45 @@ export class StatementSync {
         return { sql, strings };
     }
 
+    /**
+     * Execute the statement, and let every failure out.
+     *
+     * This is the ONE seam where libgda can refuse the statement — `prepare()` hands the
+     * SQL to libgda's parser, which checks SYNTAX and never looks at the database, so a
+     * query naming a table or column that does not exist is legitimately prepared and can
+     * fail no earlier than here. Whatever it says has to reach the caller: an error
+     * turned into "no rows" is a wrong answer no consumer can tell from an empty table.
+     */
     #executeSql(args: unknown[]): { model: Gda.DataModel | null; isSelect: boolean } {
         const { sql, strings } = this.#buildStatement(args);
-        const [stmt, params] = parseSql(this.#connection, sql);
-        bindStringHolders(params, strings);
-
-        const stmtType = stmt.get_statement_type();
-        if (stmtType === Gda.SqlStatementType.SELECT) {
-            return { model: this.#connection.statement_execute_select(stmt, params), isSelect: true };
-        }
         try {
-            this.#connection.statement_execute_non_select(stmt, params);
-            return { model: null, isSelect: false };
-        } catch {
-            // Might be PRAGMA or similar — try as select
-            const model = this.#connection.statement_execute_select(stmt, params);
-            return { model, isSelect: true };
+            const [stmt, params] = parseSql(this.#connection, sql);
+            bindStringHolders(params, strings);
+
+            const stmtType = stmt.get_statement_type();
+            if (stmtType === Gda.SqlStatementType.SELECT) {
+                return { model: this.#connection.statement_execute_select(stmt, params), isSelect: true };
+            }
+            try {
+                this.#connection.statement_execute_non_select(stmt, params);
+                return { model: null, isSelect: false };
+            } catch {
+                // A PRAGMA reaches libgda as UNKNOWN and executes ONLY as a select, so a
+                // refused non-select execution is not yet an answer. When the statement is
+                // not select-like the retry fails too and ITS error is what propagates —
+                // measured, that error carries SQLite's own text about the statement the
+                // caller wrote ("no such table: t", "UNIQUE constraint failed: t.a"), and
+                // a rejected write leaves no rows behind, so nothing is lost by retrying.
+                const model = this.#connection.statement_execute_select(stmt, params);
+                return { model, isSelect: true };
+            }
+        } catch (e: unknown) {
+            // libgda reports through GLib.Error, whose `code` is a numeric GError enum,
+            // while a consumer written against node:sqlite branches on
+            // `err.code === 'ERR_SQLITE_ERROR'` — so it has to be translated. Our own
+            // validation errors already carry that shape and pass through unchanged.
+            if (isNodeSqliteError(e)) throw e;
+            throw new SqliteError(sqliteErrorMessage(e));
         }
     }
 
@@ -306,22 +336,14 @@ export class StatementSync {
         let changes: number | bigint = 0;
         let lastInsertRowid: number | bigint = 0;
 
-        try {
-            const chModel = this.#connection.execute_select_command('SELECT changes()');
-            if (chModel && chModel.get_n_rows() > 0) {
-                changes = chModel.get_value_at(0, 0) as unknown as number;
-            }
-        } catch {
-            /* ignore */
+        const chModel = this.#connection.execute_select_command('SELECT changes()');
+        if (chModel && chModel.get_n_rows() > 0) {
+            changes = chModel.get_value_at(0, 0) as unknown as number;
         }
 
-        try {
-            const ridModel = this.#connection.execute_select_command('SELECT last_insert_rowid()');
-            if (ridModel && ridModel.get_n_rows() > 0) {
-                lastInsertRowid = ridModel.get_value_at(0, 0) as unknown as number;
-            }
-        } catch {
-            /* ignore */
+        const ridModel = this.#connection.execute_select_command('SELECT last_insert_rowid()');
+        if (ridModel && ridModel.get_n_rows() > 0) {
+            lastInsertRowid = ridModel.get_value_at(0, 0) as unknown as number;
         }
 
         if (this.#readBigInts) {
@@ -333,27 +355,19 @@ export class StatementSync {
     }
 
     get(...args: unknown[]): Record<string, unknown> | unknown[] | undefined {
-        try {
-            const { model } = this.#executeSql(args);
-            if (!model || model.get_n_rows() === 0) {
-                return undefined;
-            }
-            return readFirstRow(model, this.#getReadOptions());
-        } catch {
+        const { model } = this.#executeSql(args);
+        if (!model || model.get_n_rows() === 0) {
             return undefined;
         }
+        return readFirstRow(model, this.#getReadOptions());
     }
 
     all(...args: unknown[]): (Record<string, unknown> | unknown[])[] {
-        try {
-            const { model } = this.#executeSql(args);
-            if (!model) {
-                return [];
-            }
-            return readAllRows(model, this.#getReadOptions());
-        } catch {
+        const { model } = this.#executeSql(args);
+        if (!model) {
             return [];
         }
+        return readAllRows(model, this.#getReadOptions());
     }
 
     setReadBigInts(enabled: unknown): undefined {

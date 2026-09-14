@@ -23,8 +23,11 @@
 
 import { posix } from 'node:path';
 
+import { buildIcns, ICNS_SIZES } from './icns.js';
+import { ICO_SIZES, iconResources } from './ico.js';
+import type { AppIconRasters } from './icons.js';
 import { buildGuiLauncher } from './pe-launcher.js';
-import { BUNDLE_INFO_PLIST, BUNDLE_PKGINFO, renderInfoPlist, renderPkgInfo } from './plist.js';
+import { BUNDLE_INFO_PLIST, BUNDLE_PKGINFO, BUNDLE_RESOURCES, renderInfoPlist, renderPkgInfo } from './plist.js';
 import { SHARE } from './share-dirs.js';
 import type { HostOs, StagedFile } from './types.js';
 
@@ -80,6 +83,36 @@ export interface LayoutMetadataInput extends LayoutIdentity {
      * architecture; this is the same fact where the file is written.
      */
     arch: string;
+    /** `'app'` or `'cli'`: whether the layout is owed an icon at all. */
+    kind: 'app' | 'cli';
+    /**
+     * The app icon's rasters, or `undefined` for a `kind: 'cli'` project.
+     *
+     * A REQUIRED KEY that may hold `undefined`, not an optional one, for the
+     * reason this interface's own header gives: a call site has to SAY "no icon",
+     * and a row that writes one refuses an `app` that says it (`iconFor`). The
+     * orchestrator renders these for exactly the rows that declare
+     * {@link Layout.icon}, so the two guards meet in the middle and neither can
+     * quietly stage an iconless application again.
+     */
+    icon: AppIconRasters | undefined;
+}
+
+/**
+ * What a layout WRITES the app icon as, and the sizes it needs to do it.
+ *
+ * Declared on the row rather than computed from it because the orchestrator
+ * renders the rasters BEFORE the row runs — `resolveAppIcon` is asynchronous (a
+ * child GJS) and `Layout.metadata` is not — so the row states its needs up front
+ * and receives exactly those sizes. Absent on Linux, deliberately: the hicolor
+ * theme carries the SVG the project declared and GTK renders it itself, so there
+ * is nothing to convert and nothing to refuse.
+ */
+export interface LayoutIcon {
+    /** Square edge lengths the writer embeds. */
+    sizes: readonly number[];
+    /** What is written, for the refusal: "the Windows launcher's icon". */
+    writes: string;
 }
 
 /** The four places a payload file can belong, as stage-relative directories. */
@@ -179,6 +212,8 @@ export interface Layout {
      * so a wrapper directory here would become a doubled path there.
      */
     root: (identity: LayoutIdentity) => string;
+    /** The icon this layout writes from the shared rasters, or absent where the theme carries the source. */
+    icon?: LayoutIcon;
     /** The four destinations, resolved against one app's names. */
     dirs: (identity: LayoutIdentity) => LayoutDirs;
     /**
@@ -297,6 +332,29 @@ function appBundleDir(identity: LayoutIdentity): string {
     return `${identity.name}.app`;
 }
 
+/**
+ * The rasters a row writes its icon from, or nothing for a CLI — and a refusal
+ * for an application that arrives without them.
+ *
+ * The second of two guards. `commands/ship.ts` renders the icon for every row
+ * that declares {@link Layout.icon}; this is the row itself checking it was
+ * given one, so a stage assembled through any other path (a test, a future
+ * caller) cannot produce an application whose Start-menu entry or Finder icon is
+ * the generic one without saying so. That silence is the measured defect the
+ * whole seam exists against (`icons.ts`).
+ */
+function iconFor(input: LayoutMetadataInput, layout: LayoutName): AppIconRasters | undefined {
+    if (input.kind !== 'app') return undefined;
+    if (input.icon === undefined) {
+        throw new Error(
+            `gjsify ship: the ${layout} layout writes the application's icon and was given none. ` +
+                'A `kind: "app"` stage is rendered its icon by `resolveAppIcon` before the layout runs; ' +
+                'reaching this row without one is a caller that skipped that step.',
+        );
+    }
+    return input.icon;
+}
+
 export const LAYOUTS: Record<LayoutName, Layout> = {
     linux: {
         name: 'linux',
@@ -384,18 +442,40 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // nothing tells LaunchServices which file under `Contents/MacOS` to exec,
         // and a `*.app` with no `Info.plist` is a folder with a suffix — which is
         // exactly what M1 staged. `plist.ts` carries the per-key citations.
-        metadata: (input, payload) => [
-            {
-                path: `${appBundleDir(input)}/${BUNDLE_INFO_PLIST}`,
-                mode: 0o644,
-                source: { kind: 'text', text: renderInfoPlist(input, darwinFontsPath(input, payload)) },
-            },
-            {
-                path: `${appBundleDir(input)}/${BUNDLE_PKGINFO}`,
-                mode: 0o644,
-                source: { kind: 'text', text: renderPkgInfo() },
-            },
-        ],
+        //
+        // AND THE ICON, the third file — `Contents/Resources/<binaryName>.icns`,
+        // named by `CFBundleIconFile`. Both halves or neither: the key without the
+        // file is a dangling reference the Finder resolves to the generic icon, and
+        // the file without the key is bytes nothing reads. Measured absent on the
+        // released 0.8.0 bundle of one app (macOS 15.7, 2026-09-13): no key, no
+        // `.icns`, generic icon — the twin of the Windows defect `pe-launcher.ts`
+        // records.
+        icon: { sizes: ICNS_SIZES, writes: 'the macOS bundle icon (`Contents/Resources/<binaryName>.icns`)' },
+        metadata: (input, payload) => {
+            const icon = iconFor(input, 'darwin');
+            const iconFile = icon === undefined ? undefined : `${input.binaryName}.icns`;
+            return [
+                {
+                    path: `${appBundleDir(input)}/${BUNDLE_INFO_PLIST}`,
+                    mode: 0o644,
+                    source: { kind: 'text', text: renderInfoPlist(input, darwinFontsPath(input, payload), iconFile) },
+                },
+                {
+                    path: `${appBundleDir(input)}/${BUNDLE_PKGINFO}`,
+                    mode: 0o644,
+                    source: { kind: 'text', text: renderPkgInfo() },
+                },
+                ...(icon === undefined || iconFile === undefined
+                    ? []
+                    : [
+                          {
+                              path: `${appBundleDir(input)}/${BUNDLE_RESOURCES}/${iconFile}`,
+                              mode: 0o644,
+                              source: { kind: 'bytes' as const, data: buildIcns(icon) },
+                          },
+                      ]),
+            ];
+        },
         // The two architectures macOS runs on, which is also exactly what
         // `@gjsify/gtk-runtime-darwin-*` and `@gjsify/node-runtime-darwin-*` are
         // published for. Nothing upstream blocks a third; there is no third.
@@ -511,16 +591,31 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // refusal, about our own file). `arches.only` already says there is no
         // other Windows architecture; a stage for one stays assemblable and stays
         // unpackable, which is the split `Layout.runtimeGap` draws everywhere else.
-        metadata: (input) =>
-            input.arch === 'x64'
+        //
+        // THE ICON RIDES INSIDE THAT PROGRAM. A shortcut with no icon of its own
+        // shows its target's, and Explorer, the Start menu and the taskbar all read
+        // the target's out of its resource directory — so the `.exe` carries the
+        // six sizes as `RT_ICON`/`RT_GROUP_ICON` (`ico.ts`, `pe-launcher.ts`) and
+        // there is no `.ico` file in the program directory to fall out of sync.
+        icon: { sizes: ICO_SIZES, writes: 'the Windows launcher icon (`.rsrc` of `<binaryName>.exe`)' },
+        metadata: (input) => {
+            const icon = iconFor(input, 'windows');
+            return input.arch === 'x64'
                 ? [
                       {
                           path: windowsGuiLauncherPath(input),
                           mode: 0o755,
-                          source: { kind: 'bytes', data: buildGuiLauncher({ logLeaf: windowsLaunchLogLeaf(input) }) },
+                          source: {
+                              kind: 'bytes',
+                              data: buildGuiLauncher({
+                                  logLeaf: windowsLaunchLogLeaf(input),
+                                  ...(icon === undefined ? {} : { icon: iconResources(icon) }),
+                              }),
+                          },
                       },
                   ]
-                : [],
+                : [];
+        },
         // ONE, and the blocker is a project we do not own. `wingtk/gvsbuild`
         // hardcodes `self.platform = "x64"` in `utils/base_project.py` and its last
         // five releases publish exactly two assets each, both x64 — so there is no

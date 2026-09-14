@@ -51,6 +51,23 @@
 // `objdump -x` (binutils' `pei-x86-64`) and `.github/ship-oracle/verify-program-dir.py`
 // both parse the emitted file, and `tests/e2e/ship-windows` drives the emitted
 // image through the same `readBinaryArch` that reads a real `node.exe`.
+//
+// IT CARRIES THE APP'S ICON, AND THAT IS WHY IT IS THE FILE THE SHORTCUT NAMES.
+// Explorer, the Start menu, the taskbar, Alt-Tab and a pinned entry all read an
+// application's icon out of the EXECUTABLE's resource directory; the running
+// window's own icon comes from GTK at runtime and is the one place the icon
+// showed before this section existed. Measured on Windows 11 against Learn6502
+// 0.8.0: taskbar button iconed, Start-menu entry the generic blank document —
+// the shortcut asked this file, and this file had nothing. So the image gets a
+// third section, `.rsrc`, holding the three-level resource tree Windows expects
+// (type → id → language) with one `RT_GROUP_ICON` naming `n` `RT_ICON` entries
+// (`ico.ts` builds both payloads). Three things in it are silent mistakes and
+// are therefore written down: a data entry's `OffsetToData` is an RVA and not a
+// file offset; directory entries must be SORTED ascending by id, because the
+// loader binary-searches them; and the group's entries name resources by id, not
+// by the file offset an `.ico` carries.
+
+import { type IconResources, RT_GROUP_ICON, RT_ICON } from './ico.js';
 
 /**
  * `IMAGE_SUBSYSTEM_WINDOWS_GUI` — the one field this whole file exists to set.
@@ -262,6 +279,104 @@ export interface GuiLauncherInput {
      * Files\<App>` is read-only for the user who runs the app.
      */
     logLeaf: string;
+    /**
+     * The application icon as PE resources, or absent for a launcher with none.
+     *
+     * Absent is what a `kind: 'cli'` project gets; an `app` always has one, and
+     * the layout refuses to stage otherwise (`layout.ts`, `LAYOUTS.windows`), so
+     * "no `.rsrc`" is never how an application quietly loses its icon again.
+     */
+    icon?: IconResources;
+}
+
+/** `IMAGE_DIRECTORY_ENTRY_RESOURCE` — the data directory slot the `.rsrc` section is named in. */
+export const PE_DIRECTORY_RESOURCE = 2;
+
+/**
+ * The language every resource is filed under: `en-US`, 0x0409, which is what
+ * `rc.exe` and `windres` emit when a script names none. Icon lookup does not
+ * depend on it — `FindResource` falls back through neutral to the first language
+ * present — so one language is enough and it is the conventional one.
+ */
+export const RESOURCE_LANGUAGE = 0x0409;
+
+/**
+ * The `.rsrc` section: the resource tree, its data entries, and the payloads.
+ *
+ * ONE FIXED SHAPE, laid out top to bottom so every offset is arithmetic:
+ *
+ *     root directory      2 entries: RT_ICON (3), RT_GROUP_ICON (14) — ascending
+ *     RT_ICON directory   n entries: ids 1..n
+ *     n language dirs     1 entry each: 0x0409 → a data entry
+ *     RT_GROUP_ICON dir   1 entry: id 1
+ *     1 language dir      1 entry: 0x0409 → a data entry
+ *     n + 1 data entries  OffsetToData is an RVA into this section's payloads
+ *     payloads            the n PNGs, then the group, each 8-aligned
+ *
+ * `sectionRva` is what turns a payload's position into the RVA the data entry
+ * needs; every other offset in the tree is relative to the section start, with
+ * the high bit set on an entry that points at a subdirectory. Both conventions
+ * are the format's and both are exercised by `verify-program-dir.py`, which walks
+ * this tree with CPython and reassembles the `.ico`.
+ */
+function buildResourceSection(icon: IconResources, sectionRva: number): Uint8Array {
+    const n = icon.icons.length;
+    const DIRECTORY = 16;
+    const ENTRY = 8;
+    const DATA_ENTRY = 16;
+    const SUBDIRECTORY = 0x80000000;
+
+    const rootAt = 0;
+    const iconDirAt = rootAt + DIRECTORY + 2 * ENTRY;
+    const iconLangAt = (index: number): number => iconDirAt + DIRECTORY + n * ENTRY + index * (DIRECTORY + ENTRY);
+    const groupDirAt = iconLangAt(n);
+    const groupLangAt = groupDirAt + DIRECTORY + ENTRY;
+    const dataEntriesAt = groupLangAt + DIRECTORY + ENTRY;
+    const dataEntryAt = (index: number): number => dataEntriesAt + index * DATA_ENTRY;
+    let payloadAt = align(dataEntryAt(n + 1), 8);
+    const payloads: { at: number; bytes: Uint8Array }[] = [];
+    for (const bytes of [...icon.icons, icon.group]) {
+        payloads.push({ at: payloadAt, bytes });
+        payloadAt = align(payloadAt + bytes.length, 8);
+    }
+    const section = Buffer.alloc(payloadAt);
+
+    const directory = (at: number, count: number): void => {
+        // Characteristics, TimeDateStamp, Major/MinorVersion: all zero; then the
+        // named-entry count (none here) and the id-entry count.
+        section.writeUInt16LE(0, at + 12);
+        section.writeUInt16LE(count, at + 14);
+    };
+    const entry = (at: number, id: number, target: number, subdirectory: boolean): void => {
+        section.writeUInt32LE(id, at);
+        section.writeUInt32LE(subdirectory ? (SUBDIRECTORY | target) >>> 0 : target, at + 4);
+    };
+    const dataEntry = (index: number, payload: { at: number; bytes: Uint8Array }): void => {
+        section.writeUInt32LE(sectionRva + payload.at, dataEntryAt(index)); // an RVA, not a file offset
+        section.writeUInt32LE(payload.bytes.length, dataEntryAt(index) + 4);
+        // CodePage and Reserved stay zero.
+    };
+
+    directory(rootAt, 2);
+    entry(rootAt + DIRECTORY, RT_ICON, iconDirAt, true);
+    entry(rootAt + DIRECTORY + ENTRY, RT_GROUP_ICON, groupDirAt, true);
+
+    directory(iconDirAt, n);
+    for (let index = 0; index < n; index++) {
+        entry(iconDirAt + DIRECTORY + index * ENTRY, index + 1, iconLangAt(index), true);
+        directory(iconLangAt(index), 1);
+        entry(iconLangAt(index) + DIRECTORY, RESOURCE_LANGUAGE, dataEntryAt(index), false);
+        dataEntry(index, payloads[index] as { at: number; bytes: Uint8Array });
+    }
+
+    directory(groupDirAt, 1);
+    entry(groupDirAt + DIRECTORY, 1, groupLangAt, true);
+    directory(groupLangAt, 1);
+    entry(groupLangAt + DIRECTORY, RESOURCE_LANGUAGE, dataEntryAt(n), false);
+    dataEntry(n, payloads[n] as { at: number; bytes: Uint8Array });
+
+    for (const payload of payloads) section.set(payload.bytes, payload.at);
+    return new Uint8Array(section);
 }
 
 /**
@@ -668,7 +783,20 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     const textOffset = headerSize;
     const dataOffset = textOffset + textRaw;
 
-    const image = Buffer.alloc(dataOffset + dataRaw);
+    // The icon's section, APPENDED after `.data` so no existing RVA or file
+    // offset moves — inserting it would mean re-resolving every RIP-relative
+    // fixup for a file the code never touches.
+    const rsrcRva = dataRva + align(dataSize, SECTION_ALIGNMENT);
+    const rsrc = input.icon === undefined ? undefined : buildResourceSection(input.icon, rsrcRva);
+    const rsrcRaw = rsrc === undefined ? 0 : align(rsrc.length, FILE_ALIGNMENT);
+    const rsrcOffset = dataOffset + dataRaw;
+    const sectionCount = rsrc === undefined ? 2 : 3;
+    const lastRva =
+        rsrc === undefined
+            ? dataRva + align(dataSize, SECTION_ALIGNMENT)
+            : rsrcRva + align(rsrc.length, SECTION_ALIGNMENT);
+
+    const image = Buffer.alloc(rsrcOffset + rsrcRaw);
 
     // ── DOS header ───────────────────────────────────────────────────────────
     image.write('MZ', 0, 'ascii');
@@ -679,7 +807,7 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     image.write('PE\0\0', PE_OFFSET, 'ascii');
     const coff = PE_OFFSET + 4;
     image.writeUInt16LE(MACHINE_AMD64, coff);
-    image.writeUInt16LE(2, coff + 2); // NumberOfSections
+    image.writeUInt16LE(sectionCount, coff + 2); // NumberOfSections
     image.writeUInt32LE(0, coff + 4); // TimeDateStamp — zero, so the image is reproducible
     image.writeUInt16LE(240, coff + 16); // SizeOfOptionalHeader (112 + 16 * 8)
     // EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE | RELOCS_STRIPPED. The stub is
@@ -692,7 +820,7 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     image.writeUInt16LE(0x20b, opt); // PE32+
     image.writeUInt8(14, opt + 2); // MajorLinkerVersion — cosmetic
     image.writeUInt32LE(textRaw, opt + 4); // SizeOfCode
-    image.writeUInt32LE(dataRaw, opt + 8); // SizeOfInitializedData
+    image.writeUInt32LE(dataRaw + rsrcRaw, opt + 8); // SizeOfInitializedData — `.data` and `.rsrc` are both
     image.writeUInt32LE(textRva, opt + 16); // AddressOfEntryPoint
     image.writeUInt32LE(textRva, opt + 20); // BaseOfCode
     image.writeBigUInt64LE(IMAGE_BASE, opt + 24);
@@ -700,7 +828,7 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     image.writeUInt32LE(FILE_ALIGNMENT, opt + 36);
     image.writeUInt16LE(6, opt + 40); // MajorOperatingSystemVersion
     image.writeUInt16LE(6, opt + 48); // MajorSubsystemVersion
-    image.writeUInt32LE(dataRva + align(dataSize, SECTION_ALIGNMENT), opt + 56); // SizeOfImage
+    image.writeUInt32LE(lastRva, opt + 56); // SizeOfImage — through the last section, whichever that is
     image.writeUInt32LE(headerSize, opt + 60); // SizeOfHeaders
     image.writeUInt16LE(PE_SUBSYSTEM_GUI, opt + 68);
     image.writeUInt16LE(0x0100 | 0x8000, opt + 70); // NX_COMPAT | TERMINAL_SERVER_AWARE
@@ -715,6 +843,12 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     image.writeUInt32LE(40, directories + 1 * 8 + 4);
     image.writeUInt32LE(rvaOf('iat.GetModuleFileNameW'), directories + 12 * 8); // IAT
     image.writeUInt32LE((IMPORTS.length + 1) * 8, directories + 12 * 8 + 4);
+    if (rsrc !== undefined) {
+        // RESOURCE: the whole section, RVA and byte size. Without this slot the
+        // section is bytes the loader maps and the shell never looks at.
+        image.writeUInt32LE(rsrcRva, directories + PE_DIRECTORY_RESOURCE * 8);
+        image.writeUInt32LE(rsrc.length, directories + PE_DIRECTORY_RESOURCE * 8 + 4);
+    }
 
     // ── section table ────────────────────────────────────────────────────────
     const sections = directories + 16 * 8;
@@ -737,8 +871,12 @@ export function buildGuiLauncher(input: GuiLauncherInput): Uint8Array {
     };
     writeSection(0, '.text', textRva, codeSize, textOffset, textRaw, 0x60000020);
     writeSection(1, '.data', dataRva, dataSize, dataOffset, dataRaw, 0xc0000040);
+    // INITIALIZED_DATA | MEM_READ and nothing else: resources are read by the
+    // shell and the loader, never written and never executed.
+    if (rsrc !== undefined) writeSection(2, '.rsrc', rsrcRva, rsrc.length, rsrcOffset, rsrcRaw, 0x40000040);
 
     image.set(text, textOffset);
     image.set(data, dataOffset);
+    if (rsrc !== undefined) image.set(rsrc, rsrcOffset);
     return new Uint8Array(image);
 }

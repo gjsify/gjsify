@@ -52,6 +52,7 @@ import {
 } from '../utils/ship/appimage.js';
 import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
+import { iconSizes, resolveAppIcon } from '../utils/ship/icons.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
@@ -549,7 +550,24 @@ async function assemble(args: ShipOptions): Promise<void> {
                   workDir: join(outRoot, 'schemas'),
               })),
     ];
-    const staged = placeStage(layout, settings, planned, runtime.files);
+    // THE APPLICATION ICON, rendered once for the sizes this layout's writers
+    // embed — six for the `.exe`'s resource directory, seven for the `.icns` —
+    // and nothing for a CLI or for Linux, where the theme carries the SVG the
+    // project declared. `resolveAppIcon` REFUSES an app that has no source for a
+    // size rather than staging without it: the released artifacts this closes
+    // shipped for a year with the generic icon on two platforms, and the only
+    // reason was that nothing said so (`utils/ship/icons.ts`).
+    const icon =
+        settings.kind === 'app' && layout.icon !== undefined
+            ? await resolveAppIcon({
+                  iconFiles: settings.iconFiles,
+                  appId: settings.appId,
+                  sizes: layout.icon.sizes,
+                  target: layout.icon.writes,
+              })
+            : undefined;
+    if (icon !== undefined) console.log(`${LOG} icon: ${iconSizes(icon).join('/')} px, ${icon.source}`);
+    const staged = placeStage(layout, { ...settings, icon }, planned, runtime.files);
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
     if (args.verbose) for (const file of staged) console.log(`${LOG}   ${file.path}`);

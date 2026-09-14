@@ -169,6 +169,12 @@ const LAYOUT_ADDITIONS = {
     darwin: [
         `${APP_NAME}.app/Contents/Info.plist`,
         `${APP_NAME}.app/Contents/PkgInfo`,
+        // The icon the Finder reads, CONVERTED from the SVG the theme carries on
+        // Linux (`utils/ship/icons.ts`): a file the map cannot produce because no
+        // prefix-relative path is an `.icns`. Windows owns the same conversion and
+        // it is invisible here for the same reason its launcher is — the icon
+        // rides INSIDE the x86-64 stub, and this fixture is `arm64`.
+        `${APP_NAME}.app/Contents/Resources/${BINARY}.icns`,
         `${APP_NAME}.app/Contents/Resources/share/glib-2.0/schemas/gschemas.compiled`,
     ],
     windows: ['share/glib-2.0/schemas/gschemas.compiled'],

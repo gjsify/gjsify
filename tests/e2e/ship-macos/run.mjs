@@ -207,11 +207,27 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
         // The count is the oracle's, printed from what it parsed — not a number
         // this file also knows. Eleven keys, each cited to a file in `refs/node`
         // in `utils/ship/plist.ts`.
-        assert.match(out, /plistlib parsed 11 key\(s\), all agreeing with the stage manifest/);
+        assert.match(out, /plistlib parsed 12 key\(s\), all agreeing with the stage manifest/);
         assert.match(out, /APPL\?\?\?\? \(8 bytes, no terminator\)/);
     });
 
-    for (const [what, mutate] of [
+    it('carries the icon in both halves: the .icns and the key that names it', () => {
+        // THE FINDER DEFECT, closed and judged. Measured on the released 0.8.0
+        // bundle of one app (macOS 15.7): no `CFBundleIconFile`, no `.icns`, the
+        // generic icon. The fixture declares one scalable SVG; the `.icns` is
+        // rendered from it at stage time (`utils/ship/icons.ts`, `icns.ts`) and
+        // the oracle walks its element table with CPython, inflating every PNG.
+        // That is ONE independent family on Linux — `icns2png` parses three of
+        // the ten element types and Pillow is not in the CI image — and the
+        // reader with authority, `iconutil`, is a run on a Mac.
+        const out = oracle('verify-app-plist.py', [bundle, join(stageDir, STAGE_MANIFEST_FILE)]);
+        assert.match(out, new RegExp(`icon: ${BINARY}\\.icns with 10 PNG elements \\(16\\.\\.1024 px\\)`));
+        const icns = join(bundle, 'Contents', 'Resources', `${BINARY}.icns`);
+        assert.ok(existsSync(icns));
+        assert.equal(readFileSync(icns).subarray(0, 4).toString('latin1'), 'icns');
+    });
+
+    for (const [what, mutate, expected] of [
         [
             'one wrong character in CFBundleIdentifier',
             (at) => {
@@ -224,6 +240,44 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
             (at) => writeFileSync(join(at, 'Contents', 'Info.plist'), '<plist version="1.0">\n<dict>\n<key>A</key>\n'),
         ],
         ['no Info.plist at all, which is what M1 staged', (at) => rmSync(join(at, 'Contents', 'Info.plist'))],
+        [
+            // THE KEY WITHOUT THE FILE: the dangling reference the Finder answers
+            // with the generic icon and no diagnostic.
+            'an .icns the plist names but the bundle does not carry',
+            (at) => rmSync(join(at, 'Contents', 'Resources', `${BINARY}.icns`)),
+            /does not exist — a dangling reference/,
+        ],
+        [
+            // THE FILE WITHOUT THE KEY: bytes nothing reads — the released-0.8.0
+            // shape with the file added and the key forgotten.
+            'a plist with no CFBundleIconFile',
+            (at) => {
+                const info = join(at, 'Contents', 'Info.plist');
+                writeFileSync(
+                    info,
+                    readFileSync(info, 'utf-8').replace(
+                        /\t<key>CFBundleIconFile<\/key>\n\t<string>[^<]*<\/string>\n/,
+                        '',
+                    ),
+                );
+            },
+            /carries no CFBundleIconFile/,
+        ],
+        [
+            // Both halves present and the container broken: one element's PNG
+            // signature off by a byte. The plist and the file listing are fine;
+            // only the inflate says otherwise.
+            'an .icns whose 128 px element is not a PNG',
+            (at) => {
+                const file = join(at, 'Contents', 'Resources', `${BINARY}.icns`);
+                const bytes = readFileSync(file);
+                const element = bytes.indexOf(Buffer.from('ic07', 'latin1'), 8 + 8 + 8 * 10);
+                assert.ok(element > 0, 'the .icns carries no ic07 element to corrupt');
+                bytes[element + 8 + 1] = 0x51;
+                writeFileSync(file, bytes);
+            },
+            /element ic07 does not start with the PNG signature/,
+        ],
     ]) {
         it(`RED: the plist oracle refuses ${what}`, () => {
             // A COPY, so the green run above and the runs below keep their subject.
@@ -232,6 +286,7 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
             mutate(copy);
             const output = oracleExpectingFailure('verify-app-plist.py', [copy, join(stageDir, STAGE_MANIFEST_FILE)]);
             assert.match(output, /::error title=Ship \.app::/);
+            if (expected !== undefined) assert.match(output, expected);
         });
     }
 

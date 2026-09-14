@@ -70,16 +70,30 @@ and this must exit 1 saying the launcher runs a file the directory does not carr
 rewrite the `.cmd` with LF endings and it must exit 1; replace one staged image
 with an arm64 one and the machine check must exit 1 naming the file; make the
 launcher run a bare name off `PATH` — which is what M1 wrote — and it must exit 1;
-rewrite the GUI launcher's `Subsystem` back to 3 and it must exit 1. All five are
+rewrite the GUI launcher's `Subsystem` back to 3 and it must exit 1; empty the
+launcher's resource data directory and it must exit 1 saying the launcher carries
+no icon; corrupt one embedded PNG and it must exit 1 naming the RT_ICON. All are
 driven from `tests/e2e/ship-windows/run.mjs` against copies of the artifact, so the
 failure path of this file runs on every PR.
+
+THE ICON IS THE THIRD JUDGED FIELD (section 4b). Two readers of a different
+family than the writer: this file's own `struct` walk of the resource tree, which
+reassembles the `.ico` and inflates every PNG (`png_check.py`), and binutils'
+`objdump -p`, whose tree print must agree on the types and the leaf count. Both
+are in the CI image. Pillow, `icotool` and ImageMagick are NOT, and are therefore
+not consulted here — the reassembled `.ico` is written beside the directory so a
+workstation can hand it to them.
 """
 
 import json
 import re
 import struct
+import subprocess
 import sys
 from pathlib import Path
+
+# Beside this file; `sys.path[0]` is the script's directory when run as one.
+from png_check import check_png
 
 # `IMAGE_FILE_HEADER.Machine` → the `process.arch` spelling the stage manifest
 # uses. The same three rows the CLI and `binary.mjs` carry; the constants are
@@ -93,6 +107,20 @@ SUBSYSTEM = {2: "GUI", 3: "CONSOLE"}
 # Suffixes that are loadable code on Windows. `.node` is an N-API addon, which is
 # a DLL with another name — node-gi's `node_gi.node` is exactly that.
 IMAGE_SUFFIXES = (".exe", ".dll", ".node")
+
+# The resource types an application icon is: `RT_ICON` holds one image,
+# `RT_GROUP_ICON` the directory that names them by id. Microsoft's numbers.
+RT_ICON = 3
+RT_GROUP_ICON = 14
+DIRECTORY_ENTRY_RESOURCE = 2
+
+# The sizes Windows draws an application icon at and the ones a set must not
+# miss: 16 (Explorer list, taskbar at 100 %), 32 (Start menu, Alt-Tab), 48
+# (Explorer medium), 256 (Explorer extra large, and what every other size is
+# scaled from when its own is absent). Microsoft's "Icons (Design basics)"
+# guidance calls these four the full set for a classic desktop application; the
+# writer adds 24 and 64 for scaling, and more is welcome, fewer is a blur.
+ICON_MINIMUM = (16, 32, 48, 256)
 
 
 def fail(message):
@@ -124,6 +152,153 @@ def read_pe(path):
         return f"{path.name} has a {opt_size}-byte optional header, too short to carry a Subsystem"
     (subsystem,) = struct.unpack_from("<H", data, pe_off + 24 + 68)
     return (machine, subsystem)
+
+
+def rva_to_offset(data, pe_off, rva):
+    """Map an RVA to a file offset through the section table, as a loader would."""
+    (sections,) = struct.unpack_from("<H", data, pe_off + 6)
+    (opt_size,) = struct.unpack_from("<H", data, pe_off + 20)
+    table = pe_off + 24 + opt_size
+    for index in range(sections):
+        at = table + index * 40
+        virtual_size, virtual_address, raw_size, raw_offset = struct.unpack_from("<IIII", data, at + 8)
+        if virtual_address <= rva < virtual_address + max(virtual_size, raw_size):
+            return raw_offset + (rva - virtual_address)
+    raise ValueError(f"RVA 0x{rva:x} lies in no section")
+
+
+def read_icon_resources(path):
+    """The `.ico` the launcher's resource directory amounts to, or a string saying why not.
+
+    Walks `IMAGE_DIRECTORY_ENTRY_RESOURCE` the way `FindResource` does — type,
+    then id, then language — with `struct` and the RVA map above. Returns
+    `(ico_bytes, sizes)` where `ico_bytes` is the ICONDIR file form reassembled
+    from the group and the images (which is what an independent reader opens),
+    and `sizes` the edge lengths in group order. Every image is put through
+    `check_png` on the way: a PNG that does not inflate is a slot Windows shows
+    the generic icon for.
+    """
+    data = path.read_bytes()
+    (pe_off,) = struct.unpack_from("<I", data, 0x3C)
+    (opt_size,) = struct.unpack_from("<H", data, pe_off + 20)
+    (magic,) = struct.unpack_from("<H", data, pe_off + 24)
+    directories = pe_off + 24 + (112 if magic == 0x20B else 96)
+    if opt_size < (112 if magic == 0x20B else 96) + 8 * (DIRECTORY_ENTRY_RESOURCE + 1):
+        return f"{path.name} has no resource data directory slot at all"
+    rsrc_rva, rsrc_size = struct.unpack_from("<II", data, directories + 8 * DIRECTORY_ENTRY_RESOURCE)
+    if rsrc_rva == 0 or rsrc_size == 0:
+        return (
+            f"{path.name} names no resource directory (IMAGE_DIRECTORY_ENTRY_RESOURCE is empty), so it carries "
+            "no icon. Every shortcut, the Start menu and Explorer show the generic blank-document icon for it."
+        )
+    try:
+        base = rva_to_offset(data, pe_off, rsrc_rva)
+    except ValueError as error:
+        return f"{path.name}: the resource directory {error}"
+
+    def entries(offset):
+        named, ids = struct.unpack_from("<HH", data, base + offset + 12)
+        out = []
+        for index in range(named + ids):
+            name, target = struct.unpack_from("<II", data, base + offset + 16 + index * 8)
+            out.append((name, target & 0x7FFFFFFF, bool(target & 0x80000000)))
+        return out
+
+    leaves = {}
+    for type_id, type_offset, subdir in entries(0):
+        if not subdir:
+            return f"{path.name}: resource type {type_id} points at data instead of a name table"
+        names = entries(type_offset)
+        ids = [name for name, _, _ in names]
+        if ids != sorted(ids):
+            # The loader binary-searches; an unsorted table is one it may not find an entry in.
+            return f"{path.name}: resource type {type_id} lists ids {ids}, which are not ascending"
+        for name_id, name_offset, subdir in names:
+            if not subdir:
+                return f"{path.name}: resource {type_id}/{name_id} points at data instead of a language table"
+            for _language, leaf_offset, subdir in entries(name_offset):
+                if subdir:
+                    return f"{path.name}: resource {type_id}/{name_id} has a fourth directory level"
+                rva, size = struct.unpack_from("<II", data, base + leaf_offset)
+                try:
+                    at = rva_to_offset(data, pe_off, rva)
+                except ValueError as error:
+                    # THE CLASSIC MISTAKE, named: a file offset written where the
+                    # format wants an RVA lands here, in no section.
+                    return f"{path.name}: resource {type_id}/{name_id}'s data entry {error} — a file offset where an RVA belongs?"
+                leaves[(type_id, name_id)] = data[at : at + size]
+
+    groups = [key for key in leaves if key[0] == RT_GROUP_ICON]
+    if len(groups) != 1:
+        return f"{path.name} carries {len(groups)} RT_GROUP_ICON resource(s); an application icon is exactly one"
+    group = leaves[groups[0]]
+    reserved, kind, count = struct.unpack_from("<HHH", group, 0)
+    if reserved != 0 or kind != 1 or count == 0:
+        return f"{path.name}: the RT_GROUP_ICON is not an icon group (reserved={reserved}, type={kind}, count={count})"
+    if len(group) != 6 + 14 * count:
+        # 16-byte entries here is the `.ico` FILE form written into the resource,
+        # which Windows reads as ids that name nothing.
+        return f"{path.name}: the RT_GROUP_ICON is {len(group)} bytes for {count} entries; 14-byte entries make {6 + 14 * count}"
+    images = []
+    sizes = []
+    for index in range(count):
+        width, height, _colours, _reserved, planes, bits, size, image_id = struct.unpack_from(
+            "<BBBBHHIH", group, 6 + index * 14
+        )
+        image = leaves.get((RT_ICON, image_id))
+        if image is None:
+            return f"{path.name}: the icon group names RT_ICON {image_id}, which the directory does not carry"
+        if len(image) != size:
+            return f"{path.name}: the icon group says RT_ICON {image_id} is {size} bytes; it is {len(image)}"
+        try:
+            png_width, png_height = check_png(image, f"RT_ICON {image_id}")
+        except ValueError as error:
+            return f"{path.name}: {error}"
+        declared = (width or 256, height or 256)
+        if (png_width, png_height) != declared:
+            return (
+                f"{path.name}: the icon group declares RT_ICON {image_id} as {declared[0]}x{declared[1]} and "
+                f"the PNG inside is {png_width}x{png_height}"
+            )
+        if png_width != png_height:
+            return f"{path.name}: RT_ICON {image_id} is {png_width}x{png_height}, not square"
+        images.append((width, height, planes, bits, image))
+        sizes.append(png_width)
+
+    # The `.ico` file form: ICONDIR, 16-byte entries with file offsets, then the images.
+    ico = bytearray(struct.pack("<HHH", 0, 1, count))
+    offset = 6 + 16 * count
+    for width, height, planes, bits, image in images:
+        ico += struct.pack("<BBBBHHII", width, height, 0, 0, planes, bits, len(image), offset)
+        offset += len(image)
+    for _width, _height, _planes, _bits, image in images:
+        ico += image
+    return bytes(ico), sizes
+
+
+def objdump_resource_tree(path):
+    """binutils' own count of RT_ICON leaves under the launcher, or a string saying why none.
+
+    `objdump -p` (`pei-x86-64`) prints the resource directory as a tree —
+    `Type Table`, `Entry: ID: 0x000003`, `Leaf: Addr: …` — from a parser that
+    shares nothing with `read_icon_resources` above or with the writer. It is in
+    the CI image (`binutils`), so this is the second family on every run.
+    """
+    try:
+        out = subprocess.run(["objdump", "-p", str(path)], capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return "objdump is not on PATH; it is the second reader of the icon resource tree and skipping it would leave one"
+    if out.returncode != 0:
+        return f"objdump -p {path.name} exited {out.returncode}: {out.stderr.strip()}"
+    if "Resource Directory section" not in out.stdout:
+        return f"objdump -p {path.name} prints no resource directory section"
+    # The TYPE table's entries and nothing below them. objdump indents by
+    # level — three spaces after the offset for a type entry, five for a name,
+    # seven for a language — and the first attempt at this regex matched all
+    # three, reporting types [1, 1, 2, 3, 3, 4, 5, 6, 14] for a correct tree.
+    types = re.findall(r"^[0-9a-f]+ {3}Entry: ID: 0x([0-9a-f]+), Value: 0x8", out.stdout, re.M)
+    leaves = out.stdout.count(" Leaf: Addr:")
+    return sorted(int(value, 16) for value in types), leaves
 
 
 def main(argv):
@@ -234,6 +409,49 @@ def main(argv):
     if PE_MACHINE.get(gui_machine) != target["arch"]:
         return fail(f"{gui.name} is machine 0x{gui_machine:04x}, and the stage is labelled {target['arch']}")
 
+    # ── 4b. the icon inside the GUI launcher, JUDGED for an application ──────
+    # The file the shortcut, Explorer and the Start menu ask for their icon, and
+    # the measured defect of one released app: a launcher with no resource
+    # directory at all and a generic blank-document Start-menu entry (Windows 11,
+    # Learn6502 0.8.0). A CLI project ships no icon and is owed none; an `app`
+    # carries one or the stage is refused (`utils/ship/layout.ts`) — so for an
+    # app, its ABSENCE here is a defect of the pipeline and is judged.
+    # DERIVED FROM THE ARTIFACT, not read from the manifest: `PackSettings`
+    # carries no `kind` by design (`utils/ship/types.ts` lists it among the
+    # phase-1-only fields), and the tree already states it — an application
+    # stages its desktop entry, a CLI stages none. The entry and the icon are
+    # two independently written claims about one payload being made to agree.
+    desktop_entry = root / "share" / "applications" / f"{settings['appId']}.desktop"
+    is_app = desktop_entry.is_file()
+    icon_summary = "no icon (no desktop entry, so a CLI)"
+    if is_app:
+        icon = read_icon_resources(gui)
+        if isinstance(icon, str):
+            return fail(icon)
+        ico, sizes = icon
+        missing = [size for size in ICON_MINIMUM if size not in sizes]
+        if missing:
+            return fail(
+                f"{gui.name} carries an icon at {sorted(sizes)} px and none at {missing}; Windows scales the "
+                "nearest size for those slots, which is the blur every half-ported app has. The writer "
+                "(`utils/ship/ico.ts`) embeds 16/24/32/48/64/256."
+            )
+        tree = objdump_resource_tree(gui)
+        if isinstance(tree, str):
+            return fail(tree)
+        objdump_types, objdump_leaves = tree
+        if objdump_types != [RT_ICON, RT_GROUP_ICON] or objdump_leaves != len(sizes) + 1:
+            return fail(
+                f"objdump -p reads {gui.name}'s resource tree as types {objdump_types} with {objdump_leaves} "
+                f"leaf/leaves, and the CPython walk found types [{RT_ICON}, {RT_GROUP_ICON}] with {len(sizes) + 1} — "
+                "two readers disagreeing about one tree is a tree at least one of them cannot use"
+            )
+        # The `.ico` file form, beside the directory, for whoever wants to open it
+        # in a third reader (Pillow, icotool, ImageMagick — none in the CI image).
+        ico_path = root.parent / f"{root.name}.icon-from-exe.ico"
+        ico_path.write_bytes(ico)
+        icon_summary = f"icon: {len(sizes)} PNG image(s) at {'/'.join(str(size) for size in sizes)} px, objdump agrees, ico at {ico_path.name}"
+
     # ── 5. the interpreter's own subsystem, PRINTED and not judged ───────────
     # Still 3, still not a defect: `node.exe` is what the `.cmd` execs, never what
     # a user starts. Reporting the field is what keeps that a number rather than
@@ -252,7 +470,7 @@ def main(argv):
     print(
         f"verify-program-dir.py: {launcher.name} runs {token} (CRLF, ASCII), "
         f"{len(images)} PE image(s) all {target['arch']}, {gui.name} subsystem 2 (GUI), "
-        f"interpreter subsystem {subsystem} ({kind})"
+        f"interpreter subsystem {subsystem} ({kind}), {icon_summary}"
     )
     return 0
 
