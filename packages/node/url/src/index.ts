@@ -48,26 +48,9 @@ export class URLSearchParams {
     constructor(init?: string | Record<string, string> | [string, string][] | URLSearchParams) {
         if (!init) return;
         if (typeof init === 'string') {
-            const s = init.startsWith('?') ? init.slice(1) : init;
-            if (s) {
-                for (const pair of s.split('&')) {
-                    // "If bytes is the empty byte sequence, then continue." A trailing or doubled
-                    // `&` is ordinary in real query strings, and inventing a nameless empty
-                    // parameter for it used to be invisible — it only polluted the params object.
-                    // Now that mutations write back, that invention lands in `href`: one no-op
-                    // `delete()` on `?type=release&` turned it into `?type=release&=`.
-                    if (pair === '') continue;
-                    const eqIdx = pair.indexOf('=');
-                    if (eqIdx === -1) {
-                        this._entries.push([decodeComponent(pair), '']);
-                    } else {
-                        this._entries.push([
-                            decodeComponent(pair.slice(0, eqIdx)),
-                            decodeComponent(pair.slice(eqIdx + 1)),
-                        ]);
-                    }
-                }
-            }
+            // The `?` strip belongs to the CONSTRUCTOR, not to the parser — see
+            // {@link parseFormUrlencoded}.
+            this._entries = parseFormUrlencoded(init.startsWith('?') ? init.slice(1) : init);
         } else if (Array.isArray(init)) {
             for (const [k, v] of init) {
                 this._entries.push([String(k), String(v)]);
@@ -178,6 +161,39 @@ export class URLSearchParams {
     get size(): number {
         return this._entries.length;
     }
+}
+
+/**
+ * The `application/x-www-form-urlencoded` PARSER, over text that has already had any leading `?`
+ * removed by the caller.
+ *
+ * Keeping the strip out of here is the whole point. It belongs to the `URLSearchParams`
+ * constructor — "if init starts with U+003F (?), remove the first code point" — and to nothing
+ * else. The `search` setter has already removed its own single leading `?` by the time it fills
+ * the params list, so routing that text back through the constructor stripped a SECOND one:
+ * `url.search = '??a=b'` serialised the query correctly as `??a=b` while the params object
+ * recorded the name `a` instead of `?a`. The two then disagreed, and because the update steps
+ * write the params list back, the next `append()` on that object would have replaced the correct
+ * query with the wrong one — the #1245 drift, re-entered through the new setter.
+ */
+function parseFormUrlencoded(input: string): [string, string][] {
+    const entries: [string, string][] = [];
+    if (!input) return entries;
+    for (const pair of input.split('&')) {
+        // "If bytes is the empty byte sequence, then continue." A trailing or doubled `&` is
+        // ordinary in real query strings, and inventing a nameless empty parameter for it used to
+        // be invisible — it only polluted the params object. Now that mutations write back, that
+        // invention lands in `href`: one no-op `delete()` on `?type=release&` turned it into
+        // `?type=release&=`.
+        if (pair === '') continue;
+        const eqIdx = pair.indexOf('=');
+        if (eqIdx === -1) {
+            entries.push([decodeComponent(pair), '']);
+        } else {
+            entries.push([decodeComponent(pair.slice(0, eqIdx)), decodeComponent(pair.slice(eqIdx + 1))]);
+        }
+    }
+    return entries;
 }
 
 function decodeComponent(s: string): string {
@@ -717,7 +733,11 @@ export class URL {
         }
         this.#fragment = uri.get_fragment() ?? null;
         this.#query = uri.get_query() ?? null;
-        this.#searchParams = new URLSearchParams(this.#query || '');
+        // `#query` is the text AFTER the `?` already, so it goes through the parser rather than
+        // the `URLSearchParams` constructor — which would strip a second one and lose the name of
+        // the first parameter of `http://x/??a=b`.
+        this.#searchParams = new URLSearchParams();
+        this.#searchParams._entries = parseFormUrlencoded(this.#query ?? '');
         UPDATE_STEPS.set(this.#searchParams, () => {
             // "If query is the empty string, then set url's query to null" — so removing the last
             // parameter takes the `?` with it.
@@ -873,7 +893,9 @@ export class URL {
         // character is a tab, not a `?` — keeps its question mark as query content.
         const query = (raw.startsWith('?') ? raw.slice(1) : raw).replace(TAB_NEWLINE, '');
         this.#query = encodeQuery(query, isSpecialScheme(this.#scheme));
-        this.#searchParams._entries = new URLSearchParams(query)._entries;
+        // The form-urlencoded PARSER, not the `URLSearchParams` constructor: the single leading
+        // `?` came off on the line above, and the constructor would take a second one.
+        this.#searchParams._entries = parseFormUrlencoded(query);
     }
 
     get hash(): string {
@@ -982,7 +1004,7 @@ export class URL {
         this.#opaquePath = next.#opaquePath;
         this.#query = next.#query;
         this.#fragment = next.#fragment;
-        this.#searchParams._entries = new URLSearchParams(this.#query || '')._entries;
+        this.#searchParams._entries = parseFormUrlencoded(this.#query ?? '');
     }
 
     get searchParams(): URLSearchParams {

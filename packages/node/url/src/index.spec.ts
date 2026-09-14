@@ -981,6 +981,7 @@ export default async () => {
             u.hostname = 'example.com';
             expect(u.href).toBe('mailto:me@example.net');
         });
+
     });
 
     await describe('URL.port setter', async () => {
@@ -1109,6 +1110,7 @@ export default async () => {
             const trailing = new URL('foo://path/to');
             trailing.pathname = '/..';
             expect(trailing.pathname).toBe('/');
+
         });
 
         await it('reads a backslash as a segment delimiter only on a special scheme', async () => {
@@ -1283,6 +1285,39 @@ export default async () => {
             u.search = '??lang=fr';
             expect(u.search).toBe('??lang=fr');
             expect(u.href).toBe('https://example.net/??lang=fr#nav');
+        });
+
+        // THE SAME `?`, READ OFF THE OTHER SIDE — and the side that was wrong.
+        //
+        // The case above passed while the params object silently disagreed with the query it is
+        // supposed to be a view of. The setter removes its one leading `?` and then handed the
+        // remainder to the `URLSearchParams` CONSTRUCTOR, which removes one of its own: the query
+        // serialised correctly as `??lang=fr` while the parameter was recorded as `lang` instead
+        // of `?lang`.
+        //
+        // Not a cosmetic disagreement. `searchParams` writes back through the update steps, so
+        // the next `append()` on that object replaces the correct query with the wrong one — the
+        // #1245 drift, re-entered through a setter added in the course of fixing it. Asserting
+        // `search` and `href` alone structurally cannot see it, which is why it went unseen.
+        await it('fills searchParams from the query the ? was already taken off', async () => {
+            const u = new URL('http://example.net/');
+            u.search = '??a=b';
+            expect(u.search).toBe('??a=b');
+            expect(u.searchParams.get('?a')).toBe('b');
+            expect(u.searchParams.toString()).toBe('%3Fa=b');
+
+            // The write-back still agrees with the query after a mutation.
+            u.searchParams.append('c', 'd');
+            expect(u.href).toBe('http://example.net/?%3Fa=b&c=d');
+        });
+
+        await it('takes only one ? in the constructor and the href setter too', async () => {
+            expect(new URL('http://example.net/??a=b').searchParams.get('?a')).toBe('b');
+
+            const u = new URL('http://example.net/');
+            u.href = 'http://other.test/??a=b';
+            expect(u.searchParams.get('?a')).toBe('b');
+            expect(u.searchParams.toString()).toBe('%3Fa=b');
         });
 
         await it('distinguishes no query from an empty one', async () => {
