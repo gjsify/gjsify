@@ -112,7 +112,7 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             })
             .option('verify-timeout', {
                 description:
-                    'Seconds to keep asking the registry for the just-published version before giving up. npm answers 2xx to a write it has only ACCEPTED: in the v0.46.0 release 19 of 199 packages were recorded 56-252s after their 2xx and one was never recorded at all, so a shorter window turns normal queueing into a false red. `0` disables the read-back — for a registry with no packument read path.',
+                    'Seconds to keep asking the registry for the just-published version before giving up. npm answers 2xx to a write it has only ACCEPTED: in the v0.46.0 release 19 of 199 packages were recorded 56-252s after their 2xx and one was never recorded at all, so a shorter window turns normal queueing into a false red. `0` disables the read-back — for a registry with no packument read path; the success line then reads `UNVERIFIED` and says so, because a publish nothing checked must never look like one that was checked.',
                 type: 'number',
                 default: DEFAULT_VERIFY_BUDGET_MS / 1000,
             })
@@ -371,6 +371,7 @@ export type PublishOutcome =
           name: string;
           version: string;
           status: number;
+          registry: string;
           /** The read-back that CONFIRMED the conflicting version. */
           readback?: ReadbackResult;
       }
@@ -676,6 +677,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
             name: packed.name,
             version: packed.version,
             status: res.status,
+            registry: registryClean,
             readback,
         };
     }
@@ -711,9 +713,74 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
  * re-checks the same set afterwards. It is policy, so it lives here and not in
  * {@link publishWorkspace}, which stays a pure fact-finder.
  */
+/**
+ * What the success line SAYS it established — the half of the read-back that
+ * was missing.
+ *
+ * AN INSTRUMENT STATES WHAT IT MEASURED, and `+ name@version` states nothing.
+ * It is the identical string from a CLI that polled the registry and read a
+ * tarball back, from one run with `--verify-timeout 0`, and from any
+ * `@gjsify/cli` older than v0.47.0, which had no read-back at all. That is not a
+ * hypothetical: ts-for-gir's v5.1.0 release (run 34899018849) printed twelve
+ * `+ <name>@5.1.0` lines with `GJSIFY_PUBLISH_DEBUG=1` set and not one
+ * `response:` or read-back line among them, because the job's
+ * `PATH="$WS_PATH/node_modules/.bin:$PATH"` put that workspace's pinned
+ * `@gjsify/cli@^0.44.0` ahead of the 0.51.1 it had just bootstrapped. Three of
+ * the twelve were not on the registry. The marker could not have told anyone,
+ * and nobody could have known to look.
+ *
+ * So every terminal success marker now carries its verification clause, and an
+ * unverified one says UNVERIFIED in a word a log sweep can grep for. A bare
+ * `+ name@version` with no clause is now itself the signature of a CLI too old
+ * to check.
+ */
+function describeVerification(
+    readback: ReadbackResult | undefined,
+    registry: string,
+): { verified: boolean; clause: string; json: Record<string, unknown> | null } {
+    if (!readback?.confirmed) {
+        return {
+            verified: false,
+            clause: '(UNVERIFIED — read-back disabled by --verify-timeout 0)',
+            json: null,
+        };
+    }
+    const seconds = (readback.elapsedMs / 1000).toFixed(1);
+    return {
+        verified: true,
+        clause: `(verified on ${registry} — ${readback.attempts} probe(s), ${seconds}s)`,
+        json: {
+            registry,
+            verdict: readback.verdict,
+            probes: readback.attempts,
+            elapsedMs: readback.elapsedMs,
+            tarball: readback.last.state === 'present' ? readback.last.tarball : null,
+        },
+    };
+}
+
+/**
+ * An unverified SUCCESS gets an Actions annotation too.
+ *
+ * `--verify-timeout 0` is a legitimate escape hatch for a registry with no
+ * packument read path, and it restores exactly the behaviour every incident in
+ * this file came out of. A disabled verifier that announces itself is a
+ * decision; one that stays quiet is the original defect wearing a hat — and the
+ * channel is the one `--verify-defer` already uses, beside the job rather than
+ * in a log nobody re-reads. stderr, because `--json` owns stdout.
+ */
+function warnUnverified(name: string, version: string, registry: string): void {
+    if (!process.env.GITHUB_ACTIONS) return;
+    process.stderr.write(
+        `::warning title=Publish unverified::${name}@${version} was published with the read-back disabled ` +
+            `(--verify-timeout 0) — nothing confirmed that ${registry} serves it\n`,
+    );
+}
+
 function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnconfirmed = false): void {
     switch (outcome.action) {
         case 'published': {
+            const verification = describeVerification(outcome.readback, outcome.registry);
             const out = {
                 ok: true,
                 name: outcome.name,
@@ -723,9 +790,12 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                 integrity: outcome.integrity,
                 tag: outcome.tag,
                 registry: outcome.registry,
+                verified: verification.verified,
+                verification: verification.json,
             };
             if (asJson) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
-            else process.stdout.write(`+ ${outcome.name}@${outcome.version}\n`);
+            else process.stdout.write(`+ ${outcome.name}@${outcome.version} ${verification.clause}\n`);
+            if (!verification.verified) warnUnverified(outcome.name, outcome.version, outcome.registry);
             return;
         }
         case 'publish-unconfirmed': {
@@ -745,6 +815,9 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                             elapsedMs: outcome.readback.elapsedMs,
                             readbackUrl: outcome.readback.url,
                             readbackState: outcome.readback.last.state,
+                            verdict: outcome.readback.verdict,
+                            verdictDetail: outcome.readback.verdictDetail,
+                            recordedAt: outcome.readback.recordedAt ?? null,
                             deferred: deferUnconfirmed,
                         },
                         null,
@@ -767,7 +840,8 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                     process.stderr.write(
                         `::warning title=Publish unconfirmed::${outcome.name}@${outcome.version} ${claimed} ` +
                             `(HTTP ${outcome.putStatus}) but did not resolve on ${outcome.registry} within ` +
-                            `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s — the release-closure job must confirm it\n`,
+                            `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s [${outcome.readback.verdict}] — ` +
+                            'the release-closure job must confirm it\n',
                     );
                 }
                 return;
@@ -775,15 +849,23 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
             return process.exit(1);
         }
         case 'republish-tolerated': {
+            const verification = describeVerification(outcome.readback, outcome.registry);
             const out = {
                 ok: true,
                 action: 'republish-tolerated',
                 name: outcome.name,
                 version: outcome.version,
                 status: outcome.status,
+                registry: outcome.registry,
+                verified: verification.verified,
+                verification: verification.json,
             };
             if (asJson) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
-            else process.stdout.write(`= ${outcome.name}@${outcome.version} (already published, tolerated)\n`);
+            else
+                process.stdout.write(
+                    `= ${outcome.name}@${outcome.version} (already published, tolerated) ${verification.clause}\n`,
+                );
+            if (!verification.verified) warnUnverified(outcome.name, outcome.version, outcome.registry);
             return;
         }
         case 'skipped-untrusted-new': {

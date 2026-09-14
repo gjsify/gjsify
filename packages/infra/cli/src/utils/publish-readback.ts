@@ -75,9 +75,39 @@ export type ReadbackProbe =
      */
     | { state: 'error'; status?: number; detail: string };
 
+/**
+ * What the read-back CONCLUDED — the three outcomes a caller may act on, plus
+ * the one it may not.
+ *
+ * `absent` on its own is not a conclusion. The install document not carrying a
+ * version has two causes with opposite remedies — the write never landed
+ * (re-publish) and the write landed but that document does not serve it yet
+ * (wait; a re-publish is answered 409) — and until this type existed both left
+ * through one message asserting the first. Observed live on the ts-for-gir
+ * v5.1.0 release: `@ts-for-gir/reporter` was recorded by the registry at
+ * 21:43:00.983Z and a cache-busted abbreviated read ~40 min later still did not
+ * carry 5.1.0, while the full packument's `time` map did; two minutes after
+ * that, both agreed.
+ */
+export type ReadbackVerdict =
+    /** The install document serves `name@version` and advertises a tarball. */
+    | 'confirmed'
+    /** The registry has no record of this version at all — the v0.46.0 shape. */
+    | 'not-published'
+    /** The registry RECORDS the write; the document npm installs from does not serve it. */
+    | 'recorded-not-served'
+    /** Nothing was established. A 5xx, a timeout, DNS, an auth wall. NEVER "published". */
+    | 'unknown';
+
 export interface ReadbackResult {
     /** True iff a probe saw the exact version with a tarball on it. */
     confirmed: boolean;
+    /** What the read-back concluded. `confirmed === (verdict === 'confirmed')`. */
+    verdict: ReadbackVerdict;
+    /** One line naming the evidence the verdict rests on — it goes in the report. */
+    verdictDetail: string;
+    /** `time[version]` from the registry's own record, when the corroboration read one. */
+    recordedAt?: string;
     /** Probes actually sent (≥ 1). */
     attempts: number;
     elapsedMs: number;
@@ -190,7 +220,37 @@ export function probeTimeoutFor(configuredMs: number, remainingMs: number): numb
 export const DEFAULT_VERIFY_BUDGET_MS = 300_000;
 
 /**
- * Poll the registry until `name@version` resolves, or the budget runs out.
+ * Make one probe's URL uncacheable, by giving it a key no cache holds.
+ *
+ * THE REQUEST HEADER DOES NOT WORK, and this file used to say it did. Measured
+ * against registry.npmjs.org, twice, on two packages, one request apart:
+ *
+ *   cache-control: no-cache                → cf-cache-status: HIT, age: 192
+ *   cache-control: no-cache + pragma       → cf-cache-status: HIT, age: 193
+ *   cache-control: max-age=0               → cf-cache-status: HIT, age: 193
+ *   cache-control: no-store                → cf-cache-status: HIT, age: 193
+ *   ?<unique>                              → cf-cache-status: MISS
+ *
+ * The packument is served `cache-control: public, max-age=300`, so an edge may
+ * answer with a document up to 300 s old — the same order as the whole default
+ * budget. A read-back polling one such edge re-reads ONE document minted before
+ * the PUT for its entire window and then reports the publish unconfirmed: a
+ * manufacturable false red on a publish that worked, and a verifier that cries
+ * wolf is one somebody turns off. It cannot produce the opposite error, because
+ * a document minted before the write cannot carry the version.
+ *
+ * The header is still sent: it costs nothing and a cache that DOES honour it
+ * (a corporate proxy, a Verdaccio) should. The parameter is namespaced so it
+ * cannot collide with a registry's own query vocabulary, and {@link probeOnce}
+ * falls back to the bare URL if a registry answers a non-404 4xx to it.
+ */
+function cacheBustedUrl(url: string, nonce: string): string {
+    return `${url}${url.includes('?') ? '&' : '?'}__gjsify_readback=${encodeURIComponent(nonce)}`;
+}
+
+/**
+ * Poll the registry until `name@version` resolves, or the budget runs out, then
+ * say WHICH of the three states it found (see {@link ReadbackVerdict}).
  *
  * No side effects, no exits, no printing beyond the injected `log` — the caller
  * owns presentation, same contract as {@link import('./publish-diagnose.js')}.
@@ -217,6 +277,7 @@ export async function verifyPublishedVersion(input: VerifyPublishedVersionInput)
             doFetch,
             probeTimeoutMs: probeTimeoutFor(probeTimeoutMs, budgetMs - (now() - started)),
             authorization: input.authorization,
+            nonce: `${started}-${attempts}`,
         });
         input.log?.(
             `gjsify publish: read-back probe ${attempts} of ${name}@${version} → ${last.state}` +
@@ -228,7 +289,127 @@ export async function verifyPublishedVersion(input: VerifyPublishedVersionInput)
         await sleep(Math.min(backoffFor(round), remaining));
     }
 
-    return { confirmed: last.state === 'present', attempts, elapsedMs: now() - started, url, last };
+    const base = { attempts, elapsedMs: now() - started, url, last };
+    if (last.state === 'present') {
+        return {
+            ...base,
+            confirmed: true,
+            verdict: 'confirmed',
+            verdictDetail: `${url} serves ${version} with a tarball`,
+        };
+    }
+    if (last.state === 'error') {
+        // NOTHING was established, so nothing may be concluded — least of all
+        // "published". This branch is the whole reason `error` exists next to
+        // `absent`, and it sends no corroboration request: a read that failed
+        // is not evidence to corroborate.
+        return {
+            ...base,
+            confirmed: false,
+            verdict: 'unknown',
+            verdictDetail: `the read-back could not reach a verdict — ${last.detail}`,
+        };
+    }
+
+    // ABSENT, which is one observation and two facts. Ask the registry's own
+    // record — `time[version]` on the FULL packument, the one field that
+    // separates them — ONE extra request, on the failure path only.
+    const record = await probeRegistryRecord({
+        url,
+        version,
+        doFetch,
+        probeTimeoutMs: probeTimeoutFor(probeTimeoutMs, MIN_PROBE_TIMEOUT_MS),
+        authorization: input.authorization,
+        nonce: `${started}-record`,
+    });
+    input.log?.(`gjsify publish: read-back record probe of ${name}@${version} → ${record.state} (${record.detail})`);
+    if (record.state === 'recorded') {
+        return {
+            ...base,
+            confirmed: false,
+            verdict: 'recorded-not-served',
+            verdictDetail: record.detail,
+            recordedAt: record.recordedAt,
+        };
+    }
+    return {
+        ...base,
+        confirmed: false,
+        verdict: 'not-published',
+        verdictDetail: record.detail,
+    };
+}
+
+/** The registry's own record of a version its install document does not serve. */
+type RecordProbe =
+    | { state: 'recorded'; recordedAt: string; detail: string }
+    | { state: 'no-record'; detail: string }
+    /** The corroboration itself failed; the `absent` observation still stands. */
+    | { state: 'unknown'; detail: string };
+
+/**
+ * Read `time[version]` from the FULL packument.
+ *
+ * The abbreviated document the polling probe reads is what npm INSTALLS from and
+ * carries no `time` map, so this is a different document and deliberately a
+ * different request — the full packument for a long-lived package is large, which
+ * is exactly why it is asked once, only when the answer is about to be a failure.
+ */
+async function probeRegistryRecord(input: ProbeOnceInput): Promise<RecordProbe> {
+    const { url, version, doFetch, probeTimeoutMs } = input;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), probeTimeoutMs);
+    let res: Response;
+    try {
+        res = await doFetch(cacheBustedUrl(url, input.nonce), {
+            // No `accept` override: the FULL document, for its `time` map.
+            headers: {
+                'cache-control': 'no-cache',
+                ...(input.authorization ? { authorization: input.authorization } : {}),
+            },
+            signal: controller.signal,
+        });
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+            state: 'unknown',
+            detail: `the registry serves no ${version} and its own record was unreadable (${msg})`,
+        };
+    } finally {
+        clearTimeout(timer);
+    }
+    if (res.status === 404) {
+        return { state: 'no-record', detail: 'the registry has no packument for this name at all (404)' };
+    }
+    if (!res.ok) {
+        return {
+            state: 'unknown',
+            detail: `the registry serves no ${version} and its own record answered ${res.status} ${res.statusText}`,
+        };
+    }
+    let doc: unknown;
+    try {
+        doc = await res.json();
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+            state: 'unknown',
+            detail: `the registry serves no ${version} and its own record is not JSON (${msg})`,
+        };
+    }
+    const time = (doc as { time?: Record<string, unknown> } | null)?.time;
+    const recordedAt = time && typeof time === 'object' ? time[version] : undefined;
+    if (typeof recordedAt === 'string' && recordedAt.length > 0) {
+        return {
+            state: 'recorded',
+            recordedAt,
+            detail: `the registry RECORDS ${version} at ${recordedAt} and its install document does not serve it`,
+        };
+    }
+    return {
+        state: 'no-record',
+        detail: `the registry has no record of ${version} — neither in its install document nor in its own \`time\` map`,
+    };
 }
 
 interface ProbeOnceInput {
@@ -237,35 +418,48 @@ interface ProbeOnceInput {
     doFetch: typeof fetch;
     probeTimeoutMs: number;
     authorization?: string;
+    /** Distinct per probe — what actually defeats the CDN, see {@link cacheBustedUrl}. */
+    nonce: string;
 }
 
 async function probeOnce(input: ProbeOnceInput): Promise<ReadbackProbe> {
     const { url, version, doFetch, probeTimeoutMs } = input;
+    const headers = {
+        // Abbreviated packument: version keys + `dist`, a fraction of the bytes
+        // of the full document, and the document npm itself installs from.
+        // `cache-control` is sent for the caches that honour it; the edge in
+        // front of registry.npmjs.org measurably does not, which is what the
+        // query parameter is for.
+        accept: 'application/vnd.npm.install-v1+json',
+        'cache-control': 'no-cache',
+        ...(input.authorization ? { authorization: input.authorization } : {}),
+    };
     // `AbortController` + a timer rather than `AbortSignal.timeout`, which the
     // CLI does not use anywhere and which this file must not be the first to
     // require of a GJS host.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), probeTimeoutMs);
+    const send = async (target: string): Promise<Response> => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), probeTimeoutMs);
+        try {
+            return await doFetch(target, { headers, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
     let res: Response;
     try {
-        res = await doFetch(url, {
-            headers: {
-                // Abbreviated packument: version keys + `dist`, a fraction of the
-                // bytes of the full document. `no-cache` because a CDN edge will
-                // otherwise answer with a document minted BEFORE the publish we
-                // are asking about — which is the whole question here.
-                accept: 'application/vnd.npm.install-v1+json',
-                'cache-control': 'no-cache',
-                ...(input.authorization ? { authorization: input.authorization } : {}),
-            },
-            signal: controller.signal,
-        });
+        res = await send(cacheBustedUrl(url, input.nonce));
+        // A registry that does not know the parameter must not be reported as a
+        // failed publish because of it. 404 is excluded: that is a real answer
+        // about the NAME, and re-asking it bare would only re-ask a cache.
+        if (!res.ok && res.status !== 404 && res.status >= 400 && res.status < 500) {
+            res = await send(url);
+        }
     } catch (err) {
         // A real throw path: network failure, DNS, or our own abort above.
         const msg = err instanceof Error ? err.message : String(err);
         return { state: 'error', detail: `request failed (${msg})` };
-    } finally {
-        clearTimeout(timer);
     }
 
     if (res.status === 404) {
@@ -336,31 +530,55 @@ export function formatUnconfirmedPublish(opts: {
     // Only ever called on an UNCONFIRMED read-back, so `last` is `absent` or
     // `error` — both carry a `detail`; `present` has nothing to explain.
     const answered = readback.last.state === 'present' ? 'served' : readback.last.detail;
+    const claimed =
+        claim === 'already-published' ? `npm says ${version} is ALREADY PUBLISHED` : 'npm ACCEPTED the upload';
+    // THE HEADLINE IS THE VERDICT, not the claim. It used to assert "the registry
+    // does not serve it" for every unconfirmed read-back, including one whose
+    // last probe was a 5xx — a statement the probe had not earned, on the very
+    // line written to stop a tool claiming what it had not established.
     const headline =
-        claim === 'already-published'
-            ? `npm says ${version} is ALREADY PUBLISHED but the registry does not serve it.`
-            : 'npm ACCEPTED the upload but the registry does not serve it.';
+        readback.verdict === 'unknown'
+            ? `${claimed} and the read-back could NOT establish whether the registry serves it.`
+            : readback.verdict === 'recorded-not-served'
+              ? `${claimed}; the registry RECORDS ${version} and its install document does not serve it.`
+              : `${claimed} and the registry has no record of ${version}.`;
     const remedy =
-        claim === 'already-published'
+        readback.verdict === 'unknown'
             ? [
-                  '  A 409 is npm refusing to overwrite a version it holds, which is not the same as serving it: in',
-                  '  the v0.46.0 recovery @gjsify/node-runtime-darwin-arm64 was answered 409 at 09:48:49 and the',
-                  '  registry recorded 0.46.0 at 09:49:07, 18s later. Re-running answers the same 409, so it cannot',
-                  '  fix this — wait and re-read (`npm view <name>@<version>`), or check https://status.npmjs.org/.',
+                  '  This is NOT a report that the publish failed, and it is not one that it worked. The read-back',
+                  '  reached no answer it could act on, so the version may or may not be installable — confirm it',
+                  '  before releasing anything that depends on it (`npm view <name>@<version> dist.tarball`).',
               ]
-            : [
-                  '  A 2xx from npm is an ACCEPTED write, not a durable one. In the v0.46.0 release 19 of 199',
-                  '  packages were recorded by the registry 56-252s after their 2xx, and ONE was never recorded',
-                  '  at all while its job stayed green — that is the failure this check exists to name.',
-                  `  Re-run this publish (\`--tolerate-republish\` no-ops if it landed meanwhile). If it keeps`,
-                  '  failing, the write was rejected downstream of the 2xx: check https://status.npmjs.org/.',
-              ];
+            : readback.verdict === 'recorded-not-served'
+              ? [
+                    '  Do NOT re-publish: the registry holds the write, so a re-run is answered 409 and changes',
+                    "  nothing. The document npm installs from is behind the registry's own record — measured on",
+                    '  the ts-for-gir v5.1.0 release, @ts-for-gir/reporter was recorded at 21:43:00.983Z and a',
+                    '  cache-busted read of its install document still did not carry 5.1.0 ~40 min later. Wait and',
+                    '  re-read; if it persists, check https://status.npmjs.org/.',
+                ]
+              : claim === 'already-published'
+                ? [
+                      '  A 409 is npm refusing to overwrite a version it holds, which is not the same as serving it:',
+                      '  in the v0.46.0 recovery @gjsify/node-runtime-darwin-arm64 was answered 409 at 09:48:49 and',
+                      '  the registry recorded 0.46.0 at 09:49:07, 18s later. Re-running answers the same 409, so it',
+                      '  cannot fix this — wait and re-read (`npm view <name>@<version>`), or check',
+                      '  https://status.npmjs.org/.',
+                  ]
+                : [
+                      '  A 2xx from npm is an ACCEPTED write, not a durable one. In the v0.46.0 release 19 of 199',
+                      '  packages were recorded by the registry 56-252s after their 2xx, and ONE was never recorded',
+                      '  at all while its job stayed green — that is the failure this check exists to name.',
+                      `  Re-run this publish (\`--tolerate-republish\` no-ops if it landed meanwhile). If it keeps`,
+                      '  failing, the write was rejected downstream of the 2xx: check https://status.npmjs.org/.',
+                  ];
     return [
         `gjsify publish: ${name}@${version} — ${headline}`,
         `  PUT       ${putUrl} (${payloadBytes} bytes) → ${putStatus} ${putStatusText}`,
-        `  read-back GET ${readback.url} (accept: application/vnd.npm.install-v1+json, cache-control: no-cache)`,
+        `  read-back GET ${readback.url} (accept: application/vnd.npm.install-v1+json, per-probe cache buster)`,
         `  answered  ${readback.last.state}: ${answered}`,
         `            after ${readback.attempts} probe(s) over ${seconds}s`,
+        `  verdict   ${readback.verdict} — ${readback.verdictDetail}`,
         ...remedy,
     ].join('\n');
 }
