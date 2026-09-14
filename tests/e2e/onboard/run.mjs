@@ -68,7 +68,13 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             const auth = req.headers['authorization'] ?? '';
             const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
             const otp = req.headers['npm-otp'] ?? null;
-            const url = req.url ?? '';
+            // ROUTE only. Every read-back GET carries a per-probe
+            // `__gjsify_readback=` cache key, because `cache-control: no-cache`
+            // measurably does not move registry.npmjs.org's edge. A mock keyed on
+            // the raw `req.url` answers 404 to each of those and the read-back
+            // then burns its whole budget on a publish that landed — which is how
+            // this suite first met the parameter: every row timed out at 180 s.
+            const url = (req.url ?? '').split('?')[0];
             const method = req.method ?? 'GET';
 
             const sendJson = (code, body) => {
