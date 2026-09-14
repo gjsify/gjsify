@@ -6,12 +6,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <template class="CorpusWindow" parent="AdwBin">
-    <property name="halign">3</property>
-    <property name="child">
-      <object class="GtkLabel">
-        <property name="label">in a template</property>
-      </object>
-    </property>
-  </template>
+  <object class="GtkSizeGroup">
+    <property name="mode">1</property>
+  </object>
 </interface>

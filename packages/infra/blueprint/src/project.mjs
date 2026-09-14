@@ -54,7 +54,10 @@ const isBreakpoint = (node) =>
  */
 const scalarOf = (value) => {
     if (value.kind === 'string') return value.value;
-    if (value.kind === 'number') return Number(value.raw);
+    // The raw spelling admits `1_000` and `0x10`; `Number()` reads the second and not the first,
+    // and `17-numeric-forms.blp` projected a `null` prop until the underscores were stripped
+    // here as the XML exit strips them.
+    if (value.kind === 'number') return Number(value.raw.replaceAll('_', ''));
     if (value.kind === 'bool') return value.value;
     // An enum member keeps its SOURCE spelling. The XML carries the resolved number; these
     // are two exits from one AST and not two views of one set of values.

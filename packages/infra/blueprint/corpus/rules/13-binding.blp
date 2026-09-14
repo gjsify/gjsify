@@ -6,6 +6,10 @@ Gtk.Box {
 
   Gtk.Label {
     visible: bind switchOne.active;
+    sensitive: bind switchOne.active inverted;
+    can-focus: bind switchOne.active bidirectional;
+    focusable: bind switchOne.active no-sync-create;
+    has-tooltip: bind switchOne.active no-sync-create bidirectional inverted;
     label: "bound visibility";
   }
 }

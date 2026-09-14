@@ -110,10 +110,18 @@ export const RULE_EXPECTATIONS = [
         file: '02-property-scalars.blp',
         node: {
             tag: 'GtkLabel',
-            props: { label: 'plain text', 'width-chars': 12, xalign: 0.25, wrap: true, selectable: false },
+            props: {
+                label: 'plain text',
+                'tooltip-text': 'single-quoted',
+                name: '',
+                'width-chars': 12,
+                xalign: 0.25,
+                wrap: true,
+                selectable: false,
+            },
         },
         lost: [],
-        note: 'The three value kinds `SharedNode` admits, and the only file here that needs no loss and no caveat.',
+        note: 'The three value kinds `SharedNode` admits, and the only file here that needs no loss and no caveat. A string arrives in either quote and may be empty; the projection holds the decoded value, so the quotes are gone and the empty one is `""`.',
     },
     {
         file: '03-property-enum.blp',
@@ -152,12 +160,30 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '07-object-id.blp',
-        node: { tag: 'GtkBox', children: [{ tag: 'GtkLabel', props: { label: 'named' } }] },
-        lost: [{ kind: 'object-id', line: 4, detail: 'the id `labelOne`' }],
+        node: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkLabel', props: { label: 'named' } },
+                { tag: 'GtkLabel', props: { label: 'hyphenated' } },
+            ],
+        },
+        lost: [
+            { kind: 'object-id', line: 3, detail: 'the id `rootBox` on the ROOT object' },
+            { kind: 'object-id', line: 4, detail: 'the id `labelOne`' },
+            {
+                kind: 'object-id',
+                line: 8,
+                detail: 'the id `label-two` — an id may carry a hyphen, and the loss is the same',
+            },
+        ],
     },
     {
         file: '08-template.blp',
-        node: { tag: 'AdwBin', children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'in a template' } }] },
+        node: {
+            tag: 'AdwBin',
+            props: { halign: 'center' },
+            children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'in a template' } }],
+        },
         lost: [
             {
                 kind: 'template',
@@ -165,6 +191,7 @@ export const RULE_EXPECTATIONS = [
                 detail: 'the template class `$CorpusWindow`; only its parent type `Adw.Bin` survives, as the root tag',
             },
         ],
+        note: '`halign` sits on the template itself. The XML resolves it against the PARENT type (`3` through `Adw.Bin`, which has no ParamSpecs of its own yet); here it keeps the member name like every enum.',
     },
     {
         file: '09-translatable.blp',
@@ -198,8 +225,21 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '11-signal.blp',
-        node: { tag: 'GtkButton', props: { label: 'press' } },
-        lost: [{ kind: 'signal', line: 5, detail: 'the handler binding `clicked => $onClicked()`' }],
+        node: { tag: 'GtkBox', children: [{ tag: 'GtkLabel' }, { tag: 'GtkButton', props: { label: 'press' } }] },
+        lost: [
+            {
+                kind: 'object-id',
+                line: 4,
+                detail: 'the id `labelOne`, which two of the handlers below name as their object',
+            },
+            { kind: 'signal', line: 9, detail: 'the bare handler binding `clicked => $onClicked()`' },
+            { kind: 'signal', line: 10, detail: '`swapped`' },
+            { kind: 'signal', line: 11, detail: '`after`' },
+            { kind: 'signal', line: 12, detail: 'a handler with an object, `$onRealize(labelOne)`' },
+            { kind: 'signal', line: 13, detail: 'an object and `not-swapped`' },
+            { kind: 'signal', line: 14, detail: 'a detailed signal, `notify::sensitive`' },
+        ],
+        note: 'Six spellings of one construct and one loss kind: `SharedNode` has no signal, so the flags, the object and the detail are dropped with the handler. The XML tells them apart — the flags are Python booleans, `swapped="True"` and `swapped="False"`, and `after` appears only when set — which is what `11-signal.ui` pins.',
     },
     {
         file: '12-menu.blp',
@@ -220,36 +260,45 @@ export const RULE_EXPECTATIONS = [
             children: [{ tag: 'GtkSwitch' }, { tag: 'GtkLabel', props: { label: 'bound visibility' } }],
         },
         lost: [
-            { kind: 'object-id', line: 4, detail: 'the id `switchOne`, which the binding on line 8 needs' },
+            { kind: 'object-id', line: 4, detail: 'the id `switchOne`, which all five bindings below need' },
             {
                 kind: 'binding',
                 line: 8,
                 detail: '`visible: bind switchOne.active` — the property is dropped entirely, not defaulted',
             },
+            { kind: 'binding', line: 9, detail: '`inverted`' },
+            { kind: 'binding', line: 10, detail: '`bidirectional`' },
+            { kind: 'binding', line: 11, detail: '`no-sync-create`' },
+            { kind: 'binding', line: 12, detail: 'all three flags, written in an order the XML does not keep' },
         ],
-        note: 'Dropping the property rather than guessing a value is the point: a projected `visible: true` would be a fact the source never stated.',
+        note: 'Dropping the property rather than guessing a value is the point: a projected `visible: true` would be a fact the source never stated. The flags go with it; the XML is where they show, and `13-binding.ui` pins that the compiler writes its own order and its own default.',
     },
     {
         file: '14-breakpoint.blp',
-        node: { tag: 'AdwWindow', children: [{ tag: 'AdwBin', slot: 'content' }] },
+        node: { tag: 'AdwWindow', children: [{ tag: 'GtkBox', slot: 'content', children: [{ tag: 'GtkLabel' }] }] },
         lost: [
-            { kind: 'object-id', line: 5, detail: 'the id `binOne`, which both setters (lines 12-13) need' },
+            { kind: 'object-id', line: 5, detail: 'the id `boxOne`, which three setters (lines 14-16) need' },
+            { kind: 'object-id', line: 6, detail: 'the id `labelOne`, which the setter on line 17 needs' },
             {
                 kind: 'breakpoint',
-                line: 8,
-                detail: 'the whole `Adw.Breakpoint` child: its `condition ("max-width: 400px")` and both of its setters',
+                line: 10,
+                detail: 'the whole `Adw.Breakpoint` child: its `condition ("max-width: 400px")` and four setters — a bool, a number, an enum member and a translatable string',
             },
         ],
+        note: 'The enum setter is the one worth having: it resolves against the object the setter POINTS AT (`boxOne`, a GtkBox) and not the breakpoint it is written in, and the XML carries `1`. The `_()` setter carries `translatable="yes"` on the `<setter>` element itself. Neither is visible from here — the whole breakpoint is one loss.',
     },
     {
         file: '15-comments.blp',
         node: {
-            tag: 'GtkBox',
+            tag: 'GtkCenterBox',
             props: { orientation: 'vertical' },
-            children: [{ tag: 'GtkLabel', props: { label: 'commented' } }],
+            children: [{ tag: 'GtkLabel', slot: 'start', props: { label: 'commented' } }],
         },
-        lost: [{ kind: 'comment', line: 3, detail: 'five comments in four positions; none reaches either exit' }],
-        note: 'Listed here and nowhere else. The rule under test is that a comment changes neither exit, in the four positions this file reaches: before the object, before a property, trailing after one, and before a child. Three further positions are legal and NOT here — between a `[slot]` bracket and the object it labels, between a property `:` and its value, and inside a `styles [ … ]` list — so "any legal position" is not what this file proves.',
+        lost: [
+            { kind: 'comment', line: 1, detail: 'ten comments in nine positions; none reaches either exit' },
+            { kind: 'styles', line: 14, detail: 'the style classes `a` and `b`, with two comments between them' },
+        ],
+        note: 'Listed here and nowhere else. The rule under test is that a comment changes neither exit, and this file reaches every position an earlier version of it listed as unexercised: before the `using` directive, before the object, before a property, between a property `:` and its value, trailing after a property, between a `[slot]` bracket and the object it labels, inside a `styles [ … ]` list (after an item and before one), before the closing brace, and after the last one.',
     },
     {
         file: '16-string-escapes.blp',
@@ -257,12 +306,15 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             children: [
                 { tag: 'GtkLabel', props: { label: 'a "quoted" word' } },
-                { tag: 'GtkLabel', props: { label: 'an ampersand & a less-than <' } },
-                { tag: 'GtkLabel', props: { label: 'a backslash \\ and a newline \n' } },
+                { tag: 'GtkLabel', props: { label: 'an ampersand & a less-than < a greater-than >' } },
+                { tag: 'GtkLabel', props: { label: 'a backslash \\ a tab \t and a newline \n' } },
+                { tag: 'GtkLabel', props: { label: 'single quotes, a "double" inside, and it\'s escaped' } },
+                { tag: 'GtkLabel', props: { label: 'continued \non the next line' } },
+                { tag: 'GtkLabel', props: { label: 'Ünïcödé — ✓' } },
             ],
         },
         lost: [],
-        note: 'The projection holds the DECODED string. The XML holds an escaped one — `&amp;`, `&lt;`, and a literal newline — so the two exits differ character by character here on purpose.',
+        note: 'The projection holds the DECODED string. The XML holds an escaped one — `&amp;`, `&lt;`, `&gt;`, a literal tab and literal newlines — so the two exits differ character by character here on purpose. A backslash before a real line break is a newline in the value and not a continuation that vanishes: the fifth label holds one.',
     },
     {
         file: '17-numeric-forms.blp',
@@ -270,13 +322,31 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             props: { spacing: 0 },
             children: [
-                { tag: 'GtkLabel', props: { xalign: 1, 'margin-top': 12 } },
-                { tag: 'GtkLabel', props: { xalign: 0.5, 'width-chars': -1 } },
+                {
+                    tag: 'GtkLabel',
+                    props: { xalign: 1, 'margin-top': 12, 'margin-bottom': 16, 'margin-start': 1000, 'margin-end': 5 },
+                },
+                { tag: 'GtkLabel', props: { xalign: 0.5, 'width-chars': -1, yalign: 0.75 } },
                 { tag: 'GtkLabel', props: { xalign: 0.25 } },
+                {
+                    tag: 'GtkSpinButton',
+                    children: [
+                        {
+                            tag: 'GtkAdjustment',
+                            slot: 'adjustment',
+                            props: {
+                                lower: 0,
+                                upper: 12345678901234568,
+                                'step-increment': 0.00005,
+                                'page-increment': 100,
+                            },
+                        },
+                    ],
+                },
             ],
         },
         lost: [],
-        note: 'The source writes `1.0` and this says `1`, because JavaScript has one number type and cannot hold the difference. That is not a projection loss — it is a limit of the language the expectation is written in, and it is why the `.ui` golden and not this file is the oracle for number FORMATTING.',
+        note: 'The source writes `1.0` and this says `1`, `0x10` and this says `16`, `1_000` and `+5` and this says `1000` and `5`, because JavaScript has one number type and cannot hold the spelling. Twice it cannot hold the VALUE either: `-0.0` is `-0` here and `0` in the golden, and `12345678901234567` is one digit off here because a double has 53 bits where the oracle has Python integers, so the golden keeps every digit and this file cannot. None of that is a projection loss — it is a limit of the language the expectation is written in, and it is why the `.ui` golden and not this file is the oracle for number FORMATTING.',
     },
     {
         file: '18-multiple-imports.blp',
@@ -344,10 +414,10 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'menu',
                 line: 3,
-                detail: 'the whole menu, one level deeper than in `12` and with two items written in the `item (label, action)` shorthand',
+                detail: 'the whole menu, one level deeper than in `12` and with four items written in the `item (…)` shorthand — one, two and three arguments, and a `C_()` label',
             },
         ],
-        note: 'The two shorthand items differ only in `_()`, and the golden marks exactly the marked one. So the shorthand IS sugar for the long form, and `translatable="yes"` follows the marking and never the form — a parser that ties the attribute to the form is wrong in both directions.',
+        note: 'The first two shorthand items differ only in `_()`, and the golden marks exactly the marked one. So the shorthand IS sugar for the long form, and `translatable="yes"` follows the marking and never the form — a parser that ties the attribute to the form is wrong in both directions. The third argument is the `icon` attribute, and the second is as optional as it: `item ("Alone")` is a label and nothing else.',
     },
     {
         file: '23-widget-reference-list.blp',
@@ -368,9 +438,19 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '24-unqualified-type.blp',
-        node: { tag: 'GtkBox', children: [{ tag: 'GtkToggleButton', props: { label: 'unqualified' } }] },
-        lost: [],
-        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects.',
+        node: {
+            tag: 'GtkFrame',
+            children: [
+                {
+                    tag: 'GtkBox',
+                    slot: 'child',
+                    props: { orientation: 'vertical' },
+                    children: [{ tag: 'GtkToggleButton', props: { label: 'unqualified' } }],
+                },
+            ],
+        },
+        lost: [{ kind: 'object-id', line: 7, detail: 'the id `lonely`, on an unqualified type' }],
+        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
     },
     {
         file: '25-bracket-breakpoint.blp',
@@ -416,17 +496,6 @@ export const RULE_EXPECTATIONS = [
         note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal, no styles and no menu, so the projection sees only a fraction of what this file pins.',
     },
     {
-        file: '31-responses.blp',
-        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
-        lost: [
-            {
-                kind: 'responses',
-                line: 7,
-                detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
-            },
-        ],
-    },
-    {
         file: '27-property-flags.blp',
         node: {
             tag: 'GtkBox',
@@ -437,5 +506,57 @@ export const RULE_EXPECTATIONS = [
         },
         lost: [],
         note: 'Three identifiers leave the compiler as three KINDS of answer — `word-completion|lowercase`, `6` and `8` — from one lookup, so a resolver that only ever returns a number is wrong on the first and one that returns a nick for every flag member is wrong on the third. The projection keeps all of them as the source wrote them, `|` and underscores included, for the reason on `03-property-enum.blp`.',
+    },
+    {
+        file: '28-property-enum-foreign.blp',
+        node: {
+            tag: 'AdwToolbarView',
+            props: { 'top-bar-style': 'raised' },
+            children: [{ tag: 'GtkLabel', slot: 'content', props: { ellipsize: 'end', 'wrap-mode': 'word_char' } }],
+        },
+        lost: [],
+        note: "Three enums, none of them Gtk's own: `AdwToolbarStyle` from the other imported namespace, and `PangoEllipsizeMode` / `PangoWrapMode` from a namespace the file never names, reached through `Gtk.Label`. The projection keeps the member names as always; the XML carries `1`, `3` and `2`.",
+    },
+    {
+        file: '29-enum-non-widget.blp',
+        node: { tag: 'GtkSizeGroup', props: { mode: 'horizontal' } },
+        lost: [],
+        note: 'An enum on an object that is not a widget. The projection is the same as for any enum; the XML is where this file bites — `corpus/divergences.mjs` has it, because the `@girs` join from a property to its enum covers widgets only.',
+    },
+    {
+        file: '30-template-self-reference.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 200, 'height-request': 200 },
+            children: [
+                {
+                    tag: 'GtkBox',
+                    slot: 'child',
+                    children: [{ tag: 'GtkLabel', props: { 'mnemonic-widget': 'template' } }, { tag: 'GtkButton' }],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'template',
+                line: 4,
+                detail: 'the template class `$CorpusSelf`, which four places below address as `template`',
+            },
+            { kind: 'binding', line: 11, detail: '`bind template.sensitive`' },
+            { kind: 'signal', line: 15, detail: '`$onClicked(template)`' },
+            { kind: 'breakpoint', line: 20, detail: 'the whole `[breakpoint]` child, whose setter targets `template`' },
+        ],
+        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other three references go with the constructs that carry them.',
+    },
+    {
+        file: '31-responses.blp',
+        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
+        lost: [
+            {
+                kind: 'responses',
+                line: 7,
+                detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
+            },
+        ],
     },
 ];

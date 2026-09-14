@@ -14,13 +14,29 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     </child>
     <child>
       <object class="GtkLabel">
-        <property name="label">an ampersand &amp; a less-than &lt;</property>
+        <property name="label">an ampersand &amp; a less-than &lt; a greater-than &gt;</property>
       </object>
     </child>
     <child>
       <object class="GtkLabel">
-        <property name="label">a backslash \ and a newline 
+        <property name="label">a backslash \ a tab 	 and a newline 
 </property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel">
+        <property name="label">single quotes, a "double" inside, and it's escaped</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel">
+        <property name="label">continued 
+on the next line</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel">
+        <property name="label">Ünïcödé — ✓</property>
       </object>
     </child>
   </object>
