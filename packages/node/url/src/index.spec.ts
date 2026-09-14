@@ -9,6 +9,27 @@ import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, reso
 /** True on real GJS — the same signal `@gjsify/unit` gates its host hooks on. */
 const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
 
+/**
+ * Whether the host refuses an undecodable IDNA label, which only real Node does
+ * and only up to a point. See the `xn--` case for the measurement; the boundary
+ * sits somewhere in (26.4.0, 26.8.2] and 26.8 is where it is drawn, because those
+ * are the two majors CI runs.
+ *
+ * `IS_GJS` IS CHECKED FIRST, and not out of tidiness: `@gjsify/process` reports
+ * `process.versions.node === '20.0.0'` under GJS, so a version test alone reads
+ * GJS as an old Node and takes the refusing branch. Measured — written that way
+ * this gate turned the GJS leg red while Node stayed green, which is the same
+ * shape as the `instanceof Error` mistake recorded two packages over: one signal,
+ * two hosts, and the leg that disagrees is the one you did not have in mind.
+ */
+const NODE_REFUSES_UNDECODABLE_IDNA = (() => {
+    if (IS_GJS) return false;
+    const version = (globalThis as { process?: { versions?: { node?: string } } }).process?.versions?.node;
+    if (typeof version !== 'string') return false;
+    const [major = 0, minor = 0] = version.split('.').map(Number);
+    return major < 26 || (major === 26 && minor < 8);
+})();
+
 export default async () => {
     // The live-view contract between `url.searchParams` and `url.href`.
     //
@@ -912,20 +933,34 @@ export default async () => {
             expect(u.hostname).toBe('foobar');
         });
 
-        await it.failing(
-            'refuses an ASCII label that IDNA cannot decode',
-            async () => {
-                const u = new URL('https://test.invalid/');
-                u.hostname = 'xn--';
+        // AN ASCII LABEL IDNA CANNOT DECODE, and the one case in this file where
+        // the reference itself moved.
+        //
+        // Measured, same three lines on each: 24.19.0, 25.2.1 and 26.4.0 all
+        // REFUSE `xn--` and leave the hostname alone; 26.8.2 ACCEPTS it and
+        // reports `https://xn--/`. The change is WPT's — `setters_tests.json`
+        // has always expected the label to be accepted — so Node moved onto the
+        // side `@gjsify/url` was already on, and the divergence this case was
+        // written to document closed from the reference's end rather than ours.
+        //
+        // It cannot pin one literal. CI runs both 24 and 26.8, so either literal
+        // is wrong on one of them, and it was: the suite went red on 26.8.2
+        // reporting `xn--` where `test.invalid` was expected. The gate is the
+        // node version rather than a re-probe, because on Node the subject IS
+        // the reference and asking it would only assert that it agrees with
+        // itself.
+        await it('handles an ASCII label that IDNA cannot decode as its host does', async () => {
+            const u = new URL('https://test.invalid/');
+            u.hostname = 'xn--';
+
+            if (NODE_REFUSES_UNDECODABLE_IDNA) {
                 expect(u.hostname).toBe('test.invalid');
-            },
-            'Without IDNA ToASCII there is nothing to reject with: `xn--` is plain ASCII and passes every ' +
-                'check @gjsify/url can make, so the assignment succeeds. Node rejects it because its ' +
-                'Punycode decoder fails on the empty label — and note WPT expects it to be ACCEPTED ' +
-                '(setters_tests.json), so this pins the REFERENCE, not the spec text. Retires with the ' +
-                'shared host-parser change that brings IDNA to the constructor and the setters together.',
-            { when: IS_GJS },
-        );
+                expect(u.href).toBe('https://test.invalid/');
+            } else {
+                expect(u.hostname).toBe('xn--');
+                expect(u.href).toBe('https://xn--/');
+            }
+        });
 
         await it('does not treat a colon as a port delimiter on a file URL', async () => {
             // In file host state `:` is an ordinary — and forbidden — host character, so the
