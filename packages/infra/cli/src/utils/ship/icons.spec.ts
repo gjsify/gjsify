@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pngSize, tinyPng } from './icon-fixture.spec.js';
-import { RASTERIZER, RASTERIZER_HINT, rasterizeSvg, readPngSize, resolveAppIcon } from './icons.js';
+import { RASTERIZER, RASTERIZER_HINT, rasterizeSvg, rasterizerEnv, readPngSize, resolveAppIcon } from './icons.js';
 
 /** The message of the error an async call rejects with, or null when it resolves. */
 async function refusal(run: () => Promise<unknown>): Promise<string | null> {
@@ -169,6 +169,72 @@ export default async () => {
             const macos = RASTERIZER_HINT.slice(RASTERIZER_HINT.indexOf('macOS:'));
             expect(macos).toContain('rsvg');
             expect(macos).toContain('gobject-introspection');
+        });
+    });
+
+    await describe('ship icons: the rasterizing child reaches the host\u2019s libraries', async () => {
+        // THE DEFECT, on both macos-suites legs: `brew install gjs librsvg
+        // gobject-introspection` installed everything, and dlopen still tried only
+        // the leaf, GLIB's keg (the one rpath Homebrew's gjs carries) and
+        // /usr/lib \u2014 never /usr/local/lib or /opt/homebrew/lib, where the dylib
+        // is. The CLI already owns that repair for every OTHER gjs child it starts
+        // (`buildNativeEnv`); `ship` opened a second one that went around it.
+        //
+        // Asserted from Linux by injecting the platform and the probe, which is the
+        // whole point of `systemGiLibraryDirs` taking both as parameters.
+        const brew = (dirs: string[]) => () => dirs;
+
+        await it('puts the host GI libdirs in front of dyld\u2019s OWN defaults on darwin', () => {
+            const env = rasterizerEnv({
+                platform: 'darwin',
+                env: { HOME: '/Users/x', PATH: '/usr/bin' },
+                systemGiDirs: brew(['/opt/homebrew/lib']),
+            });
+            const fallback = (env['DYLD_FALLBACK_LIBRARY_PATH'] ?? '').split(':');
+            expect(fallback[0]).toBe('/opt/homebrew/lib');
+            // AND the defaults are still behind it. Setting the variable REPLACES
+            // dyld's list rather than extending it, so a composition that drops them
+            // hands the child a SMALLER search path than leaving it unset would \u2014
+            // the failure mode is a DIFFERENT dylib going missing, one that used to
+            // resolve, which is why this half is asserted separately.
+            expect(fallback).toContain('/usr/lib');
+            expect(fallback.length).toBeGreaterThan(1);
+            // The inherited env survives: the child still needs `PATH` to be `gjs`.
+            expect(env['PATH']).toBe('/usr/bin');
+        });
+
+        await it('writes no dyld variable off darwin, where ld.so\u2019s cache resolves these leaves', () => {
+            const env = rasterizerEnv({ platform: 'linux', env: { PATH: '/usr/bin' } });
+            expect(env['DYLD_FALLBACK_LIBRARY_PATH']).toBe(undefined);
+            expect(env['PATH']).toBe('/usr/bin');
+        });
+
+        await it('writes none on a Mac with no GI stack installed, leaving the env byte-unchanged', () => {
+            const env = rasterizerEnv({ platform: 'darwin', env: { PATH: '/usr/bin' }, systemGiDirs: brew([]) });
+            expect(env['DYLD_FALLBACK_LIBRARY_PATH']).toBe(undefined);
+        });
+
+        // THE HALF THAT CATCHES THE REAL REGRESSION. Everything above tests the
+        // composition, and the composition was never the bug \u2014 `buildNativeEnv`
+        // was already correct and already tested. The bug was a call site that did
+        // not USE it. So read the env the renderer actually hands its child: drop
+        // the `env:` line from `rasterizeSvg` and only this one goes red.
+        await it(`hands that env to the ${RASTERIZER} it starts`, async () => {
+            let seen: NodeJS.ProcessEnv | undefined;
+            await rasterizeSvg({
+                // Never opened: the stub below replaces the child, and
+                // `rasterizeSvg` hands the path to it rather than reading it.
+                svg: join(tmpdir(), 'gjsify-icons-wiring.svg'),
+                sizes: [8],
+                spawn: (async (_cmd: string, _args: readonly string[], opts: { env?: NodeJS.ProcessEnv }) => {
+                    seen = opts.env;
+                    return { code: 0, stdout: JSON.stringify({}), stderr: '' };
+                }) as never,
+            }).catch(() => undefined);
+            expect(seen).not.toBe(undefined);
+            // Keyed on a variable `buildNativeEnv` always writes, on every platform,
+            // so this arm does not itself become darwin-only.
+            expect(Object.keys(seen ?? {})).toContain('GI_TYPELIB_PATH');
         });
     });
 

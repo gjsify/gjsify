@@ -67,7 +67,9 @@
 import { readFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 
+import { buildNativeEnv } from '../detect-native-packages.js';
 import { spawnToCompletion } from '../spawn.js';
+import type { SystemGiOptions } from '../system-gi.js';
 
 /** The runtime that renders. On `PATH`, like `glib-compile-schemas` — a GJS host has it by definition. */
 export const RASTERIZER = 'gjs';
@@ -85,12 +87,17 @@ export const RASTERIZER = 'gjs';
  * '1.0' not found`. The script imports both, and `Cairo-1.0.typelib` belongs to
  * `gobject-introspection` rather than to the `cairo` formula (`rpm -qf` says so
  * for the Fedora twin). A hint that names two thirds of what is needed sends a
- * stranger round the same loop this one went round. What IS measured too is —
- * GitHub's macOS runners carry a `gjs` and no `Rsvg-2.0` typelib, which is the
- * host that turned this message from theory into the one a build actually
- * prints. Assembly is a Linux step by ADR 0024 § A2, so a darwin host reaching
- * this line is running `ship` outside the documented arrangement; the message
- * should still tell it what to install rather than name two Linuxes at it.
+ * stranger round the same loop this one went round.
+ *
+ * INSTALLING ALL THREE IS STILL NOT ENOUGH on macOS, and this sentence cost the
+ * third red run: the dylib then EXISTS and dyld does not look where it is. That
+ * half is not a hint, it is {@link rasterizerEnv} — and the message deliberately
+ * stays quiet about it, because a host that reaches this line after the repair
+ * really is missing a package.
+ *
+ * Assembly is a Linux step by ADR 0024 § A2, so a darwin host reaching this line
+ * is running `ship` outside the documented arrangement; the message should still
+ * tell it what to install rather than name two Linuxes at it.
  */
 export const RASTERIZER_HINT =
     'Fedora: `sudo dnf install gjs librsvg2`, Debian/Ubuntu: `sudo apt install gjs gir1.2-rsvg-2.0`, ' +
@@ -236,11 +243,62 @@ for (const text of sizes) {
 print(JSON.stringify(out));
 `.trim();
 
+/**
+ * The launch env for the rasterizing child — the HOST's GI libdirs put back.
+ *
+ * THE INCIDENT, measured on both `macos-suites` legs (2026-09-13). `brew install
+ * gjs librsvg gobject-introspection` installs everything the script imports, and
+ * the render still died:
+ *
+ *     Failed to load shared library 'librsvg-2.2.dylib' referenced by the typelib:
+ *       dlopen(librsvg-2.2.dylib): tried: 'librsvg-2.2.dylib' (no such file),
+ *       '/usr/local/Cellar/gjs/1.88.1/bin/../../../../opt/glib/lib/librsvg-2.2.dylib',
+ *       '/usr/lib/librsvg-2.2.dylib' (not in dyld cache)
+ *     JS ERROR: Error: Unsupported type void, deriving from fundamental void
+ *
+ * `/usr/local/lib` (x64) and `/opt/homebrew/lib` (arm64) — where Homebrew puts
+ * the dylib — are in NEITHER list, because a typelib names its library by bare
+ * leaf and Homebrew's `gjs` carries one rpath, into GLIB's keg alone. The second
+ * line is the symptom, not the cause: the typelib loads, its library does not,
+ * and the first call then marshals a type that is no longer resolvable. It reads
+ * like GJS was built without cairo, and this comment exists because that is what
+ * it was first diagnosed as.
+ *
+ * {@link buildNativeEnv} already repairs exactly this, and its own header calls
+ * itself "the ONE place `gjsify run`, `showcase`, `storybook`, `tsc` and `info`
+ * all pass through". `ship` opened a SECOND gjs child that went around it — which
+ * is the class, not the bug: the repair is per-call-site, so every new child
+ * inherits the gap until someone reads that header. `rasterizerEnv` is what the
+ * spec beside it pins, so the wiring is asserted and not just the composition.
+ *
+ * No packages are passed: the gap is in the host's loader, not in a prebuild we
+ * ship, and the child is a bare `gjs -c` that loads no `.node` at all.
+ *
+ * `env` FIRST, so the composed values win over the inherited ones rather than
+ * being shadowed by them.
+ */
+export function rasterizerEnv(
+    opts: {
+        platform?: string;
+        env?: Record<string, string | undefined>;
+        /** Injectable for tests — the darwin branch is asserted from Linux. */
+        systemGiDirs?: (opts: SystemGiOptions) => string[];
+    } = {},
+): NodeJS.ProcessEnv {
+    return { ...(opts.env ?? process.env), ...buildNativeEnv([], opts) };
+}
+
 export interface RasterizeInput {
     /** Absolute path of the SVG. */
     svg: string;
     /** Square edge lengths to render, each one a separate vector render. */
     sizes: readonly number[];
+    /**
+     * Injectable for tests. NOT a convenience: the {@link rasterizerEnv} repair is
+     * only worth anything if it reaches the child, and a spec over the composition
+     * alone passes just as well when nobody wires it in.
+     */
+    spawn?: typeof spawnToCompletion;
 }
 
 /**
@@ -261,12 +319,15 @@ export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, U
     // the result. `spawnToCompletion` captures on both paths and picks the blocking
     // one under GJS per its teardown contract; `'return'` is what every packer here
     // declares, for the reason `msi.ts` gives at its own call.
-    const result = await spawnToCompletion(
+    const result = await (input.spawn ?? spawnToCompletion)(
         RASTERIZER,
         ['-c', RASTERIZE_SCRIPT, input.svg, ...input.sizes.map(String)],
         {
             completion: 'return',
             stdio: 'capture',
+            // The host's own GI libdirs — see {@link rasterizerEnv}. Without it a
+            // Mac with librsvg installed still cannot render.
+            env: rasterizerEnv(),
             // A 1024 px PNG of a detailed icon is a few hundred kilobytes; base64 adds
             // a third. Node's default 1 MiB is within reach of one large element.
             maxBuffer: 64 * 1024 * 1024,
