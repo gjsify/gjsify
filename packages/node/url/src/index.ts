@@ -709,6 +709,12 @@ export class URL {
         this.#path = uri.get_path() ?? '';
         if (special && this.#path === '') this.#path = '/';
         this.#opaquePath = this.#host === null && !this.#path.startsWith('/');
+        // The inverse of the `/.` the serialiser writes (see `href`): it is an ESCAPE that keeps a
+        // host-less `//…` path from re-parsing as an authority, never part of the path itself.
+        // GLib.Uri resolves every other dot segment but keeps this one, for the same reason.
+        if (this.#host === null && !this.#opaquePath && this.#path.startsWith('/.//')) {
+            this.#path = this.#path.slice(2);
+        }
         this.#fragment = uri.get_fragment() ?? null;
         this.#query = uri.get_query() ?? null;
         this.#searchParams = new URLSearchParams(this.#query || '');

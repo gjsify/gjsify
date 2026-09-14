@@ -1152,6 +1152,15 @@ export default async () => {
             expect(u.href).toBe('non-spec:/.//p');
         });
 
+        await it('takes the /. escape back off a parsed path', async () => {
+            // The other direction of the rule above. `/.` is how a host-less `//…` path avoids
+            // re-parsing as one with an authority, so it belongs to the serialisation and not to
+            // the path — `href` keeps it, `pathname` must not.
+            const u = new URL('non-spec:/.//p');
+            expect(u.pathname).toBe('//p');
+            expect(u.href).toBe('non-spec:/.//p');
+        });
+
         await it('drops the /. prefix again once the path no longer needs it', async () => {
             const u = new URL('non-spec:/.//');
             u.pathname = 'p';
