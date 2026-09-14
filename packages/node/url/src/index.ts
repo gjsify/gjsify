@@ -221,8 +221,28 @@ function encodeComponent(s: string): string {
     return out;
 }
 
-/** Schemes whose query percent-encode set also covers `'`. */
-const SPECIAL_SCHEMES = new Set(['http:', 'https:', 'ws:', 'wss:', 'ftp:', 'file:']);
+/**
+ * The WHATWG "special scheme" table: scheme → default port (`null` where there is none).
+ *
+ * Membership decides the query percent-encode set, whether `protocol` may be reassigned, whether
+ * an empty host is legal, and which port serialises away. One table, because the spec has one.
+ */
+const SPECIAL_SCHEMES = new Map<string, number | null>([
+    ['ftp', 21],
+    ['file', null],
+    ['http', 80],
+    ['https', 443],
+    ['ws', 80],
+    ['wss', 443],
+]);
+
+function isSpecialScheme(scheme: string): boolean {
+    return SPECIAL_SCHEMES.has(scheme);
+}
+
+function defaultPort(scheme: string): number | null {
+    return SPECIAL_SCHEMES.get(scheme) ?? null;
+}
 
 /**
  * The WHATWG query percent-encode set: C0 controls, everything above `~`, and `space " # < >` —
@@ -244,40 +264,72 @@ function encodeQuery(query: string, special: boolean): string {
     return out;
 }
 
+/**
+ * The WHATWG URL record: the eight components a URL is made of, held separately.
+ *
+ * `GLib.Uri` is IMMUTABLE, so it can parse a URL but cannot be one that changes. The query was
+ * already broken out of it for that reason (#1245); every other component still delegated to the
+ * parsed object, which is why nine of the ten setters could not exist. This holds all eight
+ * instead, and `GLib.Uri` is used once, in the constructor, to fill them.
+ *
+ * The alternative — rebuild the href on every assignment and re-parse it through `GLib.Uri` — was
+ * measured and rejected. GLib's parser normalises percent-encoding (`%c3%89` → `%C3%89`, `%2e` →
+ * `.`), and the spec requires the opposite: "bytes already percent-encoded are left as-is"
+ * (`refs/wpt/url/resources/setters_tests.json`). A re-parse therefore rewrites components nobody
+ * assigned to, and `u.username = '%c3%89té'` comes back as `%C3%89t%C3%A9` rather than the
+ * `%c3%89t%C3%A9` the spec asks for.
+ */
 export class URL {
-    #uri: GLib.Uri;
+    #scheme: string;
+    #username: string;
+    #password: string;
+    /** `null` = no host at all (`mailto:`, `foo:/path`); `''` = present and empty (`file:///a`). */
+    #host: string | null;
+    /** Already default-stripped: `https://x:443/` and `https://x/` are the same URL. */
+    #port: number | null;
+    #path: string;
+    #fragment: string | null;
     #searchParams: URLSearchParams;
     /**
-     * The URL's query, shadowing `GLib.Uri`'s.
+     * The URL's query.
      *
-     * `GLib.Uri` is immutable, so the query cannot live there once it can change. Parsing keeps
-     * the RAW query — re-serialising it through URLSearchParams would re-encode a URL nobody
-     * asked to modify — and a mutation replaces it with the serialised parameter list. That is
-     * exactly what the WHATWG algorithm does, and it is why `new URL(s).href === s` still holds
-     * for a URL that is only read.
+     * Parsing keeps the RAW query — re-serialising it through URLSearchParams would re-encode a
+     * URL nobody asked to modify — and a mutation replaces it with the serialised parameter list.
+     * That is exactly what the WHATWG algorithm does, and it is why `new URL(s).href === s` still
+     * holds for a URL that is only read.
      */
     #query: string | null;
 
     constructor(url: string | URL, base?: string | URL) {
         const urlStr = url instanceof URL ? url.href : String(url);
 
+        let uri: GLib.Uri;
         try {
             if (base !== undefined) {
                 const baseStr = base instanceof URL ? base.href : String(base);
                 const baseUri = GLib.Uri.parse(baseStr, PARSE_FLAGS);
-                this.#uri = baseUri.parse_relative(urlStr, PARSE_FLAGS);
+                uri = baseUri.parse_relative(urlStr, PARSE_FLAGS);
             } else {
-                this.#uri = GLib.Uri.parse(urlStr, PARSE_FLAGS);
+                uri = GLib.Uri.parse(urlStr, PARSE_FLAGS);
             }
         } catch (_e: unknown) {
             throw new TypeError(`Invalid URL: ${urlStr}`);
         }
 
-        if (!this.#uri) {
+        if (!uri) {
             throw new TypeError(`Invalid URL: ${urlStr}`);
         }
 
-        this.#query = this.#uri.get_query() ?? null;
+        this.#scheme = uri.get_scheme();
+        this.#username = uri.get_user() ?? '';
+        this.#password = uri.get_password() ?? '';
+        const host = uri.get_host();
+        this.#host = host === null ? null : host.toLowerCase();
+        const port = uri.get_port();
+        this.#port = port === -1 || port === defaultPort(this.#scheme) ? null : port;
+        this.#path = uri.get_path() ?? '';
+        this.#fragment = uri.get_fragment() ?? null;
+        this.#query = uri.get_query() ?? null;
         this.#searchParams = new URLSearchParams(this.#query || '');
         UPDATE_STEPS.set(this.#searchParams, () => {
             // "If query is the empty string, then set url's query to null" — so removing the last
@@ -288,22 +340,15 @@ export class URL {
     }
 
     get protocol(): string {
-        return this.#uri.get_scheme() + ':';
+        return this.#scheme + ':';
     }
 
     get hostname(): string {
-        return (this.#uri.get_host() || '').toLowerCase();
+        return this.#host ?? '';
     }
 
     get port(): string {
-        const p = this.#uri.get_port();
-        if (p === -1) return '';
-        // WHATWG URL spec: port should be empty string for default ports
-        const scheme = this.#uri.get_scheme();
-        if ((scheme === 'http' || scheme === 'ws') && p === 80) return '';
-        if ((scheme === 'https' || scheme === 'wss') && p === 443) return '';
-        if (scheme === 'ftp' && p === 21) return '';
-        return String(p);
+        return this.#port === null ? '' : String(this.#port);
     }
 
     get host(): string {
@@ -313,7 +358,7 @@ export class URL {
     }
 
     get pathname(): string {
-        return this.#uri.get_path() || '/';
+        return this.#path || '/';
     }
 
     get search(): string {
@@ -349,13 +394,12 @@ export class URL {
             return;
         }
         const query = stripped.startsWith('?') ? stripped.slice(1) : stripped;
-        this.#query = encodeQuery(query, SPECIAL_SCHEMES.has(this.protocol));
+        this.#query = encodeQuery(query, isSpecialScheme(this.#scheme));
         this.#searchParams._entries = new URLSearchParams(query)._entries;
     }
 
     get hash(): string {
-        const f = this.#uri.get_fragment();
-        return f ? '#' + f : '';
+        return this.#fragment ? '#' + this.#fragment : '';
     }
 
     get origin(): string {
@@ -367,25 +411,17 @@ export class URL {
     }
 
     get username(): string {
-        return this.#uri.get_user() || '';
+        return this.#username;
     }
 
     get password(): string {
-        return this.#uri.get_password() || '';
+        return this.#password;
     }
 
     get href(): string {
         let result = this.protocol;
-        const scheme = this.#uri.get_scheme();
-        const isSpecial =
-            scheme === 'http' ||
-            scheme === 'https' ||
-            scheme === 'ftp' ||
-            scheme === 'file' ||
-            scheme === 'ws' ||
-            scheme === 'wss';
 
-        if (isSpecial || this.hostname) {
+        if (isSpecialScheme(this.#scheme) || this.hostname) {
             result += '//';
         }
 
