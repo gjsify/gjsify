@@ -1,0 +1,9 @@
+using Gtk 4.0;
+using Gio 2.0;
+
+Gtk.ListView {
+  model: Gtk.NoSelection {
+    model: Gio.ListStore {
+    };
+  };
+}

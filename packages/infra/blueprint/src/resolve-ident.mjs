@@ -1,11 +1,12 @@
 // What a bare identifier in a `.blp` means, answered from the `@girs` vocabulary.
 //
-// `emit-xml.mjs` has two seams through which introspection reaches it — `EmitOptions.resolveIdent`
-// and `EmitOptions.accessibilityElement` — because `orientation: vertical` leaves
-// `blueprint-compiler` as `<property name="orientation">1</property>` and `checked: true` leaves it
-// as `<state name="checked">1</state>`, and nothing in the syntax carries either answer. This
-// module is the implementation of both seams, and it is a separate file so the emitter stays a
-// function of its AST and the tables it is handed.
+// `emit-xml.mjs` has three seams through which introspection reaches it — `EmitOptions.resolveIdent`,
+// `EmitOptions.accessibilityElement` and `EmitOptions.gtypeName` — because `orientation: vertical`
+// leaves `blueprint-compiler` as `<property name="orientation">1</property>`, `checked: true` leaves
+// it as `<state name="checked">1</state>` and `Gio.ListStore` as `<object class="GListStore">`, and
+// nothing in the syntax carries any of the three answers. This module is the implementation of all
+// three seams, and it is a separate file so the emitter stays a function of its AST and the tables
+// it is handed.
 //
 // WHY `@girs` AND NOT THE INSTALLED TYPELIB
 //
@@ -62,6 +63,17 @@
 // emitting the spelling would be silently wrong output, which is the failure ADR 0053 clause 3
 // exists to prevent. That throws, naming the line, the property, the enum and the member, the
 // way the oracle does.
+//
+// A GTYPE NAME IS NOT NAMESPACE PLUS NAME
+//
+// `Adw.Bin` is `AdwBin` and `Gtk.Box` is `GtkBox`, and every corpus file imports one of those two
+// namespaces — the only reason concatenating ever produced a golden. Measured on 0.20.4,
+// `Gio.ListStore` is `<object class="GListStore">`: the GIR's `c:identifier-prefixes` for Gio is
+// `G`, and an emitter concatenating writes `GioListStore`, a class GtkBuilder cannot find, with no
+// error anywhere. The prefix is a fact about the namespace, this module holds it for exactly the
+// namespaces it imports vocabulary for, and a `using` outside that set is refused at the first type
+// that spells it — a hard error naming its line, per ADR 0053 clause 3, rather than plausible XML.
+// `corpus/refused/namespace-without-vocabulary.blp` holds the case.
 //
 // AN `accessibility { }` ENTRY NAMES ITS OWN ELEMENT, AND THE NAMES ARE ALSO DATA
 //
@@ -213,6 +225,35 @@ export function resolveIdent(typeName, propertyName, member, where) {
     // `input-hints: lowercase`; only a `|`-joined set keeps the nicks (27-property-flags.ui).
     if (members.length === 1) return String(members[0].value);
     return members.map((entry) => entry.nick).join('|');
+}
+
+/** The GIR `c:identifier-prefixes` of each namespace this module imports vocabulary for. */
+const C_PREFIXES = new Map([
+    ['Gtk', 'Gtk'],
+    ['Adw', 'Adw'],
+]);
+
+/**
+ * The GType name a type reference spells, or a thrown error naming the namespace it cannot answer.
+ *
+ * The signature the emitter's `EmitOptions.gtypeName` declares. An unqualified name is a Gtk type
+ * — `24-unqualified-type.blp` pins that `using Adw 1;` does not make a bare `Bin` legal.
+ *
+ * @param {{ namespace?: string, name: string }} type
+ * @param {string} where  `line N`, for an error message that can be acted on
+ * @returns {string}
+ */
+export function gtypeName(type, where) {
+    const namespace = type.namespace ?? 'Gtk';
+    const prefix = C_PREFIXES.get(namespace);
+    if (prefix === undefined) {
+        throw new Error(
+            `blueprint: ${where}: \`${namespace}.${type.name}\` names a namespace this resolver has no ` +
+                `vocabulary for (it has ${[...C_PREFIXES.keys()].join(', ')}), so its GType name cannot be ` +
+                'derived — the C prefix is not the namespace name (`Gio.ListStore` is `GListStore`)',
+        );
+    }
+    return `${prefix}${type.name}`;
 }
 
 /**

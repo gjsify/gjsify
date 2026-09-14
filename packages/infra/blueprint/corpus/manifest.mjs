@@ -49,6 +49,16 @@
 // title string, and fireworks and pixel differ only in the template class name, the
 // window title, a group title, four row titles and five object ids.
 //
+// WHAT THE REFUSED FILES ARE FOR
+//
+// ADR 0053 clause 3 is a property — "outside the documented subset is a hard error naming its
+// line, never wrong output" — and the rule files cannot measure it: a golden exists only for a
+// file the parser accepts. `refused/` holds one small file per construct the subset does NOT
+// hold, and stage E of the harness holds the in-repo pipeline to refusing each by name and by
+// line. Which of them the oracle compiles is recorded too, so the table says what is a limit of
+// the subset and what is an error the two compilers share. `Gio.ListStore` is why: the parser
+// accepted the `using`, the emitter wrote `GioListStore`, and nothing anywhere said no.
+//
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
 // The eleven `.blp` files this repo already builds are the reality probe ADR 0053
@@ -215,6 +225,109 @@ export const CORPUS_RULES = [
         isolates: 'a flag set as a property value beside an enum on one object, and a lone flag member on another',
         surprise:
             'a flag SET is NOT numbered — the nicks survive, hyphenated and joined by `|` with no spaces — while the enum beside it is, and so is a LONE flag member: `lowercase` on its own is `8`, because the oracle reads a single identifier as a literal and only a `|`-joined set as flags. The resolver returned the nick for both until this file held the second entry',
+    },
+];
+
+/**
+ * @typedef {Object} CorpusRefusal
+ * @property {string} file       file name under `refused/`
+ * @property {string} construct  the ONE construct outside the subset this file reaches
+ * @property {'compiles'|'refuses'} oracle  what `blueprint-compiler` does with the same file:
+ *                               `compiles` marks a limit of the subset, `refuses` an error both share
+ * @property {number} line       the line the in-repo error must name
+ * @property {string} names      text the in-repo error must contain, so the refusal is by NAME
+ */
+
+/**
+ * One small file per construct the subset refuses. Each is a hard error today; the ones the
+ * oracle compiles are the next units of work under ADR 0053 clause 5.
+ *
+ * @type {readonly CorpusRefusal[]}
+ */
+export const CORPUS_REFUSALS = [
+    {
+        file: 'namespace-without-vocabulary.blp',
+        construct: 'a type from a namespace the resolver has no vocabulary for (`Gio.ListStore`)',
+        oracle: 'compiles',
+        line: 6,
+        names: 'no vocabulary for',
+    },
+    {
+        file: 'extern-type.blp',
+        construct: 'an extern type, `$MyWidget { }`',
+        oracle: 'compiles',
+        line: 4,
+        names: 'extern type',
+    },
+    {
+        file: 'binding-lookup-chain.blp',
+        construct: 'a binding with more than one lookup, `bind a.b.c`',
+        oracle: 'compiles',
+        line: 8,
+        names: 'multi-step lookup',
+    },
+    {
+        file: 'inline-menu.blp',
+        construct: 'a `menu { }` written as a property value',
+        oracle: 'compiles',
+        line: 4,
+        names: 'inline `menu`',
+    },
+    {
+        file: 'response-flags.blp',
+        construct: 'a response flag, `destructive` / `suggested` / `disabled`',
+        oracle: 'compiles',
+        line: 6,
+        names: 'response flag',
+    },
+    {
+        file: 'translation-domain.blp',
+        construct: 'the file-level `translation-domain "…";`',
+        oracle: 'compiles',
+        line: 3,
+        names: 'translation-domain',
+    },
+    {
+        file: 'internal-child.blp',
+        construct: 'an `[internal-child …]` bracket',
+        oracle: 'compiles',
+        line: 4,
+        names: 'internal-child',
+    },
+    {
+        file: 'unknown-enum-member.blp',
+        construct: 'a member the enum does not have, `orientation: diagonal`',
+        oracle: 'refuses',
+        line: 4,
+        names: 'not a member of GtkOrientation',
+    },
+    {
+        file: 'unknown-accessibility-name.blp',
+        construct: 'an `accessibility { }` name that is none of the three ARIA kinds',
+        oracle: 'refuses',
+        line: 5,
+        names: 'not an accessibility property',
+    },
+    {
+        file: 'styles-with-semicolon.blp',
+        construct: 'a `;` after `styles [ … ]`',
+        oracle: 'refuses',
+        line: 4,
+        names: 'takes no `;`',
+    },
+    {
+        file: 'bad-escape.blp',
+        construct: 'an escape outside the closed set, `\\q`',
+        oracle: 'refuses',
+        line: 4,
+        names: 'invalid escape sequence',
+    },
+    {
+        file: 'adw-before-gtk.blp',
+        construct: 'a file whose first directive is not `using Gtk`',
+        oracle: 'refuses',
+        line: 1,
+        names: 'expected `using Gtk`',
     },
 ];
 

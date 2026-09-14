@@ -68,9 +68,16 @@
  * right for the ones that are properties and a knowing divergence for the rest — the same stance
  * `resolveIdent`'s absence takes.
  *
+ * The third seam answers what GType NAME a type reference spells. `Adw.Bin` is `AdwBin`, and
+ * every corpus file imports one of two namespaces whose C prefix IS the namespace name — which is
+ * the only reason concatenating the two ever produced a golden. `Gio.ListStore` is `GListStore`.
+ * Without the seam the emitter concatenates, right for those two and a knowing divergence for
+ * any other; with it, a namespace the resolver has no vocabulary for is refused by name.
+ *
  * @typedef {Object} EmitOptions
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
  * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
+ * @property {(type: TypeRef, where: string) => string} [gtypeName]
  */
 
 /**
@@ -80,6 +87,7 @@
  * @typedef {Object} EmitContext
  * @property {EmitOptions['resolveIdent']} resolveIdent
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
+ * @property {EmitOptions['gtypeName']} gtypeName
  * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
@@ -101,13 +109,13 @@ const GENERATED_NOTICE =
  * @returns {string}  the GtkBuilder XML, including the trailing newline
  */
 export function emitGtkBuilderXml(file, options) {
-    /** @type {EmitContext} */
-    const context = {
+    const seams = {
         resolveIdent: options?.resolveIdent,
         accessibilityElement: options?.accessibilityElement,
-        idTypes: indexObjectIds(file),
-        templateClass: findTemplateClass(file),
+        gtypeName: options?.gtypeName,
     };
+    /** @type {EmitContext} */
+    const context = { ...seams, idTypes: indexObjectIds(file, seams), templateClass: findTemplateClass(file) };
 
     const xml = new XmlWriter();
     xml.startTag('interface', {});
@@ -206,7 +214,7 @@ function formatAttributes(attrs) {
 
 /** @param {XmlWriter} xml @param {ObjectNode} object @param {EmitContext} context */
 function emitObject(xml, object, context) {
-    const className = gtypeName(object.type);
+    const className = gtypeName(object.type, context);
     xml.startTag('object', { class: className, id: object.id });
     emitBody(xml, object.body, className, context);
     xml.endTag();
@@ -217,8 +225,9 @@ function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
     // type after the colon. The owner type for value resolution is the PARENT — the
     // template class is the one being defined and has no ParamSpecs of its own yet.
-    xml.startTag('template', { class: template.className, parent: gtypeName(template.parent) });
-    emitBody(xml, template.body, gtypeName(template.parent), context);
+    const parent = gtypeName(template.parent, context);
+    xml.startTag('template', { class: template.className, parent });
+    emitBody(xml, template.body, parent, context);
     xml.endTag();
 }
 
@@ -723,13 +732,14 @@ function emitMenu(xml, menu, context) {
  *
  * An unqualified type is a Gtk type and nothing else — 24-unqualified-type.ui's `Box` is
  * `GtkBox` under `using Gtk 4.0;`, and the manifest records that `using Adw 1;` does not
- * make a bare `Bin` legal. For a qualified one the goldens only ever show namespace and
- * name concatenated (`Adw.Bin` -> `AdwBin`), which is what the GIR C-prefix happens to be
- * for both namespaces every corpus file uses.
+ * make a bare `Bin` legal. For a qualified one the answer is the seam's, because the C prefix
+ * is a fact about the namespace and not its spelling; the fallback concatenates, which is what
+ * the prefix happens to be for the two namespaces every corpus file uses and wrong for `Gio`.
  *
- * @param {TypeRef} type
+ * @param {TypeRef} type @param {Pick<EmitContext, 'gtypeName'>} context
  */
-function gtypeName(type) {
+function gtypeName(type, context) {
+    if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`);
     return `${type.namespace ?? 'Gtk'}${type.name}`;
 }
 
@@ -766,36 +776,36 @@ function findTemplateClass(file) {
  * Every object id in the file with the GType it was declared as, so a `<setter>` can resolve
  * an enum against the object it targets rather than against the breakpoint it is written in.
  *
- * @param {BlueprintFile} file
+ * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
  */
-function indexObjectIds(file) {
+function indexObjectIds(file, seams) {
     /** @type {Map<string, string>} */
     const byId = new Map();
     for (const root of file.roots) {
-        if (root.kind === 'object') indexObject(root, byId);
-        else if (root.kind === 'template') indexBody(root.body, byId);
+        if (root.kind === 'object') indexObject(root, byId, seams);
+        else if (root.kind === 'template') indexBody(root.body, byId, seams);
     }
     return byId;
 }
 
-/** @param {ObjectNode} object @param {Map<string, string>} byId */
-function indexObject(object, byId) {
-    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type));
-    indexBody(object.body, byId);
+/** @param {ObjectNode} object @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexObject(object, byId, seams) {
+    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type, seams));
+    indexBody(object.body, byId, seams);
 }
 
-/** @param {ObjectBody} body @param {Map<string, string>} byId */
-function indexBody(body, byId) {
-    for (const property of body.properties) indexValue(property.value, byId);
+/** @param {ObjectBody} body @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexBody(body, byId, seams) {
+    for (const property of body.properties) indexValue(property.value, byId, seams);
     for (const child of body.children) {
-        if (child.object.kind === 'object') indexObject(child.object, byId);
+        if (child.object.kind === 'object') indexObject(child.object, byId, seams);
     }
 }
 
-/** @param {Value} value @param {Map<string, string>} byId */
-function indexValue(value, byId) {
-    if (value.kind === 'object') indexObject(value.object, byId);
+/** @param {Value} value @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexValue(value, byId, seams) {
+    if (value.kind === 'object') indexObject(value.object, byId, seams);
     else if (value.kind === 'list') {
-        for (const item of value.items) indexValue(item, byId);
+        for (const item of value.items) indexValue(item, byId, seams);
     }
 }

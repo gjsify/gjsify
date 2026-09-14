@@ -29,6 +29,11 @@
 //   D. PROJECTION — runs everywhere. Holds every hand-written `SharedNode` tree against
 //      what the projection produces.
 //
+//   E. REFUSALS — runs everywhere. Every file under `corpus/refused/` reaches one construct
+//      the subset does not hold; the in-repo pipeline must refuse it BY NAME and BY LINE, and
+//      stage B records what the oracle does with the same file. Stages C and D see only what
+//      the parser accepts, so this is the one stage that can measure ADR 0053 clause 3.
+//
 // The counts are printed, never written here: a live count in a comment is restatement,
 // and this one was stale at "25 rules" one rule file later.
 //
@@ -104,8 +109,11 @@ const CORPUS = join(root, 'packages/infra/blueprint/corpus');
 const MANIFEST = join(CORPUS, 'manifest.mjs');
 const RULES_DIR = join(CORPUS, 'rules');
 const REAL_DIR = join(CORPUS, 'real');
+const REFUSED_DIR = join(CORPUS, 'refused');
 
-const { ORACLE, CORPUS_RULES, CORPUS_REAL_FILES } = await import(`file://${join(CORPUS, 'manifest.mjs')}`);
+const { ORACLE, CORPUS_RULES, CORPUS_REAL_FILES, CORPUS_REFUSALS } = await import(
+    `file://${join(CORPUS, 'manifest.mjs')}`
+);
 const { RULE_EXPECTATIONS } = await import(`file://${join(CORPUS, 'expectations.mjs')}`);
 const { SHADOW_DIVERGENCES } = await import(`file://${join(CORPUS, 'divergences.mjs')}`);
 const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectations.mjs')}`);
@@ -232,6 +240,7 @@ const refuseDuplicates = (entries, key, label) => {
 refuseDuplicates(CORPUS_RULES, 'file', 'CORPUS_RULES');
 refuseDuplicates(CORPUS_REAL_FILES, 'source', 'CORPUS_REAL_FILES');
 refuseDuplicates(CORPUS_REAL_FILES, 'slug', 'CORPUS_REAL_FILES (slug)');
+refuseDuplicates(CORPUS_REFUSALS, 'file', 'CORPUS_REFUSALS');
 
 const onDisk = existsSync(RULES_DIR)
     ? readdirSync(RULES_DIR)
@@ -261,6 +270,40 @@ for (const rule of CORPUS_RULES) {
     }
     if (typeof rule.isolates !== 'string' || rule.isolates.length === 0) {
         problems.push(`CORPUS_RULES entry "${rule.file}" does not say what it isolates.`);
+    }
+}
+
+const refusedOnDisk = existsSync(REFUSED_DIR)
+    ? readdirSync(REFUSED_DIR)
+          .filter((f) => f.endsWith('.blp'))
+          .sort()
+    : [];
+for (const file of refusedOnDisk) {
+    if (!CORPUS_REFUSALS.some((r) => r.file === file)) {
+        problems.push(
+            `corpus/refused/${file} is on disk and not in CORPUS_REFUSALS. A refusal nobody listed is never run.`,
+        );
+    }
+}
+for (const refusal of CORPUS_REFUSALS) {
+    if (!refusedOnDisk.includes(refusal.file)) {
+        problems.push(`CORPUS_REFUSALS lists "${refusal.file}", which is not in corpus/refused/.`);
+        continue;
+    }
+    const lines = lineCount(readFileSync(join(REFUSED_DIR, refusal.file), 'utf8'));
+    if (typeof refusal.construct !== 'string' || refusal.construct.length === 0) {
+        problems.push(`CORPUS_REFUSALS entry "${refusal.file}" does not say which construct it reaches.`);
+    }
+    if (refusal.oracle !== 'compiles' && refusal.oracle !== 'refuses') {
+        problems.push(`CORPUS_REFUSALS entry "${refusal.file}" must say whether the oracle compiles or refuses it.`);
+    }
+    if (!Number.isInteger(refusal.line) || refusal.line < 1 || refusal.line > lines) {
+        problems.push(
+            `CORPUS_REFUSALS entry "${refusal.file}" names line ${refusal.line}, but the file has ${lines} line(s).`,
+        );
+    }
+    if (typeof refusal.names !== 'string' || refusal.names.length === 0) {
+        problems.push(`CORPUS_REFUSALS entry "${refusal.file}" does not say what the error must name.`);
     }
 }
 
@@ -357,7 +400,10 @@ if (tracked.status !== 0) {
     const why = tracked.error ? tracked.error.message : (tracked.stderr ?? '').trim();
     problems.push(`git ls-files failed, so the reality probe could not be checked against the tree: ${why}`);
 } else {
-    const corpusOwn = new Set(CORPUS_RULES.map((r) => `packages/infra/blueprint/corpus/rules/${r.file}`));
+    const corpusOwn = new Set([
+        ...CORPUS_RULES.map((r) => `packages/infra/blueprint/corpus/rules/${r.file}`),
+        ...CORPUS_REFUSALS.map((r) => `packages/infra/blueprint/corpus/refused/${r.file}`),
+    ]);
     const probed = new Set(CORPUS_REAL_FILES.map((p) => p.source));
     for (const path of tracked.stdout.split('\n').filter(Boolean)) {
         if (corpusOwn.has(path) || probed.has(path)) continue;
@@ -387,6 +433,7 @@ if (!havecompiler && write) {
 }
 
 let compared = 0;
+let classified = 0;
 let rewritten = 0;
 if (havecompiler) {
     if (installed !== ORACLE.version && !write) {
@@ -442,6 +489,25 @@ if (havecompiler) {
                     `First difference on line ${i + 1}:\n      golden: ${JSON.stringify(a[i])}\n      now:    ${JSON.stringify(b[i])}`,
             );
         }
+    }
+
+    // A refused file is classified by what the ORACLE does with it, so the table can say which
+    // refusals are limits of the subset (the oracle compiles the file) and which are errors the
+    // two compilers share. The verdict is held here, where the compiler is, and never written
+    // out: a golden for a file the parser refuses would be a golden nothing can be held to.
+    for (const refusal of CORPUS_REFUSALS) {
+        const source = join(REFUSED_DIR, refusal.file);
+        if (!existsSync(source)) continue;
+        const run = spawnSync('blueprint-compiler', ['compile', source], { encoding: 'utf8' });
+        const verdict = run.status === 0 ? 'compiles' : 'refuses';
+        classified += 1;
+        if (verdict === refusal.oracle) continue;
+        problems.push(
+            `refused/${refusal.file}: CORPUS_REFUSALS says the oracle ${refusal.oracle} it, and ${ORACLE.tool} ` +
+                `${installed} ${verdict}${run.status === 0 ? '' : `: ${(run.stderr || '').trim().split('\n')[0]}`}. ` +
+                'Reclassify it: a refusal that stops being a shared error is the oracle moving, and one that ' +
+                'stops being a subset limit is the subset catching up.',
+        );
     }
 
     // The version bump travels WITH the goldens or the tree is left in a state that
@@ -525,7 +591,7 @@ let ledgered = 0;
 if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
-    const { accessibilityElement, resolveIdent } = await import(`file://${RESOLVER}`);
+    const { accessibilityElement, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
 
     const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
     for (const entry of SHADOW_DIVERGENCES) {
@@ -583,6 +649,7 @@ if (haveParser) {
         try {
             emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key), {
                 accessibilityElement,
+                gtypeName,
                 resolveIdent,
             });
         } catch (error) {
@@ -745,6 +812,57 @@ if (haveParser && existsSync(PROJECTOR)) {
     }
 }
 
+// ---------------------------------------------------------------- stage E
+
+// ADR 0053 clause 3 is a PROPERTY and not a feature — "outside the documented subset is a hard
+// error naming its line, never wrong output" — and stages C and D cannot measure it: both see
+// only files the parser accepts, so a construct that is inside what it accepts and outside what
+// it gets right is invisible to them. That is what `accessibility { }` was, and what
+// `Gio.ListStore` was after it: the parser took the `using`, the emitter wrote `GioListStore`,
+// a class GtkBuilder cannot find, and every stage stayed green. Each file here reaches one such
+// construct, and the pipeline must throw, the error must name the construct, and it must name
+// the line — a file that emits instead is the pass-through this stage exists to catch.
+let refused = 0;
+if (haveParser) {
+    const { parseBlueprint } = await import(`file://${PARSER}`);
+    const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+    const { accessibilityElement, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
+
+    for (const refusal of CORPUS_REFUSALS) {
+        const source = join(REFUSED_DIR, refusal.file);
+        if (!existsSync(source)) continue; // stage A said so
+        let emitted;
+        try {
+            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(source, 'utf8'), `refused/${refusal.file}`), {
+                accessibilityElement,
+                gtypeName,
+                resolveIdent,
+            });
+        } catch (error) {
+            const message = String(error.message);
+            if (!message.includes(refusal.names)) {
+                problems.push(
+                    `refused/${refusal.file}: refused, but not by name — the error does not mention ` +
+                        `${JSON.stringify(refusal.names)}:\n      ${message}`,
+                );
+            }
+            // A parser error is `file:line:column:`; an emitter or resolver error says `line N`.
+            if (!message.includes(`:${refusal.line}:`) && !message.includes(`line ${refusal.line}`)) {
+                problems.push(
+                    `refused/${refusal.file}: refused, but the error does not name line ${refusal.line}:\n      ${message}`,
+                );
+            }
+            refused += 1;
+            continue;
+        }
+        problems.push(
+            `refused/${refusal.file}: ${refusal.construct} was ACCEPTED, and ${emitted.split('\n').length} line(s) ` +
+                'of XML came out. ADR 0053 clause 3 makes a construct outside the subset a hard error naming its ' +
+                'line; output that looks plausible is the failure this stage exists to catch.',
+        );
+    }
+}
+
 if (problems.length > 0) fail();
 
 // Neither stage has a skip branch to print: a missing parser, emitter or projection is a
@@ -765,10 +883,12 @@ const stageC =
 
 const stageD = `stage D held ${projected} hand-written SharedNode tree(s) against the projection`;
 
+const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line`;
+
 const stageB = havecompiler
     ? write
-        ? `stage B re-derived every golden with ${ORACLE.tool} ${installed} (${rewritten} changed)`
-        : `stage B compared ${compared} golden(s) against ${ORACLE.tool} ${installed}`
+        ? `stage B re-derived every golden with ${ORACLE.tool} ${installed} (${rewritten} changed) and classified ${classified} refusal(s)`
+        : `stage B compared ${compared} golden(s) and classified ${classified} refusal(s) against ${ORACLE.tool} ${installed}`
     : 'stage B SKIPPED — blueprint-compiler is not on PATH, so no golden was re-derived here';
 
 // Printed every run so the SIZE of the claim is visible in the log, not just its
@@ -783,5 +903,5 @@ const losses = everyExpectation.reduce((n, e) => n + (e.lost ?? []).length, 0);
 console.log(
     `check-blueprint-corpus: stage A verified ${CORPUS_RULES.length} rule(s) and ` +
         `${CORPUS_REAL_FILES.length} reality probe(s), each with a hand-written expectation ` +
-        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}.`,
+        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}; ${stageE}.`,
 );
