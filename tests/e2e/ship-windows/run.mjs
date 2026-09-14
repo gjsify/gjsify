@@ -162,6 +162,37 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
         assert.match(out, new RegExp(`\\d+ PE image\\(s\\) all ${ARCH}`));
     });
 
+    it('finds the app icon inside the GUI launcher, with two readers agreeing', () => {
+        // THE START-MENU DEFECT, closed and judged. The fixture declares one
+        // scalable SVG and nothing else — exactly what a GNOME app ships — and the
+        // program directory carries no `.ico` and no PNG for Windows to read; the
+        // icon is the `.rsrc` section of the `.exe`, rendered at stage time
+        // through librsvg (`utils/ship/icons.ts`). The oracle walks the resource
+        // tree with CPython, inflates every PNG, and has `objdump -p` — binutils'
+        // own PE parser — count the same leaves. The sizes are the oracle's, read
+        // out of the group directory, not restated from the writer.
+        const out = oracle('verify-program-dir.py', [programDir, join(stageDir, STAGE_MANIFEST_FILE)]);
+        assert.match(out, /icon: 6 PNG image\(s\) at 16\/24\/32\/48\/64\/256 px, objdump agrees/);
+        // The reassembled `.ico`, written beside the directory so a workstation
+        // with Pillow, icotool or ImageMagick can open what CI could only walk.
+        const ico = join(programDir, '..', `${APP_NAME}.icon-from-exe.ico`);
+        assert.ok(existsSync(ico), 'the oracle wrote no .ico beside the program directory');
+        const bytes = readFileSync(ico);
+        assert.equal(bytes.readUInt16LE(2), 1, 'ICONDIR type is not "icon"');
+        assert.equal(bytes.readUInt16LE(4), 6, 'the .ico does not carry the six entries the group named');
+        // And nothing loose: one file holds the pixels.
+        assert.ok(!listFiles(programDir).some((rel) => rel.endsWith('.ico')), 'a loose .ico is a second source');
+    });
+
+    it('logs which source the icon came from', () => {
+        // The stage log names the SVG rendered, so a project shipping sized PNGs
+        // as well can see which of the two won at each size.
+        const out = runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--arch', ARCH, '--stage'], {
+            cwd: projectDir,
+        });
+        assert.match(out, /icon: 16\/24\/32\/48\/64\/256 px, rendered from .*org\.example\.ShipDemo\.svg/);
+    });
+
     it('reports the interpreter subsystem it READ, not a constant', () => {
         // THE MEASUREMENT NO CI LEG CAN MAKE, and the discriminator that keeps the
         // oracle honest about it. `node.exe` is a CONSOLE-subsystem image
@@ -232,6 +263,54 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
             'no GUI launcher at all, which is the artifact before ADR 0040',
             (at) => rmSync(join(at, `${BINARY}.exe`)),
             /gives every double-click and every installer shortcut a console window/,
+        ],
+        [
+            // THE ICON DEFECT ITSELF, reproduced: the launcher as `pe-launcher.ts`
+            // emitted it before the `.rsrc` section existed — a resource data
+            // directory of zeros. The Start menu shows the blank-document icon for
+            // exactly this file, and nothing before this arm said so.
+            'a GUI launcher whose resource data directory is empty',
+            (at) => {
+                const file = join(at, `${BINARY}.exe`);
+                const image = readFileSync(file);
+                const optional = image.readUInt32LE(0x3c) + 24;
+                image.fill(0, optional + 112 + 2 * 8, optional + 112 + 3 * 8);
+                writeFileSync(file, image);
+            },
+            /names no resource directory .* so it carries no icon/,
+        ],
+        [
+            // A header that lies over a body that does not decode: the PNG
+            // signature of the first RT_ICON broken by one byte. Every size still
+            // reads fine in the group directory; only the inflate says otherwise.
+            'a GUI launcher whose first icon image is not a PNG',
+            (at) => {
+                const file = join(at, `${BINARY}.exe`);
+                const image = readFileSync(file);
+                const at0 = image.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+                assert.ok(at0 > 0, 'the launcher carries no PNG to corrupt');
+                image[at0 + 1] = 0x51;
+                writeFileSync(file, image);
+            },
+            /RT_ICON 1 does not start with the PNG signature/,
+        ],
+        [
+            // The group's count says six and the PNG behind entry six is 256 px;
+            // rewrite that entry's size byte to say 128 and the reader has to see
+            // the header and the picture disagree.
+            'a GUI launcher whose icon group declares a size the image is not',
+            (at) => {
+                const file = join(at, `${BINARY}.exe`);
+                const image = readFileSync(file);
+                // GRPICONDIR: reserved 0, type 1, count 6, then 14-byte entries; the
+                // 256 entry is the last and its width byte is 0.
+                const group = image.indexOf(Buffer.from([0, 0, 1, 0, 6, 0, 16, 16]));
+                assert.ok(group > 0, 'the launcher carries no icon group to corrupt');
+                image[group + 6 + 5 * 14] = 128;
+                image[group + 6 + 5 * 14 + 1] = 128;
+                writeFileSync(file, image);
+            },
+            /declares RT_ICON 6 as 128x128 and the PNG inside is 256x256/,
         ],
     ]) {
         it(`RED: the program-directory oracle refuses ${what}`, () => {

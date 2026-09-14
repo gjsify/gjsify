@@ -11,6 +11,9 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { pngSize, rasters } from './icon-fixture.spec.js';
+import { ICNS_SIZES } from './icns.js';
+import { ICO_SIZES } from './ico.js';
 import { hostLayout, launcherPath, layoutForOs, place, placeStage, resolveLayout, LAYOUTS } from './layout.js';
 import type { StagedFile } from './types.js';
 
@@ -85,6 +88,80 @@ export default async () => {
             for (const name of ['A/B', 'A:B', 'A\\B']) {
                 expect(() => place(LAYOUTS.darwin, { binaryName: 'hello', name }, 'bin/hello')).toThrow('.app');
             }
+        });
+    });
+
+    await describe('ship layout: the icon each row writes', async () => {
+        const app = {
+            ...IDENTITY,
+            appId: 'org.example.Hello',
+            version: '1.0.0',
+            release: '1',
+            arch: 'x64',
+            kind: 'app' as const,
+        };
+        const bytes = (file: StagedFile | undefined): Uint8Array =>
+            file?.source.kind === 'bytes' ? file.source.data : new Uint8Array();
+        const text = (file: StagedFile | undefined): string => (file?.source.kind === 'text' ? file.source.text : '');
+
+        await it('declares sizes on exactly the rows that write an icon', () => {
+            // Linux carries the SVG in the theme and converts nothing; the other
+            // two say what they embed, and the orchestrator renders exactly that.
+            expect(LAYOUTS.linux.icon).toBeUndefined();
+            expect(LAYOUTS.windows.icon?.sizes).toStrictEqual(ICO_SIZES);
+            expect(LAYOUTS.darwin.icon?.sizes).toStrictEqual(ICNS_SIZES);
+        });
+
+        await it('darwin stages the .icns AND names it in Info.plist — both halves, from one raster set', () => {
+            const staged = placeStage(LAYOUTS.darwin, { ...app, icon: rasters(ICNS_SIZES) }, []);
+            const icns = staged.find((file) => file.path.endsWith('.icns'));
+            expect(icns?.path).toBe('Hello World.app/Contents/Resources/hello.icns');
+            expect(Buffer.from(bytes(icns).subarray(0, 4)).toString('latin1')).toBe('icns');
+            const plist = text(staged.find((file) => file.path.endsWith('Info.plist')));
+            expect(plist).toContain('<key>CFBundleIconFile</key>\n\t<string>hello.icns</string>');
+        });
+
+        await it('windows embeds the icon in the launcher, and the launcher grows a third section', () => {
+            const staged = placeStage(LAYOUTS.windows, { ...app, icon: rasters(ICO_SIZES) }, []);
+            const exe = bytes(staged.find((file) => file.path === 'hello.exe'));
+            const view = new DataView(exe.buffer, exe.byteOffset, exe.byteLength);
+            expect(view.getUint16(view.getUint32(0x3c, true) + 6, true)).toBe(3);
+            // No loose `.ico` beside it: one file holds the pixels.
+            expect(staged.some((file) => file.path.endsWith('.ico'))).toBe(false);
+        });
+
+        await it('REFUSES an app that arrives without its icon, on both rows, by name', () => {
+            // The second guard. `commands/ship.ts` renders before the row runs;
+            // this is the row refusing to stage a generic-icon application for a
+            // caller that skipped that step.
+            expect(() => placeStage(LAYOUTS.darwin, { ...app, icon: undefined }, [])).toThrow('darwin layout writes');
+            expect(() => placeStage(LAYOUTS.windows, { ...app, icon: undefined }, [])).toThrow('windows layout writes');
+            // Linux converts nothing and refuses nothing.
+            expect(placeStage(LAYOUTS.linux, { ...app, icon: undefined }, []).length).toBe(0);
+        });
+
+        await it('stages a CLI with no icon anywhere, and no key naming one', () => {
+            const cli = { ...app, kind: 'cli' as const, icon: undefined };
+            const darwin = placeStage(LAYOUTS.darwin, cli, []);
+            expect(darwin.some((file) => file.path.endsWith('.icns'))).toBe(false);
+            expect(text(darwin.find((file) => file.path.endsWith('Info.plist'))).includes('CFBundleIconFile')).toBe(
+                false,
+            );
+            const exe = bytes(placeStage(LAYOUTS.windows, cli, []).find((file) => file.path === 'hello.exe'));
+            const view = new DataView(exe.buffer, exe.byteOffset, exe.byteLength);
+            expect(view.getUint16(view.getUint32(0x3c, true) + 6, true)).toBe(2);
+        });
+
+        await it('keeps the PNG of each size where the writer put it', () => {
+            // A 32 px PNG keyed 32 comes out of the `.icns` as the `icp5` element —
+            // one check that the raster map's key, not its order, is what a writer
+            // reads. The fixture colours differ per size, so a swapped slot is a
+            // different byte sequence.
+            const staged = placeStage(LAYOUTS.darwin, { ...app, icon: rasters(ICNS_SIZES) }, []);
+            const icns = bytes(staged.find((file) => file.path.endsWith('.icns')));
+            const at = Buffer.from(icns).indexOf(Buffer.from('icp5', 'latin1'), 8 + 8 + 8 * 10);
+            expect(at).toBeGreaterThan(0);
+            expect(pngSize(icns.subarray(at + 8)).width).toBe(32);
         });
     });
 

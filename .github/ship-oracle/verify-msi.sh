@@ -45,7 +45,8 @@
 #
 # DISCRIMINATOR (run it, do not trust it): `tests/e2e/ship-msi/run.mjs` drives
 # every refusal below against a MUTATED copy — a file deleted from the directory,
-# the shortcut row emptied, a wrong producer claimed — and asserts exit 1. Without
+# the shortcut row emptied, a wrong producer claimed, the Icon row deleted, the
+# shortcut's Icon_ blanked, ARPPRODUCTICON removed — and asserts exit 1. Without
 # those, a script that returned 0 unconditionally would leave the whole suite green.
 #
 # EVERY LOOP THAT CAN FAIL READS FROM `< <(…)`, never from a pipe: the right-hand
@@ -102,26 +103,57 @@ require msiinfo msiextract find sort cmp awk tr
 # is the assumption every `NR > 3` in this file already makes, and an
 # empty-but-present table still has all three. Fewer than three means the READER
 # produced nothing usable, and that is not the same fact as a table without the
-# row being looked for.
+# row being looked for. EXACTLY three is not a pass either — see the next block.
 #
-# Measured 2026-09-08, `E2E 1/4` on `main`: this script reported "there is no
-# INSTALLDIR row, so `msiexec INSTALLDIR=…` has nothing to override" for an
-# installer that HAS one — four other cases in `tests/e2e/ship-msi` read that row
-# out of the same file in the same run, one of them reaching the byte round trip
-# beyond it. So a `msiinfo export` answered 0 without the table it had just
-# listed, and the accusation landed on the artifact. The mechanism is still
-# unexplained; what is settled is that the artifact was not at fault, and a
-# diagnostic pointing at the file for a fault in the reader is the direction the
-# header of this file calls the worst one.
+# Measured 2026-09-08 on `E2E 1/4` and again 2026-09-13 on `E2E 2/4`: this script
+# reported "there is no INSTALLDIR row, so `msiexec INSTALLDIR=…` has nothing to
+# override" for an installer that HAS one — the first time about a file four other
+# cases in `tests/e2e/ship-msi` read that row out of in the same run, one of them
+# reaching the byte round trip beyond it. So a `msiinfo export` answered without
+# the table it had just listed, and the accusation landed on the artifact, which
+# the header of this file calls the worst direction for a diagnostic to point.
+#
+# WHAT THAT ANSWER LOOKS LIKE IS MEASURED, and it is not nothing. libmsi replies
+# to a table whose STREAM it cannot open with an EMPTY TABLE at exit 0 — "if we
+# can't read the table, just assume that it's empty", `libmsi/table.c`, whose
+# return value the caller then ignores — and `save_table` writes no stream at all
+# for a table it holds as empty, so one silent read fault survives into every file
+# written after it. An empty table still exports all three header lines: measured,
+# `msibuild x.msi -q 'DELETE FROM \`Directory\`'` leaves an export of exactly 3
+# usable lines at exit 0. Three is the count the floor below was set to ALLOW, so
+# the floor could never see the incident it was written for. The `-eq 3` branch is
+# what closes it, and `may-be-empty` is how the two tables whose emptiness this
+# script does JUDGE opt out.
+# ONE scratch directory for everything this script writes: the IDT exports,
+# the extracted icon stream, the cabinet round trip. `msiinfo export` of a table
+# with a BINARY column — `Icon`, `Binary` — writes that column's data to
+# `<Table>/<name>` in the current directory, because that is what the IDT format
+# is (the cell holds a file name, the file sits beside the table). Measured:
+# `msiinfo export x.msi Icon` in an empty directory leaves
+# `Icon/Icon.i_ship_demo.exe_….exe` behind; `Shortcut`, `Property` and an empty
+# `Binary` leave nothing. Run from the caller's directory, that is a 15 KiB
+# launcher dropped into whatever the caller was standing in — the repository
+# root, for the e2e suite. So every export runs from here, and here is removed.
+SCRATCH=$(mktemp -d)
+trap 'rm -rf "$SCRATCH"' EXIT
+mkdir -p "$SCRATCH/export"
+
+# `$2` is `may-be-empty` on the two tables whose emptiness this script REPORTS —
+# `Icon` ("the installer names no icon") and `Shortcut` ("the user has nothing to
+# start"). Everywhere else a zero-ROW export of a table § 1 has just seen listed
+# is the reader, or whatever last wrote the file, losing that table's stream.
 idt() {
     local out
-    if ! out=$(msiinfo export "$MSI" "$1" | tr -d '\r'); then
+    if ! out=$(cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r'); then
         fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
     fi
     local lines
     lines=$(grep -c . <<<"$out" || true)
     if [ "$lines" -lt 3 ]; then
         fail "msiinfo export $1 returned $lines usable line(s) for $MSI, and an IDT export carries three header lines before any row. The reader produced nothing, so nothing below is a claim about the installer — re-read the file before believing any row is missing."
+    fi
+    if [ "$lines" -eq 3 ] && [ "${2:-}" != may-be-empty ]; then
+        fail "msiinfo export $1 returned the three IDT header lines and no rows for $MSI, and \`msiinfo tables\` lists $1 — an installer with an empty $1 table is not a thing that can be built. libmsi answers a table whose stream it cannot open with an empty table at exit 0 and writes no stream for a table it holds as empty, so this is the reader or the write that produced this file, not a finding about the installer. Re-read the file before believing any row is missing."
     fi
     printf '%s\n' "$out"
 }
@@ -237,7 +269,8 @@ INSTALL_NAME=$(cut -f3 <<<"$INSTALL_ROW")
 # ── 5. SOMETHING TO CLICK ────────────────────────────────────────────────────
 # An installer that lays files down and gives a user no way to start them is a
 # zip with extra steps.
-SHORTCUTS=$(idt Shortcut | awk -F'\t' 'NR > 3 && NF >= 4 { print }')
+SHORTCUT_TABLE=$(idt Shortcut may-be-empty)
+SHORTCUTS=$(awk -F'\t' 'NR > 3 && NF >= 4 { print }' <<<"$SHORTCUT_TABLE")
 SHORTCUT_COUNT=$(grep -c . <<<"${SHORTCUTS:-}" || true)
 [ "$SHORTCUT_COUNT" = 1 ] ||
     fail "the installer defines $SHORTCUT_COUNT shortcut(s); it must define exactly one, or the user has nothing to start (or several things that look like copies)"
@@ -247,10 +280,56 @@ SHORTCUT_COMPONENT=$(cut -f4 <<<"$SHORTCUTS")
 grep -q "^$SHORTCUT_COMPONENT	" <<<"$COMPONENTS" ||
     fail "the shortcut belongs to component \"$SHORTCUT_COMPONENT\", which has no row — the shortcut would never be created"
 
+# ── 5b. THE ICON THE SHORTCUT AND ADD/REMOVE PROGRAMS SHOW ───────────────────
+# An ADVERTISED shortcut shows the Icon table's icon, not its target's — the
+# target is a descriptor until the feature resolves — and ARPPRODUCTICON is the
+# only route to an icon in Add/Remove Programs at all. Both name ONE Icon row, and
+# that row's binary is the launcher itself, whose resource directory already
+# carries the pixels (`utils/ship/pe-launcher.ts`). So the floor here is a byte
+# comparison against a real file, not a row count: the stream behind the row has
+# to BE the launcher in the program directory.
+ICONS=$(idt Icon may-be-empty)
+ICON_ROWS=$(awk -F'\t' 'NR > 3 && NF >= 2 { print $1 }' <<<"$ICONS")
+ICON_COUNT=$(grep -c . <<<"${ICON_ROWS:-}" || true)
+[ "$ICON_COUNT" = 1 ] ||
+    fail "the Icon table has $ICON_COUNT row(s); the installer names exactly one icon, the launcher, or the shortcut and Add/Remove Programs draw the generic one"
+ICON_ID=$(head -n1 <<<"$ICON_ROWS")
+case "$ICON_ID" in
+*.exe) : ;;
+*) fail "the Icon row is named \"$ICON_ID\"; Windows Installer types an icon by its name's extension, and this one is the launcher, so it must end in .exe" ;;
+esac
+# BY NAME out of the IDT header, not by position: `Icon_` is the NINTH column
+# of the Shortcut table (Shortcut, Directory_, Name, Component_, Target,
+# Arguments, Description, Hotkey, Icon_, …), and the first cut of this line read
+# the fifth — the Target, which for an advertised shortcut is the feature name
+# — and accused a correct installer of naming no icon.
+ICON_COLUMN=$(head -n1 <<<"$SHORTCUT_TABLE" | tr '\t' '\n' | grep -nx 'Icon_' | cut -d: -f1)
+[ -n "$ICON_COLUMN" ] || fail "the Shortcut table has no Icon_ column, which every Windows Installer database defines"
+SHORTCUT_ICON=$(cut -f"$ICON_COLUMN" <<<"$SHORTCUTS")
+[ "$SHORTCUT_ICON" = "$ICON_ID" ] ||
+    fail "the shortcut's Icon_ column is \"$SHORTCUT_ICON\" and the Icon table's one row is \"$ICON_ID\" — an advertised shortcut with no icon of its own shows the generic one"
+PROPERTIES=$(idt Property)
+ARP_ICON=$(awk -F'\t' '$1 == "ARPPRODUCTICON" { print $2 }' <<<"$PROPERTIES")
+[ "$ARP_ICON" = "$ICON_ID" ] ||
+    fail "ARPPRODUCTICON is \"$ARP_ICON\" and the Icon row is \"$ICON_ID\" — Add/Remove Programs would show no icon"
+# The launcher the shortcut hangs on, by its File row, then the bytes.
+LAUNCHER_NAME=$(awk -F'\t' -v c="$SHORTCUT_COMPONENT" 'NR > 3 && $2 == c { print $3 }' <<<"$FILES")
+LAUNCHER_NAME=${LAUNCHER_NAME##*|}
+[ -n "$LAUNCHER_NAME" ] || fail "the shortcut's component \"$SHORTCUT_COMPONENT\" has no File row to name the launcher by"
+[ -f "$DIR/$LAUNCHER_NAME" ] || fail "the shortcut targets $LAUNCHER_NAME, which is not at the root of the program directory"
+ICON_STREAM=$SCRATCH/icon-stream.bin
+# `msiinfo extract` writes the stream to STDOUT and nothing to disk — measured,
+# unlike `export` above — so the redirect is the whole transfer.
+msiinfo extract "$MSI" "Icon.$ICON_ID" >"$ICON_STREAM" ||
+    fail "msiinfo extract found no stream Icon.$ICON_ID — the Icon row names a binary the database does not carry"
+[ -s "$ICON_STREAM" ] || fail "the stream Icon.$ICON_ID is empty"
+cmp -s "$ICON_STREAM" "$DIR/$LAUNCHER_NAME" ||
+    fail "the Icon table's binary differs from $LAUNCHER_NAME in the program directory — the shortcut would show one icon and the running app another"
+ICON_BYTES=$(wc -c <"$ICON_STREAM")
+
 # ── 6. THE ENTRY A USER REMOVES IT BY ────────────────────────────────────────
 # Add/Remove Programs is generated from these four properties. A missing one is an
 # installer that installs and cannot be found again.
-PROPERTIES=$(idt Property)
 for key in ProductName ProductVersion ProductCode UpgradeCode Manufacturer; do
     grep -q "^$key	" <<<"$PROPERTIES" || fail "the database has no $key property — Add/Remove Programs would have no entry to offer"
 done
@@ -261,8 +340,8 @@ printf '%s\n' "$PROPERTIES" | awk -F'\t' '$1 == "ProductName" || $1 == "ProductV
 # payload out of the embedded cab and compares it with the directory the
 # installer was built from, which is the only assertion here that would catch a
 # correct table over the wrong bytes.
-OUT=$(mktemp -d)
-trap 'rm -rf "$OUT"' EXIT
+OUT=$SCRATCH/out
+mkdir -p "$OUT"
 (cd "$OUT" && msiextract "$MSI" >/dev/null)
 # `msiextract` EXITS 0 HAVING EXTRACTED NOTHING when it cannot open the database.
 # Measured: `msiextract does-not-exist.msi` prints `WARNING: open file failed`,
@@ -288,4 +367,4 @@ done < <(cd "$DIR" && find . -type f -printf '%P\n' | sort)
 [ "$EXTRACTED" = "$COUNT" ] ||
     fail "the cabinet holds $EXTRACTED file(s) and the program directory $COUNT — the installer would lay down something the directory artifact does not have"
 
-echo "verify-msi.sh: $COUNT file(s) round-tripped byte for byte out of the embedded cabinet, $ROWS component(s), 1 Start-Menu shortcut, INSTALLDIR = ProgramFiles64Folder\\$APP"
+echo "verify-msi.sh: $COUNT file(s) round-tripped byte for byte out of the embedded cabinet, $ROWS component(s), 1 Start-Menu shortcut with icon $ICON_ID ($ICON_BYTES bytes, the launcher), INSTALLDIR = ProgramFiles64Folder\\$APP"

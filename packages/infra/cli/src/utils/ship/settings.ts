@@ -292,8 +292,9 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
 
     if (kind === 'app' && discovered.iconFiles.length === 0) {
         warnings.push(
-            `gjsify ship: no icon found — the installed app will show a placeholder in menus and app stores. ` +
-                'Point `gjsify.ship.icon` at an SVG (or a directory of sized PNGs).',
+            `gjsify ship: no icon found — the installed app will show a placeholder in menus and app stores ` +
+                'on Linux, and the darwin and windows layouts refuse to stage without one. Point ' +
+                '`gjsify.ship.icon` at an SVG (or a directory of sized PNGs).',
         );
     }
 

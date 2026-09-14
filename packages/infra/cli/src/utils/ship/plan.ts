@@ -5,6 +5,7 @@
 
 import { renderDebianChangelog } from './changelog.js';
 import { gzipDeterministic, POLICY_MAX_COMPRESSION } from './gzip.js';
+import { iconThemeDir, isSymbolicIcon } from './icons.js';
 import { renderMimePackage } from './mime.js';
 import { SHARE } from './share-dirs.js';
 import { basename, extname, posix } from 'node:path';
@@ -318,59 +319,12 @@ function planIcons(settings: ShipSettings): StagedFile[] {
     return out;
 }
 
-/**
- * Whether an icon belongs in the theme's SYMBOLIC context rather than at a size.
- *
- * `symbolic` is a directory of its own in a hicolor theme and NOT a size value.
- * Measured in `refs/adwaita-icon-theme/index.theme`, which lists `symbolic/apps`
- * in `Directories=` beside `scalable/apps` and `16x16/apps` and gives it its own
- * section — `Context=Applications`, `Size=16`, `MinSize=8`, `MaxSize=512`,
- * `Type=Scalable` — against the scalable row's `Size=128`. The freedesktop icon
- * theme specification has no notion of `symbolic` at all: a theme expresses it by
- * giving the directory a section, which is exactly why reading the EXTENSION
- * cannot see it, and why this question has to be asked before the size one.
- *
- * TWO SIGNALS, the same pair `iconThemeDir` already reads for a size: the
- * directory an author put the file in, and the name they gave it. GTK resolves a
- * symbolic icon by the `-symbolic` name suffix, so an author who wrote the name
- * has said as much as one who wrote the path.
- *
- * SVG ONLY, because the symbolic directory is declared `Type=Scalable`: the
- * raster form GTK's own `gtk-encode-symbolic-svg` produces
- * (`<name>-symbolic.symbolic.png`) is installed at a SIZE instead. So a PNG keeps
- * answering the size question, and one that cannot answer it stays refused rather
- * than quietly becoming a scalable icon that does not scale.
- */
-export function isSymbolicIcon(iconPath: string): boolean {
-    if (extname(iconPath).toLowerCase() !== '.svg') return false;
-    if (/(?:^|[\\/])symbolic[\\/]/.test(iconPath)) return true;
-    return basename(iconPath, extname(iconPath)).endsWith('-symbolic');
-}
-
-/**
- * The hicolor subdirectory for an icon: the `symbolic` CONTEXT, else `scalable`
- * for an SVG, else the pixel size read from a `<n>x<n>` path component or a
- * trailing number in the filename.
- *
- * Named for the theme DIRECTORY rather than a size from the moment the first of
- * those answers stopped being one: `iconSizeDir` returning `symbolic` would be a
- * name every caller has to read past.
- */
-export function iconThemeDir(iconPath: string): string {
-    if (isSymbolicIcon(iconPath)) return 'symbolic';
-    if (extname(iconPath).toLowerCase() === '.svg') return 'scalable';
-    const square = /(?:^|[\\/])(\d{1,4})x\1(?:[\\/]|$)/.exec(iconPath);
-    if (square) return `${square[1]}x${square[1]}`;
-    const tokens = basename(iconPath, extname(iconPath)).split(/[-_.]/);
-    for (let i = tokens.length - 1; i >= 0; i--) {
-        const token = tokens[i];
-        if (token !== undefined && /^\d{1,4}$/.test(token)) return `${token}x${token}`;
-    }
-    throw new Error(
-        `gjsify ship: cannot tell what size ${iconPath} is. ` +
-            'Put it in a `<size>x<size>/` directory, end its name with the size (`icon-128.png`), or ship an SVG.',
-    );
-}
+// The two icon questions the plan asks — symbolic or sized, and which theme
+// directory — are answered by `icons.ts` since the icon became a CONVERTED
+// artifact on two of the three layouts, and re-exported here so the plan's
+// readers keep one import. One definition: a copy here would be the one that
+// stages `symbolic/` under a size the day the other changes.
+export { iconThemeDir, isSymbolicIcon } from './icons.js';
 
 /** A staged path must stay under the prefix — no absolute paths, no `..`. */
 function assertInsidePrefix(dest: string): string {

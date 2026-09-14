@@ -188,11 +188,13 @@ export function msiProductVersion(version: string): string {
  * agree still differ. `renderWxs` asserts uniqueness anyway rather than trusting
  * 48 bits, because the failure of a collision is two files fighting over one row.
  */
-export function msiIdentifier(prefix: string, path: string): string {
+export function msiIdentifier(prefix: string, path: string, suffix = ''): string {
     const digest = createHash('sha1').update(new TextEncoder().encode(path)).digest('hex').slice(0, 12);
     const safe = path.replace(/[^A-Za-z0-9_.]/g, '_');
-    const room = 72 - prefix.length - 2 - digest.length;
-    return `${prefix}_${safe.length > room ? safe.slice(safe.length - room) : safe}_${digest}`;
+    // The suffix is part of the 72, or an `Icon` id (which has to END in `.exe`)
+    // built from a long path would be the one identifier over the limit.
+    const room = 72 - prefix.length - 2 - digest.length - suffix.length;
+    return `${prefix}_${safe.length > room ? safe.slice(safe.length - room) : safe}_${digest}${suffix}`;
 }
 
 /**
@@ -319,9 +321,28 @@ export function renderWxs(input: WxsInput): string {
         return id;
     };
 
+    // THE ICON IS THE LAUNCHER ITSELF. The Icon table holds a file — an `.ico`,
+    // or an `.exe`/`.dll` the installer reads an icon OUT OF by `IconIndex` — and
+    // the stub already carries the app's icon in its resource directory
+    // (`pe-launcher.ts`). Naming the launcher as the icon source means one file
+    // holds the pixels the shortcut, Add/Remove Programs and Explorer all show,
+    // and nothing in `ship/msi/` can drift from what is installed.
+    //
+    // WHY THE MSI NEEDS ITS OWN ROW when the `.exe` already has the icon. A
+    // shortcut with no `Icon_` shows its target's icon once the target exists;
+    // this one is ADVERTISED, and Windows Installer's Shortcut table documents the
+    // `Icon_` column as the icon shown for an advertised shortcut — whose target
+    // is a descriptor the shell resolves through the installer, not the file. And
+    // `ARPPRODUCTICON` is the only route to an icon in Add/Remove Programs at all;
+    // the `.exe` is never consulted there. Two consumers the embedded icon cannot
+    // reach, one row. Windows Installer requires the Icon NAME to carry the
+    // extension of the file it holds, so the id ends in `.exe`.
+    const launcherIconId = claim(msiIdentifier('i', launcher, '.exe'), 'the launcher icon');
+
     const lines: string[] = [];
     const componentIds: string[] = [];
     let launcherFound = false;
+    let launcherSource: string | undefined;
 
     const emitDir = (node: DirNode, indent: string): void => {
         for (const file of node.files) {
@@ -345,6 +366,7 @@ export function renderWxs(input: WxsInput): string {
             // with it.
             if (file.path === launcher) {
                 launcherFound = true;
+                launcherSource = file.source;
                 lines.push(
                     `${indent}    <File Id="${fileId}" Name="${name}" ` +
                         `Source="${xmlEscape(file.source)}" KeyPath="yes">`,
@@ -353,7 +375,7 @@ export function renderWxs(input: WxsInput): string {
                     `${indent}        <Shortcut Id="${claim('s_startmenu', 'the Start-Menu shortcut')}" ` +
                         `Directory="ProgramMenuFolder" Name="${xmlEscape(settings.name)}" ` +
                         `WorkingDirectory="INSTALLDIR" Description="${xmlEscape(settings.summary)}" ` +
-                        `Advertise="yes" />`,
+                        `Icon="${launcherIconId}" IconIndex="0" Advertise="yes" />`,
                 );
                 lines.push(`${indent}    </File>`);
             } else {
@@ -380,7 +402,7 @@ export function renderWxs(input: WxsInput): string {
     if (componentIds.length === 0) {
         throw new Error('gjsify ship: the windows payload is empty, so there is nothing for an `.msi` to install.');
     }
-    if (!launcherFound) {
+    if (!launcherFound || launcherSource === undefined) {
         throw new Error(
             `gjsify ship: the windows payload carries no "${launcher}" at the root of the program directory, ` +
                 'so the installer would have nothing to point a Start-Menu shortcut at — an application a user ' +
@@ -411,6 +433,10 @@ export function renderWxs(input: WxsInput): string {
         // downloads rather than an `.msi` plus loose `.cab` siblings that a user
         // will separate from it.
         '        <Media Id="1" Cabinet="app.cab" EmbedCab="yes" />',
+        // The launcher, a second time, as the Icon table's binary — see
+        // `launcherIconId` above for why the same file is both.
+        `        <Icon Id="${launcherIconId}" SourceFile="${xmlEscape(launcherSource)}" />`,
+        `        <Property Id="ARPPRODUCTICON" Value="${launcherIconId}" />`,
         ...about,
         '        <Directory Id="TARGETDIR" Name="SourceDir">',
         '            <Directory Id="ProgramFiles64Folder">',

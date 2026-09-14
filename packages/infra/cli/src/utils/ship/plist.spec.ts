@@ -122,7 +122,6 @@ export default async () => {
             // reach reds here and nowhere else.
             const plist = renderInfoPlist(IDENTITY);
             for (const key of [
-                'CFBundleIconFile',
                 'LSMinimumSystemVersion',
                 'NSHighResolutionCapable',
                 'LSApplicationCategoryType',
@@ -130,6 +129,20 @@ export default async () => {
             ]) {
                 expect(plist.includes(key)).toBe(false);
             }
+        });
+
+        await it('names the icon file when given one, and nothing when not', async () => {
+            // Both halves or neither (`layout.ts`, the darwin row): the key is
+            // emitted exactly when the layout also stages the `.icns` it names,
+            // and a `kind: 'cli'` bundle carries no key rather than an empty one —
+            // an empty `CFBundleIconFile` is a lookup that fails, which macOS
+            // answers with the generic icon and no diagnostic.
+            expect(value(renderInfoPlist(IDENTITY, undefined, 'ship-demo.icns'), 'CFBundleIconFile')).toBe(
+                'ship-demo.icns',
+            );
+            expect(renderInfoPlist(IDENTITY).includes('CFBundleIconFile')).toBe(false);
+            // Never the asset-catalog key: there is no `Assets.car` for it to name.
+            expect(renderInfoPlist(IDENTITY, undefined, 'ship-demo.icns').includes('CFBundleIconName')).toBe(false);
         });
 
         await it('is XML, not the binary form, and says which version of the format', async () => {
