@@ -22,10 +22,17 @@
 // `open`/`execute` are blocking), so — unlike an async-Gio consumer — it needs
 // NO GLib main-loop pumping and the WHOLE suite runs under node-gi. It reuses
 // the package's existing spec suites VERBATIM — same assertions as `test:gjs`.
-// Result: ALL 52 tests pass (connection lifecycle, prepare, param binding,
+// Result: the whole suite passes (connection lifecycle, prepare, param binding,
 // SQL/parser validation, error handling, option validation, scalar result-row
 // reading via `Gda.DataModel.get_value_at()` whose GValue returns node-gi
 // unboxes since gjsify PR #735, AND the BLOB round-trip — see below).
+//
+// One thing this leg sees that the gjs leg cannot: node-gi's `GLib.Error` is a
+// real `Error` SUBCLASS (`class GLibError extends Error`), while GJS's is a
+// boxed value. Any "is this error already Node-shaped?" test written as
+// `e instanceof Error` therefore answers differently here — measured: the gjs
+// leg stayed 84/84 green while three tests went red on this one. The predicate
+// that has to be used instead is `isNodeSqliteError()` in `errors.ts`.
 import { run } from '@gjsify/unit';
 
 import testSuiteDatabaseSync from './database-sync.spec.js';

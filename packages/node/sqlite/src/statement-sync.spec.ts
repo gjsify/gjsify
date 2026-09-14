@@ -26,6 +26,22 @@ function nextDb(): string {
     return join(testDir, `database-${cnt++}.db`);
 }
 
+/**
+ * What `fn` threw, for the assertions that need more of an error than its message.
+ *
+ * A silent success returns a stand-in rather than throwing here, so the assertion
+ * below reports the value that came back INSTEAD of an error — which is exactly what
+ * these tests are about.
+ */
+function errorFrom(fn: () => unknown): { code?: unknown; message?: unknown } {
+    try {
+        const returned = fn();
+        return { code: `returned ${JSON.stringify(returned) ?? String(returned)}`, message: 'nothing was thrown' };
+    } catch (e) {
+        return e as { code?: unknown; message?: unknown };
+    }
+}
+
 export default async () => {
     setup();
 
@@ -75,6 +91,85 @@ export default async () => {
             expect(rows.length).toBe(2);
             expect(rows[0].key).toBe('key1');
             expect(rows[1].key).toBe('key2');
+            db.close();
+        });
+    });
+
+    await describe('a statement the database rejects', async () => {
+        // Each closure spans prepare() AND the execution on purpose. node:sqlite resolves
+        // table and column names while PREPARING and raises there; libgda's parser only
+        // checks syntax, so on GJS the very same mistake can surface no earlier than
+        // execution. What both owe the caller is the error — not which call raises it.
+        //
+        // Before this was fixed, get() answered `undefined` and all() answered `[]` for a
+        // query against a table that does not exist: a wrong answer indistinguishable
+        // from an empty table, for the rest of the process's life.
+
+        await it('get() reports a table that does not exist', async () => {
+            const db = new DatabaseSync(nextDb());
+            expect(() => db.prepare('SELECT * FROM does_not_exist').get()).toThrow(/no such table: does_not_exist/);
+            db.close();
+        });
+
+        await it('all() reports a table that does not exist', async () => {
+            const db = new DatabaseSync(nextDb());
+            expect(() => db.prepare('SELECT * FROM does_not_exist').all()).toThrow(/no such table: does_not_exist/);
+            db.close();
+        });
+
+        await it('get() reports a column that does not exist', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE storage(key TEXT, val TEXT)');
+            expect(() => db.prepare('SELECT no_such_col FROM storage').get()).toThrow(/no such column: no_such_col/);
+            db.close();
+        });
+
+        await it('all() reports a column that does not exist', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE storage(key TEXT, val TEXT)');
+            expect(() => db.prepare('SELECT no_such_col FROM storage').all()).toThrow(/no such column: no_such_col/);
+            db.close();
+        });
+
+        await it('raises the error node:sqlite consumers branch on', async () => {
+            const db = new DatabaseSync(nextDb());
+            // A consumer catches `err.code === 'ERR_SQLITE_ERROR'`, and libgda's GLib.Error
+            // carries a NUMERIC code and stringifies with its GError domain in front — so
+            // it has to be translated, not passed through and not re-spelled.
+            const err = errorFrom(() => db.prepare('SELECT * FROM does_not_exist').get());
+            expect(err.code).toBe('ERR_SQLITE_ERROR');
+            expect(err.message).toBe('no such table: does_not_exist');
+            db.close();
+        });
+
+        await it('run() raises it in the same shape', async () => {
+            const db = new DatabaseSync(nextDb());
+            const err = errorFrom(() => db.prepare('INSERT INTO does_not_exist (a) VALUES (1)').run());
+            expect(err.code).toBe('ERR_SQLITE_ERROR');
+            expect(err.message).toBe('no such table: does_not_exist');
+            db.close();
+        });
+
+        await it('reports a constraint violation and writes nothing', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE t(a INTEGER PRIMARY KEY, b TEXT NOT NULL)');
+            db.prepare('INSERT INTO t (a, b) VALUES (?, ?)').run(1, 'x');
+
+            const unique = errorFrom(() => db.prepare('INSERT INTO t (a, b) VALUES (?, ?)').run(1, 'y'));
+            expect(unique.code).toBe('ERR_SQLITE_ERROR');
+            expect(unique.message).toBe('UNIQUE constraint failed: t.a');
+
+            const notNull = errorFrom(() => db.prepare('INSERT INTO t (a, b) VALUES (?, ?)').run(2, null));
+            expect(notNull.code).toBe('ERR_SQLITE_ERROR');
+            expect(notNull.message).toBe('NOT NULL constraint failed: t.b');
+
+            // A statement that raised must not have written: the rejected INSERT is
+            // retried as a select on GJS (PRAGMAs reach libgda as UNKNOWN and execute no
+            // other way), and a retry that landed rows would be worse than the error.
+            const rows = db.prepare('SELECT a, b FROM t').all() as Record<string, unknown>[];
+            expect(rows.length).toBe(1);
+            expect(rows[0].a).toBe(1);
+            expect(rows[0].b).toBe('x');
             db.close();
         });
     });
