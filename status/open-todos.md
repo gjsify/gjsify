@@ -6231,9 +6231,9 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 37 of
-the 38 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on two lines,
-the ARIA value types below. Clause 5's condition is that last entry, and after it come the flip
+beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 40 of
+the 42 corpus files are byte-equal and `corpus/divergences.mjs` holds two entries on three lines,
+both below. Clause 5's condition is those two entries, and after them come the flip
 and the deletions.
 
 The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
@@ -6323,6 +6323,51 @@ finding rather than a failure. `packages/nativescript-bridge/adwaita/src/widgets
 is the other consumer and it reads the artifact, not the generator, so it is unaffected either
 way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
 is the shape the swap would generalise.
+
+### A non-widget's enum property has no join in `@girs`, so `Gtk.SizeGroup.mode` emits its member name
+
+Measured on `blueprint-compiler` 0.20.4: `Gtk.SizeGroup { mode: horizontal; }` emits
+`<property name="mode">1</property>` and the in-repo emitter writes `horizontal`
+(`packages/infra/blueprint/corpus/rules/29-enum-non-widget.ui:10`, the second entry in
+`corpus/divergences.mjs`, kind `prop-enums-widgets-only`). The number is in the vocabulary —
+`ENUM_VALUES['GtkSizeGroupMode.horizontal']` is `1` on `@girs` 5.0.0 — and the join is not:
+`PROP_ENUMS`, the declaration-keyed "which enum is this property" table ADR 0053 § Amendment 1
+was waiting for, has 67 owners and every one of them is in the widget tree, and `DECLS` has no
+`GtkSizeGroup` at all. `src/resolve-ident.mjs` therefore answers `null` — the "not ours" an object
+id needs, and the wrong answer here — and the source spelling stands.
+
+This is the same shape as the ARIA entry below: a corpus divergence that only a ts-for-gir change
+can retire, never a change in this repository. Resolving it here would mean searching the nick
+lists for an enum with a member `horizontal`, which finds several, and guessing is the silent
+wrong output ADR 0053 clause 3 exists to refuse. Both entries self-retire the same way: the day
+the join exists, stage C fails with "byte-equal and still listed, delete the entry".
+
+**The scope question, stated rather than assumed.** The `@girs` vocabulary is a WIDGET vocabulary
+by decision: ADR 0029 emits a surface "only for namespaces that actually declare `GtkWidget`
+descendants", ts-for-gir's AGENTS.md binds its generator to the same rule ("only namespaces that
+DECLARE a concrete `GtkWidget` descendant emit one"), and `PROP_ENUMS` is keyed by the
+declarations inside that surface. Blueprint has no such scope — it instantiates any GObject the
+typelib knows, and size groups, event controllers, list-model filters and constraints are the
+ordinary ones. So closing this is one of two different things: a small WIDENING (rows in
+`PROP_ENUMS` and `DECLS` for the non-widget classes of a namespace that already emits a surface,
+which is all the `.blp` files in this repo could need) or a SCOPE CHANGE (a vocabulary for GObject
+classes generally, which ADR 0029 did not decide). Which one, and what each costs in emitted
+data, is a measurement being made in ts-for-gir and not here. Whichever it is, the consumer side
+needs no change to take it — `resolve-ident.mjs` already walks `DECLS` and reads `PROP_ENUMS` —
+and the retirement is the ledger failure above, not an edit.
+
+**What it costs while it stands.** Any `.blp` that sets an enum- or flags-typed property on an
+object outside the widget tree gets its member name where the compiler writes a number. Measured
+on 0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; }` is `1`, its
+`propagation-phase: capture` is `1`, `Gtk.StringFilter { match-mode: prefix; }` is `2`, and the
+in-repo emitter writes all three as written. A single-word member happens to load anyway, because
+GtkBuilder resolves an enum nick as well as a number; a member Blueprint spells with an
+underscore (`word_char`, `both_axes`) is neither a nick nor a number to GtkBuilder and does not.
+None of the eleven real files does this today, which is why the gap was invisible until
+`03-property-enum` was asked for its other case. The corpus now HOLDS it rather than hiding it:
+`29-enum-non-widget.blp` diverges on one named line and every other line of it is held to the
+golden, so a `.blp` in this repo that reaches the same shape surfaces as an unledgered
+divergence in stage C, not as a build that loads and misbehaves.
 
 ### `accessibility { }` VALUE types need the ARIA table, which `@girs` does not carry
 
