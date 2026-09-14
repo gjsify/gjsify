@@ -270,12 +270,26 @@ export const gtkHostTree = (widget) => {
 /**
  * The shared block as `adwaita-gallery-ns-templates.mjs` needs it.
  *
- * NO transform, and that asymmetry is the point rather than an oversight: a
- * NativeScript template names a widget by its CLASS, and the port's class names are
- * the GIR ones (ADR 0034 clause 1), so the vocabulary this file is authored in is
- * already the one that side is written in. The `adw:`/`gtk:` prefix the emitted XML
- * carries is the generator's namespace spelling, applied downstream of here — which
- * is why it is not a transform this file owes anybody.
+ * NO transform HERE, and that asymmetry is the point rather than an oversight: a
+ * widget of that port is named by its CLASS, and the port's class names are the GIR
+ * ones (ADR 0034 clause 1), so the vocabulary this file is authored in is already the
+ * one that side is written in.
+ *
+ * WHICH IS NOT "THIS DIALECT NEEDS NO TRANSFORM", and this comment said the shorter
+ * thing until a tree driver went through the other door. NativeScript has TWO, they
+ * spell a widget differently and both fail silently (docs/nativescript-xml.md). The
+ * flat `registerElement` dialect names the class outright — `<AdwSwitchRow>`, this
+ * file's own spelling, and the one a plain app does NOT have, because `registerElement`
+ * comes from a framework integration rather than from `@nativescript/core`. The
+ * `xmlns` barrel dialect names a MODULE and a MEMBER of it, so the same widget is
+ * `<adw:SwitchRow>` — a split, and a real transform — and that is the dialect both the
+ * emitted templates and the tree driver go through. It is applied downstream of here,
+ * twice and never from the class name alone: `qualify` in
+ * `generate-adwaita-nativescript-templates.mjs` reads the placement off the package's
+ * own namespace barrels, and `elementFor` in
+ * `packages/nativescript-bridge/adwaita/src/shared-trees.spec.ts` resolves the member
+ * at runtime through the barrel NativeScript itself reads. Neither is a transform this
+ * file owes anybody; both are what the identity above is NOT.
  */
 export const nativeScriptTree = (widget) => {
     const tree = entryFor(widget);
