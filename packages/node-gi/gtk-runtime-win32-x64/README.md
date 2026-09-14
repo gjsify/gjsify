@@ -193,13 +193,23 @@ both sufficient and the simplest mechanism.
   is not silent, because `fonts` is a declared windowing-data set and an empty `share/fonts`
   fails the build.
 
-  **Registration is a second step on this platform, not a path.** GTK4-on-Windows is
-  pangowin32, whose font map is filled exclusively from the DirectWrite system collection: a
-  `FONTCONFIG_FILE` naming a directory of faces moves it by ZERO families even when it is the
-  only configuration present (measured both ways — ADR 0038 § W1-W5). So node-gi's loader
-  publishes the directory as `GJSIFY_GTK_RUNTIME_FONT_DIR` and `@gjsify/gtk-host`'s
-  `initFonts()` hands each face to `add_font_file`, which moves it by one. On darwin the same
-  variable is a second route to files `XDG_DATA_DIRS` already reaches.
+  **Registration is a second step on this platform, not a path.** GTK4-on-Windows resolves
+  pangowin32 by default, and that font map is filled exclusively from the DirectWrite system
+  collection: a `FONTCONFIG_FILE` naming a directory of faces moves it by ZERO families even
+  when it is the only configuration present (measured both ways — ADR 0038 § W1-W5). So
+  node-gi's loader publishes the directory as `GJSIFY_GTK_RUNTIME_FONT_DIR` and
+  `@gjsify/gtk-host`'s `initFonts()` hands each face to `add_font_file`, which moves it by one.
+  That handover is unchanged by the paragraph below, and it is still what puts the face there.
+
+  **AND THE BACKEND IS NOW CHOSEN, not inherited.** `etc/fonts` above was configuration nobody
+  read: `pangocairo` builds the first backend compiled in (coretext → win32 → fc), so this
+  bundle drew through DirectWrite and macOS's through CoreText, whose script fallback does not
+  reach every face the system installs — non-Latin text rendered as empty boxes in every
+  shipped app, Tamil measured on Windows 11 and macOS 15.7.9 with the system's own Tamil face
+  installed throughout. node-gi's loader now sets `PANGOCAIRO_BACKEND=fc` for a windowing
+  bundle on both platforms, only when you have not set it yourself. The cost is FreeType
+  rasterisation instead of ClearType/CoreText; pin `PANGOCAIRO_BACKEND=win32` to get the old
+  map back. ADR 0038 § Amendment 3.
 
   **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
   shell, and Windows' is 9 pt where GNOME designs for 11. Measured as `ascent + descent` rather

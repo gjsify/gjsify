@@ -1873,6 +1873,19 @@ jobs:
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
 
+      # SCRIPT COVERAGE (#1668), and this leg is the ONLY oracle for it. Non-Latin text was
+      # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
+      # map — CoreText on darwin, pangowin32/DirectWrite on win32 — whose script fallback does
+      # not reach the Indic faces the OS itself installs, while every FONTCONFIG_* variable the
+      # loader sets was being read by nobody. The test measures unknown glyphs for Tamil and
+      # then re-measures with the platform backend pinned back, so a pass here says the fix
+      # WORKS rather than that the check is inert. No display and no GSK renderer needed.
+      - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/font-script-coverage.test.mjs
+
       # Composite templates — the proof that was missing on BOTH displayless
       # platforms. All four gtk-template tests gated on DISPLAY/WAYLAND_DISPLAY,
       # variables GdkWin32 and GdkQuartz never set, so they had never run off
@@ -2892,6 +2905,19 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
+      # SCRIPT COVERAGE (#1668), and this leg is the ONLY oracle for it. Non-Latin text was
+      # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
+      # map — CoreText on darwin, pangowin32/DirectWrite on win32 — whose script fallback does
+      # not reach the Indic faces the OS itself installs, while every FONTCONFIG_* variable the
+      # loader sets was being read by nobody. The test measures unknown glyphs for Tamil and
+      # then re-measures with the platform backend pinned back, so a pass here says the fix
+      # WORKS rather than that the check is inert. No display and no GSK renderer needed.
+      - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/font-script-coverage.test.mjs
 
       # Composite templates — the proof that was missing on BOTH displayless
       # platforms. All four gtk-template tests gated on DISPLAY/WAYLAND_DISPLAY,

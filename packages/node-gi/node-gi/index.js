@@ -30,9 +30,10 @@ maybeReexecForGtkRuntime();
 // g_module_open of typelib backers — no re-exec needed.
 maybePrependGtkRuntimeDllPath();
 
-// Windows full-windowing GTK: point GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE /
-// XDG_DATA_DIRS / FONTCONFIG_* at the data a real GTK window needs. Strict no-op for
-// the display-free bundle, which therefore loads byte-unchanged.
+// Windows/macOS full-windowing GTK: point GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE /
+// XDG_DATA_DIRS / FONTCONFIG_* at the data a real GTK window needs, and PANGOCAIRO_BACKEND
+// at the one backend that reads any of the font half. Strict no-op for the display-free
+// bundle, which therefore loads byte-unchanged.
 maybeWireGtkWindowingEnv();
 
 const require = createRequire(import.meta.url);

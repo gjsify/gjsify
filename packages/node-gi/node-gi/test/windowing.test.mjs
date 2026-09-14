@@ -318,11 +318,14 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
         // THE WHOLE MAP DECLINES, so the faces cannot arrive by this route and asserting that
         // they did would be a lie. What is asserted instead is the fact itself — every face
         // declined, none failed for another reason — and the gap is stated rather than passed
-        // over. This is a REAL LIMITATION of the darwin bundle and not a property of the test:
-        // the faces ship, and nothing in the runtime can put them on a CoreText map. The routes
-        // are ATSApplicationFontsPath (a shipped `.app` only, and it names one directory) or
-        // PANGOCAIRO_BACKEND=fc; both are out of this test's reach. Tracked in
-        // `status/open-todos.md`.
+        // over.
+        //
+        // THIS ARM USED TO BE THE DARWIN OUTCOME and is no longer: the loader selects
+        // `PANGOCAIRO_BACKEND=fc` for the windowing bundle, so a bundled darwin process builds a
+        // PangoCairoFcFontMap, `add_font_file` is implemented and the assertions below run there
+        // like everywhere else (ADR 0038 § Amendment 3). What still reaches here is a CoreText
+        // map — a system GTK on macOS, or the backend pinned back by hand — where the route is
+        // `ATSApplicationFontsPath`, a shipped `.app` only and out of this test's reach.
         assert.equal(declined, faces.length);
         console.log(
             `fonts: ${faces.length} bundled face(s) from ${fontDir} were ALL declined by ` +

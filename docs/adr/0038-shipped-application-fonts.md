@@ -603,3 +603,93 @@ keep it; and the baseline is captured BEFORE the first write, because afterwards
 is not reconstructible from GTK, from the display, or from any schema. The consequence for this
 ADR's own scope is that `/fonts` is no longer only the shipped-face call; `packages/framework/AGENTS.md`
 rule (9) says so, and the consumer-facing guide is `website/.../guides/bundled-fonts.md`.
+
+## Amendment 3 (2026-09-14) — the bundle selects the font BACKEND, because everything above was being read by nobody
+
+This ADR asked, three times, how a face reaches the font map. It never asked **which font map**,
+and that question turned out to be upstream of every answer it gave.
+
+`pangocairo-fontmap.c` builds the FIRST backend compiled in — coretext → win32 → fc — and
+`PANGOCAIRO_BACKEND` is the only thing that overrides it. § *And one thing that was NOT measured
+here* said as much for darwin and drew the conclusion that a `fonts.conf` in a `.app` would be
+"inert twice over"; § W1-W5 measured the same thing on Windows from the other side. What neither
+followed through was that the runtime bundles ship all of their platform's backends, so the
+choice was ours all along and we were leaving it to a compile-time ordering.
+
+**Measured 2026-09-12 on real hardware** — Learn6502 0.8.0, the published windowing bundle,
+macOS 15.7.9 and Windows 11:
+
+| script | default backend | `PANGOCAIRO_BACKEND=fc` |
+|---|---|---|
+| Tamil (தமிழ்) | **tofu on both platforms** | renders on both |
+| Japanese (日本語) | renders | renders |
+| Latin | renders | renders |
+
+**Japanese is not a test, and writing that down is the point of this amendment.** It came out
+correct in the same window of the same run in which Tamil was empty boxes, because both platform
+maps carry a CJK fallback. A check built on it is green before and after the fix. What neither
+CoreText's nor DirectWrite's fallback reaches from a GTK process are the Indic faces the OS
+installs — `Tamil Sangam MN.ttc` and `Nirmala.ttf` were present on both machines throughout, and
+fontconfig finds them immediately. It was not the translation (the UI switched language, only the
+glyphs were missing), not a broken fallback chain, not a missing face, and not missing
+configuration: the win32 bundle ships `etc/fonts/fonts.conf` and the loader already pointed
+`FONTCONFIG_FILE` at it.
+
+**The decision.** `maybeWireGtkWindowingEnv()` in `@gjsify/node-gi`'s loader now sets
+`PANGOCAIRO_BACKEND=fc` beside the `FONTCONFIG_*` lines, under the same three gates those already
+had: darwin/win32 only (the function has returned on linux long before), the bundle is the ACTIVE
+GTK, and it carries the windowing data set. `setIfUnset`, so an operator pinning `coretext` or
+`win32` wins.
+
+Scoped to the bundle and not made unconditional, for two measured reasons rather than caution.
+Linux already builds a `PangoCairoFcFontMap` — fc is the only backend compiled in there, so the
+variable would be a no-op that every Linux process carries. And fc is only a SAFE choice where
+something hands fontconfig both a configuration and faces: that is exactly what a windowing
+bundle does, and exactly what an arbitrary host's Pango does not owe us. Selecting fc where
+fontconfig has nothing to read would cost every glyph, not only the non-Latin ones.
+
+**The trade-off, stated rather than buried.** This swaps the font map on both platforms for every
+consumer of the bundle, so text is rasterised by FreeType instead of ClearType or CoreText.
+Hinting and subpixel rendering therefore change for all text, Latin included. `status/open-todos.md`
+argued from that exact cost — *"it changes text rendering for the whole application, which is not a
+decision a runtime bundle may take for its consumer"* — and this amendment overrules it: the
+bundle was already taking that decision, silently, by shipping a Pango whose compiled-in ordering
+picked the platform map. A different rasteriser is a preference, and one environment variable
+gives it back; a glyph that never arrives is a defect with no way back.
+
+**What this makes TRUE that was false, which is the upside beyond the bug.** § Amendment 2 closed
+with the darwin bundles carrying ~7.3 MB of Adwaita faces that no process could reach, because
+`add_font_file` is a vfunc the CoreText map does not implement. On an fc map it is implemented, so
+`initFonts()` now registers them and `adwaitaUiFontAvailability()` can answer something other than
+`absent` on macOS. The `G_IO_ERROR_NOT_SUPPORTED` arm of § Amendment stays exactly as it is: it
+was keyed on the ERROR and not on `process.platform` precisely so that it would still be right the
+day a fontconfig-backed Pango was selected on darwin, and that day is this one.
+
+**Two ledger items reverse rather than close, and the reversal is the interesting part.**
+`status/open-todos.md` carried *"The win32 GTK bundle ships fontconfig config that nothing reads"*
+— a proposal to DELETE `etc/fonts` from the bundle as dead payload, correct at the time and
+measured. That payload is now the thing that makes the win32 half work: `FONTCONFIG_FILE` names it
+and fontconfig is what draws. Deleting it would have shipped a Pango pointed at no configuration,
+which is the one state worse than the defect. And *"The darwin bundle ships the GNOME typeface and
+cannot put it on the font map"* is resolved by its own second route, the one it listed and
+declined. Both items are gone from the ledger; this paragraph is their record.
+
+**What the older measurements now describe.** Nothing in § W1-W5 or in § *And one thing that was
+NOT measured here* is withdrawn — both are still the correct account of the CoreText and
+DirectWrite maps, and both are still what a consumer gets on a system GTK or with the backend
+pinned back. What changed is which map the BUNDLE selects, so read those sections as the
+description of the map we no longer choose. The win32 `add_font_file` handover in § 4 stays
+load-bearing for the same reason: pin `win32` and it is again the only route there is.
+
+**Held by a test that carries its own negative control.**
+`packages/node-gi/node-gi/test/font-script-coverage.test.mjs` counts
+`pango_layout_get_unknown_glyphs_count()` — Pango's own tofu counter, the number that produces the
+boxes a user reports — for a Tamil sample, and then measures a SECOND time in a child process with
+the platform's backend pinned back. It fails if that second measurement does NOT show the tofu,
+because a check that cannot go red without the fix is worse than no check. Which backend a process
+actually built is read with `g_type_from_name()` over the three private map types rather than from
+the wrapper: node-gi resolves `constructor.$gtype` to the nearest introspected ancestor and answers
+`PangoFontMap` for all three (measured — under gjs the same read answers
+`unknown_PangoCairoFcFontMap`, a divergence that would have made a wrong control look right).
+Wired into `macos-gtk-windowing` and `windows-gtk-windowing`, which are the only oracles this
+change has.

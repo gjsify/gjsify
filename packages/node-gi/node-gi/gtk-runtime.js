@@ -362,7 +362,8 @@ export function maybePrependGtkRuntimeDllPath() {
  * finds its runtime DATA on Windows: compiled GSettings schemas
  * (`GSETTINGS_SCHEMA_DIR`), the gdk-pixbuf image loaders (`GDK_PIXBUF_MODULEDIR` +
  * `GDK_PIXBUF_MODULE_FILE`), the icon themes (`XDG_DATA_DIRS` → `<bundle>/share`),
- * and — when bundled — Fontconfig (`FONTCONFIG_PATH`/`FONTCONFIG_FILE`). These live
+ * and — when bundled — Fontconfig (`FONTCONFIG_PATH`/`FONTCONFIG_FILE`) plus the Pango
+ * backend that actually READS it (`PANGOCAIRO_BACKEND`). These live
  * beside the DLLs the display-free path already wires (maybePrependGtkRuntimeDllPath).
  *
  * STRICT no-op off win32, without a bundle, or when the bundle carries NO windowing
@@ -437,17 +438,56 @@ export function maybeWireGtkWindowingEnv() {
         setIfUnset('FONTCONFIG_FILE', fontsConf);
     }
 
-    // THE FACES, which are a different question from the two lines above and on one of the
-    // two platforms not answerable by an environment variable at all.
+    // WHICH FONT MAP PANGO BUILDS AT ALL, which is upstream of the two lines above and is the
+    // assumption neither of them stated. `pangocairo-fontmap.c` picks the FIRST backend
+    // COMPILED IN, in the order coretext → win32 → fc, and `PANGOCAIRO_BACKEND` is the only
+    // thing that overrides it. Both bundles carry every backend their platform builds, so
+    // without this line darwin gets CoreText and win32 gets pangowin32/DirectWrite — and
+    // fontconfig, which everything else here configures, drives nothing.
     //
-    // `XDG_DATA_DIRS` already reaches `<bundle>/share/fonts` wherever fontconfig drives
-    // Pango — its stock configuration carries `<dir prefix="xdg">fonts</dir>` — so on darwin
-    // the set above is enough and this variable is a second, cheaper route to the same files.
-    // On WIN32 it is the only route there is: GTK4 uses pangowin32, whose font map is filled
-    // exclusively by `pango_font_map_dwrite_populate()` from the DirectWrite system
-    // collection, and a `FONTCONFIG_FILE` naming a directory of faces moves that map by ZERO
-    // families even when it is the only configuration present (measured on Windows 11 /
-    // GTK 4.22.4, both directions — ADR 0038 § W1-W5). The face has to be handed to the map
+    // MEASURED 2026-09-12 on real hardware — Learn6502 0.8.0 on the published windowing
+    // bundle, macOS 15.7.9 and Windows 11:
+    //
+    //   Tamil    தமிழ்   default backend: TOFU     PANGOCAIRO_BACKEND=fc: renders
+    //   Japanese 日本語   default backend: renders  PANGOCAIRO_BACKEND=fc: renders
+    //
+    // JAPANESE IS NOT A TEST — it came out right in the SAME window of the SAME run in which
+    // Tamil was empty boxes, because both platform maps carry a CJK fallback. What neither
+    // reaches from a GTK process are the Indic faces the OS itself installs (`Tamil Sangam
+    // MN.ttc`, `Nirmala.ttf` — present on both machines, and found immediately by fontconfig).
+    // So anything checking this must use a script the DEFAULT backend genuinely misses; Tamil
+    // is the one that was measured, and `test/font-script-coverage.test.mjs` carries its own
+    // negative control rather than trusting that it still is.
+    //
+    // It was NOT the translation (the UI switched language, only the glyphs were missing), not
+    // a broken fallback chain, not a missing face and not missing configuration: the win32
+    // bundle already ships `etc/fonts/fonts.conf` and the two lines above already point at it.
+    // The configuration was being read by nobody.
+    //
+    // `setIfUnset`, because an operator who pins `coretext`/`win32` has to win: the price of
+    // this line is a different RASTERISER (FreeType instead of ClearType/CoreText), which is a
+    // preference, while a glyph that never arrives is a defect. No platform branch is needed —
+    // the function has already returned on anything but darwin/win32 — and it is scoped to the
+    // BUNDLE deliberately: fontconfig is a safe choice only where something hands it both a
+    // configuration and faces, which is exactly what a windowing bundle does and what an
+    // arbitrary host's Pango does not owe us.
+    setIfUnset('PANGOCAIRO_BACKEND', 'fc');
+
+    // THE FACES, which are a different question from the three settings above and on one of
+    // the two platforms not answerable by an environment variable at all.
+    //
+    // `XDG_DATA_DIRS` reaches `<bundle>/share/fonts` wherever fontconfig drives Pango — its
+    // stock configuration carries `<dir prefix="xdg">fonts</dir>` — which on darwin is true
+    // only BECAUSE of the backend line above. This comment used to read "so on darwin the set
+    // above is enough", and that sentence WAS the defect: nothing made fontconfig the darwin
+    // backend, so the directory was being named to a reader nobody had asked.
+    // On WIN32 the same is now true for the same reason, and was not before: GTK4 resolves
+    // pangowin32 by default, whose font map is filled exclusively by
+    // `pango_font_map_dwrite_populate()` from the DirectWrite system collection, and a
+    // `FONTCONFIG_FILE` naming a directory of faces moves THAT map by ZERO families even when
+    // it is the only configuration present (measured on Windows 11 / GTK 4.22.4, both
+    // directions — ADR 0038 § W1-W5). That is still what a consumer gets who pins the backend
+    // back, so the handover below stays load-bearing: the face has to be handed to that map
     // through `add_font_file`, which is a RUNTIME call somebody has to make.
     //
     // So the loader's job here is to name the directory, not to register anything: it runs

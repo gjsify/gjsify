@@ -337,15 +337,23 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'macOS ships no Node, and there is no RELOCATABLE GJS (`build-gtk-runtime-darwin.mjs`: "GJS ' +
             'ships no relocation"), so ADR 0024 § 4 derives Node here. A self-contained bundle needs `@gjsify/node-runtime-darwin-<arch>` and a ' +
             '`--app node` payload (#1354 M0), or `@gjsify/gjs-runtime-darwin-<arch>` (ADR 0024 stage 7).',
-        // THE ONE LAYOUT WHERE THE ENV VARIABLE IS NOT THE MECHANISM, and assuming it
-        // was is the mistake this comment exists to stop being made again. macOS Pango
-        // is CORETEXT, not fontconfig: GTK's own `meson.build` carries
-        // `fontconfig_dep = []  # only used in x11 backend` and Homebrew's gtk4 formula
-        // builds `-Dx11-backend=false -Dmacos-backend=true`, while cairo's `quartz`
+        // THE LAYOUT WHERE THE ENV VARIABLE IS NOT THE MECHANISM BY DEFAULT, and assuming
+        // it was is the mistake this comment exists to stop being made again. macOS Pango
+        // resolves CORETEXT unless something chooses otherwise: GTK's own `meson.build`
+        // carries `fontconfig_dep = []  # only used in x11 backend` and Homebrew's gtk4
+        // formula builds `-Dx11-backend=false -Dmacos-backend=true`, while cairo's `quartz`
         // option defaults to `auto` and auto-enables on darwin — so a `fonts.conf`
-        // inside a `.app` would be inert twice over, wrong Pango backend AND no
+        // inside a `.app` is inert twice over there, wrong Pango backend AND no
         // GTK-side fontconfig. `XDG_DATA_DIRS` still carries the icons and the schemas
-        // here; it does not carry the faces.
+        // in that case; it does not carry the faces.
+        //
+        // WHAT CHOOSES OTHERWISE is `@gjsify/node-gi`'s loader, which sets
+        // `PANGOCAIRO_BACKEND=fc` for the bundled windowing runtime (ADR 0038 § Amendment
+        // 3) — so a `--app node` `.app` carrying that bundle, which is every self-contained
+        // one this command builds, reads the faces through fontconfig and registers them
+        // like the other two layouts. The declarative route below stays emitted because it
+        // is what a CoreText map still needs, and because nothing here can prove which
+        // runtime a given `.app` ends up with.
         //
         // What does is `ATSApplicationFontsPath`, emitted into `Info.plist` by
         // `metadata` above — Apple's own per-app activation, and the ORDERING is why it
@@ -357,13 +365,14 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // directory at LAUNCH, before any of the app's code runs.
         fontGap:
             'the faces are staged in `share/fonts/<appId>` and `Info.plist` carries `ATSApplicationFontsPath` ' +
-            "at it, which is macOS's own per-app activation — NOT the XDG_DATA_DIRS path, because Pango on " +
-            'macOS is CoreText-backed and GTK is not built against fontconfig there. That the activation ' +
-            "reaches Pango's CoreText font map is UNVERIFIED: no leg in this repository runs a `.app`. " +
-            'Confirm with `PangoCairo.FontMap.get_default().list_families()` in the shipped bundle, and ' +
-            '`PANGOCAIRO_BACKEND=bogus` to print which backend it was built with. An app that calls ' +
-            '`initFonts()` from `@gjsify/gtk-host/fonts` for the Windows row needs no branch around it: the ' +
-            'CoreText map answers G_IO_ERROR_NOT_SUPPORTED and that call deliberately does nothing here.',
+            "at it, which is macOS's own per-app activation for a CoreText-backed Pango — the default there, " +
+            'because GTK is not built against fontconfig on darwin. A `.app` carrying the bundled GTK runtime ' +
+            "instead reads them through fontconfig, which `@gjsify/node-gi`'s loader selects with " +
+            '`PANGOCAIRO_BACKEND=fc` (ADR 0038 § Amendment 3), and `initFonts()` from `@gjsify/gtk-host/fonts` ' +
+            'registers them as it does on Windows. Either way no branch is needed in your app: a CoreText map ' +
+            'answers G_IO_ERROR_NOT_SUPPORTED and the call reports that as declined. Confirm in the shipped ' +
+            'bundle with `PangoCairo.FontMap.get_default().list_families()`, and `PANGOCAIRO_BACKEND=bogus` to ' +
+            'print which backends it was built with.',
         launcherExt: '',
         root: appBundleDir,
         // Apple's, all four. `Contents/MacOS` holds executables, `Contents/Resources`

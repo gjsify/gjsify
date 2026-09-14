@@ -4,42 +4,6 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### The darwin bundle ships the GNOME typeface and cannot put it on the font map
-
-The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
-`@gjsify/gtk-host`'s `initFonts()` registers them with `pango_font_map_add_font_file()`. That
-works on fontconfig-backed Pango (Linux) and on win32, where it is the ONLY thing that works —
-pangowin32 reads no fontconfig path at all.
-
-**It does not work on macOS.** `add_font_file` is a vfunc the CoreText map does not implement, so
-every face answers `G_IO_ERROR_NOT_SUPPORTED` — measured on the darwin-arm64 windowing proof:
-`Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
-reported that as `declined` rather than as a failure, and the reasoning written there is about an
-application's OWN faces in a shipped `.app`, where `ATSApplicationFontsPath` has already
-activated the directory before any code runs. That reasoning does not extend to the RUNTIME
-bundle's faces: nothing points `ATSApplicationFontsPath` at `gtk/share/fonts`.
-
-So on macOS today the bundle carries ~7.3 MB of faces that no process can reach, and
-`adwaitaUiFontAvailability()` correctly answers `absent` — a preferences dialog will not offer
-the `adwaita` policy there, which is the honest outcome but not the intended one. The size half
-is unaffected: macOS measures 18.8 px against GNOME's 19.0 and needs no correction.
-
-Two routes, neither taken here:
-
-- **`ATSApplicationFontsPath`**, which is how `gjsify ship` already activates an application's own
-  staged faces. It names ONE directory relative to `Contents/Resources`, so covering both would
-  mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
-  change, in the layer that owns the `.app` layout, not in the runtime.
-- **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
-  rendering for the whole application, which is not a decision a runtime bundle may take for its
-  consumer.
-
-The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
-future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
-rather than passing over it, so the day a darwin map starts accepting registration the count
-stops matching and the row says so.
-
 ### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
 
 Measured on the published 0.50.0 tarballs, symbol by symbol out of each bundle's own
@@ -1790,36 +1754,6 @@ consumed as a DIRECTORY in a different run.
 
 macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
 ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
-
-### The win32 GTK bundle ships fontconfig config that nothing reads
-
-`gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
-bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
-and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
-compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
-/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
-`PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
-when that directory is the ONLY configured one, which is the row that distinguishes "read
-and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
-process does see the face. So none of this affects text rendering. The bundle also ships no
-`fc-cache.exe`: the cache is baked at build time and there is no supported way to rebuild
-it on the target, which is a second reason the arrangement cannot be made to work rather
-than merely being unused.
-
-Two things make it worth removing rather than leaving as harmless: the code comment beside
-it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
-claim that made ADR 0038's first draft wrong in the same direction; and the builder's
-`else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
-meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
-default `sysconfdir` — so the "when present" test always passes and the log line implying a
-choice was never true. NOT VERIFIED against a gvsbuild release artifact; if that branch has
-ever been taken, fontconfig is being excluded from the closure somewhere and that is a
-different finding.
-
-`packages/node-gi` is outside the npm workspace with its own CI, and this is a REMOVAL of
-shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
-is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
-still not evidence for it.
 
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
