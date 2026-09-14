@@ -245,6 +245,29 @@ function defaultPort(scheme: string): number | null {
 }
 
 /**
+ * The five WHATWG percent-encode sets, each written as what it ADDS to "C0 controls, space, and
+ * everything above `~`".
+ *
+ * Measured against Node's own URL rather than transcribed from the prose: `^` is in the path set
+ * and `|` is not, which is the opposite of what the spec text reads like at a glance. A shared
+ * escape function over one set would be wrong for four of the five.
+ */
+const FRAGMENT_EXTRA = '"<>`';
+const QUERY_EXTRA = '"#<>';
+const SPECIAL_QUERY_EXTRA = '"#<>\'';
+const PATH_EXTRA = '"#<>?^`{}';
+const USERINFO_EXTRA = '"#/:;<=>?@[\\]^`{|}';
+
+function percentEncode(value: string, extra: string): string {
+    let out = '';
+    for (const ch of value) {
+        const cp = ch.codePointAt(0)!;
+        out += cp <= 0x20 || cp > 0x7e || extra.includes(ch) ? percentEncodeUtf8(ch) : ch;
+    }
+    return out;
+}
+
+/**
  * The WHATWG query percent-encode set: C0 controls, everything above `~`, and `space " # < >` —
  * plus `'` for special schemes.
  *
@@ -254,14 +277,360 @@ function defaultPort(scheme: string): number | null {
  * request target, and `@gjsify/http` builds one straight from `pathname + search`.
  */
 function encodeQuery(query: string, special: boolean): string {
-    let out = '';
-    for (const ch of query) {
+    return percentEncode(query, special ? SPECIAL_QUERY_EXTRA : QUERY_EXTRA);
+}
+
+/**
+ * ASCII tab and newline, which the basic URL parser removes from its input before anything else.
+ *
+ * So every setter that runs a value through the parser drops them — which is all of them except
+ * `username` and `password`, whose spec steps percent-encode the value directly. Assuming the
+ * rule is uniform gets those two wrong: `u.username = 'a\tb'` must keep the tab as `%09`.
+ */
+const TAB_NEWLINE = /[\t\n\r]/g;
+
+function isSchemeChar(ch: string): boolean {
+    return (
+        (ch >= 'a' && ch <= 'z') ||
+        (ch >= 'A' && ch <= 'Z') ||
+        (ch >= '0' && ch <= '9') ||
+        ch === '+' ||
+        ch === '-' ||
+        ch === '.'
+    );
+}
+
+function isAsciiDigit(ch: string | undefined): boolean {
+    return ch !== undefined && ch >= '0' && ch <= '9';
+}
+
+function isHexDigit(ch: string | undefined): boolean {
+    return ch !== undefined && /^[0-9A-Fa-f]$/.test(ch);
+}
+
+/** The ASCII-digit prefix of a value, which is all the WHATWG port parser reads. */
+function digitPrefix(value: string): string {
+    let digits = '';
+    for (const ch of value) {
+        if (!isAsciiDigit(ch)) break;
+        digits += ch;
+    }
+    return digits;
+}
+
+/**
+ * Forbidden host code points — the set an OPAQUE host (one on a non-special scheme) is checked
+ * against. A domain adds C0 controls, `%` and DEL to it.
+ */
+const FORBIDDEN_HOST = new Set([
+    '\u0000',
+    '\t',
+    '\n',
+    '\r',
+    ' ',
+    '#',
+    '/',
+    ':',
+    '<',
+    '>',
+    '?',
+    '@',
+    '[',
+    '\\',
+    ']',
+    '^',
+    '|',
+]);
+
+function hasForbiddenDomainCodePoint(domain: string): boolean {
+    for (const ch of domain) {
         const cp = ch.codePointAt(0)!;
-        const encode =
-            cp <= 0x20 || cp > 0x7e || ch === '"' || ch === '#' || ch === '<' || ch === '>' || (special && ch === "'");
-        out += encode ? percentEncodeUtf8(ch) : ch;
+        if (cp <= 0x1f || cp === 0x7f || ch === '%' || FORBIDDEN_HOST.has(ch)) return true;
+    }
+    return false;
+}
+
+/**
+ * The WHATWG IPv6 parser, returning the CANONICAL serialisation or `undefined` for "not an IPv6
+ * address".
+ *
+ * Both halves are load-bearing. Without the parser, `[` and `]` would have to be waved through
+ * whenever they bracket something, and `u.hostname = '[google.com]'` — which the spec refuses —
+ * would install a host that is not an address; with it, the rejection and the shortest-form
+ * serialisation (`[::0:01]` → `[::1]`) fall out of the same code.
+ */
+function parseIPv6(input: string): string | undefined {
+    const address = [0, 0, 0, 0, 0, 0, 0, 0];
+    let pieceIndex = 0;
+    let compress: number | null = null;
+    let pointer = 0;
+    // Past the end reads as `undefined`, which is what the spec calls the EOF code point: every
+    // comparison against a real character is false there, exactly as the algorithm wants.
+    const at = () => input[pointer];
+
+    if (at() === ':') {
+        if (input[pointer + 1] !== ':') return undefined;
+        pointer += 2;
+        pieceIndex++;
+        compress = pieceIndex;
+    }
+
+    while (pointer < input.length) {
+        if (pieceIndex === 8) return undefined;
+        if (at() === ':') {
+            if (compress !== null) return undefined;
+            pointer++;
+            pieceIndex++;
+            compress = pieceIndex;
+            continue;
+        }
+        let value = 0;
+        let length = 0;
+        while (length < 4 && isHexDigit(at())) {
+            value = value * 16 + Number.parseInt(at(), 16);
+            pointer++;
+            length++;
+        }
+        if (at() === '.') {
+            // An embedded IPv4 tail (`::1.2.3.4`) occupies the last two pieces.
+            if (length === 0) return undefined;
+            pointer -= length;
+            if (pieceIndex > 6) return undefined;
+            let numbersSeen = 0;
+            while (pointer < input.length) {
+                let ipv4Piece: number | null = null;
+                if (numbersSeen > 0) {
+                    if (at() === '.' && numbersSeen < 4) pointer++;
+                    else return undefined;
+                }
+                if (!isAsciiDigit(at())) return undefined;
+                while (isAsciiDigit(at())) {
+                    const digit = Number(at());
+                    if (ipv4Piece === null) ipv4Piece = digit;
+                    else if (ipv4Piece === 0) return undefined;
+                    else ipv4Piece = ipv4Piece * 10 + digit;
+                    if (ipv4Piece > 255) return undefined;
+                    pointer++;
+                }
+                address[pieceIndex] = address[pieceIndex] * 256 + (ipv4Piece as number);
+                numbersSeen++;
+                if (numbersSeen === 2 || numbersSeen === 4) pieceIndex++;
+            }
+            if (numbersSeen !== 4) return undefined;
+            break;
+        }
+        if (at() === ':') {
+            pointer++;
+            if (pointer >= input.length) return undefined;
+        } else if (pointer < input.length) {
+            return undefined;
+        }
+        address[pieceIndex] = value;
+        pieceIndex++;
+    }
+
+    if (compress !== null) {
+        let swaps = pieceIndex - compress;
+        pieceIndex = 7;
+        while (pieceIndex !== 0 && swaps > 0) {
+            const swap = address[compress + swaps - 1];
+            address[compress + swaps - 1] = address[pieceIndex];
+            address[pieceIndex] = swap;
+            pieceIndex--;
+            swaps--;
+        }
+    } else if (pieceIndex !== 8) {
+        return undefined;
+    }
+
+    return serializeIPv6(address);
+}
+
+/** Shortest-form IPv6 serialisation: the longest run of two or more zero pieces becomes `::`. */
+function serializeIPv6(address: number[]): string {
+    let compress: number | null = null;
+    let longest = 1;
+    let runStart = -1;
+    let runLength = 0;
+    for (let i = 0; i < 8; i++) {
+        if (address[i] !== 0) {
+            runStart = -1;
+            runLength = 0;
+            continue;
+        }
+        if (runStart === -1) runStart = i;
+        runLength++;
+        if (runLength > longest) {
+            longest = runLength;
+            compress = runStart;
+        }
+    }
+
+    let out = '';
+    let ignoreZero = false;
+    for (let pieceIndex = 0; pieceIndex < 8; pieceIndex++) {
+        if (ignoreZero && address[pieceIndex] === 0) continue;
+        ignoreZero = false;
+        if (compress === pieceIndex) {
+            out += pieceIndex === 0 ? '::' : ':';
+            ignoreZero = true;
+            continue;
+        }
+        out += address[pieceIndex].toString(16);
+        if (pieceIndex !== 7) out += ':';
     }
     return out;
+}
+
+/**
+ * The WHATWG host parser. `undefined` means failure — and in a setter every failure is a silent
+ * no-op, never a throw.
+ *
+ * Two normalisations the spec asks for are deliberately absent, because they belong to the host
+ * parser the CONSTRUCTOR shares and `new URL()` goes through `GLib.Uri`, which has neither: IDNA
+ * ToASCII and the IPv4 number forms. Adding them here alone would make `new URL('http://0x7F000001/')`
+ * and `u.hostname = '0x7F000001'` disagree, which is worse than the gap. Both are declared
+ * `it.failing` in `index.spec.ts` so they retire the day a shared host parser lands.
+ */
+function parseHost(input: string, isOpaque: boolean): string | undefined {
+    if (input.startsWith('[')) {
+        if (!input.endsWith(']')) return undefined;
+        const address = parseIPv6(input.slice(1, -1));
+        return address === undefined ? undefined : `[${address}]`;
+    }
+    if (isOpaque) {
+        for (const ch of input) {
+            if (FORBIDDEN_HOST.has(ch)) return undefined;
+        }
+        return percentEncode(input, '');
+    }
+    if (hasForbiddenDomainCodePoint(input)) return undefined;
+    return input.toLowerCase();
+}
+
+/** What a `host`/`hostname` assignment resolves to; `port` absent = leave the port alone. */
+interface HostAssignment {
+    host: string;
+    port?: number | null;
+}
+
+/**
+ * The WHATWG host state run as a state override — the shared half of `host` and `hostname`.
+ *
+ * `hostnameOnly` is the whole difference between the two: it returns at the `:` instead of going
+ * on to the port state, which is why `u.hostname = 'example.com:8080'` is a no-op rather than a
+ * truncation.
+ */
+function parseHostSetterValue(
+    value: string,
+    scheme: string,
+    hasCredentials: boolean,
+    hasPort: boolean,
+    hostnameOnly: boolean,
+): HostAssignment | undefined {
+    const input = value.replace(TAB_NEWLINE, '');
+    const special = isSpecialScheme(scheme);
+
+    if (scheme === 'file') {
+        // File host state. `:` is an ordinary — and forbidden — host character here, never a port
+        // delimiter, so `file://y/` + `x:123` is refused instead of being split into host + port.
+        let end = input.length;
+        for (let i = 0; i < input.length; i++) {
+            const ch = input[i];
+            if (ch === '/' || ch === '\\' || ch === '?' || ch === '#') {
+                end = i;
+                break;
+            }
+        }
+        const buffer = input.slice(0, end);
+        if (buffer === '') return { host: '' };
+        const host = parseHost(buffer, false);
+        if (host === undefined) return undefined;
+        return { host: host === 'localhost' ? '' : host };
+    }
+
+    let insideBrackets = false;
+    let buffer = '';
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
+        if (ch === ':' && !insideBrackets) {
+            if (buffer === '') return undefined;
+            if (hostnameOnly) return undefined;
+            const host = parseHost(buffer, !special);
+            if (host === undefined) return undefined;
+            const digits = digitPrefix(input.slice(i + 1));
+            // An empty or overflowing port leaves the port ALONE rather than failing the whole
+            // assignment: by the time the port parser gives up, the host half has already been
+            // applied. `u.host = 'example.com:'` keeps the port it had.
+            if (digits === '') return { host };
+            const port = Number(digits);
+            if (port > 0xffff) return { host };
+            return { host, port: port === defaultPort(scheme) ? null : port };
+        }
+        if (ch === '/' || ch === '?' || ch === '#' || (special && ch === '\\')) break;
+        if (ch === '[') insideBrackets = true;
+        else if (ch === ']') insideBrackets = false;
+        buffer += ch;
+    }
+
+    if (buffer === '') {
+        // A special URL must have a non-empty host; a non-special one may drop its host, but not
+        // while a username, a password or a port still hangs off it.
+        if (special || hasCredentials || hasPort) return undefined;
+    }
+    const host = parseHost(buffer, !special);
+    return host === undefined ? undefined : { host };
+}
+
+function isDoubleDotSegment(segment: string): boolean {
+    const lower = segment.toLowerCase();
+    return lower === '..' || lower === '.%2e' || lower === '%2e.' || lower === '%2e%2e';
+}
+
+function isSingleDotSegment(segment: string): boolean {
+    const lower = segment.toLowerCase();
+    return lower === '.' || lower === '%2e';
+}
+
+/** The path start + path states, run as a state override: what `url.pathname = value` resolves to. */
+function parsePathSetterValue(value: string, special: boolean, hostIsNull: boolean): string {
+    let input = value.replace(TAB_NEWLINE, '');
+    // `\` is a segment delimiter on a special scheme and an ordinary path character everywhere else.
+    if (special) input = input.replace(/\\/g, '/');
+
+    if (input === '') {
+        // "Special URLs cannot have their paths erased", and neither can a path-only URL: both keep
+        // one empty segment, which serialises as `/`. A non-special URL that HAS a host can.
+        return special || hostIsNull ? '/' : '';
+    }
+
+    const segments: string[] = [];
+    const parts = (input.startsWith('/') ? input.slice(1) : input).split('/');
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isLast = i === parts.length - 1;
+        if (isDoubleDotSegment(part)) {
+            segments.pop();
+            // A dot segment in FINAL position still leaves a trailing slash behind it.
+            if (isLast) segments.push('');
+        } else if (isSingleDotSegment(part)) {
+            if (isLast) segments.push('');
+        } else {
+            segments.push(percentEncode(part, PATH_EXTRA));
+        }
+    }
+    return '/' + segments.join('/');
+}
+
+/**
+ * Put back the brackets `GLib.Uri` strips from an IPv6 literal.
+ *
+ * A colon cannot occur in any other kind of host, so the test is unambiguous — and without this
+ * both `hostname` and `href` answered `::1` for `http://[::1]/`, which re-parses as a different
+ * URL entirely.
+ */
+function bracketIPv6Host(host: string): string {
+    return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 }
 
 /**
@@ -288,6 +657,12 @@ export class URL {
     /** Already default-stripped: `https://x:443/` and `https://x/` are the same URL. */
     #port: number | null;
     #path: string;
+    /**
+     * An "opaque path" is the spec's name for a cannot-be-a-base URL — `mailto:me@x`, `data:…`,
+     * `javascript:…`. It is the gate on four setters (`pathname`, `host`, `hostname`, and through
+     * them `port`), so it is decided once, at parse time, rather than re-derived per setter.
+     */
+    #opaquePath: boolean;
     #fragment: string | null;
     #searchParams: URLSearchParams;
     /**
@@ -321,13 +696,19 @@ export class URL {
         }
 
         this.#scheme = uri.get_scheme();
+        const special = isSpecialScheme(this.#scheme);
         this.#username = uri.get_user() ?? '';
         this.#password = uri.get_password() ?? '';
         const host = uri.get_host();
-        this.#host = host === null ? null : host.toLowerCase();
+        // A special URL always HAS a host, even an empty one — `file:` is `file:///`. A non-special
+        // URL may genuinely have none, and that is what separates `foo:/path` (a path-only URL,
+        // whose path can be reassigned) from `foo:path` (an opaque one, whose path cannot).
+        this.#host = host === null ? (special ? '' : null) : bracketIPv6Host(host.toLowerCase());
         const port = uri.get_port();
         this.#port = port === -1 || port === defaultPort(this.#scheme) ? null : port;
         this.#path = uri.get_path() ?? '';
+        if (special && this.#path === '') this.#path = '/';
+        this.#opaquePath = this.#host === null && !this.#path.startsWith('/');
         this.#fragment = uri.get_fragment() ?? null;
         this.#query = uri.get_query() ?? null;
         this.#searchParams = new URLSearchParams(this.#query || '');
@@ -343,12 +724,77 @@ export class URL {
         return this.#scheme + ':';
     }
 
+    /**
+     * Replace the scheme — but only where the spec allows it, and never by throwing.
+     *
+     * Three refusals, all silent, all real: a scheme may not cross the special/non-special
+     * boundary (`http:` → `b:` would leave a special URL with a host nothing would validate), a
+     * URL with credentials or a port may not become `file:` (which can have neither), and a
+     * `file:` URL with no host may not become anything else. An invalid scheme is IGNORED rather
+     * than reported, so a consumer feeding user input in cannot be made to throw.
+     */
+    set protocol(value: string) {
+        // The trailing `:` the spec appends is what terminates the scheme state, which is why
+        // "stuff after the first colon is ignored" needs no separate rule.
+        const input = String(value).replace(TAB_NEWLINE, '') + ':';
+        if (!/^[A-Za-z]/.test(input)) return;
+
+        let buffer = '';
+        for (const ch of input) {
+            if (ch === ':') break;
+            if (!isSchemeChar(ch)) return;
+            buffer += ch.toLowerCase();
+        }
+
+        if (isSpecialScheme(this.#scheme) !== isSpecialScheme(buffer)) return;
+        if (buffer === 'file' && (this.#username !== '' || this.#password !== '' || this.#port !== null)) return;
+        if (this.#scheme === 'file' && (this.#host === null || this.#host === '')) return;
+
+        this.#scheme = buffer;
+        if (this.#port !== null && this.#port === defaultPort(buffer)) this.#port = null;
+    }
+
     get hostname(): string {
         return this.#host ?? '';
     }
 
+    /** Unlike {@link host}, a `:` in the value invalidates the whole assignment. */
+    set hostname(value: string) {
+        if (this.#opaquePath) return;
+        const assignment = parseHostSetterValue(
+            String(value),
+            this.#scheme,
+            this.#username !== '' || this.#password !== '',
+            this.#port !== null,
+            true,
+        );
+        if (assignment === undefined) return;
+        this.#host = assignment.host;
+    }
+
     get port(): string {
         return this.#port === null ? '' : String(this.#port);
+    }
+
+    /**
+     * A port is the ASCII-digit PREFIX of the value — `'8080stuff'` is 8080, not an error — and a
+     * value equal to the scheme's default serialises away, so `https://x/` and `https://x:443/`
+     * stay the same URL.
+     */
+    set port(value: string) {
+        if (this.#cannotHaveCredentialsOrPort()) return;
+        const raw = String(value);
+        // The clear is decided on the RAW value: `''` clears the port, while `'\n\t'` — which is
+        // empty only after the parser strips it — is a no-op instead.
+        if (raw === '') {
+            this.#port = null;
+            return;
+        }
+        const digits = digitPrefix(raw.replace(TAB_NEWLINE, ''));
+        if (digits === '') return;
+        const port = Number(digits);
+        if (port > 0xffff) return;
+        this.#port = port === defaultPort(this.#scheme) ? null : port;
     }
 
     get host(): string {
@@ -357,8 +803,32 @@ export class URL {
         return port ? `${hostname}:${port}` : hostname;
     }
 
+    /** Carries an optional port after a `:`; a value without one leaves the port untouched. */
+    set host(value: string) {
+        if (this.#opaquePath) return;
+        const assignment = parseHostSetterValue(
+            String(value),
+            this.#scheme,
+            this.#username !== '' || this.#password !== '',
+            this.#port !== null,
+            false,
+        );
+        if (assignment === undefined) return;
+        this.#host = assignment.host;
+        if (assignment.port !== undefined) this.#port = assignment.port;
+    }
+
     get pathname(): string {
-        return this.#path || '/';
+        return this.#path;
+    }
+
+    /**
+     * Replace the path — ignored outright on a URL with an opaque path, where there is no path
+     * list to replace.
+     */
+    set pathname(value: string) {
+        if (this.#opaquePath) return;
+        this.#path = parsePathSetterValue(String(value), isSpecialScheme(this.#scheme), this.#host === null);
     }
 
     get search(): string {
@@ -387,19 +857,36 @@ export class URL {
         //     percent-encode set. Without that, an assigned `#` escapes into the fragment.
         // `_entries` is filled from the UNENCODED text, so `get()` keeps returning decoded values,
         // and refilled IN PLACE because the spec makes `searchParams`' identity stable.
-        const stripped = String(value).replace(/[\t\n\r]/g, '');
-        if (stripped === '') {
+        const raw = String(value);
+        if (raw === '') {
             this.#query = null;
             this.#searchParams._entries = [];
             return;
         }
-        const query = stripped.startsWith('?') ? stripped.slice(1) : stripped;
+        // Order is observable: the `?` comes off the RAW value, so `'\t?a=b'` — whose first
+        // character is a tab, not a `?` — keeps its question mark as query content.
+        const query = (raw.startsWith('?') ? raw.slice(1) : raw).replace(TAB_NEWLINE, '');
         this.#query = encodeQuery(query, isSpecialScheme(this.#scheme));
         this.#searchParams._entries = new URLSearchParams(query)._entries;
     }
 
     get hash(): string {
         return this.#fragment ? '#' + this.#fragment : '';
+    }
+
+    /**
+     * Three states, as with {@link search}: no fragment, the empty fragment (which still
+     * serialises as a bare `#`), and a fragment with content. Only ONE leading `#` comes off, so
+     * `'##nav'` is the fragment `#nav`.
+     */
+    set hash(value: string) {
+        const raw = String(value);
+        if (raw === '') {
+            this.#fragment = null;
+            return;
+        }
+        const input = (raw.startsWith('#') ? raw.slice(1) : raw).replace(TAB_NEWLINE, '');
+        this.#fragment = percentEncode(input, FRAGMENT_EXTRA);
     }
 
     get origin(): string {
@@ -414,37 +901,77 @@ export class URL {
         return this.#username;
     }
 
+    set username(value: string) {
+        if (this.#cannotHaveCredentialsOrPort()) return;
+        this.#username = percentEncode(String(value), USERINFO_EXTRA);
+    }
+
     get password(): string {
         return this.#password;
     }
 
+    set password(value: string) {
+        if (this.#cannotHaveCredentialsOrPort()) return;
+        this.#password = percentEncode(String(value), USERINFO_EXTRA);
+    }
+
+    /**
+     * The spec's "cannot have a username/password/port": there is nowhere to hang credentials on a
+     * URL with no host or an empty one, and a `file:` URL has no userinfo or port by definition.
+     */
+    #cannotHaveCredentialsOrPort(): boolean {
+        return this.#host === null || this.#host === '' || this.#scheme === 'file';
+    }
+
     get href(): string {
-        let result = this.protocol;
+        let result = this.#scheme + ':';
 
-        if (isSpecialScheme(this.#scheme) || this.hostname) {
+        if (this.#host !== null) {
             result += '//';
+            // NOT `if (username)`: `http://:secret@x/` has an empty username and a password, and
+            // keying the whole userinfo block on the username alone dropped the password.
+            if (this.#username !== '' || this.#password !== '') {
+                result += this.#username;
+                if (this.#password !== '') result += ':' + this.#password;
+                result += '@';
+            }
+            result += this.#host;
+            if (this.#port !== null) result += ':' + this.#port;
+        } else if (!this.#opaquePath && this.#path.startsWith('//')) {
+            // A host-less URL whose path starts with `//` would re-parse as one WITH an authority,
+            // so the serialiser writes `/.` in front of it.
+            result += '/.';
         }
 
-        const user = this.username;
-        const pass = this.password;
-        if (user) {
-            result += user;
-            if (pass) result += ':' + pass;
-            result += '@';
-        }
+        result += this.#path;
 
-        result += this.hostname;
-        if (this.port) result += ':' + this.port;
-
-        const pathname = this.pathname;
-        result += pathname;
-
-        // NOT `this.search`: the getter answers '' for both a null and an empty query, but only
-        // one of them drops the `?` from the URL.
+        // NOT `this.search`/`this.hash`: those getters answer '' for both a null and an empty
+        // component, and only one of the two drops its delimiter from the URL.
         result += this.#query === null ? '' : `?${this.#query}`;
-        result += this.hash;
+        result += this.#fragment === null ? '' : `#${this.#fragment}`;
 
         return result;
+    }
+
+    /**
+     * Re-parse the whole URL — the ONE setter that throws, because there is no component left to
+     * fall back on when the value is not a URL at all.
+     *
+     * The existing `searchParams` is refilled rather than replaced, for the same reason as in
+     * {@link search}: the spec makes its identity stable across the assignment.
+     */
+    set href(value: string) {
+        const next = new URL(String(value));
+        this.#scheme = next.#scheme;
+        this.#username = next.#username;
+        this.#password = next.#password;
+        this.#host = next.#host;
+        this.#port = next.#port;
+        this.#path = next.#path;
+        this.#opaquePath = next.#opaquePath;
+        this.#query = next.#query;
+        this.#fragment = next.#fragment;
+        this.#searchParams._entries = new URLSearchParams(this.#query || '')._entries;
     }
 
     get searchParams(): URLSearchParams {

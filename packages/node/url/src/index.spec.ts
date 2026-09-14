@@ -3,6 +3,11 @@ import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, reso
 
 // Ported from refs/node-test/parallel/test-url-*.js and refs/node-test/parallel/test-whatwg-url-*.js
 // Original: MIT license, Node.js contributors
+// The setter suites below are ported from refs/wpt/url/resources/setters_tests.json
+// Original: Copyright the Web Platform Tests contributors. BSD-3-Clause.
+
+/** True on real GJS — the same signal `@gjsify/unit` gates its host hooks on. */
+const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
 
 export default async () => {
     // The live-view contract between `url.searchParams` and `url.href`.
@@ -509,6 +514,799 @@ export default async () => {
         await it('should decode percent-encoded username', async () => {
             const u = new URL('http://user%40name@example.com/');
             expect(u.username).toBe('user%40name');
+        });
+    });
+
+    // The ten WHATWG URL setters.
+    //
+    // Ported from refs/wpt/url/resources/setters_tests.json (Web Platform Tests, BSD-3-Clause),
+    // rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
+    //
+    // Nine of the ten were simply ABSENT. `url.protocol = 'ftp:'` and its eight siblings threw
+    // `TypeError: setting getter-only property` under GJS while the identical line worked on
+    // Node, so any consumer that builds a URL by mutation — which is the ordinary way to do it —
+    // was broken, and broken only on GJS. `search` was fixed alone in #1245, and the note saying
+    // so read as if the class had been made mutable, which is how the other nine sat unnoticed.
+    //
+    // Nothing here is GJS-specific: every assertion is Node's own answer, so the Node leg proves
+    // the test and the GJS leg proves the implementation.
+    await describe('URL.protocol setter', async () => {
+        await it('assigns a new scheme, lower-casing it', async () => {
+            const u = new URL('a://example.net');
+            u.protocol = 'B';
+            expect(u.protocol).toBe('b:');
+            expect(u.href).toBe('b://example.net');
+        });
+
+        await it('accepts the full scheme charset', async () => {
+            const u = new URL('a://example.net');
+            u.protocol = 'bC0+-.';
+            expect(u.protocol).toBe('bc0+-.:');
+        });
+
+        await it('ignores an invalid scheme rather than throwing', async () => {
+            // The only setter that throws is `href`. Everything else is a silent no-op, and a
+            // consumer feeding user input into `protocol` depends on that.
+            for (const bad of ['', 'é', '0b', '+b', 'b,c', 'bé', 'https\u0000', 'https\f', 'https ']) {
+                const u = new URL('a://example.net');
+                u.protocol = bad;
+                expect(u.protocol).toBe('a:');
+                expect(u.href).toBe('a://example.net');
+            }
+        });
+
+        await it('ignores everything after the first colon', async () => {
+            const u = new URL('http://test/');
+            u.protocol = 'https:foo : bar';
+            expect(u.href).toBe('https://test/');
+        });
+
+        await it('strips ASCII tab and newline', async () => {
+            const u = new URL('http://test/');
+            u.protocol = 'h\r\ntt\tps';
+            expect(u.protocol).toBe('https:');
+        });
+
+        await it('refuses to cross the special/non-special boundary', async () => {
+            const special = new URL('http://example.net');
+            special.protocol = 'b';
+            expect(special.protocol).toBe('http:');
+
+            const nonSpecial = new URL('ssh://me@example.net');
+            nonSpecial.protocol = 'https';
+            expect(nonSpecial.protocol).toBe('ssh:');
+        });
+
+        await it('refuses "file" when the URL carries credentials or a port', async () => {
+            const withUser = new URL('http://test@example.net');
+            withUser.protocol = 'file';
+            expect(withUser.protocol).toBe('http:');
+
+            const withPort = new URL('https://example.net:1234');
+            withPort.protocol = 'file';
+            expect(withPort.protocol).toBe('https:');
+
+            const withBoth = new URL('wss://x:x@example.net:1234');
+            withBoth.protocol = 'file';
+            expect(withBoth.protocol).toBe('wss:');
+        });
+
+        await it('refuses to leave "file" when the host is empty', async () => {
+            const u = new URL('file:///test');
+            u.protocol = 'https';
+            expect(u.href).toBe('file:///test');
+        });
+
+        await it('drops a port that is the new scheme default', async () => {
+            const u = new URL('http://foo.com:443/');
+            u.protocol = 'https';
+            expect(u.port).toBe('');
+            expect(u.href).toBe('https://foo.com/');
+        });
+
+        await it('changes the scheme of an opaque-path URL', async () => {
+            const u = new URL('javascript:alert(1)');
+            u.protocol = 'defuse';
+            expect(u.href).toBe('defuse:alert(1)');
+        });
+
+        await it('leaves a cannot-be-a-base URL alone when the new scheme is special', async () => {
+            const u = new URL('mailto:me@example.net');
+            u.protocol = 'http';
+            expect(u.href).toBe('mailto:me@example.net');
+        });
+    });
+
+    await describe('URL.username and URL.password setters', async () => {
+        await it('sets a username on a URL that has a host', async () => {
+            const u = new URL('http://example.net');
+            u.username = 'me';
+            expect(u.username).toBe('me');
+            expect(u.href).toBe('http://me@example.net/');
+        });
+
+        await it('sets a password, keeping an empty username', async () => {
+            const u = new URL('http://example.net');
+            u.password = 'secret';
+            expect(u.password).toBe('secret');
+            expect(u.href).toBe('http://:secret@example.net/');
+        });
+
+        await it('clears a username and keeps the password', async () => {
+            const u = new URL('http://me:secret@example.net');
+            u.username = '';
+            expect(u.href).toBe('http://:secret@example.net/');
+        });
+
+        await it('clears a password and keeps the username', async () => {
+            const u = new URL('http://me:secret@example.net');
+            u.password = '';
+            expect(u.href).toBe('http://me@example.net/');
+        });
+
+        await it('is a no-op where the URL cannot have credentials', async () => {
+            // "Cannot have a username/password/port" is host-null, host-empty, or scheme file.
+            for (const href of ['file:///home/you/index.html', 'unix:/run/foo.socket', 'mailto:you@example.net', 'javascript:alert(1)', 'sc:///', 'file://test/']) {
+                const u = new URL(href);
+                u.username = 'me';
+                u.password = 'secret';
+                expect(u.username).toBe('');
+                expect(u.password).toBe('');
+                expect(u.href).toBe(href);
+            }
+        });
+
+        await it('percent-encodes with the userinfo set', async () => {
+            const u = new URL('http://example.net');
+            u.username = '\u0000\u0001\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
+            expect(u.username).toBe(
+                '%00%01%1F%20!%22%23$%&\'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9',
+            );
+        });
+
+        await it('leaves bytes that are already percent-encoded as they are', async () => {
+            const u = new URL('http://example.net');
+            u.username = '%c3%89té';
+            expect(u.username).toBe('%c3%89t%C3%A9');
+        });
+
+        await it('does NOT strip tab and newline, unlike every other setter', async () => {
+            // The other nine run the value through the basic URL parser, which removes ASCII tab
+            // and newline. `username`/`password` do not go through it, so the characters survive
+            // as percent-encoded bytes.
+            const u = new URL('http://example.net');
+            u.username = 'a\t\n\rb';
+            expect(u.username).toBe('a%09%0A%0Db');
+        });
+    });
+
+    await describe('URL.host setter', async () => {
+        await it('sets hostname and port together', async () => {
+            const u = new URL('http://example.net');
+            u.host = 'example.com:8080';
+            expect(u.host).toBe('example.com:8080');
+            expect(u.hostname).toBe('example.com');
+            expect(u.port).toBe('8080');
+        });
+
+        await it('leaves the port alone when the value names none', async () => {
+            const withoutColon = new URL('http://example.net:8080');
+            withoutColon.host = 'example.com';
+            expect(withoutColon.host).toBe('example.com:8080');
+
+            const emptyPort = new URL('http://example.net:8080');
+            emptyPort.host = 'example.com:';
+            expect(emptyPort.host).toBe('example.com:8080');
+        });
+
+        await it('drops a port equal to the scheme default', async () => {
+            const u = new URL('http://example.net:8080');
+            u.host = 'example.com:80';
+            expect(u.port).toBe('');
+            expect(u.href).toBe('http://example.com/');
+        });
+
+        await it('keeps a default port that belongs to a different scheme', async () => {
+            const u = new URL('https://example.net');
+            u.host = 'example.com:80';
+            expect(u.host).toBe('example.com:80');
+        });
+
+        await it('stops the port parser at the first non-digit without failing', async () => {
+            for (const value of ['example.com:8080stuff2', 'example.com:8080+2']) {
+                const u = new URL('http://example.net/path');
+                u.host = value;
+                expect(u.host).toBe('example.com:8080');
+            }
+        });
+
+        await it('sets the hostname but leaves the port when the port overflows', async () => {
+            const u = new URL('http://example.net/path');
+            u.host = 'example.com:65536';
+            expect(u.hostname).toBe('example.com');
+            expect(u.port).toBe('');
+        });
+
+        await it('ignores everything after a delimiter', async () => {
+            for (const value of ['example.com/stuff', 'example.com?stuff', 'example.com#stuff', 'example.com\\stuff']) {
+                const u = new URL('http://example.net/path');
+                u.host = value;
+                expect(u.href).toBe('http://example.com/path');
+            }
+        });
+
+        await it('does not treat a backslash as a delimiter on a non-special scheme', async () => {
+            // `\` is forbidden in a host, so the whole value is refused rather than truncated.
+            const u = new URL('view-source+http://example.net/path');
+            u.host = 'example.com\\stuff';
+            expect(u.host).toBe('example.net');
+        });
+
+        await it('is a no-op on a URL with an opaque path', async () => {
+            for (const href of ['mailto:me@example.net', 'data:text/plain,Stuff']) {
+                const u = new URL(href);
+                u.host = 'example.com';
+                expect(u.host).toBe('');
+                expect(u.href).toBe(href);
+            }
+        });
+
+        await it('lets a path-only URL gain a host', async () => {
+            const u = new URL('a:/foo');
+            u.host = 'example.net';
+            expect(u.href).toBe('a://example.net/foo');
+        });
+
+        await it('keeps IPv6 brackets and reads the port after them', async () => {
+            const u = new URL('http://example.net:8080/test');
+            u.host = '[::1]';
+            expect(u.hostname).toBe('[::1]');
+            expect(u.host).toBe('[::1]:8080');
+
+            const withPort = new URL('http://example.net');
+            withPort.host = '[2001:db8::2]:4002';
+            expect(withPort.href).toBe('http://[2001:db8::2]:4002/');
+        });
+
+        await it('refuses a broken IPv6 literal', async () => {
+            for (const value of ['[google.com]', '[::1.2.3.4x]', '[::1.2.3.]', '[::1.2.]', '[::1.]']) {
+                const u = new URL('http://example.net/');
+                u.host = value;
+                expect(u.hostname).toBe('example.net');
+            }
+        });
+
+        await it('normalizes an IPv6 literal to its shortest form', async () => {
+            const u = new URL('http://example.net');
+            u.host = '[::0:01]:2';
+            expect(u.hostname).toBe('[::1]');
+            expect(u.port).toBe('2');
+        });
+
+        await it('percent-encodes an opaque host on a non-special scheme', async () => {
+            const u = new URL('sc://x/');
+            u.host = 'ß';
+            expect(u.hostname).toBe('%C3%9F');
+        });
+
+        await it.failing(
+            'normalizes IPv4 address syntax',
+            async () => {
+                const u = new URL('http://example.net');
+                u.host = '0x7F000001:8080';
+                expect(u.hostname).toBe('127.0.0.1');
+            },
+            'The WHATWG IPv4 parser (hex/octal/dotless forms collapsed to dotted-quad) lives in the ' +
+                'HOST parser, which `new URL()` and the host setters share. @gjsify/url parses through ' +
+                'GLib.Uri, which is RFC 3986 and does no such canonicalisation, so implementing it in the ' +
+                'setter alone would make `new URL("http://0x7F000001/").hostname` and `u.hostname = ' +
+                '"0x7F000001"` disagree — a worse defect than the one it fixes. It belongs to a host-parser ' +
+                'change that covers both, not to this one.',
+            { when: IS_GJS },
+        );
+
+        await it.failing(
+            'runs a non-ASCII host through IDNA',
+            async () => {
+                const u = new URL('https://x/');
+                u.host = 'ß';
+                expect(u.hostname).toBe('xn--zca');
+            },
+            'IDNA ToASCII (UTS #46 mapping plus Punycode) has no GLib equivalent — GLib.Uri leaves a ' +
+                'non-ASCII host as typed. Same argument as the IPv4 marker above: the conversion belongs to ' +
+                'the shared host parser, so the constructor and the setter must gain it together.',
+            { when: IS_GJS },
+        );
+    });
+
+    await describe('URL.hostname setter', async () => {
+        await it('refuses a value containing a colon', async () => {
+            // The port delimiter invalidates the whole assignment — it does not merely truncate.
+            const u = new URL('http://example.net/path');
+            u.hostname = 'example.com:8080';
+            expect(u.hostname).toBe('example.net');
+
+            const trailing = new URL('http://example.net:8080/path');
+            trailing.hostname = 'example.com:';
+            expect(trailing.host).toBe('example.net:8080');
+        });
+
+        await it('truncates at a delimiter', async () => {
+            for (const value of ['example.com/stuff', 'example.com?stuff', 'example.com#stuff']) {
+                const u = new URL('http://example.net/path');
+                u.hostname = value;
+                expect(u.hostname).toBe('example.com');
+            }
+        });
+
+        await it('refuses the empty host on a special scheme', async () => {
+            const u = new URL('http://example.net');
+            u.hostname = '';
+            expect(u.hostname).toBe('example.net');
+        });
+
+        await it('accepts the empty host on a non-special scheme', async () => {
+            const u = new URL('view-source+http://example.net/foo');
+            u.hostname = '';
+            expect(u.href).toBe('view-source+http:///foo');
+        });
+
+        await it('refuses the empty host when credentials or a port are present', async () => {
+            const withUser = new URL('sc://test@test/');
+            withUser.hostname = '';
+            expect(withUser.hostname).toBe('test');
+
+            const withPort = new URL('sc://test:12/');
+            withPort.hostname = '';
+            expect(withPort.host).toBe('test:12');
+        });
+
+        await it('refuses a forbidden host code point', async () => {
+            for (const value of ['><', 'x@x']) {
+                const u = new URL('https://test.invalid/');
+                u.hostname = value;
+                expect(u.hostname).toBe('test.invalid');
+            }
+            for (const value of ['\u0000', ' ', '@']) {
+                const u = new URL('sc://x/');
+                u.hostname = value;
+                expect(u.hostname).toBe('x');
+            }
+        });
+
+        await it('reads a terminator as the empty host on a non-special scheme', async () => {
+            for (const value of ['\t', '\n', '\r', '#', '/', '?']) {
+                const u = new URL('sc://x/');
+                u.hostname = value;
+                expect(u.href).toBe('sc:///');
+            }
+        });
+
+        await it('does not strip a leading slash', async () => {
+            const special = new URL('http://example.com/');
+            special.hostname = '///bad.com';
+            expect(special.hostname).toBe('example.com');
+
+            const nonSpecial = new URL('sc://example.com/');
+            nonSpecial.hostname = '///bad.com';
+            expect(nonSpecial.href).toBe('sc:///');
+        });
+
+        await it('strips ASCII tab and newline from the middle of a value', async () => {
+            const u = new URL('https://test.invalid/');
+            u.hostname = 'foo\t\r\nbar';
+            expect(u.hostname).toBe('foobar');
+        });
+
+        await it.failing(
+            'refuses an ASCII label that IDNA cannot decode',
+            async () => {
+                const u = new URL('https://test.invalid/');
+                u.hostname = 'xn--';
+                expect(u.hostname).toBe('test.invalid');
+            },
+            'Without IDNA ToASCII there is nothing to reject with: `xn--` is plain ASCII and passes every ' +
+                'check @gjsify/url can make, so the assignment succeeds. Node rejects it because its ' +
+                'Punycode decoder fails on the empty label — and note WPT expects it to be ACCEPTED ' +
+                '(setters_tests.json), so this pins the REFERENCE, not the spec text. Retires with the ' +
+                'shared host-parser change that brings IDNA to the constructor and the setters together.',
+            { when: IS_GJS },
+        );
+
+        await it('does not treat a colon as a port delimiter on a file URL', async () => {
+            // In file host state `:` is an ordinary — and forbidden — host character, so the
+            // whole value is refused instead of being split into host and port.
+            const u = new URL('file://y/');
+            u.hostname = 'x:123';
+            expect(u.hostname).toBe('y');
+        });
+
+        await it('lets a file URL drop its host', async () => {
+            const u = new URL('file://hi/x');
+            u.hostname = '';
+            expect(u.href).toBe('file:///x');
+        });
+
+        await it('is a no-op on a URL with an opaque path', async () => {
+            const u = new URL('mailto:me@example.net');
+            u.hostname = 'example.com';
+            expect(u.href).toBe('mailto:me@example.net');
+        });
+    });
+
+    await describe('URL.port setter', async () => {
+        await it('sets a port', async () => {
+            const u = new URL('http://example.net');
+            u.port = '8080';
+            expect(u.port).toBe('8080');
+            expect(u.href).toBe('http://example.net:8080/');
+        });
+
+        await it('clears the port on the empty string', async () => {
+            const u = new URL('http://example.net:8080');
+            u.port = '';
+            expect(u.port).toBe('');
+            expect(u.href).toBe('http://example.net/');
+        });
+
+        await it('drops a value equal to the scheme default', async () => {
+            const u = new URL('http://example.net:8080');
+            u.port = '80';
+            expect(u.port).toBe('');
+        });
+
+        await it('keeps a default port that belongs to a different scheme', async () => {
+            const u = new URL('https://example.net');
+            u.port = '80';
+            expect(u.port).toBe('80');
+        });
+
+        await it('stops at the first non-digit without failing', async () => {
+            for (const [value, expected] of [
+                ['8080/stuff', '8080'],
+                ['8080?stuff', '8080'],
+                ['8080#stuff', '8080'],
+                ['8080\\stuff', '8080'],
+                ['8080stuff2', '8080'],
+                ['8080+2', '8080'],
+            ] as const) {
+                const u = new URL('http://example.net/path');
+                u.port = value;
+                expect(u.port).toBe(expected);
+            }
+        });
+
+        await it('uses only the ASCII-digit prefix', async () => {
+            const u = new URL('https://www.google.com:4343');
+            u.port = '4wpt';
+            expect(u.port).toBe('4');
+        });
+
+        await it('accepts the top of the 16-bit range and refuses what overflows it', async () => {
+            const max = new URL('http://example.net/path');
+            max.port = '65535';
+            expect(max.port).toBe('65535');
+
+            const over = new URL('http://example.net:8080/path');
+            over.port = '65536';
+            expect(over.port).toBe('8080');
+        });
+
+        await it('ignores a value that does not start with a digit', async () => {
+            const u = new URL('http://example.net:8080/path');
+            u.port = 'randomstring';
+            expect(u.port).toBe('8080');
+        });
+
+        await it('strips ASCII tab and newline before parsing', async () => {
+            const leading = new URL('https://domain.com:443');
+            leading.port = '\t8080';
+            expect(leading.port).toBe('8080');
+
+            const interleaved = new URL('https://domain.com:3000');
+            interleaved.port = '\n\t80\n\t80\n\t';
+            expect(interleaved.port).toBe('8080');
+        });
+
+        await it('leaves the port alone when stripping empties the value', async () => {
+            // The empty string clears the port; a value that only LOOKS empty after tab/newline
+            // removal is a no-op instead, because the clear is decided before the parse.
+            const u = new URL('https://domain.com:3000');
+            u.port = '\n\n\t\t';
+            expect(u.port).toBe('3000');
+        });
+
+        await it('is a no-op where the URL cannot have a port', async () => {
+            for (const href of ['file://test/', 'non-base:value', 'sc:///']) {
+                const u = new URL(href);
+                u.port = '12';
+                expect(u.port).toBe('');
+                expect(u.href).toBe(href);
+            }
+        });
+
+        await it('sets a port on a non-special scheme', async () => {
+            const u = new URL('sc://x/');
+            u.port = '12';
+            expect(u.href).toBe('sc://x:12/');
+        });
+    });
+
+    await describe('URL.pathname setter', async () => {
+        await it('is a no-op on a URL with an opaque path', async () => {
+            for (const href of ['mailto:me@example.net', 'data:original', 'sc:original']) {
+                const u = new URL(href);
+                u.pathname = 'new value';
+                expect(u.href).toBe(href);
+            }
+        });
+
+        await it('gives a relative value its leading slash', async () => {
+            const u = new URL('https://example.net#nav');
+            u.pathname = 'home';
+            expect(u.pathname).toBe('/home');
+            expect(u.href).toBe('https://example.net/home#nav');
+        });
+
+        await it('resolves dot segments', async () => {
+            const up = new URL('https://example.net#nav');
+            up.pathname = '../home';
+            expect(up.pathname).toBe('/home');
+
+            const mixed = new URL('unix:/run/foo.socket?timeout=10');
+            mixed.pathname = '/var/log/../run/bar.socket';
+            expect(mixed.href).toBe('unix:/var/run/bar.socket?timeout=10');
+
+            const trailing = new URL('foo://path/to');
+            trailing.pathname = '/..';
+            expect(trailing.pathname).toBe('/');
+        });
+
+        await it('reads a backslash as a segment delimiter only on a special scheme', async () => {
+            const special = new URL('http://example.net/home?lang=fr#nav');
+            special.pathname = '\\a\\%2E\\b\\%2e.\\c';
+            expect(special.pathname).toBe('/a/c');
+            expect(special.href).toBe('http://example.net/a/c?lang=fr#nav');
+
+            const nonSpecial = new URL('view-source+http://example.net/home?lang=fr#nav');
+            nonSpecial.pathname = '\\a\\%2E\\b\\%2e.\\c';
+            expect(nonSpecial.pathname).toBe('/\\a\\%2E\\b\\%2e.\\c');
+        });
+
+        await it('percent-encodes with the path set', async () => {
+            const u = new URL('a:/');
+            u.pathname = '\u0000\u0001\t\n\r\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
+            expect(u.pathname).toBe(
+                '/%00%01%1F%20!%22%23$%&\'()*+,-./09:;%3C=%3E%3F@AZ[\\]%5E_%60az%7B|%7D~%7F%C2%80%C2%81%C3%89%C3%A9',
+            );
+        });
+
+        await it('encodes a question mark and a hash so the value cannot escape the path', async () => {
+            const question = new URL('http://example.net');
+            question.pathname = '?';
+            expect(question.href).toBe('http://example.net/%3F');
+
+            const hash = new URL('http://example.net');
+            hash.pathname = '#';
+            expect(hash.href).toBe('http://example.net/%23');
+
+            const nonSpecial = new URL('sc://example.net');
+            nonSpecial.pathname = '#';
+            expect(nonSpecial.href).toBe('sc://example.net/%23');
+        });
+
+        await it('leaves bytes that are already percent-encoded as they are', async () => {
+            const u = new URL('http://example.net');
+            u.pathname = '%2e%2E%c3%89té';
+            expect(u.pathname).toBe('/%2e%2E%c3%89t%C3%A9');
+        });
+
+        await it('encodes a trailing space and a trailing C0 control', async () => {
+            const space = new URL('http://example.net');
+            space.pathname = ' ';
+            expect(space.pathname).toBe('/%20');
+
+            const nul = new URL('http://example.net');
+            nul.pathname = '\u0000';
+            expect(nul.pathname).toBe('/%00');
+        });
+
+        await it('refuses to erase the path of a special URL', async () => {
+            const u = new URL('file:///some/path');
+            u.pathname = '';
+            expect(u.pathname).toBe('/');
+            expect(u.href).toBe('file:///');
+        });
+
+        await it('erases the path of a non-special URL that has a host', async () => {
+            const withHost = new URL('foo://somehost/some/path');
+            withHost.pathname = '';
+            expect(withHost.pathname).toBe('');
+            expect(withHost.href).toBe('foo://somehost');
+
+            const emptyHost = new URL('foo:///some/path');
+            emptyHost.pathname = '';
+            expect(emptyHost.href).toBe('foo://');
+        });
+
+        await it('refuses to erase the path of a path-only URL', async () => {
+            const u = new URL('foo:/some/path');
+            u.pathname = '';
+            expect(u.pathname).toBe('/');
+            expect(u.href).toBe('foo:/');
+        });
+
+        await it('keeps a doubled leading slash out of the authority position', async () => {
+            // A host-less URL whose path starts with `//` would re-parse as having an authority,
+            // so the serializer writes `/.` in front of it.
+            const u = new URL('non-spec:/');
+            u.pathname = '//p';
+            expect(u.pathname).toBe('//p');
+            expect(u.href).toBe('non-spec:/.//p');
+        });
+
+        await it('drops the /. prefix again once the path no longer needs it', async () => {
+            const u = new URL('non-spec:/.//');
+            u.pathname = 'p';
+            expect(u.href).toBe('non-spec:/p');
+        });
+
+        await it('reads both slashes on a file URL', async () => {
+            const u = new URL('file://monkey/');
+            u.pathname = '\\\\';
+            expect(u.pathname).toBe('//');
+            expect(u.href).toBe('file://monkey//');
+        });
+    });
+
+    await describe('URL.hash setter', async () => {
+        await it('sets a fragment with or without the leading #', async () => {
+            const bare = new URL('https://example.net');
+            bare.hash = 'main';
+            expect(bare.hash).toBe('#main');
+            expect(bare.href).toBe('https://example.net/#main');
+
+            const withHash = new URL('https://example.net#nav');
+            withHash.hash = '#main';
+            expect(withHash.hash).toBe('#main');
+        });
+
+        await it('strips only ONE leading #', async () => {
+            const u = new URL('https://example.net?lang=en-US');
+            u.hash = '##nav';
+            expect(u.hash).toBe('##nav');
+            expect(u.href).toBe('https://example.net/?lang=en-US##nav');
+        });
+
+        await it('distinguishes no fragment from an empty one', async () => {
+            const empty = new URL('https://example.net?lang=en-US#nav');
+            empty.hash = '#';
+            expect(empty.hash).toBe('');
+            expect(empty.href).toBe('https://example.net/?lang=en-US#');
+
+            const none = new URL('https://example.net?lang=en-US#nav');
+            none.hash = '';
+            expect(none.hash).toBe('');
+            expect(none.href).toBe('https://example.net/?lang=en-US');
+        });
+
+        await it('percent-encodes with the fragment set', async () => {
+            const u = new URL('a:/');
+            u.hash = '\u0000\u0001\t\n\r\u001f !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé';
+            expect(u.hash).toBe(
+                '#%00%01%1F%20!%22#$%&\'()*+,-./09:;%3C=%3E?@AZ[\\]^_%60az{|}~%7F%C2%80%C2%81%C3%89%C3%A9',
+            );
+        });
+
+        await it('leaves bytes that are already percent-encoded as they are', async () => {
+            const u = new URL('http://example.net');
+            u.hash = '%c3%89té';
+            expect(u.hash).toBe('#%c3%89t%C3%A9');
+        });
+
+        await it('sets a fragment on an opaque-path URL', async () => {
+            const u = new URL('javascript:alert(1)');
+            u.hash = 'castle';
+            expect(u.href).toBe('javascript:alert(1)#castle');
+        });
+
+        await it('removes the # before the tab and newline strip, not after', async () => {
+            // Order is observable: the leading `#` is removed from the RAW value, so a value that
+            // only starts with `#` once tabs are gone keeps it as fragment content.
+            const u = new URL('https://example.net/p');
+            u.hash = '\t#f';
+            expect(u.hash).toBe('##f');
+        });
+    });
+
+    await describe('URL.search setter (spec details)', async () => {
+        await it('strips only ONE leading ?', async () => {
+            const u = new URL('https://example.net?lang=en-US#nav');
+            u.search = '??lang=fr';
+            expect(u.search).toBe('??lang=fr');
+            expect(u.href).toBe('https://example.net/??lang=fr#nav');
+        });
+
+        await it('distinguishes no query from an empty one', async () => {
+            const u = new URL('https://example.net?lang=en-US#nav');
+            u.search = '?';
+            expect(u.search).toBe('');
+            expect(u.href).toBe('https://example.net/?#nav');
+        });
+
+        await it('removes the ? before the tab and newline strip, not after', async () => {
+            const u = new URL('https://example.net/p');
+            u.search = '\t?a=b';
+            expect(u.search).toBe('??a=b');
+        });
+
+        await it('does not encode an apostrophe on a non-special scheme', async () => {
+            // The query percent-encode set gains `'` only for special schemes.
+            const special = new URL('http://example.net');
+            special.search = "a'b";
+            expect(special.search).toBe('?a%27b');
+
+            const nonSpecial = new URL('sc://example.net');
+            nonSpecial.search = "a'b";
+            expect(nonSpecial.search).toBe("?a'b");
+        });
+    });
+
+    await describe('URL.href setter', async () => {
+        await it('replaces every component', async () => {
+            const u = new URL('https://user:pw@example.com:8443/p?a=1#frag');
+            u.href = 'http://other.test/q?b=2';
+            expect(u.protocol).toBe('http:');
+            expect(u.username).toBe('');
+            expect(u.password).toBe('');
+            expect(u.host).toBe('other.test');
+            expect(u.pathname).toBe('/q');
+            expect(u.search).toBe('?b=2');
+            expect(u.hash).toBe('');
+            expect(u.href).toBe('http://other.test/q?b=2');
+        });
+
+        await it('is the only setter that throws', async () => {
+            const u = new URL('https://example.net/');
+            let threw: unknown;
+            try {
+                u.href = 'not a url';
+            } catch (e) {
+                threw = e;
+            }
+            expect(threw instanceof TypeError).toBe(true);
+            expect(u.href).toBe('https://example.net/');
+        });
+
+        await it('refills searchParams in place, keeping its identity', async () => {
+            const u = new URL('https://example.net/p?a=1');
+            const params = u.searchParams;
+            u.href = 'https://other.test/q?b=2';
+            expect(u.searchParams === params).toBe(true);
+            expect(params.get('a')).toBe(null);
+            expect(params.get('b')).toBe('2');
+        });
+    });
+
+    await describe('URL mutation keeps the rest of the URL intact', async () => {
+        await it('carries query and fragment across every component change', async () => {
+            const u = new URL('https://example.net/p?a=1#frag');
+            u.protocol = 'http';
+            u.username = 'me';
+            u.password = 'secret';
+            u.hostname = 'other.test';
+            u.port = '8080';
+            u.pathname = '/q';
+            expect(u.href).toBe('http://me:secret@other.test:8080/q?a=1#frag');
+        });
+
+        await it('keeps searchParams in step with a search assignment after other mutations', async () => {
+            const u = new URL('https://example.net/p');
+            u.hostname = 'other.test';
+            u.searchParams.set('a', '1');
+            u.pathname = '/q';
+            u.searchParams.append('b', '2');
+            expect(u.href).toBe('https://other.test/q?a=1&b=2');
         });
     });
 
