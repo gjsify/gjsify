@@ -195,9 +195,9 @@ export const CORPUS_RULES = [
     },
     {
         file: '26-one-line-members.blp',
-        isolates: 'two body members sharing one source line, twice',
+        isolates: 'two body members sharing one source line — in an object body three times, and once inside a menu',
         surprise:
-            'the oracle keeps SOURCE order, so the child precedes the property beside it and the signal precedes the property beside it — an order `line` alone cannot recover',
+            'the oracle keeps SOURCE order everywhere: the child, the signal and the style block each precede the property beside them, and inside the menu the item precedes the attribute — an order `line` alone cannot recover, and the menu half is the one the emitter got wrong until this file held it',
     },
     {
         file: '23-widget-reference-list.blp',

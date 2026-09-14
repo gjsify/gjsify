@@ -803,6 +803,9 @@ class Parser {
         const opening = this.expect('{', '`{`');
         /** @type {MenuItem[]} */
         const items = [];
+        // The same counter `parseObjectBody` keeps, for the same reason: a menu body has two
+        // arrays too, and `26-one-line-members.blp` writes an item and an attribute on one line.
+        let order = 0;
         while (!this.at('}')) {
             if (this.peek().type === 'eof') {
                 throw this.fail(
@@ -810,7 +813,7 @@ class Parser {
                     `found end of file, expected \`}\` closing the \`menu {\` on line ${opening.line}`,
                 );
             }
-            items.push(this.parseMenuItem());
+            items.push({ ...this.parseMenuItem(), order: order++ });
         }
         this.expect('}', '`}`');
         return { kind: 'menu', ...(id === undefined ? {} : { id }), items, line: keyword.line };
@@ -843,6 +846,7 @@ class Parser {
         const attributes = [];
         /** @type {MenuItem[]} */
         const items = [];
+        let order = 0;
         while (!this.at('}')) {
             const token = this.peek();
             if (token.type === 'eof') {
@@ -858,10 +862,10 @@ class Parser {
                         `found ${describe(token)}, expected an attribute — an \`item\` holds attributes only`,
                     );
                 }
-                items.push(this.parseMenuItem());
+                items.push({ ...this.parseMenuItem(), order: order++ });
                 continue;
             }
-            attributes.push(this.parseMenuAttribute());
+            attributes.push({ ...this.parseMenuAttribute(), order: order++ });
         }
         this.expect('}', '`}`');
         return { kind, attributes, items, line: keyword.line };
@@ -890,7 +894,7 @@ class Parser {
             if (value.kind !== 'string') {
                 throw this.fail(start, `found a ${value.kind} value, expected a string or a translated string`);
             }
-            attributes.push({ name, value, line: start.line });
+            attributes.push({ name, value, line: start.line, order: attributes.length });
             if (!this.at(',')) {
                 break;
             }

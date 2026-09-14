@@ -265,10 +265,10 @@ function emitBody(xml, body, ownerType, context) {
  * whichever array a member had landed in, which put the property first where the oracle puts
  * the child first. `26-one-line-members.blp` is that case, pinned.
  *
- * Menu attributes and items carry no `order` and fall back to the stable sort's insertion
- * order, which is this function's other caller and a KNOWN gap: two menu members on one line
- * would interleave the same way and nothing here would notice. No file in the corpus has one,
- * and the fix is the same counter one level down.
+ * Menu attributes and items carry the same counter, and they did not always: without it the
+ * stable sort kept the group order below, attributes before items, and `submenu { item (…)
+ * label: "…"; }` on one line emitted the attribute first where the oracle emits the item.
+ * `26-one-line-members.blp` holds that case since it was found.
  */
 function inSourceOrder(groups) {
     /** @type {[string, { readonly line: number, readonly order?: number }][]} */

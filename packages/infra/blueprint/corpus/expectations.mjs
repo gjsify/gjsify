@@ -393,17 +393,27 @@ export const RULE_EXPECTATIONS = [
         file: '26-one-line-members.blp',
         node: {
             tag: 'GtkButton',
-            props: { label: 'on one line', 'margin-top': 4 },
+            props: { label: 'on one line', 'margin-top': 4, 'margin-bottom': 4 },
             children: [{ tag: 'GtkLabel' }],
         },
         lost: [
             {
+                kind: 'menu',
+                line: 3,
+                detail: 'the whole `menu oneLineMenu { }`, whose submenu writes an item and an attribute on one line',
+            },
+            {
                 kind: 'signal',
-                line: 6,
+                line: 10,
                 detail: 'the handler binding `clicked => $onClicked()`, which shares its line with the property beside it',
             },
+            {
+                kind: 'styles',
+                line: 12,
+                detail: '`styles ["flat"]`, which shares its line with the property beside it',
+            },
         ],
-        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 4 and the signal before the property on line 6, and sorting by line alone cannot produce that. `SharedNode` has no signal, so the projection sees only half of what this file pins.',
+        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal, no styles and no menu, so the projection sees only a fraction of what this file pins.',
     },
     {
         file: '31-responses.blp',
