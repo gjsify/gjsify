@@ -165,14 +165,16 @@ export const CORPUS_RULES = [
     },
     {
         file: '20-accessibility.blp',
-        isolates: 'an `accessibility { }` block holding one entry of each ARIA kind',
+        isolates:
+            'an `accessibility { }` block holding one entry of each ARIA kind, a translatable one and a list-valued relation',
         surprise:
-            "the block is not a list of `<property>` elements: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `checked: true` is `1` and `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all",
+            "the block is not a list of `<property>` elements: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `checked: true` is `1` and `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all. And `labelled-by: [labelA, labelB]` is TWO `<relation>` elements of the same name, never one holding a list",
     },
     {
         file: '21-value-array.blp',
-        isolates: 'a list-valued property, `strings [ … ]`',
-        surprise: 'becomes `<items><item>…</item></items>`, a nested element and not an attribute',
+        isolates: 'a bracketed list in both spellings — the `strings [ … ]` extension and a `css-classes: [ … ]` value',
+        surprise:
+            'the extension becomes `<items><item>…</item></items>` and `_()` marks an `<item>` the way it marks a property; the VALUE becomes one `<property>` whose text is the items joined by a NEWLINE, which is what GtkBuilder splits a string array on — the `:` is the whole difference in the source',
     },
     {
         file: '22-menu-nested.blp',
@@ -201,6 +203,12 @@ export const CORPUS_RULES = [
         file: '23-widget-reference-list.blp',
         isolates: 'a second top-level object holding a list of widget REFERENCES',
         surprise: 'the references are `<widget name="…"/>`, so the ids they point at are load-bearing',
+    },
+    {
+        file: '31-responses.blp',
+        isolates: 'a `responses [ … ]` block on an `Adw.AlertDialog`',
+        surprise:
+            'each response is `<response id="…">` with the translatable attributes after the id; the flags `suggested` / `destructive` / `disabled` would add `appearance` and `enabled="false"`, and the parser refuses them by name, so the subset holds the form without them',
     },
     {
         file: '27-property-flags.blp',

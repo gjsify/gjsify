@@ -1,10 +1,13 @@
 using Gtk 4.0;
 
 Gtk.DropDown {
+  css-classes: ["flat", "narrow"];
+
   model: Gtk.StringList {
     strings [
       "first",
-      "second",
+      _("second"),
+      C_("ordinal", "third"),
     ]
   };
 }

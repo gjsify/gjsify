@@ -81,7 +81,7 @@
  *
  * @typedef {'template'|'object-id'|'translatable'|'signal'|'binding'|'breakpoint'
  *          |'menu'|'styles'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'} LossKind
+ *          |'sibling-object'|'responses'} LossKind
  */
 
 /**
@@ -305,9 +305,20 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'accessibility',
                 line: 6,
-                detail: 'the whole `accessibility { }` block — one ARIA property, relation and state; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
+                detail: 'the whole `accessibility { }` block — properties, a relation, a state, a translatable property and a list-valued relation; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
+            },
+            {
+                kind: 'sibling-object',
+                line: 16,
+                detail: 'the whole `Gtk.Label labelA`, which `labelled-by` on line 12 points at — its id goes with it and is not counted twice',
+            },
+            {
+                kind: 'sibling-object',
+                line: 19,
+                detail: 'the whole `Gtk.Label labelB`, the other target of the same relation',
             },
         ],
+        note: 'The two labels are siblings and not children so the ledger lines of this file (the ARIA VALUE types, `corpus/divergences.mjs`) keep their numbers while the block grows: everything new sits after the entry that is ledgered.',
     },
     {
         file: '21-value-array.blp',
@@ -315,11 +326,16 @@ export const RULE_EXPECTATIONS = [
         lost: [
             {
                 kind: 'value-list',
-                line: 5,
-                detail: 'the two strings of the model, because `props` holds no lists — so what projects is a StringList with nothing in it',
+                line: 4,
+                detail: '`css-classes: ["flat", "narrow"]` — the property behind `styles [ ]`, written as a VALUE; it is the `value-list` kind and not `styles` because the projection names a loss after the spelling the file used, and the XML differs too',
+            },
+            {
+                kind: 'value-list',
+                line: 7,
+                detail: 'the three strings of the model, two of them marked translatable, because `props` holds no lists — so what projects is a StringList with nothing in it',
             },
         ],
-        note: 'The one projection here that is worse than lossy: an empty model reads as a legitimate tree and renders an empty dropdown, where every other loss at least leaves the node visibly incomplete.',
+        note: 'The one projection here that is worse than lossy: an empty model reads as a legitimate tree and renders an empty dropdown, where every other loss at least leaves the node visibly incomplete. The `_()` on two of the items is inside the dropped list, so it is not a separate `translatable` loss.',
     },
     {
         file: '22-menu-nested.blp',
@@ -388,6 +404,17 @@ export const RULE_EXPECTATIONS = [
             },
         ],
         note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 4 and the signal before the property on line 6, and sorting by line alone cannot produce that. `SharedNode` has no signal, so the projection sees only half of what this file pins.',
+    },
+    {
+        file: '31-responses.blp',
+        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
+        lost: [
+            {
+                kind: 'responses',
+                line: 7,
+                detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
+            },
+        ],
     },
     {
         file: '27-property-flags.blp',

@@ -7,11 +7,14 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 <interface>
   <requires lib="gtk" version="4.0"/>
   <object class="GtkDropDown">
+    <property name="css-classes">flat
+narrow</property>
     <property name="model">
       <object class="GtkStringList">
         <items>
           <item>first</item>
-          <item>second</item>
+          <item translatable="yes">second</item>
+          <item translatable="yes" context="ordinal">third</item>
         </items>
       </object>
     </property>

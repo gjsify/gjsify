@@ -127,6 +127,7 @@ const LOSS_KINDS = new Set([
     'comment',
     'value-list',
     'sibling-object',
+    'responses',
 ]);
 
 const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);

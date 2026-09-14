@@ -355,9 +355,10 @@ function bindFlags(flags) {
  * 23-widget-reference-list.ui (`<widgets><widget name="…"/></widgets>`, so the ids they
  * point at are load-bearing) are three files that would otherwise collapse into one rule.
  *
- * Any other list-valued property throws rather than guessing a shape, in the spirit of ADR
- * 0053 clause 3: output that looks plausible and means something else is the defect worth
- * refusing.
+ * Any other `name: [ … ]` is an ArrayValue on a string-array PROPERTY and not an extension at
+ * all — the `:` is what tells them apart in the source, and the shape is different again:
+ * `css-classes: ["flat", "narrow"]` is ONE `<property>` whose text is the items joined by a
+ * newline, the spelling GtkBuilder's GStrv parser splits on (21-value-array.ui).
  *
  * @param {XmlWriter} xml @param {Property} property @param {Extract<Value, { kind: 'list' }>} value
  */
@@ -387,8 +388,23 @@ function emitListProperty(xml, property, value) {
         return;
     }
 
+    xml.startTag('property', { name: property.name });
+    xml.text(value.items.map((item) => arrayItemText(item)).join('\n'));
+    xml.endTag();
+}
+
+/**
+ * An ArrayValue item is a plain string. The oracle's `_emit_value` has no arm for a translated
+ * one and dies with a CompilerBugError, so `_()` inside `css-classes: [ … ]` is refused here by
+ * name rather than emitted as something the reference never produces.
+ *
+ * @param {Value} item
+ */
+function arrayItemText(item) {
+    if (item.kind === 'string' && item.translatable === undefined) return item.value;
     throw new Error(
-        `blueprint: line ${property.line}: no emitter rule for the list-valued property "${property.name}"`,
+        `blueprint: line ${item.line}: a property array holds plain strings only — ` +
+            `${item.kind === 'string' ? 'a translated string' : `a ${item.kind}`} is not one the reference compiler emits`,
     );
 }
 
@@ -571,11 +587,30 @@ function emitExtension(xml, extension, context) {
                 : () => 'property';
         xml.startTag(extension.name, {});
         for (const entry of extension.entries) {
-            xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
-                name: entry.name,
-                ...translatedAttributes(entry.value),
-            });
-            xml.text(scalarText(entry.value, null, null, context));
+            // `labelled-by: [labelA, labelB]` is one ELEMENT PER VALUE under the same name, not a
+            // list inside one element (20-accessibility.ui). Only the a11y block takes the form.
+            const values = entry.value.kind === 'list' ? entry.value.items : [entry.value];
+            for (const value of values) {
+                xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
+                    name: entry.name,
+                    ...translatedAttributes(value),
+                });
+                xml.text(scalarText(value, null, null, context));
+                xml.endTag();
+            }
+        }
+        xml.endTag();
+        return;
+    }
+
+    if (extension.name === 'responses') {
+        // 31-responses.ui: `<responses>` of `<response id="…">`, translatable attributes after
+        // the id. The response FLAGS would add `enabled="false"` and `appearance="…"`, and the
+        // parser refuses them by name, so neither attribute is ever owed here.
+        xml.startTag('responses', {});
+        for (const response of extension.entries) {
+            xml.startTag('response', { id: response.name, ...translatedAttributes(response.value) });
+            xml.text(scalarText(response.value, null, null, context));
             xml.endTag();
         }
         xml.endTag();
