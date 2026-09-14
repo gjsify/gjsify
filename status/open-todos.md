@@ -6277,9 +6277,13 @@ preference: neither notation contains the other.
 constructs that stop them are `template` (11 of 11), a `slot` (11 of 11) and object ids (10
 of 11) — GtkBuilder's ADDRESSING model, which the other two surfaces have no use for at all,
 a web custom element having neither a composite template nor a builder id. Emitting `.blp`
-is the cheap one: **6 of the 7 shared blocks are blocked by the translatable marking and by
-nothing else**, and closing that one loss moves 0 of the 11 real files, so the two
-directions do not share a step.
+is the cheap one: **6 of the 7 shared blocks lose the translatable marking and nothing
+else**, and closing that one loss moves 0 of the 11 real files, so the two directions do not
+share a step. Read the 6 as a statement about the PROJECTION: held the other way — each
+blueprint fence projected and compared to its block's authored tree — **5 of the 7 are
+identical**, the same five ADR 0051 § Amendment 2 named from the `preview` fence.
+`Adw.PreferencesGroup` and `Adw.ShortcutLabel` are the two either measurement finds, and the
+marking does not reach them.
 
 Emitting is also the shape ADR 0034 § 8 already names as this repository's answer to the
 neighbouring translator question — write the tree once in the vocabulary that runs and emit
@@ -6293,7 +6297,9 @@ than a plan for it.
 carries 40 hand-authored ` ```blueprint ` fences across 9 pages, with 165 `_()` calls in 37
 of them and 30 `styles [...]` blocks in 13; only 2 of the 40 project through `SharedNode`
 with no loss at all, and 1 — `Adw.AlertDialog` — the parser refuses outright, on the
-`responses` response flag already recorded above. Arm 13 of
+`responses` response flag already recorded above. Of the 165 calls, 137 sit on a scalar
+property and 24 inside a `strings [...]` list or a `menu { }`, which the projection already
+loses by their own kind, so a translatable field reaches the 137 and not the rest. Arm 13 of
 `check-generated-website-data.mjs` holds each block's `preview` fence against the shared
 corpus; no arm holds its `blueprint` fence against anything.
 
@@ -6409,17 +6415,23 @@ earning its keep, and a standing warning that a construct no real file uses is o
 SECOND case nobody has seen. The same figures are already held per line by stage D of
 `check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
 one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
-holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence).
+holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence). Read those two
+numbers as a date: #1681 takes the corpus to 31 rules and 42 files, which moves every figure
+in this paragraph and none of the conclusions below — those rest on the eleven real files,
+which it does not touch.
 
 `slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
 placement on the child wrapper; `content:` is `<property name="content">`, an object as a
 property value — so from `slot: 'content'` alone nothing says which to emit. **That is not a
-shape change, it is a lookup.** Measured: 53 slot uses, 26 bracket-derived and 27
-property-derived; six distinct bracket names against five property names with an EMPTY
-intersection; the question "is this name a property of the parent class?" answers all 17
-distinct (construct, name, class) triples those 53 uses reduce to, with 0 disagreements and
-no class missing from the table it is asked of; and across all 191 interfaces / 169
-widgets of `gtk-host/src/generated/props.ts` **no class declares a property named `start`,
+shape change, it is a lookup.** Measured: 53 slot constructs in the AST over 18 files, 26
+bracket-derived and 27 property-derived, of which 46 reach the projection as a slotted node
+on 17 files — the seven that do not are `[breakpoint]` brackets, dropped whole before a slot
+is written, so an inverter never meets that name. Six distinct bracket names against five
+property names, with an EMPTY intersection; the question "is this name a property of the
+parent class?" answers all 17 distinct (construct, name, class) triples those 53 constructs
+reduce to, with 0 disagreements and no class missing from the table it is asked of; and
+across all 191 interfaces / 169 widgets of
+`gtk-host/src/generated/props.ts` **no class declares a property named `start`,
 `end`, `top`, `bottom`, `center` or `breakpoint`**. Same for the props: a string literal, an
 enum member and an id reference all land on one JS string, and the property's GIR type
 separates them (`orientation` enum-typed, `menu-model` object-typed, `label` string-typed) —
@@ -6440,8 +6452,12 @@ as in XML`, with an array-taking door rejected on a measurement — the LIST is 
 `cssClasses` on `gtk-host` (`props.ts:5772`), `styleClasses` on the NativeScript port (the
 GIR name is taken by `@nativescript/core`'s `ViewBase`), boolean attributes on `adwaita-web`
 — against ADR 0051's rule that a block joins the shared corpus only when it needs no alias
-at all. That is ADR 0034's ledger and its gate's countdown. A finding written by reading a
-decision's TITLE rather than its clause reads exactly like a measurement, which is why this
+at all. That is ADR 0034's ledger and its gate's countdown. The name is only the first half:
+`gtk-host` declares `cssClasses?: string[]` where 0049 § 3's door takes a string, and
+`adwaita-gallery-shared-trees.mjs`'s own comment on the two ledger entries records the
+second kind beside it ("`string[]` against `Set<string>`") — the class filed above under "A
+property can agree on its NAME and disagree on its VALUE KIND". A finding written by reading
+a decision's TITLE rather than its clause reads exactly like a measurement, which is why this
 is recorded rather than quietly corrected.
 
 Widening `props` to hold ADRs 0042 / 0046 / 0047's portable values would move **zero**

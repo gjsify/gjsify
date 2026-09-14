@@ -53,6 +53,14 @@ hand-written `SharedNode` trees and 119 declared losses"*. They hold 38 and 120:
 corpus harness prints both figures on every run; the comment restating them is the copy that
 went stale.
 
+**So read 38 and 120 as a date, not as a constant** — and one is already in flight. #1681
+probes every rule by its second case and takes the corpus to 31 rules and 42 files. What
+that moves is every figure in the next two sections, and the reader who finds 42 there
+should re-derive rather than reconcile. What it does NOT move is either number the decision
+below rests on: the eleven real files are untouched by it, so the round-trip wall stands,
+and the gallery half reads the website and not the corpus at all. The response flag that
+refuses `Adw.AlertDialog` stays refused there by name.
+
 ### What the projection actually loses, over 38 files
 
 27 written rule files plus the 11 real `.blp` the build compiles. "real" is the subset of
@@ -85,15 +93,21 @@ the wrong element.
 
 ### Round-tripping: nine files of thirty-eight, and none of the eleven
 
-A file round-trips if its `.blp` can be reconstructed from its `SharedNode` alone. A
-declared loss blocks that; so does a `slot`, which cannot say which of two constructs it
-came from.
+A file round-trips if its `.blp` can be reconstructed from its `SharedNode` alone. A loss
+the projection PRODUCES blocks that; so does a `slot`, which cannot say which of two
+constructs it came from.
 
 | what is asked | files |
 |---|---|
-| project with no declared loss AND carry no `slot` | **9 of 38** |
-| project with no declared loss, `slot` resolved by a lookup (below) | **12 of 38** |
+| project with no produced loss AND carry no `slot` | **9 of 38** |
+| project with no produced loss, `slot` resolved by a lookup (below) | **12 of 38** |
 | of the 11 real files, either way | **0 of 11** |
+
+Produced and not declared, and the difference is exactly one file: `15-comments` is among
+the nine while DECLARING a loss, because `comment` is the kind the projection never
+produces. What round-trips there is the declaration and not the bytes — a re-emitted file
+would carry the tree without the comments, which is the reader's-side loss the corpus
+records and this table does not measure.
 
 The nine are `01-object-minimal`, `02-property-scalars`, `03-property-enum`,
 `04-children-implicit`, `15-comments`, `16-string-escapes`, `17-numeric-forms`,
@@ -124,9 +138,13 @@ and none of them is a field anybody has asked for.
 
 `slot` carries two GtkBuilder constructs: `[start]` is `<child type="start">`, a placement on
 the child wrapper, and `content:` is `<property name="content">`, an object as a property
-value. Measured over the corpus: **53 slot uses, 26 bracket-derived and 27
-property-derived**, on 46 of 165 projected nodes across 17 of 38 files, and 7 files carry
-both constructs at once.
+value. Measured over the corpus: **53 slot constructs in the AST, 26 bracket-derived and 27
+property-derived**, over 18 of 38 files, with 7 files carrying both at once. **46 of them
+reach the projection**, as a slotted node on 17 files — 46 of 165 projected nodes. The
+seven that do not are `[breakpoint]` brackets, whose object is dropped whole as a
+`breakpoint` loss before a slot is written, so an inverter never meets that name. Two
+populations, and they must not be added: the 53 is what a lookup has to decide, the 46 is
+what the shape carries.
 
 What the ADRs had not asked is whether the two populations can be told apart at all:
 
@@ -218,20 +236,42 @@ The two clean ones are `Adw.Avatar` and `Adw.Spinner`. The refusal is `Adw.Alert
 whose `responses` block carries a response flag the AST has no field for — already a named
 refusal in `status/open-todos.md`, and reached here from a second direction.
 
-**And the seven shared blocks say it in one line.** Of the seven blocks whose tree is
-authored once, **six are blocked by `translatable` and by nothing else** — `Adw.Banner`,
+**The 165 `_()` calls are not 165 marked props, and the field's reach is the smaller
+number.** 137 of them sit on a scalar property and are exactly what a `translatable` field
+would carry. 24 sit inside a `strings [...]` value list or a `menu { }` block — constructs
+the projection already loses by their own kind, so the marking is not what is missing there
+— and the remaining 4 are in the one refused fence. `Adw.PreferencesGroup` carries both
+halves of the split: 11 `_()` in its fence, 7 on a property, 4 inside `model:
+Gtk.StringList { strings […] }`.
+
+**And the seven shared blocks narrow it to one loss.** Of the seven blocks whose tree is
+authored once, **six lose `translatable` and nothing else** — `Adw.Banner`,
 `Adw.SwitchRow`, `Adw.EntryRow`, `Adw.ExpanderRow`, `Adw.ShortcutLabel`, `Adw.WindowTitle`.
-The seventh, `Adw.PreferencesGroup`, adds `styles`, a value list and a slot, and is the block
-ADR 0051 § Amendment 2 already measured as an emitter casualty for an unrelated reason: its
-fence teaches a CSS-classed HTML `<button>` and an `<adw-combo-row model=…>`, neither of
-which is a node `SharedNode` can name at all.
+The seventh, `Adw.PreferencesGroup`, adds `styles`, a value list and a slot.
+
+That is a statement about the PROJECTION, and not a promise that six fences become
+emittable. Held the other way — project each blueprint fence and compare it to that
+block's authored tree, node for node, prop for prop — **five of the seven are IDENTICAL**
+(`Adw.SwitchRow`, `Adw.EntryRow`, `Adw.ExpanderRow`, `Adw.Banner`, `Adw.WindowTitle`) and
+two are not. Those are the same five ADR 0051 § Amendment 2 named from the OTHER fence, by
+name, having measured a different artifact: the two fences agree on which blocks a corpus
+emitter would damage.
+
+`Adw.PreferencesGroup` is the obvious one — its fence teaches a CSS-classed HTML `<button>`
+and an `<adw-combo-row model=…>`, neither of which is a node `SharedNode` can name.
+`Adw.ShortcutLabel` is the one the loss census cannot see, because a fence that teaches MORE
+loses nothing: its projection is a `GtkBox` of five accelerators, 6 nodes and 8 props,
+against an authored tree of **one node and one prop**. The marking unblocks its projection
+and leaves its emission where Amendment 2 left it. So the emit direction's honest pair of
+numbers is **six of seven projections whose only loss is the marking, and five of seven
+fences a corpus emitter could produce once it exists**.
 
 ### The two directions do not cost the same, and they never did
 
 | | emit `.blp` FROM the corpus (ADR 0034 § 8) | make `.blp` the AUTHORED form |
 |---|---|---|
 | what it needs the shape to hold | whatever the fence it replaces already says | whatever both drivers consume, over app-shaped files |
-| measured requirement | `translatable` — 6 of the 7 shared blocks, sole blocker | `template` 11/11, `slot` 11/11, `object-id` 10/11, then translatable/binding/breakpoint/styles |
+| measured requirement | `translatable` — sole loss of 6 of the 7 shared blocks, and 5 of the 7 fences then emit | `template` 11/11, `slot` 11/11, `object-id` 10/11, then translatable/binding/breakpoint/styles |
 | what closing `translatable` buys the other column | — | **0 of 11 real files** |
 | governance cost | none: ADR 0051 Decision 1 keeps the authored form | a supersession of ADR 0051, with its own measurement |
 
@@ -266,10 +306,11 @@ every reader of `props` in both drivers, in `rebuild()`, and in arm 13, to carry
 that is not a value.
 
 **Three named consumers, none of them hypothetical.** The 37 gallery fences with 165 `_()`
-calls, which an emitter would otherwise rewrite without their markings. ADR 0033, whose
-entire reason for preferring a template is that a caption `xgettext` cannot see is
-untranslatABLE while merely looking untranslated. And ADR 0053 § Consequences, which named
-this as the sharpest case under clause 3 and deferred it to *"the ADR that needs it"*.
+calls — 137 of them on a scalar property, which is the number this field would carry — which
+an emitter would otherwise rewrite without their markings. ADR 0033, whose entire reason for
+preferring a template is that a caption `xgettext` cannot see is untranslatABLE while merely
+looking untranslated. And ADR 0053 § Consequences, which named this as the sharpest case
+under clause 3 and deferred it to *"the ADR that needs it"*.
 
 ### 2. The field lands WITH its reader, never before it
 
@@ -279,9 +320,22 @@ emitter, and the field ships in the PR that builds the emitter. A field with no 
 the failure mode `adwaita-gallery-shared-trees.d.mts`'s own header names for itself — *"a
 claim about the module that can quietly stop being true"*.
 
-Its check comes with it, and it is the containment arm one notch over: every `_()` in a
-shared block's ` ```blueprint ` fence corresponds to a marked prop in that block's tree, and
-every marked prop to an `_()`. Arm 13 already holds the `preview` fence that way; the
+Its check comes with it, and it is the containment arm one notch over. Arm 13 finds each
+node of a shared tree WHERE IT OCCURS in the block's `preview` fence; this one does the same
+against the ` ```blueprint ` fence and compares the markings there, both ways: a prop marked
+in the tree carries an `_()` on that property, and a prop the fence marks at that node is
+marked in the tree. Satisfiable on all seven blocks today — the tightest is
+`Adw.PreferencesGroup`, where 5 of the 7 props its tree holds are marked in the fence and
+`text: "Grace Hopper"` and `active: true` are not.
+
+**At the nodes the tree holds and not wider, for the reason ADR 0051 § Amendment 2 already
+gave.** The fence is the authority and is free to teach more, so "every `_()` anywhere in
+the fence has a marked prop in the tree" is not a check that can be true:
+`Adw.PreferencesGroup`'s fence carries 11 `_()` against 5 marked props the tree even holds,
+and `Adw.ShortcutLabel`'s teaches six nodes against one — and its single `_()` is on a
+`disabled-text` of a node the tree does not carry. Stated over the whole fence, the check
+would be red on the day it lands, on the two blocks whose divergence is already recorded,
+which is how a check gets weakened into a warning before it has caught anything. The
 blueprint fence has never been held by anything, which is why 37 of 40 could carry a marking
 the corpus cannot express without a single check going red.
 
@@ -304,8 +358,17 @@ child type, failing loudly when GTK adds one. No inverter without that check.
 Not the shape: `props` already holds the space-separated string ADR 0049 § 3 chose as the
 write door. What blocks them is three spellings on three surfaces, and ADR 0051 admits a
 block to the shared corpus only when it needs no alias. This is ADR 0034's ledger, already
-counted down by `check-vocabulary-alignment.mjs`; when that name converges,
-`props: { <the agreed name>: 'flat suggested-action' }` needs no field and no decision.
+counted down by `check-vocabulary-alignment.mjs`.
+
+**And the name is only the first half.** `gtk-host` declares `cssClasses?: string[]`
+(`props.ts:5772`) where 0049 § 3's door takes a string, and
+`adwaita-gallery-shared-trees.mjs`'s own comment on the two ledger entries records the
+second kind beside it — *"a different value kind besides (`string[]` against
+`Set<string>`)"*. So a converged NAME does not hand the shared corpus a value all three
+surfaces read; that is the class `status/open-todos.md` files under "A property can agree
+on its NAME and disagree on its VALUE KIND", and `rebuild()` copies `props` through with no
+transform, so nothing downstream would reconcile it. Both halves have to close. Neither is
+a `SharedNode` field.
 
 The record in `corpus/expectations.mjs`'s header, which says the shape is the obstacle, is
 wrong and should be corrected where it stands.
@@ -342,13 +405,15 @@ measured above, which is the first time it has had one.
 ## Consequences
 
 - The open question ADR 0053 left twice acquires an answer with a number behind it: one
-  field, six of seven shared blocks, and a governance cost of nothing.
+  field, six of seven shared-block projections, five of seven fences an emitter could then
+  produce, and a governance cost of nothing.
 - The emit direction becomes a one-field change rather than an open-ended shape question,
   and the authored-form direction becomes visibly expensive rather than merely undecided.
 - **A record in the tree is corrected.** `corpus/expectations.mjs`'s finding 2 says `styles`
-  is blocked by the shape; § 4 above says it is blocked by the vocabulary, and 0049 § 3 is
-  the evidence. A finding written while reading a decision's TITLE rather than its clause is
-  a class worth naming, because it reads exactly like a measurement.
+  is blocked by the shape; § 4 above says it is blocked by the vocabulary AND by the value
+  kind beside it, and 0049 § 3 is the evidence for the first half. A finding written while
+  reading a decision's TITLE rather than its clause is a class worth naming, because it
+  reads exactly like a measurement.
 - Two conflations move from "the projection cannot be inverted" to "the projection cannot be
   inverted without the GIR" — which is a different, smaller claim, and it is the claim the
   emitter already lives with for enum members.
