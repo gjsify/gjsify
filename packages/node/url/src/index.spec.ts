@@ -431,6 +431,13 @@ export default async () => {
             expect(u.origin).toBe('null');
         });
 
+        await it('should return a tuple origin for every special scheme but file', async () => {
+            expect(new URL('ws://example.com/socket').origin).toBe('ws://example.com');
+            expect(new URL('wss://example.com:8443/socket').origin).toBe('wss://example.com:8443');
+            expect(new URL('ftp://example.com/pub').origin).toBe('ftp://example.com');
+            expect(new URL('file:///a').origin).toBe('null');
+        });
+
         await it('toJSON should return href', async () => {
             const u = new URL('http://example.com/path');
             expect(u.toJSON()).toBe(u.href);

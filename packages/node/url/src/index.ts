@@ -889,10 +889,15 @@ export class URL {
         this.#fragment = percentEncode(input, FRAGMENT_EXTRA);
     }
 
+    /**
+     * Every SPECIAL scheme but `file:` has a tuple origin — `ws:` and `wss:` included, and they
+     * were answering `'null'` because this list was written out by hand instead of asking the one
+     * special-scheme table. A WebSocket URL's origin is what a server checks a handshake against,
+     * so `'null'` there is not a harmless approximation.
+     */
     get origin(): string {
-        const p = this.protocol;
-        if (p === 'http:' || p === 'https:' || p === 'ftp:') {
-            return `${p}//${this.host}`;
+        if (isSpecialScheme(this.#scheme) && this.#scheme !== 'file') {
+            return `${this.protocol}//${this.host}`;
         }
         return 'null';
     }
