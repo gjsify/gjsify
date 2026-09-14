@@ -55,6 +55,15 @@
 // `rules/27-property-flags.blp` pins both — and it pinned only the set, with this module
 // returning the nick for a lone member too, until the file held a second entry.
 //
+// A `|`-SET ON AN ENUM IS AN ERROR
+//
+// The `|` selects the form, and the form carries a type check of its own: the oracle's `Flags`
+// node refuses a type that is not a bitfield ("Gtk.Orientation is not a bitfield type").
+// Answering by member count alone wrote `orientation: vertical | horizontal` out as
+// `vertical|horizontal` — XML GtkBuilder cannot read as a GtkOrientation, for a file the
+// oracle refuses, the plausible wrong output clause 3 exists to prevent.
+// `corpus/refused/flags-on-enum.blp` holds it.
+//
 // AN UNKNOWN MEMBER OF A KNOWN ENUM IS AN ERROR
 //
 // Where the join finds no enum the identifier is not one — `menu-model: mainMenu` is an object
@@ -151,17 +160,20 @@ function typeOfProperty(typeName, propertyName) {
 }
 
 /**
- * One member of a known enum or flags type — its nick and its number — or a thrown error naming it.
+ * One member of a known enum or flags type — its nick, its number and which of the two kinds
+ * of type it belongs to — or a thrown error naming it.
  *
  * @param {string} enumType @param {string} member @param {string} where
- * @returns {{ nick: string, value: number }}
+ * @returns {{ nick: string, value: number, flags: boolean }}
  */
 function lookupMember(enumType, member, where) {
     const nick = member.replaceAll('_', '-');
     const key = `${enumType}.${nick}`;
 
-    const value = ENUM_VALUES[key] ?? FLAG_VALUES[key];
-    if (value !== undefined) return { nick, value };
+    const asEnum = ENUM_VALUES[key];
+    if (asEnum !== undefined) return { nick, value: asEnum, flags: false };
+    const asFlag = FLAG_VALUES[key];
+    if (asFlag !== undefined) return { nick, value: asFlag, flags: true };
 
     // Two different failures, and the repair differs. A nick the enum HAS but whose value the
     // GIR could not read is a declared gap upstream — today both namespaces declare none, and
@@ -224,6 +236,12 @@ export function resolveIdent(typeName, propertyName, member, where) {
     // A lone member is a literal to the oracle and emits its NUMBER whatever the type, `8` for
     // `input-hints: lowercase`; only a `|`-joined set keeps the nicks (27-property-flags.ui).
     if (members.length === 1) return String(members[0].value);
+    // …and the set form is refused where the oracle refuses it, on a type that is not flags.
+    if (!members.every((entry) => entry.flags)) {
+        throw new Error(
+            `blueprint: ${where}: \`${member}\` joins members with \`|\`, and ${enumType} is not a flags type`,
+        );
+    }
     return members.map((entry) => entry.nick).join('|');
 }
 

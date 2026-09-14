@@ -58,7 +58,9 @@
 // hold, and stage E of the harness holds the in-repo pipeline to refusing each by name and by
 // line. Which of them the oracle compiles is recorded too, so the table says what is a limit of
 // the subset and what is an error the two compilers share. `Gio.ListStore` is why: the parser
-// accepted the `using`, the emitter wrote `GioListStore`, and nothing anywhere said no.
+// accepted the `using`, the emitter wrote `GioListStore`, and nothing anywhere said no. The
+// projection is asked too, and what it does is recorded per file: it is the second exit from the
+// same AST, and it spelled `GioListStore` exactly as the emitter did.
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
@@ -182,9 +184,10 @@ export const CORPUS_RULES = [
     },
     {
         file: '17-numeric-forms.blp',
-        isolates: 'integer, negative, fractional, hex, underscored, signed, very large and very small numbers',
+        isolates:
+            'integer, negative, fractional, hex, signed hex, underscored, signed, very large and very small numbers',
         surprise:
-            "`1.0` is normalised to `1` and `100.0` to `100` while `0.25` and `0.5` are not; `0x10` is `16`, `1_000` is `1000`, `+5` is `5`, `.75` is `0.75` and `-0.0` is `0`; `0.00005` is `5e-05` in Python's notation and not JavaScript's; and `12345678901234567` keeps every digit, because the oracle reads an integer through Python's `int`",
+            "`1.0` is normalised to `1` and `100.0` to `100` while `0.25` and `0.5` are not; `0x10` is `16` and `-0x10` is `-16`, `1_000` is `1000`, `+5` is `5`, `.75` is `0.75` and `-0.0` is `0`; `0.00005` is `5e-05` in Python's notation and not JavaScript's; and `12345678901234567` keeps every digit, because the oracle reads an integer through Python's `int`",
     },
     {
         file: '18-multiple-imports.blp',
@@ -279,6 +282,12 @@ export const CORPUS_RULES = [
  * @property {string} construct  the ONE construct outside the subset this file reaches
  * @property {'compiles'|'refuses'} oracle  what `blueprint-compiler` does with the same file:
  *                               `compiles` marks a limit of the subset, `refuses` an error both share
+ * @property {'refuses'|'projects'} projection  what the SECOND exit, `src/project.mjs`, does with
+ *                               the same file: `refuses` is a thrown error naming the same line — the
+ *                               parser refused it, or the tag seam did; `projects` is a tree, because
+ *                               the construct sits inside a loss the projection declares or is a VALUE
+ *                               it keeps as spelled. ADR 0053 clause 4 leaves value validation to the
+ *                               compiler; a tag is the one thing this exit must spell right
  * @property {number} line       the line the in-repo error must name
  * @property {string} names      text the in-repo error must contain, so the refusal is by NAME
  */
@@ -294,6 +303,7 @@ export const CORPUS_REFUSALS = [
         file: 'namespace-without-vocabulary.blp',
         construct: 'a type from a namespace the resolver has no vocabulary for (`Gio.ListStore`)',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 6,
         names: 'no vocabulary for',
     },
@@ -301,6 +311,7 @@ export const CORPUS_REFUSALS = [
         file: 'extern-type.blp',
         construct: 'an extern type, `$MyWidget { }`',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 4,
         names: 'extern type',
     },
@@ -308,6 +319,7 @@ export const CORPUS_REFUSALS = [
         file: 'binding-lookup-chain.blp',
         construct: 'a binding with more than one lookup, `bind a.b.c`',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 8,
         names: 'multi-step lookup',
     },
@@ -315,6 +327,7 @@ export const CORPUS_REFUSALS = [
         file: 'inline-menu.blp',
         construct: 'a `menu { }` written as a property value',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 4,
         names: 'inline `menu`',
     },
@@ -322,6 +335,7 @@ export const CORPUS_REFUSALS = [
         file: 'response-flags.blp',
         construct: 'a response flag, `destructive` / `suggested` / `disabled`',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 6,
         names: 'response flag',
     },
@@ -329,6 +343,7 @@ export const CORPUS_REFUSALS = [
         file: 'translation-domain.blp',
         construct: 'the file-level `translation-domain "…";`',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 3,
         names: 'translation-domain',
     },
@@ -336,6 +351,7 @@ export const CORPUS_REFUSALS = [
         file: 'internal-child.blp',
         construct: 'an `[internal-child …]` bracket',
         oracle: 'compiles',
+        projection: 'refuses',
         line: 4,
         names: 'internal-child',
     },
@@ -343,13 +359,23 @@ export const CORPUS_REFUSALS = [
         file: 'unknown-enum-member.blp',
         construct: 'a member the enum does not have, `orientation: diagonal`',
         oracle: 'refuses',
+        projection: 'projects',
         line: 4,
         names: 'not a member of GtkOrientation',
+    },
+    {
+        file: 'flags-on-enum.blp',
+        construct: 'a `|`-joined set on an enum property, `orientation: vertical | horizontal`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'is not a flags type',
     },
     {
         file: 'unknown-accessibility-name.blp',
         construct: 'an `accessibility { }` name that is none of the three ARIA kinds',
         oracle: 'refuses',
+        projection: 'projects',
         line: 5,
         names: 'not an accessibility property',
     },
@@ -357,6 +383,7 @@ export const CORPUS_REFUSALS = [
         file: 'styles-with-semicolon.blp',
         construct: 'a `;` after `styles [ … ]`',
         oracle: 'refuses',
+        projection: 'refuses',
         line: 4,
         names: 'takes no `;`',
     },
@@ -364,13 +391,23 @@ export const CORPUS_REFUSALS = [
         file: 'bad-escape.blp',
         construct: 'an escape outside the closed set, `\\q`',
         oracle: 'refuses',
+        projection: 'refuses',
         line: 4,
         names: 'invalid escape sequence',
+    },
+    {
+        file: 'bad-hex-digit.blp',
+        construct: 'a hex literal with a digit outside its base, `0xZZ`',
+        oracle: 'refuses',
+        projection: 'refuses',
+        line: 4,
+        names: 'not a valid number literal',
     },
     {
         file: 'adw-before-gtk.blp',
         construct: 'a file whose first directive is not `using Gtk`',
         oracle: 'refuses',
+        projection: 'refuses',
         line: 1,
         names: 'expected `using Gtk`',
     },

@@ -134,8 +134,9 @@ export const SHADOW_DIVERGENCES = [
         ],
         reason:
             '`GtkSizeGroup` is not a widget, and `PROP_ENUMS` — the `@girs` join from a property to its ' +
-            'enum type — is keyed by the widget vocabulary (ADR 0029): measured on @girs 5.0.0, none of its ' +
-            '67 owners is a class outside the widget tree, and `DECLS` has no `GtkSizeGroup` either. ' +
+            'enum type — is keyed by the widget vocabulary (ADR 0029): measured on @girs 5.0.0, every one of ' +
+            'its 71 owners is a widget, a widget base or an interface widgets implement, and `DECLS` has no ' +
+            '`GtkSizeGroup` either. ' +
             '`ENUM_VALUES` does hold `GtkSizeGroupMode.horizontal` = 1, so the number is one lookup away, ' +
             'and the lookup that is missing is the one ADR 0053 § Amendment 1 records as missing for widgets ' +
             'before @girs 4.9.0: WHICH enum `GtkSizeGroup.mode` is. Searching the nick lists for an enum ' +

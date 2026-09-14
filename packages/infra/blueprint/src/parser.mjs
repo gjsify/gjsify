@@ -45,6 +45,7 @@
  * @import { Property, Signal, Child, Extension, MenuNode, MenuItem } from './ast.d.mts'
  * @import { Value, StringValue, ListValue, BindingValue } from './ast.d.mts'
  */
+import { numberLiteral } from './number-literal.mjs';
 
 /**
  * What the parser throws, and the only thing it throws.
@@ -753,7 +754,7 @@ class Parser {
     /**
      * `responses [ cancel: _("Cancel"), ok: _("OK") ]`.
      *
-     * Named by `ast.d.mts` § `Extension` and reached by no corpus file. The response FLAGS
+     * Named by `ast.d.mts` § `Extension` and held by `31-responses.blp`. The response FLAGS
      * the oracle accepts (`suggested`, `destructive`, `disabled`) are refused rather than
      * dropped: `Extension.entries` is a list of `Property`, which has no field for them, and
      * an emitted `<response>` missing its `appearance` is exactly clause 3's "plausible and
@@ -920,6 +921,23 @@ class Parser {
     }
 
     /**
+     * The NUMBER pattern admits `0xZZ` and the oracle's `get_number` refuses it; the same question
+     * is asked here, at the same point, so no exit meets a literal it cannot read. The catch exists
+     * to relocate the sentence: `numberLiteral` knows the spelling and this class knows the line.
+     *
+     * @param {string} raw @param {Token} at
+     * @returns {Value}
+     */
+    numberValue(raw, at) {
+        try {
+            numberLiteral(raw);
+        } catch (error) {
+            throw this.fail(at, error.message);
+        }
+        return { kind: 'number', raw, line: at.line };
+    }
+
+    /**
      * @param {{ allowObject: boolean, allowList: boolean }} options
      * @returns {Value}
      */
@@ -932,7 +950,7 @@ class Parser {
         }
         if (token.type === 'number') {
             this.advance();
-            return { kind: 'number', raw: token.text, line: token.line };
+            return this.numberValue(token.text, token);
         }
         // The oracle's `NumberLiteral` is `Optional(sign) NUMBER` and its tokenizer has no
         // signed NUMBER pattern, so `-1` is two tokens there and here. The sign is glued back
@@ -944,7 +962,7 @@ class Parser {
             }
             this.advance();
             this.advance();
-            return { kind: 'number', raw: token.text + number.text, line: token.line };
+            return this.numberValue(token.text + number.text, token);
         }
 
         if (token.text === '[') {

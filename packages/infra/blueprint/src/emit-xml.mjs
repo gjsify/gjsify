@@ -36,6 +36,7 @@
  * @import { BlueprintFile, BlueprintImport, Child, Extension, MenuItem, MenuNode, ObjectBody,
  *   ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
  */
+import { numberLiteral } from './number-literal.mjs';
 
 /**
  * How the emitter is told what a bare identifier means — with `accessibilityElement` below, the
@@ -72,7 +73,9 @@
  * every corpus file imports one of two namespaces whose C prefix IS the namespace name — which is
  * the only reason concatenating the two ever produced a golden. `Gio.ListStore` is `GListStore`.
  * Without the seam the emitter concatenates, right for those two and a knowing divergence for
- * any other; with it, a namespace the resolver has no vocabulary for is refused by name.
+ * any other; with it, a namespace the resolver has no vocabulary for is refused by name. The
+ * projection (`project.mjs`) takes the same seam: a tag is the one thing that exit must spell
+ * right, and it concatenated too until it did.
  *
  * @typedef {Object} EmitOptions
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
@@ -506,9 +509,7 @@ function identText(value, ownerType, propertyName, context) {
  * @param {string} raw
  */
 function numberText(raw) {
-    const cleaned = raw.replaceAll('_', '');
-    const negative = cleaned.startsWith('-');
-    const digits = negative || cleaned.startsWith('+') ? cleaned.slice(1) : cleaned;
+    const { negative, digits } = numberLiteral(raw);
 
     if (!digits.includes('.')) {
         const whole = BigInt(digits);

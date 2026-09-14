@@ -32,7 +32,8 @@ refuses is refused by name, held by a corpus of its own.
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
 | `src/emit-xml.mjs` | AST → GtkBuilder XML |
-| `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element — read from the `@girs` vocabulary |
+| `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element, a type's GType name — read from the `@girs` vocabulary |
+| `src/number-literal.mjs` | one reading of a number's spelling: the parser refuses through it, both exits read through it |
 | `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
 
 The real files are listed **by path** and read from where they live. A copy would be a second
@@ -63,9 +64,10 @@ now agrees, so the ledger cannot only grow — and that second direction is what
 last eleven entries, as eleven failures saying "delete me" rather than a hand edit. Stage D
 runs the projection over the same files and holds the hand-written `SharedNode` trees and
 their declared losses against it, which is what turns them from a claim into an oracle.
-Stage E runs the same pipeline over every file under `corpus/refused/` and holds it to a hard
-error that names the construct and the line — the one stage that can measure ADR 0053 clause 3,
-because stages C and D see only what the parser accepts. Where the oracle is present, stage B
+Stage E runs the same pipeline over every file under `corpus/refused/` and holds the XML exit to
+a hard error that names the construct and the line, and the projection to what the manifest
+records of it — the one stage that can measure ADR 0053 clause 3, because stages C and D see
+only what the parser accepts. Where the oracle is present, stage B
 also records what it does with each refused file, so the table says which refusals are limits
 of the subset (the oracle compiles the file) and which are errors the two compilers share.
 None of these stages needs a compiler — only the committed goldens — so all run on every
@@ -107,7 +109,9 @@ would drift.
    `input-hints: lowercase` on its own is `8`: the oracle reads a `|`-joined set as flags and
    a single identifier as a literal, which it numbers whatever the type. The rule file held
    only the set, and the resolver returned the nick for both, until it held the second entry
-   (`rules/27-property-flags.ui`).
+   (`rules/27-property-flags.ui`). And the `|` carries a type check of its own: a set on an
+   ENUM (`orientation: vertical | horizontal`) is "not a bitfield type" to the oracle, and the
+   resolver emitted it by member count until `corpus/refused/flags-on-enum.blp` held it.
 5. **Values are normalised, not copied.** `1.0` comes out as `1`, `0.25` and `0.5` unchanged
    (`rules/17-numeric-forms.ui`).
 6. **`layout { }` and `accessibility { }` do not resolve through the widget.**
@@ -127,7 +131,9 @@ would drift.
    class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
    prefix is the namespace, and silently wrong for any third `using`. The name is now a
    resolver seam that refuses a namespace it has no vocabulary for
-   (`corpus/refused/namespace-without-vocabulary.blp`).
+   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which
+   concatenated the same way, takes the same seam, because a tag is the one thing that exit
+   must spell right.
 9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
    `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
    for a class outside the widget tree — the second ledger entry (`rules/29-enum-non-widget.ui`).
@@ -136,8 +142,12 @@ would drift.
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
 11. **The projection has to read a number's spelling as carefully as the XML exit does.**
     `margin-start: 1_000` projected as `null`, because `Number("1_000")` is `NaN`, while the
-    XML exit had stripped the underscore all along. Stage D caught it the moment
-    `rules/17-numeric-forms.blp` held the form — the first defect that stage has found.
+    XML exit had stripped the underscore all along — and with the underscore stripped,
+    `-0x10` still did, because `Number()` reads no sign on a hex string, while the XML exit
+    had split the sign off all along. Two exits, two readers, the second one wrong twice: both
+    read through `src/number-literal.mjs` now, and the parser refuses `0xZZ` there by line, as
+    the oracle does. Stage D caught both the moment `rules/17-numeric-forms.blp` held the form
+    — the first defects that stage has found.
 
 Most of these were found the same way: by asking a rule file that probed ONE shape of its
 construct what the other shapes looked like. A rule file that probes one case proves nothing

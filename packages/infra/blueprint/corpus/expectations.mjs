@@ -327,7 +327,7 @@ export const RULE_EXPECTATIONS = [
                     props: { xalign: 1, 'margin-top': 12, 'margin-bottom': 16, 'margin-start': 1000, 'margin-end': 5 },
                 },
                 { tag: 'GtkLabel', props: { xalign: 0.5, 'width-chars': -1, yalign: 0.75 } },
-                { tag: 'GtkLabel', props: { xalign: 0.25 } },
+                { tag: 'GtkLabel', props: { xalign: 0.25, 'width-chars': -16, 'max-width-chars': 16 } },
                 {
                     tag: 'GtkSpinButton',
                     children: [
@@ -346,7 +346,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The source writes `1.0` and this says `1`, `0x10` and this says `16`, `1_000` and `+5` and this says `1000` and `5`, because JavaScript has one number type and cannot hold the spelling. Twice it cannot hold the VALUE either: `-0.0` is `-0` here and `0` in the golden, and `12345678901234567` is one digit off here because a double has 53 bits where the oracle has Python integers, so the golden keeps every digit and this file cannot. None of that is a projection loss — it is a limit of the language the expectation is written in, and it is why the `.ui` golden and not this file is the oracle for number FORMATTING.',
+        note: 'The source writes `1.0` and this says `1`, `0x10` and this says `16`, `1_000` and `+5` and this says `1000` and `5`, because JavaScript has one number type and cannot hold the spelling. Twice it cannot hold the VALUE either: `-0.0` is `-0` here and `0` in the golden, and `12345678901234567` is one digit off here because a double has 53 bits where the oracle has Python integers, so the golden keeps every digit and this file cannot. None of that is a projection loss — it is a limit of the language the expectation is written in, and it is why the `.ui` golden and not this file is the oracle for number FORMATTING. What this file IS the oracle for is the reading: `1_000` projected as `null` once, and `-0x10` after that was patched, because `Number()` reads neither an underscore nor a sign on a hex string, and the XML exit had handled both all along.',
     },
     {
         file: '18-multiple-imports.blp',

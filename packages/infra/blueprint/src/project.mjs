@@ -6,12 +6,12 @@
 //
 // WHAT THIS MAKES CHECKABLE, WHICH NOTHING WAS BEFORE
 //
-// `corpus/expectations.mjs` and `corpus/real-expectations.mjs` hold 36 hand-written
-// `SharedNode` trees and 119 declared losses, written by reading the `.blp` before any
+// `corpus/expectations.mjs` and `corpus/real-expectations.mjs` hold the hand-written
+// `SharedNode` trees and their declared losses, written by reading the `.blp` before any
 // parser existed. Until this file they were prose: the harness checked that they were
 // STRUCTURALLY a `SharedNode` and that their line numbers were inside the file, and nothing
 // checked that they were RIGHT. Stage D of `scripts/check-blueprint-corpus.mjs` runs this
-// over the same 36 files and compares, which turns the corpus's most expensive artefact
+// over the same files and compares, which turns the corpus's most expensive artefact
 // into an oracle instead of a claim.
 //
 // TWO THINGS IT DELIBERATELY DOES NOT PRODUCE
@@ -25,18 +25,35 @@
 // one anyway, because from the READER's side the loss is real, and stage D drops that kind
 // before comparing rather than teaching this file to invent it.
 
-/** @import { BlueprintFile, ObjectBody, ObjectNode, TemplateNode, Value } from './ast.d.mts' */
+/** @import { BlueprintFile, ObjectBody, ObjectNode, TemplateNode, TypeRef, Value } from './ast.d.mts' */
+import { numberLiteral } from './number-literal.mjs';
 
 /**
- * The GIR class name a tag is spelled with.
+ * The one seam through which introspection reaches this exit — the same `gtypeName` that
+ * `emit-xml.mjs` declares, because a tag is the one thing the projection must spell right and
+ * nothing in the syntax says how: `Gio.ListStore` is `GListStore`. Without it a tag is
+ * namespace plus name, which is the C prefix of Gtk and Adw and of nothing else — so the
+ * fallback is right for every corpus file and wrong for any third `using`, and stages D and E
+ * hand in the resolver's seam rather than rely on that.
+ *
+ * @typedef {Object} ProjectOptions
+ * @property {(type: TypeRef, where: string) => string} [gtypeName]
+ */
+
+/**
+ * The GIR class name a tag is spelled with, through the seam where one is given.
  *
  * An unqualified type resolves against **Gtk alone** — measured on `blueprint-compiler`
  * 0.20.4, `Bin { }` under `using Adw 1;` is refused with "Namespace Gtk does not contain a
  * type called Bin". So the default is not "the first import", it is Gtk.
  *
- * @param {{ namespace?: string, name: string }} type
+ * @param {ProjectOptions | undefined} options
+ * @returns {(type: TypeRef) => string}
  */
-const tagOf = (type) => `${type.namespace ?? 'Gtk'}${type.name}`;
+const tagReader = (options) => (type) =>
+    options?.gtypeName === undefined
+        ? `${type.namespace ?? 'Gtk'}${type.name}`
+        : options.gtypeName(type, `line ${type.line}`);
 
 /** `Adw.Breakpoint` is dropped whole rather than projected — it is not a widget. */
 const isBreakpoint = (node) =>
@@ -54,10 +71,13 @@ const isBreakpoint = (node) =>
  */
 const scalarOf = (value) => {
     if (value.kind === 'string') return value.value;
-    // The raw spelling admits `1_000` and `0x10`; `Number()` reads the second and not the first,
-    // and `17-numeric-forms.blp` projected a `null` prop until the underscores were stripped
-    // here as the XML exit strips them.
-    if (value.kind === 'number') return Number(value.raw.replaceAll('_', ''));
+    if (value.kind === 'number') {
+        // `Number()` alone read `1_000` as `NaN`, and after that was patched here, `-0x10` too:
+        // `17-numeric-forms.blp` projected a `null` prop both times. One reader for both exits.
+        const { negative, digits } = numberLiteral(value.raw);
+        const magnitude = Number(digits);
+        return negative ? -magnitude : magnitude;
+    }
     if (value.kind === 'bool') return value.value;
     // An enum member keeps its SOURCE spelling. The XML carries the resolved number; these
     // are two exits from one AST and not two views of one set of values.
@@ -66,10 +86,10 @@ const scalarOf = (value) => {
 };
 
 /**
- * @param {ObjectBody} body
+ * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
  * @returns {{ props?: Record<string, string | number | boolean>, children?: object[] }}
  */
-const projectBody = (body) => {
+const projectBody = (body, tag) => {
     /** @type {Record<string, string | number | boolean>} */
     const props = {};
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
@@ -108,7 +128,7 @@ const projectBody = (body) => {
 
     const children = placed
         .filter((entry) => !isBreakpoint(entry.object))
-        .map((entry) => projectObject(entry.object, entry.slot));
+        .map((entry) => projectObject(entry.object, entry.slot, tag));
 
     return {
         ...(Object.keys(props).length > 0 ? { props } : {}),
@@ -117,13 +137,12 @@ const projectBody = (body) => {
 };
 
 /**
- * @param {ObjectNode} object
- * @param {string} [slot]
+ * @param {ObjectNode} object @param {string | undefined} slot @param {(type: TypeRef) => string} tag
  */
-const projectObject = (object, slot) => {
-    const body = projectBody(object.body);
+const projectObject = (object, slot, tag) => {
+    const body = projectBody(object.body, tag);
     return {
-        tag: tagOf(object.type),
+        tag: tag(object.type),
         ...(slot === undefined ? {} : { slot }),
         ...body,
     };
@@ -197,10 +216,11 @@ const lossesOf = (file) => {
 /**
  * Project a parsed `.blp` into the node shape ADR 0051's renderers consume.
  *
- * @param {BlueprintFile} file
+ * @param {BlueprintFile} file @param {ProjectOptions} [options]
  * @returns {{ node: object, lost: { kind: string, line: number }[] }}
  */
-export function projectToSharedNode(file) {
+export function projectToSharedNode(file, options) {
+    const tag = tagReader(options);
     const root = file.roots.find((candidate) => candidate.kind !== 'menu');
     if (root === undefined) {
         // Every corpus file has one. A file of nothing but menus would need a projection
@@ -213,7 +233,7 @@ export function projectToSharedNode(file) {
         // and projects to an `AdwBin`, because `AdwHeaderBar` is final and cannot be a
         // template parent.
         const template = /** @type {TemplateNode} */ (root);
-        return { node: { tag: tagOf(template.parent), ...projectBody(template.body) }, lost: lossesOf(file) };
+        return { node: { tag: tag(template.parent), ...projectBody(template.body, tag) }, lost: lossesOf(file) };
     }
-    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined), lost: lossesOf(file) };
+    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file) };
 }

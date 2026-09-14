@@ -6332,7 +6332,7 @@ Measured on `blueprint-compiler` 0.20.4: `Gtk.SizeGroup { mode: horizontal; }` e
 `corpus/divergences.mjs`, kind `prop-enums-widgets-only`). The number is in the vocabulary —
 `ENUM_VALUES['GtkSizeGroupMode.horizontal']` is `1` on `@girs` 5.0.0 — and the join is not:
 `PROP_ENUMS`, the declaration-keyed "which enum is this property" table ADR 0053 § Amendment 1
-was waiting for, has 67 owners and every one of them is in the widget tree, and `DECLS` has no
+was waiting for, has 71 owners and every one of them is in the widget tree, and `DECLS` has no
 `GtkSizeGroup` at all. `src/resolve-ident.mjs` therefore answers `null` — the "not ours" an object
 id needs, and the wrong answer here — and the source spelling stands.
 

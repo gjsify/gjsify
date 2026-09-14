@@ -30,9 +30,10 @@
 //      what the projection produces.
 //
 //   E. REFUSALS — runs everywhere. Every file under `corpus/refused/` reaches one construct
-//      the subset does not hold; the in-repo pipeline must refuse it BY NAME and BY LINE, and
-//      stage B records what the oracle does with the same file. Stages C and D see only what
-//      the parser accepts, so this is the one stage that can measure ADR 0053 clause 3.
+//      the subset does not hold; the XML exit must refuse it BY NAME and BY LINE, the
+//      projection must do what the manifest records of it, and stage B records what the
+//      oracle does with the same file. Stages C and D see only what the parser accepts, so
+//      this is the one stage that can measure ADR 0053 clause 3.
 //
 // The counts are printed, never written here: a live count in a comment is restatement,
 // and this one was stale at "25 rules" one rule file later.
@@ -296,6 +297,11 @@ for (const refusal of CORPUS_REFUSALS) {
     }
     if (refusal.oracle !== 'compiles' && refusal.oracle !== 'refuses') {
         problems.push(`CORPUS_REFUSALS entry "${refusal.file}" must say whether the oracle compiles or refuses it.`);
+    }
+    if (refusal.projection !== 'refuses' && refusal.projection !== 'projects') {
+        problems.push(
+            `CORPUS_REFUSALS entry "${refusal.file}" must say whether the projection refuses or projects it.`,
+        );
     }
     if (!Number.isInteger(refusal.line) || refusal.line < 1 || refusal.line > lines) {
         problems.push(
@@ -745,7 +751,7 @@ if (haveParser) {
 
 // ---------------------------------------------------------------- stage D
 
-// The 36 hand-written `SharedNode` trees, run rather than read.
+// The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
 // says nothing about whether they are RIGHT. They were written by reading each `.blp`
@@ -768,6 +774,7 @@ let projected = 0;
 if (haveParser && existsSync(PROJECTOR)) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
+    const { gtypeName } = await import(`file://${RESOLVER}`);
 
     const jobs = [
         ...RULE_EXPECTATIONS.map((e) => ({ key: `rules/${e.file}`, source: join(RULES_DIR, e.file), expectation: e })),
@@ -777,7 +784,7 @@ if (haveParser && existsSync(PROJECTOR)) {
         if (!existsSync(job.source)) continue;
         let result;
         try {
-            result = projectToSharedNode(parseBlueprint(readFileSync(job.source, 'utf8'), job.key));
+            result = projectToSharedNode(parseBlueprint(readFileSync(job.source, 'utf8'), job.key), { gtypeName });
         } catch (error) {
             problems.push(`${job.key}: the projection failed — ${error.message}`);
             continue;
@@ -820,46 +827,94 @@ if (haveParser && existsSync(PROJECTOR)) {
 // it gets right is invisible to them. That is what `accessibility { }` was, and what
 // `Gio.ListStore` was after it: the parser took the `using`, the emitter wrote `GioListStore`,
 // a class GtkBuilder cannot find, and every stage stayed green. Each file here reaches one such
-// construct, and the pipeline must throw, the error must name the construct, and it must name
+// construct, and the XML exit must throw, the error must name the construct, and it must name
 // the line — a file that emits instead is the pass-through this stage exists to catch.
+//
+// The projection is the second exit from the same AST and is asked too. What it does is data
+// in the manifest, held in both directions: a tag is the one thing that exit must spell right,
+// and it spelled `GioListStore` exactly as the emitter did until this half existed.
 let refused = 0;
 if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+    const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
     const { accessibilityElement, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
+
+    // A parser error is `refused/<file>:<line>:<column>:`, an emitter or resolver error
+    // `line N:`, and both are matched WITH their delimiters. Measured: `:3:` alone was
+    // satisfied by a column of 3 on line 4, and `line 3` alone by the prose "closing the `{`
+    // on line 3" of an error at end of file — two wrong lines this stage passed.
+    const namesLine = (message, refusal) =>
+        message.includes(`refused/${refusal.file}:${refusal.line}:`) || message.includes(`line ${refusal.line}:`);
+    // The construct is matched with that location prefix removed. The prefix carries the FILE
+    // NAME, so `translation-domain` matched its own path and the by-name half was vacuous for
+    // it: the file altered to fail for another reason on the same line stayed green here.
+    const namesConstruct = (message, refusal) =>
+        message.replace(/^refused\/[^:\n]+:\d+:\d+: /, '').includes(refusal.names);
+    const hold = (refusal, exit, message) => {
+        if (!namesConstruct(message, refusal)) {
+            problems.push(
+                `refused/${refusal.file}: ${exit} refused it, but not by name — the error does not mention ` +
+                    `${JSON.stringify(refusal.names)}:\n      ${message}`,
+            );
+        }
+        if (!namesLine(message, refusal)) {
+            problems.push(
+                `refused/${refusal.file}: ${exit} refused it, but the error does not name line ${refusal.line}:\n      ${message}`,
+            );
+        }
+    };
 
     for (const refusal of CORPUS_REFUSALS) {
         const source = join(REFUSED_DIR, refusal.file);
         if (!existsSync(source)) continue; // stage A said so
-        let emitted;
+        const key = `refused/${refusal.file}`;
+        let ast;
         try {
-            emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(source, 'utf8'), `refused/${refusal.file}`), {
-                accessibilityElement,
-                gtypeName,
-                resolveIdent,
-            });
+            ast = parseBlueprint(readFileSync(source, 'utf8'), key);
         } catch (error) {
-            const message = String(error.message);
-            if (!message.includes(refusal.names)) {
+            // Refused before either exit ran, so both are refused by this one sentence.
+            hold(refusal, 'the parser', String(error.message));
+            if (refusal.projection === 'projects') {
                 problems.push(
-                    `refused/${refusal.file}: refused, but not by name — the error does not mention ` +
-                        `${JSON.stringify(refusal.names)}:\n      ${message}`,
-                );
-            }
-            // A parser error is `file:line:column:`; an emitter or resolver error says `line N`.
-            if (!message.includes(`:${refusal.line}:`) && !message.includes(`line ${refusal.line}`)) {
-                problems.push(
-                    `refused/${refusal.file}: refused, but the error does not name line ${refusal.line}:\n      ${message}`,
+                    `${key}: CORPUS_REFUSALS says the projection projects it, and the parser refused the file first.`,
                 );
             }
             refused += 1;
             continue;
         }
-        problems.push(
-            `refused/${refusal.file}: ${refusal.construct} was ACCEPTED, and ${emitted.split('\n').length} line(s) ` +
-                'of XML came out. ADR 0053 clause 3 makes a construct outside the subset a hard error naming its ' +
-                'line; output that looks plausible is the failure this stage exists to catch.',
-        );
+
+        let emitted;
+        try {
+            emitted = emitGtkBuilderXml(ast, { accessibilityElement, gtypeName, resolveIdent });
+        } catch (error) {
+            hold(refusal, 'the emitter', String(error.message));
+            refused += 1;
+        }
+        if (emitted !== undefined) {
+            problems.push(
+                `${key}: ${refusal.construct} was ACCEPTED, and ${emitted.split('\n').length} line(s) ` +
+                    'of XML came out. ADR 0053 clause 3 makes a construct outside the subset a hard error naming its ' +
+                    'line; output that looks plausible is the failure this stage exists to catch.',
+            );
+        }
+
+        try {
+            const { node } = projectToSharedNode(ast, { gtypeName });
+            if (refusal.projection === 'refuses') {
+                problems.push(
+                    `${key}: CORPUS_REFUSALS says the projection refuses it, and a tree tagged ` +
+                        `${JSON.stringify(node.tag)} came out. Say \`projects\` if that is a declared loss or a value ` +
+                        'kept as spelled; a tag is the one thing that exit must spell right.',
+                );
+            }
+        } catch (error) {
+            if (refusal.projection === 'projects') {
+                problems.push(
+                    `${key}: CORPUS_REFUSALS says the projection projects it, and it refused: ${String(error.message)}`,
+                );
+            } else hold(refusal, 'the projection', String(error.message));
+        }
     }
 }
 
@@ -883,7 +938,7 @@ const stageC =
 
 const stageD = `stage D held ${projected} hand-written SharedNode tree(s) against the projection`;
 
-const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line`;
+const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 
 const stageB = havecompiler
     ? write
