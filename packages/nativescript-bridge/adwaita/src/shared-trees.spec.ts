@@ -18,11 +18,24 @@
 // composition, and the thing supplied is the platform the port was already declared against.
 //
 // WHAT THAT DOES AND DOES NOT BUY, stated here because a reader of a green run will look
-// here first. It buys the port's TREE: which class an element name resolves to, which child
-// lands in which slot, which value survives the setter it was written through. It does not
-// buy NativeScript: no layout pass, no CSS engine, no native view, no rasterised icon runs.
-// A row that depends on the platform's own arithmetic is not reachable here and must not be
-// claimed — which is why the reads below are all of the port's own output.
+// here first. It buys the port's TREE: which class an element name resolves to, that every
+// authored child reaches that tree at all and in the authored ORDER, and what the setter an
+// authored attribute lands on makes of the string it is handed. It does not buy NativeScript:
+// no layout pass, no CSS engine, no native view, no rasterised icon runs. A row that depends
+// on the platform's own arithmetic is not reachable here and must not be claimed.
+//
+// AND IT DOES NOT BUY WHICH SLOT A CHILD LANDS IN — measured, not assumed, because an earlier
+// revision of this header claimed it. The walks below filter the realised tree down to the
+// AUTHORED classes, so a row placed beside the boxed list instead of inside it, and an
+// expander's rows placed in its header instead of its disclosure, both keep every authored
+// node in every authored position: both mutations were applied to the port and both stayed
+// GREEN. Door 2 of `docs/nativescript-xml.md` is the door those defects come through, and
+// `check-nativescript-xml-doors.mjs` is still the only thing that holds it. Nothing here does.
+//
+// The remaining coercion bound is the corpus's, not the driver's: every boolean the seven
+// blocks author is `true`, which `Boolean('true')` also gets right, so the `'false'` half of
+// `widgets/xml-values.ts` — the one that regression exists for — is not exercised on this
+// corpus. Dropping `xmlBoolean` from `AdwSwitchRow.active` stays green today.
 //
 // THE DOOR IS THE `xmlns` BARREL, `<adw:SwitchRow>` over `~/adw`, and not the flat
 // `registerElement` dialect `<AdwSwitchRow>`. Both exist, both spell a widget differently
@@ -42,7 +55,8 @@
 // The readers go through the REAL VIEW TREE the port built — `LayoutBase`'s own child list,
 // walked in the order the port put them in — never a state object a widget keeps about
 // itself: a renderer asserting against its own bookkeeping agrees with itself while the
-// screen is wrong.
+// screen is wrong. On this port that distinction is not academic, and {@link inner} carries
+// the two measurements it cost.
 //
 // WHAT IS NOT HERE is everything that is not about this renderer. Which tables the corpus
 // reaches, which block is declared to reach none, whether an expectation's address exists at
@@ -57,6 +71,9 @@ import {
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+// The core's OWN character count, applied to text taken off the tree. Counting here
+// instead would be a second `g_utf8_strlen` for the driver to agree with itself about.
+import { entryTextLength } from '@gjsify/adwaita-core';
 
 import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
 
@@ -68,7 +85,7 @@ import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scri
 import * as Adw from './namespace/adw.js';
 import * as Gtk from './namespace/gtk.js';
 
-import { Button, LayoutBase, type View } from './testing/ns-core.mjs';
+import { Button, LayoutBase, Switch, TextField, type View } from './testing/ns-core.mjs';
 
 /** A class the barrel offers as an element — NativeScript builds one with NO arguments. */
 type ElementClass = new () => View;
@@ -201,8 +218,40 @@ function realised(root: View, wanted: readonly string[]): { view: View; tag: str
     return found;
 }
 
-/** The banner's action button — a REAL `Button` in the tree, which is how the port adds it. */
+/**
+ * The banner's action button — a REAL `Button` in the tree, which is how the port adds it.
+ *
+ * Nullable where {@link inner} throws, and deliberately: this port makes the button's absence
+ * the MECHANISM for "no button", so both vectors below have a row whose expected answer is
+ * exactly that. A slider or a field is never absent by design.
+ */
 const bannerButton = (banner: View) => findDescendant(banner, (view) => view instanceof Button) as Button | null;
+
+/**
+ * The platform control a composed row installed in its constructor, found in the TREE.
+ *
+ * WHY EVERY READ BELOW GOES THROUGH THIS. Two of this port's observables are served by a
+ * headless `@gjsify/adwaita-core` state object — `AdwSwitchRow.active` returns
+ * `SwitchRowState.active`, `AdwEntryRow.textLength` returns `EntryRowState.textLength` —
+ * and that object is written by the SETTER, not by the render. Reading it would be the
+ * renderer agreeing with its own bookkeeping while the control on screen is untouched.
+ * Measured, twice: deleting `this._switch.checked = …` from `AdwSwitchRow._apply`, and
+ * `views.field.text = state.text` from `applyEntryRowState`, both left this suite GREEN
+ * while the row rendered an off switch and an empty field.
+ *
+ * A missing control is a FAILURE and not a `null` read: a row with no slider and a row whose
+ * slider says `false` are different findings and must not report the same value.
+ */
+function inner<T extends View>(row: View, ctor: new () => T, what: string): T {
+    const found = findDescendant(row, (view) => view instanceof ctor);
+    if (found === null) {
+        throw new Error(
+            `the tree under \`${row.constructor.name}\` carries no ${what}, so this row has nothing on ` +
+                'screen for the vector to be about — the port composes one in its constructor.',
+        );
+    }
+    return found as T;
+}
 
 /**
  * Read one observable off the view this renderer built.
@@ -214,9 +263,14 @@ const bannerButton = (banner: View) => findDescendant(banner, (view) => view ins
 function read(expectation: SharedTreeExpectation, view: View): string | number | boolean {
     switch (expectation.observable) {
         case 'entry-text-length':
-            return (view as unknown as { textLength: number }).textLength;
+            // The TEXT off the tree, the COUNT from the core: a driver counting characters
+            // itself would re-implement the `g_utf8_strlen` the table is about and then
+            // assert against its own arithmetic.
+            return entryTextLength(inner(view, TextField, 'TextField').text);
         case 'switch-row-active':
-            return (view as unknown as { active: boolean }).active;
+            // The SLIDER. The row's `active` is the same fact one indirection earlier, and
+            // the vector's own rule is that the programmatic set REACHES the slider.
+            return inner(view, Switch, 'Switch').checked;
         case 'banner-button-visible': {
             // The port ADDS the button to the tree for a non-empty label and removes it for
             // an empty one, so "on screen" is presence first and `visibility` second —
