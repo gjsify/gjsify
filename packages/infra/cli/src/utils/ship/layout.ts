@@ -367,7 +367,7 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'the faces are staged in `share/fonts/<appId>` and `Info.plist` carries `ATSApplicationFontsPath` ' +
             "at it, which is macOS's own per-app activation for a CoreText-backed Pango — the default there, " +
             'because GTK is not built against fontconfig on darwin. A `.app` carrying the bundled GTK runtime ' +
-            "instead reads them through fontconfig, which `@gjsify/node-gi`'s loader selects with " +
+            "instead reads them through fontconfig, which `@gjsify/node-gi`'s loader asks for with " +
             '`PANGOCAIRO_BACKEND=fc` (ADR 0038 § Amendment 3), and `initFonts()` from `@gjsify/gtk-host/fonts` ' +
             'registers them as it does on Windows. Either way no branch is needed in your app: a CoreText map ' +
             'answers G_IO_ERROR_NOT_SUPPORTED and the call reports that as declined. Confirm in the shipped ' +

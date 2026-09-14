@@ -201,15 +201,16 @@ both sufficient and the simplest mechanism.
   `@gjsify/gtk-host`'s `initFonts()` hands each face to `add_font_file`, which moves it by one.
   That handover is unchanged by the paragraph below, and it is still what puts the face there.
 
-  **AND THE BACKEND IS NOW CHOSEN, not inherited.** `etc/fonts` above was configuration nobody
-  read: `pangocairo` builds the first backend compiled in (coretext → win32 → fc), so this
-  bundle drew through DirectWrite and macOS's through CoreText, whose script fallback does not
-  reach every face the system installs — non-Latin text rendered as empty boxes in every
-  shipped app, Tamil measured on Windows 11 and macOS 15.7.9 with the system's own Tamil face
-  installed throughout. node-gi's loader now sets `PANGOCAIRO_BACKEND=fc` for a windowing
-  bundle on both platforms, only when you have not set it yourself. The cost is FreeType
-  rasterisation instead of ClearType/CoreText; pin `PANGOCAIRO_BACKEND=win32` to get the old
-  map back. ADR 0038 § Amendment 3.
+  **AND THE BACKEND IS REQUESTED BUT REFUSED HERE.** `pangocairo` builds the first backend
+  COMPILED IN (coretext → win32 → fc), so this bundle draws through DirectWrite and macOS's
+  through CoreText, whose script fallback does not reach every face the system installs —
+  non-Latin text rendered as empty boxes in every shipped app, Tamil measured on Windows 11 and
+  macOS 15.7.9 with the system's own Tamil face installed throughout. node-gi's loader asks for
+  `PANGOCAIRO_BACKEND=fc` on both platforms (only when you have not set it yourself), and
+  **this bundle cannot honour it**: gvsbuild's pango is built with no FreeType/fontconfig cairo
+  backend, measured in CI — the variable is set, the map is still `PangoCairoWin32FontMap`, and
+  Tamil is still tofu. So `etc/fonts` here remains configuration nothing reads, and the
+  non-Latin gap is open on this platform. ADR 0038 § Amendment 3 and `status/open-todos.md`.
 
   **And the SIZE, which shipping faces does not fix.** GTK takes the system UI font from the
   shell, and Windows' is 9 pt where GNOME designs for 11. Measured as `ascent + descent` rather

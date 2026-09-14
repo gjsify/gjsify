@@ -735,13 +735,15 @@ what every row above is about; `InitFontsResult.dir` likewise still means the ap
 The runtime half and the three-state UI-font SIZE policy that comes with it are ADR 0038
 § Amendment 2 and the `bundled-fonts` guide.
 
-**The darwin and windows rows describe the map GTK resolves by DEFAULT, which the bundled runtime
-no longer takes.** `pangocairo` builds the first backend compiled in (coretext → win32 → fc), and
-neither platform map's script fallback reaches every face the system installs — non-Latin text was
-tofu in every shipped app until `@gjsify/node-gi`'s loader started setting `PANGOCAIRO_BACKEND=fc`
-for the windowing bundle (ADR 0038 § Amendment 3). On that map `add_font_file` is implemented on
-both, so the windows row's registration is unchanged and the darwin row gains it; the declarative
-`ATSApplicationFontsPath` route stays emitted and stays correct for a CoreText map.
+**The darwin and windows rows describe the map GTK resolves by DEFAULT, and the bundled runtime
+now asks for a different one.** `pangocairo` builds the first backend compiled in
+(coretext → win32 → fc), and neither platform map's script fallback reaches every face the system
+installs — non-Latin text was tofu in every shipped app, so `@gjsify/node-gi`'s loader sets
+`PANGOCAIRO_BACKEND=fc` for a windowing bundle (ADR 0038 § Amendment 3). On darwin that is
+honoured, `add_font_file` works on the resulting map, and the declarative
+`ATSApplicationFontsPath` route stays emitted and stays correct for a CoreText map. **On windows
+it is refused** — gvsbuild's pango carries no fontconfig backend to select, measured — so that row
+is unchanged in every respect, `add_font_file` included.
 
 Three things follow, each of which looks wrong until the reason is read:
 

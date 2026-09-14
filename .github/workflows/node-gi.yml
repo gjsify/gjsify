@@ -1877,9 +1877,14 @@ jobs:
       # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
       # map — CoreText on darwin, pangowin32/DirectWrite on win32 — whose script fallback does
       # not reach the Indic faces the OS itself installs, while every FONTCONFIG_* variable the
-      # loader sets was being read by nobody. The test measures unknown glyphs for Tamil and
-      # then re-measures with the platform backend pinned back, so a pass here says the fix
-      # WORKS rather than that the check is inert. No display and no GSK renderer needed.
+      # loader sets was being read by nobody.
+      #
+      # The test asks the PROCESS which backends its pango was built with rather than assuming
+      # from the OS, then asserts the branch it is in: where fontconfig can be selected, Tamil
+      # must render AND a child with the platform backend pinned back must still show the tofu
+      # (so a pass cannot mean the check is inert); where it cannot — gvsbuild's pango on win32,
+      # measured — it asserts that gap instead, so the entry retires itself the day that build
+      # gains the backend. No display and no GSK renderer needed.
       - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
         working-directory: packages/node-gi/node-gi
         env:
@@ -2910,9 +2915,14 @@ jobs:
       # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
       # map — CoreText on darwin, pangowin32/DirectWrite on win32 — whose script fallback does
       # not reach the Indic faces the OS itself installs, while every FONTCONFIG_* variable the
-      # loader sets was being read by nobody. The test measures unknown glyphs for Tamil and
-      # then re-measures with the platform backend pinned back, so a pass here says the fix
-      # WORKS rather than that the check is inert. No display and no GSK renderer needed.
+      # loader sets was being read by nobody.
+      #
+      # The test asks the PROCESS which backends its pango was built with rather than assuming
+      # from the OS, then asserts the branch it is in: where fontconfig can be selected, Tamil
+      # must render AND a child with the platform backend pinned back must still show the tofu
+      # (so a pass cannot mean the check is inert); where it cannot — gvsbuild's pango on win32,
+      # measured — it asserts that gap instead, so the entry retires itself the day that build
+      # gains the backend. No display and no GSK renderer needed.
       - name: Script-coverage proof — non-Latin text renders on the bundled runtime (#1668)
         working-directory: packages/node-gi/node-gi
         env:

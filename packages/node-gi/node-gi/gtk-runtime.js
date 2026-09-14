@@ -464,6 +464,20 @@ export function maybeWireGtkWindowingEnv() {
     // bundle already ships `etc/fonts/fonts.conf` and the two lines above already point at it.
     // The configuration was being read by nobody.
     //
+    // THIS IS A REQUEST, NOT A GUARANTEE, and on win32 it is currently REFUSED. Measured in CI
+    // run 34873488108 on the bundle built from this tree: with the variable set, the process
+    // still built a PangoCairoWin32FontMap — `Adwaita Sans` was on it under the DirectWrite
+    // spelling `Adwaita Sans Text` — and Tamil still counted 5 unknown glyphs. gvsbuild's pango
+    // has no FreeType/fontconfig cairo backend to select, so #1668 is NOT fixed on Windows by
+    // this line, and `etc/fonts` there is still configuration nobody reads (open-todos).
+    //
+    // The line stays on BOTH platforms anyway: the request is correct on both, the refusal is
+    // the platform's, and it is measured to change nothing on win32 today. The reason that is
+    // not a silent trap waiting for a gvsbuild bump — the failure shape § WHICH GTK WINS warns
+    // about two hundred lines up — is `test/font-script-coverage.test.mjs`: it asks the process
+    // which backends it HAS and asserts the branch it is in, so the day win32 gains fontconfig
+    // the suite changes its answer instead of the rasteriser changing under a user.
+    //
     // `setIfUnset`, because an operator who pins `coretext`/`win32` has to win: the price of
     // this line is a different RASTERISER (FreeType instead of ClearType/CoreText), which is a
     // preference, while a glyph that never arrives is a defect. No platform branch is needed —
@@ -478,16 +492,15 @@ export function maybeWireGtkWindowingEnv() {
     //
     // `XDG_DATA_DIRS` reaches `<bundle>/share/fonts` wherever fontconfig drives Pango — its
     // stock configuration carries `<dir prefix="xdg">fonts</dir>` — which on darwin is true
-    // only BECAUSE of the backend line above. This comment used to read "so on darwin the set
-    // above is enough", and that sentence WAS the defect: nothing made fontconfig the darwin
-    // backend, so the directory was being named to a reader nobody had asked.
-    // On WIN32 the same is now true for the same reason, and was not before: GTK4 resolves
-    // pangowin32 by default, whose font map is filled exclusively by
-    // `pango_font_map_dwrite_populate()` from the DirectWrite system collection, and a
-    // `FONTCONFIG_FILE` naming a directory of faces moves THAT map by ZERO families even when
-    // it is the only configuration present (measured on Windows 11 / GTK 4.22.4, both
-    // directions — ADR 0038 § W1-W5). That is still what a consumer gets who pins the backend
-    // back, so the handover below stays load-bearing: the face has to be handed to that map
+    // only BECAUSE of the backend request above. This comment used to read "so on darwin the
+    // set above is enough", and that sentence WAS the defect: nothing made fontconfig the
+    // darwin backend, so the directory was being named to a reader nobody had asked.
+    // On WIN32 it remains the only route there is, backend request or not: gvsbuild's pango
+    // has no fontconfig backend to select, so GTK4 there is pangowin32, whose font map is
+    // filled exclusively by `pango_font_map_dwrite_populate()` from the DirectWrite system
+    // collection, and a `FONTCONFIG_FILE` naming a directory of faces moves that map by ZERO
+    // families even when it is the only configuration present (measured on Windows 11 /
+    // GTK 4.22.4, both directions — ADR 0038 § W1-W5). The face has to be handed to the map
     // through `add_font_file`, which is a RUNTIME call somebody has to make.
     //
     // So the loader's job here is to name the directory, not to register anything: it runs
