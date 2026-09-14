@@ -10,7 +10,9 @@ import {
     InvalidArgTypeError,
     InvalidStateError,
     InvalidUrlSchemeError,
+    isNodeSqliteError,
     SqliteError,
+    sqliteErrorMessage,
 } from './errors.ts';
 import { convertParameterSyntax } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
@@ -203,7 +205,7 @@ export class DatabaseSync {
             this.#connection!.open();
         } catch (e: unknown) {
             this.#connection = null;
-            throw new SqliteError(e instanceof Error ? e.message : String(e));
+            throw new SqliteError(sqliteErrorMessage(e));
         }
 
         // No Gda.SqlParser is kept: the connection parses its own SQL through parseSql(),
@@ -245,10 +247,10 @@ export class DatabaseSync {
                 this.#executeStatement(stmt);
             }
         } catch (e: unknown) {
-            if (e instanceof SqliteError || e instanceof InvalidStateError || e instanceof InvalidArgTypeError) {
+            if (isNodeSqliteError(e)) {
                 throw e;
             }
-            throw new SqliteError(e instanceof Error ? e.message : String(e));
+            throw new SqliteError(sqliteErrorMessage(e));
         }
 
         // Track transaction state
@@ -270,10 +272,10 @@ export class DatabaseSync {
         try {
             this.#parseSql(probeSql);
         } catch (e: unknown) {
-            if (e instanceof SqliteError || e instanceof InvalidArgTypeError) {
+            if (isNodeSqliteError(e)) {
                 throw e;
             }
-            throw new SqliteError(e instanceof Error ? e.message : String(e));
+            throw new SqliteError(sqliteErrorMessage(e));
         }
 
         const stmtOptions: StatementSyncOptions = {
@@ -298,12 +300,11 @@ export class DatabaseSync {
     }
 
     [Symbol.dispose](): void {
+        // No catch: the guard already excludes close()'s own "database is not open", and
+        // `Gda.Connection.close()` is not `throws="1"` in Gda-6.0.gir, so there is no
+        // failure left for one to absorb — only ours, which a `using` block should see.
         if (this.isOpen) {
-            try {
-                this.close();
-            } catch {
-                /* ignore */
-            }
+            this.close();
         }
     }
 
