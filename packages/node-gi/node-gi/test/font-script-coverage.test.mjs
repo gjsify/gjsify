@@ -32,6 +32,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gtkSource, resolveGtkRuntimeBundle } from '../gtk-runtime.js';
@@ -70,9 +71,10 @@ function windowingBundleIsActive() {
  * because a GTK stack that decides to print a diagnostic must not be able to become the
  * measurement.
  */
-function probe({ backend } = {}) {
+function probe({ backend, fontconfigFile } = {}) {
     const env = { ...process.env };
     if (backend !== undefined) env.PANGOCAIRO_BACKEND = backend;
+    if (fontconfigFile !== undefined) env.FONTCONFIG_FILE = fontconfigFile;
     const run = spawnSync(process.execPath, [PROGRAM], { env, encoding: 'utf8', timeout: 180_000 });
     const marker = (run.stdout ?? '')
         .split(/\r?\n/)
@@ -185,5 +187,57 @@ test('Tamil renders on the bundled runtime, and is tofu the moment the backend i
     console.log(
         `tamil: ${shipped.fontMapType} → ${seen.tamil} unknown glyph(s); ${control.fontMapType} → ` +
             `${controlSeen.tamil}. Latin is ${seen.latin} on both.`,
+    );
+});
+
+// THE HOST WE CANNOT RENT: a Mac with no Homebrew. Choosing fontconfig on darwin puts the
+// process's whole font supply behind a configuration THIS BUNDLE DOES NOT SHIP — unlike win32,
+// where `etc/fonts/fonts.conf` travels in the tarball and the loader points `FONTCONFIG_FILE` at
+// it. What the darwin bundle gets instead is whatever its fontconfig was compiled to look for,
+// which is the BUILD machine's Homebrew prefix. Every macOS runner has Homebrew, so a green leg
+// here would say nothing about the machine a stranger downloads the `.app` to — and the failure
+// mode is not the one this PR fixes, it is worse: a font map with nothing on it, every glyph
+// gone, Latin included.
+//
+// So the missing host is SIMULATED rather than assumed: a config path that does not exist makes
+// fontconfig fall back to the configuration compiled into the library, which is exactly what a
+// Mac without that prefix produces. If the two ever diverge this is the wrong check, but it is
+// the only one reachable from any runner, and "we did not check" is how the assumption above got
+// written in the first place.
+test('darwin: the faces survive a host with no fontconfig configuration at all', (t) => {
+    if (process.platform !== 'darwin') {
+        t.skip('win32 ships `etc/fonts` in the bundle and linux has the distro’s; only darwin has neither');
+        return;
+    }
+    if (!windowingBundleIsActive()) {
+        t.skip('no active windowing bundle — nothing selected fontconfig here');
+        return;
+    }
+
+    const bare = probe({ fontconfigFile: join(tmpdir(), 'gjsify-no-such-fonts.conf') });
+    if (bare.error) {
+        t.skip(`no Pango on this host: ${bare.error}`);
+        return;
+    }
+    const seen = counts(bare);
+    assert.equal(
+        seen.latin,
+        0,
+        `with no readable fontconfig configuration this process draws ${seen.latin} unknown glyph(s) for ` +
+            '"Hello" on ' +
+            `${bare.fontMapType}. That is a Mac without Homebrew losing ALL text, which is worse than the ` +
+            'defect PANGOCAIRO_BACKEND=fc was set to fix — the darwin bundle has to ship `etc/fonts` before ' +
+            'it may choose this backend',
+    );
+    assert.equal(
+        seen.tamil,
+        0,
+        `with no readable fontconfig configuration Tamil draws ${seen.tamil} unknown glyph(s) — fontconfig's ` +
+            "built-in fallback does not reach macOS's own font directories on this build, so the fix works " +
+            'only where a Homebrew prefix happens to exist',
+    );
+    console.log(
+        `darwin, no fontconfig config: ${bare.fontMapType}, latin=${seen.latin} tamil=${seen.tamil} ` +
+            `tamil-no-fallback=${seen.tamilNoFallback}`,
     );
 });
