@@ -304,16 +304,43 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         );
     });
 
-    for (const [what, sql, expected] of [
-        ['an installer whose Icon table is empty', 'DELETE FROM `Icon`', /the Icon table has 0 row\(s\)/],
+    // THE MUTATION IS AN INSTRUMENT, AND IT IS NOT A NEUTRAL ONE. libmsi's
+    // `DELETE` walks `i = 0 … rows-1` calling `delete_row(i)` on a table that
+    // shrinks under each call (`libmsi/delete.c`), so an unqualified
+    // ``DELETE FROM `T` `` removes every SECOND row and leaves the rest standing:
+    // measured with msitools 0.106.58 on this installer, `Directory` 40 → 20,
+    // `File` 27 → 13, `Component` 27 → 13, `Property` 10 → 5. The Icon arm is
+    // correct only because that table holds exactly one row — `emptied` states
+    // that here instead of leaving it to a coincidence with the case above.
+    //
+    // THE ARPPRODUCTICON ARM THEREFORE DOES NOT DELETE. The state the oracle
+    // names is `ARPPRODUCTICON is ""` — an empty VALUE — and an `UPDATE` writes
+    // exactly that while moving no row count anywhere in the database. Its
+    // `DELETE` predecessor is what ran when this arm failed on `E2E 2/4`,
+    // 2026-09-13, with `there is no INSTALLDIR row`: an accusation about the
+    // Directory table for a mutation aimed at Property. That run was never
+    // reproduced — 1,480 mutate-and-read cycles in the same CI image and the same
+    // msitools build, none of them losing a Directory row — so the DELETE is
+    // retired as the one step in the arm that CAN move a row count, not as a
+    // proven cause.
+    //
+    // Either way the copy is read back against the original before the oracle
+    // sees it: an instrument that damaged a second table is otherwise reported by
+    // the oracle as a defect in the installer.
+    const ORACLE_TABLES = ['File', 'Component', 'FeatureComponents', 'Directory', 'Shortcut', 'Icon', 'Property'];
+
+    for (const [what, sql, emptied, expected] of [
+        ['an installer whose Icon table is empty', 'DELETE FROM `Icon`', 'Icon', /the Icon table has 0 row\(s\)/],
         [
             'a shortcut whose Icon_ names nothing',
             "UPDATE `Shortcut` SET `Icon_` = ''",
+            null,
             /the shortcut's Icon_ column is ""/,
         ],
         [
-            'an installer with no ARPPRODUCTICON',
-            "DELETE FROM `Property` WHERE `Property` = 'ARPPRODUCTICON'",
+            'an ARPPRODUCTICON that names nothing',
+            "UPDATE `Property` SET `Value` = '' WHERE `Property` = 'ARPPRODUCTICON'",
+            null,
             /ARPPRODUCTICON is ""/,
         ],
     ]) {
@@ -325,6 +352,18 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
             const copy = join(tmpDir, `red-msi-${createHash('sha256').update(what).digest('hex').slice(0, 8)}.msi`);
             cpSync(msi, copy);
             execFileSync('msibuild', [copy, '-q', sql], { encoding: 'utf-8' });
+            if (emptied) {
+                assert.equal(table(copy, emptied).length, 0, `the mutation left rows in the ${emptied} table`);
+            }
+            for (const name of ORACLE_TABLES) {
+                if (name === emptied) continue;
+                assert.equal(
+                    table(copy, name).length,
+                    table(msi, name).length,
+                    `msibuild also changed the ${name} table — the mutation is the instrument here, not the subject, ` +
+                        'so what the oracle says next would be about the instrument',
+                );
+            }
             const failure = oracleExpectingFailure([copy, programDir, 'msitools']);
             assert.match(failure, expected);
         });
@@ -473,6 +512,41 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
             env: { ...process.env, PATH: `${stub}:${process.env.PATH}` },
         });
         assert.match(failure, /msiinfo export Directory returned 0 usable line\(s\)/);
+        assert.doesNotMatch(failure, /there is no INSTALLDIR row/);
+    });
+
+    it('blames the READER when a table comes back with its headers and no rows', () => {
+        // THE OTHER HALF OF THE SAME MISATTRIBUTION, and the half the stub above
+        // cannot reach. libmsi does not answer a stream it failed to open with
+        // nothing — it answers with an EMPTY TABLE at exit 0 ("if we can't read
+        // the table, just assume that it's empty", `libmsi/table.c`, whose return
+        // value the caller then ignores), and an empty table still exports its
+        // three IDT header lines. Measured: ``msibuild x.msi -q 'DELETE FROM
+        // `Directory`' `` then `msiinfo export x.msi Directory` → 3 usable lines,
+        // exit 0. Three is exactly what the header floor was written to ALLOW, so
+        // the guard added after the first incident could not see the second one:
+        // `E2E 2/4`, 2026-09-13, read a lost Directory table as an installer with
+        // no INSTALLDIR row.
+        const stub = join(tmpDir, 'reader-stub-headers');
+        mkdirSync(stub, { recursive: true });
+        const realMsiinfo = execFileSync('bash', ['-c', 'command -v msiinfo'], { encoding: 'utf-8' }).trim();
+        writeFileSync(
+            join(stub, 'msiinfo'),
+            '#!/usr/bin/env bash\n' +
+                // `sed -n 1,3p` and never `head -3`: `head` closes the pipe, and
+                // msiinfo reports that EPIPE as an internal error — a different
+                // fault from the silent one this case is about.
+                'if [ "$1" = export ] && [ "$3" = Directory ]; then\n' +
+                `    ${JSON.stringify(realMsiinfo)} "$@" | sed -n '1,3p'\n` +
+                '    exit 0\n' +
+                'fi\n' +
+                `exec ${JSON.stringify(realMsiinfo)} "$@"\n`,
+            { mode: 0o755 },
+        );
+        const failure = oracleExpectingFailure([msi, programDir, 'msitools'], {
+            env: { ...process.env, PATH: `${stub}:${process.env.PATH}` },
+        });
+        assert.match(failure, /returned the three IDT header lines and no rows/);
         assert.doesNotMatch(failure, /there is no INSTALLDIR row/);
     });
 
