@@ -212,9 +212,9 @@ export const CORPUS_RULES = [
     },
     {
         file: '27-property-flags.blp',
-        isolates: 'a flag set as a property value, beside an enum on the same object',
+        isolates: 'a flag set as a property value beside an enum on one object, and a lone flag member on another',
         surprise:
-            'a flag set is NOT numbered — the nicks survive, hyphenated and joined by `|` with no spaces — while the enum beside it is, so one lookup answers two different kinds of question',
+            'a flag SET is NOT numbered — the nicks survive, hyphenated and joined by `|` with no spaces — while the enum beside it is, and so is a LONE flag member: `lowercase` on its own is `8`, because the oracle reads a single identifier as a literal and only a `|`-joined set as flags. The resolver returned the nick for both until this file held the second entry',
     },
 ];
 

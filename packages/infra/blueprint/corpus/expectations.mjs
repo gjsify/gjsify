@@ -418,8 +418,14 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '27-property-flags.blp',
-        node: { tag: 'GtkEntry', props: { 'input-hints': 'word_completion|lowercase', 'input-purpose': 'email' } },
+        node: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkEntry', props: { 'input-hints': 'word_completion|lowercase', 'input-purpose': 'email' } },
+                { tag: 'GtkEntry', props: { 'input-hints': 'lowercase' } },
+            ],
+        },
         lost: [],
-        note: 'The two identifiers leave the compiler as different KINDS of answer — `word-completion|lowercase` and `6` — from one lookup, so a resolver that only ever returns a number is wrong on half of this file. The projection keeps both as the source wrote them, `|` and underscores included, for the reason on `03-property-enum.blp`.',
+        note: 'Three identifiers leave the compiler as three KINDS of answer — `word-completion|lowercase`, `6` and `8` — from one lookup, so a resolver that only ever returns a number is wrong on the first and one that returns a nick for every flag member is wrong on the third. The projection keeps all of them as the source wrote them, `|` and underscores included, for the reason on `03-property-enum.blp`.',
     },
 ];

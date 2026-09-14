@@ -43,13 +43,16 @@
 // nick, so exactly one transform stands between them and it is applied here rather than assumed
 // anywhere else. `rules/03-property-enum.blp` pins it.
 //
-// A FLAG SET IS NOT A NUMBER
+// A FLAG SET IS NOT A NUMBER — BUT A LONE FLAG IS
 //
 // Also measured on 0.20.4: `input-hints: word_completion | lowercase` compiles to
 // `<property name="input-hints">word-completion|lowercase</property>` — the nicks survive,
-// hyphenated, joined with no spaces. So the same join that numbers an enum normalises a flag
-// set, and the two answers differ in kind, which is why this seam returns TEXT and not a
-// number. `rules/27-property-flags.blp` pins it.
+// hyphenated, joined with no spaces — while `input-hints: lowercase` on its own compiles to `8`.
+// The oracle reads a `|`-joined set as `Flags` and emits nicks, and a single identifier as a
+// `Literal`, which it numbers whatever the type is. So the `|` selects the answer and not the
+// kind of type, the two answers differ in kind, and this seam returns TEXT and not a number.
+// `rules/27-property-flags.blp` pins both — and it pinned only the set, with this module
+// returning the nick for a lone member too, until the file held a second entry.
 //
 // AN UNKNOWN MEMBER OF A KNOWN ENUM IS AN ERROR
 //
@@ -136,20 +139,17 @@ function typeOfProperty(typeName, propertyName) {
 }
 
 /**
- * The text one member of a known enum or flags type becomes, or a thrown error naming it.
+ * One member of a known enum or flags type — its nick and its number — or a thrown error naming it.
  *
  * @param {string} enumType @param {string} member @param {string} where
- * @returns {string}
+ * @returns {{ nick: string, value: number }}
  */
-function memberText(enumType, member, where) {
+function lookupMember(enumType, member, where) {
     const nick = member.replaceAll('_', '-');
     const key = `${enumType}.${nick}`;
 
-    const value = ENUM_VALUES[key];
-    if (value !== undefined) return String(value);
-    // A flag member keeps its nick; the caller joins a set of them. The value is read anyway so
-    // an unknown flag name reaches the error below instead of being passed through.
-    if (FLAG_VALUES[key] !== undefined) return nick;
+    const value = ENUM_VALUES[key] ?? FLAG_VALUES[key];
+    if (value !== undefined) return { nick, value };
 
     // Two different failures, and the repair differs. A nick the enum HAS but whose value the
     // GIR could not read is a declared gap upstream — today both namespaces declare none, and
@@ -208,10 +208,11 @@ function membersOf(enumType) {
 export function resolveIdent(typeName, propertyName, member, where) {
     const enumType = typeOfProperty(typeName, propertyName);
     if (enumType === null) return null;
-    return member
-        .split('|')
-        .map((part) => memberText(enumType, part.trim(), where))
-        .join('|');
+    const members = member.split('|').map((part) => lookupMember(enumType, part.trim(), where));
+    // A lone member is a literal to the oracle and emits its NUMBER whatever the type, `8` for
+    // `input-hints: lowercase`; only a `|`-joined set keeps the nicks (27-property-flags.ui).
+    if (members.length === 1) return String(members[0].value);
+    return members.map((entry) => entry.nick).join('|');
 }
 
 /**
