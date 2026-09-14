@@ -818,6 +818,28 @@ export default async () => {
             expect(u.port).toBe('2');
         });
 
+        // THE CONSTRUCTOR SIDE OF THE SAME INVARIANT, which nothing else in this file reaches.
+        //
+        // Every IPv6 case above assigns through a setter, and the setter's own parser puts the
+        // brackets back. The constructor takes the host from `GLib.Uri`, which STRIPS them, and
+        // the re-bracketing there was covered by no test at all: deleting it left the suite green
+        // while `new URL('http://[::1]/').href` became `http://::1/` — a string that re-parses as
+        // a different URL, with `::1` read as a host and `1` as a port.
+        await it('restores the brackets GLib strips from a parsed IPv6 host', async () => {
+            const plain = new URL('http://[::1]/');
+            expect(plain.hostname).toBe('[::1]');
+            expect(plain.host).toBe('[::1]');
+            expect(plain.href).toBe('http://[::1]/');
+
+            const withPort = new URL('http://[::1]:8080/p');
+            expect(withPort.hostname).toBe('[::1]');
+            expect(withPort.host).toBe('[::1]:8080');
+            expect(withPort.href).toBe('http://[::1]:8080/p');
+
+            // Round-trip: the serialisation has to parse back to the same URL.
+            expect(new URL(plain.href).href).toBe('http://[::1]/');
+        });
+
         await it('percent-encodes an opaque host on a non-special scheme', async () => {
             const u = new URL('sc://x/');
             u.host = 'ß';
@@ -976,12 +998,39 @@ export default async () => {
             expect(u.href).toBe('file:///x');
         });
 
+        await it('lower-cases an assigned domain', async () => {
+            const u = new URL('http://example.net/');
+            u.hostname = 'EXAMPLE.COM';
+            expect(u.hostname).toBe('example.com');
+            expect(u.href).toBe('http://example.com/');
+        });
+
         await it('is a no-op on a URL with an opaque path', async () => {
             const u = new URL('mailto:me@example.net');
             u.hostname = 'example.com';
             expect(u.href).toBe('mailto:me@example.net');
         });
 
+        // A PATH-ONLY URL CAN GAIN AN EMPTY HOST — and here @gjsify/url follows the spec text
+        // where Node does not, so the expectation is selected by host rather than asserted flat.
+        //
+        // Host state has exactly one refusal for an empty buffer: "if state override is given,
+        // buffer is the empty string, and either url includes credentials or url's port is
+        // non-null, then return". `foo:/path` has neither, so the empty host is installed and the
+        // URL serialises with an authority. WPT pins the neighbouring case — `non-spec:/.//p` <-
+        // `''` gives `non-spec:////p`, which this implementation passes — but leaves this one
+        // uncovered, and Node keeps the host null instead. Pinned on both sides so the difference
+        // is a recorded decision rather than something that drifts unnoticed.
+        await it('installs an empty host on a path-only URL, as the spec text has it', async () => {
+            const u = new URL('foo:/path');
+            u.hostname = '';
+            expect(u.href).toBe(IS_GJS ? 'foo:///path' : 'foo:/path');
+
+            // The case WPT does pin, where the two agree.
+            const escaped = new URL('non-spec:/.//p');
+            escaped.hostname = '';
+            expect(escaped.href).toBe('non-spec:////p');
+        });
     });
 
     await describe('URL.port setter', async () => {
@@ -1111,6 +1160,23 @@ export default async () => {
             trailing.pathname = '/..';
             expect(trailing.pathname).toBe('/');
 
+            // A dot segment in FINAL position leaves the trailing slash behind it — "if c is
+            // neither / nor \, append the empty string to url's path". The `/..` case above
+            // cannot see that rule: it pops the only segment there is, so appending the empty
+            // string and not appending it both serialise as `/`. It needs a segment to survive
+            // the pop, and then the two answers differ: `/a/` against `/a`.
+            const survivor = new URL('https://example.net/z');
+            survivor.pathname = '/a/b/..';
+            expect(survivor.pathname).toBe('/a/');
+
+            const singleDot = new URL('https://example.net/z');
+            singleDot.pathname = '/a/b/.';
+            expect(singleDot.pathname).toBe('/a/b/');
+
+            // ...and a dot segment that is NOT final appends nothing.
+            const interior = new URL('https://example.net/z');
+            interior.pathname = '/a/b/../c';
+            expect(interior.pathname).toBe('/a/c');
         });
 
         await it('reads a backslash as a segment delimiter only on a special scheme', async () => {

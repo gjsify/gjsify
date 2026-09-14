@@ -719,7 +719,16 @@ export class URL {
         // A special URL always HAS a host, even an empty one — `file:` is `file:///`. A non-special
         // URL may genuinely have none, and that is what separates `foo:/path` (a path-only URL,
         // whose path can be reassigned) from `foo:path` (an opaque one, whose path cannot).
-        this.#host = host === null ? (special ? '' : null) : bracketIPv6Host(host.toLowerCase());
+        //
+        // `localhost` on a `file:` URL is the EMPTY host, not a host named localhost: file host
+        // state maps it away, so `file://localhost/` and `file:///` are one URL. GLib keeps it,
+        // and the setter side already mapped it — which left the two halves disagreeing, and took
+        // a documented refusal down with it. `protocol` must refuse to leave a `file:` URL whose
+        // host is empty, and against an unmapped `localhost` that test never fired:
+        // `new URL('file://localhost/').protocol = 'http'` silently produced `http://localhost/`.
+        const parsed = host === null ? null : bracketIPv6Host(host.toLowerCase());
+        this.#host =
+            parsed === null ? (special ? '' : null) : this.#scheme === 'file' && parsed === 'localhost' ? '' : parsed;
         const port = uri.get_port();
         this.#port = port === -1 || port === defaultPort(this.#scheme) ? null : port;
         this.#path = uri.get_path() ?? '';
