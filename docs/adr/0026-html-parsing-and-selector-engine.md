@@ -1,6 +1,6 @@
 # 26. HTML parsing stays in `@gjsify/domparser`, and one selector engine serves both DOM models
 
-- Status: **Accepted** — decided before implementation; nothing of it has landed yet
+- Status: **Accepted** — decided before implementation; **implemented 2026-08-22** by `bed3e93d13` (#1250): HTML tokenizer, tree-builder, the selector engine with combinators, the generated entity table, and a parse5 differential fuzz over a 47-page corpus
 - Date: 2026-08-21
 - Deciders: Pascal Garber
 - Related: [ADR 0003 (package tiering)](0003-package-tiering.md), [ADR 0008 (release train)](0008-release-versioning-policy.md), [ADR 0014 (`/core` subpath over a new package)](0014-utils-core-subpath-and-platform-entry-routing.md), [ADR 0015 (headless contract)](0015-headless-package-contract.md)

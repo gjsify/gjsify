@@ -82,7 +82,11 @@ What is still OPEN is the fix itself, and there are exactly two routes:
 
 Until one of them happens, a Windows application that wants an About dialog fills
 `Adw.AboutDialog` itself. The dialog is fully constructible; only the metainfo-parsing
-constructor is gone.
+constructor is gone — and since #1670 no application has to write that filling twice:
+`createAboutDialog()` in `@gjsify/adwaita-app` tries the constructor and falls back to a
+GI-free metainfo parse (a port of the `ministream` selection rules the first route above
+names), so ONE call is correct on all three operating systems. The gap declaration stays:
+the symbol is still absent from the win32 typelib, and that is what the ratchet holds.
 ### Three of the four AppImage architectures have no pinned runtime
 
 `.docker/ci-fedora.Dockerfile` pins `runtime-x86_64` from type2-runtime's dated `20251108`
@@ -3570,7 +3574,7 @@ because it became true, not because a marker said so.
 
 ### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
 
-Adoption is opportunistic, not a rewrite — wire each consumer onto the shell package on its next shell touch: `@gjsify/storybook` (re-base `StorybookApplication` onto `AdwaitaApp`/`runAdwaitaApp`), buchhaltung (`app/src/frontends/desktop` — replace its hand-rolled application/nav/loadIntoStack/toast/dialog code; follows the release train), eco-retrofit (`cli/src/app` — same; also fixes its latent `Adw.Application.run(null)` → `runAsync()` hang class).
+Adoption is opportunistic, not a rewrite — wire each consumer onto the shell package on its next shell touch. **Three of the four are done** (measured 2026-09-14: buchhaltung `app/src/frontends/desktop`, eco-retrofit `cli/src/app` and troedler `app/src/frontends/gui` all import the package), which also retired eco-retrofit's latent `Adw.Application.run(null)` → `runAsync()` hang. What is LEFT is `@gjsify/storybook`: re-base `StorybookApplication` onto `AdwaitaApp`/`runAdwaitaApp`.
 
 ### Stale PixelRPG maker bundle — rebuild + recommit with `installDevtools`
 
