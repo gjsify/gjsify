@@ -876,12 +876,14 @@ after" is the correct 142, independently confirmed here at three versions. Its d
 705 is this ADR's stale one, taken from #474's commit message; the corpus at the v5.2.0 tag
 is 718 `.gir` files. Its Gtk-4.0 `PROP_ENUMS` 67 → 126 and Adw-1 37 → 50 reproduce exactly.
 
-Two footnotes the sweep turned up, neither of which changes a decision here. The 715 is 718
-GIRs less the three the run's `ignore` list names: `ClutterGst-1.0` and `GstAudio-0.10` ship
-no package at all, while `Colorhug-1.0` is ignored only as a duplicate and its package is
-emitted from `ColorHug-1.0`. And of those 715, **713** carry a 5.2.0 on npm:
-`@girs/clutter-7` and `@girs/meta-8` stop at 5.1.0, read cache-free three times. Anything
-pinning those two cannot move to 5.2.0 yet.
+Two footnotes the sweep turned up, neither of which changes a decision here. The run's
+`ignore` list names six GIRs but only three of them match a file in `girs/`, and 718 less
+those three is the 715: `ClutterGst-1.0` and `GstAudio-0.10` ship no package at all, while
+`Colorhug-1.0` is ignored only as a duplicate and its package is emitted from `ColorHug-1.0`.
+The other three — `GUPnP-DLNA-1.0`, `Gwebgl-0.1`, `GjsifyWebrtc-0.1` — name no file in the
+corpus, so they subtract nothing. And **all 715** carry a 5.2.0 on npm: `@girs/clutter-7` and
+`@girs/meta-8` trailed at 5.1.0 while this was first measured and were published on
+2026-09-15, re-read cache-free twice since.
 
 ### 3. The declaration counts inside Gtk-4.0 and Adw-1, which is what #474 actually moved
 
@@ -917,7 +919,7 @@ obtained" records what a drifted install and a left-behind simulation each did t
 git -C <ts-for-gir> checkout v5.2.0
 ls girs/*.gir | wc -l                                              # 718
 grep -ho '<namespace name="[^"]*"' girs/*.gir | sort -u | wc -l    # 483
-grep -n 'ignore:' -A 8 .ts-for-gir.packages-all.rc.js              # what a run drops
+grep -n 'ignore:' -A 12 .ts-for-gir.packages-all.rc.js             # what a run drops
 
 # 2. Does a package carry the subpath? One registry read each, CACHE-BUSTED —
 #    a cached or npm-cli read undercounts, silently and repeatably.
@@ -930,7 +932,7 @@ ls girs/*.gir | xargs -n1 basename | sed 's/\.gir$//' | tr 'A-Z' 'a-z' | sort -u
 # 3. The provenance of each one. PROVENANCE is in the first ten lines of the
 #    runtime module, so the CDN serves the whole answer without a tarball.
 curl -sS "https://cdn.jsdelivr.net/npm/@girs/<pkg>@5.2.0/<pkg>-vocabulary.js" \
-| grep -oE "(inlined|dropped)Bases: \[[^]]*\]"
+| grep -oE "namespace: '[^']*'|(inlined|dropped)Bases: \[[^]]*\]"
 #    summed over the 142: 84 inlinedBases entries in 38 files, 607 droppedBases.
 #    `namespace:` from the same block, deduplicated: 108.
 
