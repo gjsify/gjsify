@@ -162,25 +162,31 @@
                 "packages/framework/video/**",
                 // Added when `prefer-blueprint-template` stopped visiting only a CLASS and
                 // started seeing assembly in callbacks and factory functions. It then reported
-                // 10 sites, every one of them in this category and none in application code:
-                // the Adwaita shell a consumer app is handed, the GTK host and the React Native
-                // renderer (both of which build widgets on someone else's instruction), the
-                // NativeScript storybook harness, and the WebGL conformance setup that opens a
-                // window only to obtain a GL context. A renderer has no interface of its own to
-                // declare, so a `.blp` is not the repair — scoping is, exactly as the rule's own
-                // header says. Application interface still gets no exemption.
-                // `@gjsify/adwaita-app` is that category twice over: it is the shell a consumer
-                // app is handed, AND `src/loading-stack.ts` records a conversion to `.blp` that
-                // was made and REVERTED — blueprint-compiler is absent on the macOS and Windows
-                // runners this package builds on, and library-mode Blueprint only arrives in
-                // 0.43.0, after the cold bootstrap (ADR 0002) has already parsed the file. That
-                // blocker belongs to the package, so it is scoped once here rather than disabled
-                // per site. Revisit when 0.43.0 is published and the runners carry the compiler.
-                "packages/framework/adwaita-app/**",
+                // 10 sites, none of them in application code. The three PACKAGE entries below
+                // are whole units that implement widgets on someone else's instruction — their
+                // own package descriptions say so ("the element model UI-framework renderers
+                // bind to", "the React Native view vocabulary rendered onto GTK4/Adwaita",
+                // "NativeScript renderer for the @gjsify/stories contract"), so a file added to
+                // one of them tomorrow is still renderer code and the glob is still true of it.
+                // The two narrow entries are NOT that: they are single files inside packages
+                // whose other files get no exemption, so they are named one by one rather than
+                // by directory. An ignore that covers more than what was measured is how this
+                // rule went blind in the first place.
                 "packages/framework/gtk-host/**",
                 "packages/framework/react-native/**",
+                "packages/nativescript-bridge/storybook/**",
+                // `webgl`'s conformance setup opens a window only to obtain a GL context; the
+                // rest of the package is not exempt.
                 "packages/framework/webgl/src/ts/conformance/**",
-                "packages/nativescript-bridge/storybook/**"
+                // `@gjsify/adwaita-app`'s nav shell is the shell a consumer app is handed, so it
+                // is exempt by nature like a renderer. Its sibling `src/loading-stack.ts` is NOT
+                // listed: that one is blocked by the TOOLCHAIN (blueprint-compiler absent on the
+                // macOS and Windows runners, library-mode Blueprint only from 0.43.0, after the
+                // ADR 0002 cold bootstrap has already parsed the file), it keeps its line-level
+                // disable next to the measurement, and ADR 0053 § 7 names that disable's deletion
+                // as a signal the in-repo parser is done. Scoping the package would have retired
+                // that signal for an unrelated reason.
+                "packages/framework/adwaita-app/src/nav-shell.ts"
             ],
             "rules": {
                 "gjsify/prefer-blueprint-template": "off",

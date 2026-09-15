@@ -35,8 +35,10 @@ import Gtk from 'gi://Gtk?version=4.0';
  */
 // A `.blp` here needs blueprint-compiler on the macOS + Windows runners and a library-mode
 // transform that only exists from 0.43.0, which the cold bootstrap does not have — see the header.
-// That blocker is the whole package's, not this class's, so it is now scoped once in
-// `.oxlintrc.json` instead of disabled per site; the measurement stays here, where it was made.
+// The suppression stays LINE-LEVEL and stays here, next to the measurement: ADR 0053 § 7 names
+// its deletion as one of the signals that the in-repo parser is done, and a package-wide entry in
+// `.oxlintrc.json` would retire that signal for a reason that has nothing to do with the parser.
+// oxlint-disable-next-line gjsify/prefer-blueprint-template -- measured, see the two lines above
 export class LoadingStack extends Gtk.Stack {
     private readonly _content: Adw.Bin;
     private readonly _error: Adw.StatusPage;
@@ -64,6 +66,7 @@ export class LoadingStack extends Gtk.Stack {
         this._error = new Adw.StatusPage({
             iconName: 'dialog-error-symbolic',
             // Untranslatable until this widget can carry a `.blp`; the header says what blocks that.
+            // oxlint-disable-next-line gjsify/no-literal-widget-label -- see the line above
             title: 'Something went wrong',
         });
         this.add_named(this._error, 'error');
