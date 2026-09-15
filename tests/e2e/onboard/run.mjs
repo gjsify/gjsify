@@ -385,6 +385,18 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             // so deriving existence from that endpoint alone lands it in
             // `trust`, and onboard reports success having published nothing.
             assert.deepEqual(publishedNames, ['@onb/never-published-2xx', '@onb/unpublished-a', '@onb/unpublished-b']);
+            // Each success line states what it established, against the
+            // registry it asked — the same clause `gjsify publish` prints, so a
+            // bare `published name@version` is a CLI that checked nothing.
+            const re = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+            for (const name of publishedNames) {
+                assert.match(
+                    stdout,
+                    new RegExp(`published ${re(name)}@\\S+ \\(verified on ${re(registryUrl)} — \\d+ probe\\(s\\)\\)`),
+                    `the success line for ${name} must carry its verification clause; stdout:\n${stdout}`,
+                );
+            }
+            assert.doesNotMatch(stdout, /UNVERIFIED/, 'onboard never disables the read-back');
             // Every publish carried the shared OTP.
             assert.ok(
                 publishPuts.every((p) => p.otp === OTP_CODE),

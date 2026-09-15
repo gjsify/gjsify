@@ -96,7 +96,11 @@ export type ReadbackVerdict =
     | 'not-published'
     /** The registry RECORDS the write; the document npm installs from does not serve it. */
     | 'recorded-not-served'
-    /** Nothing was established. A 5xx, a timeout, DNS, an auth wall. NEVER "published". */
+    /**
+     * Nothing was established. A 5xx, a timeout, DNS, an auth wall — or an
+     * install document without the version whose registry record could then
+     * not be read, which leaves BOTH other verdicts unearned. NEVER "published".
+     */
     | 'unknown';
 
 export interface ReadbackResult {
@@ -318,7 +322,13 @@ export async function verifyPublishedVersion(input: VerifyPublishedVersionInput)
         url,
         version,
         doFetch,
-        probeTimeoutMs: probeTimeoutFor(probeTimeoutMs, MIN_PROBE_TIMEOUT_MS),
+        // The configured per-probe timeout, NOT the budget-derived clamp: the
+        // budget is spent by now, and the clamp's floor is sized for the
+        // abbreviated document. The FULL packument is a different size class —
+        // measured, `typescript`'s is 15.7 MB and took 2.86 s to read, over the
+        // 2 s floor — so a corroboration on the floor would have answered
+        // `unknown` for exactly the packages whose failure most needs a verdict.
+        probeTimeoutMs,
         authorization: input.authorization,
         nonce: `${started}-record`,
     });
@@ -332,10 +342,24 @@ export async function verifyPublishedVersion(input: VerifyPublishedVersionInput)
             recordedAt: record.recordedAt,
         };
     }
+    if (record.state === 'no-record') {
+        return {
+            ...base,
+            confirmed: false,
+            verdict: 'not-published',
+            verdictDetail: record.detail,
+        };
+    }
+    // The corroboration itself failed. The `absent` observation still stands —
+    // it is in `last` — but the two verdicts it was meant to separate are BOTH
+    // unearned now: no record was read, and neither was its absence. Naming
+    // `not-published` here would tell the operator to re-publish on the strength
+    // of a request that never answered, on the one line written so a tool never
+    // claims what it has not established.
     return {
         ...base,
         confirmed: false,
-        verdict: 'not-published',
+        verdict: 'unknown',
         verdictDetail: record.detail,
     };
 }
@@ -481,7 +505,8 @@ async function probeOnce(input: ProbeOnceInput): Promise<ReadbackProbe> {
 
     const versions = (doc as { versions?: Record<string, { dist?: { tarball?: unknown } }> } | null)?.versions;
     const known = versions && typeof versions === 'object' ? Object.keys(versions) : [];
-    const entry = versions && typeof versions === 'object' ? versions[version] : undefined;
+    const entry =
+        versions && typeof versions === 'object' && Object.hasOwn(versions, version) ? versions[version] : undefined;
     if (!entry) {
         const newest = known.length > 0 ? known[known.length - 1] : '(none)';
         return {
@@ -538,7 +563,9 @@ export function formatUnconfirmedPublish(opts: {
     // line written to stop a tool claiming what it had not established.
     const headline =
         readback.verdict === 'unknown'
-            ? `${claimed} and the read-back could NOT establish whether the registry serves it.`
+            ? readback.last.state === 'absent'
+                ? `${claimed}; its install document does not serve ${version} and the registry's own record could NOT be read.`
+                : `${claimed} and the read-back could NOT establish whether the registry serves it.`
             : readback.verdict === 'recorded-not-served'
               ? `${claimed}; the registry RECORDS ${version} and its install document does not serve it.`
               : `${claimed} and the registry has no record of ${version}.`;

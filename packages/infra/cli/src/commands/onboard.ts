@@ -575,7 +575,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             log(
                 `  published ${pub.name}@${'version' in pub ? pub.version : ''}` +
                     ('readback' in pub && pub.readback?.confirmed
-                        ? ` (verified on ${p.registry} — ${pub.readback.attempts} probe(s))`
+                        ? ` (verified on ${pub.registry} — ${pub.readback.attempts} probe(s))`
                         : pub.action === 'skipped-untrusted-new'
                           ? ''
                           : ' (UNVERIFIED)'),

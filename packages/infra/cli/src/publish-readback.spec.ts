@@ -314,6 +314,27 @@ export default async () => {
             expect(result.last.state === 'absent' ? result.last.detail : '').toContain('newest 0.45.0');
         });
 
+        await it('confirms the EXACT version key — a prerelease sibling is not it', async () => {
+            // Found by mutation: a probe matching the key by PREFIX confirmed
+            // `0.46.0` from a packument holding only `0.46.0-rc.1`, and every
+            // row in this file and the e2e suite stayed green. The confirm path
+            // is the one that must not be loose, so this row pins the equality.
+            const { fetchImpl } = scriptedRegistry([
+                { status: 200, body: packumentWith('@gjsify/cli', '0.46.0-rc.1') },
+            ]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(false);
+            expect(result.last.state).toBe('absent');
+            expect(result.last.state === 'absent' ? result.last.detail : '').toContain('newest 0.46.0-rc.1');
+        });
+
         await it('refuses a version record whose dist.tarball is missing (#1407)', async () => {
             const { fetchImpl } = scriptedRegistry([
                 { status: 200, body: packumentWith('@gjsify/empty', '0.46.0', { tarball: false }) },
@@ -510,10 +531,15 @@ export default async () => {
             expect(requests.length).toBe(result.attempts);
         });
 
-        await it('a corroboration that itself fails still reports not-published', async () => {
-            // The `absent` observation came from a 200/404 and stands on its own;
-            // what the failed corroboration costs is the REFINEMENT, and the
-            // detail says so rather than pretending to a verdict it could not reach.
+        await it('a corroboration that itself fails leaves the verdict `unknown`', async () => {
+            // The `absent` observation came from a 200/404 and stands, in `last`.
+            // The VERDICT does not: `not-published` means "no record anywhere",
+            // and the request that would have read the record answered 500 — so
+            // that verdict, and its remedy of re-publishing, is exactly the
+            // unearned claim this line exists never to make. The FULL packument
+            // is a different size class from the install document (typescript's
+            // is 15.7 MB), so a cut-short corroboration is what a LARGE package
+            // meets, not a broken registry.
             const { fetchImpl } = splitRegistry({
                 abbreviated: [{ status: 404, body: '{}' }],
                 full: { status: 500, body: 'boom' },
@@ -526,7 +552,8 @@ export default async () => {
                 fetchImpl,
                 ...fakeClock(),
             });
-            expect(result.verdict).toBe('not-published');
+            expect(result.verdict).toBe('unknown');
+            expect(result.last.state).toBe('absent');
             expect(result.verdictDetail).toContain('500');
         });
 
