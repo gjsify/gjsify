@@ -103,6 +103,56 @@ const TAMIL_FAMILY_HINTS = ['tamil', 'nirmala', 'latha', 'vijaya'];
 const FONT = 'Sans 14';
 
 /**
+ * A family to look for on whatever map this process built, named by the caller.
+ *
+ * THE POINT OF ASKING FOR A FAMILY BY NAME rather than for a script: a script is a property of the
+ * MACHINE, and the machine changes under us. Apple shipped a system Tamil face and the CoreText
+ * map started answering Tamil, which retired the only control the Tamil claim had (measured
+ * 2026-09-14 on the macOS runner images: arm64 383 families including `.SF Tamil`, x64 363
+ * including `.Zither Tamil`, Tamil 0 unknown glyphs under coretext — ADR 0038 § Amendment 4). A
+ * family that exists ONLY in a directory the BUNDLE names to fontconfig cannot be retired that
+ * way: no operating system ships `Round9x13`, so a platform map can only learn it from the
+ * configuration that selecting the fontconfig backend exists to make readable.
+ */
+const PROBE_FAMILY = process.env.GJSIFY_PROBE_FAMILY || null;
+
+/**
+ * A family that cannot exist, so "registered" and "substituted" cannot look alike — the same
+ * control `gtk-host`'s `fonts.spec.ts` and `test/windowing.test.mjs` use, and for the same reason:
+ * `load_font()` answers a face for every request, including the one about to draw the wrong thing.
+ */
+const INVENTED_FAMILY = 'ZzzNoSuchFamilyQx';
+
+/**
+ * What a 40pt "Wg" measures in `family`, plus the family the request actually LOADS.
+ *
+ * Two oracles, because either alone has a known false answer. `loadedFamily` is the strong one —
+ * ADR 0038's measured Windows failure is a name that is on the map and still renders in Tahoma —
+ * while the pixel size is what separates a real face from a substitution when a map answers with
+ * the name it was asked (`Round9x13` measures 66x50 against the invented family's 87x63 on
+ * Fedora 44, ADR 0038 § "What a resolved family looks like").
+ *
+ * @param {Record<string, any>} Pango
+ * @param {any} context
+ * @param {any} fontMap
+ * @param {string} family
+ */
+function measureFamily(Pango, context, fontMap, family) {
+    const description = new Pango.FontDescription();
+    description.set_family(family);
+    description.set_size(40 * Pango.SCALE);
+    const layout = Pango.Layout.new(context);
+    layout.set_font_description(description);
+    layout.set_text('Wg', -1);
+    const font = fontMap.load_font(context, description);
+    return {
+        family,
+        size: layout.get_pixel_size().join('x'),
+        loadedFamily: font ? font.describe().get_family() : null,
+    };
+}
+
+/**
  * Which of the three map GTypes exist in this process right now.
  *
  * `g_type_from_name()` does not care about wrappers: a GType exists only once its
@@ -201,6 +251,19 @@ async function measure() {
         };
     });
 
+    // THE STAGED FACE, measured only when a caller named one. `listed` is the membership half
+    // and is taken from the SAME `families` array reported above, so a caller comparing two runs
+    // is comparing one read; the metrics half is what says the name resolved to the file rather
+    // than to a substitution. The invented family is measured in the same process and the same
+    // map, because "87x63" only means "fallback" relative to what this machine's fallback is.
+    const probeFamily = PROBE_FAMILY
+        ? {
+              ...measureFamily(Pango, context, fontMap, PROBE_FAMILY),
+              listed: families.includes(PROBE_FAMILY),
+              control: measureFamily(Pango, context, fontMap, INVENTED_FAMILY),
+          }
+        : null;
+
     return {
         platform: process.platform,
         backend: process.env.PANGOCAIRO_BACKEND ?? null,
@@ -215,6 +278,7 @@ async function measure() {
         tamilFamilies,
         font: FONT,
         samples,
+        probeFamily,
     };
 }
 

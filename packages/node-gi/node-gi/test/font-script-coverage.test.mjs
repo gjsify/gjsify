@@ -30,15 +30,30 @@
 // backends it has, by making pango print the list, so every branch below is taken on a
 // measurement rather than on a platform name.
 //
+// THE CONTROL THIS FILE NOW RESTS ON IS A FACE, NOT A SCRIPT, and the reason is that the script
+// stopped working as one. Two days after the Tamil control was written, the macOS runner images
+// started drawing Tamil under CoreText with 0 unknown glyphs (2026-09-14: arm64 383 families
+// including `.SF Tamil`, x64 363 including `.Zither Tamil`) — so the Tamil test passed with AND
+// without the fix and said so, loudly, instead of going green. A control built on what an OS
+// happens to ship is on a clock nobody here winds.
+//
+// What holds the change instead is a face the BUNDLE names and no OS does: `Round9x13` staged
+// into a scratch directory that a fontconfig configuration names, asserted to be on the map the
+// LOADER selected and absent from the platform's own map given the identical configuration. Apple
+// cannot retire that control by shipping fonts. It branches on the backend list it MEASURES and
+// never on `process.platform`, so darwin and win32 run the SAME assertion — on win32 ADR 0038
+// § W1-W5 already measured the other half of it, a FONTCONFIG_FILE moving the DirectWrite map by
+// zero families. See ADR 0038 § Amendment 4.
+//
 // JAPANESE PROVES NOTHING, AND THAT IS WHY IT IS NOT HERE. It came out right in the same window
 // of the same run in which Tamil was empty boxes — both platform maps carry a CJK fallback — so
 // a test built on it is green before and after the fix.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gtkSource, resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import { RESULT_PREFIX } from '../test-programs/pango-script-coverage.program.mjs';
@@ -71,8 +86,9 @@ function windowingBundleIsActive() {
 }
 
 /**
- * Run the measurement in a CHILD, optionally with `PANGOCAIRO_BACKEND` or `FONTCONFIG_FILE`
- * pinned. Returns the parsed result plus the child's stderr, which carries pango's diagnostics.
+ * Run the measurement in a CHILD, optionally with `PANGOCAIRO_BACKEND`, `FONTCONFIG_FILE` or the
+ * family to look for pinned. Returns the parsed result plus the child's stderr, which carries
+ * pango's diagnostics.
  *
  * A child and not this process, for three reasons that each bit something here: the variable is
  * read once when pango builds its default map, so an in-process A/B is impossible; the loader
@@ -80,10 +96,11 @@ function windowingBundleIsActive() {
  * taken from the line carrying RESULT_PREFIX rather than from stdout as a whole, because a GTK
  * stack that decides to print a diagnostic must not be able to become the measurement.
  */
-function probe({ backend, fontconfigFile } = {}) {
+function probe({ backend, fontconfigFile, probeFamily } = {}) {
     const env = { ...process.env };
     if (backend !== undefined) env.PANGOCAIRO_BACKEND = backend;
     if (fontconfigFile !== undefined) env.FONTCONFIG_FILE = fontconfigFile;
+    if (probeFamily !== undefined) env.GJSIFY_PROBE_FAMILY = probeFamily;
     const run = spawnSync(process.execPath, [PROGRAM], { env, encoding: 'utf8', timeout: 180_000 });
     const marker = (run.stdout ?? '')
         .split(/\r?\n/)
@@ -278,7 +295,174 @@ test('the backend the bundle selects is the backend it gets, or the gap is named
     );
 });
 
-test('Tamil renders wherever the fontconfig backend can actually be selected', (t) => {
+/**
+ * A real face whose family is on NO operating system, borrowed from the showcase exactly as
+ * `tests/e2e/ship-layout` and `gtk-host`'s `fonts.spec.ts` borrow it, and for the same reason
+ * (ADR 0038): a zero-byte placeholder proves a directory walk and nothing about a face reaching a
+ * font map.
+ */
+const FACE_RELATIVE = ['showcases', 'dom', 'excalibur-jelly-jumper', 'src', 'assets', 'fonts', 'Round9x13.ttf'];
+const FACE_FAMILY = 'Round9x13';
+
+/** Walk up from this file until the showcase face is in reach, as `fonts.spec.ts` does. */
+function findFaceSource() {
+    let dir = dirname(fileURLToPath(import.meta.url));
+    for (let up = 0; up < 8; up++) {
+        const candidate = join(dir, ...FACE_RELATIVE);
+        if (existsSync(candidate)) return candidate;
+        const parent = dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return undefined;
+}
+
+/**
+ * A path as a fontconfig configuration wants it, so the win32 leg runs the SAME check rather than
+ * a weaker one: fontconfig parses `<dir>` as XML text and accepts forward slashes on every
+ * platform, while a native Windows path puts backslashes into the document — `C:\\Users\\...` —
+ * where they are neither an escape nor a separator fontconfig is obliged to normalise. Escaped
+ * for XML for the same reason: a scratch path is generated, not audited.
+ */
+function confPath(value) {
+    return value
+        .replace(/\\/g, '/')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/**
+ * Stage that face into a scratch directory and write a fontconfig configuration naming ONLY it.
+ *
+ * ONLY it, deliberately. The question is not whether this machine has fonts — it is whether the
+ * map this process built is reading the configuration the bundle points at, and a config naming a
+ * single directory answers that with a single family: present means read, absent means not read.
+ * The `<cachedir>` is scratch too, so a runner with an unwritable default cache changes timing
+ * and nothing else.
+ */
+function stageFaceConfig() {
+    const source = findFaceSource();
+    if (!source) return undefined;
+    const root = mkdtempSync(join(tmpdir(), 'gjsify-pango-face-'));
+    const fontDir = join(root, 'fonts');
+    const cacheDir = join(root, 'cache');
+    mkdirSync(fontDir);
+    mkdirSync(cacheDir);
+    copyFileSync(source, join(fontDir, 'Round9x13.ttf'));
+    const conf = join(root, 'fonts.conf');
+    writeFileSync(
+        conf,
+        `<?xml version="1.0"?>\n<fontconfig>\n  <dir>${confPath(fontDir)}</dir>\n` +
+            `  <cachedir>${confPath(cacheDir)}</cachedir>\n</fontconfig>\n`,
+    );
+    return { conf, fontDir, source };
+}
+
+// THE LOAD-BEARING DISCRIMINATOR, and it is deliberately not about a script.
+//
+// The Tamil claim below had exactly one control — "the platform map must still show the tofu" —
+// and that control is a property of the MACHINE, so the machine retired it. Measured 2026-09-14 on
+// the macOS runner images (arm64 383 families including `.SF Tamil`, x64 363 including `.Zither
+// Tamil`): CoreText now draws Tamil with 0 unknown glyphs, so the Tamil test passed with AND
+// without the `PANGOCAIRO_BACKEND` line and proved nothing. It failed rather than pass inertly,
+// which is what it was built to do; this test is what replaces the proof it lost.
+//
+// A FACE THE BUNDLE NAMES cannot be retired that way. No operating system ships `Round9x13`, so no
+// platform font map can acquire it by an OS update: the only route onto the map is the fontconfig
+// configuration, and the only thing that makes that configuration readable is the backend
+// selection under test. That makes the control structural rather than circumstantial — the
+// property ADR 0038 § Amendment 4 asks of any replacement.
+//
+// It is also the thing this change SHIPS. `gjsify ship` stages an application's faces and the
+// loader names the runtime's own; on darwin and win32 both of those are handed to fontconfig, and
+// before this fix fontconfig was driving nothing.
+test('a face only the bundle names reaches the map the loader selected', (t) => {
+    if (!windowingBundleIsActive()) {
+        t.skip('no active windowing bundle — the backend selection is scoped to the bundle, so nothing made it');
+        return;
+    }
+
+    const shipped = probe();
+    if (shipped.error) {
+        t.skip(`no Pango on this host: ${shipped.error}`);
+        return;
+    }
+    if (!shipped.mapTypes.includes(FC_MAP)) {
+        // Named by the backend test above, which asserts WHY. Nothing to prove here.
+        t.skip(`this process built [${shipped.mapTypes}] — the backend test holds the reason`);
+        return;
+    }
+
+    const platformBackend = availableBackends().find((name) => MAP_TYPE_OF[name] && MAP_TYPE_OF[name] !== FC_MAP);
+    if (platformBackend === undefined) {
+        // Linux: fontconfig is the only backend compiled in, so there is no second map to contrast
+        // against and the selection is a measured no-op here.
+        t.skip(`only [${availableBackends()}] compiled in — no second backend to contrast against`);
+        return;
+    }
+
+    const staged = stageFaceConfig();
+    assert.ok(
+        staged,
+        `the showcase face ${FACE_RELATIVE.join('/')} is not in reach of this checkout, so the one control ` +
+            'that does not depend on what the OS ships cannot be built. That is a missing fixture, not a pass.',
+    );
+
+    const pinned = { fontconfigFile: staged.conf, probeFamily: FACE_FAMILY };
+    // The loader picks the backend here — this probe IS the subject.
+    const onBundle = probe(pinned);
+    // The platform's own map, handed the identical configuration.
+    const onPlatform = probe({ ...pinned, backend: platformBackend });
+
+    // THE CONTROL FIRST, because everything after it is a claim about a machine otherwise.
+    assert.ok(
+        onPlatform.mapTypes?.includes(MAP_TYPE_OF[platformBackend]),
+        `PANGOCAIRO_BACKEND=${platformBackend} produced [${onPlatform.mapTypes}]. Either the loader is ` +
+            'overriding an explicitly-set value — which setIfUnset exists to prevent — or the backend list is ' +
+            'wrong; in both cases this control is void rather than passing.',
+    );
+    assert.equal(
+        onPlatform.probeFamily?.listed,
+        false,
+        `the ${platformBackend} map lists "${FACE_FAMILY}" although only a fontconfig configuration names it ` +
+            `(${onPlatform.familyCount} families). Either this platform map now reads fontconfig — which would ` +
+            'make the backend selection a no-op and is a finding worth the ADR, not a pass — or the face leaked ' +
+            'onto the host. This test discriminates nothing until that is explained.',
+    );
+
+    // THE CLAIM. Listed, and loaded: ADR 0038's measured Windows failure is a family that is on
+    // the map and still renders in Tahoma, so membership alone is not the property.
+    assert.equal(
+        onBundle.probeFamily?.listed,
+        true,
+        `the map this process built, [${onBundle.mapTypes}] with ${onBundle.familyCount} families, does not ` +
+            `list "${FACE_FAMILY}" although FONTCONFIG_FILE names the directory holding it. The bundle's ` +
+            'fontconfig configuration is being read by nobody — which is #1668 exactly, and what ' +
+            `PANGOCAIRO_BACKEND=fc is set to fix (env after load ${JSON.stringify(onBundle.envAfterLoad)}).`,
+    );
+    assert.equal(
+        onBundle.probeFamily?.loadedFamily,
+        FACE_FAMILY,
+        `"${FACE_FAMILY}" is on the map and loads a face whose family is ` +
+            `"${onBundle.probeFamily?.loadedFamily}" — Pango substituted it.`,
+    );
+    assert.notEqual(
+        onBundle.probeFamily?.size,
+        onBundle.probeFamily?.control.size,
+        `"${FACE_FAMILY}" and the invented "${onBundle.probeFamily?.control.family}" measure the same ` +
+            `${onBundle.probeFamily?.size}, so the name resolved to the fallback rather than to the staged file.`,
+    );
+
+    console.log(
+        `staged face: [${onBundle.mapTypes}] lists ${FACE_FAMILY}=${onBundle.probeFamily?.listed} ` +
+            `(${onBundle.familyCount} families, ${onBundle.probeFamily?.size} vs invented ` +
+            `${onBundle.probeFamily?.control.size}); [${onPlatform.mapTypes}] lists ` +
+            `${FACE_FAMILY}=${onPlatform.probeFamily?.listed} (${onPlatform.familyCount} families)`,
+    );
+});
+
+test('Tamil renders wherever the platform map still misses it', (t) => {
     if (!windowingBundleIsActive()) {
         t.skip('no active windowing bundle — nothing selected a backend here');
         return;
@@ -290,17 +474,12 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
         return;
     }
     if (!shipped.mapTypes.includes(FC_MAP)) {
-        // Named by the test above, which asserts WHY. Nothing to prove here: the claim is about
-        // what selecting fontconfig buys, and this process did not get it.
-        t.skip(`this process built [${shipped.mapTypes}] — the previous test holds the reason`);
+        t.skip(`this process built [${shipped.mapTypes}] — the backend test holds the reason`);
         return;
     }
 
     const platformBackend = availableBackends().find((name) => MAP_TYPE_OF[name] && MAP_TYPE_OF[name] !== FC_MAP);
     if (platformBackend === undefined) {
-        // Linux: fontconfig is the only backend compiled in, so there is no second arm to
-        // contrast against and the fix is a measured no-op here. The counter half above still
-        // ran, which is what this leg is for — it proves the TEST, not the implementation.
         t.skip(`only [${availableBackends()}] compiled in — no second backend to contrast against`);
         return;
     }
@@ -308,9 +487,6 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
     const seen = counts(shipped);
     const tamil = shipped.samples.find((s) => s.id === 'tamil');
 
-    // THE CONTROL, and without it everything below is a claim about a machine rather than about
-    // this change. The platform's own backend must reproduce the defect — and, incidentally, this
-    // proves the `setIfUnset` half: an operator's explicit value wins over the loader's.
     const control = probe({ backend: platformBackend });
     assert.ok(
         control.mapTypes?.includes(MAP_TYPE_OF[platformBackend]),
@@ -319,13 +495,25 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
             'both cases this control is void rather than passing.',
     );
     const controlSeen = counts(control);
-    assert.ok(
-        controlSeen.tamil > 0,
-        `the ${platformBackend} map draws Tamil with 0 unknown glyphs, so this test passes with AND without ` +
-            'the PANGOCAIRO_BACKEND line and proves nothing. That is a finding, not a pass: the platform font ' +
-            'map now reaches the script it did not reach on 2026-09-12, and the line in gtk-runtime.js needs ' +
-            're-justifying against a fresh measurement.',
-    );
+
+    // THE ORIGINAL 2026-09-12 MEASUREMENT, kept as an assertion exactly where it still discriminates
+    // — win32 today — and reported as a FINDING where the platform caught up, which is what darwin
+    // did between 2026-09-12 and 2026-09-14.
+    //
+    // This is not the test going quiet: the staged-face test above asserts the same change on the
+    // same leg with a control no OS update can retire, and it skips only where this one does (a
+    // host with no second backend, i.e. Linux). What is given up here is a claim about the
+    // MACHINE's font supply, which was never the change's subject.
+    if (controlSeen.tamil === 0) {
+        console.log(
+            `FINDING: the ${platformBackend} map now draws Tamil with 0 unknown glyphs ` +
+                `(${control.familyCount} families, [${control.tamilFamilies}]), so this script no longer ` +
+                'separates the two backends on this platform. The staged-face test above is the control that ' +
+                'holds the change here; see ADR 0038 § Amendment 4.',
+        );
+        t.skip(`the ${platformBackend} map reaches Tamil on this image — superseded by the staged-face control`);
+        return;
+    }
 
     // A HOST WITH NO TAMIL FACE AT ALL is the one state in which the claim below cannot be put to
     // this machine, and it is a real one: a Windows SERVER image carries a far smaller font set
@@ -338,8 +526,8 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
             `this host has no Tamil-capable font family under EITHER map — fc lists ${shipped.familyCount} ` +
                 `families and none matching, ${platformBackend} lists ${control.familyCount} and none ` +
                 `matching, and Tamil counts ${seen.tamil} on both. #1668 is about which faces a backend ` +
-                'reaches, and this machine has none to reach; the map assertion in the test above is what ' +
-                'holds the change here.',
+                'reaches, and this machine has none to reach; the staged-face test above is what holds the ' +
+                'change here.',
         );
         return;
     }
@@ -358,6 +546,7 @@ test('Tamil renders wherever the fontconfig backend can actually be selected', (
             `Latin is ${seen.latin} on both.`,
     );
 });
+
 
 // THE HOST WE CANNOT RENT: a Mac with no Homebrew. Choosing fontconfig on darwin puts the
 // process's whole font supply behind a configuration THIS BUNDLE DOES NOT SHIP — unlike win32,

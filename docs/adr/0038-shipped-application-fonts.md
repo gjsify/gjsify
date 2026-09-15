@@ -794,10 +794,11 @@ to. Five things make it a measurement rather than a claim:
    That is the arm the first diagnosis did not have: it separates "this pango cannot build that
    map" from "the value did not reach the library", which are the two readings of one log line,
    and it is what would have caught the win32 mistake on the day it was made.
-4. Where fontconfig IS available the map MUST be the fc one and Tamil MUST render, and the claim
-   is re-measured in a child process with the platform's own backend pinned back — the test fails
-   if that control does NOT show the tofu. Where fontconfig is NOT available it asserts that gap
-   instead, so the branch retires itself if a build ever genuinely lacks the backend.
+4. Where fontconfig IS available the map MUST be the fc one, and the claim is re-measured in a
+   child process with the platform's own backend pinned back. The load-bearing control is a FACE
+   THE BUNDLE NAMES, not a script — see § Amendment 4 for why the script-based one was retired by
+   the machine. Where fontconfig is NOT available the test asserts that gap instead, so the branch
+   retires itself if a build ever genuinely lacks the backend.
 5. Which map a process built is read with `g_type_from_name()` over the three private map types,
    **all of them rather than the first match**, and against the set registered before the map was
    built. The first version reported `find()` over a fixed coretext → win32 → fc order, which is
@@ -814,3 +815,38 @@ library, and asserts that text still draws.
 
 Wired into `macos-gtk-windowing` and `windows-gtk-windowing`, which are the only oracles this
 change has.
+
+## Amendment 4 (2026-09-15) — the control the machine retired, and the one it cannot
+
+**§ Amendment 3's test failed two days after it was written, and it failed correctly.** On the
+2026-09-14 macOS runner images the CoreText map draws Tamil with **0 unknown glyphs** — arm64
+lists 383 families including `.SF Tamil`, x64 lists 363 including `.Zither Tamil`, and both count
+`tamil=0` with the platform backend pinned back. The negative control § Amendment 3 § 4 describes
+was therefore void: the Tamil assertion passed with AND without the `PANGOCAIRO_BACKEND` line.
+The test refused to report that as a pass and named it a finding, which is the only reason it was
+seen at all.
+
+**Nothing about the 2026-09-12 measurement was wrong.** Tamil WAS tofu under CoreText on macOS
+15.7.9, with `Tamil Sangam MN.ttc` installed the whole time. Apple shipped a system face reachable
+from the platform map, and a premise about the MACHINE expired. That is the defect class, not an
+accident: a control built on what an OS happens to ship is on a clock nobody in this repo winds.
+
+**What replaces it is a face the BUNDLE names.** The test stages the showcase's `Round9x13` — the
+same face `tests/e2e/ship-layout` and `gtk-host`'s `fonts.spec.ts` borrow — into a scratch
+directory, hands fontconfig a configuration naming only that directory, and asserts that the map
+the LOADER selected lists and LOADS it while the platform's own map, given the identical
+configuration, does not. No operating system ships `Round9x13`, so no OS update can retire this
+control the way one retired the last. It is also the property this change actually ships: an
+application's faces and the runtime's own both reach the map through fontconfig, and before the
+backend selection fontconfig was driving nothing.
+
+**One discriminator, both platforms.** The test branches on the backend list it MEASURES, never on
+`process.platform`, so darwin and win32 run the identical assertion — which is what makes the
+non-Linux platforms self-contained in the same way rather than each on its own premise. On win32
+the control is already measured in this ADR: § W1-W5 found that a `FONTCONFIG_FILE` naming a
+directory of faces moves the pangowin32/DirectWrite map by ZERO families, which is exactly what
+the staged face asserts there.
+
+The Tamil claim is kept as a SECOND measurement, asserted only where the platform map still misses
+the script and reported as a finding where it no longer does. It retires itself per platform
+instead of going red for a non-defect, and it can no longer be the only thing holding the change.
