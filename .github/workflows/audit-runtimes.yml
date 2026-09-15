@@ -388,6 +388,15 @@ jobs:
       - name: Check the ship format vocabulary has one source of truth
         run: node scripts/check-ship-format-vocabulary.mjs
 
+      # Two Linux defaults had reached platforms with no such layout: the `.app` launcher
+      # exported `${XDG_DATA_DIRS:-/usr/local/share:/usr/share}` (Homebrew's prefix on an Intel
+      # Mac, absent on Apple Silicon) and `resolveLocaleDir` fell back to `/usr/share/locale` on
+      # every OS. The macOS one is the expensive shape: that directory EXISTS there, so
+      # `bindtextdomain` succeeded and the app was merely untranslated — which no test, no type
+      # and no Linux CI run can tell apart from an app that has no catalogue.
+      - name: Check no Linux system path reaches a macOS or Windows artifact
+        run: node scripts/check-foreign-platform-paths.mjs
+
       # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
       # state, eleven of them by oversight — including the one written to cover the
       # release gate that let v0.28.0 publish half its packages, whose PR body claimed it
@@ -1185,6 +1194,15 @@ jobs:
       # only binding that does not create the dependency edge.
       - name: Check the ship format vocabulary has one source of truth
         run: node scripts/check-ship-format-vocabulary.mjs
+
+      # Two Linux defaults had reached platforms with no such layout: the `.app` launcher
+      # exported `${XDG_DATA_DIRS:-/usr/local/share:/usr/share}` (Homebrew's prefix on an Intel
+      # Mac, absent on Apple Silicon) and `resolveLocaleDir` fell back to `/usr/share/locale` on
+      # every OS. The macOS one is the expensive shape: that directory EXISTS there, so
+      # `bindtextdomain` succeeded and the app was merely untranslated — which no test, no type
+      # and no Linux CI run can tell apart from an app that has no catalogue.
+      - name: Check no Linux system path reaches a macOS or Windows artifact
+        run: node scripts/check-foreign-platform-paths.mjs
 
       # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
       # state, eleven of them by oversight — including the one written to cover the

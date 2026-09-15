@@ -26,9 +26,11 @@
 // no-op cache and download every time.
 
 import { Buffer } from 'node:buffer';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+import { verifyIntegrity } from '@gjsify/npm-registry';
 
 import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
 
@@ -78,14 +80,46 @@ function pathFor(integrity: string | undefined): string | null {
 }
 
 /**
- * Read a cached tarball by SRI integrity — raw bytes on a HIT, `null` otherwise. A
- * read failure (e.g. a partial write from an interrupted run) is a MISS, and the
- * file is left untouched so a follow-up writer's atomic rename is not tripped.
+ * Read a cached tarball by SRI integrity — raw bytes on a VERIFIED hit, `null`
+ * otherwise. A read failure (e.g. a partial write from an interrupted run) is a MISS,
+ * and the file is left untouched so a follow-up writer's atomic rename is not tripped.
+ *
+ * The bytes are re-hashed against the integrity that named them, through the SAME
+ * {@link verifyIntegrity} the download path uses — so both paths agree by
+ * construction instead of by comment.
+ *
+ * This used to trust the path: "content-addressed, so a hash hit is byte-identical to
+ * what the registry would return". That is a claim ABOUT the bytes, and nothing read
+ * them to check it. It held while the store was a local directory this machine had
+ * written itself. It stops holding the moment the store is a restorable CI artifact —
+ * a GitHub Actions cache entry that is truncated, corrupted, or written by a workflow
+ * on another branch would have been consumed as authentic, because the only thing
+ * asserting its contents was its filename. `gjsify-setup` now restores exactly such an
+ * artifact, so the check is no longer optional. Yarn re-hashes on every install for
+ * this reason (refs/yarn-berry Cache.ts, "we check the file hashes during each install
+ * anyway"); measured here, it costs ~0.5 s over this repo's ~420 MB closure, against
+ * an extract phase of minutes.
+ *
+ * A mismatch DELETES the entry rather than merely skipping it. That is not the prune
+ * this repo refuses elsewhere — the name asserts the content and the content
+ * disproves the name, so the file is garbage by its own definition. It has to go:
+ * {@link putCachedTarball} is idempotent on existence, so a corrupt blob left in place
+ * would never be replaced and every future install would re-download it forever.
  */
-export function getCachedTarball(integrity: string | undefined): Uint8Array | null {
+export async function getCachedTarball(integrity: string | undefined): Promise<Uint8Array | null> {
     const path = pathFor(integrity);
-    if (!path) return null;
-    return readCacheFile(path);
+    if (!path || !integrity) return null;
+    const bytes = readCacheFile(path);
+    if (!bytes) return null;
+    if (await verifyIntegrity(bytes, integrity)) return bytes;
+    // Best-effort: a read-only cache volume must not break the install, and the
+    // caller falls through to a verifying download either way.
+    try {
+        unlinkSync(path);
+    } catch {
+        /* keep going — the download path replaces the value we return as a MISS */
+    }
+    return null;
 }
 
 /**
@@ -167,13 +201,21 @@ function npmCachePathFor(integrity: string | undefined): string | null {
 
 /**
  * Read a tarball from npm's cacache content store by SRI integrity — raw `.tgz`
- * bytes on a HIT, `null` on a MISS, disabled interop or read failure. Like
- * {@link getCachedTarball} it trusts the content-addressed path rather than
- * re-hashing: cacache verified the bytes on write, and the extractor surfaces a
- * genuinely corrupt tarball loudly.
+ * bytes on a VERIFIED hit, `null` on a MISS, disabled interop or read failure.
+ *
+ * Re-hashed like {@link getCachedTarball}, and with more reason: these bytes come
+ * from ANOTHER tool's store, on a path this code does not control and cannot assume
+ * was written by a cacache that verified anything. The old note argued cacache
+ * verified on write and a corrupt tarball would fail loudly in the extractor — but
+ * "the next stage will probably notice" is not verification, and the caller
+ * write-throughs a foreign hit into OUR store, which would launder an unchecked blob
+ * into a first-class entry. A mismatch is left alone here rather than deleted: this
+ * store belongs to npm, and removing another tool's files is not this code's call.
  */
-export function getForeignCachedTarball(integrity: string | undefined): Uint8Array | null {
+export async function getForeignCachedTarball(integrity: string | undefined): Promise<Uint8Array | null> {
     const path = npmCachePathFor(integrity);
-    if (!path) return null;
-    return readCacheFile(path);
+    if (!path || !integrity) return null;
+    const bytes = readCacheFile(path);
+    if (!bytes) return null;
+    return (await verifyIntegrity(bytes, integrity)) ? bytes : null;
 }

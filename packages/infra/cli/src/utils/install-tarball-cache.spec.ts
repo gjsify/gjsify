@@ -14,17 +14,29 @@ import {
     putCachedTarball,
 } from './install-tarball-cache.js';
 
+// The readers VERIFY now, so a sample integrity is no longer free to be any
+// well-formed string: it has to be the true digest of the bytes stored under it, or
+// every hit in this file is correctly reported as a miss. These three are one triple —
+// payload, its real sha512 SRI, and the hex that both our store and npm's cacache
+// shard on — pinned together so a change to either side of the path derivation still
+// gets caught.
+const SAMPLE_BYTES = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
 const SAMPLE_INTEGRITY =
-    'sha512-z3rDtSj0lKDqyGCVS9emVdb31Cv3DDpyZ6X7CWk3eDoejWlBwiBNVOe0bWB9BJVcj/EQGOIaq8ftADyhjs7t9w==';
-// The base64 → hex decode of the digest above, computed once and pinned so
-// changes to either side of the path-derivation get caught. This is the exact
-// shard key both our own store and npm's cacache derive from the integrity:
+    'sha512-GBjMKs0geICgevw2D9Dah+UczxfnxgTE6xa+V4gyJyTCmOH8xm6yk5JpkxQe8IY8Ce2jgxiM9d9JuRCqysF+xQ==';
 // `content-v2/sha512/<hex[0:2]>/<hex[2:4]>/<hex[4:]>`.
 const SAMPLE_HEX =
-    'cf7ac3b528f494a0eac86095' +
-    '4bd7a655d6f7d42bf70c3a72' +
-    '67a5fb096937783a1e8d6941' +
-    'c2204d54e7b46d607d04955c8ff11018e21aabc7ed003ca18eceedf7';
+    '1818cc2acd207880a07afc36' +
+    '0fd0da87e51ccf17e7c604c4' +
+    'eb16be5788322724c298e1fc' +
+    'c66eb293926993141ef0863c09eda383188cf5df49b910aacac17ec5';
+
+/** The true SRI of `bytes`, via the same WebCrypto primitive `verifyIntegrity` uses. */
+const sriFor = async (bytes: Uint8Array): Promise<string> => {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-512', bytes.slice().buffer));
+    let bin = '';
+    for (const b of digest) bin += String.fromCharCode(b);
+    return `sha512-${btoa(bin)}`;
+};
 
 export default async () => {
     await describe('install-tarball-cache', async () => {
@@ -56,7 +68,7 @@ export default async () => {
         await it('getCachedTarball returns null on a cold cache', async () => {
             const { restore } = setup();
             try {
-                expect(getCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                expect(await getCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
                 expect(isCacheHit(SAMPLE_INTEGRITY)).toBe(false);
             } finally {
                 restore();
@@ -66,10 +78,10 @@ export default async () => {
         await it('putCachedTarball + getCachedTarball round-trips bytes', async () => {
             const { restore } = setup();
             try {
-                const bytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+                const bytes = SAMPLE_BYTES;
                 putCachedTarball(SAMPLE_INTEGRITY, bytes);
                 expect(isCacheHit(SAMPLE_INTEGRITY)).toBe(true);
-                const out = getCachedTarball(SAMPLE_INTEGRITY);
+                const out = await getCachedTarball(SAMPLE_INTEGRITY);
                 expect(out).not.toBe(null);
                 if (out) {
                     expect(out.length).toBe(bytes.length);
@@ -85,7 +97,7 @@ export default async () => {
         await it('writes are idempotent — second put is a no-op (does not corrupt)', async () => {
             const { restore } = setup();
             try {
-                const first = new Uint8Array([10, 20, 30]);
+                const first = SAMPLE_BYTES;
                 putCachedTarball(SAMPLE_INTEGRITY, first);
                 // Re-put a DIFFERENT payload: the cache MUST keep the first
                 // write — it's content-addressed and the integrity hash is
@@ -94,12 +106,12 @@ export default async () => {
                 // must defend against the case anyway.
                 const second = new Uint8Array([99, 98, 97]);
                 putCachedTarball(SAMPLE_INTEGRITY, second);
-                const out = getCachedTarball(SAMPLE_INTEGRITY);
+                const out = await getCachedTarball(SAMPLE_INTEGRITY);
                 expect(out).not.toBe(null);
                 if (out) {
-                    expect(out[0]).toBe(10);
-                    expect(out[1]).toBe(20);
-                    expect(out[2]).toBe(30);
+                    expect(out[0]).toBe(SAMPLE_BYTES[0]);
+                    expect(out[1]).toBe(SAMPLE_BYTES[1]);
+                    expect(out[2]).toBe(SAMPLE_BYTES[2]);
                 }
             } finally {
                 restore();
@@ -109,11 +121,11 @@ export default async () => {
         await it('missing / malformed integrity → no cache, no throw', async () => {
             const { restore } = setup();
             try {
-                expect(getCachedTarball(undefined)).toBe(null);
-                expect(getCachedTarball('')).toBe(null);
-                expect(getCachedTarball('not-a-real-integrity')).toBe(null);
-                expect(getCachedTarball('sha512-')).toBe(null);
-                expect(getCachedTarball('-sha512abc')).toBe(null);
+                expect(await getCachedTarball(undefined)).toBe(null);
+                expect(await getCachedTarball('')).toBe(null);
+                expect(await getCachedTarball('not-a-real-integrity')).toBe(null);
+                expect(await getCachedTarball('sha512-')).toBe(null);
+                expect(await getCachedTarball('-sha512abc')).toBe(null);
                 // Put with bad integrity is a silent no-op
                 putCachedTarball(undefined, new Uint8Array([1]));
                 putCachedTarball('', new Uint8Array([1]));
@@ -128,13 +140,41 @@ export default async () => {
             try {
                 // Synthesise the same path the cache would use, but write
                 // a zero-byte file there to simulate an interrupted write.
-                const bytes = new Uint8Array([42, 43, 44]);
-                putCachedTarball(SAMPLE_INTEGRITY, bytes);
+                putCachedTarball(SAMPLE_INTEGRITY, SAMPLE_BYTES);
                 // Find the file & truncate it
                 const cacheFile = findOnly(join(dir, 'gjsify', 'tarballs', 'v1'));
                 writeFileSync(cacheFile, new Uint8Array(0));
-                expect(getCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                expect(await getCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
                 expect(isCacheHit(SAMPLE_INTEGRITY)).toBe(false);
+            } finally {
+                restore();
+            }
+        });
+
+        await it('bytes that do not hash to their own name are a MISS, and are deleted', async () => {
+            // THE GUARD for the CI tarball cache. The store is a restorable GitHub
+            // Actions artifact now, so "content-addressed" can no longer be taken on
+            // trust: an entry that is truncated, corrupted or written by another
+            // branch's workflow arrives under a name asserting contents it does not
+            // have. Seed exactly that — the right path, the wrong bytes.
+            const { dir, restore } = setup();
+            try {
+                putCachedTarball(SAMPLE_INTEGRITY, SAMPLE_BYTES);
+                const cacheFile = findOnly(join(dir, 'gjsify', 'tarballs', 'v1'));
+                writeFileSync(cacheFile, new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]));
+                // Same length, so only a hash can tell the difference — a size check
+                // would pass this and that is the point.
+                expect(statSync(cacheFile).size).toBe(SAMPLE_BYTES.length);
+                expect(await getCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                // DELETED, not merely skipped: putCachedTarball is idempotent on
+                // existence, so a corrupt blob left behind could never be replaced and
+                // every later install would re-download it forever.
+                expect(existsSync(cacheFile)).toBe(false);
+                // And the entry is reusable again once correct bytes are written.
+                putCachedTarball(SAMPLE_INTEGRITY, SAMPLE_BYTES);
+                const out = await getCachedTarball(SAMPLE_INTEGRITY);
+                expect(out).not.toBe(null);
+                if (out) expect(out[0]).toBe(SAMPLE_BYTES[0]);
             } finally {
                 restore();
             }
@@ -152,7 +192,7 @@ export default async () => {
             return file;
         };
 
-        const withForeignEnv = (vars: Record<string, string | undefined>, fn: () => void) => {
+        const withForeignEnv = async (vars: Record<string, string | undefined>, fn: () => Promise<void>) => {
             const keys = ['GJSIFY_NPM_CACHE', 'npm_config_cache'] as const;
             const prev: Record<string, string | undefined> = {};
             for (const k of keys) prev[k] = process.env[k];
@@ -161,7 +201,7 @@ export default async () => {
                 else process.env[k] = vars[k];
             }
             try {
-                fn();
+                await fn();
             } finally {
                 for (const k of keys) {
                     if (prev[k] === undefined) delete process.env[k];
@@ -173,15 +213,15 @@ export default async () => {
         await it('getForeignCachedTarball reads npm cacache via GJSIFY_NPM_CACHE', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
             try {
-                const payload = new Uint8Array([0x1f, 0x8b, 1, 2, 3, 4]);
+                const payload = SAMPLE_BYTES;
                 seedNpmCacache(dir, SAMPLE_HEX, payload);
-                withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, () => {
-                    const out = getForeignCachedTarball(SAMPLE_INTEGRITY);
+                await withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, async () => {
+                    const out = await getForeignCachedTarball(SAMPLE_INTEGRITY);
                     expect(out).not.toBe(null);
                     if (out) {
                         expect(out.length).toBe(payload.length);
-                        expect(out[0]).toBe(0x1f);
-                        expect(out[1]).toBe(0x8b);
+                        expect(out[0]).toBe(SAMPLE_BYTES[0]);
+                        expect(out[1]).toBe(SAMPLE_BYTES[1]);
                     }
                 });
             } finally {
@@ -192,12 +232,15 @@ export default async () => {
         await it('GJSIFY_NPM_CACHE accepts a path that already ends in _cacache', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
             try {
-                seedNpmCacache(dir, SAMPLE_HEX, new Uint8Array([5, 6, 7]));
-                withForeignEnv({ GJSIFY_NPM_CACHE: join(dir, '_cacache'), npm_config_cache: undefined }, () => {
-                    const out = getForeignCachedTarball(SAMPLE_INTEGRITY);
-                    expect(out).not.toBe(null);
-                    if (out) expect(out[0]).toBe(5);
-                });
+                seedNpmCacache(dir, SAMPLE_HEX, SAMPLE_BYTES);
+                await withForeignEnv(
+                    { GJSIFY_NPM_CACHE: join(dir, '_cacache'), npm_config_cache: undefined },
+                    async () => {
+                        const out = await getForeignCachedTarball(SAMPLE_INTEGRITY);
+                        expect(out).not.toBe(null);
+                        if (out) expect(out[0]).toBe(SAMPLE_BYTES[0]);
+                    },
+                );
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
@@ -206,10 +249,10 @@ export default async () => {
         await it('GJSIFY_NPM_CACHE=0 disables the interop even when the entry exists', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
             try {
-                seedNpmCacache(dir, SAMPLE_HEX, new Uint8Array([1, 2, 3]));
+                seedNpmCacache(dir, SAMPLE_HEX, SAMPLE_BYTES);
                 // Point npm_config_cache at the real entry, but disable via the override.
-                withForeignEnv({ GJSIFY_NPM_CACHE: '0', npm_config_cache: dir }, () => {
-                    expect(getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                await withForeignEnv({ GJSIFY_NPM_CACHE: '0', npm_config_cache: dir }, async () => {
+                    expect(await getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
                 });
             } finally {
                 rmSync(dir, { recursive: true, force: true });
@@ -219,11 +262,27 @@ export default async () => {
         await it('getForeignCachedTarball returns null on a cacache miss / bad integrity', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
             try {
-                withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, () => {
-                    expect(getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
-                    expect(getForeignCachedTarball(undefined)).toBe(null);
-                    expect(getForeignCachedTarball('not-a-real-integrity')).toBe(null);
+                await withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, async () => {
+                    expect(await getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                    expect(await getForeignCachedTarball(undefined)).toBe(null);
+                    expect(await getForeignCachedTarball('not-a-real-integrity')).toBe(null);
                 });
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('a foreign cacache entry is verified too, and left in place', async () => {
+            // The caller write-throughs a foreign hit into OUR store, so an unchecked
+            // blob here would be laundered into a first-class entry. Not deleted
+            // though: npm's store is not this code's to edit.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
+            try {
+                const file = seedNpmCacache(dir, SAMPLE_HEX, new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]));
+                await withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, async () => {
+                    expect(await getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                });
+                expect(existsSync(file)).toBe(true);
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
@@ -232,12 +291,14 @@ export default async () => {
         await it('different integrities → different cache files', async () => {
             const { dir, restore } = setup();
             try {
-                const a = 'sha512-' + Buffer.from('a'.repeat(64)).toString('base64');
-                const b = 'sha512-' + Buffer.from('b'.repeat(64)).toString('base64');
-                putCachedTarball(a, new Uint8Array([1, 2, 3]));
-                putCachedTarball(b, new Uint8Array([7, 8, 9]));
-                const outA = getCachedTarball(a);
-                const outB = getCachedTarball(b);
+                const bytesA = new Uint8Array([1, 2, 3]);
+                const bytesB = new Uint8Array([7, 8, 9]);
+                const a = await sriFor(bytesA);
+                const b = await sriFor(bytesB);
+                putCachedTarball(a, bytesA);
+                putCachedTarball(b, bytesB);
+                const outA = await getCachedTarball(a);
+                const outB = await getCachedTarball(b);
                 expect(outA).not.toBe(null);
                 expect(outB).not.toBe(null);
                 if (outA && outB) {

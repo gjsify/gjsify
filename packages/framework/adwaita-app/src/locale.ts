@@ -19,6 +19,9 @@
 //   en_US.utf8 + a bound dir -> the msgids, i.e. English needs no catalogue of its own
 //   no GJSIFY_LOCALE_DIR     -> /usr/share/locale, msgids returned (never the current directory)
 // A msgid absent from the catalogue came back unchanged in all three.
+// That third line is a LINUX measurement and stays one: `systemLocaleDir` answers darwin and
+// win32 with no directory at all, so there the domain is left unbound and the msgids come back
+// without a directory having been named. Same observable result, no invented path.
 
 import GLib from 'gi://GLib?version=2.0';
 import Gettext from 'gettext';
@@ -34,8 +37,13 @@ export interface Translator {
     plural(singular: string, plural: string, n: number): string;
     /** Disambiguating lookup, for a msgid whose meaning depends on where it appears. */
     context(context: string, msgid: string): string;
-    /** The bound directory and domain — for a diagnostic line, never for a lookup. */
-    readonly localeDir: string;
+    /**
+     * The bound directory and domain — for a diagnostic line, never for a lookup.
+     *
+     * `undefined` when nothing was bound: no catalogues were staged and the platform has no
+     * system directory either (macOS, Windows). Every lookup then returns its msgid.
+     */
+    readonly localeDir: string | undefined;
     readonly domain: string;
 }
 
@@ -49,12 +57,21 @@ export function initLocale(domain: string, options: InitLocaleOptions = {}): Tra
     const localeDir = resolveLocaleDir({
         ...options,
         env: { GJSIFY_LOCALE_DIR: GLib.getenv('GJSIFY_LOCALE_DIR') ?? undefined },
+        // THIS is the impure side, so the `process` read belongs here rather than in
+        // `locale-dir.ts`. Guarded because a GJS bundle built with `--globals none` has no
+        // `process` at all, and `systemLocaleDir` reads an absent platform as "leave it alone".
+        platform: typeof process === 'undefined' ? undefined : (process.platform as string | undefined),
     });
 
     // Adopt the environment's locale. `gtk_init()` does this too, but a CLI sharing the app's
     // kernel translates before any GTK call exists and would otherwise stay in the C locale.
     Gettext.setlocale(Gettext.LocaleCategory.ALL, '');
-    Gettext.bindtextdomain(domain, localeDir);
+    // NOT bound when there is no directory — on macOS and Windows, an app carrying no catalogues
+    // of its own has nowhere to be bound TO. `bindtextdomain(domain, <a path that resolves but
+    // holds nothing>)` is indistinguishable from a working binding until a lookup silently
+    // returns its msgid; leaving the domain unbound reaches the same msgid by the honest route
+    // and lets `Translator.localeDir` say `undefined` instead of naming a directory.
+    if (localeDir !== undefined) Gettext.bindtextdomain(domain, localeDir);
     Gettext.textdomain(domain);
 
     return Object.assign((msgid: string): string => Gettext.dgettext(domain, msgid), {
