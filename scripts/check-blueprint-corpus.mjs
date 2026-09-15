@@ -597,7 +597,7 @@ let ledgered = 0;
 if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
-    const { accessibilityElement, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
+    const { accessibilityElement, accessibilityValue, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
 
     const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
     for (const entry of SHADOW_DIVERGENCES) {
@@ -655,6 +655,7 @@ if (haveParser) {
         try {
             emitted = emitGtkBuilderXml(parseBlueprint(readFileSync(job.source, 'utf8'), job.key), {
                 accessibilityElement,
+                accessibilityValue,
                 gtypeName,
                 resolveIdent,
             });
@@ -838,7 +839,7 @@ if (haveParser) {
     const { parseBlueprint } = await import(`file://${PARSER}`);
     const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
-    const { accessibilityElement, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
+    const { accessibilityElement, accessibilityValue, gtypeName, resolveIdent } = await import(`file://${RESOLVER}`);
 
     // A parser error is `refused/<file>:<line>:<column>:`, an emitter or resolver error
     // `line N:`, and both are matched WITH their delimiters. Measured: `:3:` alone was
@@ -886,7 +887,7 @@ if (haveParser) {
 
         let emitted;
         try {
-            emitted = emitGtkBuilderXml(ast, { accessibilityElement, gtypeName, resolveIdent });
+            emitted = emitGtkBuilderXml(ast, { accessibilityElement, accessibilityValue, gtypeName, resolveIdent });
         } catch (error) {
             hold(refusal, 'the emitter', String(error.message));
             refused += 1;
