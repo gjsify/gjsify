@@ -1,4 +1,4 @@
-# 60. A pinned `refs/` submodule is a cache key, and upstream is the failure path
+# 61. A pinned `refs/` submodule is a cache key, and upstream is the failure path
 
 - Status: **Accepted**
 - Date: 2026-09-15
