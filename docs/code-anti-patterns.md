@@ -436,9 +436,17 @@ a `--globals none` GJS bundle has instead of a `process.platform`. `resolveFontD
 the same answer for fonts first, for a different reason, and is the precedent.
 
 `scripts/check-foreign-platform-paths.mjs` holds the class in three scopes: whole-file for the
-modules that only build a `.app`, `.dmg`, `.ico` or `.msi`; per-function for the two foreign
-renderers inside `launcher.ts`, whose Linux sibling must keep its default; and, for
+modules that only build a `.app`, `.dmg`, `.ico` or `.msi`; all of `launcher.ts` EXCEPT
+`renderPrefixLauncher`, the one renderer whose Linux default is correct; and, for
 `packages/framework/*/src`, a Linux path literal only where a `darwin`/`win32` decision sits in
 code within 15 lines of it. Comments are exempt — this tree explains a rule by quoting the path
-it forbids. What the gate cannot see is written in its header rather than left to be discovered:
-it checks that a platform decision is NEXT TO the literal, not that the decision is right.
+it forbids — and template literals are tracked across lines, because `launcher.ts` emits a shell
+script and a shell script in TypeScript wants to be one.
+
+Two things about that gate are worth copying rather than just reading. It scans the launcher by
+EXCLUSION, one named renderer cut out, after scanning the two foreign renderers by name left
+every shared helper in the file outside all three scopes — an opt-in list covers what somebody
+remembered, an opt-out one covers what they wrote. And what it cannot see is enumerated in its
+header AND exercised in `tests/e2e/foreign-platform-paths-gate`, where the blind spots are
+asserted as passes: a documented limitation nobody runs is a limitation that quietly becomes a
+bug. Both cases in that suite marked as regressions were green against the first cut.
