@@ -447,12 +447,13 @@ test('a face only the bundle names reaches the map the loader selected', (t) => 
         `"${FACE_FAMILY}" is on the map and loads a face whose family is ` +
             `"${onBundle.probeFamily?.loadedFamily}" — Pango substituted it.`,
     );
-    assert.notEqual(
-        onBundle.probeFamily?.size,
-        onBundle.probeFamily?.control.size,
-        `"${FACE_FAMILY}" and the invented "${onBundle.probeFamily?.control.family}" measure the same ` +
-            `${onBundle.probeFamily?.size}, so the name resolved to the fallback rather than to the staged file.`,
-    );
+    // THE METRICS ARE REPORTED AND NOT ASSERTED, which is a correction rather than a softening.
+    // "it measures differently from an invented family" is the shape `windowing.test.mjs` already
+    // had to take out: the configuration staged here names ONE directory, so the invented family's
+    // fallback IS the staged face, the two measure the same, and a CORRECT bundle would fail. A
+    // discriminator that goes red on the healthy state is worse than none. `loadedFamily` above is
+    // the oracle that does not depend on what else the map happens to carry — it compares against
+    // the NAME asked for, which is ADR 0038's measured Windows failure stated positively.
 
     console.log(
         `staged face: [${onBundle.mapTypes}] lists ${FACE_FAMILY}=${onBundle.probeFamily?.listed} ` +
