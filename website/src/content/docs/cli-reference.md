@@ -1820,7 +1820,7 @@ gjsify publish --dry-run                        # pack only
 | `--tolerate-untrusted-new` | `false` | Exit 0 when OIDC token exchange says "package not found" and no fallback token is configured, which is a never-published scoped package whose Trusted Publisher is not set up yet. Without it, one un-bootstrapped package breaks a whole serialized `gjsify foreach publish`. |
 | `--trusted` | auto | Authenticate through npm Trusted Publishing, exchanging the GitHub Actions id-token for a short-lived npm token. Auto-detected when `ACTIONS_ID_TOKEN_REQUEST_URL` and `_TOKEN` are set and the resolved npmrc has no `_authToken`. Needs `permissions: id-token: write` in the workflow and a Trusted Publisher on npmjs.com. |
 | `--check-trusted` | `false` | Do the OIDC exchange, report success or failure, and exit without publishing. Useful as a bulk verifier via `gjsify foreach publish --check-trusted`. |
-| `--verify-timeout <s>` | `300` | Seconds to keep asking the registry for the version just published, before giving up. `0` disables the read-back, and the success line then says `UNVERIFIED`. |
+| `--verify-timeout <s>` | `600` | Seconds to keep asking the registry for the version just published, before giving up. `0` disables the read-back, and the success line then says `UNVERIFIED`. |
 | `--verify-defer` | `false` | Report an unverified publish and exit 0 instead of 1. Only for a caller that re-checks the same set afterwards. |
 | `--provenance` | `false` | Recorded in the payload. No signing happens yet. |
 | `--dry-run` | `false` | Pack only, do not upload. |

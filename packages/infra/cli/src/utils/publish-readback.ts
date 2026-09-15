@@ -201,27 +201,39 @@ export function probeTimeoutFor(configuredMs: number, remainingMs: number): numb
 }
 
 /**
- * Default polling budget: 300 s.
+ * Default polling budget: 600 s.
  *
- * The measured maximum lag between a 2xx and the registry recording the version
- * was 251.7 s (@gjsify/child_process, v0.46.0), so a budget below ~4.2 minutes
- * turns npm's normal queueing into a false red — and a false red at release time
- * costs a manual re-run of a workflow that did its job. 300 s clears that
- * maximum and is still short enough that a genuinely lost write is reported by
- * the job that lost it rather than by a later sweep.
+ * The lag between a 2xx and the registry recording the version has been measured
+ * on two releases, and the second broke the first's ceiling. v0.46.0 (199
+ * packages): 19 late writes, maximum 251.7 s (@gjsify/child_process). ts-for-gir
+ * v5.1.0 (12 packages, run 34899018849, PUT lines against `time["5.1.0"]`):
+ * four recorded ~0.7 s BEFORE the 2xx, eight after it — +74, +74, +75, +75,
+ * +96, +248, +248 and +368 s (@ts-for-gir/reporter) — the last past the 300 s
+ * this constant used to be, so "above the measured maximum" had quietly
+ * stopped being true of it. A budget below the lag turns npm's normal queueing into a false
+ * red, and a false red at release time costs a manual re-run of a workflow that
+ * did its job. A budget above it costs nothing on the nine in ten that confirm
+ * on the first probe; all it delays is the report of a genuinely LOST write —
+ * one in 199, measured — by the difference. 600 s is ~1.6x the larger maximum.
  *
- * THAT MAXIMUM IS A SAMPLE MAXIMUM, and the sample does not look truncated by
- * nature. The 19 lags fall in buckets ~20-30 s apart — 56(2), 76(3), 96(3),
+ * BOTH MAXIMA ARE SAMPLE MAXIMA, and neither sample looks truncated by nature.
+ * The v0.46.0 lags fall in buckets ~20-30 s apart — 56(2), 76(3), 96(3),
  * 127(4), 157(3), 189(1), 251(3) — and the TOP bucket is as populated as the
  * middle ones, which is the shape of a distribution cut off by the observation
- * rather than one decaying to zero. One release is one sample, so a lag past
- * 300 s is not ruled out; what makes 300 s affordable anyway is that the
- * remediation is verified rather than assumed. The re-run this reports lands on
- * the 409 path, and that path READS BACK too (see the conflict branch in
- * `commands/publish.ts`), so a window that turns out to be too short costs one
- * re-run that confirms — it does not hand back an unverified success.
+ * rather than one decaying to zero; the next release then produced a value past
+ * it. So a lag past 600 s is not ruled out either. What makes any finite window
+ * affordable is that the remediation is verified rather than assumed: the
+ * re-run this reports lands on the 409 path, and that path READS BACK too (see
+ * the conflict branch in `commands/publish.ts`), so a window that turns out too
+ * short costs one re-run that confirms — never an unverified success.
+ *
+ * `time[version]` is when the registry RECORDED the write, a lower bound on
+ * when the document npm installs from SERVES it: the reporter above was
+ * recorded at +368 s and a cache-busted read of its install document still
+ * lacked 5.1.0 ~40 min later. No budget waits that out, and none should — that
+ * state is what the `recorded-not-served` verdict names.
  */
-export const DEFAULT_VERIFY_BUDGET_MS = 300_000;
+export const DEFAULT_VERIFY_BUDGET_MS = 600_000;
 
 /**
  * Make one probe's URL uncacheable, by giving it a key no cache holds.
@@ -236,9 +248,10 @@ export const DEFAULT_VERIFY_BUDGET_MS = 300_000;
  *   ?<unique>                              → cf-cache-status: MISS
  *
  * The packument is served `cache-control: public, max-age=300`, so an edge may
- * answer with a document up to 300 s old — the same order as the whole default
- * budget. A read-back polling one such edge re-reads ONE document minted before
- * the PUT for its entire window and then reports the publish unconfirmed: a
+ * answer with a document up to 300 s old — the sweep's whole 5 s budget sixty
+ * times over, and half the fatal default. A read-back polling one such edge
+ * re-reads ONE document minted before the PUT for up to 300 s of its window and
+ * a short budget then reports the publish unconfirmed: a
  * manufacturable false red on a publish that worked, and a verifier that cries
  * wolf is one somebody turns off. It cannot produce the opposite error, because
  * a document minted before the write cannot carry the version.

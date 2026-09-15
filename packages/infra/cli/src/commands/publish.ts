@@ -556,7 +556,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         //
         //   NOT CONFIRMED YET — the other 19. Here the read-back waits out
         //   npm's own write queue, and those residual lags SUM TO 2554 s: a
-        //   sweep that waited them all out with the 300 s default would have
+        //   sweep that waited them all out under the fatal default would have
         //   added ~43 min to that 33 min job. That single number decides the
         //   shape below.
         //
@@ -580,7 +580,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         //
         // Hence BOTH, split along that cost. The read-back runs per package
         // everywhere and is FATAL by default — that is what turns the
-        // incident's green single-package job red, for up to 300 s of
+        // incident's green single-package job red, for up to 600 s of
         // patience on a job that otherwise ran 59 s. The
         // 199-package sweep passes `--verify-defer --verify-timeout 5`: it
         // still CONFIRMS nine packages in ten and still names the suspect
@@ -600,7 +600,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
             // decoration: it is the only client-side measurement of when a
             // version became RESOLVABLE, as against `time[version]`, which is
             // when the registry recorded the write. The two are assumed equal by
-            // the 4.2-minute figure and the 300 s window, and nothing had ever
+            // the 4.2-minute figure and the default window, and nothing had ever
             // measured the gap. The pre-registered comparison — and what each
             // outcome would change — is in #1509's description; this line, under
             // GJSIFY_PUBLISH_DEBUG (which release.yml sets), is its input. Note

@@ -61,7 +61,7 @@ function packumentWith(name: string, version: string, opts: { tarball?: boolean 
     return JSON.stringify({ name, 'dist-tags': { latest: version }, versions: { [version]: { version, dist } } });
 }
 
-/** A clock + `sleep` that advances it, so a 300 s budget runs in no real time. */
+/** A clock + `sleep` that advances it, so the default budget runs in no real time. */
 function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void>; slept: number[] } {
     let t = 1_000;
     const slept: number[] = [];
@@ -676,7 +676,7 @@ export default async () => {
             expect(probeTimeoutFor(30_000, 5_000)).toBe(5_000);
             // The fatal default is far above the per-probe timeout, so nothing
             // changes there.
-            expect(probeTimeoutFor(30_000, 300_000)).toBe(30_000);
+            expect(probeTimeoutFor(30_000, DEFAULT_VERIFY_BUDGET_MS)).toBe(30_000);
             // ...and it never clamps a probe below what an answer takes: the
             // LAST probe of a short budget is the one that produces the verdict,
             // and cutting it to ~0 reported `error` where a 404 was arriving.
@@ -684,7 +684,7 @@ export default async () => {
             expect(probeTimeoutFor(30_000, -5_000)).toBe(2_000);
             // A configured timeout below the floor is still honoured — it was
             // asked for explicitly.
-            expect(probeTimeoutFor(500, 300_000)).toBe(500);
+            expect(probeTimeoutFor(500, DEFAULT_VERIFY_BUDGET_MS)).toBe(500);
         });
     });
 
