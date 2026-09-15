@@ -98,7 +98,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
  * @property {EmitOptions['accessibilityValue']} accessibilityValue
  * @property {EmitOptions['gtypeName']} gtypeName
- * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
+ * @property {Map<string, string | null>} idTypes  object id -> GType name, `null` where the object is extern, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
 
@@ -227,8 +227,24 @@ function formatAttributes(attrs) {
 function emitObject(xml, object, context) {
     const className = gtypeName(object.type, context);
     xml.startTag('object', { class: className, id: object.id });
-    emitBody(xml, object.body, className, context);
+    emitBody(xml, object.body, ownerOf(object.type, className), context);
     xml.endTag();
+}
+
+/**
+ * What a body's values are resolved AGAINST, or `null` for an extern type.
+ *
+ * `null` is the answer `identText` already had for "no owner" and it is the right one here:
+ * an extern class is in no GIR, so no property of it can be joined to an enum and every
+ * identifier keeps the spelling the source gave it. Keying that on the GType NAME instead
+ * would be wrong on one file and green on every other — `$GtkBox { orientation: vertical; }`
+ * is `vertical` to the oracle and `1` to a reader that trusts the name
+ * (`33-extern-unresolved.blp`).
+ *
+ * @param {TypeRef} type @param {string} gtype @returns {string | null}
+ */
+function ownerOf(type, gtype) {
+    return type.extern === true ? null : gtype;
 }
 
 /** @param {XmlWriter} xml @param {TemplateNode} template @param {EmitContext} context */
@@ -238,7 +254,7 @@ function emitTemplate(xml, template, context) {
     // template class is the one being defined and has no ParamSpecs of its own yet.
     const parent = gtypeName(template.parent, context);
     xml.startTag('template', { class: template.className, parent });
-    emitBody(xml, template.body, parent, context);
+    emitBody(xml, template.body, ownerOf(template.parent, parent), context);
     xml.endTag();
 }
 
@@ -255,7 +271,7 @@ function emitTemplate(xml, template, context) {
  * Two members on ONE line are not in any golden. The sort is stable, so they keep the
  * group order below.
  *
- * @param {XmlWriter} xml @param {ObjectBody} body @param {string} ownerType @param {EmitContext} context
+ * @param {XmlWriter} xml @param {ObjectBody} body @param {string | null} ownerType @param {EmitContext} context
  */
 function emitBody(xml, body, ownerType, context) {
     const members = inSourceOrder([
@@ -312,7 +328,7 @@ function emitChild(xml, child, context) {
 
 // ------------------------------------------------------------------ properties
 
-/** @param {XmlWriter} xml @param {Property} property @param {string} ownerType @param {EmitContext} context */
+/** @param {XmlWriter} xml @param {Property} property @param {string | null} ownerType @param {EmitContext} context */
 function emitProperty(xml, property, ownerType, context) {
     const value = property.value;
 
@@ -772,6 +788,10 @@ function emitMenu(xml, menu, context) {
  */
 function gtypeName(type, context) {
     if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`);
+    // An extern type never defaults to Gtk: there is no import behind it, so the sigil-free
+    // spelling IS the GType name. Getting this wrong in the fallback would be a `GtkMyWidget`
+    // no GtkBuilder can find, which is the shape of wrong output ADR 0053 clause 3 refuses.
+    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
     return `${type.namespace ?? 'Gtk'}${type.name}`;
 }
 
@@ -811,7 +831,7 @@ function findTemplateClass(file) {
  * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
  */
 function indexObjectIds(file, seams) {
-    /** @type {Map<string, string>} */
+    /** @type {Map<string, string | null>} */
     const byId = new Map();
     for (const root of file.roots) {
         if (root.kind === 'object') indexObject(root, byId, seams);
@@ -820,13 +840,18 @@ function indexObjectIds(file, seams) {
     return byId;
 }
 
-/** @param {ObjectNode} object @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectNode} object @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexObject(object, byId, seams) {
-    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type, seams));
+    // An extern target is indexed as `null` and not left out: absent and extern are the same
+    // to `Map.get`, and they must be, because `lookalike.orientation: vertical` on an extern
+    // target keeps its spelling while the same setter on a `Gtk.Box` is `1`. The setter path
+    // is a SECOND call site of the resolver, so an implementation that fixes only the object
+    // body above is byte-equal on every golden that has no `setters { }` in it.
+    if (object.id !== undefined) byId.set(object.id, ownerOf(object.type, gtypeName(object.type, seams)));
     indexBody(object.body, byId, seams);
 }
 
-/** @param {ObjectBody} body @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectBody} body @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexBody(body, byId, seams) {
     for (const property of body.properties) indexValue(property.value, byId, seams);
     for (const child of body.children) {
@@ -834,7 +859,7 @@ function indexBody(body, byId, seams) {
     }
 }
 
-/** @param {Value} value @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {Value} value @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexValue(value, byId, seams) {
     if (value.kind === 'object') indexObject(value.object, byId, seams);
     else if (value.kind === 'list') {
