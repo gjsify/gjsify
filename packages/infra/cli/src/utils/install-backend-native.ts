@@ -1726,13 +1726,14 @@ async function extractOne(
         return true;
     }
 
-    // Content-addressable cache before the network: tarballs are immutable per SRI
-    // integrity, so a hash hit is byte-identical to what the registry would return and
-    // needs no verifying re-download.
-    let bytes = getCachedTarball(node.integrity);
+    // Content-addressable cache before the network. Both readers RE-HASH the bytes
+    // against the integrity that named them, so a hit is byte-identical to what the
+    // registry would return because it was checked, not because the path says so —
+    // the store is a restorable CI artifact now, not just a local directory.
+    let bytes = await getCachedTarball(node.integrity);
     if (bytes) {
         log('cache-hit: %s@%s ← %s', node.name, node.version, node.integrity);
-    } else if ((bytes = getForeignCachedTarball(node.integrity))) {
+    } else if ((bytes = await getForeignCachedTarball(node.integrity))) {
         // Second chance: npm's cacache content store, same SRI key — anyone who has run
         // `npm install` already has the tarball on disk. Written through to OUR store so
         // the next `gjsify install` hits first-class even if npm prunes its cache.
