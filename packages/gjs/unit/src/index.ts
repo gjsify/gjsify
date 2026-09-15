@@ -10,6 +10,7 @@ import { runtimeName, runtimeVersion } from '@gjsify/runtime';
 import { hostOs } from '@gjsify/utils/core';
 import { quitMainLoop } from '@gjsify/utils/main-loop';
 import { canRealizeGl, canRealizeSurface, type DisplayEnv } from './capabilities.js';
+import { createHeartbeat, type Heartbeat } from './heartbeat.js';
 
 /**
  * Typed view of the cross-runtime globals this runner reads. `@gjsify/unit` must
@@ -333,6 +334,12 @@ const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
 };
 
 let timeoutConfig: TimeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG };
+
+/**
+ * Where a supervisor learns which test is in flight. Inert until `run()` replaces it, and
+ * inert after that too unless `GJSIFY_UNIT_HEARTBEAT` named a file — see `heartbeat.ts`.
+ */
+let heartbeat: Heartbeat = createHeartbeat(undefined, 0);
 
 /**
  * Opt-in per-test skip map (test name → reason), populated by `run()`'s `skip`
@@ -1272,6 +1279,9 @@ export const it = async function (
     try {
         await runBeforeEachHooks();
 
+        // Written BEFORE the body, because a body that blocks the main loop never gives this
+        // file another turn to write anything — see `heartbeat.ts` for the incident.
+        heartbeat.noteInFlight(currentSuite ? `${currentSuite} › ${expectation}` : expectation, timeoutMs);
         await withTimeout(callback, timeoutMs, expectation);
     } catch (e) {
         threw = true;
@@ -1304,6 +1314,7 @@ export const it = async function (
         --activeTestDepth;
         assertionLedgers.pop();
         noteIfCwdDestroyed(expectation);
+        heartbeat.noteSettled();
     }
 
     const duration = now() - t0;
@@ -1907,6 +1918,10 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
         }
     }
 
+    // After the env AND the options, so the deadline handed to a supervisor is the one
+    // actually in force rather than the default it would have guessed.
+    heartbeat = createHeartbeat(envBag(), timeoutConfig.runTimeout);
+
     printRuntime()
         .then(async () => {
             try {
@@ -1968,6 +1983,9 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             printResult();
             browserSignalDone();
             print();
+            // Disarmed before the exit dance: whatever holds the process from here on is
+            // teardown, not a test, and must not be reported as a hung one.
+            heartbeat.stop();
 
             quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
             mainloop?.quit();
