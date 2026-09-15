@@ -115,9 +115,81 @@ runs:
           node_modules
           !node_modules/.cache/gjsify/build
           packages/*/*/node_modules
+        # EXACT KEY ONLY — no `restore-keys` fallback, deliberately.
+        #
+        # There used to be a `node-modules-v1-` prefix fallback, and it cost a day.
+        # gjsify#1683 bumped @girs; an early run of that PR genuinely nested
+        # node_modules/@girs/gtk-4.0/node_modules/@girs/graphene-1.0 and saved the
+        # tree. The fix push changed the lockfile → new key → miss → the FALLBACK
+        # handed the job a tree built for a DIFFERENT lockfile. `gjsify install
+        # --immutable` added what was missing and removed nothing, so the nesting
+        # survived and tsc reported TS2883, one type with two identities — against a
+        # path the lockfile never contains. The still-nested tree was then saved
+        # under the NEW key, so no plain re-run could go green: the failure
+        # reproduced itself until the caches were deleted by hand.
+        #
+        # `--immutable` now REFUSES an undescribed tree by name rather than
+        # installing over it (packages/infra/cli/src/utils/install-extraneous.ts), so
+        # a restored foreign tree is no longer silent — it is a hard, immediate
+        # failure. Keeping the fallback would therefore turn every lockfile-changing
+        # PR red. An exact key hit is a tree built from THIS lockfile, which is the
+        # only tree `--immutable` can accept.
+        #
+        # THE PRICE, stated honestly. Every lockfile-changing PR now pays a fully
+        # cold install in EVERY job that uses this action: the ~16 min extract phase
+        # above, plus re-DOWNLOADING all ~1850 tarballs. Not extract-only — the
+        # content-addressed install cache lives in `.gjsify-cache/`, which this step
+        # `mkdir -p`s fresh each run and which NO actions/cache path covers, so it
+        # never survives a run. (On a developer's machine XDG_CACHE_HOME does
+        # persist, so there the same miss really is extract-only. CI is the
+        # different case.) The old fallback bought a warm baseline and paid for the
+        # delta only; that is what is being given up, and it is worth more than one
+        # extract.
+        #
+        # That download half is bought back by the tarball store cached two steps
+        # below, which DOES carry a prefix fallback. The two blocks sit next to each
+        # other with OPPOSITE fallback policies on purpose; read that step's comment
+        # before touching either. The asymmetry is the point, not an oversight.
         key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
+
+    # The content-addressed TARBALL store — the half of a cold install that is
+    # network, not CPU. This is what buys back the download the step above gives up,
+    # and it is why dropping `restore-keys` there costs an extract rather than a
+    # re-download of the whole closure.
+    #
+    # THIS ONE CARRIES A PREFIX FALLBACK, AND THE STEP ABOVE MUST NOT. That is not an
+    # inconsistency to tidy up — it is the distinction the #1683 incident turned on,
+    # so read this before "fixing" either.
+    #
+    #   A node_modules TREE encodes a RESOLUTION DECISION: which version was hoisted
+    #   where, for one specific lockfile. Restore it under a different lockfile and
+    #   the decision is silently wrong — a nested @girs/graphene-1.0 that the new
+    #   lockfile never placed, surviving an install that only ever adds. That is the
+    #   whole incident.
+    #
+    #   This store holds BLOBS keyed BY THEIR OWN HASH:
+    #   `<sri-alg>/<2-hex shard>/<64-hex>.tgz` (install-tarball-cache.ts `pathFor`).
+    #   The path IS the digest of the bytes, so a stale store can only ever be a
+    #   subset or a superset of the blobs wanted — never a wrong answer to a right
+    #   name. A blob cannot masquerade as another blob without a hash collision, and
+    #   the reader verifies integrity on top. There is no decision here to invalidate,
+    #   which is exactly why a fallback is sound for this and fatal for that.
+    #
+    # THE KEY. Coarse on purpose. Keying the store to the lockfile hash ALONE would
+    # defeat it, since surviving a lockfile change is the entire value — so the value
+    # comes from `restore-keys`, which hands any lockfile the newest store there is.
+    # The exact key exists only to decide when to SAVE: a new entry is written once
+    # per distinct lockfile (when the store has actually gained blobs), not once per
+    # run, which is what keeps this from minting a fresh ~420 MB entry on every push.
+    # `v1` mirrors `CACHE_LAYOUT_VERSION` in install-tarball-cache.ts — bump together.
+    - name: Restore the tarball store
+      id: tarballs
+      uses: actions/cache/restore@v6
+      with:
+        path: .gjsify-cache/gjsify/tarballs
+        key: gjsify-tarballs-v1-${{ hashFiles('gjsify-lock.json') }}
         restore-keys: |
-          node-modules-v1-
+          gjsify-tarballs-v1-
 
     - name: Create non-root user for tests
       shell: bash
@@ -169,6 +241,59 @@ runs:
         su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$B' install --immutable"
         echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
         echo "bootstrap-bundle=$B" >> "$GITHUB_OUTPUT"
+
+    # Counting blobs is the only way to tell a WARM store from a fresh directory:
+    # `cache-hit` reports the KEY, not the contents, and cannot distinguish them.
+    #
+    # The `-d` test and the `|| true` are load-bearing, not defensive clutter. Every
+    # composite step runs under `bash -e -o pipefail`, and a MISSING store directory
+    # is the normal case this step exists to detect — an exact node_modules hit means
+    # the install downloads nothing, so `.gjsify-cache/gjsify/tarballs` is never
+    # created. `find` on a path that does not exist exits 1; `pipefail` promotes that
+    # over `wc`'s 0, `-e` then kills the step, and the count never runs. That is
+    # exactly how this failed the docs job on its first green-path run: exit 1 in
+    # 55 ms, before printing a single line. Do not "simplify" it back to a bare
+    # pipeline — verify any edit with `bash --noprofile --norc -e -o pipefail` against
+    # a directory that is ABSENT, not merely empty.
+    - name: Count the tarball store
+      id: tarball-store
+      shell: bash
+      run: |
+        n=0
+        if [ -d .gjsify-cache/gjsify/tarballs ]; then
+          n=$(find .gjsify-cache/gjsify/tarballs -type f -name '*.tgz' 2>/dev/null | wc -l || true)
+        fi
+        echo "blobs=$n" >> "$GITHUB_OUTPUT"
+        echo "tarball store holds $n blob(s)"
+
+    # Save the grown store under the EXACT key, so the next lockfile's fallback finds
+    # a newer superset than the one this job restored.
+    #
+    # The emptiness guard closes a real self-inflicted miss rather than being
+    # defensive noise: on an exact node_modules hit the install downloads NOTHING, so
+    # if no store was restored the directory is still the empty one `mkdir -p` made.
+    # Saving that would publish an empty store as the newest entry, and `restore-keys`
+    # would hand it to every later lockfile — a cache that exists, hits, and carries
+    # nothing, which is strictly worse than no cache because it looks healthy.
+    #
+    # Concurrent savers are expected and benign: every job on a new lockfile misses
+    # the same key, one wins the reservation and the rest log "Unable to reserve
+    # cache" and move on. They would all have written identical content.
+    #
+    # NOT SOLVED, worth knowing: this store only GROWS. Nothing prunes a blob whose
+    # package left the dependency graph, and each save re-uploads the whole grown
+    # store, so the entry drifts upward from the ~420 MB this repo's Linux closure
+    # measures today. GitHub's 10 GB repo budget evicts least-recently-used, which
+    # happens to be the right order here — the newest store is the one the fallback
+    # wants, and an evicted old one costs a one-time re-download, not a wrong answer.
+    # That makes growth a cost rather than a correctness problem, which is why it is
+    # left standing; a TTL or a lockfile-driven sweep is the fix if it ever bites.
+    - name: Save the tarball store
+      if: steps.tarballs.outputs.cache-hit != 'true' && steps.tarball-store.outputs.blobs != '0'
+      uses: actions/cache/save@v6
+      with:
+        path: .gjsify-cache/gjsify/tarballs
+        key: ${{ steps.tarballs.outputs.cache-primary-key }}
 
     # The cached path set, defined ONCE. The `build` job's explicit save step
     # needs the identical list and `actions/cache/save` takes its own `path`

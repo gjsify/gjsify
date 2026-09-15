@@ -126,6 +126,7 @@ import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import jsxConfigSuite from './utils/jsx-config.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import prunePrefixSuite from './utils/prune-prefix.spec.js';
+import installExtraneousSuite from './utils/install-extraneous.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
@@ -344,6 +345,7 @@ run(
         jsxConfigSuite,
         nodeBundleGuardSuite,
         prunePrefixSuite,
+        installExtraneousSuite,
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
         doubleDashArgsSuite,
