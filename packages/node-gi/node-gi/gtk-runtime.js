@@ -545,7 +545,8 @@ export function maybeWireGtkWindowingEnv() {
     // BUNDLE deliberately: fontconfig is a safe choice only where something hands it both a
     // configuration and faces, which is exactly what a windowing bundle does and what an
     // arbitrary host's Pango does not owe us.
-    setIfUnset('PANGOCAIRO_BACKEND', 'fc');
+    // MUTATION PROBE (scratch branch, never merged): the backend selection removed on purpose,
+    // to prove test/font-script-coverage.test.mjs goes RED without it.
 
     // THE FACES, which are a different question from the three settings above and on the
     // platform font maps not answerable by an environment variable at all.
