@@ -115,9 +115,28 @@ runs:
           node_modules
           !node_modules/.cache/gjsify/build
           packages/*/*/node_modules
+        # EXACT KEY ONLY — no `restore-keys` fallback, deliberately.
+        #
+        # There used to be a `node-modules-v1-` prefix fallback, and it cost a day.
+        # gjsify#1683 bumped @girs; an early run of that PR genuinely nested
+        # node_modules/@girs/gtk-4.0/node_modules/@girs/graphene-1.0 and saved the
+        # tree. The fix push changed the lockfile → new key → miss → the FALLBACK
+        # handed the job a tree built for a DIFFERENT lockfile. `gjsify install
+        # --immutable` added what was missing and removed nothing, so the nesting
+        # survived and tsc reported TS2883, one type with two identities — against a
+        # path the lockfile never contains. The still-nested tree was then saved
+        # under the NEW key, so no plain re-run could go green: the failure
+        # reproduced itself until the caches were deleted by hand.
+        #
+        # `--immutable` now REFUSES an undescribed tree by name rather than
+        # installing over it (packages/infra/cli/src/utils/install-extraneous.ts), so
+        # a restored foreign tree is no longer silent — it is a hard, immediate
+        # failure. Keeping the fallback would therefore turn every lockfile-changing
+        # PR red. Dropping it costs exactly one cold node_modules restore per
+        # lockfile change (the tarballs still come from the content-addressed install
+        # cache, so it is extract time, not download time); an exact key hit is a tree
+        # built from THIS lockfile, which is the only tree `--immutable` can accept.
         key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
-        restore-keys: |
-          node-modules-v1-
 
     - name: Create non-root user for tests
       shell: bash

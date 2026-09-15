@@ -88,6 +88,8 @@ import {
     pickBinMap,
 } from './bin-shim.js';
 import { detectNativePackages } from './detect-native-packages.js';
+import { findExtraneous, formatExtraneousError } from './install-extraneous.js';
+import { scanPrefix } from './prune-prefix.js';
 import {
     badPlatformError,
     checkPlatform,
@@ -340,6 +342,14 @@ async function installPackagesNativeLocked(
         }
         log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
+        // ...and the tree must hold NOTHING ELSE. The installer only adds, so without
+        // this an undescribed package survives the install and exits 0 — the CI cache
+        // poisoning of gjsify#1683 (install-extraneous.ts carries the incident).
+        // Before the download so a wrong tree costs seconds, not the extract phase,
+        // and with the FULL lockfile set: the workspace filter below removes nodes
+        // that ARE described, and judging against the smaller set would call them
+        // strangers.
+        assertNoExtraneous(opts.prefix, nodes);
     } else if (
         !opts.refreshLockfile &&
         existingLock &&
@@ -442,6 +452,21 @@ async function installPackagesNativeLocked(
     // Top-level requested packages only, so callers can write the resolved version
     // back into package.json (`npm install --save`).
     return topLevelResolutions(opts.specs, nodes);
+}
+
+/**
+ * `--immutable` only: refuse a `node_modules` holding packages the lockfile does not
+ * describe, naming every one of them.
+ *
+ * Deliberately NOT a prune — the reasoning, and the incident it comes from, are the
+ * header note of `install-extraneous.ts`. Scoped to the frozen path: a plain install
+ * resolves a NEW tree and may legitimately leave an older placement behind for its
+ * own prune pass to judge, so this rule would be wrong there.
+ */
+function assertNoExtraneous(prefix: string, nodes: readonly ResolvedNode[]): void {
+    const extraneous = findExtraneous({ prefix, installed: scanPrefix(prefix), expected: nodes });
+    if (extraneous.length === 0) return;
+    throw new Error(formatExtraneousError(extraneous, prefix));
 }
 
 function errMsg(err: unknown): string {

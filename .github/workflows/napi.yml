@@ -304,9 +304,12 @@ jobs:
             node_modules
             !node_modules/.cache/gjsify/build
             packages/*/*/node_modules
+          # Exact key only — no prefix fallback. A tree restored from a
+          # DIFFERENT lockfile is what poisoned gjsify#1683, and `gjsify install
+          # --immutable` now refuses such a tree by name instead of installing
+          # over it, so a fallback here would turn every lockfile-changing PR
+          # red. Full reasoning: .github/actions/gjsify-setup/action.yml.
           key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
-          restore-keys: |
-            node-modules-v1-
 
       # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
       # key (exact-only: lockfile + sources). An exact hit means the sources are
@@ -621,9 +624,12 @@ jobs:
             node_modules
             !node_modules/.cache/gjsify/build
             packages/*/*/node_modules
+          # Exact key only — no prefix fallback. A tree restored from a
+          # DIFFERENT lockfile is what poisoned gjsify#1683, and `gjsify install
+          # --immutable` now refuses such a tree by name instead of installing
+          # over it, so a fallback here would turn every lockfile-changing PR
+          # red. Full reasoning: .github/actions/gjsify-setup/action.yml.
           key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
-          restore-keys: |
-            node-modules-v1-
 
       # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
       # key (exact-only: lockfile + sources). An exact hit means the sources are
