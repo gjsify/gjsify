@@ -129,6 +129,14 @@ RUN dnf install -y \
 # running ON this image that still `dnf install`s something absent here is a
 # CI failure naming the package, and any job on a bare `fedora:<major>` must
 # appear in that script's ledger with a reason.
+# `elfutils` is here for ONE line of output: `eu-stack -p <pid>` is what
+# `utils/hang-watchdog.ts` runs on a wedged test bundle before it kills it, and
+# the native frame it prints (`g_main_loop_run` under `ffi_call`) is the only
+# artefact a killed process cannot be asked for a second time. It is NOT pulled
+# in by gjs/glib/gtk — measured with `dnf repoquery --requires --resolve
+# --recursive` over this whole list, which resolves zero elfutils binaries — so
+# without this line the guard would ship its diagnosis step permanently dark on
+# the exact images the incident happened on.
 RUN dnf install -y \
     gjs \
     glib2 \
@@ -141,6 +149,7 @@ RUN dnf install -y \
     squashfs-tools \
     file \
     curl \
+    elfutils \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
