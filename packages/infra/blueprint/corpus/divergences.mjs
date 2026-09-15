@@ -1,40 +1,48 @@
 // Where the in-repo parser and the reference compiler still disagree, one entry per file,
 // pinned to the exact lines.
 //
-// TWO ENTRIES, THREE LINES, BOTH WAITING ON A FACT
+// ONE ENTRY, ONE LINE, WAITING ON A FACT
 //
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
 // divergence, and it becomes authoritative when it reports none. It is not silent yet, and
-// the two things left are named below — so clause 7's demotion of `blueprint-compiler` to
-// oracle-only is still a plan and not a deletion. Both entries are the same shape: a lookup
-// the `@girs` vocabulary does not carry yet, one for the ARIA table and one for the enum
-// properties of classes that are not widgets.
+// the one thing left is named below — so clause 7's demotion of `blueprint-compiler` to
+// oracle-only is still a plan and not a deletion. Its shape is the shape every entry here has
+// had: a lookup the `@girs` vocabulary does not carry yet.
 //
 // WHAT USED TO BE HERE
 //
-// One cause over eleven files and twenty-three lines: `orientation: vertical` reached the XML
-// as `vertical` where the reference compiler writes `1`, because closing it needed two
-// lookups and this repository had one. `ENUM_VALUES` — the integer behind a nick — was
-// readable from the installed typelib; WHICH enum `GtkBox.orientation` is was not readable at
-// all, and searching the nick lists for an enum with a member called `never` finds several.
-// `@girs` 4.8.0 published the first as vocabulary data and 4.9.0 added `PROP_ENUMS`, the join.
-// `src/resolve-ident.mjs` performs both, and the twenty-three lines went with one change and
-// no entry here edited by hand — the second direction of the self-retirement rule below is
-// what turned the fix into eleven failures saying "delete me".
+// Twice, the same story with a different table. First one cause over eleven files and
+// twenty-three lines: `orientation: vertical` reached the XML as `vertical` where the
+// reference compiler writes `1`, because closing it needed two lookups and this repository had
+// one. `ENUM_VALUES` — the integer behind a nick — was readable from the installed typelib;
+// WHICH enum `GtkBox.orientation` is was not readable at all, and searching the nick lists for
+// an enum with a member called `never` finds several. `@girs` 4.8.0 published the first as
+// vocabulary data and 4.9.0 added `PROP_ENUMS`, the join.
+//
+// Then the same thing one table over, for `accessibility { }`: `checked: true` reached the XML
+// as `true` where the oracle writes `1`, because that slot is a `GtkAccessibleTristate` and
+// nothing in this repository could say so. GTK types its ARIA slots in C
+// (`gtk_accessible_property_init_value`) and the GIR carries that function and not its table,
+// so the fact had to be read somewhere else — ts-for-gir reads each member's own GIR
+// DOCUMENTATION, and `@girs` 5.1.0 publishes `ARIA_VALUE_TYPES` with `ARIA_VALUE_ENUMS` beside
+// it. Both entries retired the same way: `src/resolve-ident.mjs` gained the lookup and this
+// file lost the entry, not by hand but because the second direction of the self-retirement
+// rule below turned the fix into a failure saying "delete me".
 //
 // AND WHAT AN EMPTY LIST NEARLY HID
 //
 // The list WAS empty for a while, on a corpus whose `accessibility { }` file held a single
 // string. Measured on 0.20.4, that block emits three different elements and resolves its
 // values against a table of its own, so the one entry in the fixture was the one case where
-// all of that is invisible: `label: "…"` is an ARIA property with a string value. The rule
-// file now carries a relation, a state and an enum too, which is what a rule file is for —
-// and what came back is the first entry below. An exemption is data, and a corpus that does
-// not probe a construct is the other place a tolerated divergence can hide. The second entry
-// arrived the same way, from asking `03-property-enum` what its OTHER case looked like: every
-// enum the corpus resolved sat on a widget, and `Gtk.SizeGroup { mode: horizontal; }` was
-// the first that did not.
+// all of that is invisible: `label: "…"` is an ARIA property with a string value. Widening the
+// rule file is what put the ARIA entry here to begin with, and it is worth reading twice now
+// that the entry is gone: it was never true that the parser handled that block, only that
+// nothing asked it a question it could get wrong. An exemption is data, and a corpus that does
+// not probe a construct is the other place a tolerated divergence can hide. The entry that is
+// left arrived the same way, from asking `03-property-enum` what its OTHER case looked like:
+// every enum the corpus resolved sat on a widget, and `Gtk.SizeGroup { mode: horizontal; }`
+// was the first that did not.
 //
 // AN EXEMPTION IS DATA, NEVER A CODE PATH
 //
@@ -91,37 +99,11 @@
  */
 
 /**
- * The known disagreements. There are two.
+ * The known disagreements. There is one.
  *
  * @type {readonly ShadowDivergence[]}
  */
 export const SHADOW_DIVERGENCES = [
-    {
-        file: 'rules/20-accessibility.blp',
-        kind: 'aria-value-types',
-        lines: [
-            {
-                line: 14,
-                golden: '<state name="checked">1</state>',
-                inRepo: '<state name="checked">true</state>',
-            },
-            {
-                line: 15,
-                golden: '<property name="orientation">1</property>',
-                inRepo: '<property name="orientation">vertical</property>',
-            },
-        ],
-        reason:
-            "An `accessibility { }` entry is typed by GTK's ARIA table and not by the widget: `checked` " +
-            'is a GtkAccessibleTristate, so `true` is `1`, and `orientation` is a GtkOrientation there ' +
-            'even on a widget that is not orientable. The table is built in C by ' +
-            '`gtk_accessible_property_init_value`, and the GIR carries that function and not what it ' +
-            'writes — so `@girs` answers which ELEMENT each name becomes (the three nick lists, which is ' +
-            'why the two lines above are the only ones left) and cannot answer what value it takes. ' +
-            'Resolving it through the widget instead would be right by accident inside `Gtk.Box` and ' +
-            'wrong inside `Gtk.Label`. Retires when ts-for-gir emits the ARIA value types the way it now ' +
-            'emits `PROP_ENUMS`; tracked in `status/open-todos.md`.',
-    },
     {
         file: 'rules/29-enum-non-widget.blp',
         kind: 'prop-enums-widgets-only',
