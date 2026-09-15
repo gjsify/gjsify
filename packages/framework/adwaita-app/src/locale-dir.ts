@@ -7,11 +7,15 @@
 // THE PLATFORM IS A PARAMETER, never read here — the same discipline `StyleSheet.selectDefault`
 // keeps in `@gjsify/gtk-host`. It is what lets a test ask "what does a `.app` get?" from Linux.
 //
-// This branch is why the package declares `gjsify.os` (ADR 0018), and why all three values are
-// `supported` rather than a `partial` owing a note: the branch below is COMPLETE on each of the
-// three, not a stub awaiting a port. `locale-dir.spec.ts` asserts every one of its answers from
-// any host because the platform is an argument, and `gtk-os-suites.yml` runs the selection side
-// (`locale.ts`'s `process.platform` read) on real darwin and win32 node legs.
+// This branch is why the package declares `gjsify.os` (ADR 0018) — `locale.ts` reads
+// `process.platform`, which is what the rule derives the obligation from. darwin and win32 are
+// `partial`, NOT `supported`, and the distinction is the one `@gjsify/path` already draws for
+// win32: the DECISION below is complete and `locale-dir.spec.ts` asserts every one of its
+// answers from any host, because the platform is an argument. The SELECTION — `locale.ts`
+// reading a real `process.platform` and skipping `bindtextdomain` — is observed by no runner:
+// `gtk-os-suites.yml`'s darwin and win32 legs run `@gjsify/gtk-host` and `@gjsify/react-native`,
+// and this package's suite has never run on either OS. Complete code and measured code are not
+// the same claim, and `supported` is the word for the second one.
 
 /**
  * `bindtextdomain`'s directory for a system install — **on Linux**, where it exists.
