@@ -57,6 +57,17 @@ exits on a resolution that is not completion; and an output filter, because the 
 write is a change under the watched dir. `tests/e2e/dev-command` drives BOTH hosts — a
 Node-only row cannot fail for any of it.
 
+**`runGjsBundle` enforces the deadline the CHILD cannot** — `@gjsify/unit`'s per-test,
+per-suite and per-run timeouts are `setTimeout` races, and a test body that blocks the GJS main
+loop (a nested `GLib.MainLoop.run()`, a blocking GI call) never lets either half of the race
+run, so the bundle goes silent and holds the job's stdio until CI's cap kills it: run
+34945600666 burned 90 minutes and arrived as an unexplained red on an unrelated PR. So the
+harness writes `<deadline>\t<test>` into `GJSIFY_UNIT_HEARTBEAT` (a temp file this command
+creates) and `utils/hang-watchdog.ts` polls it, naming the test, taking an `eu-stack` backtrace
+and killing the child once it is past its own deadline plus `GJSIFY_HANG_GRACE_MS` (default 30 s,
+`0` disables — a debugger on a breakpoint looks exactly like a hang). Inert for anything that is
+not a unit run: no heartbeat, no claim, no kill.
+
 **`gjsify ship` writes `.deb` and `.rpm` ITSELF** — no `dpkg-deb`, no `rpmbuild`, no vendored
 packer, because the packer has to run under GJS, offline, and on a Fedora CI image where
 `dpkg-deb` does not exist. What that bought, and the defect `rpm`-as-an-independent-oracle caught

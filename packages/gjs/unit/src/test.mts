@@ -10,6 +10,7 @@ import hooksSuite from './hooks.spec.js';
 import countersSuite from './counters.spec.js';
 import failureRecapSuite from './failure-recap.spec.js';
 import exitCodeSuite from './exit-code.spec.js';
+import heartbeatSuite from './heartbeat.spec.js';
 
 run(
     {
@@ -24,6 +25,7 @@ run(
         countersSuite,
         failureRecapSuite,
         exitCodeSuite,
+        heartbeatSuite,
     },
     {
         // The runner's own legs are the one place this must hold end-to-end: every

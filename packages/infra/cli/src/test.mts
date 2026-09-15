@@ -28,6 +28,7 @@ import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
 import shipBundleDiscoverySuite from './utils/ship/discover-bundle.spec.js';
 import base64Suite from './utils/base64.spec.js';
+import hangWatchdogSuite from './utils/hang-watchdog.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
@@ -252,6 +253,7 @@ run(
         shipFontsSuite,
         msgfmtMergeSuite,
         base64Suite,
+        hangWatchdogSuite,
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,
