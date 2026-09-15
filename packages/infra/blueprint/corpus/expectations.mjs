@@ -375,20 +375,20 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'accessibility',
                 line: 6,
-                detail: 'the whole `accessibility { }` block — properties, a relation, a state, a translatable property and a list-valued relation; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
-            },
-            {
-                kind: 'sibling-object',
-                line: 16,
-                detail: 'the whole `Gtk.Label labelA`, which `labelled-by` on line 12 points at — its id goes with it and is not counted twice',
+                detail: 'the whole `accessibility { }` block — properties, relations, two states, a translatable property and a list-valued relation; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
             },
             {
                 kind: 'sibling-object',
                 line: 19,
+                detail: 'the whole `Gtk.Label labelA`, which `labelled-by` on line 15 points at — its id goes with it and is not counted twice',
+            },
+            {
+                kind: 'sibling-object',
+                line: 22,
                 detail: 'the whole `Gtk.Label labelB`, the other target of the same relation',
             },
         ],
-        note: 'The two labels are siblings and not children so the ledger lines of this file (the ARIA VALUE types, `corpus/divergences.mjs`) keep their numbers while the block grows: everything new sits after the entry that is ledgered.',
+        note: 'The block is dropped whole, so the projection is the one exit this file cannot measure the ARIA table through — every value type in it, and the two `<state>` lines that disagree about `true`, are held by the golden alone.',
     },
     {
         file: '21-value-array.blp',

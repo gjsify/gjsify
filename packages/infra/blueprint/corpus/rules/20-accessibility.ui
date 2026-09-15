@@ -12,7 +12,10 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <property name="label">an accessible name</property>
       <relation name="row-index">3</relation>
       <state name="checked">1</state>
+      <state name="hidden">true</state>
       <property name="orientation">1</property>
+      <property name="autocomplete">1</property>
+      <property name="value-now">0.5</property>
       <property name="description" translatable="yes">a translatable description</property>
       <relation name="labelled-by">labelA</relation>
       <relation name="labelled-by">labelB</relation>
