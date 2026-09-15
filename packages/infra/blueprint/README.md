@@ -170,6 +170,14 @@ would drift.
     the GType name — and it travels to TWO call sites, the object body and a `setters { }`
     target, which is why that file writes both.
 
+    It is also the one spelling that reaches a namespace the resolver has no vocabulary for,
+    and `rules/35-extern-real-class.blp` pins how far that goes. `Gio.ListStore` is refused
+    (`refused/namespace-without-vocabulary.blp`) and `$Gio.ListStore` does NOT reach it —
+    concatenation makes that `GioListStore`, a different class. `$GListStore` does, because
+    the C name is written out, and GtkBuilder resolves the result. So the gate holds on the
+    dotted form, the extern form asks for the GType by name, and the `extern` loss says the
+    projection read nothing inside the object — never that the tag is unknown.
+
 Most of these were found the same way: by asking a rule file that probed ONE shape of its
 construct what the other shapes looked like. A rule file that probes one case proves nothing
 about the others, and a construct nothing probes is one nothing prints either.

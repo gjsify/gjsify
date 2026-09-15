@@ -294,6 +294,13 @@ export const CORPUS_RULES = [
         surprise:
             'neither name is touched — `class="CorpusExternChild" parent="CorpusExternBase"` — and the body resolves against nothing, so the parent is the second place in one file that can lose the vocabulary',
     },
+    {
+        file: '35-extern-real-class.blp',
+        isolates:
+            'an extern type whose GType name is a REAL class, from a namespace this resolver has no vocabulary for — the same `GListStore` that `refused/namespace-without-vocabulary.blp` refuses one spelling above',
+        surprise:
+            'the extern spelling reaches it and GtkBuilder resolves the result, so the vocabulary gate is a gate on the DOTTED form only — and it is still not a hole in that gate, because concatenation cannot produce `GListStore` from `$Gio.ListStore` (that is `GioListStore`): the C name has to be written out, which is exactly the assertion the sigil exists to make',
+    },
 ];
 
 /**

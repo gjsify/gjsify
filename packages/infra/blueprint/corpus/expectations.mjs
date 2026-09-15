@@ -634,4 +634,19 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'The parent is what survives as the tag — the rule `08-template.blp` already pins — and here the survivor is extern too, so the one node this file projects carries a tag nothing can look up.',
     },
+    {
+        file: '35-extern-real-class.blp',
+        node: {
+            tag: 'GtkListView',
+            children: [{ tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] }],
+        },
+        lost: [
+            {
+                kind: 'extern',
+                line: 5,
+                detail: '`$GListStore` — a tag that IS resolvable, and still extern, because nothing in it was read',
+            },
+        ],
+        note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
+    },
 ];
