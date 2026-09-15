@@ -1,18 +1,20 @@
 // Where the in-repo parser and the reference compiler still disagree, one entry per file,
 // pinned to the exact lines.
 //
-// ONE ENTRY, ONE LINE, WAITING ON A FACT
+// NO ENTRIES — WHICH IS A PRECONDITION, NOT A PROMOTION
 //
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
-// divergence, and it becomes authoritative when it reports none. It is not silent yet, and
-// the one thing left is named below — so clause 7's demotion of `blueprint-compiler` to
-// oracle-only is still a plan and not a deletion. Its shape is the shape every entry here has
-// had: a lookup the `@girs` vocabulary does not carry yet.
+// divergence, and it becomes authoritative when it reports none. As of `@girs` 5.2.0 it
+// reports none: this list is empty and stage C is 42 of 42 byte-equal. That is the condition
+// clause 5 names and not the change it calls for — clause 5 still reads SHADOW, clause 7's
+// demotion of `blueprint-compiler` to oracle-only is still a plan, and both are edits of
+// their own rather than a consequence of this file emptying. What an empty list is worth is
+// the subject of the third section below, and it is worth reading before acting on it.
 //
 // WHAT USED TO BE HERE
 //
-// Twice, the same story with a different table. First one cause over eleven files and
+// Three times, the same story with a different table. First one cause over eleven files and
 // twenty-three lines: `orientation: vertical` reached the XML as `vertical` where the
 // reference compiler writes `1`, because closing it needed two lookups and this repository had
 // one. `ENUM_VALUES` — the integer behind a nick — was readable from the installed typelib;
@@ -26,9 +28,20 @@
 // (`gtk_accessible_property_init_value`) and the GIR carries that function and not its table,
 // so the fact had to be read somewhere else — ts-for-gir reads each member's own GIR
 // DOCUMENTATION, and `@girs` 5.1.0 publishes `ARIA_VALUE_TYPES` with `ARIA_VALUE_ENUMS` beside
-// it. Both entries retired the same way: `src/resolve-ident.mjs` gained the lookup and this
-// file lost the entry, not by hand but because the second direction of the self-retirement
-// rule below turned the fix into a failure saying "delete me".
+// it.
+//
+// The third needed no lookup that did not already exist, only a WIDER one. `PROP_ENUMS` was
+// keyed by the widget vocabulary (ADR 0029), so `Gtk.SizeGroup { mode: horizontal; }` — an
+// enum property on a class that is not a widget — had nothing to join against, and `mode`
+// reached the XML as `horizontal` where the oracle writes `1`. ts-for-gir extended
+// `PROP_ENUMS` past the widget vocabulary in `@girs` 5.2.0, and that entry retired on the
+// version bump ALONE: not one line of `src/resolve-ident.mjs` changed, because the two
+// lookups it already performed were simply answered for one more owner. A divergence that
+// closes with no code change is the cheapest kind and the easiest to mistake for luck, so it
+// is worth naming what made it cheap — the emitter never special-cased the case, so there
+// was nothing to unwind when the data arrived. All three retired the same way: this file lost
+// the entry not by hand but because the second direction of the self-retirement rule below
+// turned the fix into a failure saying "delete me".
 //
 // AND WHAT AN EMPTY LIST NEARLY HID
 //
@@ -39,10 +52,16 @@
 // rule file is what put the ARIA entry here to begin with, and it is worth reading twice now
 // that the entry is gone: it was never true that the parser handled that block, only that
 // nothing asked it a question it could get wrong. An exemption is data, and a corpus that does
-// not probe a construct is the other place a tolerated divergence can hide. The entry that is
-// left arrived the same way, from asking `03-property-enum` what its OTHER case looked like:
+// not probe a construct is the other place a tolerated divergence can hide. The last entry to
+// go arrived the same way, from asking `03-property-enum` what its OTHER case looked like:
 // every enum the corpus resolved sat on a widget, and `Gtk.SizeGroup { mode: horizontal; }`
 // was the first that did not.
+//
+// So the list is empty again, and it means what it meant last time: every construct this
+// corpus probes, the parser emits byte-for-byte. It does not mean every construct Blueprint
+// has. The way to find the next entry is the way the last two were found — widen a rule file
+// until it asks a question nobody has asked yet — and the way to be misled is to read the
+// empty list as coverage.
 //
 // AN EXEMPTION IS DATA, NEVER A CODE PATH
 //
@@ -99,30 +118,10 @@
  */
 
 /**
- * The known disagreements. There is one.
+ * The known disagreements. There are none: every corpus file the in-repo parser emits is
+ * byte-equal to the reference compiler's golden. See the header — an empty list is a
+ * measurement over this corpus, not a guarantee over the language.
  *
  * @type {readonly ShadowDivergence[]}
  */
-export const SHADOW_DIVERGENCES = [
-    {
-        file: 'rules/29-enum-non-widget.blp',
-        kind: 'prop-enums-widgets-only',
-        lines: [
-            {
-                line: 10,
-                golden: '<property name="mode">1</property>',
-                inRepo: '<property name="mode">horizontal</property>',
-            },
-        ],
-        reason:
-            '`GtkSizeGroup` is not a widget, and `PROP_ENUMS` — the `@girs` join from a property to its ' +
-            'enum type — is keyed by the widget vocabulary (ADR 0029): measured on @girs 5.0.0, every one of ' +
-            'its 71 owners is a widget, a widget base or an interface widgets implement, and `DECLS` has no ' +
-            '`GtkSizeGroup` either. ' +
-            '`ENUM_VALUES` does hold `GtkSizeGroupMode.horizontal` = 1, so the number is one lookup away, ' +
-            'and the lookup that is missing is the one ADR 0053 § Amendment 1 records as missing for widgets ' +
-            'before @girs 4.9.0: WHICH enum `GtkSizeGroup.mode` is. Searching the nick lists for an enum ' +
-            'with a member `horizontal` finds several, and guessing is the silent-wrong-output clause 3 ' +
-            'refuses. Retires when ts-for-gir extends `PROP_ENUMS` past the widget vocabulary.',
-    },
-];
+export const SHADOW_DIVERGENCES = [];
