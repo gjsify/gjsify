@@ -48,7 +48,9 @@ Two platforms are foreign: everything that is not Linux. On Linux the artifact m
 the distro supplies GJS or Node, GTK, the icon theme, fontconfig's configuration and the
 catalogues, and ADR 0024 § 4 calls bundling them "~100 MiB of cargo cult". On `win32` and
 `darwin` there is nothing to borrow from, which ADR 0023 already settled for *libraries*:
-the per-OS policy is `bundle` on both, and a host GTK is a hazard rather than a fallback.
+the per-OS policy is `bundle` **first** on both (§ 2). A host GTK is not outlawed there —
+"preference is an order, not an exclusion", and the win32 row calls a gvsbuild prefix a
+deliberate fallback — it simply stops being what an artifact may assume.
 
 The libraries are therefore in good shape. What has never been stated as one rule is
 everything a library **reads** once it is loaded: a configuration file, a module cache, a
@@ -71,7 +73,7 @@ macOS Pango is CoreText-backed and a `fonts.conf` inside a `.app` "would be iner
 (`utils/ship/layout.ts:404-410`). That premise is a statement about **how Homebrew built
 pango**, not about macOS — `pangocairo-fontmap.c` picks its backend from what was compiled
 in, `PANGOCAIRO_BACKEND=fc` selects the other one by hand, and this repository documents that
-escape hatch in four places (`status/open-todos.md:33`, ADR 0038 § 523,
+escape hatch in four places (`status/open-todos.md:33`, `docs/adr/0038-…:523`,
 `packages/framework/gtk-host/src/fonts.ts:244`,
 `website/src/content/docs/guides/bundled-fonts.md:355`). The moment anything selects it, a
 darwin bundle that carries `libfontconfig` and no `fonts.conf` is asking fontconfig to find
@@ -100,13 +102,13 @@ The `--windowing` superset is what release.yml publishes, so it is what the rows
 | GtkSourceView data tree | whole `share/gtksourceview-5` | whole `share/gtksourceview-5` | W:832 / D:1123 |
 | fontconfig configuration | `etc/fonts/fonts.conf` + `conf.d` + a cache, **when the gvsbuild prefix has one** | **none, ever** | W:790-806 / D: absent |
 | the GNOME UI faces | `share/fonts/adwaita/*.ttf`, from pinned `refs/adwaita-fonts` | identical payload, identical source | `bundle-fonts.mjs`, both |
-| …and a process that can SEE those faces | yes — loader exports `GJSIFY_GTK_RUNTIME_FONT_DIR`, `initFonts()` calls `add_font_file` | **no** — `status/open-todos.md:7` : "~7.3 MB of faces that no process can reach" | `gtk-runtime.js:460` + `gtk-host/src/fonts.ts` |
+| …and a process that can SEE those faces | yes — loader exports `GJSIFY_GTK_RUNTIME_FONT_DIR`, `initFonts()` calls `add_font_file` | **no** — `status/open-todos.md:22` : "~7.3 MB of faces that no process can reach" | `gtk-runtime.js:460` + `gtk-host/src/fonts.ts` |
 | GTK/GLib/libadwaita gettext catalogues | **absent** | **absent** | — |
 | ICU / locale data | not named by the recipe; closure-walk dependent. **Not measured** | not named by the recipe. **Not measured** | — |
 | the app's own faces | `share/fonts/<appId>` + `GJSIFY_FONT_DIR`, registered by the app | `share/fonts/<appId>` + `ATSApplicationFontsPath`, activated by macOS (**unverified**, `layout.ts:416-424`) | S, ADR 0038 |
 | the app's own catalogues | `share/locale` + `GJSIFY_LOCALE_DIR` | same | S, ADR 0024 § A8 |
 | Node interpreter + its LICENSE | staged beside the launcher | staged in `Contents/MacOS` | S `app-runtime.ts:440-452` |
-| the whole `gtk/` tree into the artifact | copied file-by-file, wholesale | copied file-by-file, wholesale | S `app-runtime.ts:466-472` |
+| the whole `gtk/` tree into the artifact | copied file-by-file, wholesale | copied file-by-file, wholesale | S `app-runtime.ts:464-471` |
 
 The last row is why the fontconfig row matters beyond the bundle: `stageAppRuntime` walks
 `listFilesRecursive(gtk.dir)` and stages everything under it, so the win32 program directory
@@ -127,13 +129,13 @@ the other one.
 **G2 — a Linux default in a macOS-only launcher.**
 `packages/infra/cli/src/utils/ship/launcher.ts:265` writes
 `XDG_DATA_DIRS="$contents/…:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"` into every `.app`.
-The win32 sibling at `launcher.ts:393` appends nothing. On macOS those two directories are
+The win32 sibling at `launcher.ts:394` appends nothing. On macOS those two directories are
 either absent or hold Homebrew's tree — the one thing every foreign-platform gate in this
 repository exists to keep out of the measurement (`gtk-os-suites.yml:316`).
 
 **G3 — a Linux path as the last-resort locale directory on every OS.**
 `packages/framework/adwaita-app/src/locale-dir.ts:8` defines
-`SYSTEM_LOCALE_DIR = '/usr/share/locale'` and `:34` returns it when neither the option, nor
+`SYSTEM_LOCALE_DIR = '/usr/share/locale'` and `:35` returns it when neither the option, nor
 `GJSIFY_LOCALE_DIR`, nor the caller's fallback names one. Harmless today (the launcher sets
 the variable whenever it staged catalogues) and wrong as a default off Linux: it should be
 "no directory", so the failure is *untranslated*, which is visible, rather than *bound to a
@@ -153,7 +155,7 @@ at exit with no error. **Not measured**; the recipe cannot answer it, a host can
 
 **G6 — the darwin bundle's own faces are unreachable, and that is recorded as an open item
 rather than as a failing gate.** `status/open-todos.md:7-42` states it precisely and
-`packages/node-gi/node-gi/test/windowing.test.mjs:324` *asserts the decline*, so the day it
+`packages/node-gi/node-gi/test/windowing.test.mjs:326` *asserts the decline*, so the day it
 changes the test says so. What no gate says is that the artifact is shipping payload nothing
 can read — the `fonts` windowing-data set (`bundle-data.mjs:189-198`) requires the files to be
 PRESENT, which they are.
@@ -163,12 +165,15 @@ PRESENT, which they are.
 Homebrew GTK (`:316`), no gvsbuild prefix (`:566`) — so the self-containment habit exists; it
 simply stops at the library boundary.
 
-**G8 — `system-gi.js` keeps host prefixes for both foreign OSes.**
-`packages/node-gi/node-gi/system-gi.js:88` lists `/opt/homebrew/lib`, `/usr/local/lib`,
-`/opt/local/lib` for darwin and `:310` a Unix default set. Correct for the `system` policy
-ADR 0023 § 4 permits an author to select; listed here because it is the only remaining path by
-which a foreign process reaches a host prefix by design, and any future rule must say so
-rather than trip over it.
+**G8 — `system-gi.js` keeps host prefixes, on darwin only.**
+`packages/node-gi/node-gi/system-gi.js:88` gives `PROBED_GI_LIBDIRS` exactly one key —
+`darwin: ['/opt/homebrew/lib', '/usr/local/lib', '/opt/local/lib']` — and `:310`
+(`dyldDefaultFallbackDirs`) is the second, also darwin. **There is no win32 entry**, and `:228`
+says why: "win32 is deliberately absent rather than proven unnecessary", `PATH` being the DLL
+search path. So this is one foreign OS, not two. Correct for the `system` policy ADR 0023 § 2
+lets an author select with `GJSIFY_GTK_PREFER`; listed here because it is the only remaining
+path by which a foreign process reaches a host prefix by design, and any future rule must say
+so rather than trip over it.
 
 ## Where the two foreign platforms diverge without a stated reason
 
@@ -190,14 +195,16 @@ packages. Not a defect — but it is why the shared rule modules (`bundle-data.m
 drifts by default.
 
 **D4 — pinned catalogue on one side, a package manager on the other.** win32 builds from a
-gvsbuild prefix whose project list is committed (`scripts/gvsbuild-catalogue.json`) and whose
+gvsbuild prefix whose project list is committed
+(`packages/node-gi/scripts/gvsbuild-catalogue.json` — the SHARED scripts dir, not win32's own)
+and whose
 gaps must be declared with an upstream cause (ADR 0056). darwin builds from
 `brew --prefix` (`build-gtk-runtime-darwin.mjs:175`) with no equivalent. A capability that
 disappears from a Homebrew formula disappears from the bundle, and the only thing that would
 notice is a symmetry or floor check that happens to cover it.
 
 **D5 — the darwin README describes a bundle that no longer exists.**
-`packages/node-gi/gtk-runtime-darwin-arm64/README.md:189-196` says the gdk-pixbuf loaders are
+`packages/node-gi/gtk-runtime-darwin-arm64/README.md:191-195` says the gdk-pixbuf loaders are
 "still not collected" — § 2b of the current builder collects them — and in the same paragraph
 gives fontconfig's omission its reason. One half of that paragraph is measurably stale, which
 is a poor place for the other half to be the only statement of a decision.
@@ -206,11 +213,17 @@ is a poor place for the other half to be the only statement of a decision.
 
 - **ADR 0018** — the OS axis is a declared, *checked* claim, and a file count is not a
   capability.
-- **ADR 0023** — `win32` and `darwin` are `bundle`-first; a host GTK is a hazard, not a
-  fallback; exactly one GObject type registry per process.
+- **ADR 0023 § 2** — `win32` and `darwin` are `bundle`-**first**, and preference is an order,
+  not an exclusion: a host GTK stays a selectable fallback (`GJSIFY_GTK_PREFER=system`), it is
+  merely not what an artifact may assume. **§ 4** — exactly one GObject type registry per
+  process. Nothing below narrows either.
 - **ADR 0024 § 2** — one payload, one layout per OS; per-OS code only where the LAYOUT
   differs, never a branch in the staging code. **§ 4** — on both foreign OSes the artifact
-  carries Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-<target>`.
+  carries Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-<target>`. **§ A8** — catalogues are
+  payload, reached through `GJSIFY_LOCALE_DIR`. Note that § A8 also writes the app-side call as
+  `bindtextdomain(domain, GLib.getenv('GJSIFY_LOCALE_DIR') ?? '/usr/share/locale')`
+  (`0024-…:991`), so clause 4 and step 1 do **amend** that one spelling off Linux, and say so
+  here rather than changing it quietly. The staging rule § A8 exists for is untouched.
 - **ADR 0038** — one payload directory for faces; the *mechanism* is per-OS and each row must
   say whether it was measured or researched.
 - **ADR 0055 / 0056** — a bundle declares its media capabilities and names the upstream cause
@@ -240,7 +253,7 @@ own `share/fonts/<appId>`, and nothing else.
 
 ### 2. A configuration input is a declared data set, or a declared absence
 
-`WINDOWING_DATA_SETS` (`packages/node-gi/scripts/bundle-data.mjs:134`) is already the shared,
+`WINDOWING_DATA_SETS` (`packages/node-gi/scripts/bundle-data.mjs:135`) is already the shared,
 platform-free list, and its doc comment already says why `etc/fonts` is not in it: a gvsbuild
 prefix without one means pango uses DirectWrite, "which is the normal configuration rather than
 a defect". That reasoning is sound and incomplete — it makes the *absence* conditional on a
@@ -277,7 +290,7 @@ the rendered launcher strings, which `launcher.spec.ts` already renders.
 | 3 | Decide D1 (`GIRepository-2.0`: both or neither) and record it in `REQUIRED_NAMESPACES` rather than leaving it to the closure walk | Small in code, a real decision in substance; `status/open-todos.md:517` already asks the owner of the bundle contract to make it |
 | 4 | Ship a bundle-owned `fonts.conf` on **both** foreign platforms; point `FONTCONFIG_PATH`/`FONTCONFIG_FILE` at it unconditionally where a bundle carries one (G1) | Medium, and it is the step that must not be taken blind: the darwin half is unverifiable from here, and it interacts directly with PR #1677 — whichever lands second must re-measure, not assume. On win32 it also removes the "when the prefix has one" conditional, which changes what a bundle built against a fontconfig-less gvsbuild contains |
 | 5 | Add the font probe and the settings probe (clause 3) | Medium-high: the font probe is a near-copy of the decode probe and is affordable; the settings probe needs a writable child environment on two OSes and may find that G5's answer is "the memory backend", which is a second, larger piece of work |
-| 6 | Ship GTK's own gettext catalogues in both bundles (G4) | **The expensive one.** ~50 languages × GTK + GLib + libadwaita is tens of MiB on a bundle that is already 81.6 MiB on win32, and it needs a language-selection policy (all / a set / author-chosen) that nothing in the tree has. Naming it here so the gap stops being invisible; deciding it is not this ADR's business |
+| 6 | Ship GTK's own gettext catalogues in both bundles (G4) | **The expensive one.** ~50 languages × GTK + GLib + libadwaita is tens of MiB on a bundle that is already 81.6 MB on win32 (ADR 0023:38 — a published package size, not re-measured here), and it needs a language-selection policy (all / a set / author-chosen) that nothing in the tree has. Naming it here so the gap stops being invisible; deciding it is not this ADR's business |
 | 7 | Fix the darwin README's stale paragraph (D5) and align `dataBytes` (D2) | Small, and worth doing with step 2 so the two statements of the fontconfig decision cannot disagree again |
 
 Steps 1-3 and 7 are independent of any host and can land from Linux. Steps 4-6 need the two
