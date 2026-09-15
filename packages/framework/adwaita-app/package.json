@@ -66,6 +66,11 @@
             "nativescript": "none"
         },
         "tier": 2,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
+        },
         "storybook": {
             "applicationId": "org.gjsify.AdwaitaAppStorybook",
             "title": "Adwaita App",

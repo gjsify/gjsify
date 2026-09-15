@@ -6,6 +6,12 @@
 //
 // THE PLATFORM IS A PARAMETER, never read here — the same discipline `StyleSheet.selectDefault`
 // keeps in `@gjsify/gtk-host`. It is what lets a test ask "what does a `.app` get?" from Linux.
+//
+// This branch is why the package declares `gjsify.os` (ADR 0018), and why all three values are
+// `supported` rather than a `partial` owing a note: the branch below is COMPLETE on each of the
+// three, not a stub awaiting a port. `locale-dir.spec.ts` asserts every one of its answers from
+// any host because the platform is an argument, and `gtk-os-suites.yml` runs the selection side
+// (`locale.ts`'s `process.platform` read) on real darwin and win32 node legs.
 
 /**
  * `bindtextdomain`'s directory for a system install — **on Linux**, where it exists.
