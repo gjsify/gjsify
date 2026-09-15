@@ -9,13 +9,11 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**Two divergences are left, on three lines, both waiting on the same kind of fact.** Clause 5
-makes the parser authoritative once the shadow run is silent; `corpus/divergences.mjs` holds
-two entries. An `accessibility { }` VALUE is typed by GTK's ARIA table — built in C, and the
-one thing the GIR does not carry — and an enum property of a class that is not a widget
-(`GtkSizeGroup.mode`) has no join to its enum, because the `@girs` vocabulary is a widget
-vocabulary. Everything else in the corpus is byte-equal, and every construct the subset
-refuses is refused by name, held by a corpus of its own.
+**One divergence is left, on one line, waiting on a fact.** Clause 5 makes the parser
+authoritative once the shadow run is silent; `corpus/divergences.mjs` holds one entry — an enum
+property of a class that is not a widget (`GtkSizeGroup.mode`) has no join to its enum, because
+the `@girs` vocabulary is a widget vocabulary. Everything else in the corpus is byte-equal, and
+every construct the subset refuses is refused by name, held by a corpus of its own.
 
 ## What is in here
 
@@ -120,13 +118,17 @@ would drift.
    `Gtk.Label { accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is
    not orientable at all, because the ARIA table answers there. The widget is the table
    nearest to hand and it is the wrong one in both blocks.
-7. **An `accessibility { }` block is three kinds of element, not one.** `label` is a
-   `<property>`, `row-index` a `<relation>` and `checked` a `<state>`, all spelled alike in
-   the block (`rules/20-accessibility.ui`). Which name is which IS in the vocabulary — the
-   nick lists of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState` —
-   so `src/resolve-ident.mjs` answers it; the VALUE each slot takes is not, which is the first
-   entry in `corpus/divergences.mjs`. The emitter wrote `<property>` for every entry until
-   this rule file had anything but a property in it.
+7. **An `accessibility { }` block is three kinds of element, not one — and the same is true
+   of its values.** `label` is a `<property>`, `row-index` a `<relation>` and `checked` a
+   `<state>`, all spelled alike in the block (`rules/20-accessibility.ui`). Which name is which
+   IS in the vocabulary — the nick lists of `GtkAccessibleProperty`, `GtkAccessibleRelation`
+   and `GtkAccessibleState`. The VALUE was not, and became so in `@girs` 5.1.0
+   (`ARIA_VALUE_TYPES` + `ARIA_VALUE_ENUMS`, read from each member's own GIR documentation
+   because `gtk_accessible_property_init_value` is C and not introspectable). The sharpest
+   line in that golden is the pair of `<state>` elements: `checked: true` is `1` because the
+   slot is a `GtkAccessibleTristate`, and `hidden: true` — the same four characters — stays
+   `true` because that slot is a boolean. The emitter wrote `<property>` for every entry, and
+   then the source spelling for every value, until this rule file held anything else.
 8. **A GType name is not namespace plus name.** `Gio.ListStore` is `<object
    class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
    prefix is the namespace, and silently wrong for any third `using`. The name is now a
@@ -136,7 +138,7 @@ would drift.
    must spell right.
 9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
    `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
-   for a class outside the widget tree — the second ledger entry (`rules/29-enum-non-widget.ui`).
+   for a class outside the widget tree — the one ledger entry left (`rules/29-enum-non-widget.ui`).
 10. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
     "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).

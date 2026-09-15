@@ -329,3 +329,42 @@ half — the compiler keeps validation, and the GIR, reached through `@girs`, an
 the member, and so does an `accessibility { }` entry that is none of the three ARIA kinds —
 the oracle refuses that file too, and passing it through would be output that looks plausible
 and means something else.
+
+## Amendment 2, 2026-09-15 — the ARIA table is data now too, and it came from the DOCUMENTATION
+
+**Amendment 1 closed the ParamSpec lookup and named what was still open: an `accessibility { }`
+VALUE is typed by GTK's ARIA table, "built in C by `gtk_accessible_property_init_value`" with the
+GIR carrying that function and not what it writes. That is closed the same way, and the route is
+worth recording because it is not the one the sentence above implies.**
+
+The function is still not introspectable. What is introspectable is each ARIA member's own GIR
+DOCUMENTATION, which states the value type in prose, and ts-for-gir reads it from there:
+`ARIA_VALUE_TYPES` keyed `<enum GType>.<nick>` — the grammar `ENUM_VALUES` already uses, because
+the ARIA names ARE members of `GtkAccessibleProperty`, `GtkAccessibleRelation` and
+`GtkAccessibleState` — with `ARIA_VALUE_ENUMS` beside it naming the enum GType for the rows that
+need a second hop. Published in `@girs` 5.1.0. So the fact did not become introspectable; a
+different part of the same GIR turned out to carry it, and the lesson is to ask what ELSE the
+artifact says before declaring a fact absent from it.
+
+**A third lookup, in the seam Amendment 1 built for the first two.**
+`packages/infra/blueprint/src/resolve-ident.mjs` gains `accessibilityValue` and the emitter takes
+it through a fourth `EmitOptions` seam. `ARIA_VALUE_TYPES[key] === 'enum'` is the whole test: the
+enum rows resolve to their number, every other row keeps the source spelling, and the emitter
+carries no `if` for either — clause 6 unchanged.
+
+**Measured, and the measurement is the point.** Against `blueprint-compiler` 0.20.4 the corpus
+goes from 40 byte-equal with two ledger entries on three lines to 41 with one entry on one line,
+and the ARIA entry was deleted because stage C failed with "byte-equal and still listed" — the
+self-retiring direction working as designed, for the second time. `Gtk.SizeGroup.mode` remains,
+waiting on `PROP_ENUMS` past the widget vocabulary, so clause 5 is still not satisfied and clause
+7 stays planned.
+
+**And the rule file was thin again, in the same place.** Amendment 1 recorded that
+`20-accessibility.blp` held one entry, a string, and that widening it reported three things the
+emitter had never been asked. Widened only that far it still held exactly one `<state>`,
+`checked: true`, which the table numbers — so "a state is numbered" fitted every byte in the
+corpus and is false: `hidden: true` is a boolean slot and stays `true`. Measured by writing that
+false rule into the resolver: against the old fixture the output is BYTE-EQUAL and nothing
+reports, against a fixture carrying a boolean row it fails on the line. The file now probes every
+value type the table can produce. **A corpus proves a rule only over the cases it holds, and
+"widened once" is not a state a construct stays in.**

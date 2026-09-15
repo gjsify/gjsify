@@ -6231,10 +6231,9 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 40 of
-the 42 corpus files are byte-equal and `corpus/divergences.mjs` holds two entries on three lines,
-both below. Clause 5's condition is those two entries, and after them come the flip
-and the deletions.
+beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 41 of
+the 42 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on one line,
+below. Clause 5's condition is that one entry, and after it come the flip and the deletions.
 
 The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
 interface and changes what it calls, and byte-equality on the corpus is evidence about the
@@ -6247,7 +6246,12 @@ block are the refusals that exist today, each with its own message.
 before the flip, not to assume.** It was untrue for `accessibility { }` until that rule file
 grew past the single string it held: relations and states were emitted as `<property>`, inside
 the subset, silently. What found it was widening the corpus, not reading the code — so the
-question for every construct with a thin rule file is what its SECOND case looks like.
+question for every construct with a thin rule file is what its SECOND case looks like. The
+SAME file paid it twice. Once the ARIA value types landed, that block still held exactly one
+`<state>`, `checked: true`, which the table numbers — so "a state is numbered" fitted every
+byte the corpus had and is wrong: `hidden: true` stays `true`. Measured by writing that rule
+into the emitter — against the old fixture it is BYTE-EQUAL, against the one that now carries
+a boolean row it fails on the line. A corpus proves a rule only over the cases it holds.
 
 Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
 one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
@@ -6420,30 +6424,6 @@ None of the eleven real files does this today, which is why the gap was invisibl
 `29-enum-non-widget.blp` diverges on one named line and every other line of it is held to the
 golden, so a `.blp` in this repo that reaches the same shape surfaces as an unledgered
 divergence in stage C, not as a build that loads and misbehaves.
-
-### `accessibility { }` VALUE types need the ARIA table, which `@girs` does not carry
-
-Measured on `blueprint-compiler` 0.20.4: `Gtk.Label { accessibility { orientation: vertical; } }`
-emits `<property name="orientation">1</property>` although `GtkLabel` is not orientable at all,
-`autocomplete: inline` beside it emits `1`, and `checked: true` emits `1` because the slot is a
-`GtkAccessibleTristate` and not a boolean. The block is typed by GTK's ARIA table and not by the
-widget's ParamSpecs, and that table is built in C by `gtk_accessible_property_init_value` — the
-GIR carries the function, not what it writes. `PROP_ENUMS` answers the ParamSpec question only,
-so `packages/infra/blueprint/src/emit-xml.mjs` passes nothing for that block and the source
-spelling stands.
-
-The NAME half is already answered and is not part of this: which element each entry becomes is
-the nick list of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState`, all
-three in the vocabulary, so `src/resolve-ident.mjs` classifies it. What is left is the value,
-and `rules/20-accessibility.blp` holds it as the one entry in `corpus/divergences.mjs` — which
-is the second half of what this entry used to say: the gap was written here because no corpus
-file probed it, and a gap nothing probes is one nothing prints either. Resolving it through the
-widget would be right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`, so the repair
-is upstream: ts-for-gir emits the ARIA value types the way it now emits `PROP_ENUMS`, the ledger
-entry fails with "byte-equal and still listed, delete the entry", and clause 5 is reached.
-`layout { }` is the same shape with a different answer — the entry there belongs to the layout
-CHILD (`GtkGridLayoutChild`), the compiler leaves an unresolvable one as written, and
-`rules/19-layout.blp` pins that with a `halign` the widget would have numbered.
 
 ### Inverting the Blueprint projection needs the GIR, and one loss needs a field
 
