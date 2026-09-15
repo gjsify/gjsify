@@ -410,14 +410,32 @@ const pinnedEdges = edges.filter((e) => e.kind === 'release');
 /** name → true (version present) | false (absent) | Error (probe failed). */
 const state = new Map();
 
+let probeCount = 0;
+
 async function probe(name) {
     const url = `${registry}/${name.replace('/', '%2f')}`;
     try {
-        const res = await fetch(url, {
+        // THE HEADER DOES NOT DEFEAT THE CACHE, and this line used to claim it
+        // did. Measured against registry.npmjs.org: `cache-control: no-cache`,
+        // `max-age=0`, `no-store` and `pragma: no-cache` all answer
+        // `cf-cache-status: HIT` with an `age` up to the packument's own
+        // `max-age=300`; only a key no cache holds produces a MISS. That matters
+        // most HERE, because this job's retry rounds are minutes apart and a
+        // round that re-reads its own cached answer is a round that cost time and
+        // learned nothing — on the one job the release sweep's `--verify-defer`
+        // tail is handed to. The measurement lives beside the code that acts on
+        // it, in `packages/infra/cli/src/utils/publish-readback.ts`.
+        //
+        // NOT shared with that module by import: this script runs under plain
+        // `node` on every pull request, from a checkout where the CLI's `lib/` is
+        // not built. Its independence from the build is the reason it can run
+        // that early, so the two keep one ORACLE — the abbreviated packument,
+        // `dist.tarball` and all — and not one implementation.
+        const busted = `${url}${url.includes('?') ? '&' : '?'}__gjsify_readback=${Date.now()}-${probeCount++}`;
+        const res = await fetch(busted, {
             headers: {
                 // Abbreviated packument: version keys only, a fraction of the
-                // bytes. `no-cache` so a CDN edge cannot answer with a document
-                // minted before the publish we are checking.
+                // bytes — and the document npm itself installs from.
                 accept: 'application/vnd.npm.install-v1+json',
                 'cache-control': 'no-cache',
             },

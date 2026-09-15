@@ -94,12 +94,22 @@
 // `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState`, so it is a lookup
 // and never a hand-kept list.
 //
-// The VALUE each slot takes is not derivable: `checked: true` is `1` and `orientation: vertical`
-// is `1` because GTK types the slots in C (`gtk_accessible_property_init_value`), and the GIR
-// carries that function and not its table. So this seam answers the element, the values stay the
-// source spelling, and `rules/20-accessibility.blp` is ledgered until ts-for-gir emits the table.
+// AND THE VALUE IS A THIRD LOOKUP, WHICH `@girs` 5.1.0 ADDED
+//
+// `checked: true` is `1` and `orientation: vertical` is `1` on a `GtkButton` that is not
+// orientable at all, because GTK types those slots in C (`gtk_accessible_property_init_value`)
+// and the GIR carries that function, not its table. ts-for-gir reads each member's own GIR
+// DOCUMENTATION instead and publishes `ARIA_VALUE_TYPES` — keyed like `ENUM_VALUES`, because the
+// ARIA names ARE enum members — beside `ARIA_VALUE_ENUMS`, which names the enum GType for the
+// rows that need one. `ARIA_VALUE_TYPES[key] === 'enum'` is the whole test and a row of any other
+// kind keeps the source spelling, which is exactly what the goldens hold: measured on 0.20.4,
+// `hidden: true` stays `true` where `checked: true` is `1`, and the only thing that tells those
+// two lines apart is the table. Resolving them through the widget's ParamSpecs instead would be
+// right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`.
 
 import {
+    ARIA_VALUE_ENUMS as ADW_ARIA_VALUE_ENUMS,
+    ARIA_VALUE_TYPES as ADW_ARIA_VALUE_TYPES,
     DECLS as ADW_DECLS,
     ENUM_NICKS as ADW_ENUM_NICKS,
     ENUM_VALUES as ADW_ENUM_VALUES,
@@ -109,6 +119,8 @@ import {
     PROP_ENUMS as ADW_PROP_ENUMS,
 } from '@girs/adw-1/vocabulary';
 import {
+    ARIA_VALUE_ENUMS as GTK_ARIA_VALUE_ENUMS,
+    ARIA_VALUE_TYPES as GTK_ARIA_VALUE_TYPES,
     DECLS as GTK_DECLS,
     ENUM_NICKS as GTK_ENUM_NICKS,
     ENUM_VALUES as GTK_ENUM_VALUES,
@@ -122,7 +134,12 @@ import {
 // two the vocabulary is generated for. A GType NAME is globally unique, so merging cannot
 // collide by construction — and Gtk's tables already carry the enums it inherits from its
 // dependency closure (`PangoEllipsizeMode` is in there), so a third import would add names
-// neither namespace declares.
+// neither namespace declares. The two ARIA tables are merged for one reason beyond symmetry:
+// `ARIA_SLOTS` reads the merged `ENUM_NICKS`, so taking the value types from Gtk alone would let
+// the name half and the value half disagree the day libadwaita declares an ARIA slot of its own.
+// It declares none today — measured on 5.1.0, its two tables are empty.
+const ARIA_VALUE_TYPES = { ...GTK_ARIA_VALUE_TYPES, ...ADW_ARIA_VALUE_TYPES };
+const ARIA_VALUE_ENUMS = { ...GTK_ARIA_VALUE_ENUMS, ...ADW_ARIA_VALUE_ENUMS };
 const DECLS = { ...GTK_DECLS, ...ADW_DECLS };
 const PROP_ENUMS = { ...GTK_PROP_ENUMS, ...ADW_PROP_ENUMS };
 const ENUM_NICKS = { ...GTK_ENUM_NICKS, ...ADW_ENUM_NICKS };
@@ -275,20 +292,25 @@ export function gtypeName(type, where) {
 }
 
 /**
- * Every name an `accessibility { }` entry may carry, against the element it becomes.
+ * Every name an `accessibility { }` entry may carry -> the element it becomes, and the key its
+ * VALUE is typed by.
  *
  * GTK's ARIA vocabulary is three registered enums and the nick of a member IS the name written
  * in the block, so the table is built rather than typed. Deriving it also means a GTK that adds
- * an ARIA slot adds it here on the next `@girs` bump, which a hand-kept list would not.
+ * an ARIA slot adds it here on the next `@girs` bump, which a hand-kept list would not. One map
+ * answers both questions because `ARIA_VALUE_TYPES` is keyed `<enum GType>.<nick>` and the nicks
+ * of the three enums are disjoint — which is what lets the block spell all three alike at all.
  *
- * @type {ReadonlyMap<string, 'property' | 'relation' | 'state'>}
+ * @type {ReadonlyMap<string, { element: 'property' | 'relation' | 'state', key: string }>}
  */
-const ARIA_ELEMENTS = new Map(
+const ARIA_SLOTS = new Map(
     [
         ['GtkAccessibleProperty', 'property'],
         ['GtkAccessibleRelation', 'relation'],
         ['GtkAccessibleState', 'state'],
-    ].flatMap(([enumType, element]) => (ENUM_NICKS[enumType] ?? []).map((nick) => [nick, element])),
+    ].flatMap(([enumType, element]) =>
+        (ENUM_NICKS[enumType] ?? []).map((nick) => [nick, { element, key: `${enumType}.${nick}` }]),
+    ),
 );
 
 /**
@@ -304,7 +326,32 @@ const ARIA_ELEMENTS = new Map(
  * @returns {'property' | 'relation' | 'state'}
  */
 export function accessibilityElement(name, where) {
-    const element = ARIA_ELEMENTS.get(name);
-    if (element !== undefined) return element;
+    const slot = ARIA_SLOTS.get(name);
+    if (slot !== undefined) return slot.element;
     throw new Error(`blueprint: ${where}: \`${name}\` is not an accessibility property, relation or state`);
+}
+
+/**
+ * What one `accessibility { }` value emits where the ARIA table types that slot as an ENUM, and
+ * `null` where it types it as anything else.
+ *
+ * The signature the emitter's `EmitOptions.accessibilityValue` declares. `null` does not mean
+ * what it means in `resolveIdent`: there it is "not the library's identifier", here it is "this
+ * slot takes a string, an integer, a double, a boolean or a reference" — all five of which the
+ * emitter already writes the way the oracle does, so the enum rows are the only ones where the
+ * source spelling is measurably wrong. A member the enum does not have throws, as the oracle
+ * refuses `orientation: sideways` by name; `corpus/refused/unknown-accessibility-member.blp`
+ * holds that case.
+ *
+ * @param {string} name  the entry name, kebab-spelled as the ARIA nick is
+ * @param {string} member  the identifier or boolean as the source spelled it
+ * @param {string} where  `line N`, for an error message that can be acted on
+ * @returns {string | null}
+ */
+export function accessibilityValue(name, member, where) {
+    const slot = ARIA_SLOTS.get(name);
+    // `accessibilityElement` refuses a name that is no slot and the emitter asks it first, so a
+    // miss here is a caller reaching this seam on its own rather than through the block.
+    if (slot === undefined || ARIA_VALUE_TYPES[slot.key] !== 'enum') return null;
+    return String(lookupMember(ARIA_VALUE_ENUMS[slot.key], member, where).value);
 }

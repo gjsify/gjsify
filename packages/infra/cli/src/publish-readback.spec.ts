@@ -61,7 +61,7 @@ function packumentWith(name: string, version: string, opts: { tarball?: boolean 
     return JSON.stringify({ name, 'dist-tags': { latest: version }, versions: { [version]: { version, dist } } });
 }
 
-/** A clock + `sleep` that advances it, so a 300 s budget runs in no real time. */
+/** A clock + `sleep` that advances it, so the default budget runs in no real time. */
 function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void>; slept: number[] } {
     let t = 1_000;
     const slept: number[] = [];
@@ -75,9 +75,57 @@ function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void>;
     };
 }
 
+/**
+ * A registry that answers the abbreviated document and the FULL one separately.
+ *
+ * The two are different documents and the read-back asks them different
+ * questions — "do you serve it" and "do you record it" — so a fake that cannot
+ * tell them apart cannot exercise the verdict at all.
+ */
+function splitRegistry(opts: { abbreviated: Answer[]; full: Answer }): {
+    fetchImpl: typeof fetch;
+    requests: CapturedRequest[];
+} {
+    const requests: CapturedRequest[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        const headers: Record<string, string> = {};
+        const hdrInit = init?.headers;
+        if (hdrInit && typeof hdrInit === 'object' && !Array.isArray(hdrInit)) {
+            for (const [k, v] of Object.entries(hdrInit as Record<string, string>)) headers[k.toLowerCase()] = v;
+        }
+        requests.push({ url, headers });
+        const wantsFull = headers['accept'] !== 'application/vnd.npm.install-v1+json';
+        const answer = wantsFull
+            ? opts.full
+            : (opts.abbreviated[
+                  Math.min(requests.filter((r) => r.headers['accept']).length - 1, opts.abbreviated.length - 1)
+              ] as Answer);
+        return new Response(answer.body, { status: answer.status, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    return { fetchImpl, requests };
+}
+
+/** A FULL packument: a `time` map, which the abbreviated document does not carry. */
+function fullPackumentWith(name: string, time: Record<string, string>): string {
+    return JSON.stringify({ name, time: { created: '2020-01-01T00:00:00.000Z', ...time }, versions: {} });
+}
+
+/** The buster parameter, stripped, so a row can assert on the route it asked for. */
+function withoutBuster(url: string): string {
+    return url.replace(/[?&]__gjsify_readback=[^&]*/, '');
+}
+
+/** The buster parameter's value, or `undefined` when the probe sent none. */
+function busterOf(url: string): string | undefined {
+    return /[?&]__gjsify_readback=([^&]*)/.exec(url)?.[1];
+}
+
 function readback(overrides: Partial<ReadbackResult> = {}): ReadbackResult {
     return {
         confirmed: false,
+        verdict: 'not-published',
+        verdictDetail: 'the registry has no packument for this name at all (404)',
         attempts: 7,
         elapsedMs: 300_400,
         url: 'https://registry.npmjs.org/@gjsify%2fnode-runtime-darwin-arm64',
@@ -122,12 +170,67 @@ export default async () => {
                 fetchImpl,
                 ...fakeClock(),
             });
-            expect(requests[0]?.url).toBe('https://registry.npmjs.org/@gjsify%2fcli');
+            expect(withoutBuster(requests[0]?.url ?? '')).toBe('https://registry.npmjs.org/@gjsify%2fcli');
             expect(requests[0]?.headers['accept']).toBe('application/vnd.npm.install-v1+json');
-            // Without this the CDN can answer with a document minted BEFORE the
-            // publish we are asking about, which is the whole question.
+            // Sent for the caches that honour it. The edge in front of
+            // registry.npmjs.org measurably does not — every Cache-Control
+            // variant came back `cf-cache-status: HIT` with an `age` up to the
+            // document's own max-age=300 — so the probe ALSO carries a key no
+            // cache holds, which is the thing that actually produced a MISS.
             expect(requests[0]?.headers['cache-control']).toBe('no-cache');
+            expect(busterOf(requests[0]?.url ?? '')).toBeTruthy();
+            // The REPORTED url stays the clean route: it is what a human re-runs.
             expect(result.url).toBe('https://registry.npmjs.org/@gjsify%2fcli');
+        });
+
+        await it('gives every probe its OWN cache key, not one buster per run', async () => {
+            // A buster fixed for the run is a cache key like any other: the
+            // second probe would re-read exactly what the first one cached, and
+            // a read-back that re-reads its own stale answer for 300 s is the
+            // false red this defends against.
+            const clock = fakeClock();
+            const { fetchImpl, requests } = scriptedRegistry([
+                { status: 404, body: '{}' },
+                { status: 404, body: '{}' },
+                { status: 200, body: packumentWith('@gjsify/fs', '0.46.0') },
+            ]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/fs',
+                version: '0.46.0',
+                budgetMs: DEFAULT_VERIFY_BUDGET_MS,
+                fetchImpl,
+                ...clock,
+            });
+            expect(result.confirmed).toBe(true);
+            const busters = requests.map((r) => busterOf(r.url));
+            expect(busters.length).toBe(3);
+            expect(new Set(busters).size).toBe(3);
+        });
+
+        await it('re-asks the BARE url when a registry rejects the parameter', async () => {
+            // A registry that 400s an unknown query parameter must not be
+            // reported as a failed publish because of it — the fallback is what
+            // keeps the cache defeat from becoming an interface demand.
+            const requests: CapturedRequest[] = [];
+            const fetchImpl = (async (input: RequestInfo | URL) => {
+                const url = typeof input === 'string' ? input : input.toString();
+                requests.push({ url, headers: {} });
+                if (busterOf(url)) return new Response('bad query', { status: 400 });
+                return new Response(packumentWith('@gjsify/cli', '0.46.0'), { status: 200 });
+            }) as typeof fetch;
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1_000,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(true);
+            expect(result.attempts).toBe(1);
+            expect(requests.length).toBe(2);
+            expect(busterOf(requests[1]?.url ?? '')).toBe(undefined);
         });
 
         await it("forwards the PUT's credential, so an auth-gated read is not a false red", async () => {
@@ -211,6 +314,27 @@ export default async () => {
             expect(result.last.state === 'absent' ? result.last.detail : '').toContain('newest 0.45.0');
         });
 
+        await it('confirms the EXACT version key — a prerelease sibling is not it', async () => {
+            // Found by mutation: a probe matching the key by PREFIX confirmed
+            // `0.46.0` from a packument holding only `0.46.0-rc.1`, and every
+            // row in this file and the e2e suite stayed green. The confirm path
+            // is the one that must not be loose, so this row pins the equality.
+            const { fetchImpl } = scriptedRegistry([
+                { status: 200, body: packumentWith('@gjsify/cli', '0.46.0-rc.1') },
+            ]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(false);
+            expect(result.last.state).toBe('absent');
+            expect(result.last.state === 'absent' ? result.last.detail : '').toContain('newest 0.46.0-rc.1');
+        });
+
         await it('refuses a version record whose dist.tarball is missing (#1407)', async () => {
             const { fetchImpl } = scriptedRegistry([
                 { status: 200, body: packumentWith('@gjsify/empty', '0.46.0', { tarball: false }) },
@@ -242,11 +366,14 @@ export default async () => {
             });
             expect(result.confirmed).toBe(false);
             expect(result.last.state).toBe('absent');
+            expect(result.verdict).toBe('not-published');
             // The budget is a ceiling on the WAITING, and the last probe is sent
             // from inside it — so the loop terminates and never overshoots by
             // more than one interval's worth of clock.
             expect(result.elapsedMs).toBeLessThan(DEFAULT_VERIFY_BUDGET_MS + 1);
-            expect(requests.length).toBe(result.attempts);
+            // One more request than probes: the corroboration that turns `absent`
+            // into a verdict, sent once, on the failure path only.
+            expect(requests.length).toBe(result.attempts + 1);
             expect(result.attempts).toBeGreaterThan(1);
         });
 
@@ -313,6 +440,139 @@ export default async () => {
         });
     });
 
+    await describe('verifyPublishedVersion — the VERDICT', async () => {
+        await it('separates "never published" from "recorded but not served"', async () => {
+            // The two have OPPOSITE remedies — re-publish vs. wait, since a
+            // re-publish of a recorded version is answered 409 — and until the
+            // verdict existed both left through one message asserting the first.
+            // Observed live on ts-for-gir v5.1.0: @ts-for-gir/reporter recorded at
+            // 21:43:00.983Z, and a cache-busted read of its INSTALL document
+            // still without 5.1.0 ~40 min later.
+            const { fetchImpl, requests } = splitRegistry({
+                abbreviated: [{ status: 200, body: packumentWith('@ts-for-gir/reporter', '5.0.0') }],
+                full: {
+                    status: 200,
+                    body: fullPackumentWith('@ts-for-gir/reporter', { '5.1.0': '2026-09-14T21:43:00.983Z' }),
+                },
+            });
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@ts-for-gir/reporter',
+                version: '5.1.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(false);
+            expect(result.verdict).toBe('recorded-not-served');
+            expect(result.recordedAt).toBe('2026-09-14T21:43:00.983Z');
+            // The corroboration is a DIFFERENT document: no install-v1 accept.
+            const record = requests[requests.length - 1] as CapturedRequest;
+            expect(record.headers['accept']).toBe(undefined);
+            expect(busterOf(record.url)).toBeTruthy();
+        });
+
+        await it('says not-published when the registry records no such version', async () => {
+            const { fetchImpl } = splitRegistry({
+                abbreviated: [{ status: 200, body: packumentWith('@gjsify/node-runtime-darwin-arm64', '0.45.0') }],
+                full: {
+                    status: 200,
+                    body: fullPackumentWith('@gjsify/node-runtime-darwin-arm64', { '0.45.0': '2026-01-01T00:00:00Z' }),
+                },
+            });
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/node-runtime-darwin-arm64',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.verdict).toBe('not-published');
+            expect(result.recordedAt).toBe(undefined);
+            expect(result.verdictDetail).toContain('no record of 0.46.0');
+        });
+
+        await it('a network failure is `unknown` — never published, never absent', async () => {
+            // The direction that matters: a dropped connection must not be able
+            // to report either "it is there" or "it was never there".
+            let calls = 0;
+            const fetchImpl = (async () => {
+                calls++;
+                throw new Error('ECONNRESET');
+            }) as unknown as typeof fetch;
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(false);
+            expect(result.verdict).toBe('unknown');
+            expect(result.verdictDetail).toContain('ECONNRESET');
+            // A read that failed is not evidence to corroborate, so the
+            // corroboration is not even attempted.
+            expect(calls).toBe(result.attempts);
+        });
+
+        await it('a 5xx is `unknown` too, and spends no extra request on it', async () => {
+            const { fetchImpl, requests } = scriptedRegistry([{ status: 503, body: 'upstream unavailable' }]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.verdict).toBe('unknown');
+            expect(requests.length).toBe(result.attempts);
+        });
+
+        await it('a corroboration that itself fails leaves the verdict `unknown`', async () => {
+            // The `absent` observation came from a 200/404 and stands, in `last`.
+            // The VERDICT does not: `not-published` means "no record anywhere",
+            // and the request that would have read the record answered 500 — so
+            // that verdict, and its remedy of re-publishing, is exactly the
+            // unearned claim this line exists never to make. The FULL packument
+            // is a different size class from the install document (typescript's
+            // is 15.7 MB), so a cut-short corroboration is what a LARGE package
+            // meets, not a broken registry.
+            const { fetchImpl } = splitRegistry({
+                abbreviated: [{ status: 404, body: '{}' }],
+                full: { status: 500, body: 'boom' },
+            });
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.verdict).toBe('unknown');
+            expect(result.last.state).toBe('absent');
+            expect(result.verdictDetail).toContain('500');
+        });
+
+        await it('a confirmed read-back says so, with the document it read', async () => {
+            const { fetchImpl } = scriptedRegistry([{ status: 200, body: packumentWith('@gjsify/cli', '0.46.0') }]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1_000,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.verdict).toBe('confirmed');
+            expect(result.confirmed).toBe(true);
+            expect(result.verdictDetail).toContain('serves 0.46.0 with a tarball');
+        });
+    });
+
     await describe('formatUnconfirmedPublish', async () => {
         await it('says what was PUT, what was asked, and what came back', async () => {
             // The three questions the incident log could not answer, which is why
@@ -343,9 +603,44 @@ export default async () => {
                 putStatus: 200,
                 putStatusText: 'OK',
                 payloadBytes: 42,
-                readback: readback({ last: { state: 'error', status: 503, detail: '503 Service Unavailable' } }),
+                readback: readback({
+                    verdict: 'unknown',
+                    verdictDetail: 'the read-back could not reach a verdict — 503 Service Unavailable',
+                    last: { state: 'error', status: 503, detail: '503 Service Unavailable' },
+                }),
             });
             expect(msg).toContain('answered  error: 503 Service Unavailable');
+            // THE HEADLINE IS THE VERDICT. It used to assert "the registry does
+            // not serve it" for an `unknown` too — a claim the probe had not
+            // earned, on the line written to stop exactly that.
+            expect(msg).toContain('could NOT establish whether the registry serves it');
+            expect(msg.includes('has no record of')).toBe(false);
+            expect(msg).toContain('verdict   unknown');
+            // And neither remedy is offered, because neither is known to apply.
+            expect(msg.includes('Re-run this publish')).toBe(false);
+            expect(msg.includes('Do NOT re-publish')).toBe(false);
+        });
+
+        await it('a RECORDED but unserved version is told to wait, not to re-publish', async () => {
+            const msg = formatUnconfirmedPublish({
+                name: '@ts-for-gir/reporter',
+                version: '5.1.0',
+                putUrl: 'https://registry.npmjs.org/@ts-for-gir%2freporter',
+                putStatus: 200,
+                putStatusText: 'OK',
+                payloadBytes: 17460,
+                readback: readback({
+                    verdict: 'recorded-not-served',
+                    verdictDetail:
+                        'the registry RECORDS 5.1.0 at 2026-09-14T21:43:00.983Z and its install document does not serve it',
+                    recordedAt: '2026-09-14T21:43:00.983Z',
+                }),
+            });
+            expect(msg).toContain('the registry RECORDS 5.1.0');
+            expect(msg).toContain('Do NOT re-publish');
+            // The 2xx remedy is the WRONG one here and must be gone, not merely
+            // joined by a second, contradicting paragraph.
+            expect(msg.includes('Re-run this publish')).toBe(false);
         });
 
         await it('a tolerated 409 gets its OWN headline and the opposite remedy', async () => {
@@ -363,7 +658,7 @@ export default async () => {
                 readback: readback(),
                 claim: 'already-published',
             });
-            expect(msg).toContain('ALREADY PUBLISHED but the registry does not serve it');
+            expect(msg).toContain('ALREADY PUBLISHED and the registry has no record of 0.46.0');
             expect(msg).toContain('409 Conflict');
             expect(msg).toContain('Re-running answers the same 409');
             // And the 2xx advice — "re-run this publish" — must be GONE, not
@@ -381,7 +676,7 @@ export default async () => {
             expect(probeTimeoutFor(30_000, 5_000)).toBe(5_000);
             // The fatal default is far above the per-probe timeout, so nothing
             // changes there.
-            expect(probeTimeoutFor(30_000, 300_000)).toBe(30_000);
+            expect(probeTimeoutFor(30_000, DEFAULT_VERIFY_BUDGET_MS)).toBe(30_000);
             // ...and it never clamps a probe below what an answer takes: the
             // LAST probe of a short budget is the one that produces the verdict,
             // and cutting it to ~0 reported `error` where a 404 was arriving.
@@ -389,7 +684,7 @@ export default async () => {
             expect(probeTimeoutFor(30_000, -5_000)).toBe(2_000);
             // A configured timeout below the floor is still honoured — it was
             // asked for explicitly.
-            expect(probeTimeoutFor(500, 300_000)).toBe(500);
+            expect(probeTimeoutFor(500, DEFAULT_VERIFY_BUDGET_MS)).toBe(500);
         });
     });
 

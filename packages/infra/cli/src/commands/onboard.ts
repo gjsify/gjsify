@@ -572,7 +572,14 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 failed++;
                 continue;
             }
-            log(`  published ${pub.name}@${'version' in pub ? pub.version : ''}`);
+            log(
+                `  published ${pub.name}@${'version' in pub ? pub.version : ''}` +
+                    ('readback' in pub && pub.readback?.confirmed
+                        ? ` (verified on ${pub.registry} — ${pub.readback.attempts} probe(s))`
+                        : pub.action === 'skipped-untrusted-new'
+                          ? ''
+                          : ' (UNVERIFIED)'),
+            );
             await configureTrust(p, i, pub.action !== 'skipped-untrusted-new');
         }
 
@@ -763,7 +770,7 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
                 `npm ${pub.claim === 'already-published' ? 'reported it already published' : 'accepted the upload'} ` +
                 `(HTTP ${pub.putStatus}) but ${pub.name}@${pub.version} did not ` +
                 `resolve on ${pub.registry} after ${pub.readback.attempts} probe(s) over ` +
-                `${(pub.readback.elapsedMs / 1000).toFixed(1)}s`
+                `${(pub.readback.elapsedMs / 1000).toFixed(1)}s [${pub.readback.verdict}: ${pub.readback.verdictDetail}]`
             );
         case 'error':
             return `HTTP ${pub.status} ${pub.statusText}`;
