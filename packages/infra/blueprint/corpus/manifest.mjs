@@ -39,10 +39,10 @@
 // WHAT THE ELEVEN REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "eleven real
-// files" as coverage would be wrong twice over. They exercise six of the fourteen loss
+// files" as coverage would be wrong twice over. They exercise six of the fifteen loss
 // kinds — `template`, `object-id`, `translatable`, `binding`, `breakpoint`, `styles`.
-// The other eight (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
-// `sibling-object`, `responses`) are declared by no real expectation and are held only by the rules
+// The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
+// `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
 // one to read carefully: three real files DO carry comments, and the convention in
 // `expectations.mjs` is that comments are never listed per entry.) And eleven files are
@@ -274,6 +274,26 @@ export const CORPUS_RULES = [
         surprise:
             'each response is `<response id="…">` with the translatable attributes after the id; the flags `suggested` / `destructive` / `disabled` would add `appearance` and `enabled="false"`, and the parser refuses them by name, so the subset holds the form without them',
     },
+    {
+        file: '32-extern-nested.blp',
+        isolates:
+            'an extern type `$Name` as a nested object — as a `[top]` child, as a property value, with an id, holding a real child, and once with a dotted namespace',
+        surprise:
+            'the sigil is the whole syntax and the GType name is what is left of it — `$Ns.Inner` is `NsInner`, a CONCATENATION and not a C prefix, because there is no namespace behind an extern type to have one',
+    },
+    {
+        file: '33-extern-unresolved.blp',
+        isolates:
+            'that nothing inside an extern object is resolved against the vocabulary, on both call sites — an object body and a `setters { }` target',
+        surprise:
+            '`$GtkBox { orientation: vertical; }` emits `vertical` and `Gtk.Box { orientation: vertical; }` emits `1`, in the same file and under the same `class="GtkBox"`: the emitted NAME is identical and the bytes are not, so extern-ness has to travel with the type and cannot be read back off the GType name',
+    },
+    {
+        file: '34-extern-template-parent.blp',
+        isolates: 'an extern type as a template PARENT, `template $Child: $Base`',
+        surprise:
+            'neither name is touched — `class="CorpusExternChild" parent="CorpusExternBase"` — and the body resolves against nothing, so the parent is the second place in one file that can lose the vocabulary',
+    },
 ];
 
 /**
@@ -308,12 +328,12 @@ export const CORPUS_REFUSALS = [
         names: 'no vocabulary for',
     },
     {
-        file: 'extern-type.blp',
-        construct: 'an extern type, `$MyWidget { }`',
-        oracle: 'compiles',
+        file: 'closure-value.blp',
+        construct: 'a closure as a plain property value, `label: $format("a")`',
+        oracle: 'refuses',
         projection: 'refuses',
         line: 4,
-        names: 'extern type',
+        names: 'closure',
     },
     {
         file: 'binding-lookup-chain.blp',

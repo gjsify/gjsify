@@ -159,6 +159,17 @@ would drift.
     the oracle does. Stage D caught both the moment `rules/17-numeric-forms.blp` held the form
     — the first defects that stage has found.
 
+12. **An extern type is not a type with the sigil stripped.** `$MyWidget { }` — the form 49
+    files and 58 sites need (ADR 0062) — emits `<object class="MyWidget">`, and a dotted
+    `$Ns.Inner` CONCATENATES to `NsInner`, which is the one place concatenation is right
+    rather than the fallback item 8 corrected. What the name cannot carry is the other half:
+    nothing inside an extern object is resolved, because the class is in no GIR. Measured in
+    one file, `rules/33-extern-unresolved.ui`: `$GtkBox { orientation: vertical; }` emits
+    `vertical` and `Gtk.Box { orientation: vertical; }` emits `1`, under the identical
+    `class="GtkBox"`. So extern-ness travels on `TypeRef.extern` and cannot be read back off
+    the GType name — and it travels to TWO call sites, the object body and a `setters { }`
+    target, which is why that file writes both.
+
 Most of these were found the same way: by asking a rule file that probed ONE shape of its
 construct what the other shapes looked like. A rule file that probes one case proves nothing
 about the others, and a construct nothing probes is one nothing prints either.

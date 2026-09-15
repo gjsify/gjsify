@@ -6231,9 +6231,18 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 41 of
-the 42 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on one line,
+beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 44 of
+the 45 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on one line,
 below. Clause 5's condition is that one entry, and after it come the flip and the deletions.
+
+**`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
+extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
+and a template parent — and the corpus grew three rule files for it (32, 33, 34), taking the
+rules to 34 and the corpus to 45. Two things it does NOT do: it converts no consumer, and it
+does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
+nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
+counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
+`showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
 
 The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
 interface and changes what it calls, and byte-equality on the corpus is evidence about the

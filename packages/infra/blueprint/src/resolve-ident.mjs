@@ -274,11 +274,18 @@ const C_PREFIXES = new Map([
  * The signature the emitter's `EmitOptions.gtypeName` declares. An unqualified name is a Gtk type
  * — `24-unqualified-type.blp` pins that `using Adw 1;` does not make a bare `Bin` legal.
  *
- * @param {{ namespace?: string, name: string }} type
+ * An EXTERN type takes neither rule. `$MyWidget` is a class the application registers, so there
+ * is no namespace to default and no C prefix to look up: its GType name is what the source
+ * spells with the sigil removed, and a dotted `$Ns.Inner` CONCATENATES to `NsInner` — measured
+ * on the oracle, and the one place in this module where concatenation is the answer rather than
+ * the fallback that was wrong for `Gio`.
+ *
+ * @param {{ namespace?: string, name: string, extern?: true }} type
  * @param {string} where  `line N`, for an error message that can be acted on
  * @returns {string}
  */
 export function gtypeName(type, where) {
+    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
     const namespace = type.namespace ?? 'Gtk';
     const prefix = C_PREFIXES.get(namespace);
     if (prefix === undefined) {

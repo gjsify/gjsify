@@ -79,9 +79,15 @@
  * written per LANGUAGE RULE rather than per real file turns up, which is the point of
  * having one.
  *
+ * `extern` is the odd one and worth reading twice: it is the only kind where the projection
+ * keeps the TEXT and loses the meaning. `SharedNode.tag` is a GIR class name, which is what a
+ * renderer looks up; `$MyWidget` is a class the application registers at runtime and is in no
+ * GIR, so the tag is spelled exactly right and resolves to nothing. Declared here rather than
+ * discovered as a missing widget.
+ *
  * @typedef {'template'|'object-id'|'translatable'|'signal'|'binding'|'breakpoint'
  *          |'menu'|'styles'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'|'responses'} LossKind
+ *          |'sibling-object'|'responses'|'extern'} LossKind
  */
 
 /**
@@ -558,5 +564,74 @@ export const RULE_EXPECTATIONS = [
                 detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
             },
         ],
+    },
+    {
+        file: '32-extern-nested.blp',
+        node: {
+            tag: 'AdwToolbarView',
+            children: [
+                { tag: 'GalleryHeaderBar', slot: 'top' },
+                {
+                    tag: 'GalleryToolbarView',
+                    slot: 'content',
+                    children: [
+                        { tag: 'GtkLabel', props: { label: 'a real child of an extern parent' } },
+                        { tag: 'NsInner' },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'extern',
+                line: 6,
+                detail: '`$GalleryHeaderBar` is not a GIR class, so the tag resolves to nothing',
+            },
+            { kind: 'extern', line: 9, detail: '`$GalleryToolbarView` likewise, in the property-valued position' },
+            { kind: 'object-id', line: 9, detail: 'the id `pane`' },
+            {
+                kind: 'extern',
+                line: 14,
+                detail: '`$Ns.Inner`, whose tag `NsInner` is a concatenation and not a C prefix',
+            },
+        ],
+        note: 'The three extern tags are spelled exactly as the XML spells them and none of them is resolvable — which is the whole content of the `extern` loss. The `GtkLabel` between them shows that a real subtree under an extern parent projects normally.',
+    },
+    {
+        file: '33-extern-unresolved.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 100, 'height-request': 100 },
+            children: [
+                {
+                    tag: 'GtkBox',
+                    props: { orientation: 'vertical' },
+                    children: [
+                        { tag: 'GtkBox', props: { orientation: 'vertical' } },
+                        { tag: 'GtkBox', props: { orientation: 'vertical' } },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            { kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' },
+            { kind: 'extern', line: 20, detail: '`$GtkBox`, an extern class that SPELLS a GIR one' },
+            { kind: 'object-id', line: 20, detail: 'the id `lookalike`, which the first setter targets' },
+            { kind: 'object-id', line: 24, detail: 'the id `genuine`, which the second setter targets' },
+        ],
+        note: 'All three `orientation` props project as the string `vertical`, because an enum member keeps its source spelling on this exit whatever it sits on — so the projection is where this file says NOTHING and the `.ui` golden is where it bites: two of those three lines emit `1` and the extern one emits `vertical`.',
+    },
+    {
+        file: '34-extern-template-parent.blp',
+        node: { tag: 'CorpusExternBase', props: { orientation: 'vertical' } },
+        lost: [
+            { kind: 'template', line: 3, detail: 'the template class `$CorpusExternChild`' },
+            {
+                kind: 'extern',
+                line: 3,
+                detail: 'the parent `$CorpusExternBase`, which becomes the root tag and is no GIR class',
+            },
+        ],
+        note: 'The parent is what survives as the tag — the rule `08-template.blp` already pins — and here the survivor is extern too, so the one node this file projects carries a tag nothing can look up.',
     },
 ];
