@@ -23,7 +23,9 @@ enumerated. It is a refusal, and the oracle compiles it.
 
 ### How the numbers here were obtained
 
-Read at `3c07b817b9` on 2026-09-15, in a worktree of its own.
+Read at `3c07b817b9` on 2026-09-15, in a worktree of its own, and re-measured against `1bd3159d4b`
+in a second worktree before merge: the corpus and loss numbers are unchanged between the two, and
+the inventory and assembly tables carry the corrections that second reading produced.
 
 - **The file inventory** is `git ls-files` over the tracked tree, `refs/` excluded by path. The
   five reference pools are other people's repositories and are never a conversion candidate.
@@ -37,6 +39,12 @@ Read at `3c07b817b9` on 2026-09-15, in a worktree of its own.
   outside `*.spec.*`/`*.test.*`/`test/`/`tests/`, constructions matching `new (Gtk|Adw).X(` and
   calls to the 24 parenting methods `prefer-blueprint-template` already lists. Both signals are
   required, for that rule's own stated reason: either alone is ordinary code.
+- **The extern-nesting census** (blocker 1) counts `new <C>(` where `<C>` is a class this
+  repository registers with `GObject.registerClass`, in a file that also makes one of the same 24
+  parenting calls. **Its file scope is NOT the assembly census's**: it spans every tracked
+  `.ts`/`.mts`/`.mjs`/`.js`/`.tsx` outside `refs/`, tests and specs INCLUDED, because a test that
+  nests a widget needs the same construct a showcase does. Read with tests excluded the same
+  measure gives 42 files / 45 sites — so the two censuses below must not be added together.
 - **The lint census** runs `gjsify/prefer-blueprint-template` over `packages`, `showcases` and
   `templates` with **every `.oxlintrc.json` override lifted**, which is the only way to see what
   the exemptions are hiding.
@@ -47,12 +55,20 @@ The root `node_modules` of a long-lived checkout carried `@girs` 4.1.0, which ha
 agreed with itself and with nothing else. Every number below comes from a clean install at the
 pinned version.
 
+**And it happened a second time, from the measurement itself.** Simulating #474 below appends one
+line to `node_modules/@girs/gtk-4.0/gtk-4.0-vocabulary.js`, and a simulation left in place is
+indistinguishable from a release: re-measured in that tree, stage C reports 42 of 42 and the
+ledger demands its own deletion, both correct for a version npm does not serve. The pinned
+vocabulary is 67 `PROP_ENUMS` rows; a tree that reads 68 has been written to. **Diff the installed
+file against the published tarball before believing any number on this page** — the simulation is
+undone by restoring that one file, not by re-running the gate.
+
 ### The inventory: 42 `.ui`, and not one of them is a template
 
 | what | count | where |
 |---|---:|---|
 | tracked `.ui` | 42 | **all** under `packages/infra/blueprint/corpus/` — 31 rule goldens, 11 reality-probe goldens |
-| tracked `.blp` | 56 | 31 `corpus/rules`, 14 `corpus/refused`, 11 shipped |
+| tracked `.blp` | 57 | 31 `corpus/rules`, 15 `corpus/refused`, 11 shipped |
 | shipped `.blp` (the build compiles) | 11 | see below |
 | inline GtkBuilder XML in `.ts`/`.mjs` | 9 files | 6 `packages/node-gi` template tests, `node-gi/example-gtk`, `tests/integration/minify-xml`, `tests/e2e/text-loader` |
 | hand-authored `.ui` outside the corpus | **0** | — |
@@ -70,7 +86,7 @@ Every `.ui` in the tree is a golden the corpus compares against, and the 9 inlin
 to TEST GtkBuilder — converting them would delete what they measure. **So the answer to "how many
 `.ui` files could convert" is zero, and it is zero because the work is already done.**
 
-### The real frontier is TypeScript, and it is 128 files
+### The real frontier is TypeScript, and it is 127 files
 
 | area | files | `new Gtk/Adw.X` | parenting calls | has `.blp` |
 |---|---:|---:|---:|---:|
@@ -81,10 +97,10 @@ to TEST GtkBuilder — converting them would delete what they measure. **So the 
 | `showcases/gtk/node-gi-window` | 1 | 31 | 23 | 0 |
 | `packages/framework/adwaita-app` | 3 | 24 | 18 | 0 |
 | `scripts` | 6 | 23 | 30 | 0 |
-| `packages/nativescript-bridge/*` | 6 | 28 | 28 | 0 |
+| `packages/nativescript-bridge/*` | 3 | 14 | 14 | 0 |
 | `packages/framework/{gtk-host,react-native,devtools-browser,video,webgl,event-bridge}` | 14 | 46 | 39 | 0 |
-| everything else (17 areas) | 19 | 54 | 42 | 5 |
-| **total** | **128** | **619** | **465** | **5** |
+| everything else (15 areas) | 21 | 62 | 48 | 5 |
+| **total** | **127** | **613** | **442** | **5** |
 
 **And the rule that guards this reports two findings in the whole tree with every exemption
 lifted** — `packages/framework/storybook/src/window.ts` and
@@ -96,6 +112,12 @@ is the next section.
 
 `prefer-blueprint-template.ts:243` returns `{ ClassDeclaration: check, ClassExpression: check }`.
 A file that assembles a whole window inside a callback is invisible to it, whatever it builds.
+
+**PR #1690 is this finding being closed while this ADR is in review**, so read the paragraph as
+the state that produced the decision below rather than as the state of the tree. It teaches the
+rule a module-level entry point, converts `templates/gtk-minimal`, and reports a second blindness
+this survey did not reach: an `Application` subclass assembling its window in `vfunc_activate`
+went unseen as well. Clause 2 of the Decision is therefore already being executed, not proposed.
 
 `templates/gtk-minimal/src/index.ts` is exactly that file: 5 constructions and 3 parenting calls
 inside `app.connect('activate', …)`, building a `Gtk.ApplicationWindow` around a `Gtk.Box` with
@@ -164,6 +186,12 @@ moved it into the subset as a produced loss. **So 0058's "twelve other losses" a
 its § 6 list of ten hard refusals is eleven. Round-tripping moved too: **7 of 42 project with no
 loss and no slot** (0058: 9 of 38), 12 of 42 with the slot lookup, and still **0 of 11** shipped.
 
+**144 is the PROJECTED total and the corpus gate prints 145.** Stage A counts the losses
+`expectations.mjs` DECLARES, which include one `comment` on `rules/24-comments.blp`; comments never
+reach the AST, so the harness drops that kind before comparing and the projection never emits it.
+Fourteen kinds are declared, thirteen are produced. Neither number is wrong and they are not the
+same measure — this table is the projected one, because it is the one a conversion would lose.
+
 This is not an error in 0058. It is the cost of a census stated as a constant, which 0058's own
 method section predicted in as many words.
 
@@ -199,12 +227,17 @@ if it declares a concrete `GtkWidget` descendant, **142 of 705 GIRs before and a
 
 Measured at 5.1.0: `@girs/gtk-4.0/vocabulary` and `@girs/adw-1/vocabulary` resolve;
 `@girs/gio-2.0/vocabulary`, `@girs/glib-2.0/vocabulary` and `@girs/gdk-4.0/vocabulary` are
-`ERR_PACKAGE_PATH_NOT_EXPORTED`. **So blocker 2 — `Gio.ListStore` in a `model:` — stays refused
-after 5.2.0**, and it is refused for the namespace, not for the class. #474 also adds no syntax,
-so blocker 1 is untouched.
+`ERR_PACKAGE_PATH_NOT_EXPORTED`. #474 also adds no syntax, so blocker 1 is untouched.
 
-**@girs 5.2.0 is not on npm yet.** `npm view @girs/gtk-4.0 versions` ends at 5.1.0, so even the
-one available win cannot land until the release completes.
+**Blocker 2 was re-measured at 5.2.0 rather than extrapolated to it, and it held.** The published
+`@girs/gio-2.0@5.2.0` tarball declares no `./vocabulary` subpath in its `exports` and ships no
+vocabulary file — the same answer 5.1.0 gives. **So `Gio.ListStore` in a `model:` stays refused
+after 5.2.0**, and it is refused for the namespace, not for the class.
+
+**@girs 5.2.0 is publishing as this lands, and it is half-published.** `gio-2.0` is already at
+5.2.0 while `gtk-4.0` and `adw-1` — the two this package pins — still end at 5.1.0. That is the
+ordinary shape of a `@girs` release, alphabetical and so roughly reverse-topological, and it is
+why the bump is its own PR: a pin to a version npm does not yet serve fails every runner.
 
 ## Decision
 
@@ -212,7 +245,7 @@ one available win cannot land until the release completes.
 
 ### 1. No template conversion lands in the next release
 
-Not because it is unwelcome, but because the two candidates are the wrong size. The 128 assembly
+Not because it is unwelcome, but because the two candidates are the wrong size. The 127 assembly
 files are, with one exception, stories, demos, tests, renderers and harnesses — exempt by
 `prefer-blueprint-template`'s own doctrine, which is written down and correct: a widget written
 for someone else to place has no application interface to declare. Converting a renderer to
@@ -230,7 +263,8 @@ It needs no refused construct: a `Gtk.ApplicationWindow` root, a `Gtk.Box` child
 **It lands with the mechanism, never alone.** `prefer-blueprint-template` visits only a class, so
 converting this file fixes the instance and leaves the class of bug — the next scaffold written as
 a callback is equally invisible. The rule gains a second entry point for a module-level assembly
-site, or the conversion is not worth taking.
+site, or the conversion is not worth taking. **PR #1690 takes it on those terms**, and found a
+third entry point needed on the way: a `vfunc_activate` inside an `Application` subclass.
 
 ### 3. `$extern` is the next piece of parser work, and it is a feature, not a conversion
 
@@ -271,7 +305,7 @@ rests on the count.
 
 ## Alternatives rejected
 
-- **Convert the showcases now.** 16 of 23 showcases have no `.blp`, which looks like the backlog.
+- **Convert the showcases now.** 17 of 24 showcases have no `.blp`, which looks like the backlog.
   Most author their trees in JSX, Vue SFCs or Solid — a different notation over the same
   vocabulary, which ADR 0053's own § Context says is on Blueprint's LEVEL rather than below it.
   Converting them would replace one declarative form with another and prove nothing.
@@ -307,7 +341,7 @@ rests on the count.
   npm. `scripts/check-blueprint-corpus.mjs` is the whole test: it already fails the bump without
   the deletion.
 - `templates/gtk-minimal` converts in a PR that also teaches `prefer-blueprint-template` to see a
-  module-level assembly site, with the scaffold as its fixture.
+  module-level assembly site, with the scaffold as its fixture. That PR is **#1690**, already open.
 - `$extern` is its own PR against `corpus/refused/extern-type.blp`, promoting it to a rule file
   with a golden, per ADR 0053 clause 6.
 - Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
