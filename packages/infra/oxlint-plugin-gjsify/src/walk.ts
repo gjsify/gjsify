@@ -8,8 +8,14 @@
 
 import type { Node } from './types.ts';
 
-/** True for a plain object that carries the shape of an AST node. */
-function isNode(value: unknown): value is Node {
+/**
+ * True for a plain object that carries the shape of an AST node.
+ *
+ * Exported because a rule that needs its OWN traversal state (a scope stack, say) cannot express
+ * it through {@link walk}'s flat visitor, and re-deriving this test per rule is how two answers to
+ * "is this a node" drift apart. The structural caveat in {@link walk} applies to every caller.
+ */
+export function isNode(value: unknown): value is Node {
     return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
 }
 

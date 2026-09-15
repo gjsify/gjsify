@@ -35,6 +35,9 @@ import Gtk from 'gi://Gtk?version=4.0';
  */
 // A `.blp` here needs blueprint-compiler on the macOS + Windows runners and a library-mode
 // transform that only exists from 0.43.0, which the cold bootstrap does not have — see the header.
+// The suppression stays LINE-LEVEL and stays here, next to the measurement: ADR 0053 § 7 names
+// its deletion as one of the signals that the in-repo parser is done, and a package-wide entry in
+// `.oxlintrc.json` would retire that signal for a reason that has nothing to do with the parser.
 // oxlint-disable-next-line gjsify/prefer-blueprint-template -- measured, see the two lines above
 export class LoadingStack extends Gtk.Stack {
     private readonly _content: Adw.Bin;
