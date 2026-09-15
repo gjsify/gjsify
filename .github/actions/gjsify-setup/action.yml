@@ -244,11 +244,25 @@ runs:
 
     # Counting blobs is the only way to tell a WARM store from a fresh directory:
     # `cache-hit` reports the KEY, not the contents, and cannot distinguish them.
+    #
+    # The `-d` test and the `|| true` are load-bearing, not defensive clutter. Every
+    # composite step runs under `bash -e -o pipefail`, and a MISSING store directory
+    # is the normal case this step exists to detect — an exact node_modules hit means
+    # the install downloads nothing, so `.gjsify-cache/gjsify/tarballs` is never
+    # created. `find` on a path that does not exist exits 1; `pipefail` promotes that
+    # over `wc`'s 0, `-e` then kills the step, and the count never runs. That is
+    # exactly how this failed the docs job on its first green-path run: exit 1 in
+    # 55 ms, before printing a single line. Do not "simplify" it back to a bare
+    # pipeline — verify any edit with `bash --noprofile --norc -e -o pipefail` against
+    # a directory that is ABSENT, not merely empty.
     - name: Count the tarball store
       id: tarball-store
       shell: bash
       run: |
-        n=$(find .gjsify-cache/gjsify/tarballs -type f -name '*.tgz' 2>/dev/null | wc -l)
+        n=0
+        if [ -d .gjsify-cache/gjsify/tarballs ]; then
+          n=$(find .gjsify-cache/gjsify/tarballs -type f -name '*.tgz' 2>/dev/null | wc -l || true)
+        fi
         echo "blobs=$n" >> "$GITHUB_OUTPUT"
         echo "tarball store holds $n blob(s)"
 
