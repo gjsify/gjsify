@@ -99,11 +99,16 @@ runs:
         echo "name=$name" >> "$GITHUB_OUTPUT"
         echo "$REF_PATH is pinned at $sha (submodule name: $name)"
 
-    # RESTORE-ONLY, and the save is a separate step AFTER verification. The
-    # automatic post-job save of `actions/cache` runs even when the job failed,
-    # which would publish a half-fetched tree under the pin's key and turn one
-    # outage into a permanently poisoned cache entry — the same reasoning that
-    # splits restore from save for the build-output cache in `gjsify-setup`.
+    # RESTORE-ONLY, and the save is a separate step AFTER verification — the same
+    # split as the build-output cache in `gjsify-setup`, for a reason worth stating
+    # exactly. `actions/cache` declares `post-if: "success()"` (checked against v4 and
+    # v6), so its automatic save does NOT run on a failed job; the argument for the
+    # split is not that one. It is that job success is far coarser than this tree
+    # verifying against its pin: a job can go green for reasons that have nothing to
+    # do with this submodule, and the post-job save would then publish whatever the
+    # directory happens to hold at the END of the job. An explicit save placed
+    # immediately after the verification ties the entry to the check that earned it,
+    # and lets the save be skipped outright on a cache hit.
     - name: Restore the pinned tree
       id: cache
       uses: actions/cache/restore@v4
@@ -133,14 +138,26 @@ runs:
       run: |
         set -eu
 
-        # The whole contract in four lines: HEAD is the pinned commit, and the files
-        # beside it are that commit's tree. A cache restore resets every mtime, so the
-        # index stat cache is cold and `diff` re-hashes the worktree for real — this is
-        # a content check, not a bookkeeping one.
+        # The whole contract: HEAD is the pinned commit, and the files beside it are
+        # that commit's tree — a content check, not a bookkeeping one. `diff` re-hashes
+        # instead of trusting the index's stat cache, though NOT because a restore
+        # resets the mtimes: measured, tar preserves them. It re-hashes because git's
+        # default `core.checkStat` also compares ctime and inode, which a restore into
+        # a fresh runner cannot reproduce. Verified on a restored tree: content changed
+        # to the same size with the mtime put back was still caught. `core.checkStat =
+        # minimal` compares only mtime and size and would quietly undo that, so it must
+        # never be set for a `refs/` submodule.
         verify() {
           [ -e "$REF_PATH/.git" ] || return 1
           [ "$(git -C "$REF_PATH" rev-parse HEAD 2>/dev/null || echo none)" = "$REF_SHA" ] || return 1
           git -C "$REF_PATH" diff --quiet HEAD -- 2>/dev/null || return 1
+          # `diff HEAD` reports tracked files that were changed or removed and says
+          # nothing about files that were ADDED, so on its own it answers "the commit's
+          # files are all here, unmodified" and not "this tree IS the commit". Measured:
+          # drop one extra file into a restored tree and every check above still passes.
+          # The realistic producer is not a doctored archive but retry 2 of the loop
+          # below completing on top of what retry 1 left behind.
+          [ -z "$(git -C "$REF_PATH" ls-files --others --exclude-standard 2>/dev/null)" ] || return 1
           return 0
         }
 
@@ -194,6 +211,18 @@ runs:
           # cached gitdir a later run restores — inherits the mirror as its remote.
           git config --unset "submodule.$REF_NAME.url" || true
           git submodule sync -- "$REF_PATH" >/dev/null 2>&1 || true
+          # `sync` is swallowed above because it is allowed to be a no-op, but what it
+          # writes into `.git/modules/<name>` is what the SAVE step then publishes under
+          # the pin's key — so the canonical URL landing there cannot be left to it.
+          # Set it outright, and go red rather than cache a gitdir that names the mirror.
+          if [ -n "$source" ]; then
+            git -C "$REF_PATH" remote set-url origin "$canonical" || true
+            restored=$(git -C "$REF_PATH" config --get remote.origin.url || echo none)
+            if [ "$restored" != "$canonical" ]; then
+              echo "::error::$REF_PATH still names $restored as its remote after the mirror fetch, not the canonical $canonical. Refusing to leave the mirror as declared provenance."
+              exit 1
+            fi
+          fi
         fi
 
         if [ -z "$source" ]; then
@@ -214,8 +243,19 @@ runs:
 
     # Only on a miss, and only now that the tree is proven to be the pin — so the
     # key can never come to name anything else.
+    #
+    # The condition NAMES the two sources that may be saved rather than excluding the
+    # one that may not, and that is the whole point. `realize` writes `source` on its
+    # LAST line, after the verification; every failure path exits before reaching it,
+    # so the output is the empty string — and the excluding form `!= 'cache'` reads
+    # TRUE exactly then. Measured on a local rig: with the canonical remote pointed at
+    # an unresolvable host and the mirror at a repository that does not carry the pin,
+    # the step ends with `refs/<sub>` on disk holding a FOREIGN tree under a valid
+    # `.git`, and no `source` output. Under the excluding form the only thing between
+    # that tree and a cache entry keyed on the pin is the implicit `success()` the
+    # runner ANDs into a conditional. The including form needs no such default.
     - name: Save the pinned tree
-      if: steps.realize.outputs.source != 'cache'
+      if: steps.realize.outputs.source == 'origin' || steps.realize.outputs.source == 'mirror'
       uses: actions/cache/save@v4
       with:
         path: |

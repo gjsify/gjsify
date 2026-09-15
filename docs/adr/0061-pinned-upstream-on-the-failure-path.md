@@ -73,9 +73,15 @@ path rather than the happy path.** One composite action,
    a `::warning::` naming both URLs.
 
 **Every source, the cache included, is then verified against the pin**: `git rev-parse HEAD` in
-the submodule must equal the gitlink the superproject commits, and `git diff --quiet HEAD` must
-find the worktree matching that commit. A restore resets every mtime, so the index stat cache
-is cold and that `diff` re-hashes the worktree for real.
+the submodule must equal the gitlink the superproject commits, `git ls-files --others` must
+find nothing added (on its own, `diff HEAD` answers "the commit's files are all here,
+unmodified", not "this tree IS the commit"), and `git diff --quiet HEAD` must
+find the worktree matching that commit. That `diff` re-hashes rather than trusting the index's
+stat cache — but not, as first written here, because a restore resets the mtimes: measured, tar
+PRESERVES them. It re-hashes because git's default `core.checkStat` also compares ctime and
+inode, and a restore cannot reproduce either. Tampered content of identical size with the mtime
+put back was caught; under `core.checkStat = minimal` it would not be, so that setting must
+never reach a `refs/` submodule.
 
 **The action never skips.** If none of the three answers, it exits 1 with a message naming the
 host that refused, the pin it could not reach, and what is blocked. A gate that passes without
@@ -119,9 +125,20 @@ rule it out, in order of how hard they bite:
 - The six steps reach GNOME only on a cache miss. A warm cache makes the required check
   independent of `gitlab.gnome.org` entirely, and the release path with it.
 - The cache is written only after verification, by an explicit `actions/cache/save` rather than
-  the automatic post-job save — which runs even when the job FAILED and would otherwise publish
-  a half-fetched tree under the pin's key, turning one outage into a permanently poisoned
-  entry. Same split, same reason, as the build-output cache in `gjsify-setup`.
+  the automatic post-job save. Not because that save runs on a failed job — `actions/cache`
+  declares `post-if: "success()"` in both v4 and v6, checked, so it does not — but because job
+  success is a far coarser condition than this tree verifying against its pin: a job can go
+  green for reasons that have nothing to do with the submodule, and the post-job save would
+  then publish whatever the directory holds at the END of the job. Same split, same reason, as
+  the build-output cache in `gjsify-setup`.
+- **The save's condition names the sources it may save, `origin` and `mirror`, rather than
+  excluding `cache`.** `source` is written on the last line of the realize step, after the
+  verification, so every failure path leaves it empty — and an excluding `!= 'cache'` reads
+  true exactly on those paths. Reproduced on a local rig: with the canonical remote
+  unresolvable and the mirror carrying a repository without the pin, the step ends holding a
+  foreign tree under a valid `.git` and no `source`. The excluding form would then rest the
+  whole guarantee on the implicit `success()` the runner ANDs into a conditional; the
+  including form does not need it to be true.
 - A cache entry that does not verify is discarded with a `::warning::` and refetched. It is
   never trusted and never silently accepted.
 - `timeout-minutes` stays on the CALLING step in each workflow: GitHub does not honour it on a
