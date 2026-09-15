@@ -190,6 +190,22 @@ makes the hash easier to collide with, because we check the file hashes during e
 anyway."* A stale or foreign hit is therefore a *superset* of what is needed, never a
 *wrong* answer.
 
+**With one exception, and it lands squarely on this repo.** `Cache.ts` skips verification
+entirely for *conditional* locators — `optionalDependencies` gated by `os`/`cpu`:
+`if (controlPath === null && opts.unstablePackages?.has(locator.locatorHash)) return
+{isValid: true, hash: null};`. Those are exactly the platform-binary packages, and this
+workspace is unusually full of them: `@rolldown/binding-*`, `@gjsify/*-<os>-<arch>`,
+`lightningcss-native-*`, `oxfmt-native-*` — the set ADR 0017 created and ADR 0025's prune
+pass exists to clean up after. So "content-addressed means a prefix restore cannot be wrong"
+holds for ordinary packages and **not** for the platform bindings, unless `--check-cache` is
+passed (it supplies a control path, which closes the hole). P2's wiring must decide
+deliberately whether the platform packages are inside that guarantee or outside it.
+
+Two further conditions, because a CI job can silently void the whole argument: the lockfile
+must come from the trusted checkout rather than from the restored cache, and
+`checksumBehavior` must stay `throw` — `ignore` skips the comparison outright and `update`
+rewrites the lockfile to match whatever the cache holds. Both are bypasses, not degradations.
+
 That property **does not extend to `node_modules`**. An extracted
 tree is not content-addressed, carries no checksum, and gjsify's own
 `isAlreadyExtracted` accepts it on `name` + `version` alone. This is the precise reason
@@ -247,6 +263,13 @@ is invisible to the diff" applies here too, and why #1686 had to reach for a dis
 instead. Borrow the artefact, and take its two known weaknesses with open eyes: a state file
 can be deleted (Yarn's response is to wipe, which ADR 0001 forbids here) and it is trusted
 by mtime rather than re-read, which is a cheapness gjsify may or may not want.
+
+And the parallel runs deeper than it first looks. Yarn has gjsify's `isAlreadyExtracted`
+hole too, in the one place it also extracts: a package unplugged out of its zip is skipped
+whenever a `.ready` marker file exists beside it (`PnpLinker.ts`), with no re-checksum. So
+*"bytes that have been unpacked stop being verified"* is not a gjsify defect that Yarn
+avoided — it is a property of both, and P3 is the place to decide gjsify should be the one
+that does better.
 
 **Cost:** this is the most expensive item here and should not be sold cheaply. Hashing an
 extracted directory is not the same hash as the tarball's, so "verify the tree against
@@ -349,6 +372,21 @@ Add to that: the repo ships **bundles**. For a bundled artifact, the linker's jo
 before the artifact exists — PnP would buy a dev-time property at the cost of the one
 runtime gjsify is for.
 
+**One honest qualification, which does not change the answer.** The argument above is about
+Yarn's *implementation*, not about PnP as an idea. The
+[PnP specification](https://yarnpkg.com/advanced/pnp-spec) is deliberately written for
+third-party implementers — it publishes the full resolution algorithm (`PNP_RESOLVE`,
+`RESOLVE_TO_UNQUALIFIED`, `FIND_LOCATOR`), and `pnpEnableInlining: false` emits a plain-JSON
+`.pnp.data.json` precisely so a non-Node host can build its own resolver over the data. So
+"PnP cannot work under GJS" is too strong: *a* PnP resolver could be written for GJS. What
+cannot be reused is everything Yarn ships — and writing a second implementation of a
+resolution standard, to replace a `node_modules` layout that GJS reads natively today, buys
+nothing this repo wants. The refusal is on cost and fit, not impossibility.
+
+Worth noting for scale: Yarn's own docs record exactly one runtime exclusion, React
+Native/Expo, which "require using typical `node_modules` installs". There is **no** official
+statement about browsers, Bun, Deno or other non-Node hosts either way.
+
 **Recommended against, permanently, as a linker.** Keep the consumer-side interop.
 
 ## 6. What else not to copy
@@ -433,6 +471,14 @@ the GitHub API; its comment thread was not readable and is not relied on).
 acceptance test covering extraneous-package survival was found
 (`packages/acceptance-tests/pkg-tests-specs/sources/node-modules.test.ts` has no match for
 `extraneous|stale|leftover`). The `pnpm` linker was not inspected, so § 2 is a claim about
-`nodeLinker: node-modules` only. One doc/source discrepancy was found and is noted rather
-than resolved: `yarnrc.json` gives `enableImmutableInstalls` a `"default": false`, while the
-runtime default is `isCI` — the prose matches the source, the schema field does not.
+`nodeLinker: node-modules` only. Yarn makes **no** official statement about PnP under
+browsers, Bun, Deno or any other non-Node host, so § 5 argues from the implementation's
+Node API surface, never from a Yarn claim; whether Yarn's ESM wiring has since moved to
+`module.register()` was not exhaustively audited, and only "`--require` plus
+`--experimental-loader`" is verified.
+
+Two doc/source discrepancies were found and are noted rather than resolved:
+`yarnrc.json` gives `enableImmutableInstalls` a `"default": false` while the runtime default
+is `isCI`, and it gives `compressionLevel` a `"default": "mixed"` while both its own prose
+and `Configuration.ts` say `0`. In both cases the prose matches the code and the schema's
+`default` field is stale — worth knowing before quoting that schema as authority.
