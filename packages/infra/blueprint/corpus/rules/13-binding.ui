@@ -13,6 +13,10 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <child>
       <object class="GtkLabel">
         <property name="visible" bind-source="switchOne" bind-property="active" bind-flags="sync-create"/>
+        <property name="sensitive" bind-source="switchOne" bind-property="active" bind-flags="sync-create|invert-boolean"/>
+        <property name="can-focus" bind-source="switchOne" bind-property="active" bind-flags="sync-create|bidirectional"/>
+        <property name="focusable" bind-source="switchOne" bind-property="active"/>
+        <property name="has-tooltip" bind-source="switchOne" bind-property="active" bind-flags="invert-boolean|bidirectional"/>
         <property name="label">bound visibility</property>
       </object>
     </child>

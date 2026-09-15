@@ -1,0 +1,10 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Label labelOne {
+  }
+
+  Gtk.Label {
+    label: bind labelOne.parent.name;
+  }
+}

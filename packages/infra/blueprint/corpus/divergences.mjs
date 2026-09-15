@@ -1,13 +1,15 @@
 // Where the in-repo parser and the reference compiler still disagree, one entry per file,
 // pinned to the exact lines.
 //
-// ONE ENTRY, TWO LINES, AND IT IS WAITING ON A FACT
+// TWO ENTRIES, THREE LINES, BOTH WAITING ON A FACT
 //
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
 // divergence, and it becomes authoritative when it reports none. It is not silent yet, and
-// the one thing left is named below — so clause 7's demotion of `blueprint-compiler` to
-// oracle-only is still a plan and not a deletion.
+// the two things left are named below — so clause 7's demotion of `blueprint-compiler` to
+// oracle-only is still a plan and not a deletion. Both entries are the same shape: a lookup
+// the `@girs` vocabulary does not carry yet, one for the ARIA table and one for the enum
+// properties of classes that are not widgets.
 //
 // WHAT USED TO BE HERE
 //
@@ -28,8 +30,11 @@
 // values against a table of its own, so the one entry in the fixture was the one case where
 // all of that is invisible: `label: "…"` is an ARIA property with a string value. The rule
 // file now carries a relation, a state and an enum too, which is what a rule file is for —
-// and what came back is the entry below. An exemption is data, and a corpus that does not
-// probe a construct is the other place a tolerated divergence can hide.
+// and what came back is the first entry below. An exemption is data, and a corpus that does
+// not probe a construct is the other place a tolerated divergence can hide. The second entry
+// arrived the same way, from asking `03-property-enum` what its OTHER case looked like: every
+// enum the corpus resolved sat on a widget, and `Gtk.SizeGroup { mode: horizontal; }` was
+// the first that did not.
 //
 // AN EXEMPTION IS DATA, NEVER A CODE PATH
 //
@@ -86,7 +91,7 @@
  */
 
 /**
- * The known disagreements. There is one.
+ * The known disagreements. There are two.
  *
  * @type {readonly ShadowDivergence[]}
  */
@@ -116,5 +121,26 @@ export const SHADOW_DIVERGENCES = [
             'Resolving it through the widget instead would be right by accident inside `Gtk.Box` and ' +
             'wrong inside `Gtk.Label`. Retires when ts-for-gir emits the ARIA value types the way it now ' +
             'emits `PROP_ENUMS`; tracked in `status/open-todos.md`.',
+    },
+    {
+        file: 'rules/29-enum-non-widget.blp',
+        kind: 'prop-enums-widgets-only',
+        lines: [
+            {
+                line: 10,
+                golden: '<property name="mode">1</property>',
+                inRepo: '<property name="mode">horizontal</property>',
+            },
+        ],
+        reason:
+            '`GtkSizeGroup` is not a widget, and `PROP_ENUMS` — the `@girs` join from a property to its ' +
+            'enum type — is keyed by the widget vocabulary (ADR 0029): measured on @girs 5.0.0, every one of ' +
+            'its 71 owners is a widget, a widget base or an interface widgets implement, and `DECLS` has no ' +
+            '`GtkSizeGroup` either. ' +
+            '`ENUM_VALUES` does hold `GtkSizeGroupMode.horizontal` = 1, so the number is one lookup away, ' +
+            'and the lookup that is missing is the one ADR 0053 § Amendment 1 records as missing for widgets ' +
+            'before @girs 4.9.0: WHICH enum `GtkSizeGroup.mode` is. Searching the nick lists for an enum ' +
+            'with a member `horizontal` finds several, and guessing is the silent-wrong-output clause 3 ' +
+            'refuses. Retires when ts-for-gir extends `PROP_ENUMS` past the widget vocabulary.',
     },
 ];

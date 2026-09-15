@@ -46,7 +46,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | tls-native | GjsifyTls (Vala+C) | Partial | **Optional native prebuild.** OCSP DER parser (`gnutls_ocsp_resp_*`; Vala 0.56's vapi gap filled by sibling `gnutls-ocsp.vapi`) + `SessionAccess` wrapping `Gio.TlsConnection`. The C shim extracts `gnutls_session_t` from `GTlsConnectionGnutls`'s private struct via public `g_type_instance_get_private` + runtime `g_type_from_name` — struct layout vendored from `refs/glib-networking` (4-pointer, stable 2.74–2.84 = Fedora 43+44); force-loads the GIO TLS module via `g_tls_backend_get_client_connection_type()` so the type registers before any connection exists. Loaded via `imports.gi.GjsifyTls` in try/catch — safe when typelib absent. Prebuild targets: `gjsify.platforms` (derived; `audit-runtimes --platforms` renders the matrix) — a literal list here went stale the day macOS was added |
 | terminal-native | GjsifyTerminal (Vala) | Full | **Optional native prebuild.** `is_tty`/`get_size` (ioctl TIOCGWINSZ)/`set_raw_mode` (termios) + SIGWINCH `ResizeWatcher`. try/catch-loaded, safe when absent. Consumed by tty + process |
 | tty | GjsifyTerminal | Full | ReadStream/WriteStream, ANSI; native via terminal-native, env/GLib fallback |
-| url | GLib | Full | URL (static create/revokeObjectURL over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri |
+| url | GLib | Full | URL (static create/revokeObjectURL over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri. **All ten WHATWG setters** — nine of them were absent until 2026-09 and threw `setting getter-only property` while the same line worked on Node, so the row said `Full` of a class only `search` could write to. The shape is forced: `GLib.Uri` is IMMUTABLE, so the URL record lives in mutable fields and no setter re-parses — GLib normalises percent-encoding (`%c3%89`→`%C3%89`, `%2e`→`.`) where the spec requires "bytes already percent-encoded are left as-is", so a re-parse rewrites components nobody assigned to. Host parsing has NO IDNA and no IPv4 number forms: both belong to the parser `new URL()` SHARES with the setters, so adding them on one side alone would make `new URL("http://0x7F000001/")` and `u.hostname = "0x7F000001"` disagree — two `it.failing` plus one host-selected case in `url/src/index.spec.ts`, not a silent gap |
 | util | — | Full | inspect, format, promisify, types |
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
@@ -120,3 +120,13 @@ carry `!IS_GJS` instead, and the GJS leg must pass.
 
 Incident: #1039 merged ~100 POSIX-semantics rules with a green Linux pipeline
 and put 45 failures on `main` across the two legs — 9 on darwin, 36 on win32.
+
+**The leg axis has the same shape, and `GLib.Error` is where it bites.** Under GJS a
+`GLib.Error` is a boxed GObject value; under `@gjsify/node-gi` — the bridge that runs these
+very suites on Node — it is `class GLibError extends Error`. So `e instanceof Error` answers
+differently on two legs of ONE suite, and a catch that discriminates on it wraps the error on
+one host and passes the raw GError through on the other. Measured while fixing `@gjsify/sqlite`:
+the gjs leg stayed 84/84 green while three tests went red under node-gi. Discriminate on your
+own error classes (`sqlite/src/errors.ts#isNodeSqliteError`), and read `.message` rather than
+stringifying — `String(e)` on a GJS GError yields
+`"GLib.Error gda_server_provider_error: no such table: t"` where Node reports `"no such table: t"`.

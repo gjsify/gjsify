@@ -1,0 +1,27 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $CorpusSelf: Adw.BreakpointBin {
+  width-request: 200;
+  height-request: 200;
+
+  child: Gtk.Box {
+    Gtk.Label {
+      mnemonic-widget: template;
+      visible: bind template.sensitive;
+    }
+
+    Gtk.Button {
+      clicked => $onClicked(template);
+    }
+  };
+
+  [breakpoint]
+  Adw.Breakpoint {
+    condition ("max-width: 400px")
+
+    setters {
+      template.opacity: 0.5;
+    }
+  }
+}

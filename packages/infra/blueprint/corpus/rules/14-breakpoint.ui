@@ -8,13 +8,19 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
   <requires lib="gtk" version="4.0"/>
   <object class="AdwWindow">
     <property name="content">
-      <object class="AdwBin" id="binOne"></object>
+      <object class="GtkBox" id="boxOne">
+        <child>
+          <object class="GtkLabel" id="labelOne"></object>
+        </child>
+      </object>
     </property>
     <child>
       <object class="AdwBreakpoint">
         <condition>max-width: 400px</condition>
-        <setter object="binOne" property="visible">false</setter>
-        <setter object="binOne" property="opacity">0.5</setter>
+        <setter object="boxOne" property="visible">false</setter>
+        <setter object="boxOne" property="opacity">0.5</setter>
+        <setter object="boxOne" property="orientation">1</setter>
+        <setter object="labelOne" property="label" translatable="yes">narrow</setter>
       </object>
     </child>
   </object>

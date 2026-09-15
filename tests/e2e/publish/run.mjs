@@ -58,9 +58,22 @@ const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.
 const FAKE_TOKEN = 'test-token-e2e-publish-abc123';
 
 /**
+ * The route a request names, without the read-back's per-probe cache buster.
+ *
+ * Every read-back GET carries a distinct `__gjsify_readback=` parameter, because
+ * that — and measurably NOT `cache-control: no-cache` — is what makes a CDN edge
+ * fetch from origin. A mock keyed on the raw `req.url` would therefore see a new
+ * path per probe and never recognise the name it had just stored.
+ */
+function routeOf(url) {
+    const q = url.indexOf('?');
+    return q === -1 ? url : url.slice(0, q);
+}
+
+/**
  * The mock registry's READ side: what `gjsify publish` asks for after its PUT.
  *
- * Keyed on the raw request path (`/@gjsify%2fname`), which is what the CLI PUTs
+ * Keyed on the request ROUTE (`/@gjsify%2fname`), which is what the CLI PUTs
  * to and what it GETs back — Node does not decode `req.url`, so the two match
  * byte-for-byte with no unescaping. The stored document is the abbreviated
  * packument shape the read-back parses: `versions[<v>].dist.tarball`, taken
@@ -82,7 +95,7 @@ function packumentStore() {
         },
         /** Serve a recorded packument, or 404 like npm does for an unknown name. */
         serve(req, res) {
-            const doc = docs.get(req.url);
+            const doc = docs.get(routeOf(req.url));
             res.setHeader('content-type', 'application/json');
             if (!doc) {
                 res.statusCode = 404;
@@ -152,7 +165,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
             }
             // The read-back's GET, and any packument read during the pack step.
             // A recorded name resolves; anything else 404s, as npm does.
-            packuments.gets.push(req.url);
+            packuments.gets.push(routeOf(req.url));
             packuments.serve(req, res);
         });
 
@@ -474,7 +487,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 });
                 return;
             }
-            gets.push(req.url);
+            gets.push(routeOf(req.url));
             res.setHeader('content-type', 'application/json');
             if (!serves) {
                 res.statusCode = 404;
@@ -553,7 +566,10 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 `http://127.0.0.1:${server.address().port}`,
             );
             assert.notEqual(res.code, 0, `an unserved 409 must exit non-zero; stderr:\n${res.stderr}`);
-            assert.match(res.stderr, /ALREADY PUBLISHED but the registry does not serve it/);
+            // The headline is the VERDICT, not the claim — an `unknown` read-back
+            // must not be able to borrow this sentence.
+            assert.match(res.stderr, /ALREADY PUBLISHED and the registry has no record of 0\.0\.3/);
+            assert.match(res.stderr, /verdict   not-published/);
             assert.match(res.stderr, /409 Conflict/);
             // Re-running is the remedy for an unconfirmed 2xx and NOT for this.
             assert.match(res.stderr, /Re-running answers the same 409/);
@@ -787,8 +803,8 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 });
                 return;
             }
-            gets.push(req.url);
-            if (gets.filter((u) => u === req.url).length > serveAfter) {
+            gets.push(routeOf(req.url));
+            if (gets.filter((u) => u === routeOf(req.url)).length > serveAfter) {
                 store.serve(req, res);
                 return;
             }
@@ -833,13 +849,16 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
             assert.notEqual(res.code, 0, 'an unconfirmed publish must exit non-zero');
             assert.doesNotMatch(res.stdout, /^\+ /m, 'stdout must NOT carry the `+ name@version` success line');
             // The three facts the incident log could not answer.
-            assert.match(res.stderr, /npm ACCEPTED the upload but the registry does not serve it/);
+            assert.match(res.stderr, /npm ACCEPTED the upload and the registry has no record of 1\.2\.3/);
             assert.match(
                 res.stderr,
                 /PUT\s+http:\/\/127\.0\.0\.1:\d+\/@gjsify%2fe2e-pub-unconfirmed \(\d+ bytes\) → 200 OK/,
             );
             assert.match(res.stderr, /read-back GET http:\/\/127\.0\.0\.1:\d+\/@gjsify%2fe2e-pub-unconfirmed/);
             assert.match(res.stderr, /answered\s+absent: 404/);
+            // `absent` is an observation; the VERDICT is what a caller acts on,
+            // and this registry records nothing at all.
+            assert.match(res.stderr, /verdict   not-published/);
             assert.ok(
                 gets.filter((u) => u === '/@gjsify%2fe2e-pub-unconfirmed').length >= 2,
                 `the read-back must RETRY before deciding; GETs seen: ${JSON.stringify(gets)}`,
@@ -907,19 +926,271 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
 
     it('--verify-timeout 0 skips the read-back — the escape hatch, and only that', async () => {
         // For a registry with no packument read path at all. It restores the
-        // pre-v0.46.0 behaviour, which is why it has to be asked for.
+        // pre-v0.46.0 behaviour, which is why it has to be asked for — and why
+        // its success line must not be able to pass for a checked one.
         const { server, url, gets } = await startAcceptOnlyRegistry();
         try {
             const fixtureDir = scaffoldFixture('verify-off', '@gjsify/e2e-pub-verify-off', '1.2.6');
-            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '0'], url);
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '0'], url, {
+                GITHUB_ACTIONS: 'true',
+            });
 
             assert.equal(res.code, 0, `stderr:\n${res.stderr}`);
-            assert.match(res.stdout, /\+ @gjsify\/e2e-pub-verify-off@1\.2\.6/);
+            assert.match(res.stdout, /\+ @gjsify\/e2e-pub-verify-off@1\.2\.6 \(UNVERIFIED — read-back disabled/);
             assert.equal(
                 gets.filter((u) => u === '/@gjsify%2fe2e-pub-verify-off').length,
                 0,
                 'no read-back GET may be sent when the read-back is off',
             );
+            // A disabled verifier that announces itself is a decision; one that
+            // stays quiet is the original defect wearing a hat.
+            const line = res.stderr.split('\n').find((l) => l.startsWith('::warning'));
+            assert.ok(line, `an Actions annotation must name the unverified publish; stderr:\n${res.stderr}`);
+            assert.match(line, /Publish unverified/);
+            assert.match(line, /@gjsify\/e2e-pub-verify-off@1\.2\.6/);
+        } finally {
+            server.close();
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // WHAT THE SUCCESS LINE SAYS IT ESTABLISHED.
+    //
+    // ts-for-gir's v5.1.0 release (run 34899018849) printed twelve
+    // `+ <name>@5.1.0` lines and put nine packages on the registry. There was no
+    // error line, and no way to tell from the log that nothing had been checked:
+    // the job's `PATH="$WS_PATH/node_modules/.bin:$PATH"` put that workspace's
+    // pinned `@gjsify/cli@^0.44.0` ahead of the 0.51.1 it had bootstrapped, and
+    // v0.44.0 has no read-back at all (it landed in v0.47.0, #1509). A marker
+    // that is the same string whether or not anything was verified is the reason
+    // that stayed invisible.
+    // -----------------------------------------------------------------------
+
+    it('a confirmed publish SAYS what it confirmed and against which registry', async () => {
+        const { server, url } = await startAcceptOnlyRegistry({ serveAfter: 0 });
+        try {
+            const fixtureDir = scaffoldFixture('verified', '@gjsify/e2e-pub-verified', '1.3.0');
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '30'], url);
+
+            assert.equal(res.code, 0, `stderr:\n${res.stderr}`);
+            const line = res.stdout.split('\n').find((l) => l.startsWith('+ '));
+            assert.ok(line, `stdout:\n${res.stdout}`);
+            assert.match(
+                line,
+                /^\+ @gjsify\/e2e-pub-verified@1\.3\.0 \(verified on http:\/\/127\.0\.0\.1:\d+ — \d+ probe\(s\), \d+\.\d+s\)$/,
+            );
+        } finally {
+            server.close();
+        }
+    });
+
+    it('--json carries the verification, so a sweep can assert on it', async () => {
+        const { server, url } = await startAcceptOnlyRegistry({ serveAfter: 0 });
+        try {
+            const fixtureDir = scaffoldFixture('verified-json', '@gjsify/e2e-pub-verified-json', '1.3.1');
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '30', '--json'], url);
+
+            assert.equal(res.code, 0, `stderr:\n${res.stderr}`);
+            const json = JSON.parse(res.stdout.trim());
+            assert.equal(json.verified, true);
+            assert.equal(json.verification.registry, url);
+            assert.equal(json.verification.verdict, 'confirmed');
+            assert.ok(json.verification.probes >= 1);
+            assert.ok(typeof json.verification.tarball === 'string' && json.verification.tarball.length > 0);
+        } finally {
+            server.close();
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // BREAKING THE VERIFIER ON PURPOSE. Four registries that are wrong in four
+    // different ways; each must produce a DIFFERENT and correct verdict, and
+    // none of them may read as "published".
+    // -----------------------------------------------------------------------
+
+    /**
+     * A CDN that caches by full URL and never revalidates.
+     *
+     * It is seeded with a pre-publish document and keeps serving it to any URL it
+     * has already answered, whatever `cache-control` the client sends — which is
+     * what registry.npmjs.org's edge measurably does: every request-header
+     * variant (`no-cache`, `max-age=0`, `no-store`, `pragma`) came back
+     * `cf-cache-status: HIT` with an `age` of up to the document's own
+     * `max-age=300`, and only a unique query parameter produced a MISS.
+     */
+    async function startStaleEdgeRegistry(staleRoute) {
+        const store = packumentStore();
+        const stale = JSON.stringify({ name: 'stale', 'dist-tags': {}, versions: {} });
+        // The edge already holds a document minted BEFORE this publish — the
+        // state any package republished within the 300 s TTL is read through.
+        const cache = new Map([[staleRoute, stale]]);
+        const gets = [];
+        const server = createServer((req, res) => {
+            if (req.method === 'PUT') {
+                let body = '';
+                req.setEncoding('utf-8');
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
+                req.on('end', () => {
+                    try {
+                        store.record(req.url, JSON.parse(body));
+                    } catch {
+                        /* the row asserts on the CLI, not on our parse */
+                    }
+                    res.setHeader('content-type', 'application/json');
+                    res.statusCode = 200;
+                    res.end(JSON.stringify({ ok: true }));
+                });
+                return;
+            }
+            gets.push(req.url);
+            const cached = cache.get(req.url);
+            if (cached !== undefined) {
+                res.setHeader('content-type', 'application/json');
+                res.setHeader('x-cache', 'HIT');
+                res.statusCode = 200;
+                res.end(cached);
+                return;
+            }
+            // A key the edge does not hold goes to origin — which has the write.
+            res.setHeader('x-cache', 'MISS');
+            store.serve(req, res);
+        });
+        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+        return { server, url: `http://127.0.0.1:${server.address().port}`, gets, stale };
+    }
+
+    it('a stale edge cannot make a landed publish look missing', async () => {
+        const route = '/@gjsify%2fe2e-pub-stale-edge';
+        const { server, url, gets, stale } = await startStaleEdgeRegistry(route);
+        try {
+            const fixtureDir = scaffoldFixture('stale-edge', '@gjsify/e2e-pub-stale-edge', '1.4.0');
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '10'], url);
+
+            assert.equal(res.code, 0, `a cached edge must not fail a landed publish; stderr:\n${res.stderr}`);
+            assert.match(res.stdout, /\+ @gjsify\/e2e-pub-stale-edge@1\.4\.0 \(verified on /);
+            // The DISCRIMINATOR. Without it this row also passes against a probe
+            // that never defeated anything: the edge must still be lying on the
+            // bare route, and the read-back must be the thing that stepped past
+            // it rather than the mock quietly serving fresh bytes to everyone.
+            const bare = await fetch(`${url}${route}`, {
+                headers: { accept: 'application/vnd.npm.install-v1+json', 'cache-control': 'no-cache' },
+            });
+            assert.equal(await bare.text(), stale, 'the edge must still answer the bare route from cache');
+            const readbackGets = gets.filter((u) => routeOf(u) === route && u !== route);
+            assert.ok(
+                readbackGets.length >= 1,
+                `no cache-busted read-back GET was sent; GETs: ${JSON.stringify(gets)}`,
+            );
+            for (const u of readbackGets) {
+                assert.match(u, /[?&]__gjsify_readback=/, `a read-back GET carried no cache key of its own: ${u}`);
+            }
+        } finally {
+            server.close();
+        }
+    });
+
+    /** Accepts the write, never serves it, and RECORDS it in its `time` map. */
+    async function startRecordedButUnservedRegistry() {
+        const recorded = new Map();
+        const server = createServer((req, res) => {
+            if (req.method === 'PUT') {
+                let body = '';
+                req.setEncoding('utf-8');
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
+                req.on('end', () => {
+                    try {
+                        const doc = JSON.parse(body);
+                        for (const v of Object.keys(doc.versions ?? {})) {
+                            recorded.set(`${routeOf(req.url)}@${v}`, '2026-09-14T21:43:00.983Z');
+                        }
+                    } catch {
+                        /* the row asserts on the CLI */
+                    }
+                    res.setHeader('content-type', 'application/json');
+                    res.statusCode = 200;
+                    res.end(JSON.stringify({ ok: true }));
+                });
+                return;
+            }
+            res.setHeader('content-type', 'application/json');
+            res.statusCode = 200;
+            if (req.headers['accept'] === 'application/vnd.npm.install-v1+json') {
+                // The document npm INSTALLS from — behind the registry's record.
+                res.end(JSON.stringify({ name: 'unserved', 'dist-tags': {}, versions: {} }));
+                return;
+            }
+            const time = {};
+            for (const [k, v] of recorded) {
+                if (k.startsWith(`${routeOf(req.url)}@`)) time[k.slice(k.lastIndexOf('@') + 1)] = v;
+            }
+            res.end(JSON.stringify({ name: 'unserved', time, versions: {} }));
+        });
+        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+        return { server, url: `http://127.0.0.1:${server.address().port}` };
+    }
+
+    it('"recorded but not served" is its own verdict, with the opposite remedy', async () => {
+        const { server, url } = await startRecordedButUnservedRegistry();
+        try {
+            const fixtureDir = scaffoldFixture('recorded', '@gjsify/e2e-pub-recorded', '1.5.0');
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '4'], url);
+
+            assert.notEqual(res.code, 0, 'a version that cannot be installed is not a successful publish');
+            assert.doesNotMatch(res.stdout, /^\+ /m);
+            assert.match(res.stderr, /verdict   recorded-not-served/);
+            assert.match(res.stderr, /the registry RECORDS 1\.5\.0 at 2026-09-14T21:43:00\.983Z/);
+            // Re-publishing a version the registry holds is answered 409, so the
+            // 2xx remedy would send the operator down the one road that cannot work.
+            assert.match(res.stderr, /Do NOT re-publish/);
+            assert.doesNotMatch(res.stderr, /Re-run this publish/);
+        } finally {
+            server.close();
+        }
+    });
+
+    it('a dropped connection is `unknown` — never "published", never "absent"', async () => {
+        // The direction that decides whether this check may be trusted at all: a
+        // network failure must not be able to report either outcome.
+        const store = packumentStore();
+        const server = createServer((req, res) => {
+            if (req.method === 'PUT') {
+                let body = '';
+                req.setEncoding('utf-8');
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
+                req.on('end', () => {
+                    try {
+                        store.record(req.url, JSON.parse(body));
+                    } catch {
+                        /* the row asserts on the CLI */
+                    }
+                    res.setHeader('content-type', 'application/json');
+                    res.statusCode = 200;
+                    res.end(JSON.stringify({ ok: true }));
+                });
+                return;
+            }
+            req.socket.destroy();
+        });
+        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+        const url = `http://127.0.0.1:${server.address().port}`;
+        try {
+            const fixtureDir = scaffoldFixture('dropped', '@gjsify/e2e-pub-dropped', '1.6.0');
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '4'], url);
+
+            assert.notEqual(res.code, 0, 'an unestablished read-back must not exit 0');
+            assert.doesNotMatch(res.stdout, /^\+ /m, 'nothing may print a success marker here');
+            assert.match(res.stderr, /verdict   unknown/);
+            assert.match(res.stderr, /could NOT establish whether the registry serves it/);
+            // The two confident verdicts must BOTH be absent: this run knows
+            // neither that the publish landed nor that it did not.
+            assert.doesNotMatch(res.stderr, /has no record of/);
+            assert.doesNotMatch(res.stderr, /Do NOT re-publish/);
         } finally {
             server.close();
         }

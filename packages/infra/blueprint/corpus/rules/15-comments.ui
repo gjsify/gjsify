@@ -6,11 +6,15 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 -->
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <object class="GtkBox">
+  <object class="GtkCenterBox">
     <property name="orientation">1</property>
-    <child>
+    <child type="start">
       <object class="GtkLabel">
         <property name="label">commented</property>
+        <style>
+          <class name="a"/>
+          <class name="b"/>
+        </style>
       </object>
     </child>
   </object>

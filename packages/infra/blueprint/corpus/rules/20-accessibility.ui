@@ -13,6 +13,11 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <relation name="row-index">3</relation>
       <state name="checked">1</state>
       <property name="orientation">1</property>
+      <property name="description" translatable="yes">a translatable description</property>
+      <relation name="labelled-by">labelA</relation>
+      <relation name="labelled-by">labelB</relation>
     </accessibility>
   </object>
+  <object class="GtkLabel" id="labelA"></object>
+  <object class="GtkLabel" id="labelB"></object>
 </interface>

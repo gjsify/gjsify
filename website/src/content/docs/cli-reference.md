@@ -1820,7 +1820,7 @@ gjsify publish --dry-run                        # pack only
 | `--tolerate-untrusted-new` | `false` | Exit 0 when OIDC token exchange says "package not found" and no fallback token is configured, which is a never-published scoped package whose Trusted Publisher is not set up yet. Without it, one un-bootstrapped package breaks a whole serialized `gjsify foreach publish`. |
 | `--trusted` | auto | Authenticate through npm Trusted Publishing, exchanging the GitHub Actions id-token for a short-lived npm token. Auto-detected when `ACTIONS_ID_TOKEN_REQUEST_URL` and `_TOKEN` are set and the resolved npmrc has no `_authToken`. Needs `permissions: id-token: write` in the workflow and a Trusted Publisher on npmjs.com. |
 | `--check-trusted` | `false` | Do the OIDC exchange, report success or failure, and exit without publishing. Useful as a bulk verifier via `gjsify foreach publish --check-trusted`. |
-| `--verify-timeout <s>` | `300` | Seconds to keep asking the registry for the version just published, before giving up. `0` disables the read-back. |
+| `--verify-timeout <s>` | `600` | Seconds to keep asking the registry for the version just published, before giving up. `0` disables the read-back, and the success line then says `UNVERIFIED`. |
 | `--verify-defer` | `false` | Report an unverified publish and exit 0 instead of 1. Only for a caller that re-checks the same set afterwards. |
 | `--provenance` | `false` | Recorded in the payload. No signing happens yet. |
 | `--dry-run` | `false` | Pack only, do not upload. |
@@ -1838,7 +1838,22 @@ between 56 and 252 seconds after it, while one was never committed at all under 
 `409 already published` tolerated by `--tolerate-republish` is read back the same way, because npm
 can refuse to overwrite a version seconds before it serves it. The read-back GET carries the same
 credential the upload did, so a registry that requires a token to read packuments does not turn a
-good publish into a red one. Set `--verify-timeout 0` for a registry with no packument read path.
+good publish into a red one, and every probe carries a cache key of its own — measured against
+registry.npmjs.org, `cache-control: no-cache` is ignored by the edge (`cf-cache-status: HIT`, with
+an `age` up to the packument's own `max-age=300`) and only a unique query parameter reaches origin.
+
+**The success line says what it established.** A confirmed publish prints
+`+ name@version (verified on <registry> — N probe(s), Xs)`; `--verify-timeout 0`, the escape hatch
+for a registry with no packument read path, prints
+`+ name@version (UNVERIFIED — read-back disabled by --verify-timeout 0)` and a GitHub Actions
+warning annotation beside it. A bare `+ name@version` with no clause is a CLI older than v0.47.0,
+which had no read-back at all. `--json` carries the same facts as `verified` and `verification`.
+
+**An unconfirmed read-back says WHICH of three things it found**, because the remedies differ:
+`not-published` (the registry has no record of the version — re-publish), `recorded-not-served`
+(the registry records the write and its install document does not serve it yet — wait; a
+re-publish is answered 409), and `unknown` (a 5xx, a timeout, a dropped connection: nothing was
+established, in particular not that the publish failed).
 
 Publish every workspace in one go with [`gjsify foreach`](#gjsify-foreach):
 

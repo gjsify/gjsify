@@ -6,14 +6,29 @@ Gtk.Box {
   Gtk.Label {
     xalign: 1.0;
     margin-top: 12;
+    margin-bottom: 0x10;
+    margin-start: 1_000;
+    margin-end: +5;
   }
 
   Gtk.Label {
     xalign: 0.5;
     width-chars: -1;
+    yalign: .75;
   }
 
   Gtk.Label {
     xalign: 0.25;
+    width-chars: -0x10;
+    max-width-chars: +0x10;
+  }
+
+  Gtk.SpinButton {
+    adjustment: Gtk.Adjustment {
+      lower: -0.0;
+      upper: 12345678901234567;
+      step-increment: 0.00005;
+      page-increment: 100.0;
+    };
   }
 }

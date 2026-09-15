@@ -1,6 +1,16 @@
 using Gtk 4.0;
 
-Gtk.Button {
-  label: "press";
-  clicked => $onClicked();
+Gtk.Box {
+  Gtk.Label labelOne {
+  }
+
+  Gtk.Button {
+    label: "press";
+    clicked => $onClicked();
+    activate => $onActivate() swapped;
+    map => $onMap() after;
+    realize => $onRealize(labelOne);
+    unrealize => $onUnrealize(labelOne) not-swapped;
+    notify::sensitive => $onSensitive();
+  }
 }

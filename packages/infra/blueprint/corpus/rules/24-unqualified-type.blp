@@ -1,7 +1,11 @@
 using Gtk 4.0;
 
-Box {
-  ToggleButton {
-    label: "unqualified";
-  }
+Frame {
+  child: Box {
+    orientation: vertical;
+
+    ToggleButton lonely {
+      label: "unqualified";
+    }
+  };
 }

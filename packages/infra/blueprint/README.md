@@ -9,10 +9,13 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**One divergence is left, on two lines.** Clause 5 makes the parser authoritative once the
-shadow run is silent; `corpus/divergences.mjs` holds a single entry, because an
-`accessibility { }` VALUE is typed by GTK's ARIA table — built in C, and the one thing the GIR
-does not carry. Everything else in the corpus is byte-equal.
+**Two divergences are left, on three lines, both waiting on the same kind of fact.** Clause 5
+makes the parser authoritative once the shadow run is silent; `corpus/divergences.mjs` holds
+two entries. An `accessibility { }` VALUE is typed by GTK's ARIA table — built in C, and the
+one thing the GIR does not carry — and an enum property of a class that is not a widget
+(`GtkSizeGroup.mode`) has no join to its enum, because the `@girs` vocabulary is a widget
+vocabulary. Everything else in the corpus is byte-equal, and every construct the subset
+refuses is refused by name, held by a corpus of its own.
 
 ## What is in here
 
@@ -20,6 +23,7 @@ does not carry. Everything else in the corpus is byte-equal.
 |---|---|
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
+| `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
 | `corpus/real/*.ui` | the same, for the 11 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
@@ -28,7 +32,8 @@ does not carry. Everything else in the corpus is byte-equal.
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
 | `src/emit-xml.mjs` | AST → GtkBuilder XML |
-| `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element — read from the `@girs` vocabulary |
+| `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element, a type's GType name — read from the `@girs` vocabulary |
+| `src/number-literal.mjs` | one reading of a number's spelling: the parser refuses through it, both exits read through it |
 | `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
 
 The real files are listed **by path** and read from where they live. A copy would be a second
@@ -44,8 +49,8 @@ node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to ski
 ```
 
 Stage A — corpus complete and each file listed once, expectations structurally valid and
-projecting as many objects as their golden holds, no tracked `.blp` left unprobed — runs
-anywhere. Stage B recompiles every file and diffs it, and needs `blueprint-compiler` on
+projecting as many objects as their golden holds, every refusal listed with the line and the
+text its error must carry, no tracked `.blp` left unprobed — runs anywhere. Stage B recompiles every file and diffs it, and needs `blueprint-compiler` on
 `PATH`; where it is absent the run says so by name rather than reporting a quiet green. In CI
 both stages run in `tree-checks` — the one job with no classifier gate, on the image that
 bakes the compiler — and with `--require-oracle`, because an announced skip is honest on a
@@ -59,9 +64,15 @@ now agrees, so the ledger cannot only grow — and that second direction is what
 last eleven entries, as eleven failures saying "delete me" rather than a hand edit. Stage D
 runs the projection over the same files and holds the hand-written `SharedNode` trees and
 their declared losses against it, which is what turns them from a claim into an oracle.
-Neither stage needs a compiler — only the committed goldens — so both run on every runner, and
-neither has a skip path: the parser, the emitter, the resolver and the projection live in this
-repository, so a missing one is a deletion and fails rather than skipping.
+Stage E runs the same pipeline over every file under `corpus/refused/` and holds the XML exit to
+a hard error that names the construct and the line, and the projection to what the manifest
+records of it — the one stage that can measure ADR 0053 clause 3, because stages C and D see
+only what the parser accepts. Where the oracle is present, stage B
+also records what it does with each refused file, so the table says which refusals are limits
+of the subset (the oracle compiles the file) and which are errors the two compilers share.
+None of these stages needs a compiler — only the committed goldens — so all run on every
+runner, and none has a skip path: the parser, the emitter, the resolver and the projection
+live in this repository, so a missing one is a deletion and fails rather than skipping.
 
 If stage B fails on a version mismatch, that is not noise. [ADR 0053 clause
 5](../../../docs/adr/0053-blueprint-parsed-in-repo.md): after an upstream release, a run that
@@ -93,10 +104,14 @@ would drift.
 3. **The member spelling is not the nick spelling.** Blueprint writes a member with
    UNDERSCORES and the GIR keys it with hyphens: `halign: baseline_fill` is `4` and
    `halign: baseline-fill` is an error (`rules/03-property-enum.ui`).
-4. **A flag set is not numbered.** `input-hints: word_completion | lowercase` stays
-   `word-completion|lowercase` — hyphenated, joined with no spaces — while the enum on the
-   line below it becomes a number, so one lookup answers two kinds of question
-   (`rules/27-property-flags.ui`).
+4. **A flag set is not numbered, and a lone flag is.** `input-hints: word_completion |
+   lowercase` stays `word-completion|lowercase` — hyphenated, joined with no spaces — while
+   `input-hints: lowercase` on its own is `8`: the oracle reads a `|`-joined set as flags and
+   a single identifier as a literal, which it numbers whatever the type. The rule file held
+   only the set, and the resolver returned the nick for both, until it held the second entry
+   (`rules/27-property-flags.ui`). And the `|` carries a type check of its own: a set on an
+   ENUM (`orientation: vertical | horizontal`) is "not a bitfield type" to the oracle, and the
+   resolver emitted it by member count until `corpus/refused/flags-on-enum.blp` held it.
 5. **Values are normalised, not copied.** `1.0` comes out as `1`, `0.25` and `0.5` unchanged
    (`rules/17-numeric-forms.ui`).
 6. **`layout { }` and `accessibility { }` do not resolve through the widget.**
@@ -109,9 +124,34 @@ would drift.
    `<property>`, `row-index` a `<relation>` and `checked` a `<state>`, all spelled alike in
    the block (`rules/20-accessibility.ui`). Which name is which IS in the vocabulary — the
    nick lists of `GtkAccessibleProperty`, `GtkAccessibleRelation` and `GtkAccessibleState` —
-   so `src/resolve-ident.mjs` answers it; the VALUE each slot takes is not, which is the one
+   so `src/resolve-ident.mjs` answers it; the VALUE each slot takes is not, which is the first
    entry in `corpus/divergences.mjs`. The emitter wrote `<property>` for every entry until
    this rule file had anything but a property in it.
+8. **A GType name is not namespace plus name.** `Gio.ListStore` is `<object
+   class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
+   prefix is the namespace, and silently wrong for any third `using`. The name is now a
+   resolver seam that refuses a namespace it has no vocabulary for
+   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which
+   concatenated the same way, takes the same seam, because a tag is the one thing that exit
+   must spell right.
+9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
+   `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
+   for a class outside the widget tree — the second ledger entry (`rules/29-enum-non-widget.ui`).
+10. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
+    "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
+    comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
+11. **The projection has to read a number's spelling as carefully as the XML exit does.**
+    `margin-start: 1_000` projected as `null`, because `Number("1_000")` is `NaN`, while the
+    XML exit had stripped the underscore all along — and with the underscore stripped,
+    `-0x10` still did, because `Number()` reads no sign on a hex string, while the XML exit
+    had split the sign off all along. Two exits, two readers, the second one wrong twice: both
+    read through `src/number-literal.mjs` now, and the parser refuses `0xZZ` there by line, as
+    the oracle does. Stage D caught both the moment `rules/17-numeric-forms.blp` held the form
+    — the first defects that stage has found.
+
+Most of these were found the same way: by asking a rule file that probed ONE shape of its
+construct what the other shapes looked like. A rule file that probes one case proves nothing
+about the others, and a construct nothing probes is one nothing prints either.
 
 And one that writing the expectations found: `SharedNode.slot` carries both `[start]`
 (a `<child type="start">`) and `content:` (a `<property name="content">`), so the projection
