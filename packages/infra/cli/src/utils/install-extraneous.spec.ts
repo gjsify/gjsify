@@ -142,6 +142,22 @@ export default async () => {
             expect(text).toContain('--immutable');
         });
 
+        await it('sends the reader to a remedy that actually removes the package', async () => {
+            // MEASURED, not assumed: against a real prefix holding a top-level stray
+            // and a stray nested under an already-extracted package, a plain
+            // `gjsify install` left BOTH in place, and so did an explicit `--prune`
+            // (which judges os/cpu/libc only). An earlier draft of this message
+            // offered "run `gjsify install` without --immutable" as a way out; it
+            // changes nothing and the refusal repeats verbatim. Deleting is the only
+            // remedy, so the text may not name a command as an alternative to it.
+            const text = formatExtraneousError(
+                [{ installPath: 'node_modules/a/node_modules/b', name: 'b', version: '2.0.0' }],
+                '/p',
+            );
+            expect(text).toContain('delete');
+            expect(text).toContain('does NOT clear them');
+        });
+
         await it('counts the rest instead of printing a thousand lines', async () => {
             const many = Array.from({ length: EXTRANEOUS_REPORT_LIMIT + 5 }, (_, i) => ({
                 installPath: `node_modules/p${String(i).padStart(3, '0')}`,

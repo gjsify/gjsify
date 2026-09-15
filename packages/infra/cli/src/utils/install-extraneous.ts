@@ -107,9 +107,16 @@ export const EXTRANEOUS_REPORT_LIMIT = 20;
 
 /**
  * The refusal, built to be actionable from the CI log alone: what is wrong, which
- * paths, and the two commands that fix it. Truncated past
+ * paths, and the one thing that fixes it. Truncated past
  * {@link EXTRANEOUS_REPORT_LIMIT} so a wholly foreign tree does not bury the advice
  * under a thousand lines.
+ *
+ * It says DELETE, and says so as the only remedy, because that is what was measured:
+ * a plain `gjsify install` — and an explicit `--prune` — leave both a top-level and a
+ * nested stranger exactly where they were. The installer only adds, and `prune-prefix`
+ * judges one thing, npm's `os`/`cpu`/`libc`, so a package that is merely UNDESCRIBED
+ * matches no rule either owns. Sending a developer to `gjsify install` instead would
+ * hand them a command that changes nothing and a refusal that repeats verbatim.
  */
 export function formatExtraneousError(entries: readonly ExtraneousPackage[], prefix: string): string {
     const shown = entries.slice(0, EXTRANEOUS_REPORT_LIMIT);
@@ -123,8 +130,10 @@ export function formatExtraneousError(entries: readonly ExtraneousPackage[], pre
             '(gjsify#1683: a nested copy of an already-hoisted package → TS2883, one type ' +
             'with two identities).',
         ...lines,
-        'Fix: delete those directories — or the whole node_modules — and re-run; or run ' +
-            '`gjsify install` without --immutable to resolve a tree the lockfile does describe. ' +
+        'Fix: delete those directories — or the whole node_modules — and re-run. A plain ' +
+            '`gjsify install` does NOT clear them: it only ever adds, and its prune pass judges ' +
+            'foreign-PLATFORM packages alone (prune-prefix.ts), so an undescribed package ' +
+            'survives both. Deleting is currently the only thing that removes one. ' +
             'In CI this usually means a cache entry was restored from a DIFFERENT lockfile.',
     ].join('\n');
 }

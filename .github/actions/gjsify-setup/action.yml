@@ -132,10 +132,26 @@ runs:
         # installing over it (packages/infra/cli/src/utils/install-extraneous.ts), so
         # a restored foreign tree is no longer silent — it is a hard, immediate
         # failure. Keeping the fallback would therefore turn every lockfile-changing
-        # PR red. Dropping it costs exactly one cold node_modules restore per
-        # lockfile change (the tarballs still come from the content-addressed install
-        # cache, so it is extract time, not download time); an exact key hit is a tree
-        # built from THIS lockfile, which is the only tree `--immutable` can accept.
+        # PR red. An exact key hit is a tree built from THIS lockfile, which is the
+        # only tree `--immutable` can accept.
+        #
+        # THE PRICE, stated honestly. Every lockfile-changing PR now pays a fully
+        # cold install in EVERY job that uses this action: the ~16 min extract phase
+        # above, plus re-DOWNLOADING all ~1850 tarballs. Not extract-only — the
+        # content-addressed install cache lives in `.gjsify-cache/`, which this step
+        # `mkdir -p`s fresh each run and which NO actions/cache path covers, so it
+        # never survives a run. (On a developer's machine XDG_CACHE_HOME does
+        # persist, so there the same miss really is extract-only. CI is the
+        # different case.) The old fallback bought a warm baseline and paid for the
+        # delta only; that is what is being given up, and it is worth more than one
+        # extract.
+        #
+        # If that cost bites, the fix is NOT to restore this fallback — a tree is not
+        # safe to restore by prefix. Cache `.gjsify-cache/gjsify/tarballs` under its
+        # own key instead: it is content-addressed, so a stale hit can only be a
+        # superset of what is needed, never a wrong tree, and a prefix fallback IS
+        # sound there. Weigh it against the 10 GB repo cache limit first — a tarball
+        # cache that large can evict the node_modules entries it is meant to help.
         key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
 
     - name: Create non-root user for tests
