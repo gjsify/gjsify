@@ -325,11 +325,7 @@ function findFaceSource() {
  * for XML for the same reason: a scratch path is generated, not audited.
  */
 function confPath(value) {
-    return value
-        .replace(/\\/g, '/')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    return value.replace(/\\/g, '/').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**
@@ -547,7 +543,6 @@ test('Tamil renders wherever the platform map still misses it', (t) => {
             `Latin is ${seen.latin} on both.`,
     );
 });
-
 
 // WHAT THE BUNDLE ACTUALLY HANDS FONTCONFIG, asserted as an invariant rather than assumed, because
 // selecting a backend and supplying that backend's configuration are two different acts and only
