@@ -146,7 +146,19 @@ export async function buildFromVocabulary(
     dir: string,
     sources: readonly VocabularySource[],
 ): Promise<{ model: SurfaceModel; widgets: WidgetRef[]; provenance: string }> {
-    const prefixes = sources.map((s) => s.prefix);
+    // A BASE can leave the namespaces we load. `GtkApplication` extends `GApplication`
+    // and `GtkMountOperation` extends `GMountOperation` — both Gio, both reached only as
+    // ancestors, neither a DECLS key of its own. @girs 5.2.0 is the first vocabulary to
+    // carry those two classes at all (ts-for-gir #474 widened DECLS past the widgets), so
+    // before it every GType here started with `Gtk` or `Adw` and this list did not have to
+    // say so. It is the GType prefix and not the TypeScript namespace: Gio and GLib both
+    // spell theirs `G`.
+    //
+    // SORTED LONGEST FIRST, which is the whole reason this is not a plain concatenation:
+    // `splitGType` returns on the first prefix that matches, so a `G` examined before
+    // `Gtk` splits `GtkBox` into `G` + `tkBox` — a name that still renders, still
+    // compiles, and is wrong everywhere it appears.
+    const prefixes = [...sources.map((s) => s.prefix), 'G'].sort((a, b) => b.length - a.length);
     const declarations = new Map<string, Declaration>();
     const closure = new Map<string, readonly string[]>();
     const enumNicks = new Map<string, readonly string[]>();
@@ -186,18 +198,54 @@ export async function buildFromVocabulary(
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) enumNicks.set(gtype, nicks);
         namespacesUsed.add(source.prefix);
 
+        // A TAG IS A WIDGET, OR A NON-WIDGET THAT HOLDS ONE — which is the rule
+        // `emit.mts` already prints at the top of the generated table, and `CHILD_HOLDERS`
+        // is the vocabulary's own answer for the second half. It is stated here because
+        // this loop stopped implementing it without changing: through @girs 5.1.0 `DECLS`
+        // WAS the widget vocabulary, so pushing every key satisfied the rule by accident
+        // of the input, and ts-for-gir #474 — which widened `DECLS` to every declaration a
+        // UI file can instantiate — ended that identity. Measured on 5.2.0: 344 keys, of
+        // which 165 are widgets and 4 are child holders. The 175 the filter drops are
+        // things like `GtkBuilder`, which cannot appear inside the file it builds, and
+        // `GtkIMContextSimple`, an input method. Both were caught by gates rather than
+        // here: the conformance table found `GtkBuilder`'s ctor answering `GtkJSBuilder`
+        // under GJS, and the Volar rule found two acronym tags a Vue template cannot
+        // resolve. Neither expectation was edited — the filter is what retires them.
+        //
+        // Verified against the previous artefact rather than asserted: widget-or-holder
+        // reproduces main's 169 tags EXACTLY, with nothing added and nothing dropped, so
+        // no tag a consumer mounts today leaves the table.
+        //
+        // `closure` still takes every key. The artefact carries the vocabulary verbatim —
+        // that is a separate gate — and an `extends` clause still needs the ancestors the
+        // filter excludes from being mountable.
+        const childHolders = new Set(runtime.CHILD_HOLDERS);
         for (const [gtype, chain] of Object.entries(runtime.DECLS)) {
             closure.set(gtype, chain);
             for (const link of chain) referenced.add(link);
             const ref = splitGType(gtype, prefixes);
-            widgets.push(ref);
+            if (gtype === 'GtkWidget' || chain.includes('GtkWidget') || childHolders.has(gtype))
+                widgets.push(ref);
         }
 
         // Every GType the surface names owes a declaration, not only the ones carrying
         // properties of their own. GtkSeparator and AdwSpinner declare none, and an
         // `extends` clause pointing at an interface that was never emitted does not
         // compile. Building this from OWN_PROPS alone left twelve such clauses.
-        const owned = new Set([...Object.keys(runtime.DECLS), ...Object.keys(runtime.OWN_PROPS)]);
+        //
+        // OWN_SIGNALS IS THE THIRD SOURCE, and it was missing for the same reason the
+        // second one was: nothing in the corpus had yet been signal-only. @girs 5.2.0
+        // carries signals for six interfaces that declare no properties and are no DECLS
+        // key either — GtkTreeModel, GtkTreeSortable, GtkSelectionModel, GtkSectionModel,
+        // GtkStyleProvider and GtkPrintOperationPreview — so a union of the first two
+        // dropped them silently, and the artefact went out without their signals while
+        // every other check stayed green. A union that is not built from EVERY map the
+        // artefact carries is a filter nobody wrote down.
+        const owned = new Set([
+            ...Object.keys(runtime.DECLS),
+            ...Object.keys(runtime.OWN_PROPS),
+            ...Object.keys(runtime.OWN_SIGNALS),
+        ]);
         for (const gtype of owned) {
             const names = runtime.OWN_PROPS[gtype] ?? [];
             const rendered = declared.get(gtype);

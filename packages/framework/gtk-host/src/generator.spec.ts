@@ -350,7 +350,24 @@ export default async () => {
             // Not vacuous: the maps are non-trivially large, and every widget the
             // vocabulary declares reached the tag map.
             expect(Object.keys(VOCABULARY_DECLS).length > 100).toBe(true);
-            expect(Object.keys(VOCABULARY_DECLS).filter((gtype) => !(gtype in TAGS))).toStrictEqual([]);
+            // EVERY WIDGET REACHED THE TAG MAP — which is what this line asserted while
+            // `DECLS` WAS the widget vocabulary and every key was therefore a tag. @girs
+            // 5.2.0 widened it to every declaration a UI file can instantiate (ts-for-gir
+            // #474), so the widget half must be named instead of assumed; keying tags off
+            // the whole of `DECLS` after that would mount `GtkBuilder`, which cannot appear
+            // inside the file it builds. The gap between the two sets is the four
+            // non-widgets that hold a widget, which `CHILD_HOLDERS` names and the table
+            // still carries — so the containment is asserted in both directions rather
+            // than by counting.
+            const isWidget = (gtype: string) =>
+                gtype === 'GtkWidget' || (VOCABULARY_DECLS[gtype] ?? []).includes('GtkWidget');
+            expect(Object.keys(VOCABULARY_DECLS).filter((gtype) => isWidget(gtype) && !(gtype in TAGS))).toStrictEqual(
+                [],
+            );
+            // Against the ARTEFACT's `DECLS` and not the imported one: `VOCABULARY_DECLS`
+            // is `@girs/gtk-4.0` alone, so holding the tag map against it fails on every
+            // Adw tag — which is how this line first went in and what the run said.
+            expect(Object.keys(TAGS).filter((gtype) => !(gtype in DECLS))).toStrictEqual([]);
         });
 
         await it('records the release each member arrived in', async () => {
