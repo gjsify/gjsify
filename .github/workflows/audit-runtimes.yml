@@ -628,27 +628,31 @@ jobs:
       # request it ever ran on. Targeted rather than `submodules: true` — realizing every
       # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
       #
-      # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
-      # treatment as the actionlint download in this workflow, for the reason that step
-      # records: a non-retrying fetch reddened a required check on two PRs on 2026-08-12,
-      # neither of which had touched a workflow file. git DOES re-clone a failed submodule
-      # fetch on its own — measured under GIT_TRACE, twice, ~40 ms apart — but that is a
-      # repeat, not a back-off, and the back-off is the whole point of the 2026-08-12 fix.
-      # So the loop supplies one. `timeout-minutes` covers what no retry count can, a
-      # HANG: the Linux job declares none, so a stalled fetch would otherwise hold it for
-      # the 360-minute default while the neighbouring curl caps its connect at 30 s.
+      # That puts gitlab.gnome.org in the path of a REQUIRED check, and on 2026-09-15 it
+      # collected: the host served 503 to every git request for hours, the three retries
+      # this step used to carry inline were spent inside 30 s, and for as long as GNOME
+      # was down nothing in the repository could merge. Five sibling steps in
+      # `release.yml` and `node-gi.yml` fetch `refs/adwaita-fonts` from the same host, so
+      # the same outage also stood between a tag and a release.
+      #
+      # The retry loop, the back-off it was added for on 2026-08-12, and now a cache keyed
+      # on the pinned COMMIT plus a mirror of last resort all live in the action below —
+      # shared by all six steps, because a per-workflow copy is how this comes back. It
+      # never skips: if none of the three sources answers, it goes red naming the host.
+      # `timeout-minutes` stays HERE because GitHub does not honour it inside a composite
+      # action, and it covers what no retry count can — a fetch that hangs rather than
+      # refuses. The Linux job declares no job-level timeout, so a stalled fetch would
+      # otherwise hold it for the 360-minute default.
       - name: Check out refs/libadwaita (the style-class gate reads it)
-        timeout-minutes: 5
-        run: |
-          for attempt in 1 2 3; do
-            if git submodule update --init --depth 1 refs/libadwaita; then break; fi
-            if [ "$attempt" = 3 ]; then
-              echo "::error::could not check out refs/libadwaita after 3 attempts"
-              exit 1
-            fi
-            echo "::warning::refs/libadwaita checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
-            sleep $((attempt * 10))
-          done
+        timeout-minutes: 10
+        uses: ./.github/actions/checkout-ref-submodule
+        with:
+          path: refs/libadwaita
+          mirror: https://github.com/GNOME/libadwaita.git
+          reason: >-
+            Two gates in this required check read that tree — the style-class ledger
+            against `doc/style-classes.md`, and the anchored arm of the refs-citation
+            gate, whose one verified anchor lives in this submodule
 
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
@@ -1301,31 +1305,22 @@ jobs:
       # request it ever ran on. Targeted rather than `submodules: true` — realizing every
       # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
       #
-      # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
-      # treatment as the actionlint download in this workflow, for the reason that step
-      # records: a non-retrying fetch reddened a required check on two PRs on 2026-08-12,
-      # neither of which had touched a workflow file. git DOES re-clone a failed submodule
-      # fetch on its own — measured under GIT_TRACE, twice, ~40 ms apart — but that is a
-      # repeat, not a back-off, and the back-off is the whole point of the 2026-08-12 fix.
-      # So the loop supplies one. `timeout-minutes` covers what no retry count can, a
-      # HANG: the Linux job declares none, so a stalled fetch would otherwise hold it for
-      # the 360-minute default while the neighbouring curl caps its connect at 30 s.
+      # That puts gitlab.gnome.org in the path of a REQUIRED check, and on 2026-09-15 it
+      # collected — see the Linux job's copy of this step for the outage and for what the
+      # shared action does about it. The pwsh caveat this comment used to carry is gone
+      # with the inline loop: every `run:` inside the action declares `shell: bash`, which
+      # ships with Git for Windows on the runner image, so both jobs execute the SAME text
+      # by construction rather than by two copies being kept in step.
       - name: Check out refs/libadwaita (the style-class gate reads it)
-        timeout-minutes: 5
-        # windows-latest defaults `run:` to pwsh, which has no `for … in`/`$(( ))`.
-        # bash ships with Git for Windows on the runner image, so the loop stays
-        # the SAME text as the Linux job — a divergence between the two is a finding.
-        shell: bash
-        run: |
-          for attempt in 1 2 3; do
-            if git submodule update --init --depth 1 refs/libadwaita; then break; fi
-            if [ "$attempt" = 3 ]; then
-              echo "::error::could not check out refs/libadwaita after 3 attempts"
-              exit 1
-            fi
-            echo "::warning::refs/libadwaita checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
-            sleep $((attempt * 10))
-          done
+        timeout-minutes: 10
+        uses: ./.github/actions/checkout-ref-submodule
+        with:
+          path: refs/libadwaita
+          mirror: https://github.com/GNOME/libadwaita.git
+          reason: >-
+            Two gates in this check read that tree — the style-class ledger against
+            `doc/style-classes.md`, and the anchored arm of the refs-citation gate,
+            whose one verified anchor lives in this submodule
 
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
