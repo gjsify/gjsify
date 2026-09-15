@@ -801,3 +801,144 @@ nothing and emits text `oxfmt --check` already accepts, so the comparison is exa
 - **It does not move the fact upstream.** `ENUM_VALUES` in the `@girs` vocabulary is
   still the right end state; this puts the consumer side in place so that landing it
   upstream changes one input and no contract.
+
+## Amendment 3 — 2026-09-15: #474 widened the vocabulary, and three counts above no longer hold
+
+ts-for-gir [#474](https://github.com/gjsify/ts-for-gir/pull/474), "cover every declaration
+a UI file can instantiate", shipped in **v5.2.0**. Inside a namespace that already has a
+vocabulary, the rule for WHICH declarations get one changed from "reachable from a concrete
+widget" — a renderer's question — to "every registered, non-abstract, introspectable class",
+which is the consumer's: a `.ui` or Blueprint file names a GType and `GtkBuilder` resolves it
+through `g_type_from_name`, which knows nothing about widgets. **The namespace gate is
+untouched**, and § Consequences' rule for it still reads correctly.
+
+What follows corrects the numbers, not the decisions. Every clause this ADR takes survives:
+the subpath, the data shape, the inlining rule, the placement gate and the reader choice are
+all unaffected — a count moved under them.
+
+### 1. The inlined base is no longer EXACTLY ONCE, and `Gcr.Prompt` is now one of 26
+
+§ Consequences says a base from a namespace with no vocabulary is inlined rather than
+dropped, and that "measured across all 475 namespaces this happens EXACTLY ONCE —
+`Gcr.Prompt`". **That was exactly right for every published release up to and including
+5.1.0**: across all 142 published vocabularies at 5.1.0 the whole corpus contains ONE
+`inlinedBases` entry, `Gcr.Prompt` in `@girs/gcrui-3`, and nothing else.
+
+At 5.2.0 it is **84 entries across 38 of the 142 vocabularies, 26 distinct declarations from
+12 owner namespaces**. The widest are `Gio.Application` (21 vocabularies) and
+`Gio.MountOperation` (7); `Gcr.Prompt` is still there, in five (`gcrui-3` and `shell-0.1`,
+`-9`, `-10`, `-11`). The rest are `Clutter.*` (18 entries), `St.*` (8), `NM.SecretAgentOld`
+(4), and singles or pairs from `Atk`, `Dbusmenu`, `EDataServer`, `Foundry`, `Ggit`, `GVnc`
+and `Peas`.
+
+This is growth in the rule's own terms, not a new kind of thing: **all 12 owner namespaces
+still emit no vocabulary at all**, so every one of the 84 is the case § Consequences
+describes. What moved is that widening the declaration rule inside a namespace pulled in
+declarations whose bases sit outside it — `Gio.Application` was not reachable from a
+concrete widget, and `Gtk.Application` is.
+
+The generator also inlines **one condition wider** than this ADR wrote it: a declaration the
+owner's vocabulary does not carry is inlined even when the owner HAS a vocabulary, because
+after #474 two namespaces no longer reach the same set (`model.ts` § `coveredDeclarationsOf`
+records the `@girs/ide-46` TS2724 that forced it). That path contributed **zero** of the 84:
+its own worked example, `GtkSource.CompletionProposal`, carries nothing settable, so it is
+dropped rather than inlined — visible in `ide-45…50`'s `droppedBases`.
+
+**The same bullet's dropped-base count moved with it.** "Gtk-4.0 and Adw-1 each reach four
+(`GObject.Object`, `GObject.InitiallyUnowned`, `Gio.ActionGroup`, `Gio.ActionMap`), all
+empty" is true at 5.1.0 for both. At 5.2.0 Gtk-4.0 reaches **eight** (those four plus
+`Gio.ListModel`, `Gdk.Paintable`, `GObject.ParamSpec`, `Gdk.Snapshot`) and Adw-1 **six**
+(plus `Gio.ListModel`, `Gdk.Paintable`). Corpus-wide the dropped entries went 435 → 607.
+
+### 2. The per-namespace counts, and the half of them that did NOT go stale from #474
+
+§ Consequences: "705 `.gir` files in ts-for-gir's `girs/` reduce to 475 distinct namespaces,
+102 of which declare a concrete `GtkWidget` descendant; a full run emits 703 `@girs/*`
+packages and **138** of them carry a `./surface`". Measured at the `v5.2.0` tag and against
+the registry:
+
+| | ADR 0029 | measured at 5.2.0 |
+|---|---:|---:|
+| `.gir` files in `girs/` | 705 | **718** |
+| distinct namespaces | 475 | **483** |
+| namespaces that emit a vocabulary | 102 | **108** |
+| `@girs/*` packages a full run emits | 703 | **715** |
+| packages carrying the subpath | 138 | **142** |
+
+**#474 did not move any of these, and saying it did would put the cause in the wrong place.**
+The subpath count is **142 at 5.0.0, 5.1.0 and 5.2.0 alike** — one registry sweep per
+version, same answer three times. 138 was measured on an unpublished run before the first
+release and has never matched a published one; the other four moved with the GIR corpus,
+which grew by thirteen files between that measurement and the v5.2.0 tag.
+
+**Where this ADR and ADR 0062 disagree, 0062 is right.** Its "142 of 705 GIRs before and
+after" is the correct 142, independently confirmed here at three versions. Its denominator
+705 is this ADR's stale one, taken from #474's commit message; the corpus at the v5.2.0 tag
+is 718 `.gir` files. Its Gtk-4.0 `PROP_ENUMS` 67 → 126 and Adw-1 37 → 50 reproduce exactly.
+
+Two footnotes the sweep turned up, neither of which changes a decision here. The 715 is 718
+GIRs less the three the run's `ignore` list names: `ClutterGst-1.0` and `GstAudio-0.10` ship
+no package at all, while `Colorhug-1.0` is ignored only as a duplicate and its package is
+emitted from `ColorHug-1.0`. And of those 715, **713** carry a 5.2.0 on npm:
+`@girs/clutter-7` and `@girs/meta-8` stop at 5.1.0, read cache-free three times. Anything
+pinning those two cannot move to 5.2.0 yet.
+
+### 3. The declaration counts inside Gtk-4.0 and Adw-1, which is what #474 actually moved
+
+§ Implementation's table reads "Gtk-4.0 widgets / declarations 102 / 123" and "Adw-1 62 /
+63" for the landed generator. Counting `Props` interfaces in the published
+`*-vocabulary.d.ts` and widget rows in its `Widgets` index:
+
+| | 0029 (landed) | 5.1.0 | 5.2.0 |
+|---|---:|---:|---:|
+| Gtk-4.0 widgets / declarations | 102 / 123 | 103 / 127 | **103 / 300** |
+| Adw-1 widgets / declarations | 62 / 63 | 62 / 64 | **62 / 93** |
+| Gtk-4.0 / Adw-1 `DECLS` rows | — | 106 / 63 | **255 / 89** |
+| Gtk-4.0 / Adw-1 `PROP_ENUMS` rows | — | 67 / 37 | **126 / 50** |
+| Gtk-4.0 / Adw-1 nick unions | 105 / 25 | 104 / 25 | **112 / 25** |
+
+**The widget column did not move with #474** — 103 at 5.1.0 and 5.2.0 alike — and `Widgets`
+and `CHILD_HOLDERS` were deliberately left alone by it, which is what keeps "is this a
+widget" answering the same question. The 102 → 103 is `GtkSvgWidget`, the newer-library
+effect Amendment 1 already records, not a rule change.
+
+So § Implementation's "102 + 62 = **164** still matches gtk-host's own concrete-widget count
+exactly" reads **103 + 62 = 165** against the published vocabulary. Whether gtk-host's own
+table agrees is a question about which `@girs` it pins, not about this arithmetic, and this
+amendment does not answer it.
+
+### How this was measured, so the next person can redo it
+
+Two reads, neither of them a local `node_modules` — ADR 0062 § "How the numbers here were
+obtained" records what a drifted install and a left-behind simulation each did to a count.
+
+```sh
+# 1. The corpus, in a ts-for-gir checkout at the tag that produced 5.2.0.
+git -C <ts-for-gir> checkout v5.2.0
+ls girs/*.gir | wc -l                                              # 718
+grep -ho '<namespace name="[^"]*"' girs/*.gir | sort -u | wc -l    # 483
+grep -n 'ignore:' -A 8 .ts-for-gir.packages-all.rc.js              # what a run drops
+
+# 2. Does a package carry the subpath? One registry read each, CACHE-BUSTED —
+#    a cached or npm-cli read undercounts, silently and repeatably.
+ls girs/*.gir | xargs -n1 basename | sed 's/\.gir$//' | tr 'A-Z' 'a-z' | sort -u \
+| xargs -P 24 -I{} sh -c '
+    curl -sS -H "Cache-Control: no-cache" \
+      "https://registry.npmjs.org/@girs%2F{}/5.2.0?cb=$RANDOM$$" \
+    | grep -q "\"\./vocabulary\"" && echo {}' | wc -l               # 142
+
+# 3. The provenance of each one. PROVENANCE is in the first ten lines of the
+#    runtime module, so the CDN serves the whole answer without a tarball.
+curl -sS "https://cdn.jsdelivr.net/npm/@girs/<pkg>@5.2.0/<pkg>-vocabulary.js" \
+| grep -oE "(inlined|dropped)Bases: \[[^]]*\]"
+#    summed over the 142: 84 inlinedBases entries in 38 files, 607 droppedBases.
+#    `namespace:` from the same block, deduplicated: 108.
+
+# 4. The per-namespace shapes, from the published types beside it.
+curl -sS "https://cdn.jsdelivr.net/npm/@girs/gtk-4.0@5.2.0/gtk-4.0-vocabulary.d.ts" \
+| grep -cE '^export interface \w+Props'                             # 300
+```
+
+Run step 2 against `5.1.0` as well before attributing anything to #474. It is the control
+that separates "the release widened it" from "the corpus grew", and here it moved one of the
+two groups above and left the other exactly where it was.
