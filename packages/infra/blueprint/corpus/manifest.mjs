@@ -206,7 +206,7 @@ export const CORPUS_RULES = [
         isolates:
             'an `accessibility { }` block holding every kind of ARIA element, every kind of ARIA VALUE the table can type, a translatable entry and a list-valued relation',
         surprise:
-            "the block is not a list of `<property>` elements and not a list of source spellings either: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all. The two `<state>` lines are the pair to read: `checked: true` is `1` because that slot is a `GtkAccessibleTristate`, and `hidden: true` — spelled identically, one line below — stays `true` because that one is a boolean. And `labelled-by: [labelA, labelB]` is TWO `<relation>` elements of the same name, never one holding a list",
+            "the block is not a list of `<property>` elements and not a list of source spellings either: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all. The three `<state>` lines are the ones to read: `checked: true` is `1` because that slot is a `GtkAccessibleTristate`, `hidden: true` — spelled identically, one line below — stays `true` because that one is a boolean, and `pressed: mixed` is `2` — the tristate's third member, and the one identifier on a state where the other two carry booleans. And `labelled-by: [labelA, labelB]` is TWO `<relation>` elements of the same name, never one holding a list",
     },
     {
         file: '21-value-array.blp',

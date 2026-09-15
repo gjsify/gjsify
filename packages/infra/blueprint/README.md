@@ -128,7 +128,15 @@ would drift.
    line in that golden is the pair of `<state>` elements: `checked: true` is `1` because the
    slot is a `GtkAccessibleTristate`, and `hidden: true` — the same four characters — stays
    `true` because that slot is a boolean. The emitter wrote `<property>` for every entry, and
-   then the source spelling for every value, until this rule file held anything else.
+   then the source spelling for every value, until this rule file held anything else. And it
+   was thin a third time, found in review: with every `<state>` a boolean and every enum
+   `<property>` an identifier, a rule keyed by ELEMENT kind — identifiers resolve on a property,
+   booleans on a state — was byte-equal against the whole corpus. `pressed: mixed` is `2`, an
+   identifier on a state and the tristate's third member, and holds it out. The greedy guess
+   Amendment 1 refused — search every enum's nicks for the member, take the first hit — is held
+   out too, but by no numbered line: on this GTK the ARIA enums sort first in `ENUM_VALUES` and
+   win every collision (20 of 20 rows), so it is `refused/unknown-accessibility-member.blp` that
+   catches it, by accepting `sideways`.
 8. **A GType name is not namespace plus name.** `Gio.ListStore` is `<object
    class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
    prefix is the namespace, and silently wrong for any third `using`. The name is now a

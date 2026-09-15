@@ -13,6 +13,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <relation name="row-index">3</relation>
       <state name="checked">1</state>
       <state name="hidden">true</state>
+      <state name="pressed">2</state>
       <property name="orientation">1</property>
       <property name="autocomplete">1</property>
       <property name="value-now">0.5</property>

@@ -368,3 +368,14 @@ false rule into the resolver: against the old fixture the output is BYTE-EQUAL a
 reports, against a fixture carrying a boolean row it fails on the line. The file now probes every
 value type the table can produce. **A corpus proves a rule only over the cases it holds, and
 "widened once" is not a state a construct stays in.**
+
+**Reviewed, it was thin a third time, in the same file.** With every `<state>` spelled as a
+boolean and every enum-typed `<property>` as an identifier, a rule keyed by element kind —
+identifiers resolve on a property, booleans on a state — fitted every byte; `pressed: mixed`, an
+identifier on a state and the tristate's third member, is the line that refuses it. The boundary
+clause 4 draws was measured on the same table rather than asserted: the oracle refuses a value of
+the WRONG KIND on a typed slot — `checked: 1`, `label: 42`, `hidden: 1`, `row-index: 2.5`,
+`active-descendant: "quoted"` — and the emitter writes every one, because none needs reading to be
+written. The seam refuses what it must READ and cannot (`orientation: sideways`) and copies what it
+need not read; that is the `Gtk.Box { spacinng: 4; }` line one table over, and it moves only if
+the compiler stops being the validator.
