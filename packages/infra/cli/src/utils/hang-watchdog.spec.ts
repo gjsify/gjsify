@@ -9,7 +9,14 @@
 // healthy process gets switched off, and then the next 90-minute hang is silent again.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { createHangWatchdog, formatHangReport, parseHeartbeat } from './hang-watchdog.js';
+import {
+    DEFAULT_GRACE_MS,
+    createHangWatchdog,
+    formatHangReport,
+    hangGraceMs,
+    heartbeatEnv,
+    parseHeartbeat,
+} from './hang-watchdog.js';
 
 const LABEL = 'Multi-PC fan-out › track gets a tee multiplexer after second addTrack';
 
@@ -121,6 +128,70 @@ export default async () => {
             });
             expect(report).toContain('native backtrace');
             expect(report).toContain('    #0 gst_pad_push');
+        });
+
+        await it('says a backtrace is MISSING rather than leaving it out', () => {
+            // `eu-stack` is elfutils; it is not on the macOS or Windows runners at all and was
+            // absent from this repo's own Fedora image until it was added on purpose. A report
+            // that just omits the section reads as "the guard had nothing to add" — the one
+            // artefact a killed process cannot be asked for twice has to be missed out loud.
+            const report = formatHangReport({ label: LABEL, overdueMs: 1_000, pid: 1 });
+            expect(report).toContain('no native backtrace');
+            expect(report).toContain('eu-stack');
+        });
+
+        await it('hands the reader the knob that would clear a false positive', () => {
+            // The grace is a policy, not an inference: a body that blocks the loop past its own
+            // timeout and then returns PASSES today. Whoever reads this report is the only one
+            // who can tell that case from a wedge, so the variable travels with the accusation.
+            const report = formatHangReport({ label: LABEL, overdueMs: 1_000, pid: 1, graceMs: 30_000 });
+            expect(report).toContain('GJSIFY_HANG_GRACE_MS');
+            expect(report).toContain('30000 ms');
+        });
+    });
+
+    await describe('hangGraceMs', async () => {
+        await it('defaults when unset, and takes a number when set', () => {
+            expect(hangGraceMs({})).toBe(DEFAULT_GRACE_MS);
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: '5000' })).toBe(5_000);
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: '0' })).toBe(0);
+        });
+
+        await it('reads a BLANK value as the default, not as zero', () => {
+            // `Number('')` is 0, and 0 disables the guard. A workflow that writes
+            // `GJSIFY_HANG_GRACE_MS: ${{ inputs.grace }}` with no input passes exactly this,
+            // so the empty string must not be able to switch the guard off silently.
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: '' })).toBe(DEFAULT_GRACE_MS);
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: '   ' })).toBe(DEFAULT_GRACE_MS);
+        });
+
+        await it('falls back rather than trusting a value it cannot read', () => {
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: 'soon' })).toBe(DEFAULT_GRACE_MS);
+            expect(hangGraceMs({ GJSIFY_HANG_GRACE_MS: '-1' })).toBe(DEFAULT_GRACE_MS);
+        });
+    });
+
+    await describe('heartbeatEnv', async () => {
+        await it('names the file this spawn minted', () => {
+            const env = heartbeatEnv({ PATH: '/usr/bin' }, '/tmp/gjsify-hb-x/unit.heartbeat');
+            expect(env.GJSIFY_UNIT_HEARTBEAT).toBe('/tmp/gjsify-hb-x/unit.heartbeat');
+            expect(env.PATH).toBe('/usr/bin');
+        });
+
+        await it('REMOVES an inherited one when this spawn minted none', () => {
+            // The variable is inherited. A spawn that mints no file (grace 0, or a `/tmp` that
+            // refused) used to pass an OUTER run's path straight through: the inner run wrote
+            // its own deadlines into the outer run's file, and the outer watchdog judged them
+            // against the outer child's pid — killing a healthy process, or disarming itself on
+            // the inner run's closing `0\t<run finished>` line.
+            const env = heartbeatEnv({ GJSIFY_UNIT_HEARTBEAT: '/tmp/outer/unit.heartbeat' }, undefined);
+            expect('GJSIFY_UNIT_HEARTBEAT' in env).toBeFalsy();
+        });
+
+        await it('leaves the caller env it was handed alone', () => {
+            const base = { GJSIFY_UNIT_HEARTBEAT: '/tmp/outer/unit.heartbeat' };
+            heartbeatEnv(base, undefined);
+            expect(base.GJSIFY_UNIT_HEARTBEAT).toBe('/tmp/outer/unit.heartbeat');
         });
     });
 };

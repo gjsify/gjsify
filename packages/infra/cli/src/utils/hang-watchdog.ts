@@ -9,9 +9,17 @@
 // The full measurement is in `packages/gjs/unit/src/heartbeat.ts`.
 //
 // So the child writes `<deadline-epoch-ms>\t<label>` before each test, and this polls that
-// file. Past the deadline plus a grace margin the test is not slow — the harness would have
-// failed it itself — so this names it, grabs a native backtrace while the wedge is still
-// standing, and kills the child.
+// file. Past the deadline plus a grace margin this names the test, grabs a native backtrace
+// while the wedge is still standing, and kills the child.
+//
+// The grace is a POLICY, not an inference from the harness, and the difference is measured. A
+// body that blocks the loop past its own timeout and then RETURNS passes today: `withTimeout`
+// arms its timer before calling `fn()`, but the expired timer is cleared in `finally` before
+// the loop ever turns again, so the already-resolved body wins the race. A 12 s synchronous
+// body under a 5 s timeout exits 0 on `main`; with a 3 s grace this guard kills it. The grace
+// is therefore "how long a body may legitimately block the loop beyond its own budget" — at
+// the 30 s default, 7x the 5 s test timeout — which is why the report names
+// `GJSIFY_HANG_GRACE_MS`: a false positive has to be fixable by whoever hits it.
 //
 // Inert by construction: a bundle that is not an `@gjsify/unit` run writes no heartbeat, so
 // `parseHeartbeat` returns `null` forever and a GUI launched through `gjsify run` is never
@@ -32,6 +40,45 @@ export const DEFAULT_GRACE_MS = 30_000;
 
 /** How often the file is read. A hang is a minutes-scale event; a second of latency is free. */
 export const DEFAULT_POLL_MS = 1_000;
+
+/**
+ * Grace on top of the harness's own deadline, read from `GJSIFY_HANG_GRACE_MS`. `0` turns the
+ * watchdog off — the escape hatch for a debugger parked on a breakpoint, which looks exactly
+ * like a hang from out here.
+ *
+ * A BLANK value is the DEFAULT, not `0`. `Number('')` is `0`, so a matrix leg that sets the
+ * variable to an empty string (the shape every `${{ }}` expansion takes when its input is
+ * missing) would have switched the guard off without anyone writing a zero — a guard silently
+ * disarmed by an empty string is the failure mode this whole PR exists to stop.
+ */
+export function hangGraceMs(env: Record<string, string | undefined>): number {
+    const raw = env.GJSIFY_HANG_GRACE_MS;
+    if (raw === undefined || raw.trim() === '') return DEFAULT_GRACE_MS;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : DEFAULT_GRACE_MS;
+}
+
+/**
+ * The child's environment with `GJSIFY_UNIT_HEARTBEAT` pointing at `path` — or REMOVED when
+ * there is none.
+ *
+ * Removing it is the load-bearing half. The variable is INHERITED, so a spawn that mints no
+ * file of its own (`GJSIFY_HANG_GRACE_MS=0`, or a `/tmp` that refused) used to hand the child
+ * an OUTER run's heartbeat path. The inner run then wrote its own per-test deadlines into the
+ * outer run's file, and the outer watchdog judged them against the outer child's pid: a short
+ * inner deadline kills a healthy outer child, and the inner run's closing `0\t<run finished>`
+ * disarms the outer guard outright. Measured before the fix — with the variable preset and the
+ * grace at 0, the child wrote `0\t<run finished>` into the inherited path.
+ */
+export function heartbeatEnv(
+    base: Record<string, string | undefined>,
+    path: string | undefined,
+): Record<string, string | undefined> {
+    const env: Record<string, string | undefined> = { ...base };
+    if (path) env.GJSIFY_UNIT_HEARTBEAT = path;
+    else delete env.GJSIFY_UNIT_HEARTBEAT;
+    return env;
+}
 
 /**
  * Parse one heartbeat line. Returns `null` for anything that is not one — an absent file, a
@@ -57,7 +104,13 @@ export function parseHeartbeat(text: string | null | undefined): Heartbeat | nul
  * frame is the part that points at the actual wedge (a `gst_pad_*` call, a `pthread_cond_wait`)
  * and is the one thing no amount of re-running recovers once the process is gone.
  */
-export function formatHangReport(input: { label: string; overdueMs: number; pid: number; backtrace?: string }): string {
+export function formatHangReport(input: {
+    label: string;
+    overdueMs: number;
+    pid: number;
+    graceMs?: number;
+    backtrace?: string;
+}): string {
     const lines = [
         `⏱ hang: "${input.label}" is ${Math.round(input.overdueMs / 1000)}s past its own deadline`,
         `  gjs pid ${input.pid} stopped turning its main loop, so @gjsify/unit's timeout cannot fire`,
@@ -66,6 +119,16 @@ export function formatHangReport(input: { label: string; overdueMs: number; pid:
     if (input.backtrace) {
         lines.push('  native backtrace at the moment of the hang:');
         for (const l of input.backtrace.split('\n')) lines.push(`    ${l}`);
+    } else {
+        // Said out loud. Silence here reads as "the guard had nothing to add", when what it
+        // means is that the one artefact a dead process cannot be asked for again was missed.
+        lines.push('  no native backtrace: eu-stack (elfutils) absent, refused the attach, or found nothing');
+    }
+    if (input.graceMs !== undefined) {
+        // The knob travels WITH the accusation: whoever reads this is the one person who can
+        // tell a wedge from a body that legitimately blocks the loop this long.
+        lines.push(`  a test that legitimately blocks the loop this long: raise GJSIFY_HANG_GRACE_MS`);
+        lines.push(`  (now ${input.graceMs} ms, 0 disables this guard).`);
     }
     return lines.join('\n');
 }
@@ -73,7 +136,9 @@ export function formatHangReport(input: { label: string; overdueMs: number; pid:
 /**
  * Best-effort native backtrace of a wedged process, capped at `maxLines`.
  *
- * `eu-stack` (elfutils) ships in the CI images and needs no debuginfo to name the frames. On
+ * `eu-stack` (elfutils) needs no debuginfo to name the frames. It is NOT in the base image of
+ * every runner — `.docker/ci-fedora.Dockerfile` installs it on purpose, and macOS and Windows
+ * runners have no such tool at all, so this returning `undefined` is a normal outcome. On
  * the measured webrtc shape it prints the answer outright — `g_main_loop_run` under
  * `ffi_call`, i.e. a GI call that entered a loop it never left — which is what no amount of
  * re-running recovers once the process is gone.
