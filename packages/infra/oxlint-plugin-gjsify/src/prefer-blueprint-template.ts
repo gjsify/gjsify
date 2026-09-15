@@ -33,7 +33,17 @@
 //
 // Library code that implements widgets for others (a renderer, a host, a storybook harness) is
 // exempt by nature; scope the rule to application packages in `.oxlintrc.json` rather than
-// disabling it line by line.
+// disabling it line by line. A site blocked by the TOOLCHAIN rather than by its nature is the
+// other case and keeps a line-level disable with its measurement, so the blocker is still
+// visible where it applies and still deletable when it lifts.
+//
+// WHAT STILL ESCAPES, measured with fixtures rather than assumed: a class that already declares a
+// `Template` and assembles a SECOND tree in one of its methods. That is the price of the promise
+// two paragraphs up — a templated class is silent — and it is bounded, because such a class has
+// already declared most of its interface. Everything else that was tried is caught: construction
+// and parenting split across two sibling functions, a factory that returns a widget, assembly in
+// a top-level statement, a method of a plain class, an object-literal method, an arrow stored in
+// a const, `.tsx`, and a `vfunc_activate()` inside an application subclass.
 
 import type { ClassBody, Context, Node, PropertyDefinition, Rule, StaticBlock } from './types.ts';
 import { isNode, memberCallName, newGtkAdwType, walk } from './walk.ts';
@@ -215,26 +225,6 @@ function declaresTemplate(body: ClassBody): boolean {
     return false;
 }
 
-/**
- * `class X extends Gtk.Y` / `extends Adw.Y` — INCLUDING the application bases that
- * {@link gtkAdwSuperClass} deliberately answers `null` for.
- *
- * The module-scope walk uses this to decide what NOT to enter, so the two halves of the rule can
- * never both report the same tree. It has to be the wider test: a `Gtk.Application` subclass is
- * exempt by a decision already made above (it builds a `CssProvider` and an `AboutDialog` from its
- * own metadata, and reporting that taught the rule's first reader that it cries wolf) — entering
- * its body from module scope would take that exemption away by the back door.
- */
-function extendsGtkAdw(node: Node): boolean {
-    const superClass = node.superClass as Node | undefined;
-    if (!superClass || superClass.type !== 'MemberExpression' || superClass.computed === true) return false;
-    const object = superClass.object as Node | undefined;
-    const property = superClass.property as Node | undefined;
-    if (object?.type !== 'Identifier' || property?.type !== 'Identifier') return false;
-    const ns = object.name as string;
-    return ns === 'Gtk' || ns === 'Adw';
-}
-
 /** The nodes that own a scope here: a function is the unit a reader can move into a `.blp`. */
 const SCOPE_TYPES = new Set<string>(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
 
@@ -269,7 +259,18 @@ function describeScope(node: Node): string {
  * (`parent` loops; `tokens`/`comments` hang off Program and pass the structural node test).
  */
 function descend(node: Node, scope: Scope): void {
-    if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && extendsGtkAdw(node)) return;
+    // Skip exactly what `checkClass` owns — a widget subclass — so the two halves can never
+    // report one tree twice. NOT the wider `extends Gtk.*|Adw.*` test: that also skipped the
+    // APPLICATION bases, and an `activate` handler moved from a callback into
+    // `vfunc_activate()` of a `Gtk.Application` subclass then escaped the rule completely,
+    // which is the same bug this rule exists for wearing the most idiomatic GJS spelling.
+    // Measured before widening the entry: 0 new findings across this repository, and the
+    // false positive the application exemption was written for does not come back —
+    // `Gtk.CssProvider` is already a non-widget construction and an `Adw.AboutDialog` is
+    // presented rather than parented, so the both-signals requirement stays unsatisfied.
+    if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && gtkAdwSuperClass(node) !== null) {
+        return;
+    }
 
     let current = scope;
     if (SCOPE_TYPES.has(node.type)) {

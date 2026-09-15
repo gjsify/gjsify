@@ -572,3 +572,210 @@ describe('oxlint plugin gjsify/no-css-side-effect-import E2E', { timeout: 5 * 60
         assert.equal(res.status, 0, `disabled fixture must pass:\n${out}`);
     });
 });
+
+// `prefer-blueprint-template`: the rule shipped visiting `ClassDeclaration` /
+// `ClassExpression` only, and `templates/gtk-minimal` — the scaffold every
+// `gjsify create` user starts from — assembled its window inside an `activate`
+// callback and reported ZERO. A green that meant "did not look". The rule now
+// also walks module scope, so the fixtures below are the shapes that were
+// TRIED against it rather than the one that happened to be in the tree: if a
+// future narrowing lets one of them back out, this is what says so.
+//
+// The two silent fixtures are as load-bearing as the reporting ones. A class
+// that already declares a `Template` is silent by promise (populating
+// data-driven children inside a template is the intended pattern), and an
+// application subclass that builds a `Gtk.CssProvider` and presents an
+// `Adw.AboutDialog` is the false positive the application exemption was
+// written for — it stays silent because the rule requires BOTH signals, which
+// is why entering application bodies at all was safe.
+describe('oxlint plugin gjsify/prefer-blueprint-template E2E', { timeout: 5 * 60 * 1000 }, () => {
+    let tmpDir;
+    let configPath;
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-blueprint-rule-'));
+        configPath = join(tmpDir, '.oxlintrc.json');
+        writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    jsPlugins: [PLUGIN_ENTRY],
+                    rules: { 'gjsify/prefer-blueprint-template': 'error' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+    });
+
+    after(() => {
+        rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function findings(name, source) {
+        const file = join(tmpDir, name);
+        writeFileSync(file, source);
+        const res = spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, file], {
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+        });
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        return { count: (out.match(/gjsify\(prefer-blueprint-template\)/g) ?? []).length, out };
+    }
+
+    const GTK = "import Gtk from 'gi://Gtk?version=4.0';\n";
+    const GOBJECT = "import GObject from 'gi://GObject?version=2.0';\n";
+
+    const REPORTED = [
+        [
+            'construction and parenting split across two sibling functions',
+            'split.ts',
+            `${GTK}let made: Gtk.Widget | null = null;
+export function build(): void {
+    made = new Gtk.Label();
+}
+export function parent(box: Gtk.Box): void {
+    if (made) box.append(made);
+}
+`,
+        ],
+        [
+            'a factory that returns a widget',
+            'factory.ts',
+            `${GTK}function makeLabel(): Gtk.Label {
+    return new Gtk.Label();
+}
+export function assemble(box: Gtk.Box): void {
+    box.append(makeLabel());
+}
+`,
+        ],
+        [
+            'assembly in a top-level statement',
+            'toplevel.ts',
+            `${GTK}const box = new Gtk.Box();
+box.append(new Gtk.Label());
+export default box;
+`,
+        ],
+        [
+            'a method of a plain class',
+            'plain-class.ts',
+            `${GTK}export class Builder {
+    build(): Gtk.Box {
+        const box = new Gtk.Box();
+        box.append(new Gtk.Label());
+        return box;
+    }
+}
+`,
+        ],
+        [
+            'an arrow stored in a const, in a .tsx file',
+            'arrow.tsx',
+            `${GTK}export const build = (): Gtk.Box => {
+    const box = new Gtk.Box();
+    box.append(new Gtk.Label());
+    return box;
+};
+`,
+        ],
+        [
+            // The regression that matters most: this is the old scaffold's
+            // `activate` callback written in the most idiomatic GJS spelling.
+            // While the module walk skipped every `extends Gtk.*|Adw.*` class,
+            // moving the body here escaped the rule completely.
+            'vfunc_activate() inside a Gtk.Application subclass',
+            'application.ts',
+            `${GTK}export class MyApp extends Gtk.Application {
+    vfunc_activate(): void {
+        const window = new Gtk.ApplicationWindow({ application: this });
+        const box = new Gtk.Box();
+        box.append(new Gtk.Label());
+        window.set_child(box);
+        window.present();
+    }
+}
+`,
+        ],
+        [
+            'a widget subclass with no Template',
+            'widget.ts',
+            `${GOBJECT}${GTK}export class Panel extends Gtk.Box {
+    static {
+        GObject.registerClass({ GTypeName: 'Panel' }, Panel);
+    }
+    constructor() {
+        super({});
+        this.append(new Gtk.Label());
+    }
+}
+`,
+        ],
+    ];
+
+    for (const [what, name, source] of REPORTED) {
+        it(`reports ${what}`, () => {
+            const { count, out } = findings(name, source);
+            assert.equal(count, 1, `expected exactly 1 finding, got ${count}:\n${out}`);
+        });
+    }
+
+    const SILENT = [
+        [
+            'a class that declares a Template',
+            'templated.ts',
+            `${GOBJECT}${GTK}export class Win extends Gtk.ApplicationWindow {
+    static {
+        GObject.registerClass({ GTypeName: 'Win', Template: 'x' }, Win);
+    }
+    fill(): void {
+        const box = new Gtk.Box();
+        box.append(new Gtk.Label());
+        this.set_child(box);
+    }
+}
+`,
+        ],
+        [
+            'an application subclass that only styles itself and presents a dialog',
+            'app-chrome.ts',
+            `${GTK}import Adw from 'gi://Adw?version=1';
+export class MyApp extends Gtk.Application {
+    vfunc_startup(): void {
+        const provider = new Gtk.CssProvider();
+        provider.load_from_string('window { background: red; }');
+    }
+    about(): void {
+        new Adw.AboutDialog().present(this.active_window);
+    }
+}
+`,
+        ],
+        [
+            'construction with no parenting call',
+            'no-parenting.ts',
+            `${GTK}export function make(): Gtk.Label {
+    return new Gtk.Label();
+}
+`,
+        ],
+        [
+            'a model filled with strings, whose adder shares a parenting name',
+            'string-list.ts',
+            `${GTK}export function fill(row: Gtk.Box): void {
+    const model = new Gtk.StringList();
+    model.append('one');
+    row.set_visible(true);
+}
+`,
+        ],
+    ];
+
+    for (const [what, name, source] of SILENT) {
+        it(`stays silent on ${what}`, () => {
+            const { count, out } = findings(name, source);
+            assert.equal(count, 0, `expected no finding, got ${count}:\n${out}`);
+        });
+    }
+});
