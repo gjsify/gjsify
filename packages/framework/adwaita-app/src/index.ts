@@ -54,7 +54,7 @@ export type { FileFilterSpec, PickFileOptions } from './file-dialog.js';
 export { initLocale } from './locale.js';
 export type { InitLocaleOptions, Translator } from './locale.js';
 
-export { SYSTEM_LOCALE_DIR, resolveLocaleDir } from './locale-dir.js';
+export { SYSTEM_LOCALE_DIR, resolveLocaleDir, systemLocaleDir } from './locale-dir.js';
 export type { ResolveLocaleDirOptions } from './locale-dir.js';
 
 export { readAppDevHooks } from './dev-hooks.js';
