@@ -309,6 +309,15 @@ jobs:
           # --immutable` now refuses such a tree by name instead of installing
           # over it, so a fallback here would turn every lockfile-changing PR
           # red. Full reasoning: .github/actions/gjsify-setup/action.yml.
+          #
+          # That action also caches the content-addressed TARBALL store (which DOES
+          # take a prefix fallback — a blob keyed by its own hash cannot be a wrong
+          # answer to a right name) so its jobs pay an extract, not a re-download,
+          # when the lockfile moves. These two jobs do NOT share it: they install
+          # without an XDG_CACHE_HOME override, so their store is ~/.cache/gjsify,
+          # a different root that would need its own key namespace and a second
+          # ~420 MB entry against the 10 GB budget. Left unshared deliberately;
+          # point them at a workspace-local cache dir first if that changes.
           key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
 
       # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
@@ -629,6 +638,15 @@ jobs:
           # --immutable` now refuses such a tree by name instead of installing
           # over it, so a fallback here would turn every lockfile-changing PR
           # red. Full reasoning: .github/actions/gjsify-setup/action.yml.
+          #
+          # That action also caches the content-addressed TARBALL store (which DOES
+          # take a prefix fallback — a blob keyed by its own hash cannot be a wrong
+          # answer to a right name) so its jobs pay an extract, not a re-download,
+          # when the lockfile moves. These two jobs do NOT share it: they install
+          # without an XDG_CACHE_HOME override, so their store is ~/.cache/gjsify,
+          # a different root that would need its own key namespace and a second
+          # ~420 MB entry against the 10 GB budget. Left unshared deliberately;
+          # point them at a workspace-local cache dir first if that changes.
           key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
 
       # Cache the transpiled workspace libs (packages/*/*/lib) under a napi-scoped
