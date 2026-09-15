@@ -240,6 +240,24 @@ describe('foreign-platform-paths gate', () => {
         assert.ok(run(root).ok, 'a `linux` path segment declares the module\u2019s scope');
     });
 
+    // THE WINDOWS SPELLING, pinned FROM LINUX. `relative()` answers in the host's separator, so
+    // on `windows-latest` \u2014 where `audit-runtimes.yml` really runs this gate \u2014 the same module
+    // arrives as `packages\framework\sample\src\linux\paths.ts`, and the exemption pattern
+    // matches `/`, `-` and `.` but not `\`. Unfixed, that module is exempt on Linux and scanned
+    // on Windows: one gate, two verdicts, red on the leg its author never runs.
+    //
+    // A filename containing a literal backslash is the proxy, because a POSIX host cannot make
+    // a real `\` separator. It drives the identical code path \u2014 a `\` inside the relative path \u2014
+    // which is why folding both separators, rather than `path.sep`, is what makes this testable
+    // at all. The case fails if the fold is removed.
+    it('exempts the same module when the path is spelled the Windows way', () => {
+        const root = fixture({
+            'packages/framework/sample/src/linux\\paths.ts': "export const DIR = '/usr/share/locale';\n",
+        });
+        const { ok, out } = run(root);
+        assert.ok(ok, `a \\-separated linux segment must be exempt too:\n${out}`);
+    });
+
     // ---- The scanner's own honesty ------------------------------------------------------------
 
     // Counting bare backticks desynced on `packages/framework/webgl/src/ts/utils.ts`, whose

@@ -446,7 +446,25 @@ if (frameworkSources.length < 10 && failures.length === 0) {
 }
 
 for (const full of frameworkSources) {
-    const rel = relative(ROOT, full);
+    // SEPARATORS NORMALISED FIRST, and this is not cosmetic. `relative()` answers in the HOST's
+    // separator, so on Windows this reads `packages\framework\x\src\linux\paths.ts` — and the
+    // exemption below matches `/`, `-` and `.` but not `\`. A module under a `linux/` directory
+    // would therefore be exempt on Linux and scanned on Windows: one gate, two verdicts, red on
+    // the only leg its author never runs. That is the same shape as the template-literal hole
+    // above — a path rule that works on the platform it was written on — and this gate runs on
+    // `windows-latest` in `audit-runtimes.yml`, so it is reachable rather than theoretical.
+    // `scripts/` sits outside `check-posix-path-slice.mjs`'s `SEARCH_ROOTS` (`packages` only),
+    // so nothing else in this tree would have caught it.
+    //
+    // Both separators are folded, not `path.sep`, and that choice is the testable one: with
+    // `sep` the rule would still answer differently per host and could only be checked BY
+    // running it on Windows, which is how the divergence got here. Folding `\` everywhere makes
+    // the exemption host-independent, so `tests/e2e/foreign-platform-paths-gate` pins the
+    // Windows spelling from Linux — the same "platform is a parameter" discipline this PR is
+    // about. What it costs: a POSIX file literally named `linux\paths.ts` is read as a `linux`
+    // directory and exempted. Nobody writes that, and an over-exemption on a filename nobody
+    // writes is cheaper than a gate whose verdict depends on who ran it.
+    const rel = relative(ROOT, full).replaceAll('\\', '/');
     // A module whose own path says `linux` has declared its scope there. The only exemption,
     // and it is one nobody can widen without renaming a file to lie about what it is.
     if (/(^|[/\-.])linux([/\-.]|$)/.test(rel)) continue;
