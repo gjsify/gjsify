@@ -850,3 +850,23 @@ the staged face asserts there.
 The Tamil claim is kept as a SECOND measurement, asserted only where the platform map still misses
 the script and reported as a finding where it no longer does. It retires itself per platform
 instead of going red for a non-defect, and it can no longer be the only thing holding the change.
+
+### What this control does NOT prove, measured rather than assumed
+
+**Selecting a backend and supplying that backend's configuration are two different acts, and only
+the first is in this change.** Measured on the darwin windowing proof (run 34889281276): after the
+loader ran, `PANGOCAIRO_BACKEND` was `fc` while `FONTCONFIG_FILE` and `FONTCONFIG_PATH` were BOTH
+null. The darwin bundle ships no `etc/fonts` at all — `build-gtk-runtime-darwin.mjs` stages none,
+and its own comment says *"fontconfig's stock config finds them"*. win32 ships one and the loader
+points at it.
+
+So on darwin this change swaps a CoreText map fed by the OS for an fc map fed by whatever
+fontconfig finds on the HOST. On a runner with Homebrew that is 383 families; what it is on a Mac
+without Homebrew is exactly § "the host we cannot rent", and no leg here can answer it. The staged
+face proves that the selected backend READS the configuration it is given — it is handed its own,
+in the launch environment — and deliberately not that a shipped `.app` has a font supply.
+
+That second question is BUNDLING work, out of this ADR's amendment and tracked separately. What is
+recorded here is the asymmetry and the invariant now held in
+`font-script-coverage.test.mjs`: the loader names a fontconfig configuration exactly when the
+bundle carries one, so the gap cannot close silently in either direction.

@@ -549,6 +549,63 @@ test('Tamil renders wherever the platform map still misses it', (t) => {
 });
 
 
+// WHAT THE BUNDLE ACTUALLY HANDS FONTCONFIG, asserted as an invariant rather than assumed, because
+// selecting a backend and supplying that backend's configuration are two different acts and only
+// the first is in this change.
+//
+// MEASURED on the darwin windowing proof (run 34889281276): after the loader ran, `FONTCONFIG_FILE`
+// and `FONTCONFIG_PATH` were BOTH null while `PANGOCAIRO_BACKEND` was `fc`. The darwin bundle ships
+// no `etc/fonts` at all — `build-gtk-runtime-darwin.mjs` stages none, and its own comment says
+// "fontconfig's stock config finds them". win32 does ship one, and the loader points at it.
+//
+// So on darwin this change swaps a CoreText map fed by the OS for an fc map fed by whatever
+// fontconfig finds on the HOST. On a runner with Homebrew that is 383 families; on a clean Mac it
+// is not this test's to say. Closing that gap is BUNDLING work and is tracked separately (a proposed
+// ADR on shipping `etc/fonts` for darwin); what belongs here is the measurement, so the gap cannot be
+// forgotten and cannot be closed silently.
+//
+// The invariant is the honest one either way: the loader sets the two variables exactly when the
+// bundle carries the file they would name. It fails if someone ships `etc/fonts` without wiring it,
+// or wires it without shipping it — which is how this asymmetry would otherwise drift.
+test('the loader names a fontconfig configuration exactly when the bundle ships one', (t) => {
+    if (!windowingBundleIsActive()) {
+        t.skip('no active windowing bundle — nothing wired any of these variables');
+        return;
+    }
+    const bundle = resolveGtkRuntimeBundle();
+    const shipped = existsSync(join(bundle.dir, 'etc', 'fonts', 'fonts.conf'));
+
+    const result = probe();
+    if (result.error) {
+        t.skip(`no Pango on this host: ${result.error}`);
+        return;
+    }
+    const file = result.envAfterLoad?.FONTCONFIG_FILE ?? null;
+    const path = result.envAfterLoad?.FONTCONFIG_PATH ?? null;
+
+    console.log(
+        `bundle etc/fonts/fonts.conf: ${shipped ? 'SHIPPED' : 'ABSENT'}; loader set FONTCONFIG_FILE=` +
+            `${JSON.stringify(file)} FONTCONFIG_PATH=${JSON.stringify(path)}; map [${result.mapTypes}] with ` +
+            `${result.familyCount} families. Where the bundle ships no configuration, those families come ` +
+            'from the HOST.',
+    );
+
+    assert.equal(
+        file !== null,
+        shipped,
+        `the bundle ${shipped ? 'SHIPS' : 'does NOT ship'} etc/fonts/fonts.conf and the loader ` +
+            `${file !== null ? 'DID' : 'did NOT'} set FONTCONFIG_FILE (${JSON.stringify(file)}). Those two have ` +
+            'to agree: maybeWireGtkWindowingEnv() guards the write on that file existing, so a disagreement ' +
+            'means one of the two moved without the other.',
+    );
+    assert.equal(
+        path !== null,
+        shipped,
+        `same for FONTCONFIG_PATH (${JSON.stringify(path)}) against a bundle that ` +
+            `${shipped ? 'ships' : 'does not ship'} etc/fonts/fonts.conf.`,
+    );
+});
+
 // THE HOST WE CANNOT RENT: a Mac with no Homebrew. Choosing fontconfig on darwin puts the
 // process's whole font supply behind a configuration THIS BUNDLE DOES NOT SHIP — unlike win32,
 // where `etc/fonts/fonts.conf` travels in the tarball and the loader points `FONTCONFIG_FILE` at
