@@ -5,14 +5,17 @@
 // The type surface: one interface per GIR declaration, mirroring GIR's own
 // inheritance, plus the four tag maps the dialect adapters build on.
 //
-// 191 interfaces for 169 widgets — the widgets have 6837 writable
-// property slots between them and 569 distinct property names, which is the whole
+// 392 interfaces for 169 widgets — the widgets have 7850 writable
+// property slots between them and 920 distinct property names, which is the whole
 // reason this is a hierarchy and not one flat interface per tag.
 
 import type Adw from '@girs/adw-1';
 import type GLib from '@girs/glib-2.0';
+import type GObject from '@girs/gobject-2.0';
 import type Gdk from '@girs/gdk-4.0';
+import type GdkPixbuf from '@girs/gdkpixbuf-2.0';
 import type Gio from '@girs/gio-2.0';
+import type Gsk from '@girs/gsk-4.0';
 import type Gtk from '@girs/gtk-4.0';
 import type Pango from '@girs/pango-1.0';
 
@@ -81,6 +84,7 @@ export type AdwToastPriorityNick = 'normal' | 'high';
 export type AdwToolbarStyleNick = 'flat' | 'raised' | 'raised-border';
 export type AdwViewSwitcherPolicyNick = 'narrow' | 'wide';
 export type AdwWrapPolicyNick = 'minimum' | 'natural';
+export type GPasswordSaveNick = 'never' | 'for-session' | 'permanently';
 export type GtkAccessibleAnnouncementPriorityNick = 'low' | 'medium' | 'high';
 export type GtkAccessibleAutocompleteNick = 'none' | 'inline' | 'list' | 'both';
 export type GtkAccessibleInvalidStateNick = 'false' | 'true' | 'grammar' | 'spelling';
@@ -525,7 +529,38 @@ export type GtkWindowGravityNick =
     | 'bottom-start'
     | 'bottom-end';
 export type GtkWrapModeNick = 'none' | 'char' | 'word' | 'word-char';
+export type PangoAlignmentNick = 'left' | 'center' | 'right';
 export type PangoEllipsizeModeNick = 'none' | 'start' | 'middle' | 'end';
+export type PangoOverlineNick = 'none' | 'single';
+export type PangoStretchNick =
+    | 'ultra-condensed'
+    | 'extra-condensed'
+    | 'condensed'
+    | 'semi-condensed'
+    | 'normal'
+    | 'semi-expanded'
+    | 'expanded'
+    | 'extra-expanded'
+    | 'ultra-expanded';
+export type PangoStyleNick = 'normal' | 'oblique' | 'italic';
+export type PangoTextTransformNick = 'none' | 'lowercase' | 'uppercase' | 'capitalize';
+export type PangoUnderlineNick =
+    | 'none'
+    | 'single'
+    | 'double'
+    | 'low'
+    | 'error'
+    | 'single-line'
+    | 'double-line'
+    | 'error-line';
+export type PangoVariantNick =
+    | 'normal'
+    | 'small-caps'
+    | 'all-small-caps'
+    | 'petite-caps'
+    | 'all-petite-caps'
+    | 'unicase'
+    | 'title-caps';
 export type PangoWrapModeNick = 'word' | 'char' | 'word-char' | 'none';
 
 /** A dialog showing information about the application. */
@@ -846,6 +881,27 @@ export interface AdwAlertDialogProps
     onNotifyPreferWideLayout?: NotifyHandler;
 }
 
+/** A base class for animations. */
+export interface AdwAnimationProps {
+    /** Whether to skip the animation when animations are globally disabled. */
+    followEnableAnimationsSetting?: boolean;
+    'follow-enable-animations-setting'?: boolean;
+    /** The target to animate. */
+    target?: Adw.AnimationTarget;
+    /** The animation widget. */
+    widget?: Gtk.Widget;
+    onDone?: Adw.Animation.SignalSignatures['done'];
+    onNotifyFollowEnableAnimationsSetting?: NotifyHandler;
+    onNotifyTarget?: NotifyHandler;
+    onNotifyWidget?: NotifyHandler;
+}
+
+/** Represents a value [class@Animation] can animate. */
+export interface AdwAnimationTargetProps {}
+
+/** A base class for Adwaita applications. */
+export interface AdwApplicationProps extends GtkApplicationProps, GApplicationProps {}
+
 /** A freeform application window. */
 export interface AdwApplicationWindowProps
     extends
@@ -974,6 +1030,15 @@ export interface AdwBreakpointBinProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** Describes a breakpoint for [class@Window] or [class@Dialog]. */
+export interface AdwBreakpointProps extends GtkBuildableProps {
+    /** The breakpoint's condition. */
+    condition?: Adw.BreakpointCondition | null;
+    onApply?: Adw.Breakpoint.SignalSignatures['apply'];
+    onUnapply?: Adw.Breakpoint.SignalSignatures['unapply'];
+    onNotifyCondition?: NotifyHandler;
+}
+
 /** A helper widget for creating buttons. */
 export interface AdwButtonContentProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -1014,6 +1079,9 @@ export interface AdwButtonRowProps
     onNotifyEndIconName?: NotifyHandler;
     onNotifyStartIconName?: NotifyHandler;
 }
+
+/** An [class@AnimationTarget] that calls a given callback during the animation. */
+export interface AdwCallbackAnimationTargetProps extends AdwAnimationTargetProps {}
 
 /** A dots indicator for [class@Carousel]. */
 export interface AdwCarouselIndicatorDotsProps
@@ -1067,6 +1135,21 @@ export interface AdwCarouselProps
     onNotifyRevealDuration?: NotifyHandler;
     onNotifyScrollParams?: NotifyHandler;
     onNotifySpacing?: NotifyHandler;
+}
+
+/** A layout manager constraining its children to a given size. */
+export interface AdwClampLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+    /** The maximum size to allocate to the children. */
+    maximumSize?: number;
+    'maximum-size'?: number;
+    /** The size above which the children are clamped. */
+    tighteningThreshold?: number;
+    'tightening-threshold'?: number;
+    /** The length unit for maximum size and tightening threshold. */
+    unit?: AdwLengthUnitNick | Adw.LengthUnit;
+    onNotifyMaximumSize?: NotifyHandler;
+    onNotifyTighteningThreshold?: NotifyHandler;
+    onNotifyUnit?: NotifyHandler;
 }
 
 /** A widget constraining its child to a given size. */
@@ -1158,6 +1241,27 @@ export interface AdwComboRowProps
     onNotifyUseSubtitle?: NotifyHandler;
 }
 
+/** A binding between a [class@GObject.Object] property and a CSS class on a [class@Gtk.Widget]. */
+export interface AdwCssClassBindingProps {
+    /** Flags to be used to control the binding. */
+    flags?: number;
+    /** The object to use as the source of the CSS class binding. */
+    source?: GObject.Object | null;
+    /** The name of the property that shoudl be used as the source of the binding. */
+    sourceProperty?: string;
+    'source-property'?: string;
+    /** The widget to use as the target of the CSS class binding. */
+    target?: Gtk.Widget | null;
+    /** The name of the CSS class that should be toggled on the target object. */
+    targetCssClass?: string;
+    'target-css-class'?: string;
+    onNotifyFlags?: NotifyHandler;
+    onNotifySource?: NotifyHandler;
+    onNotifySourceProperty?: NotifyHandler;
+    onNotifyTarget?: NotifyHandler;
+    onNotifyTargetCssClass?: NotifyHandler;
+}
+
 /** An adaptive dialog container. */
 export interface AdwDialogProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkShortcutManagerProps {
@@ -1239,6 +1343,20 @@ export interface AdwEntryRowProps
     onNotifyInputPurpose?: NotifyHandler;
     onNotifyMaxLength?: NotifyHandler;
     onNotifyShowApplyButton?: NotifyHandler;
+}
+
+/** `AdwEnumListItem` is the type of items in a [class@EnumListModel]. */
+export interface AdwEnumListItemProps {}
+
+/** A [iface@Gio.ListModel] representing values of a given enum. */
+export interface AdwEnumListModelProps {
+    /**
+     * The type of the enum represented by the model.
+     * @deprecated
+     */
+    enumType?: GObject.GType;
+    'enum-type'?: GObject.GType;
+    onNotifyEnumType?: NotifyHandler;
 }
 
 /** A [class@Gtk.ListBoxRow] used to reveal widgets. */
@@ -1438,12 +1556,44 @@ export interface AdwInlineViewSwitcherProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** An individual layout in [class@MultiLayoutView]. */
+export interface AdwLayoutProps extends GtkBuildableProps {
+    /** The content widget. */
+    content?: Gtk.Widget;
+    /** The name of the layout. */
+    name?: string | null;
+    onNotifyContent?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+}
+
 /** A child slot within [class@Layout]. */
 export interface AdwLayoutSlotProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The slot ID. */
     id?: string;
     onNotifyId?: NotifyHandler;
+}
+
+/** An auxiliary class used by [class@Leaflet]. */
+export interface AdwLeafletPageProps {
+    /**
+     * The leaflet child to which the page belongs.
+     * @deprecated
+     */
+    child?: Gtk.Widget;
+    /**
+     * The name of the child page.
+     * @deprecated
+     */
+    name?: string | null;
+    /**
+     * Whether the child can be navigated to when folded.
+     * @deprecated
+     */
+    navigatable?: boolean;
+    onNotifyChild?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyNavigatable?: NotifyHandler;
 }
 
 /** An adaptive container acting like a box or a stack. */
@@ -1682,6 +1832,9 @@ export interface AdwNavigationViewProps
     onNotifyVhomogeneous?: NotifyHandler;
 }
 
+/** An [class@AnimationTarget] that doesn't do anything. */
+export interface AdwNoneAnimationTargetProps extends AdwAnimationTargetProps {}
+
 /** A widget presenting sidebar and content side by side or as an overlay. */
 export interface AdwOverlaySplitViewProps
     extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -1884,6 +2037,16 @@ export interface AdwPreferencesWindowProps
     onNotifyVisiblePageName?: NotifyHandler;
 }
 
+/** An [class@AnimationTarget] changing the value of a property of a [class@GObject.Object] instance. */
+export interface AdwPropertyAnimationTargetProps extends AdwAnimationTargetProps {
+    /** The object whose property will be animated. */
+    object?: GObject.Object;
+    /** The `GParamSpec` of the property to be animated. */
+    pspec?: GObject.ParamSpec;
+    onNotifyObject?: NotifyHandler;
+    onNotifyPspec?: NotifyHandler;
+}
+
 /** A widget that displays a keyboard shortcut. */
 export interface AdwShortcutLabelProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -1905,6 +2068,74 @@ export interface AdwShortcutsDialogProps
         GtkBuildableProps,
         GtkConstraintTargetProps,
         GtkShortcutManagerProps {}
+
+/** An object representing an individual shortcut in [class@ShortcutsSection]. */
+export interface AdwShortcutsItemProps {
+    /** The shortcut accelerator. */
+    accelerator?: string;
+    /** Fully qualified action name to get the accelerator from. */
+    actionName?: string;
+    'action-name'?: string;
+    /** The shortcut direction. */
+    direction?: GtkTextDirectionNick | Gtk.TextDirection;
+    /** The subtitle of the shortcut. */
+    subtitle?: string;
+    /** The title of the shortcut. */
+    title?: string;
+    onNotifyAccelerator?: NotifyHandler;
+    onNotifyActionName?: NotifyHandler;
+    onNotifyDirection?: NotifyHandler;
+    onNotifySubtitle?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+}
+
+/** An object representing a section in [class@ShortcutsDialog]. */
+export interface AdwShortcutsSectionProps extends GtkBuildableProps {
+    /** The title of the section, can be `NULL`. */
+    title?: string | null;
+    onNotifyTitle?: NotifyHandler;
+}
+
+/** An item within [class@SidebarSection]. */
+export interface AdwSidebarItemProps {
+    /** Whether to activate the item on pointer motion during Drag-and-Drop. */
+    dragMotionActivate?: boolean;
+    'drag-motion-activate'?: boolean;
+    /** Whether the item is enabled. */
+    enabled?: boolean;
+    /** The icon name for this item. */
+    iconName?: string | null;
+    'icon-name'?: string | null;
+    /** The paintable to use as the icon for this item. */
+    iconPaintable?: Gdk.Paintable | null;
+    'icon-paintable'?: Gdk.Paintable | null;
+    /** The prefix widget for this item. */
+    prefix?: Gtk.Widget | null;
+    /** Subtitle of the item. */
+    subtitle?: string | null;
+    /** The suffix widget for this item. */
+    suffix?: Gtk.Widget | null;
+    /** Title of the item. */
+    title?: string | null;
+    /** The tooltip of the item. */
+    tooltip?: string | null;
+    /** Whether an underline in the title indicates a mnemonic. */
+    useUnderline?: boolean;
+    'use-underline'?: boolean;
+    /** Whether the item is visible. */
+    visible?: boolean;
+    onNotifyDragMotionActivate?: NotifyHandler;
+    onNotifyEnabled?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyIconPaintable?: NotifyHandler;
+    onNotifyPrefix?: NotifyHandler;
+    onNotifySubtitle?: NotifyHandler;
+    onNotifySuffix?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyTooltip?: NotifyHandler;
+    onNotifyUseUnderline?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+}
 
 /** Adaptive sidebar widget. */
 export interface AdwSidebarProps
@@ -1940,6 +2171,20 @@ export interface AdwSidebarProps
     onNotifyPrefix?: NotifyHandler;
     onNotifySelected?: NotifyHandler;
     onNotifySuffix?: NotifyHandler;
+}
+
+/** A section within [class@Sidebar]. */
+export interface AdwSidebarSectionProps extends GtkBuildableProps {
+    /** Context menu model for the section items. */
+    menuModel?: Gio.MenuModel | null;
+    'menu-model'?: Gio.MenuModel | null;
+    /** The suffix widget for this section. */
+    suffix?: Gtk.Widget | null;
+    /** Title of the section. */
+    title?: string | null;
+    onNotifyMenuModel?: NotifyHandler;
+    onNotifySuffix?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
 }
 
 /** An [class@ActionRow] with an embedded spin button. */
@@ -1986,6 +2231,13 @@ export interface AdwSpinRowProps
     onNotifyWrap?: NotifyHandler;
 }
 
+/** A paintable showing a loading spinner. */
+export interface AdwSpinnerPaintableProps extends GtkSymbolicPaintableProps {
+    /** The widget the spinner uses for frame clock. */
+    widget?: Gtk.Widget | null;
+    onNotifyWidget?: NotifyHandler;
+}
+
 /** A widget showing a loading spinner. */
 export interface AdwSpinnerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
@@ -2027,6 +2279,48 @@ export interface AdwSplitButtonProps
     onNotifyMenuModel?: NotifyHandler;
     onNotifyPopover?: NotifyHandler;
     onNotifyUseUnderline?: NotifyHandler;
+}
+
+/** A spring-based [class@Animation]. */
+export interface AdwSpringAnimationProps extends AdwAnimationProps {
+    /** Whether the animation should be clamped. */
+    clamp?: boolean;
+    /** Precision of the spring. */
+    epsilon?: number;
+    /** The initial velocity to start the animation with. */
+    initialVelocity?: number;
+    'initial-velocity'?: number;
+    /** Physical parameters describing the spring. */
+    springParams?: Adw.SpringParams;
+    'spring-params'?: Adw.SpringParams;
+    /** The value to animate from. */
+    valueFrom?: number;
+    'value-from'?: number;
+    /** The value to animate to. */
+    valueTo?: number;
+    'value-to'?: number;
+    onNotifyClamp?: NotifyHandler;
+    onNotifyEpsilon?: NotifyHandler;
+    onNotifyInitialVelocity?: NotifyHandler;
+    onNotifySpringParams?: NotifyHandler;
+    onNotifyValueFrom?: NotifyHandler;
+    onNotifyValueTo?: NotifyHandler;
+}
+
+/** An auxiliary class used by [class@Squeezer]. */
+export interface AdwSqueezerPageProps {
+    /**
+     * The the squeezer child to which the page belongs.
+     * @deprecated
+     */
+    child?: Gtk.Widget;
+    /**
+     * Whether the child is enabled.
+     * @deprecated
+     */
+    enabled?: boolean;
+    onNotifyChild?: NotifyHandler;
+    onNotifyEnabled?: NotifyHandler;
 }
 
 /** A best fit container. */
@@ -2106,6 +2400,54 @@ export interface AdwStatusPageProps
     onNotifyIconName?: NotifyHandler;
     onNotifyPaintable?: NotifyHandler;
     onNotifyTitle?: NotifyHandler;
+}
+
+/** A class for managing application-wide styling. */
+export interface AdwStyleManagerProps {
+    /** The requested application color scheme. */
+    colorScheme?: AdwColorSchemeNick | Adw.ColorScheme;
+    'color-scheme'?: AdwColorSchemeNick | Adw.ColorScheme;
+    /** The display the style manager is associated with. */
+    display?: Gdk.Display | null;
+    onNotifyColorScheme?: NotifyHandler;
+    onNotifyDisplay?: NotifyHandler;
+}
+
+/** A swipe tracker used in [class@Carousel], [class@NavigationView] and [class@OverlaySplitView]. */
+export interface AdwSwipeTrackerProps extends GtkOrientableProps {
+    /** Whether to allow swiping for more than one snap point at a time. */
+    allowLongSwipes?: boolean;
+    'allow-long-swipes'?: boolean;
+    /** Whether to allow dragging with mouse pointer. */
+    allowMouseDrag?: boolean;
+    'allow-mouse-drag'?: boolean;
+    /** Whether to allow touchscreen swiping from `GtkWindowHandle`. */
+    allowWindowHandle?: boolean;
+    'allow-window-handle'?: boolean;
+    /** Whether the swipe tracker is enabled. */
+    enabled?: boolean;
+    /** Whether to allow swiping past the first available snap point. */
+    lowerOvershoot?: boolean;
+    'lower-overshoot'?: boolean;
+    /** Whether to reverse the swipe direction. */
+    reversed?: boolean;
+    /** The widget the swipe tracker is attached to. */
+    swipeable?: Adw.Swipeable;
+    /** Whether to allow swiping past the last available snap point. */
+    upperOvershoot?: boolean;
+    'upper-overshoot'?: boolean;
+    onBeginSwipe?: Adw.SwipeTracker.SignalSignatures['begin-swipe'];
+    onEndSwipe?: Adw.SwipeTracker.SignalSignatures['end-swipe'];
+    onPrepare?: Adw.SwipeTracker.SignalSignatures['prepare'];
+    onUpdateSwipe?: Adw.SwipeTracker.SignalSignatures['update-swipe'];
+    onNotifyAllowLongSwipes?: NotifyHandler;
+    onNotifyAllowMouseDrag?: NotifyHandler;
+    onNotifyAllowWindowHandle?: NotifyHandler;
+    onNotifyEnabled?: NotifyHandler;
+    onNotifyLowerOvershoot?: NotifyHandler;
+    onNotifyReversed?: NotifyHandler;
+    onNotifySwipeable?: NotifyHandler;
+    onNotifyUpperOvershoot?: NotifyHandler;
 }
 
 /** An interface for swipeable widgets. */
@@ -2213,6 +2555,59 @@ export interface AdwTabOverviewProps
     onNotifyView?: NotifyHandler;
 }
 
+/** An auxiliary class used by [class@TabView]. */
+export interface AdwTabPageProps extends GtkAccessibleProps {
+    /** The child of the page. */
+    child?: Gtk.Widget;
+    /** The icon of the page. */
+    icon?: Gio.Icon | null;
+    /** Whether the indicator icon is activatable. */
+    indicatorActivatable?: boolean;
+    'indicator-activatable'?: boolean;
+    /** An indicator icon for the page. */
+    indicatorIcon?: Gio.Icon | null;
+    'indicator-icon'?: Gio.Icon | null;
+    /** The tooltip of the indicator icon. */
+    indicatorTooltip?: string;
+    'indicator-tooltip'?: string;
+    /** The search keyboard of the page. */
+    keyword?: string | null;
+    /** Whether to enable live thumbnail for this page. */
+    liveThumbnail?: boolean;
+    'live-thumbnail'?: boolean;
+    /** Whether the page is loading. */
+    loading?: boolean;
+    /** Whether the page needs attention. */
+    needsAttention?: boolean;
+    'needs-attention'?: boolean;
+    /** The parent page of the page. */
+    parent?: Adw.TabPage | null;
+    /** The horizontal alignment of the page thumbnail. */
+    thumbnailXalign?: number;
+    'thumbnail-xalign'?: number;
+    /** The vertical alignment of the page thumbnail. */
+    thumbnailYalign?: number;
+    'thumbnail-yalign'?: number;
+    /** The title of the page. */
+    title?: string;
+    /** The tooltip of the page. */
+    tooltip?: string | null;
+    onNotifyChild?: NotifyHandler;
+    onNotifyIcon?: NotifyHandler;
+    onNotifyIndicatorActivatable?: NotifyHandler;
+    onNotifyIndicatorIcon?: NotifyHandler;
+    onNotifyIndicatorTooltip?: NotifyHandler;
+    onNotifyKeyword?: NotifyHandler;
+    onNotifyLiveThumbnail?: NotifyHandler;
+    onNotifyLoading?: NotifyHandler;
+    onNotifyNeedsAttention?: NotifyHandler;
+    onNotifyParent?: NotifyHandler;
+    onNotifyThumbnailXalign?: NotifyHandler;
+    onNotifyThumbnailYalign?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyTooltip?: NotifyHandler;
+}
+
 /** A dynamic tabbed container. */
 export interface AdwTabViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -2240,12 +2635,75 @@ export interface AdwTabViewProps
     onNotifyShortcuts?: NotifyHandler;
 }
 
+/** A time-based [class@Animation]. */
+export interface AdwTimedAnimationProps extends AdwAnimationProps {
+    /** Whether the animation changes direction on every iteration. */
+    alternate?: boolean;
+    /** Duration of the animation, in milliseconds. */
+    duration?: number;
+    /** Easing function used in the animation. */
+    easing?: AdwEasingNick | Adw.Easing;
+    /** Number of times the animation will play. */
+    repeatCount?: number;
+    'repeat-count'?: number;
+    /** Whether the animation plays backwards. */
+    reverse?: boolean;
+    /** The value to animate from. */
+    valueFrom?: number;
+    'value-from'?: number;
+    /** The value to animate to. */
+    valueTo?: number;
+    'value-to'?: number;
+    onNotifyAlternate?: NotifyHandler;
+    onNotifyDuration?: NotifyHandler;
+    onNotifyEasing?: NotifyHandler;
+    onNotifyRepeatCount?: NotifyHandler;
+    onNotifyReverse?: NotifyHandler;
+    onNotifyValueFrom?: NotifyHandler;
+    onNotifyValueTo?: NotifyHandler;
+}
+
 /** A widget showing toasts above its content. */
 export interface AdwToastOverlayProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
+}
+
+/** A helper object for [class@ToastOverlay]. */
+export interface AdwToastProps {
+    /** The name of the associated action. */
+    actionName?: string | null;
+    'action-name'?: string | null;
+    /** The parameter for action invocations. */
+    actionTarget?: GLib.Variant | null;
+    'action-target'?: GLib.Variant | null;
+    /** The label to show on the button. */
+    buttonLabel?: string | null;
+    'button-label'?: string | null;
+    /** The custom title widget. */
+    customTitle?: Gtk.Widget | null;
+    'custom-title'?: Gtk.Widget | null;
+    /** The priority of the toast. */
+    priority?: AdwToastPriorityNick | Adw.ToastPriority;
+    /** The timeout of the toast, in seconds. */
+    timeout?: number;
+    /** The title of the toast. */
+    title?: string | null;
+    /** Whether to use Pango markup for the toast title. */
+    useMarkup?: boolean;
+    'use-markup'?: boolean;
+    onButtonClicked?: Adw.Toast.SignalSignatures['button-clicked'];
+    onDismissed?: Adw.Toast.SignalSignatures['dismissed'];
+    onNotifyActionName?: NotifyHandler;
+    onNotifyActionTarget?: NotifyHandler;
+    onNotifyButtonLabel?: NotifyHandler;
+    onNotifyCustomTitle?: NotifyHandler;
+    onNotifyPriority?: NotifyHandler;
+    onNotifyTimeout?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyUseMarkup?: NotifyHandler;
 }
 
 /** A group of exclusive toggles. */
@@ -2327,6 +2785,54 @@ export interface AdwToolbarViewProps
     onNotifyRevealBottomBars?: NotifyHandler;
     onNotifyRevealTopBars?: NotifyHandler;
     onNotifyTopBarStyle?: NotifyHandler;
+}
+
+/** An auxiliary class used by [class@ViewStack]. */
+export interface AdwViewStackPageProps extends GtkAccessibleProps {
+    /** The badge number for this page. */
+    badgeNumber?: number;
+    'badge-number'?: number;
+    /** The stack child to which the page belongs. */
+    child?: Gtk.Widget;
+    /** The icon name of the child page. */
+    iconName?: string | null;
+    'icon-name'?: string | null;
+    /** The name of the child page. */
+    name?: string | null;
+    /** Whether the page requires the user attention. */
+    needsAttention?: boolean;
+    'needs-attention'?: boolean;
+    /** Section title for this page. */
+    sectionTitle?: string | null;
+    'section-title'?: string | null;
+    /** Whether this page starts a section. */
+    startsSection?: boolean;
+    'starts-section'?: boolean;
+    /** The title of the child page. */
+    title?: string | null;
+    /** Whether an embedded underline in the title indicates a mnemonic. */
+    useUnderline?: boolean;
+    'use-underline'?: boolean;
+    /** Whether this page is visible. */
+    visible?: boolean;
+    onNotifyBadgeNumber?: NotifyHandler;
+    onNotifyChild?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyNeedsAttention?: NotifyHandler;
+    onNotifySectionTitle?: NotifyHandler;
+    onNotifyStartsSection?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyUseUnderline?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+}
+
+/** An auxiliary class used by [class@ViewStack]. */
+export interface AdwViewStackPagesProps extends GtkSectionModelProps, GtkSelectionModelProps {
+    /** The selected [class@ViewStackPage] within the [class@ViewStackPages]. */
+    selectedPage?: Adw.ViewStackPage | null;
+    'selected-page'?: Adw.ViewStackPage | null;
+    onNotifySelectedPage?: NotifyHandler;
 }
 
 /** A view container for [class@ViewSwitcher]. */
@@ -2518,6 +3024,136 @@ export interface AdwWrapBoxProps
     onNotifyWrapReverse?: NotifyHandler;
 }
 
+/** A box-like layout that can wrap into multiple lines. */
+export interface AdwWrapLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+    /** The alignment of the children within each line. */
+    align?: number;
+    /** The spacing between widgets on the same line. */
+    childSpacing?: number;
+    'child-spacing'?: number;
+    /** The length unit for child spacing. */
+    childSpacingUnit?: AdwLengthUnitNick | Adw.LengthUnit;
+    'child-spacing-unit'?: AdwLengthUnitNick | Adw.LengthUnit;
+    /** Determines whether and how each complete line should be stretched to fill the entire widget. */
+    justify?: AdwJustifyModeNick | Adw.JustifyMode;
+    /** Whether the last line should be stretched to fill the entire widget. */
+    justifyLastLine?: boolean;
+    'justify-last-line'?: boolean;
+    /** Whether all lines should take the same amount of space. */
+    lineHomogeneous?: boolean;
+    'line-homogeneous'?: boolean;
+    /** The spacing between lines. */
+    lineSpacing?: number;
+    'line-spacing'?: number;
+    /** The length unit for line spacing. */
+    lineSpacingUnit?: AdwLengthUnitNick | Adw.LengthUnit;
+    'line-spacing-unit'?: AdwLengthUnitNick | Adw.LengthUnit;
+    /** Determines the natural size for each line. */
+    naturalLineLength?: number;
+    'natural-line-length'?: number;
+    /** The length unit for natural line length. */
+    naturalLineLengthUnit?: AdwLengthUnitNick | Adw.LengthUnit;
+    'natural-line-length-unit'?: AdwLengthUnitNick | Adw.LengthUnit;
+    /** The direction children are packed in each line. */
+    packDirection?: AdwPackDirectionNick | Adw.PackDirection;
+    'pack-direction'?: AdwPackDirectionNick | Adw.PackDirection;
+    /** The policy for line wrapping. */
+    wrapPolicy?: AdwWrapPolicyNick | Adw.WrapPolicy;
+    'wrap-policy'?: AdwWrapPolicyNick | Adw.WrapPolicy;
+    /** Whether wrap direction should be reversed. */
+    wrapReverse?: boolean;
+    'wrap-reverse'?: boolean;
+    onNotifyAlign?: NotifyHandler;
+    onNotifyChildSpacing?: NotifyHandler;
+    onNotifyChildSpacingUnit?: NotifyHandler;
+    onNotifyJustify?: NotifyHandler;
+    onNotifyJustifyLastLine?: NotifyHandler;
+    onNotifyLineHomogeneous?: NotifyHandler;
+    onNotifyLineSpacing?: NotifyHandler;
+    onNotifyLineSpacingUnit?: NotifyHandler;
+    onNotifyNaturalLineLength?: NotifyHandler;
+    onNotifyNaturalLineLengthUnit?: NotifyHandler;
+    onNotifyPackDirection?: NotifyHandler;
+    onNotifyWrapPolicy?: NotifyHandler;
+    onNotifyWrapReverse?: NotifyHandler;
+}
+
+/** `GApplication` is the core class for application support. */
+export interface GApplicationProps {
+    /**
+     * The group of actions that the application exports.
+     * @deprecated
+     */
+    actionGroup?: Gio.ActionGroup;
+    'action-group'?: Gio.ActionGroup;
+    /** The unique identifier for the application. */
+    applicationId?: string | null;
+    'application-id'?: string | null;
+    /** Flags specifying the behaviour of the application. */
+    flags?: number;
+    /** Time (in milliseconds) to stay alive after becoming idle. */
+    inactivityTimeout?: number;
+    'inactivity-timeout'?: number;
+    /** The base resource path for the application. */
+    resourceBasePath?: string | null;
+    'resource-base-path'?: string | null;
+    /** The human-readable version number of the application. */
+    version?: string | null;
+    onActivate?: Gio.Application.SignalSignatures['activate'];
+    onCommandLine?: Gio.Application.SignalSignatures['command-line'];
+    onHandleLocalOptions?: Gio.Application.SignalSignatures['handle-local-options'];
+    onNameLost?: Gio.Application.SignalSignatures['name-lost'];
+    onOpen?: Gio.Application.SignalSignatures['open'];
+    onShutdown?: Gio.Application.SignalSignatures['shutdown'];
+    onStartup?: Gio.Application.SignalSignatures['startup'];
+    onNotifyActionGroup?: NotifyHandler;
+    onNotifyApplicationId?: NotifyHandler;
+    onNotifyFlags?: NotifyHandler;
+    onNotifyInactivityTimeout?: NotifyHandler;
+    onNotifyResourceBasePath?: NotifyHandler;
+    onNotifyVersion?: NotifyHandler;
+}
+
+/** `GMountOperation` provides a mechanism for interacting with the user. */
+export interface GMountOperationProps {
+    /** Whether to use an anonymous user when authenticating. */
+    anonymous?: boolean;
+    /** The index of the user's choice when a question is asked during the mount operation. */
+    choice?: number;
+    /** The domain to use for the mount operation. */
+    domain?: string | null;
+    /** Whether the device to be unlocked is a TCRYPT hidden volume. */
+    isTcryptHiddenVolume?: boolean;
+    'is-tcrypt-hidden-volume'?: boolean;
+    /** Whether the device to be unlocked is a TCRYPT system volume. */
+    isTcryptSystemVolume?: boolean;
+    'is-tcrypt-system-volume'?: boolean;
+    /** The password that is used for authentication when carrying out the mount operation. */
+    password?: string | null;
+    /** Determines if and how the password information should be saved. */
+    passwordSave?: GPasswordSaveNick | Gio.PasswordSave;
+    'password-save'?: GPasswordSaveNick | Gio.PasswordSave;
+    /** The VeraCrypt PIM value, when unlocking a VeraCrypt volume. */
+    pim?: number;
+    /** The user name that is used for authentication when carrying out the mount operation. */
+    username?: string | null;
+    onAborted?: Gio.MountOperation.SignalSignatures['aborted'];
+    onAskPassword?: Gio.MountOperation.SignalSignatures['ask-password'];
+    onAskQuestion?: Gio.MountOperation.SignalSignatures['ask-question'];
+    onReply?: Gio.MountOperation.SignalSignatures['reply'];
+    onShowProcesses?: Gio.MountOperation.SignalSignatures['show-processes'];
+    onShowUnmountProgress?: Gio.MountOperation.SignalSignatures['show-unmount-progress'];
+    onNotifyAnonymous?: NotifyHandler;
+    onNotifyChoice?: NotifyHandler;
+    onNotifyDomain?: NotifyHandler;
+    onNotifyIsTcryptHiddenVolume?: NotifyHandler;
+    onNotifyIsTcryptSystemVolume?: NotifyHandler;
+    onNotifyPassword?: NotifyHandler;
+    onNotifyPasswordSave?: NotifyHandler;
+    onNotifyPim?: NotifyHandler;
+    onNotifyUsername?: NotifyHandler;
+}
+
 /** Displays information about a program. */
 export interface GtkAboutDialogProps
     extends
@@ -2587,6 +3223,9 @@ export interface GtkAboutDialogProps
     onNotifyWrapLicense?: NotifyHandler;
 }
 
+/** Represents a link (i.e. */
+export interface GtkAccessibleHyperlinkProps extends GtkAccessibleProps {}
+
 /** An interface for accessible objects containing links. */
 export interface GtkAccessibleHypertextProps {}
 
@@ -2623,6 +3262,73 @@ export interface GtkActionableProps {
     onNotifyActionName?: NotifyHandler;
     onNotifyActionTarget?: NotifyHandler;
 }
+
+/** Activates a widget. */
+export interface GtkActivateActionProps extends GtkShortcutActionProps {}
+
+/** A model for a numeric value. */
+export interface GtkAdjustmentProps {
+    /** The minimum value of the adjustment. */
+    lower?: number;
+    /** The page increment of the adjustment. */
+    pageIncrement?: number;
+    'page-increment'?: number;
+    /** The page size of the adjustment. */
+    pageSize?: number;
+    'page-size'?: number;
+    /** The step increment of the adjustment. */
+    stepIncrement?: number;
+    'step-increment'?: number;
+    /** The maximum value of the adjustment. */
+    upper?: number;
+    /** The value of the adjustment. */
+    value?: number;
+    onChanged?: Gtk.Adjustment.SignalSignatures['changed'];
+    onValueChanged?: Gtk.Adjustment.SignalSignatures['value-changed'];
+    onNotifyLower?: NotifyHandler;
+    onNotifyPageIncrement?: NotifyHandler;
+    onNotifyPageSize?: NotifyHandler;
+    onNotifyStepIncrement?: NotifyHandler;
+    onNotifyUpper?: NotifyHandler;
+    onNotifyValue?: NotifyHandler;
+}
+
+/** Collects the arguments that are needed to present a message to the user. */
+export interface GtkAlertDialogProps {
+    /** Labels for buttons to show in the alert. */
+    buttons?: string[] | null;
+    /** Determines what happens when the <kbd>Escape</kbd> key is pressed while the alert is shown. */
+    cancelButton?: number;
+    'cancel-button'?: number;
+    /** Determines what happens when the <kbd>Return</kbd> key is pressed while the alert is shown. */
+    defaultButton?: number;
+    'default-button'?: number;
+    /** The detail text for the alert. */
+    detail?: string;
+    /** The message for the alert. */
+    message?: string;
+    /** Whether the alert is modal. */
+    modal?: boolean;
+    onNotifyButtons?: NotifyHandler;
+    onNotifyCancelButton?: NotifyHandler;
+    onNotifyDefaultButton?: NotifyHandler;
+    onNotifyDetail?: NotifyHandler;
+    onNotifyMessage?: NotifyHandler;
+    onNotifyModal?: NotifyHandler;
+}
+
+/** Combines two shortcut triggers. */
+export interface GtkAlternativeTriggerProps extends GtkShortcutTriggerProps {
+    /** The first `GtkShortcutTrigger` to check. */
+    first?: Gtk.ShortcutTrigger;
+    /** The second `GtkShortcutTrigger` to check. */
+    second?: Gtk.ShortcutTrigger;
+    onNotifyFirst?: NotifyHandler;
+    onNotifySecond?: NotifyHandler;
+}
+
+/** Matches an item when at least one of its filters matches. */
+export interface GtkAnyFilterProps extends GtkMultiFilterProps, GtkFilterProps, GtkBuildableProps {}
 
 /** The `GtkAppChooserButton` lets the user select an application. */
 export interface GtkAppChooserButtonProps
@@ -2706,6 +3412,23 @@ export interface GtkAppChooserWidgetProps
     onNotifyShowRecommended?: NotifyHandler;
 }
 
+/** A high-level API for writing applications. */
+export interface GtkApplicationProps extends GApplicationProps {
+    /** The menu model to be used for the application's menu bar. */
+    menubar?: Gio.MenuModel | null;
+    /**
+     * Set this property to true to register with the session manager.
+     * @deprecated
+     */
+    registerSession?: boolean;
+    'register-session'?: boolean;
+    onQueryEnd?: Gtk.Application.SignalSignatures['query-end'];
+    onWindowAdded?: Gtk.Application.SignalSignatures['window-added'];
+    onWindowRemoved?: Gtk.Application.SignalSignatures['window-removed'];
+    onNotifyMenubar?: NotifyHandler;
+    onNotifyRegisterSession?: NotifyHandler;
+}
+
 /** A `GtkWindow` subclass that integrates with `GtkApplication`. */
 export interface GtkApplicationWindowProps
     extends
@@ -2744,6 +3467,35 @@ export interface GtkAspectFrameProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** `GtkAssistantPage` is an auxiliary object used by `GtkAssistant`. */
+export interface GtkAssistantPageProps {
+    /**
+     * The child widget.
+     * @deprecated
+     */
+    child?: Gtk.Widget;
+    /**
+     * Whether all required fields are filled in.
+     * @deprecated
+     */
+    complete?: boolean;
+    /**
+     * The type of the assistant page.
+     * @deprecated
+     */
+    pageType?: GtkAssistantPageTypeNick | Gtk.AssistantPageType;
+    'page-type'?: GtkAssistantPageTypeNick | Gtk.AssistantPageType;
+    /**
+     * The title of the page.
+     * @deprecated
+     */
+    title?: string;
+    onNotifyChild?: NotifyHandler;
+    onNotifyComplete?: NotifyHandler;
+    onNotifyPageType?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+}
+
 /** `GtkAssistant` is used to represent a complex as a series of steps. */
 export interface GtkAssistantProps
     extends
@@ -2769,6 +3521,51 @@ export interface GtkAssistantProps
     onNotifyUseHeaderBar?: NotifyHandler;
 }
 
+/** A layout manager for widgets with a single child. */
+export interface GtkBinLayoutProps extends GtkLayoutManagerProps {}
+
+/** A list model that wraps `GBookmarkFile`. */
+export interface GtkBookmarkListProps {
+    /** The attributes to query. */
+    attributes?: string | null;
+    /** The bookmark file to load. */
+    filename?: string;
+    /** Priority used when loading. */
+    ioPriority?: number;
+    'io-priority'?: number;
+    onNotifyAttributes?: NotifyHandler;
+    onNotifyFilename?: NotifyHandler;
+    onNotifyIoPriority?: NotifyHandler;
+}
+
+/** Evaluates a boolean expression to determine whether to include items. */
+export interface GtkBoolFilterProps extends GtkFilterProps {
+    /** The boolean expression to evaluate on each item. */
+    expression?: Gtk.Expression | null;
+    /** If the expression result should be inverted. */
+    invert?: boolean;
+    onNotifyExpression?: NotifyHandler;
+    onNotifyInvert?: NotifyHandler;
+}
+
+/** Arranges children in a single row or column. */
+export interface GtkBoxLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+    /** The child that determines the baseline of the box in vertical layout. */
+    baselineChild?: number;
+    'baseline-child'?: number;
+    /** The position of the allocated baseline within the extra space allocated to each child. */
+    baselinePosition?: GtkBaselinePositionNick | Gtk.BaselinePosition;
+    'baseline-position'?: GtkBaselinePositionNick | Gtk.BaselinePosition;
+    /** Whether the box layout should distribute the available space equally among the children. */
+    homogeneous?: boolean;
+    /** The space to put between the children. */
+    spacing?: number;
+    onNotifyBaselineChild?: NotifyHandler;
+    onNotifyBaselinePosition?: NotifyHandler;
+    onNotifyHomogeneous?: NotifyHandler;
+    onNotifySpacing?: NotifyHandler;
+}
+
 /** Arranges child widgets into a single row or column. */
 export interface GtkBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
@@ -2790,6 +3587,40 @@ export interface GtkBoxProps
 
 /** Allows objects to extend and customize deserialization from ui files. */
 export interface GtkBuildableProps {}
+
+/** A `GtkBuilderScope` implementation for the C language. */
+export interface GtkBuilderCScopeProps extends GtkBuilderScopeProps {}
+
+/** Creates widgets by instantiating `GtkBuilder` UI templates. */
+export interface GtkBuilderListItemFactoryProps extends GtkListItemFactoryProps {
+    /** `GBytes` containing the UI definition. */
+    bytes?: GLib.Bytes;
+    /** Path of the resource containing the UI definition. */
+    resource?: string | null;
+    /** `GtkBuilderScope` to use when instantiating listitems */
+    scope?: Gtk.BuilderScope | null;
+    onNotifyBytes?: NotifyHandler;
+    onNotifyResource?: NotifyHandler;
+    onNotifyScope?: NotifyHandler;
+}
+
+/** Reads XML descriptions of a user interface and instantiates the described objects. */
+export interface GtkBuilderProps {
+    /** The object the builder is evaluating for. */
+    currentObject?: GObject.Object | null;
+    'current-object'?: GObject.Object | null;
+    /** The scope the builder is operating in */
+    scope?: Gtk.BuilderScope;
+    /** The translation domain used when translating property values that have been marked as translatable. */
+    translationDomain?: string | null;
+    'translation-domain'?: string | null;
+    onNotifyCurrentObject?: NotifyHandler;
+    onNotifyScope?: NotifyHandler;
+    onNotifyTranslationDomain?: NotifyHandler;
+}
+
+/** Provides language binding support to `GtkBuilder`. */
+export interface GtkBuilderScopeProps {}
 
 /** Calls a callback function when the button is clicked. */
 export interface GtkButtonProps
@@ -2819,6 +3650,9 @@ export interface GtkButtonProps
     onNotifyLabel?: NotifyHandler;
     onNotifyUseUnderline?: NotifyHandler;
 }
+
+/** A variant of `GtkClosureExpression` using a C closure. */
+export interface GtkCClosureExpressionProps extends GtkExpressionProps {}
 
 /** Displays a Gregorian calendar, one month at a time. */
 export interface GtkCalendarProps
@@ -2863,6 +3697,39 @@ export interface GtkCalendarProps
     onNotifyYear?: NotifyHandler;
 }
 
+/** Invokes a callback. */
+export interface GtkCallbackActionProps extends GtkShortcutActionProps {}
+
+/** A cell area that renders GtkCellRenderers into a row or a column The `GtkCellAreaBox` renders cell renderers into a row or a column depending on its `GtkOrientation`. */
+export interface GtkCellAreaBoxProps
+    extends GtkCellAreaProps, GtkBuildableProps, GtkCellLayoutProps, GtkOrientableProps {
+    /** The amount of space to reserve between cells. */
+    spacing?: number;
+    onNotifySpacing?: NotifyHandler;
+}
+
+/** Stores geometrical information for a series of rows in a GtkCellArea The `GtkCellAreaContext` object is created by a given `GtkCellArea` implementation via its `GtkCellAreaClass.create_context()` vir… */
+export interface GtkCellAreaContextProps {
+    /**
+     * The `GtkCellArea` this context was created by
+     * @deprecated
+     */
+    area?: Gtk.CellArea;
+    onNotifyArea?: NotifyHandler;
+}
+
+/** An abstract class for laying out `GtkCellRenderer`s The `GtkCellArea` is an abstract class for [iface@Gtk.CellLayout] widgets (also referred to as "layouting widgets") to interface with an arbitrary … */
+export interface GtkCellAreaProps {
+    /** The cell in the area that currently has focus */
+    focusCell?: Gtk.CellRenderer | null;
+    'focus-cell'?: Gtk.CellRenderer | null;
+    onAddEditable?: Gtk.CellArea.SignalSignatures['add-editable'];
+    onApplyAttributes?: Gtk.CellArea.SignalSignatures['apply-attributes'];
+    onFocusChanged?: Gtk.CellArea.SignalSignatures['focus-changed'];
+    onRemoveEditable?: Gtk.CellArea.SignalSignatures['remove-editable'];
+    onNotifyFocusCell?: NotifyHandler;
+}
+
 /** Interface for widgets that can be used for editing cells The `GtkCellEditable` interface must be implemented for widgets to be usable to edit the contents of a `GtkTreeView` cell. */
 export interface GtkCellEditableProps {
     /** Indicates whether editing on the cell has been canceled. */
@@ -2875,6 +3742,304 @@ export interface GtkCellEditableProps {
 
 /** An interface for packing cells `GtkCellLayout` is an interface to be implemented by all objects which want to provide a `GtkTreeViewColumn` like API for packing cells, setting attributes and data fun… */
 export interface GtkCellLayoutProps {}
+
+/** Renders a keyboard accelerator in a cell `GtkCellRendererAccel` displays a keyboard accelerator (i.e. */
+export interface GtkCellRendererAccelProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+    /** The keyval of the accelerator. */
+    accelKey?: number;
+    'accel-key'?: number;
+    /** Determines if the edited accelerators are GTK accelerators. */
+    accelMode?: GtkCellRendererAccelModeNick | Gtk.CellRendererAccelMode;
+    'accel-mode'?: GtkCellRendererAccelModeNick | Gtk.CellRendererAccelMode;
+    /** The modifier mask of the accelerator. */
+    accelMods?: number;
+    'accel-mods'?: number;
+    /** The hardware keycode of the accelerator. */
+    keycode?: number;
+    onAccelCleared?: Gtk.CellRendererAccel.SignalSignatures['accel-cleared'];
+    onAccelEdited?: Gtk.CellRendererAccel.SignalSignatures['accel-edited'];
+    onNotifyAccelKey?: NotifyHandler;
+    onNotifyAccelMode?: NotifyHandler;
+    onNotifyAccelMods?: NotifyHandler;
+    onNotifyKeycode?: NotifyHandler;
+}
+
+/** Renders a combobox in a cell `GtkCellRendererCombo` renders text in a cell like `GtkCellRendererText` from which it is derived. */
+export interface GtkCellRendererComboProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+    /** If %TRUE, the cell renderer will include an entry and allow to enter values other than the ones in the popup list. */
+    hasEntry?: boolean;
+    'has-entry'?: boolean;
+    /** Holds a tree model containing the possible values for the combo box. */
+    model?: Gtk.TreeModel;
+    /** Specifies the model column which holds the possible values for the combo box. */
+    textColumn?: number;
+    'text-column'?: number;
+    onChanged?: Gtk.CellRendererCombo.SignalSignatures['changed'];
+    onNotifyHasEntry?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifyTextColumn?: NotifyHandler;
+}
+
+/** Renders a pixbuf in a cell A `GtkCellRendererPixbuf` can be used to render an image in a cell. */
+export interface GtkCellRendererPixbufProps extends GtkCellRendererProps {
+    /** The GIcon representing the icon to display. */
+    gicon?: Gio.Icon;
+    /** The name of the themed icon to display. */
+    iconName?: string;
+    'icon-name'?: string;
+    /** The `GtkIconSize` value that specifies the size of the rendered icon. */
+    iconSize?: GtkIconSizeNick | Gtk.IconSize;
+    'icon-size'?: GtkIconSizeNick | Gtk.IconSize;
+    pixbuf?: GdkPixbuf.Pixbuf;
+    pixbufExpanderClosed?: GdkPixbuf.Pixbuf;
+    'pixbuf-expander-closed'?: GdkPixbuf.Pixbuf;
+    pixbufExpanderOpen?: GdkPixbuf.Pixbuf;
+    'pixbuf-expander-open'?: GdkPixbuf.Pixbuf;
+    texture?: Gdk.Texture;
+    onNotifyGicon?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyIconSize?: NotifyHandler;
+    onNotifyPixbuf?: NotifyHandler;
+    onNotifyPixbufExpanderClosed?: NotifyHandler;
+    onNotifyPixbufExpanderOpen?: NotifyHandler;
+    onNotifyTexture?: NotifyHandler;
+}
+
+/** Renders numbers as progress bars `GtkCellRendererProgress` renders a numeric value as a progress par in a cell. */
+export interface GtkCellRendererProgressProps extends GtkCellRendererProps, GtkOrientableProps {
+    /** Whether progess is inverted. */
+    inverted?: boolean;
+    /** Setting this to a non-negative value causes the cell renderer to enter "activity mode", where a block bounces back and forth to indicate that some progress is made, without specifying exactly how muc… */
+    pulse?: number;
+    /** The "text" property determines the label which will be drawn over the progress bar. */
+    text?: string;
+    /** The "text-xalign" property controls the horizontal alignment of the text in the progress bar. */
+    textXalign?: number;
+    'text-xalign'?: number;
+    /** The "text-yalign" property controls the vertical alignment of the text in the progress bar. */
+    textYalign?: number;
+    'text-yalign'?: number;
+    /** The "value" property determines the percentage to which the progress bar will be "filled in". */
+    value?: number;
+    onNotifyInverted?: NotifyHandler;
+    onNotifyPulse?: NotifyHandler;
+    onNotifyText?: NotifyHandler;
+    onNotifyTextXalign?: NotifyHandler;
+    onNotifyTextYalign?: NotifyHandler;
+    onNotifyValue?: NotifyHandler;
+}
+
+/** An object for rendering a single cell The `GtkCellRenderer` is a base class of a set of objects used for rendering a cell to a `cairo_t`. */
+export interface GtkCellRendererProps {
+    cellBackground?: string;
+    'cell-background'?: string;
+    /** Cell background as a `GdkRGBA` */
+    cellBackgroundRgba?: Gdk.RGBA;
+    'cell-background-rgba'?: Gdk.RGBA;
+    cellBackgroundSet?: boolean;
+    'cell-background-set'?: boolean;
+    height?: number;
+    isExpanded?: boolean;
+    'is-expanded'?: boolean;
+    isExpander?: boolean;
+    'is-expander'?: boolean;
+    mode?: GtkCellRendererModeNick | Gtk.CellRendererMode;
+    sensitive?: boolean;
+    visible?: boolean;
+    width?: number;
+    xalign?: number;
+    xpad?: number;
+    yalign?: number;
+    ypad?: number;
+    onEditingCanceled?: Gtk.CellRenderer.SignalSignatures['editing-canceled'];
+    onEditingStarted?: Gtk.CellRenderer.SignalSignatures['editing-started'];
+    onNotifyCellBackground?: NotifyHandler;
+    onNotifyCellBackgroundRgba?: NotifyHandler;
+    onNotifyCellBackgroundSet?: NotifyHandler;
+    onNotifyHeight?: NotifyHandler;
+    onNotifyIsExpanded?: NotifyHandler;
+    onNotifyIsExpander?: NotifyHandler;
+    onNotifyMode?: NotifyHandler;
+    onNotifySensitive?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+    onNotifyWidth?: NotifyHandler;
+    onNotifyXalign?: NotifyHandler;
+    onNotifyXpad?: NotifyHandler;
+    onNotifyYalign?: NotifyHandler;
+    onNotifyYpad?: NotifyHandler;
+}
+
+/** Renders a spin button in a cell `GtkCellRendererSpin` renders text in a cell like `GtkCellRendererText` from which it is derived. */
+export interface GtkCellRendererSpinProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+    /** The adjustment that holds the value of the spinbutton. */
+    adjustment?: Gtk.Adjustment;
+    /** The acceleration rate when you hold down a button. */
+    climbRate?: number;
+    'climb-rate'?: number;
+    /** The number of decimal places to display. */
+    digits?: number;
+    onNotifyAdjustment?: NotifyHandler;
+    onNotifyClimbRate?: NotifyHandler;
+    onNotifyDigits?: NotifyHandler;
+}
+
+/** Renders a spinning animation in a cell `GtkCellRendererSpinner` renders a spinning animation in a cell, very similar to `GtkSpinner`. */
+export interface GtkCellRendererSpinnerProps extends GtkCellRendererProps {
+    /** Whether the spinner is active (ie. */
+    active?: boolean;
+    /** Pulse of the spinner. */
+    pulse?: number;
+    /** The `GtkIconSize` value that specifies the size of the rendered spinner. */
+    size?: GtkIconSizeNick | Gtk.IconSize;
+    onNotifyActive?: NotifyHandler;
+    onNotifyPulse?: NotifyHandler;
+    onNotifySize?: NotifyHandler;
+}
+
+/** Renders text in a cell A `GtkCellRendererText` renders a given text in its cell, using the font, color and style information provided by its properties. */
+export interface GtkCellRendererTextProps extends GtkCellRendererProps {
+    alignSet?: boolean;
+    'align-set'?: boolean;
+    /** Specifies how to align the lines of text with respect to each other. */
+    alignment?: PangoAlignmentNick | Pango.Alignment;
+    attributes?: Pango.AttrList;
+    background?: string;
+    /** Background color as a `GdkRGBA` */
+    backgroundRgba?: Gdk.RGBA;
+    'background-rgba'?: Gdk.RGBA;
+    backgroundSet?: boolean;
+    'background-set'?: boolean;
+    editable?: boolean;
+    editableSet?: boolean;
+    'editable-set'?: boolean;
+    /** Specifies the preferred place to ellipsize the string, if the cell renderer does not have enough room to display the entire string. */
+    ellipsize?: PangoEllipsizeModeNick | Pango.EllipsizeMode;
+    ellipsizeSet?: boolean;
+    'ellipsize-set'?: boolean;
+    family?: string;
+    familySet?: boolean;
+    'family-set'?: boolean;
+    font?: string;
+    fontDesc?: Pango.FontDescription;
+    'font-desc'?: Pango.FontDescription;
+    foreground?: string;
+    /** Foreground color as a `GdkRGBA` */
+    foregroundRgba?: Gdk.RGBA;
+    'foreground-rgba'?: Gdk.RGBA;
+    foregroundSet?: boolean;
+    'foreground-set'?: boolean;
+    language?: string;
+    languageSet?: boolean;
+    'language-set'?: boolean;
+    markup?: string;
+    /** The desired maximum width of the cell, in characters. */
+    maxWidthChars?: number;
+    'max-width-chars'?: number;
+    /** The text that will be displayed in the `GtkCellRenderer` if `GtkCellRendererText:editable` is %TRUE and the cell is empty. */
+    placeholderText?: string;
+    'placeholder-text'?: string;
+    rise?: number;
+    riseSet?: boolean;
+    'rise-set'?: boolean;
+    scale?: number;
+    scaleSet?: boolean;
+    'scale-set'?: boolean;
+    singleParagraphMode?: boolean;
+    'single-paragraph-mode'?: boolean;
+    size?: number;
+    sizePoints?: number;
+    'size-points'?: number;
+    sizeSet?: boolean;
+    'size-set'?: boolean;
+    stretch?: PangoStretchNick | Pango.Stretch;
+    stretchSet?: boolean;
+    'stretch-set'?: boolean;
+    strikethrough?: boolean;
+    strikethroughSet?: boolean;
+    'strikethrough-set'?: boolean;
+    style?: PangoStyleNick | Pango.Style;
+    styleSet?: boolean;
+    'style-set'?: boolean;
+    text?: string;
+    underline?: PangoUnderlineNick | Pango.Underline;
+    underlineSet?: boolean;
+    'underline-set'?: boolean;
+    variant?: PangoVariantNick | Pango.Variant;
+    variantSet?: boolean;
+    'variant-set'?: boolean;
+    weight?: number;
+    weightSet?: boolean;
+    'weight-set'?: boolean;
+    /** The desired width of the cell, in characters. */
+    widthChars?: number;
+    'width-chars'?: number;
+    /** Specifies how to break the string into multiple lines, if the cell renderer does not have enough room to display the entire string. */
+    wrapMode?: PangoWrapModeNick | Pango.WrapMode;
+    'wrap-mode'?: PangoWrapModeNick | Pango.WrapMode;
+    /** Specifies the minimum width at which the text is wrapped. */
+    wrapWidth?: number;
+    'wrap-width'?: number;
+    onEdited?: Gtk.CellRendererText.SignalSignatures['edited'];
+    onNotifyAlignSet?: NotifyHandler;
+    onNotifyAlignment?: NotifyHandler;
+    onNotifyAttributes?: NotifyHandler;
+    onNotifyBackground?: NotifyHandler;
+    onNotifyBackgroundRgba?: NotifyHandler;
+    onNotifyBackgroundSet?: NotifyHandler;
+    onNotifyEditable?: NotifyHandler;
+    onNotifyEditableSet?: NotifyHandler;
+    onNotifyEllipsize?: NotifyHandler;
+    onNotifyEllipsizeSet?: NotifyHandler;
+    onNotifyFamily?: NotifyHandler;
+    onNotifyFamilySet?: NotifyHandler;
+    onNotifyFont?: NotifyHandler;
+    onNotifyFontDesc?: NotifyHandler;
+    onNotifyForeground?: NotifyHandler;
+    onNotifyForegroundRgba?: NotifyHandler;
+    onNotifyForegroundSet?: NotifyHandler;
+    onNotifyLanguage?: NotifyHandler;
+    onNotifyLanguageSet?: NotifyHandler;
+    onNotifyMarkup?: NotifyHandler;
+    onNotifyMaxWidthChars?: NotifyHandler;
+    onNotifyPlaceholderText?: NotifyHandler;
+    onNotifyRise?: NotifyHandler;
+    onNotifyRiseSet?: NotifyHandler;
+    onNotifyScale?: NotifyHandler;
+    onNotifyScaleSet?: NotifyHandler;
+    onNotifySingleParagraphMode?: NotifyHandler;
+    onNotifySize?: NotifyHandler;
+    onNotifySizePoints?: NotifyHandler;
+    onNotifySizeSet?: NotifyHandler;
+    onNotifyStretch?: NotifyHandler;
+    onNotifyStretchSet?: NotifyHandler;
+    onNotifyStrikethrough?: NotifyHandler;
+    onNotifyStrikethroughSet?: NotifyHandler;
+    onNotifyStyle?: NotifyHandler;
+    onNotifyStyleSet?: NotifyHandler;
+    onNotifyText?: NotifyHandler;
+    onNotifyUnderline?: NotifyHandler;
+    onNotifyUnderlineSet?: NotifyHandler;
+    onNotifyVariant?: NotifyHandler;
+    onNotifyVariantSet?: NotifyHandler;
+    onNotifyWeight?: NotifyHandler;
+    onNotifyWeightSet?: NotifyHandler;
+    onNotifyWidthChars?: NotifyHandler;
+    onNotifyWrapMode?: NotifyHandler;
+    onNotifyWrapWidth?: NotifyHandler;
+}
+
+/** Renders a toggle button in a cell `GtkCellRendererToggle` renders a toggle button in a cell. */
+export interface GtkCellRendererToggleProps extends GtkCellRendererProps {
+    activatable?: boolean;
+    active?: boolean;
+    inconsistent?: boolean;
+    radio?: boolean;
+    onToggled?: Gtk.CellRendererToggle.SignalSignatures['toggled'];
+    onNotifyActivatable?: NotifyHandler;
+    onNotifyActive?: NotifyHandler;
+    onNotifyInconsistent?: NotifyHandler;
+    onNotifyRadio?: NotifyHandler;
+}
 
 /** A widget displaying a single row of a GtkTreeModel A `GtkCellView` displays a single row of a `GtkTreeModel` using a `GtkCellArea` and `GtkCellAreaContext`. */
 export interface GtkCellViewProps
@@ -2931,6 +4096,14 @@ export interface GtkCenterBoxProps
     onNotifyStartWidget?: NotifyHandler;
 }
 
+/** Manages up to three children. */
+export interface GtkCenterLayoutProps extends GtkLayoutManagerProps {
+    /** Whether to shrink the center widget after other children. */
+    shrinkCenterLast?: boolean;
+    'shrink-center-last'?: boolean;
+    onNotifyShrinkCenterLast?: NotifyHandler;
+}
+
 /** Places a label next to an indicator. */
 export interface GtkCheckButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -2956,6 +4129,9 @@ export interface GtkCheckButtonProps
     onNotifyLabel?: NotifyHandler;
     onNotifyUseUnderline?: NotifyHandler;
 }
+
+/** An expression using a custom `GClosure` to compute the value from its parameters. */
+export interface GtkClosureExpressionProps extends GtkExpressionProps {}
 
 /** The `GtkColorButton` allows to open a color chooser dialog to change the color. */
 export interface GtkColorButtonProps
@@ -3032,6 +4208,20 @@ export interface GtkColorDialogButtonProps
     onNotifyRgba?: NotifyHandler;
 }
 
+/** Asynchronous API to present a color chooser dialog. */
+export interface GtkColorDialogProps {
+    /** Whether the color chooser dialog is modal. */
+    modal?: boolean;
+    /** A title that may be shown on the color chooser dialog. */
+    title?: string;
+    /** Whether colors may have alpha (translucency). */
+    withAlpha?: boolean;
+    'with-alpha'?: boolean;
+    onNotifyModal?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyWithAlpha?: NotifyHandler;
+}
+
 /** Represents items in a cell in [class@Gtk.ColumnView]. */
 export interface GtkColumnViewCellProps extends GtkListItemProps {
     /** Widget used for display. */
@@ -3040,6 +4230,39 @@ export interface GtkColumnViewCellProps extends GtkListItemProps {
     focusable?: boolean;
     onNotifyChild?: NotifyHandler;
     onNotifyFocusable?: NotifyHandler;
+}
+
+/** Represents the columns in a `GtkColumnView`. */
+export interface GtkColumnViewColumnProps {
+    /** Column gets share of extra width allocated to the view. */
+    expand?: boolean;
+    /** Factory for populating list items. */
+    factory?: Gtk.ListItemFactory | null;
+    /** If not -1, this is the width that the column is allocated, regardless of the size of its content. */
+    fixedWidth?: number;
+    'fixed-width'?: number;
+    /** Menu model used to create the context menu for the column header. */
+    headerMenu?: Gio.MenuModel | null;
+    'header-menu'?: Gio.MenuModel | null;
+    /** An ID for the column. */
+    id?: string | null;
+    /** Whether this column is resizable. */
+    resizable?: boolean;
+    /** Sorter for sorting items according to this column. */
+    sorter?: Gtk.Sorter | null;
+    /** Title displayed in the header. */
+    title?: string | null;
+    /** Whether this column is visible. */
+    visible?: boolean;
+    onNotifyExpand?: NotifyHandler;
+    onNotifyFactory?: NotifyHandler;
+    onNotifyFixedWidth?: NotifyHandler;
+    onNotifyHeaderMenu?: NotifyHandler;
+    onNotifyId?: NotifyHandler;
+    onNotifyResizable?: NotifyHandler;
+    onNotifySorter?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
 }
 
 /** Presents a large dynamic list of items using multiple columns with headers. */
@@ -3081,6 +4304,30 @@ export interface GtkColumnViewProps
     onNotifySingleClickActivate?: NotifyHandler;
     onNotifyTabBehavior?: NotifyHandler;
 }
+
+/** Configures how rows are displayed in a [class@Gtk.ColumnView]. */
+export interface GtkColumnViewRowProps {
+    /** The accessible description to set on the row. */
+    accessibleDescription?: string;
+    'accessible-description'?: string;
+    /** The accessible label to set on the row. */
+    accessibleLabel?: string;
+    'accessible-label'?: string;
+    /** If the row can be activated by the user. */
+    activatable?: boolean;
+    /** If the row can be focused with the keyboard. */
+    focusable?: boolean;
+    /** If the row can be selected by the user. */
+    selectable?: boolean;
+    onNotifyAccessibleDescription?: NotifyHandler;
+    onNotifyAccessibleLabel?: NotifyHandler;
+    onNotifyActivatable?: NotifyHandler;
+    onNotifyFocusable?: NotifyHandler;
+    onNotifySelectable?: NotifyHandler;
+}
+
+/** Sorts [class@Gtk.ColumnView] columns. */
+export interface GtkColumnViewSorterProps extends GtkSorterProps {}
 
 /** A `GtkComboBox` is a widget that allows the user to choose from a list of valid choices. */
 export interface GtkComboBoxProps
@@ -3147,8 +4394,107 @@ export interface GtkComboBoxTextProps
         GtkCellLayoutProps,
         GtkConstraintTargetProps {}
 
+/** A constant value in a `GtkExpression`. */
+export interface GtkConstantExpressionProps extends GtkExpressionProps {}
+
+/** An invisible layout element in a `GtkConstraintLayout`. */
+export interface GtkConstraintGuideProps extends GtkConstraintTargetProps {
+    /** The maximum height of the guide. */
+    maxHeight?: number;
+    'max-height'?: number;
+    /** The maximum width of the guide. */
+    maxWidth?: number;
+    'max-width'?: number;
+    /** The minimum height of the guide. */
+    minHeight?: number;
+    'min-height'?: number;
+    /** The minimum width of the guide. */
+    minWidth?: number;
+    'min-width'?: number;
+    /** A name that identifies the `GtkConstraintGuide`, for debugging. */
+    name?: string | null;
+    /** The preferred, or natural, height of the guide. */
+    natHeight?: number;
+    'nat-height'?: number;
+    /** The preferred, or natural, width of the guide. */
+    natWidth?: number;
+    'nat-width'?: number;
+    /** The `GtkConstraintStrength` to be used for the constraint on the natural size of the guide. */
+    strength?: GtkConstraintStrengthNick | Gtk.ConstraintStrength;
+    onNotifyMaxHeight?: NotifyHandler;
+    onNotifyMaxWidth?: NotifyHandler;
+    onNotifyMinHeight?: NotifyHandler;
+    onNotifyMinWidth?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyNatHeight?: NotifyHandler;
+    onNotifyNatWidth?: NotifyHandler;
+    onNotifyStrength?: NotifyHandler;
+}
+
+/** `GtkLayoutChild` subclass for children in a `GtkConstraintLayout`. */
+export interface GtkConstraintLayoutChildProps extends GtkLayoutChildProps {}
+
+/** Uses constraints to describe relations between widgets. */
+export interface GtkConstraintLayoutProps extends GtkLayoutManagerProps, GtkBuildableProps {}
+
+/** Describes a constraint between attributes of two widgets, expressed as a linear equation. */
+export interface GtkConstraintProps {
+    /** The constant value to be added to the [property@Gtk.Constraint:source-attribute]. */
+    constant?: number;
+    /** The multiplication factor to be applied to the [property@Gtk.Constraint:source-attribute]. */
+    multiplier?: number;
+    /** The order relation between the terms of the constraint. */
+    relation?: GtkConstraintRelationNick | Gtk.ConstraintRelation;
+    /** The source of the constraint. */
+    source?: Gtk.ConstraintTarget | null;
+    /** The attribute of the [property@Gtk.Constraint:source] read by the constraint. */
+    sourceAttribute?: GtkConstraintAttributeNick | Gtk.ConstraintAttribute;
+    'source-attribute'?: GtkConstraintAttributeNick | Gtk.ConstraintAttribute;
+    /** The strength of the constraint. */
+    strength?: number;
+    /** The target of the constraint. */
+    target?: Gtk.ConstraintTarget | null;
+    /** The attribute of the [property@Gtk.Constraint:target] set by the constraint. */
+    targetAttribute?: GtkConstraintAttributeNick | Gtk.ConstraintAttribute;
+    'target-attribute'?: GtkConstraintAttributeNick | Gtk.ConstraintAttribute;
+    onNotifyConstant?: NotifyHandler;
+    onNotifyMultiplier?: NotifyHandler;
+    onNotifyRelation?: NotifyHandler;
+    onNotifySource?: NotifyHandler;
+    onNotifySourceAttribute?: NotifyHandler;
+    onNotifyStrength?: NotifyHandler;
+    onNotifyTarget?: NotifyHandler;
+    onNotifyTargetAttribute?: NotifyHandler;
+}
+
 /** Makes it possible to use an object as source or target in a [class@Gtk.Constraint]. */
 export interface GtkConstraintTargetProps {}
+
+/** A style provider for CSS. */
+export interface GtkCssProviderProps extends GtkStyleProviderProps {
+    /** Define the color scheme used for rendering the user interface. */
+    prefersColorScheme?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
+    'prefers-color-scheme'?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
+    /** Define the contrast mode to use for the user interface. */
+    prefersContrast?: GtkInterfaceContrastNick | Gtk.InterfaceContrast;
+    'prefers-contrast'?: GtkInterfaceContrastNick | Gtk.InterfaceContrast;
+    /** Define the type of reduced motion to use for the user interface. */
+    prefersReducedMotion?: GtkReducedMotionNick | Gtk.ReducedMotion;
+    'prefers-reduced-motion'?: GtkReducedMotionNick | Gtk.ReducedMotion;
+    onParsingError?: Gtk.CssProvider.SignalSignatures['parsing-error'];
+    onNotifyPrefersColorScheme?: NotifyHandler;
+    onNotifyPrefersContrast?: NotifyHandler;
+    onNotifyPrefersReducedMotion?: NotifyHandler;
+}
+
+/** Determines whether to include items with a callback. */
+export interface GtkCustomFilterProps extends GtkFilterProps {}
+
+/** Uses closures for size negotiation. */
+export interface GtkCustomLayoutProps extends GtkLayoutManagerProps {}
+
+/** Sorts items via a callback function. */
+export interface GtkCustomSorterProps extends GtkSorterProps {}
 
 /** Dialogs are a convenient way to prompt the user for a small amount of input. */
 export interface GtkDialogProps
@@ -3172,6 +4518,23 @@ export interface GtkDialogProps
     onNotifyUseHeaderBar?: NotifyHandler;
 }
 
+/** A list model that wraps [method@Gio.File.enumerate_children_async]. */
+export interface GtkDirectoryListProps {
+    /** The attributes to query. */
+    attributes?: string | null;
+    /** File to query. */
+    file?: Gio.File | null;
+    /** Priority used when loading. */
+    ioPriority?: number;
+    'io-priority'?: number;
+    /** %TRUE if the directory is monitored for changed. */
+    monitored?: boolean;
+    onNotifyAttributes?: NotifyHandler;
+    onNotifyFile?: NotifyHandler;
+    onNotifyIoPriority?: NotifyHandler;
+    onNotifyMonitored?: NotifyHandler;
+}
+
 /** A `GtkRoot` implementation for drag icons. */
 export interface GtkDragIconProps
     extends
@@ -3186,6 +4549,20 @@ export interface GtkDragIconProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** An event controller to initiate Drag-And-Drop operations. */
+export interface GtkDragSourceProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    /** The actions that are supported by drag operations from the source. */
+    actions?: number;
+    /** The data that is offered by drag operations from this source. */
+    content?: Gdk.ContentProvider | null;
+    onDragBegin?: Gtk.DragSource.SignalSignatures['drag-begin'];
+    onDragCancel?: Gtk.DragSource.SignalSignatures['drag-cancel'];
+    onDragEnd?: Gtk.DragSource.SignalSignatures['drag-end'];
+    onPrepare?: Gtk.DragSource.SignalSignatures['prepare'];
+    onNotifyActions?: NotifyHandler;
+    onNotifyContent?: NotifyHandler;
+}
+
 /** Allows drawing with cairo. */
 export interface GtkDrawingAreaProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -3198,6 +4575,13 @@ export interface GtkDrawingAreaProps
     onResize?: Gtk.DrawingArea.SignalSignatures['resize'];
     onNotifyContentHeight?: NotifyHandler;
     onNotifyContentWidth?: NotifyHandler;
+}
+
+/** An event controller tracking the pointer during Drag-and-Drop operations. */
+export interface GtkDropControllerMotionProps extends GtkEventControllerProps {
+    onEnter?: Gtk.DropControllerMotion.SignalSignatures['enter'];
+    onLeave?: Gtk.DropControllerMotion.SignalSignatures['leave'];
+    onMotion?: Gtk.DropControllerMotion.SignalSignatures['motion'];
 }
 
 /** Allows the user to choose an item from a list of options. */
@@ -3236,6 +4620,39 @@ export interface GtkDropDownProps
     onNotifySearchMatchMode?: NotifyHandler;
     onNotifySelected?: NotifyHandler;
     onNotifyShowArrow?: NotifyHandler;
+}
+
+/** An event controller to receive Drag-and-Drop operations, asynchronously. */
+export interface GtkDropTargetAsyncProps extends GtkEventControllerProps {
+    /** The `GdkDragActions` that this drop target supports. */
+    actions?: number;
+    /** The `GdkContentFormats` that determines the supported data formats. */
+    formats?: Gdk.ContentFormats | null;
+    onAccept?: Gtk.DropTargetAsync.SignalSignatures['accept'];
+    onDragEnter?: Gtk.DropTargetAsync.SignalSignatures['drag-enter'];
+    onDragLeave?: Gtk.DropTargetAsync.SignalSignatures['drag-leave'];
+    onDragMotion?: Gtk.DropTargetAsync.SignalSignatures['drag-motion'];
+    onDrop?: Gtk.DropTargetAsync.SignalSignatures['drop'];
+    onNotifyActions?: NotifyHandler;
+    onNotifyFormats?: NotifyHandler;
+}
+
+/** An event controller to receive Drag-and-Drop operations. */
+export interface GtkDropTargetProps extends GtkEventControllerProps {
+    /** The `GdkDragActions` that this drop target supports. */
+    actions?: number;
+    /** The `GdkContentFormats` that determine the supported data formats. */
+    formats?: Gdk.ContentFormats | null;
+    /** Whether the drop data should be preloaded when the pointer is only hovering over the widget but has not been released. */
+    preload?: boolean;
+    onAccept?: Gtk.DropTarget.SignalSignatures['accept'];
+    onDrop?: Gtk.DropTarget.SignalSignatures['drop'];
+    onEnter?: Gtk.DropTarget.SignalSignatures['enter'];
+    onLeave?: Gtk.DropTarget.SignalSignatures['leave'];
+    onMotion?: Gtk.DropTarget.SignalSignatures['motion'];
+    onNotifyActions?: NotifyHandler;
+    onNotifyFormats?: NotifyHandler;
+    onNotifyPreload?: NotifyHandler;
 }
 
 /** Allows users to edit the displayed text by switching to an “edit mode”. */
@@ -3290,6 +4707,62 @@ export interface GtkEmojiChooserProps
         GtkNativeProps,
         GtkShortcutManagerProps {
     onEmojiPicked?: Gtk.EmojiChooser.SignalSignatures['emoji-picked'];
+}
+
+/** Holds the text that is displayed in a single-line text entry widget. */
+export interface GtkEntryBufferProps {
+    /** The maximum length (in characters) of the text in the buffer. */
+    maxLength?: number;
+    'max-length'?: number;
+    /** The contents of the buffer. */
+    text?: string;
+    onDeletedText?: Gtk.EntryBuffer.SignalSignatures['deleted-text'];
+    onInsertedText?: Gtk.EntryBuffer.SignalSignatures['inserted-text'];
+    onNotifyMaxLength?: NotifyHandler;
+    onNotifyText?: NotifyHandler;
+}
+
+/** `GtkEntryCompletion` is an auxiliary object to provide completion functionality for `GtkEntry`. */
+export interface GtkEntryCompletionProps extends GtkBuildableProps, GtkCellLayoutProps {
+    /** The `GtkCellArea` used to layout cell renderers in the treeview column. */
+    cellArea?: Gtk.CellArea;
+    'cell-area'?: Gtk.CellArea;
+    /** Determines whether the common prefix of the possible completions should be inserted automatically in the entry. */
+    inlineCompletion?: boolean;
+    'inline-completion'?: boolean;
+    /** Determines whether the possible completions on the popup will appear in the entry as you navigate through them. */
+    inlineSelection?: boolean;
+    'inline-selection'?: boolean;
+    /** The minimum key length as set for completion. */
+    minimumKeyLength?: number;
+    'minimum-key-length'?: number;
+    /** The model used as data source. */
+    model?: Gtk.TreeModel | null;
+    /** Determines whether the possible completions should be shown in a popup window. */
+    popupCompletion?: boolean;
+    'popup-completion'?: boolean;
+    /** Determines whether the completions popup window will be resized to the width of the entry. */
+    popupSetWidth?: boolean;
+    'popup-set-width'?: boolean;
+    /** Determines whether the completions popup window will shown for a single possible completion. */
+    popupSingleMatch?: boolean;
+    'popup-single-match'?: boolean;
+    /** The column of the model containing the strings. */
+    textColumn?: number;
+    'text-column'?: number;
+    onCursorOnMatch?: Gtk.EntryCompletion.SignalSignatures['cursor-on-match'];
+    onInsertPrefix?: Gtk.EntryCompletion.SignalSignatures['insert-prefix'];
+    onMatchSelected?: Gtk.EntryCompletion.SignalSignatures['match-selected'];
+    onNoMatches?: Gtk.EntryCompletion.SignalSignatures['no-matches'];
+    onNotifyCellArea?: NotifyHandler;
+    onNotifyInlineCompletion?: NotifyHandler;
+    onNotifyInlineSelection?: NotifyHandler;
+    onNotifyMinimumKeyLength?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifyPopupCompletion?: NotifyHandler;
+    onNotifyPopupSetWidth?: NotifyHandler;
+    onNotifyPopupSingleMatch?: NotifyHandler;
+    onNotifyTextColumn?: NotifyHandler;
 }
 
 /** A single-line text entry widget. */
@@ -3452,6 +4925,72 @@ export interface GtkEntryProps
     onNotifyVisibility?: NotifyHandler;
 }
 
+/** `GtkEnumListItem` is the type of items in a [class@Gtk.EnumList]. */
+export interface GtkEnumListItemProps {}
+
+/** A [iface@Gio.ListModel] representing values of a given enum. */
+export interface GtkEnumListProps {
+    /** The type of the enum represented by the model. */
+    enumType?: GObject.GType;
+    'enum-type'?: GObject.GType;
+    onNotifyEnumType?: NotifyHandler;
+}
+
+/** Tracks keyboard focus. */
+export interface GtkEventControllerFocusProps extends GtkEventControllerProps {
+    onEnter?: Gtk.EventControllerFocus.SignalSignatures['enter'];
+    onLeave?: Gtk.EventControllerFocus.SignalSignatures['leave'];
+}
+
+/** Provides access to key events. */
+export interface GtkEventControllerKeyProps extends GtkEventControllerProps {
+    onImUpdate?: Gtk.EventControllerKey.SignalSignatures['im-update'];
+    onKeyPressed?: Gtk.EventControllerKey.SignalSignatures['key-pressed'];
+    onKeyReleased?: Gtk.EventControllerKey.SignalSignatures['key-released'];
+    onModifiers?: Gtk.EventControllerKey.SignalSignatures['modifiers'];
+}
+
+/** Provides raw access to the event stream. */
+export interface GtkEventControllerLegacyProps extends GtkEventControllerProps {
+    onEvent?: Gtk.EventControllerLegacy.SignalSignatures['event'];
+}
+
+/** Tracks the pointer position. */
+export interface GtkEventControllerMotionProps extends GtkEventControllerProps {
+    onEnter?: Gtk.EventControllerMotion.SignalSignatures['enter'];
+    onLeave?: Gtk.EventControllerMotion.SignalSignatures['leave'];
+    onMotion?: Gtk.EventControllerMotion.SignalSignatures['motion'];
+}
+
+/** The base class for event controllers. */
+export interface GtkEventControllerProps {
+    /** The name for this controller, typically used for debugging purposes. */
+    name?: string | null;
+    /** The limit for which events this controller will handle. */
+    propagationLimit?: GtkPropagationLimitNick | Gtk.PropagationLimit;
+    'propagation-limit'?: GtkPropagationLimitNick | Gtk.PropagationLimit;
+    /** The propagation phase at which this controller will handle events. */
+    propagationPhase?: GtkPropagationPhaseNick | Gtk.PropagationPhase;
+    'propagation-phase'?: GtkPropagationPhaseNick | Gtk.PropagationPhase;
+    onNotifyName?: NotifyHandler;
+    onNotifyPropagationLimit?: NotifyHandler;
+    onNotifyPropagationPhase?: NotifyHandler;
+}
+
+/** Handles scroll events. */
+export interface GtkEventControllerScrollProps extends GtkEventControllerProps {
+    /** The flags affecting event controller behavior. */
+    flags?: number;
+    onDecelerate?: Gtk.EventControllerScroll.SignalSignatures['decelerate'];
+    onScroll?: Gtk.EventControllerScroll.SignalSignatures['scroll'];
+    onScrollBegin?: Gtk.EventControllerScroll.SignalSignatures['scroll-begin'];
+    onScrollEnd?: Gtk.EventControllerScroll.SignalSignatures['scroll-end'];
+    onNotifyFlags?: NotifyHandler;
+}
+
+/** Matches an item when each of its filters matches. */
+export interface GtkEveryFilterProps extends GtkMultiFilterProps, GtkFilterProps, GtkBuildableProps {}
+
 /** Allows the user to reveal or conceal a child widget. */
 export interface GtkExpanderProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -3483,6 +5022,9 @@ export interface GtkExpanderProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** Provides a way to describe references to values. */
+export interface GtkExpressionProps {}
+
 /** `GtkFileChooserDialog` is a dialog suitable for use with “File Open” or “File Save” commands. */
 export interface GtkFileChooserDialogProps
     extends
@@ -3496,6 +5038,18 @@ export interface GtkFileChooserDialogProps
         GtkNativeProps,
         GtkRootProps,
         GtkShortcutManagerProps {}
+
+/** `GtkFileChooserNative` is an abstraction of a dialog suitable for use with “File Open” or “File Save as” commands. */
+export interface GtkFileChooserNativeProps extends GtkNativeDialogProps, GtkFileChooserProps {
+    /** The text used for the label on the accept button in the dialog, or %NULL to use the default text. */
+    acceptLabel?: string | null;
+    'accept-label'?: string | null;
+    /** The text used for the label on the cancel button in the dialog, or %NULL to use the default text. */
+    cancelLabel?: string | null;
+    'cancel-label'?: string | null;
+    onNotifyAcceptLabel?: NotifyHandler;
+    onNotifyCancelLabel?: NotifyHandler;
+}
 
 /** `GtkFileChooser` is an interface that can be implemented by file selection widgets. */
 export interface GtkFileChooserProps {
@@ -3548,9 +5102,112 @@ export interface GtkFileChooserWidgetProps
     onNotifySearchMode?: NotifyHandler;
 }
 
+/** Asynchronous API to present a file chooser dialog. */
+export interface GtkFileDialogProps {
+    /** Label for the file chooser's accept button. */
+    acceptLabel?: string | null;
+    'accept-label'?: string | null;
+    /** The default filter. */
+    defaultFilter?: Gtk.FileFilter | null;
+    'default-filter'?: Gtk.FileFilter | null;
+    /** The list of filters. */
+    filters?: Gio.ListModel | null;
+    /** The initial file. */
+    initialFile?: Gio.File | null;
+    'initial-file'?: Gio.File | null;
+    /** The initial folder. */
+    initialFolder?: Gio.File | null;
+    'initial-folder'?: Gio.File | null;
+    /** The initial name. */
+    initialName?: string | null;
+    'initial-name'?: string | null;
+    /** Whether the file chooser dialog is modal. */
+    modal?: boolean;
+    /** A title that may be shown on the file chooser dialog. */
+    title?: string;
+    onNotifyAcceptLabel?: NotifyHandler;
+    onNotifyDefaultFilter?: NotifyHandler;
+    onNotifyFilters?: NotifyHandler;
+    onNotifyInitialFile?: NotifyHandler;
+    onNotifyInitialFolder?: NotifyHandler;
+    onNotifyInitialName?: NotifyHandler;
+    onNotifyModal?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+}
+
+/** Filters files by name or mime type. */
+export interface GtkFileFilterProps extends GtkFilterProps, GtkBuildableProps {
+    /** The MIME types that this filter matches. */
+    mimeTypes?: string[];
+    'mime-types'?: string[];
+    /** The human-readable name of the filter. */
+    name?: string | null;
+    /** The patterns that this filter matches. */
+    patterns?: string[];
+    /** The suffixes that this filter matches. */
+    suffixes?: string[];
+    onNotifyMimeTypes?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyPatterns?: NotifyHandler;
+    onNotifySuffixes?: NotifyHandler;
+}
+
+/** Asynchronous API to open a file with an application. */
+export interface GtkFileLauncherProps {
+    /** Whether to ask the user to choose an app for opening the file. */
+    alwaysAsk?: boolean;
+    'always-ask'?: boolean;
+    /** The file to launch. */
+    file?: Gio.File | null;
+    /** Whether to make the file writable for the handler. */
+    writable?: boolean;
+    onNotifyAlwaysAsk?: NotifyHandler;
+    onNotifyFile?: NotifyHandler;
+    onNotifyWritable?: NotifyHandler;
+}
+
+/** A list model that filters the elements of another model. */
+export interface GtkFilterListModelProps extends GtkSectionModelProps {
+    /** The filter for this model. */
+    filter?: Gtk.Filter | null;
+    /** If the model should filter items incrementally. */
+    incremental?: boolean;
+    /** The model being filtered. */
+    model?: Gio.ListModel | null;
+    /** Monitor the list items for changes. */
+    watchItems?: boolean;
+    'watch-items'?: boolean;
+    onNotifyFilter?: NotifyHandler;
+    onNotifyIncremental?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifyWatchItems?: NotifyHandler;
+}
+
+/** Describes the filtering to be performed by a [class@Gtk.FilterListModel]. */
+export interface GtkFilterProps {
+    onChanged?: Gtk.Filter.SignalSignatures['changed'];
+}
+
+/** `GtkLayoutChild` subclass for children in a `GtkFixedLayout`. */
+export interface GtkFixedLayoutChildProps extends GtkLayoutChildProps {
+    /** The transform of the child. */
+    transform?: Gsk.Transform | null;
+    onNotifyTransform?: NotifyHandler;
+}
+
+/** Places child widgets at fixed positions. */
+export interface GtkFixedLayoutProps extends GtkLayoutManagerProps {}
+
 /** Places its child widgets at fixed positions and with fixed sizes. */
 export interface GtkFixedProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
+
+/** A list model that concatenates other list models. */
+export interface GtkFlattenListModelProps extends GtkSectionModelProps {
+    /** The model being flattened. */
+    model?: Gio.ListModel | null;
+    onNotifyModel?: NotifyHandler;
+}
 
 /** The kind of widget that can be added to a `GtkFlowBox`. */
 export interface GtkFlowBoxChildProps
@@ -3718,6 +5375,26 @@ export interface GtkFontDialogButtonProps
     onNotifyUseSize?: NotifyHandler;
 }
 
+/** Asynchronous API to present a font chooser dialog. */
+export interface GtkFontDialogProps {
+    /** A filter to restrict what fonts are shown in the font chooser dialog. */
+    filter?: Gtk.Filter | null;
+    /** A custom font map to select fonts from. */
+    fontMap?: Pango.FontMap | null;
+    'font-map'?: Pango.FontMap | null;
+    /** The language for which the font features are selected. */
+    language?: Pango.Language | null;
+    /** Whether the font chooser dialog is modal. */
+    modal?: boolean;
+    /** A title that may be shown on the font chooser dialog that is presented by [method@Gtk.FontDialog.choose_font]. */
+    title?: string;
+    onNotifyFilter?: NotifyHandler;
+    onNotifyFontMap?: NotifyHandler;
+    onNotifyLanguage?: NotifyHandler;
+    onNotifyModal?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+}
+
 /** Surrounds its child with a decorative frame and an optional label. */
 export interface GtkFrameProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -3767,6 +5444,94 @@ export interface GtkGLAreaProps
     onNotifyUseEs?: NotifyHandler;
 }
 
+/** Recognizes click gestures. */
+export interface GtkGestureClickProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    onPressed?: Gtk.GestureClick.SignalSignatures['pressed'];
+    onReleased?: Gtk.GestureClick.SignalSignatures['released'];
+    onStopped?: Gtk.GestureClick.SignalSignatures['stopped'];
+    onUnpairedRelease?: Gtk.GestureClick.SignalSignatures['unpaired-release'];
+}
+
+/** Recognizes drag gestures. */
+export interface GtkGestureDragProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    onDragBegin?: Gtk.GestureDrag.SignalSignatures['drag-begin'];
+    onDragEnd?: Gtk.GestureDrag.SignalSignatures['drag-end'];
+    onDragUpdate?: Gtk.GestureDrag.SignalSignatures['drag-update'];
+}
+
+/** Recognizes long press gestures. */
+export interface GtkGestureLongPressProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    /** Factor by which to modify the default timeout. */
+    delayFactor?: number;
+    'delay-factor'?: number;
+    onCancelled?: Gtk.GestureLongPress.SignalSignatures['cancelled'];
+    onPressed?: Gtk.GestureLongPress.SignalSignatures['pressed'];
+    onNotifyDelayFactor?: NotifyHandler;
+}
+
+/** Recognizes pan gestures. */
+export interface GtkGesturePanProps
+    extends GtkGestureDragProps, GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    /** The expected orientation of pan gestures. */
+    orientation?: GtkOrientationNick | Gtk.Orientation;
+    onPan?: Gtk.GesturePan.SignalSignatures['pan'];
+    onNotifyOrientation?: NotifyHandler;
+}
+
+/** The base class for gesture recognition. */
+export interface GtkGestureProps {
+    /** The number of touch points that trigger recognition on this gesture. */
+    nPoints?: number;
+    'n-points'?: number;
+    onBegin?: Gtk.Gesture.SignalSignatures['begin'];
+    onCancel?: Gtk.Gesture.SignalSignatures['cancel'];
+    onEnd?: Gtk.Gesture.SignalSignatures['end'];
+    onSequenceStateChanged?: Gtk.Gesture.SignalSignatures['sequence-state-changed'];
+    onUpdate?: Gtk.Gesture.SignalSignatures['update'];
+    onNotifyNPoints?: NotifyHandler;
+}
+
+/** Recognizes 2-finger rotation gestures. */
+export interface GtkGestureRotateProps extends GtkGestureProps, GtkEventControllerProps {
+    onAngleChanged?: Gtk.GestureRotate.SignalSignatures['angle-changed'];
+}
+
+/** A `GtkGesture` subclass optimized for singe-touch and mouse gestures. */
+export interface GtkGestureSingleProps extends GtkGestureProps, GtkEventControllerProps {
+    /** Mouse button number to listen to, or 0 to listen for any button. */
+    button?: number;
+    /** Whether the gesture is exclusive. */
+    exclusive?: boolean;
+    /** Whether the gesture handles only touch events. */
+    touchOnly?: boolean;
+    'touch-only'?: boolean;
+    onNotifyButton?: NotifyHandler;
+    onNotifyExclusive?: NotifyHandler;
+    onNotifyTouchOnly?: NotifyHandler;
+}
+
+/** Recognizes tablet stylus input. */
+export interface GtkGestureStylusProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    /** If this gesture should exclusively react to stylus input devices. */
+    stylusOnly?: boolean;
+    'stylus-only'?: boolean;
+    onDown?: Gtk.GestureStylus.SignalSignatures['down'];
+    onMotion?: Gtk.GestureStylus.SignalSignatures['motion'];
+    onProximity?: Gtk.GestureStylus.SignalSignatures['proximity'];
+    onUp?: Gtk.GestureStylus.SignalSignatures['up'];
+    onNotifyStylusOnly?: NotifyHandler;
+}
+
+/** Recognizes swipe gestures. */
+export interface GtkGestureSwipeProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    onSwipe?: Gtk.GestureSwipe.SignalSignatures['swipe'];
+}
+
+/** Recognizes 2-finger pinch/zoom gestures. */
+export interface GtkGestureZoomProps extends GtkGestureProps, GtkEventControllerProps {
+    onScaleChanged?: Gtk.GestureZoom.SignalSignatures['scale-changed'];
+}
+
 /** Bypasses gsk rendering by passing the content of its child directly to the compositor. */
 export interface GtkGraphicsOffloadProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -3780,6 +5545,48 @@ export interface GtkGraphicsOffloadProps
     onNotifyBlackBackground?: NotifyHandler;
     onNotifyChild?: NotifyHandler;
     onNotifyEnabled?: NotifyHandler;
+}
+
+/** `GtkLayoutChild` subclass for children in a `GtkGridLayout`. */
+export interface GtkGridLayoutChildProps extends GtkLayoutChildProps {
+    /** The column to place the child in. */
+    column?: number;
+    /** The number of columns the child spans to. */
+    columnSpan?: number;
+    'column-span'?: number;
+    /** The row to place the child in. */
+    row?: number;
+    /** The number of rows the child spans to. */
+    rowSpan?: number;
+    'row-span'?: number;
+    onNotifyColumn?: NotifyHandler;
+    onNotifyColumnSpan?: NotifyHandler;
+    onNotifyRow?: NotifyHandler;
+    onNotifyRowSpan?: NotifyHandler;
+}
+
+/** Arranges child widgets in rows and columns. */
+export interface GtkGridLayoutProps extends GtkLayoutManagerProps {
+    /** The row to align to the baseline, when `GtkWidget:valign` is set to %GTK_ALIGN_BASELINE. */
+    baselineRow?: number;
+    'baseline-row'?: number;
+    /** Whether all the columns in the grid have the same width. */
+    columnHomogeneous?: boolean;
+    'column-homogeneous'?: boolean;
+    /** The amount of space between to consecutive columns. */
+    columnSpacing?: number;
+    'column-spacing'?: number;
+    /** Whether all the rows in the grid have the same height. */
+    rowHomogeneous?: boolean;
+    'row-homogeneous'?: boolean;
+    /** The amount of space between to consecutive rows. */
+    rowSpacing?: number;
+    'row-spacing'?: number;
+    onNotifyBaselineRow?: NotifyHandler;
+    onNotifyColumnHomogeneous?: NotifyHandler;
+    onNotifyColumnSpacing?: NotifyHandler;
+    onNotifyRowHomogeneous?: NotifyHandler;
+    onNotifyRowSpacing?: NotifyHandler;
 }
 
 /** Arranges its child widgets in rows and columns. */
@@ -3865,6 +5672,76 @@ export interface GtkHeaderBarProps
     onNotifyShowTitleButtons?: NotifyHandler;
     onNotifyTitleWidget?: NotifyHandler;
     onNotifyUseNativeControls?: NotifyHandler;
+}
+
+/** The interface for GTK input methods. */
+export interface GtkIMContextProps {
+    /** Additional hints that allow input methods to fine-tune their behaviour. */
+    inputHints?: number;
+    'input-hints'?: number;
+    /** The purpose of the text field that the `GtkIMContext is connected to. */
+    inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
+    'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
+    onCommit?: Gtk.IMContext.SignalSignatures['commit'];
+    onDeleteSurrounding?: Gtk.IMContext.SignalSignatures['delete-surrounding'];
+    onInvalidComposition?: Gtk.IMContext.SignalSignatures['invalid-composition'];
+    onPreeditChanged?: Gtk.IMContext.SignalSignatures['preedit-changed'];
+    onPreeditEnd?: Gtk.IMContext.SignalSignatures['preedit-end'];
+    onPreeditStart?: Gtk.IMContext.SignalSignatures['preedit-start'];
+    onRetrieveSurrounding?: Gtk.IMContext.SignalSignatures['retrieve-surrounding'];
+    onNotifyInputHints?: NotifyHandler;
+    onNotifyInputPurpose?: NotifyHandler;
+}
+
+/** Supports compose sequences, dead keys and numeric Unicode input. */
+export interface GtkIMContextSimpleProps extends GtkIMContextProps {}
+
+/** Supports switching between multiple input methods. */
+export interface GtkIMMulticontextProps extends GtkIMContextProps {}
+
+/** Contains information found when looking up an icon in `GtkIconTheme` or loading it from a file. */
+export interface GtkIconPaintableProps extends GtkSymbolicPaintableProps {
+    /** The file representing the icon, if any. */
+    file?: Gio.File | null;
+    /**
+     * The icon name that was chosen during lookup.
+     * @deprecated
+     */
+    iconName?: string | null;
+    'icon-name'?: string | null;
+    /**
+     * Whether the icon is symbolic or not.
+     * @deprecated
+     */
+    isSymbolic?: boolean;
+    'is-symbolic'?: boolean;
+    scale?: number;
+    size?: number;
+    onNotifyFile?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyIsSymbolic?: NotifyHandler;
+    onNotifyScale?: NotifyHandler;
+    onNotifySize?: NotifyHandler;
+}
+
+/** Loads themed icons. */
+export interface GtkIconThemeProps {
+    /** The display that this icon theme object is attached to. */
+    display?: Gdk.Display | null;
+    /** Resource paths that will be looked at when looking for icons, similar to search paths. */
+    resourcePath?: string[] | null;
+    'resource-path'?: string[] | null;
+    /** The search path for this icon theme. */
+    searchPath?: string[] | null;
+    'search-path'?: string[] | null;
+    /** The name of the icon theme that is being used. */
+    themeName?: string;
+    'theme-name'?: string;
+    onChanged?: Gtk.IconTheme.SignalSignatures['changed'];
+    onNotifyDisplay?: NotifyHandler;
+    onNotifyResourcePath?: NotifyHandler;
+    onNotifySearchPath?: NotifyHandler;
+    onNotifyThemeName?: NotifyHandler;
 }
 
 /** `GtkIconView` is a widget which displays data in a grid of icons. */
@@ -4043,6 +5920,16 @@ export interface GtkInscriptionProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** Triggers when a specific keyval and modifiers are pressed. */
+export interface GtkKeyvalTriggerProps extends GtkShortcutTriggerProps {
+    /** The key value for the trigger. */
+    keyval?: number;
+    /** The key modifiers for the trigger. */
+    modifiers?: number;
+    onNotifyKeyval?: NotifyHandler;
+    onNotifyModifiers?: NotifyHandler;
+}
+
 /** Displays a small amount of text. */
 export interface GtkLabelProps
     extends
@@ -4123,6 +6010,21 @@ export interface GtkLabelProps
     onNotifyXalign?: NotifyHandler;
     onNotifyYalign?: NotifyHandler;
 }
+
+/** The base class for objects that are meant to hold layout properties. */
+export interface GtkLayoutChildProps {
+    /** The widget that is associated to the `GtkLayoutChild` instance. */
+    childWidget?: Gtk.Widget;
+    'child-widget'?: Gtk.Widget;
+    /** The layout manager that created the `GtkLayoutChild` instance. */
+    layoutManager?: Gtk.LayoutManager;
+    'layout-manager'?: Gtk.LayoutManager;
+    onNotifyChildWidget?: NotifyHandler;
+    onNotifyLayoutManager?: NotifyHandler;
+}
+
+/** Handles the preferred size and allocation for children of a widget. */
+export interface GtkLayoutManagerProps {}
 
 /** Shows a level indicator. */
 export interface GtkLevelBarProps
@@ -4233,6 +6135,9 @@ export interface GtkListHeaderProps {
     onNotifyChild?: NotifyHandler;
 }
 
+/** Creates widgets for the items taken from a `GListModel`. */
+export interface GtkListItemFactoryProps {}
+
 /** Used by list widgets to represent items in a [iface@Gio.ListModel]. */
 export interface GtkListItemProps {
     /** The accessible description to set on the listitem. */
@@ -4256,6 +6161,10 @@ export interface GtkListItemProps {
     onNotifyFocusable?: NotifyHandler;
     onNotifySelectable?: NotifyHandler;
 }
+
+/** A list-like data structure that can be used with the [class@Gtk.TreeView]. */
+export interface GtkListStoreProps
+    extends GtkBuildableProps, GtkTreeDragDestProps, GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {}
 
 /** Presents a large dynamic list of items. */
 export interface GtkListViewProps
@@ -4346,6 +6255,13 @@ export interface GtkLockButtonProps
     onNotifyTooltipLock?: NotifyHandler;
     onNotifyTooltipNotAuthorized?: NotifyHandler;
     onNotifyTooltipUnlock?: NotifyHandler;
+}
+
+/** A list model that maps the items in another model to different items. */
+export interface GtkMapListModelProps extends GtkSectionModelProps {
+    /** The model being mapped. */
+    model?: Gio.ListModel | null;
+    onNotifyModel?: NotifyHandler;
 }
 
 /** Shows controls for video playback. */
@@ -4441,8 +6357,115 @@ export interface GtkMessageDialogProps
     onNotifyUseMarkup?: NotifyHandler;
 }
 
+/** Activates a widget with a mnemonic. */
+export interface GtkMnemonicActionProps extends GtkShortcutActionProps {}
+
+/** Triggers when a specific mnemonic is pressed. */
+export interface GtkMnemonicTriggerProps extends GtkShortcutTriggerProps {
+    /** The key value for the trigger. */
+    keyval?: number;
+    onNotifyKeyval?: NotifyHandler;
+}
+
+/** Asks the user for passwords and other information required to mount a volume. */
+export interface GtkMountOperationProps extends GMountOperationProps {
+    /** The display where dialogs will be shown. */
+    display?: Gdk.Display;
+    /** The parent window. */
+    parent?: Gtk.Window | null;
+    onNotifyDisplay?: NotifyHandler;
+    onNotifyParent?: NotifyHandler;
+}
+
+/** Base class for filters that combine multiple filters. */
+export interface GtkMultiFilterProps {}
+
+/** A selection model that allows selecting multiple elements. */
+export interface GtkMultiSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+    /** The list managed by this selection. */
+    model?: Gio.ListModel | null;
+    onNotifyModel?: NotifyHandler;
+}
+
+/** Combines multiple sorters by trying them in turn. */
+export interface GtkMultiSorterProps extends GtkSorterProps, GtkBuildableProps {}
+
+/** Activates a named action. */
+export interface GtkNamedActionProps extends GtkShortcutActionProps {
+    /** The name of the action to activate. */
+    actionName?: string;
+    'action-name'?: string;
+    onNotifyActionName?: NotifyHandler;
+}
+
+/** Base class for platform dialogs that don't use `GtkDialog`. */
+export interface GtkNativeDialogProps {
+    /** Whether the window should be modal with respect to its transient parent. */
+    modal?: boolean;
+    /** The title of the dialog window */
+    title?: string | null;
+    /** The transient parent of the dialog, or %NULL for none. */
+    transientFor?: Gtk.Window | null;
+    'transient-for'?: Gtk.Window | null;
+    /** Whether the window is currently visible. */
+    visible?: boolean;
+    onResponse?: Gtk.NativeDialog.SignalSignatures['response'];
+    onNotifyModal?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyTransientFor?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+}
+
 /** An interface for widgets that have their own [class@Gdk.Surface]. */
 export interface GtkNativeProps {}
+
+/** A `GtkShortcutTrigger` that never triggers. */
+export interface GtkNeverTriggerProps extends GtkShortcutTriggerProps {}
+
+/** A selection model that does not allow selecting anything. */
+export interface GtkNoSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+    /** The model being managed. */
+    model?: Gio.ListModel | null;
+    onNotifyModel?: NotifyHandler;
+}
+
+/** An auxiliary object used by `GtkNotebook`. */
+export interface GtkNotebookPageProps {
+    /** The child for this page. */
+    child?: Gtk.Widget;
+    /** Whether the tab is detachable. */
+    detachable?: boolean;
+    /** The label widget displayed in the child's menu entry. */
+    menu?: Gtk.Widget;
+    /** The text of the menu widget. */
+    menuLabel?: string;
+    'menu-label'?: string;
+    /** The index of the child in the parent. */
+    position?: number;
+    /** Whether the tab is reorderable by user action. */
+    reorderable?: boolean;
+    /** The tab widget for this page. */
+    tab?: Gtk.Widget;
+    /** Whether to expand the child's tab. */
+    tabExpand?: boolean;
+    'tab-expand'?: boolean;
+    /** Whether the child's tab should fill the allocated area. */
+    tabFill?: boolean;
+    'tab-fill'?: boolean;
+    /** The text of the tab widget. */
+    tabLabel?: string;
+    'tab-label'?: string;
+    onNotifyChild?: NotifyHandler;
+    onNotifyDetachable?: NotifyHandler;
+    onNotifyMenu?: NotifyHandler;
+    onNotifyMenuLabel?: NotifyHandler;
+    onNotifyPosition?: NotifyHandler;
+    onNotifyReorderable?: NotifyHandler;
+    onNotifyTab?: NotifyHandler;
+    onNotifyTabExpand?: NotifyHandler;
+    onNotifyTabFill?: NotifyHandler;
+    onNotifyTabLabel?: NotifyHandler;
+}
 
 /** Switches between children using tabs. */
 export interface GtkNotebookProps
@@ -4485,12 +6508,43 @@ export interface GtkNotebookProps
     onNotifyTabPos?: NotifyHandler;
 }
 
+/** Does nothing. */
+export interface GtkNothingActionProps extends GtkShortcutActionProps {}
+
+/** Sorts items numerically. */
+export interface GtkNumericSorterProps extends GtkSorterProps {
+    /** The expression to evaluate on items to get a number to compare with. */
+    expression?: Gtk.Expression | null;
+    /** Whether the sorter will sort smaller numbers first. */
+    sortOrder?: GtkSortTypeNick | Gtk.SortType;
+    'sort-order'?: GtkSortTypeNick | Gtk.SortType;
+    onNotifyExpression?: NotifyHandler;
+    onNotifySortOrder?: NotifyHandler;
+}
+
+/** A `GObject` value in a `GtkExpression`. */
+export interface GtkObjectExpressionProps extends GtkExpressionProps {}
+
 /** An interface for widgets that can be oriented horizontally or vertically. */
 export interface GtkOrientableProps {
     /** The orientation of the orientable. */
     orientation?: GtkOrientationNick | Gtk.Orientation;
     onNotifyOrientation?: NotifyHandler;
 }
+
+/** `GtkLayoutChild` subclass for children in a `GtkOverlayLayout`. */
+export interface GtkOverlayLayoutChildProps extends GtkLayoutChildProps {
+    /** Whether the child should be clipped to fit the parent's size. */
+    clipOverlay?: boolean;
+    'clip-overlay'?: boolean;
+    /** Whether the child size should contribute to the `GtkOverlayLayout`'s measurement. */
+    measure?: boolean;
+    onNotifyClipOverlay?: NotifyHandler;
+    onNotifyMeasure?: NotifyHandler;
+}
+
+/** The layout manager used by [class@Gtk.Overlay]. */
+export interface GtkOverlayLayoutProps extends GtkLayoutManagerProps {}
 
 /** Places “overlay” widgets on top of a single main child. */
 export interface GtkOverlayProps
@@ -4500,6 +6554,20 @@ export interface GtkOverlayProps
     onGetChildPosition?: Gtk.Overlay.SignalSignatures['get-child-position'];
     onNotifyChild?: NotifyHandler;
 }
+
+/** Handles input from the pads found in drawing tablets. */
+export interface GtkPadControllerProps extends GtkEventControllerProps {
+    /** The action group of the controller. */
+    actionGroup?: Gio.ActionGroup;
+    'action-group'?: Gio.ActionGroup;
+    /** The pad of the controller. */
+    pad?: Gdk.Device;
+    onNotifyActionGroup?: NotifyHandler;
+    onNotifyPad?: NotifyHandler;
+}
+
+/** Stores page size, orientation and margins for printing. */
+export interface GtkPageSetupProps {}
 
 /** Presents a page setup dialog for platforms which don’t provide a native page setup dialog, like Unix. */
 export interface GtkPageSetupUnixDialogProps
@@ -4565,6 +6633,12 @@ export interface GtkPanedProps
     onNotifyStartChild?: NotifyHandler;
     onNotifyWideHandle?: NotifyHandler;
 }
+
+/** A `GParamSpec` for properties holding a `GtkExpression`. */
+export interface GtkParamSpecExpressionProps {}
+
+/** A `GtkEntryBuffer` that locks the underlying memory to prevent it from being swapped to disk. */
+export interface GtkPasswordEntryBufferProps extends GtkEntryBufferProps {}
 
 /** A single-line text entry widget for entering passwords and other secrets. */
 export interface GtkPasswordEntryProps
@@ -4715,6 +6789,136 @@ export interface GtkPopoverProps
     onNotifyPosition?: NotifyHandler;
 }
 
+/** Encapsulates context information that is required when drawing pages for printing. */
+export interface GtkPrintContextProps {}
+
+/** Asynchronous API to present a print dialog to the user. */
+export interface GtkPrintDialogProps {
+    /** A label that may be shown on the accept button of a print dialog that is presented by [method@Gtk.PrintDialog.setup]. */
+    acceptLabel?: string;
+    'accept-label'?: string;
+    /** Whether the print dialog is modal. */
+    modal?: boolean;
+    /** The page setup to use. */
+    pageSetup?: Gtk.PageSetup | null;
+    'page-setup'?: Gtk.PageSetup | null;
+    /** The print settings to use. */
+    printSettings?: Gtk.PrintSettings | null;
+    'print-settings'?: Gtk.PrintSettings | null;
+    /** A title that may be shown on the print dialog that is presented by [method@Gtk.PrintDialog.setup]. */
+    title?: string;
+    onNotifyAcceptLabel?: NotifyHandler;
+    onNotifyModal?: NotifyHandler;
+    onNotifyPageSetup?: NotifyHandler;
+    onNotifyPrintSettings?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+}
+
+/** Represents a job that is sent to a printer. */
+export interface GtkPrintJobProps {
+    /** Page setup. */
+    pageSetup?: Gtk.PageSetup;
+    'page-setup'?: Gtk.PageSetup;
+    /** The printer to send the job to. */
+    printer?: Gtk.Printer;
+    /** Printer settings. */
+    settings?: Gtk.PrintSettings;
+    /** The title of the print job. */
+    title?: string;
+    /** %TRUE if the print job will continue to emit status-changed signals after the print data has been setn to the printer. */
+    trackPrintStatus?: boolean;
+    'track-print-status'?: boolean;
+    onStatusChanged?: Gtk.PrintJob.SignalSignatures['status-changed'];
+    onNotifyPageSetup?: NotifyHandler;
+    onNotifyPrinter?: NotifyHandler;
+    onNotifySettings?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyTrackPrintStatus?: NotifyHandler;
+}
+
+/** The interface that is used to implement print preview. */
+export interface GtkPrintOperationPreviewProps {
+    onGotPageSize?: Gtk.PrintOperationPreview.SignalSignatures['got-page-size'];
+    onReady?: Gtk.PrintOperationPreview.SignalSignatures['ready'];
+}
+
+/** High-level, portable printing API. */
+export interface GtkPrintOperationProps extends GtkPrintOperationPreviewProps {
+    /** Determines whether the print operation may run asynchronously or not. */
+    allowAsync?: boolean;
+    'allow-async'?: boolean;
+    /** The current page in the document. */
+    currentPage?: number;
+    'current-page'?: number;
+    /** Used as the label of the tab containing custom widgets. */
+    customTabLabel?: string;
+    'custom-tab-label'?: string;
+    /** The `GtkPageSetup` used by default. */
+    defaultPageSetup?: Gtk.PageSetup;
+    'default-page-setup'?: Gtk.PageSetup;
+    /** If %TRUE, page size combo box and orientation combo box are embedded into page setup page. */
+    embedPageSetup?: boolean;
+    'embed-page-setup'?: boolean;
+    /** The name of a file to generate instead of showing the print dialog. */
+    exportFilename?: string;
+    'export-filename'?: string;
+    /** Determines whether there is a selection in your application. */
+    hasSelection?: boolean;
+    'has-selection'?: boolean;
+    /** A string used to identify the job (e.g. */
+    jobName?: string;
+    'job-name'?: string;
+    /** The number of pages in the document. */
+    nPages?: number;
+    'n-pages'?: number;
+    /** The `GtkPrintSettings` used for initializing the dialog. */
+    printSettings?: Gtk.PrintSettings | null;
+    'print-settings'?: Gtk.PrintSettings | null;
+    /** Determines whether to show a progress dialog during the print operation. */
+    showProgress?: boolean;
+    'show-progress'?: boolean;
+    /** If %TRUE, the print operation will support print of selection. */
+    supportSelection?: boolean;
+    'support-selection'?: boolean;
+    /** If %TRUE, the print operation will try to continue report on the status of the print job in the printer queues and printer. */
+    trackPrintStatus?: boolean;
+    'track-print-status'?: boolean;
+    /** The transformation for the cairo context obtained from `GtkPrintContext` is set up in such a way that distances are measured in units of @unit. */
+    unit?: GtkUnitNick | Gtk.Unit;
+    /** If %TRUE, the transformation for the cairo context obtained from `GtkPrintContext` puts the origin at the top left corner of the page. */
+    useFullPage?: boolean;
+    'use-full-page'?: boolean;
+    onBeginPrint?: Gtk.PrintOperation.SignalSignatures['begin-print'];
+    onCreateCustomWidget?: Gtk.PrintOperation.SignalSignatures['create-custom-widget'];
+    onCustomWidgetApply?: Gtk.PrintOperation.SignalSignatures['custom-widget-apply'];
+    onDone?: Gtk.PrintOperation.SignalSignatures['done'];
+    onDrawPage?: Gtk.PrintOperation.SignalSignatures['draw-page'];
+    onEndPrint?: Gtk.PrintOperation.SignalSignatures['end-print'];
+    onPaginate?: Gtk.PrintOperation.SignalSignatures['paginate'];
+    onPreview?: Gtk.PrintOperation.SignalSignatures['preview'];
+    onRequestPageSetup?: Gtk.PrintOperation.SignalSignatures['request-page-setup'];
+    onStatusChanged?: Gtk.PrintOperation.SignalSignatures['status-changed'];
+    onUpdateCustomWidget?: Gtk.PrintOperation.SignalSignatures['update-custom-widget'];
+    onNotifyAllowAsync?: NotifyHandler;
+    onNotifyCurrentPage?: NotifyHandler;
+    onNotifyCustomTabLabel?: NotifyHandler;
+    onNotifyDefaultPageSetup?: NotifyHandler;
+    onNotifyEmbedPageSetup?: NotifyHandler;
+    onNotifyExportFilename?: NotifyHandler;
+    onNotifyHasSelection?: NotifyHandler;
+    onNotifyJobName?: NotifyHandler;
+    onNotifyNPages?: NotifyHandler;
+    onNotifyPrintSettings?: NotifyHandler;
+    onNotifyShowProgress?: NotifyHandler;
+    onNotifySupportSelection?: NotifyHandler;
+    onNotifyTrackPrintStatus?: NotifyHandler;
+    onNotifyUnit?: NotifyHandler;
+    onNotifyUseFullPage?: NotifyHandler;
+}
+
+/** Collects the settings of a print dialog in a system-independent way. */
+export interface GtkPrintSettingsProps {}
+
 /** A print dialog for platforms which don’t provide a native print dialog, like Unix. */
 export interface GtkPrintUnixDialogProps
     extends
@@ -4757,6 +6961,26 @@ export interface GtkPrintUnixDialogProps
     onNotifySupportSelection?: NotifyHandler;
 }
 
+/** Represents a printer. */
+export interface GtkPrinterProps {
+    /** %TRUE if this printer can accept PDF. */
+    acceptsPdf?: boolean;
+    'accepts-pdf'?: boolean;
+    /** %TRUE if this printer can accept PostScript. */
+    acceptsPs?: boolean;
+    'accepts-ps'?: boolean;
+    /** %FALSE if this represents a real hardware device. */
+    isVirtual?: boolean;
+    'is-virtual'?: boolean;
+    /** The name of the printer. */
+    name?: string;
+    onDetailsAcquired?: Gtk.Printer.SignalSignatures['details-acquired'];
+    onNotifyAcceptsPdf?: NotifyHandler;
+    onNotifyAcceptsPs?: NotifyHandler;
+    onNotifyIsVirtual?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+}
+
 /** Displays the progress of a long-running operation. */
 export interface GtkProgressBarProps
     extends
@@ -4787,6 +7011,9 @@ export interface GtkProgressBarProps
     onNotifyShowText?: NotifyHandler;
     onNotifyText?: NotifyHandler;
 }
+
+/** A `GObject` property value in a `GtkExpression`. */
+export interface GtkPropertyExpressionProps extends GtkExpressionProps {}
 
 /** Base class for widgets which visualize an adjustment. */
 export interface GtkRangeProps
@@ -4823,6 +7050,14 @@ export interface GtkRangeProps
     onNotifyRestrictToFillLevel?: NotifyHandler;
     onNotifyRoundDigits?: NotifyHandler;
     onNotifyShowFillLevel?: NotifyHandler;
+}
+
+/** Manages and looks up recently used files. */
+export interface GtkRecentManagerProps {
+    /** The full path to the file to be used to store and read the recently used resources list */
+    filename?: string;
+    onChanged?: Gtk.RecentManager.SignalSignatures['changed'];
+    onNotifyFilename?: NotifyHandler;
 }
 
 /** Animates the transition of its child from invisible to visible. */
@@ -5055,9 +7290,283 @@ export interface GtkSearchEntryProps
     onNotifySearchDelay?: NotifyHandler;
 }
 
+/** An interface that adds support for sections to list models. */
+export interface GtkSectionModelProps {
+    onSectionsChanged?: Gtk.SectionModel.SignalSignatures['sections-changed'];
+}
+
+/** A list model that presents the selection from a `GtkSelectionModel`. */
+export interface GtkSelectionFilterModelProps {
+    /** The model being filtered. */
+    model?: Gtk.SelectionModel | null;
+    onNotifyModel?: NotifyHandler;
+}
+
+/** An interface that adds support for selection to list models. */
+export interface GtkSelectionModelProps {
+    onSelectionChanged?: Gtk.SelectionModel.SignalSignatures['selection-changed'];
+}
+
 /** Draws a horizontal or vertical line to separate other widgets. */
 export interface GtkSeparatorProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {}
+
+/** Provides a mechanism to share global settings between applications. */
+export interface GtkSettingsProps extends GtkStyleProviderProps {
+    /** Whether buttons in dialogs should use the alternative button order. */
+    gtkAlternativeButtonOrder?: boolean;
+    'gtk-alternative-button-order'?: boolean;
+    /** Controls the direction of the sort indicators in sorted list and tree views. */
+    gtkAlternativeSortArrows?: boolean;
+    'gtk-alternative-sort-arrows'?: boolean;
+    /**
+     * Whether the application prefers to use a dark theme.
+     * @deprecated
+     */
+    gtkApplicationPreferDarkTheme?: boolean;
+    'gtk-application-prefer-dark-theme'?: boolean;
+    /** The aspect ratio of the text caret. */
+    gtkCursorAspectRatio?: number;
+    'gtk-cursor-aspect-ratio'?: number;
+    /** Whether the cursor should blink. */
+    gtkCursorBlink?: boolean;
+    'gtk-cursor-blink'?: boolean;
+    /** Length of the cursor blink cycle, in milliseconds. */
+    gtkCursorBlinkTime?: number;
+    'gtk-cursor-blink-time'?: number;
+    /** Time after which the cursor stops blinking, in seconds. */
+    gtkCursorBlinkTimeout?: number;
+    'gtk-cursor-blink-timeout'?: number;
+    /** Name of the cursor theme to use. */
+    gtkCursorThemeName?: string;
+    'gtk-cursor-theme-name'?: string;
+    /** The size to use for cursors. */
+    gtkCursorThemeSize?: number;
+    'gtk-cursor-theme-size'?: number;
+    /** Determines which buttons should be put in the titlebar of client-side decorated windows, and whether they should be placed on the left or right. */
+    gtkDecorationLayout?: string;
+    'gtk-decoration-layout'?: string;
+    /** Whether builtin GTK dialogs such as the file chooser, the color chooser or the font chooser will use a header bar at the top to show action widgets, or an action area at the bottom. */
+    gtkDialogsUseHeader?: boolean;
+    'gtk-dialogs-use-header'?: boolean;
+    /** The number of pixels the cursor can move before dragging. */
+    gtkDndDragThreshold?: number;
+    'gtk-dnd-drag-threshold'?: number;
+    /** The maximum distance allowed between two clicks for them to be considered a double click, in pixels. */
+    gtkDoubleClickDistance?: number;
+    'gtk-double-click-distance'?: number;
+    /** The maximum time to allow between two clicks for them to be considered a double click, in milliseconds. */
+    gtkDoubleClickTime?: number;
+    'gtk-double-click-time'?: number;
+    /** Whether menu items should have visible accelerators which can be activated. */
+    gtkEnableAccels?: boolean;
+    'gtk-enable-accels'?: boolean;
+    /** Whether to enable toolkit-wide animations. */
+    gtkEnableAnimations?: boolean;
+    'gtk-enable-animations'?: boolean;
+    /** Whether to play any event sounds at all. */
+    gtkEnableEventSounds?: boolean;
+    'gtk-enable-event-sounds'?: boolean;
+    /** Whether to play event sounds as feedback to user input. */
+    gtkEnableInputFeedbackSounds?: boolean;
+    'gtk-enable-input-feedback-sounds'?: boolean;
+    /** Whether a middle click on a mouse should paste the 'PRIMARY' clipboard content at the cursor location. */
+    gtkEnablePrimaryPaste?: boolean;
+    'gtk-enable-primary-paste'?: boolean;
+    /** How long to show the last input character in hidden entries. */
+    gtkEntryPasswordHintTimeout?: number;
+    'gtk-entry-password-hint-timeout'?: number;
+    /** Whether to select the contents of an entry when it is focused. */
+    gtkEntrySelectOnFocus?: boolean;
+    'gtk-entry-select-on-focus'?: boolean;
+    /** When %TRUE, keyboard navigation and other input-related errors will cause a beep. */
+    gtkErrorBell?: boolean;
+    'gtk-error-bell'?: boolean;
+    /** The default font to use. */
+    gtkFontName?: string;
+    'gtk-font-name'?: string;
+    /** How GTK font rendering is set up. */
+    gtkFontRendering?: GtkFontRenderingNick | Gtk.FontRendering;
+    'gtk-font-rendering'?: GtkFontRenderingNick | Gtk.FontRendering;
+    /** Timestamp of the current fontconfig configuration. */
+    gtkFontconfigTimestamp?: number;
+    'gtk-fontconfig-timestamp'?: number;
+    /** Whether hinting should be applied to font metrics. */
+    gtkHintFontMetrics?: boolean;
+    'gtk-hint-font-metrics'?: boolean;
+    /** Name of the icon theme to use. */
+    gtkIconThemeName?: string;
+    'gtk-icon-theme-name'?: string;
+    /** Which IM (input method) module should be used by default. */
+    gtkImModule?: string;
+    'gtk-im-module'?: string;
+    /** The color scheme used for rendering the user interface. */
+    gtkInterfaceColorScheme?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
+    'gtk-interface-color-scheme'?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
+    /** The level of contrast to use for the user interface. */
+    gtkInterfaceContrast?: GtkInterfaceContrastNick | Gtk.InterfaceContrast;
+    'gtk-interface-contrast'?: GtkInterfaceContrastNick | Gtk.InterfaceContrast;
+    /** Whether animations should be reduced to essential motions. */
+    gtkInterfaceReducedMotion?: GtkReducedMotionNick | Gtk.ReducedMotion;
+    'gtk-interface-reduced-motion'?: GtkReducedMotionNick | Gtk.ReducedMotion;
+    /** Time in seconds that the focus is visible when using keyboard navigation. */
+    gtkKeyboardFocusVisibleTimeout?: number;
+    'gtk-keyboard-focus-visible-timeout'?: number;
+    /** Whether GTK should make sure that text can be navigated with a caret, even if it is not editable. */
+    gtkKeynavUseCaret?: boolean;
+    'gtk-keynav-use-caret'?: boolean;
+    /** Whether to select the contents of a selectable label when it is focused. */
+    gtkLabelSelectOnFocus?: boolean;
+    'gtk-label-select-on-focus'?: boolean;
+    /** The time for a button or touch press to be considered a “long press”. */
+    gtkLongPressTime?: number;
+    'gtk-long-press-time'?: number;
+    /** Whether scrolled windows may use overlaid scrolling indicators. */
+    gtkOverlayScrolling?: boolean;
+    'gtk-overlay-scrolling'?: boolean;
+    /** If the value of this setting is %TRUE, clicking the primary button in a `GtkRange` trough will move the slider, and hence set the range’s value, to the point that you clicked. */
+    gtkPrimaryButtonWarpsSlider?: boolean;
+    'gtk-primary-button-warps-slider'?: boolean;
+    /** A comma-separated list of print backends to use in the print dialog. */
+    gtkPrintBackends?: string;
+    'gtk-print-backends'?: string;
+    /** A command to run for displaying the print preview. */
+    gtkPrintPreviewCommand?: string;
+    'gtk-print-preview-command'?: string;
+    /** Whether GTK should keep track of items inside the recently used resources list. */
+    gtkRecentFilesEnabled?: boolean;
+    'gtk-recent-files-enabled'?: boolean;
+    /** The maximum age, in days, of the items inside the recently used resources list. */
+    gtkRecentFilesMaxAge?: number;
+    'gtk-recent-files-max-age'?: number;
+    /**
+     * Set to %TRUE if the desktop environment is displaying the app menu, %FALSE if the app should display it itself.
+     * @deprecated
+     */
+    gtkShellShowsAppMenu?: boolean;
+    'gtk-shell-shows-app-menu'?: boolean;
+    /**
+     * Set to %TRUE if the desktop environment is displaying the desktop folder, %FALSE if not.
+     * @deprecated
+     */
+    gtkShellShowsDesktop?: boolean;
+    'gtk-shell-shows-desktop'?: boolean;
+    /**
+     * Set to %TRUE if the desktop environment is displaying the menubar, %FALSE if the app should display it itself.
+     * @deprecated
+     */
+    gtkShellShowsMenubar?: boolean;
+    'gtk-shell-shows-menubar'?: boolean;
+    /** When %TRUE, widgets like switches include shapes to indicate their on/off state. */
+    gtkShowStatusShapes?: boolean;
+    'gtk-show-status-shapes'?: boolean;
+    /** The XDG sound theme to use for event sounds. */
+    gtkSoundThemeName?: string;
+    'gtk-sound-theme-name'?: string;
+    /** Whether two cursors should be displayed for mixed left-to-right and right-to-left text. */
+    gtkSplitCursor?: boolean;
+    'gtk-split-cursor'?: boolean;
+    /** Name of the theme to load. */
+    gtkThemeName?: string;
+    'gtk-theme-name'?: string;
+    /** Determines the action to take when a double-click occurs on the titlebar of client-side decorated windows. */
+    gtkTitlebarDoubleClick?: string;
+    'gtk-titlebar-double-click'?: string;
+    /** Determines the action to take when a middle-click occurs on the titlebar of client-side decorated windows. */
+    gtkTitlebarMiddleClick?: string;
+    'gtk-titlebar-middle-click'?: string;
+    /** Determines the action to take when a right-click occurs on the titlebar of client-side decorated windows. */
+    gtkTitlebarRightClick?: string;
+    'gtk-titlebar-right-click'?: string;
+    /** Whether to antialias fonts. */
+    gtkXftAntialias?: number;
+    'gtk-xft-antialias'?: number;
+    /** The font resolution, in 1024 * dots/inch. */
+    gtkXftDpi?: number;
+    'gtk-xft-dpi'?: number;
+    /** Whether to enable font hinting. */
+    gtkXftHinting?: number;
+    'gtk-xft-hinting'?: number;
+    /** What degree of font hinting to use. */
+    gtkXftHintstyle?: string;
+    'gtk-xft-hintstyle'?: string;
+    /** The type of subpixel antialiasing to use. */
+    gtkXftRgba?: string;
+    'gtk-xft-rgba'?: string;
+    onNotifyGtkAlternativeButtonOrder?: NotifyHandler;
+    onNotifyGtkAlternativeSortArrows?: NotifyHandler;
+    onNotifyGtkApplicationPreferDarkTheme?: NotifyHandler;
+    onNotifyGtkCursorAspectRatio?: NotifyHandler;
+    onNotifyGtkCursorBlink?: NotifyHandler;
+    onNotifyGtkCursorBlinkTime?: NotifyHandler;
+    onNotifyGtkCursorBlinkTimeout?: NotifyHandler;
+    onNotifyGtkCursorThemeName?: NotifyHandler;
+    onNotifyGtkCursorThemeSize?: NotifyHandler;
+    onNotifyGtkDecorationLayout?: NotifyHandler;
+    onNotifyGtkDialogsUseHeader?: NotifyHandler;
+    onNotifyGtkDndDragThreshold?: NotifyHandler;
+    onNotifyGtkDoubleClickDistance?: NotifyHandler;
+    onNotifyGtkDoubleClickTime?: NotifyHandler;
+    onNotifyGtkEnableAccels?: NotifyHandler;
+    onNotifyGtkEnableAnimations?: NotifyHandler;
+    onNotifyGtkEnableEventSounds?: NotifyHandler;
+    onNotifyGtkEnableInputFeedbackSounds?: NotifyHandler;
+    onNotifyGtkEnablePrimaryPaste?: NotifyHandler;
+    onNotifyGtkEntryPasswordHintTimeout?: NotifyHandler;
+    onNotifyGtkEntrySelectOnFocus?: NotifyHandler;
+    onNotifyGtkErrorBell?: NotifyHandler;
+    onNotifyGtkFontName?: NotifyHandler;
+    onNotifyGtkFontRendering?: NotifyHandler;
+    onNotifyGtkFontconfigTimestamp?: NotifyHandler;
+    onNotifyGtkHintFontMetrics?: NotifyHandler;
+    onNotifyGtkIconThemeName?: NotifyHandler;
+    onNotifyGtkImModule?: NotifyHandler;
+    onNotifyGtkInterfaceColorScheme?: NotifyHandler;
+    onNotifyGtkInterfaceContrast?: NotifyHandler;
+    onNotifyGtkInterfaceReducedMotion?: NotifyHandler;
+    onNotifyGtkKeyboardFocusVisibleTimeout?: NotifyHandler;
+    onNotifyGtkKeynavUseCaret?: NotifyHandler;
+    onNotifyGtkLabelSelectOnFocus?: NotifyHandler;
+    onNotifyGtkLongPressTime?: NotifyHandler;
+    onNotifyGtkOverlayScrolling?: NotifyHandler;
+    onNotifyGtkPrimaryButtonWarpsSlider?: NotifyHandler;
+    onNotifyGtkPrintBackends?: NotifyHandler;
+    onNotifyGtkPrintPreviewCommand?: NotifyHandler;
+    onNotifyGtkRecentFilesEnabled?: NotifyHandler;
+    onNotifyGtkRecentFilesMaxAge?: NotifyHandler;
+    onNotifyGtkShellShowsAppMenu?: NotifyHandler;
+    onNotifyGtkShellShowsDesktop?: NotifyHandler;
+    onNotifyGtkShellShowsMenubar?: NotifyHandler;
+    onNotifyGtkShowStatusShapes?: NotifyHandler;
+    onNotifyGtkSoundThemeName?: NotifyHandler;
+    onNotifyGtkSplitCursor?: NotifyHandler;
+    onNotifyGtkThemeName?: NotifyHandler;
+    onNotifyGtkTitlebarDoubleClick?: NotifyHandler;
+    onNotifyGtkTitlebarMiddleClick?: NotifyHandler;
+    onNotifyGtkTitlebarRightClick?: NotifyHandler;
+    onNotifyGtkXftAntialias?: NotifyHandler;
+    onNotifyGtkXftDpi?: NotifyHandler;
+    onNotifyGtkXftHinting?: NotifyHandler;
+    onNotifyGtkXftHintstyle?: NotifyHandler;
+    onNotifyGtkXftRgba?: NotifyHandler;
+}
+
+/** Encodes an action that can be triggered by a keyboard shortcut. */
+export interface GtkShortcutActionProps {}
+
+/** Manages keyboard shortcuts and their activation. */
+export interface GtkShortcutControllerProps extends GtkEventControllerProps, GtkBuildableProps {
+    /** The modifiers that need to be pressed to allow mnemonics activation. */
+    mnemonicModifiers?: number;
+    'mnemonic-modifiers'?: number;
+    /** A list model to take shortcuts from. */
+    model?: Gio.ListModel;
+    /** What scope the shortcuts will be handled in. */
+    scope?: GtkShortcutScopeNick | Gtk.ShortcutScope;
+    onNotifyMnemonicModifiers?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifyScope?: NotifyHandler;
+}
 
 /** `GtkShortcutLabel` displays a single keyboard shortcut or gesture. */
 export interface GtkShortcutLabelProps
@@ -5079,6 +7588,22 @@ export interface GtkShortcutLabelProps
 
 /** An interface that is used to implement shortcut scopes. */
 export interface GtkShortcutManagerProps {}
+
+/** Describes a keyboard shortcut. */
+export interface GtkShortcutProps {
+    /** The action that gets activated by this shortcut. */
+    action?: Gtk.ShortcutAction | null;
+    /** Arguments passed to activation. */
+    arguments?: GLib.Variant | null;
+    /** The trigger that triggers this shortcut. */
+    trigger?: Gtk.ShortcutTrigger | null;
+    onNotifyAction?: NotifyHandler;
+    onNotifyArguments?: NotifyHandler;
+    onNotifyTrigger?: NotifyHandler;
+}
+
+/** Tracks how a `GtkShortcut` can be activated. */
+export interface GtkShortcutTriggerProps {}
 
 /** A `GtkShortcutsGroup` represents a group of related keyboard shortcuts or gestures. */
 export interface GtkShortcutsGroupProps
@@ -5262,6 +7787,84 @@ export interface GtkShortcutsWindowProps
     onNotifyViewName?: NotifyHandler;
 }
 
+/** Emits a signal on a widget. */
+export interface GtkSignalActionProps extends GtkShortcutActionProps {
+    /** The name of the signal to emit. */
+    signalName?: string;
+    'signal-name'?: string;
+    onNotifySignalName?: NotifyHandler;
+}
+
+/** Emits signals to manage listitems. */
+export interface GtkSignalListItemFactoryProps extends GtkListItemFactoryProps {
+    onBind?: Gtk.SignalListItemFactory.SignalSignatures['bind'];
+    onSetup?: Gtk.SignalListItemFactory.SignalSignatures['setup'];
+    onTeardown?: Gtk.SignalListItemFactory.SignalSignatures['teardown'];
+    onUnbind?: Gtk.SignalListItemFactory.SignalSignatures['unbind'];
+}
+
+/** A selection model that allows selecting a single item. */
+export interface GtkSingleSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+    /** If the selection will always select an item. */
+    autoselect?: boolean;
+    /** If unselecting the selected item is allowed. */
+    canUnselect?: boolean;
+    'can-unselect'?: boolean;
+    /** The model being managed. */
+    model?: Gio.ListModel | null;
+    /** Position of the selected item. */
+    selected?: number;
+    onNotifyAutoselect?: NotifyHandler;
+    onNotifyCanUnselect?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifySelected?: NotifyHandler;
+}
+
+/** Groups widgets together so they all request the same size. */
+export interface GtkSizeGroupProps extends GtkBuildableProps {
+    /** The direction in which the size group affects requested sizes. */
+    mode?: GtkSizeGroupModeNick | Gtk.SizeGroupMode;
+    onNotifyMode?: NotifyHandler;
+}
+
+/** A list model that presents a slice of another model. */
+export interface GtkSliceListModelProps extends GtkSectionModelProps {
+    /** Child model to take slice from. */
+    model?: Gio.ListModel | null;
+    /** Offset of slice. */
+    offset?: number;
+    /** Maximum size of slice. */
+    size?: number;
+    onNotifyModel?: NotifyHandler;
+    onNotifyOffset?: NotifyHandler;
+    onNotifySize?: NotifyHandler;
+}
+
+/** Assists in creating [class@Gsk.RenderNode]s for widgets. */
+export interface GtkSnapshotProps {}
+
+/** A list model that sorts the elements of another model. */
+export interface GtkSortListModelProps extends GtkSectionModelProps {
+    /** If the model should sort items incrementally. */
+    incremental?: boolean;
+    /** The model being sorted. */
+    model?: Gio.ListModel | null;
+    /** The section sorter for this model, if one is set. */
+    sectionSorter?: Gtk.Sorter | null;
+    'section-sorter'?: Gtk.Sorter | null;
+    /** The sorter for this model. */
+    sorter?: Gtk.Sorter | null;
+    onNotifyIncremental?: NotifyHandler;
+    onNotifyModel?: NotifyHandler;
+    onNotifySectionSorter?: NotifyHandler;
+    onNotifySorter?: NotifyHandler;
+}
+
+/** Describes sorting criteria for a [class@Gtk.SortListModel]. */
+export interface GtkSorterProps {
+    onChanged?: Gtk.Sorter.SignalSignatures['changed'];
+}
+
 /** Allows to enter or change numeric values. */
 export interface GtkSpinButtonProps
     extends
@@ -5320,6 +7923,34 @@ export interface GtkSpinnerProps
     onNotifySpinning?: NotifyHandler;
 }
 
+/** An auxiliary class used by `GtkStack`. */
+export interface GtkStackPageProps extends GtkAccessibleProps {
+    /** The child that this page is for. */
+    child?: Gtk.Widget;
+    /** The icon name of the child page. */
+    iconName?: string | null;
+    'icon-name'?: string | null;
+    /** The name of the child page. */
+    name?: string | null;
+    /** Whether the page requires the user attention. */
+    needsAttention?: boolean;
+    'needs-attention'?: boolean;
+    /** The title of the child page. */
+    title?: string | null;
+    /** If set, an underline in the title indicates a mnemonic. */
+    useUnderline?: boolean;
+    'use-underline'?: boolean;
+    /** Whether this page is visible. */
+    visible?: boolean;
+    onNotifyChild?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyNeedsAttention?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyUseUnderline?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+}
+
 /** Shows one of its children at a time. */
 export interface GtkStackProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** %TRUE if the stack allocates the same width for all children. */
@@ -5373,6 +8004,86 @@ export interface GtkStatusbarProps
     onTextPushed?: Gtk.Statusbar.SignalSignatures['text-pushed'];
 }
 
+/** Determines whether to include items by comparing strings to a fixed search term. */
+export interface GtkStringFilterProps extends GtkFilterProps {
+    /** The expression to evaluate on each item to get a string to compare with. */
+    expression?: Gtk.Expression | null;
+    /** If matching is case sensitive. */
+    ignoreCase?: boolean;
+    'ignore-case'?: boolean;
+    /** If exact matches are necessary or if substrings are allowed. */
+    matchMode?: GtkStringFilterMatchModeNick | Gtk.StringFilterMatchMode;
+    'match-mode'?: GtkStringFilterMatchModeNick | Gtk.StringFilterMatchMode;
+    /** The search term. */
+    search?: string | null;
+    onNotifyExpression?: NotifyHandler;
+    onNotifyIgnoreCase?: NotifyHandler;
+    onNotifyMatchMode?: NotifyHandler;
+    onNotifySearch?: NotifyHandler;
+}
+
+/** A list model that wraps an array of strings. */
+export interface GtkStringListProps extends GtkBuildableProps {
+    /** The strings in the model. */
+    strings?: string[];
+    onNotifyStrings?: NotifyHandler;
+}
+
+/** The type of items in a `GtkStringList`. */
+export interface GtkStringObjectProps {}
+
+/** Sorts items by comparing strings. */
+export interface GtkStringSorterProps extends GtkSorterProps {
+    /** The collation method to use for sorting. */
+    collation?: GtkCollationNick | Gtk.Collation;
+    /** The expression to evaluate on item to get a string to compare with. */
+    expression?: Gtk.Expression | null;
+    /** If sorting is case sensitive. */
+    ignoreCase?: boolean;
+    'ignore-case'?: boolean;
+    onNotifyCollation?: NotifyHandler;
+    onNotifyExpression?: NotifyHandler;
+    onNotifyIgnoreCase?: NotifyHandler;
+}
+
+/** `GtkStyleContext` stores styling information affecting a widget. */
+export interface GtkStyleContextProps {
+    /** The display of the style context. */
+    display?: Gdk.Display;
+    onNotifyDisplay?: NotifyHandler;
+}
+
+/** An interface for style information used by [class@Gtk.StyleContext]. */
+export interface GtkStyleProviderProps {
+    onGtkPrivateChanged?: Gtk.StyleProvider.SignalSignatures['gtk-private-changed'];
+}
+
+/** A paintable implementation that renders SVG, with animations. */
+export interface GtkSvgProps extends GtkSymbolicPaintableProps {
+    /** Enabled features for this paintable. */
+    features?: number;
+    /** Whether the rendering will be clipped to the bounds. */
+    overflow?: GtkOverflowNick | Gtk.Overflow;
+    /** Whether the paintable is currently animating its content. */
+    playing?: boolean;
+    /** Resource to load SVG data from. */
+    resource?: string;
+    /** The current state of the renderer. */
+    state?: number;
+    /** A CSS stylesheet to apply to the SVG. */
+    stylesheet?: GLib.Bytes | null;
+    /** If not set to -1, this value overrides the weight used when rendering the paintable. */
+    weight?: number;
+    onError?: Gtk.Svg.SignalSignatures['error'];
+    onNotifyFeatures?: NotifyHandler;
+    onNotifyOverflow?: NotifyHandler;
+    onNotifyPlaying?: NotifyHandler;
+    onNotifyResource?: NotifyHandler;
+    onNotifyState?: NotifyHandler;
+    onNotifyStylesheet?: NotifyHandler;
+    onNotifyWeight?: NotifyHandler;
+}
+
 /** A widget that renders SVG, with animations and event handling. */
 export interface GtkSvgWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -5400,6 +8111,53 @@ export interface GtkSwitchProps
     onStateSet?: Gtk.Switch.SignalSignatures['state-set'];
     onNotifyActive?: NotifyHandler;
     onNotifyState?: NotifyHandler;
+}
+
+/** An interface that supports symbolic colors in paintables. */
+export interface GtkSymbolicPaintableProps {}
+
+/** Stores text and attributes for display in a `GtkTextView`. */
+export interface GtkTextBufferProps {
+    /** Denotes if support for undoing and redoing changes to the buffer is allowed. */
+    enableUndo?: boolean;
+    'enable-undo'?: boolean;
+    /** The GtkTextTagTable for the buffer. */
+    tagTable?: Gtk.TextTagTable;
+    'tag-table'?: Gtk.TextTagTable;
+    /** The text content of the buffer. */
+    text?: string;
+    onApplyTag?: Gtk.TextBuffer.SignalSignatures['apply-tag'];
+    onBeginUserAction?: Gtk.TextBuffer.SignalSignatures['begin-user-action'];
+    onChanged?: Gtk.TextBuffer.SignalSignatures['changed'];
+    onDeleteRange?: Gtk.TextBuffer.SignalSignatures['delete-range'];
+    onEndUserAction?: Gtk.TextBuffer.SignalSignatures['end-user-action'];
+    onInsertChildAnchor?: Gtk.TextBuffer.SignalSignatures['insert-child-anchor'];
+    onInsertPaintable?: Gtk.TextBuffer.SignalSignatures['insert-paintable'];
+    onInsertText?: Gtk.TextBuffer.SignalSignatures['insert-text'];
+    onMarkDeleted?: Gtk.TextBuffer.SignalSignatures['mark-deleted'];
+    onMarkSet?: Gtk.TextBuffer.SignalSignatures['mark-set'];
+    onModifiedChanged?: Gtk.TextBuffer.SignalSignatures['modified-changed'];
+    onPasteDone?: Gtk.TextBuffer.SignalSignatures['paste-done'];
+    onRedo?: Gtk.TextBuffer.SignalSignatures['redo'];
+    onRemoveTag?: Gtk.TextBuffer.SignalSignatures['remove-tag'];
+    onUndo?: Gtk.TextBuffer.SignalSignatures['undo'];
+    onNotifyEnableUndo?: NotifyHandler;
+    onNotifyTagTable?: NotifyHandler;
+    onNotifyText?: NotifyHandler;
+}
+
+/** Marks a spot in a `GtkTextBuffer` where child widgets can be “anchored”. */
+export interface GtkTextChildAnchorProps {}
+
+/** Marks a position in a `GtkTextbuffer` that is preserved across modifications. */
+export interface GtkTextMarkProps {
+    /** Whether the mark has left gravity. */
+    leftGravity?: boolean;
+    'left-gravity'?: boolean;
+    /** The name of the mark or %NULL if the mark is anonymous. */
+    name?: string | null;
+    onNotifyLeftGravity?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
 }
 
 /** A single-line text entry. */
@@ -5486,6 +8244,348 @@ export interface GtkTextProps
     onNotifyTabs?: NotifyHandler;
     onNotifyTruncateMultiline?: NotifyHandler;
     onNotifyVisibility?: NotifyHandler;
+}
+
+/** Can be applied to text contained in a `GtkTextBuffer`. */
+export interface GtkTextTagProps {
+    /** Whether the margins accumulate or override each other. */
+    accumulativeMargin?: boolean;
+    'accumulative-margin'?: boolean;
+    /** Whether breaks are allowed. */
+    allowBreaks?: boolean;
+    'allow-breaks'?: boolean;
+    /** Whether the `allow-breaks` property is set. */
+    allowBreaksSet?: boolean;
+    'allow-breaks-set'?: boolean;
+    /** Background color as a string. */
+    background?: string;
+    /** Whether the background color fills the entire line height or only the height of the tagged characters. */
+    backgroundFullHeight?: boolean;
+    'background-full-height'?: boolean;
+    /** Whether the `background-full-height` property is set. */
+    backgroundFullHeightSet?: boolean;
+    'background-full-height-set'?: boolean;
+    /** Background color as a `GdkRGBA`. */
+    backgroundRgba?: Gdk.RGBA;
+    'background-rgba'?: Gdk.RGBA;
+    /** Whether the `background` property is set. */
+    backgroundSet?: boolean;
+    'background-set'?: boolean;
+    /** Text direction, e.g. */
+    direction?: GtkTextDirectionNick | Gtk.TextDirection;
+    /** Whether the text can be modified by the user. */
+    editable?: boolean;
+    /** Whether the `editable` property is set. */
+    editableSet?: boolean;
+    'editable-set'?: boolean;
+    /** Whether font fallback is enabled. */
+    fallback?: boolean;
+    /** Whether the `fallback` property is set. */
+    fallbackSet?: boolean;
+    'fallback-set'?: boolean;
+    /** Name of the font family, e.g. */
+    family?: string;
+    /** Whether the `family` property is set. */
+    familySet?: boolean;
+    'family-set'?: boolean;
+    /** Font description as string, e.g. */
+    font?: string;
+    /** Font description as a `PangoFontDescription`. */
+    fontDesc?: Pango.FontDescription;
+    'font-desc'?: Pango.FontDescription;
+    /** OpenType font features, as a string. */
+    fontFeatures?: string;
+    'font-features'?: string;
+    /** Whether the `font-features` property is set. */
+    fontFeaturesSet?: boolean;
+    'font-features-set'?: boolean;
+    /** Foreground color as a string. */
+    foreground?: string;
+    /** Foreground color as a `GdkRGBA`. */
+    foregroundRgba?: Gdk.RGBA;
+    'foreground-rgba'?: Gdk.RGBA;
+    /** Whether the `foreground` property is set. */
+    foregroundSet?: boolean;
+    'foreground-set'?: boolean;
+    /** Amount to indent the paragraph, in pixels. */
+    indent?: number;
+    /** Whether the `indent` property is set. */
+    indentSet?: boolean;
+    'indent-set'?: boolean;
+    /** Whether to insert hyphens at breaks. */
+    insertHyphens?: boolean;
+    'insert-hyphens'?: boolean;
+    /** Whether the `insert-hyphens` property is set. */
+    insertHyphensSet?: boolean;
+    'insert-hyphens-set'?: boolean;
+    /** Whether this text is hidden. */
+    invisible?: boolean;
+    /** Whether the `invisible` property is set. */
+    invisibleSet?: boolean;
+    'invisible-set'?: boolean;
+    /** Left, right, or center justification. */
+    justification?: GtkJustificationNick | Gtk.Justification;
+    /** Whether the `justification` property is set. */
+    justificationSet?: boolean;
+    'justification-set'?: boolean;
+    /** The language this text is in, as an ISO code. */
+    language?: string;
+    /** Whether the `language` property is set. */
+    languageSet?: boolean;
+    'language-set'?: boolean;
+    /** Width of the left margin in pixels. */
+    leftMargin?: number;
+    'left-margin'?: number;
+    /** Whether the `left-margin` property is set. */
+    leftMarginSet?: boolean;
+    'left-margin-set'?: boolean;
+    /** Extra spacing between graphemes, in Pango units. */
+    letterSpacing?: number;
+    'letter-spacing'?: number;
+    /** Whether the `letter-spacing` property is set. */
+    letterSpacingSet?: boolean;
+    'letter-spacing-set'?: boolean;
+    /** Factor to scale line height by. */
+    lineHeight?: number;
+    'line-height'?: number;
+    /** Whether the `line-height` property is set. */
+    lineHeightSet?: boolean;
+    'line-height-set'?: boolean;
+    /** The name used to refer to the tag. */
+    name?: string;
+    /** Style of overline for this text. */
+    overline?: PangoOverlineNick | Pango.Overline;
+    /** This property modifies the color of overlines. */
+    overlineRgba?: Gdk.RGBA;
+    'overline-rgba'?: Gdk.RGBA;
+    /** Whether the `overline-rgba` property is set. */
+    overlineRgbaSet?: boolean;
+    'overline-rgba-set'?: boolean;
+    /** Whether the `overline` property is set. */
+    overlineSet?: boolean;
+    'overline-set'?: boolean;
+    /** The paragraph background color as a string. */
+    paragraphBackground?: string;
+    'paragraph-background'?: string;
+    /** The paragraph background color as a `GdkRGBA`. */
+    paragraphBackgroundRgba?: Gdk.RGBA;
+    'paragraph-background-rgba'?: Gdk.RGBA;
+    /** Whether the `paragraph-background` property is set. */
+    paragraphBackgroundSet?: boolean;
+    'paragraph-background-set'?: boolean;
+    /** Pixels of blank space above paragraphs. */
+    pixelsAboveLines?: number;
+    'pixels-above-lines'?: number;
+    /** Whether the `pixels-above-lines` property is set. */
+    pixelsAboveLinesSet?: boolean;
+    'pixels-above-lines-set'?: boolean;
+    /** Pixels of blank space below paragraphs. */
+    pixelsBelowLines?: number;
+    'pixels-below-lines'?: number;
+    /** Whether the `pixels-below-lines` property is set. */
+    pixelsBelowLinesSet?: boolean;
+    'pixels-below-lines-set'?: boolean;
+    /** Pixels of blank space between wrapped lines in a paragraph. */
+    pixelsInsideWrap?: number;
+    'pixels-inside-wrap'?: number;
+    /** Whether the `pixels-inside-wrap` property is set. */
+    pixelsInsideWrapSet?: boolean;
+    'pixels-inside-wrap-set'?: boolean;
+    /** Width of the right margin, in pixels. */
+    rightMargin?: number;
+    'right-margin'?: number;
+    /** Whether the `right-margin` property is set. */
+    rightMarginSet?: boolean;
+    'right-margin-set'?: boolean;
+    /** Offset of text above the baseline, in Pango units. */
+    rise?: number;
+    /** Whether the `rise` property is set. */
+    riseSet?: boolean;
+    'rise-set'?: boolean;
+    /** Font size as a scale factor relative to the default font size. */
+    scale?: number;
+    /** Whether the `scale` property is set. */
+    scaleSet?: boolean;
+    'scale-set'?: boolean;
+    /** Whether this tag represents a single sentence. */
+    sentence?: boolean;
+    /** Whether the `sentence` property is set. */
+    sentenceSet?: boolean;
+    'sentence-set'?: boolean;
+    /** How to render invisible characters. */
+    showSpaces?: number;
+    'show-spaces'?: number;
+    /** Whether the `show-spaces` property is set. */
+    showSpacesSet?: boolean;
+    'show-spaces-set'?: boolean;
+    /** Font size in Pango units. */
+    size?: number;
+    /** Font size in points. */
+    sizePoints?: number;
+    'size-points'?: number;
+    /** Whether the `size` property is set. */
+    sizeSet?: boolean;
+    'size-set'?: boolean;
+    /** Font stretch as a `PangoStretch`, e.g. */
+    stretch?: PangoStretchNick | Pango.Stretch;
+    /** Whether the `stretch` property is set. */
+    stretchSet?: boolean;
+    'stretch-set'?: boolean;
+    /** Whether to strike through the text. */
+    strikethrough?: boolean;
+    /** This property modifies the color of strikeouts. */
+    strikethroughRgba?: Gdk.RGBA;
+    'strikethrough-rgba'?: Gdk.RGBA;
+    /** If the `strikethrough-rgba` property has been set. */
+    strikethroughRgbaSet?: boolean;
+    'strikethrough-rgba-set'?: boolean;
+    /** Whether the `strikethrough` property is set. */
+    strikethroughSet?: boolean;
+    'strikethrough-set'?: boolean;
+    /** Font style as a `PangoStyle`, e.g. */
+    style?: PangoStyleNick | Pango.Style;
+    /** Whether the `style` property is set. */
+    styleSet?: boolean;
+    'style-set'?: boolean;
+    /** Custom tabs for this text. */
+    tabs?: Pango.TabArray;
+    /** Whether the `tabs` property is set. */
+    tabsSet?: boolean;
+    'tabs-set'?: boolean;
+    /** How to transform the text for display. */
+    textTransform?: PangoTextTransformNick | Pango.TextTransform;
+    'text-transform'?: PangoTextTransformNick | Pango.TextTransform;
+    /** Whether the `text-transform` property is set. */
+    textTransformSet?: boolean;
+    'text-transform-set'?: boolean;
+    /** Style of underline for this text. */
+    underline?: PangoUnderlineNick | Pango.Underline;
+    /** This property modifies the color of underlines. */
+    underlineRgba?: Gdk.RGBA;
+    'underline-rgba'?: Gdk.RGBA;
+    /** If the `underline-rgba` property has been set. */
+    underlineRgbaSet?: boolean;
+    'underline-rgba-set'?: boolean;
+    /** Whether the `underline` property is set. */
+    underlineSet?: boolean;
+    'underline-set'?: boolean;
+    /** Font variant as a `PangoVariant`, e.g. */
+    variant?: PangoVariantNick | Pango.Variant;
+    /** Whether the `variant` property is set. */
+    variantSet?: boolean;
+    'variant-set'?: boolean;
+    /** Font weight as an integer. */
+    weight?: number;
+    /** Whether the `weight` property is set. */
+    weightSet?: boolean;
+    'weight-set'?: boolean;
+    /** Whether this tag represents a single word. */
+    word?: boolean;
+    /** Whether the `word` property is set. */
+    wordSet?: boolean;
+    'word-set'?: boolean;
+    /** Whether to wrap lines never, at word boundaries, or at character boundaries. */
+    wrapMode?: GtkWrapModeNick | Gtk.WrapMode;
+    'wrap-mode'?: GtkWrapModeNick | Gtk.WrapMode;
+    /** Whether the `wrap-mode` property is set. */
+    wrapModeSet?: boolean;
+    'wrap-mode-set'?: boolean;
+    onNotifyAccumulativeMargin?: NotifyHandler;
+    onNotifyAllowBreaks?: NotifyHandler;
+    onNotifyAllowBreaksSet?: NotifyHandler;
+    onNotifyBackground?: NotifyHandler;
+    onNotifyBackgroundFullHeight?: NotifyHandler;
+    onNotifyBackgroundFullHeightSet?: NotifyHandler;
+    onNotifyBackgroundRgba?: NotifyHandler;
+    onNotifyBackgroundSet?: NotifyHandler;
+    onNotifyDirection?: NotifyHandler;
+    onNotifyEditable?: NotifyHandler;
+    onNotifyEditableSet?: NotifyHandler;
+    onNotifyFallback?: NotifyHandler;
+    onNotifyFallbackSet?: NotifyHandler;
+    onNotifyFamily?: NotifyHandler;
+    onNotifyFamilySet?: NotifyHandler;
+    onNotifyFont?: NotifyHandler;
+    onNotifyFontDesc?: NotifyHandler;
+    onNotifyFontFeatures?: NotifyHandler;
+    onNotifyFontFeaturesSet?: NotifyHandler;
+    onNotifyForeground?: NotifyHandler;
+    onNotifyForegroundRgba?: NotifyHandler;
+    onNotifyForegroundSet?: NotifyHandler;
+    onNotifyIndent?: NotifyHandler;
+    onNotifyIndentSet?: NotifyHandler;
+    onNotifyInsertHyphens?: NotifyHandler;
+    onNotifyInsertHyphensSet?: NotifyHandler;
+    onNotifyInvisible?: NotifyHandler;
+    onNotifyInvisibleSet?: NotifyHandler;
+    onNotifyJustification?: NotifyHandler;
+    onNotifyJustificationSet?: NotifyHandler;
+    onNotifyLanguage?: NotifyHandler;
+    onNotifyLanguageSet?: NotifyHandler;
+    onNotifyLeftMargin?: NotifyHandler;
+    onNotifyLeftMarginSet?: NotifyHandler;
+    onNotifyLetterSpacing?: NotifyHandler;
+    onNotifyLetterSpacingSet?: NotifyHandler;
+    onNotifyLineHeight?: NotifyHandler;
+    onNotifyLineHeightSet?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyOverline?: NotifyHandler;
+    onNotifyOverlineRgba?: NotifyHandler;
+    onNotifyOverlineRgbaSet?: NotifyHandler;
+    onNotifyOverlineSet?: NotifyHandler;
+    onNotifyParagraphBackground?: NotifyHandler;
+    onNotifyParagraphBackgroundRgba?: NotifyHandler;
+    onNotifyParagraphBackgroundSet?: NotifyHandler;
+    onNotifyPixelsAboveLines?: NotifyHandler;
+    onNotifyPixelsAboveLinesSet?: NotifyHandler;
+    onNotifyPixelsBelowLines?: NotifyHandler;
+    onNotifyPixelsBelowLinesSet?: NotifyHandler;
+    onNotifyPixelsInsideWrap?: NotifyHandler;
+    onNotifyPixelsInsideWrapSet?: NotifyHandler;
+    onNotifyRightMargin?: NotifyHandler;
+    onNotifyRightMarginSet?: NotifyHandler;
+    onNotifyRise?: NotifyHandler;
+    onNotifyRiseSet?: NotifyHandler;
+    onNotifyScale?: NotifyHandler;
+    onNotifyScaleSet?: NotifyHandler;
+    onNotifySentence?: NotifyHandler;
+    onNotifySentenceSet?: NotifyHandler;
+    onNotifyShowSpaces?: NotifyHandler;
+    onNotifyShowSpacesSet?: NotifyHandler;
+    onNotifySize?: NotifyHandler;
+    onNotifySizePoints?: NotifyHandler;
+    onNotifySizeSet?: NotifyHandler;
+    onNotifyStretch?: NotifyHandler;
+    onNotifyStretchSet?: NotifyHandler;
+    onNotifyStrikethrough?: NotifyHandler;
+    onNotifyStrikethroughRgba?: NotifyHandler;
+    onNotifyStrikethroughRgbaSet?: NotifyHandler;
+    onNotifyStrikethroughSet?: NotifyHandler;
+    onNotifyStyle?: NotifyHandler;
+    onNotifyStyleSet?: NotifyHandler;
+    onNotifyTabs?: NotifyHandler;
+    onNotifyTabsSet?: NotifyHandler;
+    onNotifyTextTransform?: NotifyHandler;
+    onNotifyTextTransformSet?: NotifyHandler;
+    onNotifyUnderline?: NotifyHandler;
+    onNotifyUnderlineRgba?: NotifyHandler;
+    onNotifyUnderlineRgbaSet?: NotifyHandler;
+    onNotifyUnderlineSet?: NotifyHandler;
+    onNotifyVariant?: NotifyHandler;
+    onNotifyVariantSet?: NotifyHandler;
+    onNotifyWeight?: NotifyHandler;
+    onNotifyWeightSet?: NotifyHandler;
+    onNotifyWord?: NotifyHandler;
+    onNotifyWordSet?: NotifyHandler;
+    onNotifyWrapMode?: NotifyHandler;
+    onNotifyWrapModeSet?: NotifyHandler;
+}
+
+/** Collects the tags in a `GtkTextBuffer`. */
+export interface GtkTextTagTableProps extends GtkBuildableProps {
+    onTagAdded?: Gtk.TextTagTable.SignalSignatures['tag-added'];
+    onTagChanged?: Gtk.TextTagTable.SignalSignatures['tag-changed'];
+    onTagRemoved?: Gtk.TextTagTable.SignalSignatures['tag-removed'];
 }
 
 /** Displays the contents of a [class@Gtk.TextBuffer]. */
@@ -5609,6 +8709,15 @@ export interface GtkToggleButtonProps
     onNotifyGroup?: NotifyHandler;
 }
 
+/** Represents a widget tooltip. */
+export interface GtkTooltipProps {}
+
+/** Interface for Drag-and-Drop destinations in `GtkTreeView`. */
+export interface GtkTreeDragDestProps {}
+
+/** Interface for Drag-and-Drop destinations in `GtkTreeView`. */
+export interface GtkTreeDragSourceProps {}
+
 /** Provides an expander for a tree-like list. */
 export interface GtkTreeExpanderProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -5631,6 +8740,123 @@ export interface GtkTreeExpanderProps
     onNotifyIndentForDepth?: NotifyHandler;
     onNotifyIndentForIcon?: NotifyHandler;
     onNotifyListRow?: NotifyHandler;
+}
+
+/** A list model that can create child models on demand. */
+export interface GtkTreeListModelProps {
+    /** If all rows should be expanded by default. */
+    autoexpand?: boolean;
+    /** Gets whether the model is in passthrough mode. */
+    passthrough?: boolean;
+    onNotifyAutoexpand?: NotifyHandler;
+    onNotifyPassthrough?: NotifyHandler;
+}
+
+/** The type of item used by `GtkTreeListModel`. */
+export interface GtkTreeListRowProps {
+    /** If this row is currently expanded. */
+    expanded?: boolean;
+    onNotifyExpanded?: NotifyHandler;
+}
+
+/** Applies a gives sorter to the levels in a tree. */
+export interface GtkTreeListRowSorterProps extends GtkSorterProps {
+    /** The underlying sorter */
+    sorter?: Gtk.Sorter | null;
+    onNotifySorter?: NotifyHandler;
+}
+
+/** A `GtkTreeModel` which hides parts of an underlying tree model A `GtkTreeModelFilter` is a tree model which wraps another tree model, and can do the following things: - Filter specific rows, based on… */
+export interface GtkTreeModelFilterProps extends GtkTreeDragSourceProps, GtkTreeModelProps {
+    /** The child model of the tree model filter. */
+    childModel?: Gtk.TreeModel;
+    'child-model'?: Gtk.TreeModel;
+    /** The virtual root of the tree model filter. */
+    virtualRoot?: Gtk.TreePath;
+    'virtual-root'?: Gtk.TreePath;
+    onNotifyChildModel?: NotifyHandler;
+    onNotifyVirtualRoot?: NotifyHandler;
+}
+
+/** The tree interface used by GtkTreeView The `GtkTreeModel` interface defines a generic tree interface for use by the `GtkTreeView` widget. */
+export interface GtkTreeModelProps {
+    onRowChanged?: Gtk.TreeModel.SignalSignatures['row-changed'];
+    onRowDeleted?: Gtk.TreeModel.SignalSignatures['row-deleted'];
+    onRowHasChildToggled?: Gtk.TreeModel.SignalSignatures['row-has-child-toggled'];
+    onRowInserted?: Gtk.TreeModel.SignalSignatures['row-inserted'];
+    onRowsReordered?: Gtk.TreeModel.SignalSignatures['rows-reordered'];
+}
+
+/** A GtkTreeModel which makes an underlying tree model sortable The `GtkTreeModelSort` is a model which implements the `GtkTreeSortable` interface. */
+export interface GtkTreeModelSortProps extends GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {
+    /** The model of the tree model sort. */
+    model?: Gtk.TreeModel;
+    onNotifyModel?: NotifyHandler;
+}
+
+/** The selection object for GtkTreeView The `GtkTreeSelection` object is a helper object to manage the selection for a `GtkTreeView` widget. */
+export interface GtkTreeSelectionProps {
+    /** Selection mode. */
+    mode?: GtkSelectionModeNick | Gtk.SelectionMode;
+    onChanged?: Gtk.TreeSelection.SignalSignatures['changed'];
+    onNotifyMode?: NotifyHandler;
+}
+
+/** The interface for sortable models used by GtkTreeView `GtkTreeSortable` is an interface to be implemented by tree models which support sorting. */
+export interface GtkTreeSortableProps {
+    onSortColumnChanged?: Gtk.TreeSortable.SignalSignatures['sort-column-changed'];
+}
+
+/** A tree-like data structure that can be used with the [class@Gtk.TreeView]. */
+export interface GtkTreeStoreProps
+    extends GtkBuildableProps, GtkTreeDragDestProps, GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {}
+
+/** A visible column in a [class@Gtk.TreeView] widget The `GtkTreeViewColumn` object represents a visible column in a `GtkTreeView` widget. */
+export interface GtkTreeViewColumnProps extends GtkBuildableProps, GtkCellLayoutProps {
+    alignment?: number;
+    /** The `GtkCellArea` used to layout cell renderers for this column. */
+    cellArea?: Gtk.CellArea;
+    'cell-area'?: Gtk.CellArea;
+    clickable?: boolean;
+    expand?: boolean;
+    fixedWidth?: number;
+    'fixed-width'?: number;
+    maxWidth?: number;
+    'max-width'?: number;
+    minWidth?: number;
+    'min-width'?: number;
+    reorderable?: boolean;
+    resizable?: boolean;
+    sizing?: GtkTreeViewColumnSizingNick | Gtk.TreeViewColumnSizing;
+    /** Logical sort column ID this column sorts on when selected for sorting. */
+    sortColumnId?: number;
+    'sort-column-id'?: number;
+    sortIndicator?: boolean;
+    'sort-indicator'?: boolean;
+    sortOrder?: GtkSortTypeNick | Gtk.SortType;
+    'sort-order'?: GtkSortTypeNick | Gtk.SortType;
+    spacing?: number;
+    title?: string;
+    visible?: boolean;
+    widget?: Gtk.Widget | null;
+    onClicked?: Gtk.TreeViewColumn.SignalSignatures['clicked'];
+    onNotifyAlignment?: NotifyHandler;
+    onNotifyCellArea?: NotifyHandler;
+    onNotifyClickable?: NotifyHandler;
+    onNotifyExpand?: NotifyHandler;
+    onNotifyFixedWidth?: NotifyHandler;
+    onNotifyMaxWidth?: NotifyHandler;
+    onNotifyMinWidth?: NotifyHandler;
+    onNotifyReorderable?: NotifyHandler;
+    onNotifyResizable?: NotifyHandler;
+    onNotifySizing?: NotifyHandler;
+    onNotifySortColumnId?: NotifyHandler;
+    onNotifySortIndicator?: NotifyHandler;
+    onNotifySortOrder?: NotifyHandler;
+    onNotifySpacing?: NotifyHandler;
+    onNotifyTitle?: NotifyHandler;
+    onNotifyVisible?: NotifyHandler;
+    onNotifyWidget?: NotifyHandler;
 }
 
 /** A widget for displaying both trees and lists <picture> <source srcset="list-and-tree-dark.png" media="(prefers-color-scheme: dark)"> <img alt="An example GtkTreeView" src="list-and-tree.png"> </pictu… */
@@ -5708,6 +8934,16 @@ export interface GtkTreeViewProps
     onNotifyTooltipColumn?: NotifyHandler;
 }
 
+/** A `GtkExpression` that tries to evaluate each of its expressions until it succeeds. */
+export interface GtkTryExpressionProps extends GtkExpressionProps {}
+
+/** Asynchronous API to open a uri with an application. */
+export interface GtkUriLauncherProps {
+    /** The uri to launch. */
+    uri?: string | null;
+    onNotifyUri?: NotifyHandler;
+}
+
 /** Shows a `GtkMediaStream` with media controls. */
 export interface GtkVideoProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** If the video should automatically begin playing. */
@@ -5758,6 +8994,13 @@ export interface GtkVolumeButtonProps
     useSymbolic?: boolean;
     'use-symbolic'?: boolean;
     onNotifyUseSymbolic?: NotifyHandler;
+}
+
+/** A `GdkPaintable` that displays the contents of a widget. */
+export interface GtkWidgetPaintableProps {
+    /** The observed widget or %NULL if none. */
+    widget?: Gtk.Widget | null;
+    onNotifyWidget?: NotifyHandler;
 }
 
 /** The base class for all widgets. */
@@ -5901,6 +9144,9 @@ export interface GtkWindowControlsProps
     onNotifySide?: NotifyHandler;
     onNotifyUseNativeControls?: NotifyHandler;
 }
+
+/** Creates groups of windows that behave like separate applications. */
+export interface GtkWindowGroupProps {}
 
 /** Implements titlebar functionality for a window. */
 export interface GtkWindowHandleProps

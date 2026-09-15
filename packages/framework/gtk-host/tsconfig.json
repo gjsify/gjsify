@@ -29,7 +29,8 @@
         "../../../node_modules/@girs/gobject-2.0/gobject-2.0-ambient.d.ts",
         "../../../node_modules/@girs/gdk-4.0/gdk-4.0-ambient.d.ts",
         "../../../node_modules/@girs/pango-1.0/pango-1.0-ambient.d.ts",
-        "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
+        "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts",
+        "../../../node_modules/@girs/girepository-3.0/girepository-3.0-ambient.d.ts"
     ],
     "exclude": ["src/test.mts"]
 }

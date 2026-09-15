@@ -255,10 +255,17 @@ export function emitSurfaceData(model: SurfaceModel, provenance: string): Emitte
         if (d.signals.length > 0)
             ownSignals.push(`    ${d.gtype}: [${d.signals.map((s) => `'${s.signal}'`).join(', ')}],`);
     }
-    const decls = model.widgets.map((w) => {
-        const chain = model.closure.get(w.gtype) ?? [];
-        return `    ${w.gtype}: [${chain.map((c) => `'${c}'`).join(', ')}],`;
-    });
+    // FROM `closure`, NOT FROM `widgets`. These two were the same list until @girs 5.2.0:
+    // `DECLS` was the widget vocabulary, so every declaration was also a mountable tag.
+    // ts-for-gir #474 widened it to every declaration a UI file can instantiate, and the
+    // two questions came apart — `widgets` is now the MOUNTABLE set (a widget, or a
+    // non-widget that holds one), while this map is the vocabulary carried VERBATIM, which
+    // is what `generator.spec.ts` compares field by field against `@girs`. Reading it off
+    // `widgets` silently dropped 175 declarations from the artefact while every tag stayed
+    // correct.
+    const decls = [...model.closure]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([gtype, chain]) => `    ${gtype}: [${chain.map((c) => `'${c}'`).join(', ')}],`);
     const nicks = [...model.enumNicks]
         .sort((a, b) => (a[0] < b[0] ? -1 : 1))
         .map(([gtype, members]) => `    ${gtype}: [${members.map((m) => `'${m}'`).join(', ')}],`);

@@ -959,7 +959,23 @@ export default async () => {
                 // exactly why it is asserted rather than noted.
                 const reserved = new Set(['key', 'ref', 'ref_for', 'ref_key', 'is', 'class', 'style']);
                 const problems: string[] = [];
+                // ONLY THE DECLARATIONS A COMPONENT'S PROPS COME FROM. Both hazards above
+                // are about a name that reaches a Vue or React component, so the question
+                // is asked of what a mountable tag inherits — not of every declaration the
+                // vocabulary carries. That was the same set until @girs 5.2.0: `DECLS` was
+                // the widget vocabulary, so `OWN_PROPS` could only describe mountable
+                // things. ts-for-gir #474 widened it, and the two names it added here —
+                // `GtkCellRendererText.style` and `GtkTextTag.style` — sit on classes no
+                // tag mounts and no tag inherits from, so neither `style` can ever be
+                // passed as a prop. Scoped through the chains so a reserved name on a real
+                // ancestor, which WOULD reach a component, still fails.
+                const reachable = new Set<string>();
+                for (const gtype of Object.keys(TAGS)) {
+                    reachable.add(gtype);
+                    for (const link of DECLS[gtype] ?? []) reachable.add(link);
+                }
                 for (const [declaration, names] of Object.entries(OWN_PROPS)) {
+                    if (!reachable.has(declaration)) continue;
                     for (const name of names) {
                         const camel = camelOf(name);
                         if (isEventProp(camel)) problems.push(`${declaration}.${name} reads as an event prop`);
