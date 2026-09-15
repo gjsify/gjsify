@@ -1,7 +1,7 @@
-// WHAT THE ELEVEN SHIPPED `.blp` FILES SHOULD PROJECT TO, WRITTEN BY HAND
+// WHAT THE SHIPPED `.blp` FILES SHOULD PROJECT TO, WRITTEN BY HAND
 //
 // The companion of `expectations.mjs`, for the other half of the corpus. That file
-// holds one small file per LANGUAGE RULE; this one holds the eleven `.blp` a shipped
+// holds one small file per LANGUAGE RULE; this one holds every `.blp` a shipped
 // build already compiles, which ADR 0053 clause 6 keeps as the probe against reality —
 // a corpus written by the person who will write the parser proves that person
 // self-consistent and nothing else.
@@ -904,5 +904,58 @@ export const REAL_EXPECTATIONS = [
             },
             { kind: 'object-id', line: 14, detail: 'the id `canvasContainer`' },
         ],
+    },
+    {
+        file: 'templates/gtk-minimal/src/main-window.blp',
+        node: {
+            tag: 'GtkApplicationWindow',
+            props: { title: 'new-gjsify-app', 'default-width': 480, 'default-height': 280 },
+            children: [
+                {
+                    tag: 'GtkBox',
+                    slot: 'child',
+                    props: {
+                        orientation: 'vertical',
+                        spacing: 12,
+                        'margin-top': 24,
+                        'margin-bottom': 24,
+                        'margin-start': 24,
+                        'margin-end': 24,
+                    },
+                    children: [
+                        { tag: 'GtkLabel', props: { label: 'Hello from gjsify!' } },
+                        { tag: 'GtkLabel', props: { xalign: 0.5 } },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'template',
+                line: 3,
+                detail: 'the template class `$MainWindow`; only its parent type `Gtk.ApplicationWindow` survives, as the root tag',
+            },
+            {
+                kind: 'comment',
+                line: 17,
+                detail: 'five comment lines in two blocks, saying why the tree lives here rather than in the callback that used to build it; neither exit carries them',
+            },
+            {
+                kind: 'translatable',
+                line: 20,
+                detail: 'the `_()` marking on `Hello from gjsify!` — the one thing this file was written to gain',
+            },
+            {
+                kind: 'styles',
+                line: 22,
+                detail: 'the style class `title-2` — a list, and `props` holds no lists (ADR 0049)',
+            },
+            {
+                kind: 'object-id',
+                line: 29,
+                detail: 'the id `hint`, which the scaffolded TypeScript reaches through `InternalChildren`',
+            },
+        ],
+        note: 'The first probe that is neither Adwaita nor a showcase: plain `Gtk.ApplicationWindow`, `child:` rather than `content:`, and the only real file whose caption is the POINT — it was converted from a TypeScript `new Gtk.Label({ label: ... })` that xgettext could not see. So the `translatable` loss here is not incidental: a projection that drops it turns the conversion back into the thing it replaced.',
     },
 ];
