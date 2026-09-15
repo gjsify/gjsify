@@ -145,7 +145,7 @@
                 "**/stories/**",
                 "**/test/**",
                 "**/*.test.*",
-                "**/*.spec.ts",
+                "**/*.spec.*",
                 // A type-test fixture is COMPILE-ONLY: it is never constructed, never
                 // rendered, and its captions exist to be a type. `@ts-expect-error` makes
                 // the assertion, and a caption that had to route through `_()` would be
@@ -159,7 +159,28 @@
                 "packages/napi/**",
                 "packages/framework/storybook/**",
                 "packages/framework/devtools-browser/**",
-                "packages/framework/video/**"
+                "packages/framework/video/**",
+                // Added when `prefer-blueprint-template` stopped visiting only a CLASS and
+                // started seeing assembly in callbacks and factory functions. It then reported
+                // 10 sites, every one of them in this category and none in application code:
+                // the Adwaita shell a consumer app is handed, the GTK host and the React Native
+                // renderer (both of which build widgets on someone else's instruction), the
+                // NativeScript storybook harness, and the WebGL conformance setup that opens a
+                // window only to obtain a GL context. A renderer has no interface of its own to
+                // declare, so a `.blp` is not the repair — scoping is, exactly as the rule's own
+                // header says. Application interface still gets no exemption.
+                // `@gjsify/adwaita-app` is that category twice over: it is the shell a consumer
+                // app is handed, AND `src/loading-stack.ts` records a conversion to `.blp` that
+                // was made and REVERTED — blueprint-compiler is absent on the macOS and Windows
+                // runners this package builds on, and library-mode Blueprint only arrives in
+                // 0.43.0, after the cold bootstrap (ADR 0002) has already parsed the file. That
+                // blocker belongs to the package, so it is scoped once here rather than disabled
+                // per site. Revisit when 0.43.0 is published and the runners carry the compiler.
+                "packages/framework/adwaita-app/**",
+                "packages/framework/gtk-host/**",
+                "packages/framework/react-native/**",
+                "packages/framework/webgl/src/ts/conformance/**",
+                "packages/nativescript-bridge/storybook/**"
             ],
             "rules": {
                 "gjsify/prefer-blueprint-template": "off",
@@ -294,7 +315,14 @@
         "packages/**/conformance.*.js",
         "**/@types",
         "**/src/generated",
-        "**/templates",
+        // NO `**/templates` here any more. It was written for "scaffolding copied into a new
+        // project, not compiled as part of this tree", and what it actually bought was that
+        // `templates/gtk-minimal` — the starting point handed to every `gjsify create` user —
+        // shipped a window assembled in a callback with a literal, untranslatable caption, and
+        // no lint run in this repository ever looked at it. 14 source files, and the scaffolds
+        // are the one place where a convention either demonstrates itself or teaches its
+        // opposite. `packages/infra/cli/src/templates` (`.tmpl` payload) and the Tiled `.tx`
+        // assets under `showcases/` were the pattern's other matches; oxlint reads neither.
         "**/prebuilds",
         "**/.yarn/cache",
         "**/.yarn/install-state.gz",

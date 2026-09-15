@@ -1,5 +1,12 @@
-// `gjsify/prefer-blueprint-template` — a widget class that BUILDS its children in TypeScript
-// instead of declaring them in a Blueprint template.
+// `gjsify/prefer-blueprint-template` — code that BUILDS a widget tree in TypeScript instead of
+// declaring it in a Blueprint template.
+//
+// NOT ONLY A CLASS. The rule shipped visiting `ClassDeclaration`/`ClassExpression` only, and the
+// one interface in this repository that every new user inherits was assembled somewhere else:
+// `templates/gtk-minimal/src/index.ts` built its window, box and two labels inside the
+// `activate` callback, with a literal caption no extraction can see, and reported ZERO — a green
+// that meant "did not look". So the rule now also walks module scope (top-level statements,
+// callbacks, factory functions) and reports the DEEPEST function that holds both signals.
 //
 // The incident this rule exists for is structural rather than a crash, which is why nothing else
 // catches it. Measured across this workspace in 2026-08:
@@ -29,7 +36,7 @@
 // disabling it line by line.
 
 import type { ClassBody, Context, Node, PropertyDefinition, Rule, StaticBlock } from './types.ts';
-import { memberCallName, newGtkAdwType, walk } from './walk.ts';
+import { isNode, memberCallName, newGtkAdwType, walk } from './walk.ts';
 
 /**
  * Methods that take a WIDGET and place it inside another one. Membership here is what separates
@@ -109,6 +116,11 @@ const NON_WIDGET_CONSTRUCTIONS = new Set<string>([
     'Adw.StyleManager',
     'Adw.TimedAnimation',
     'Adw.Toast',
+    // An application object is not a widget, and every scaffold constructs one at module scope.
+    // Listed here (not only in `NON_WIDGET_BASES`, which answers a different question) so that
+    // `new Adw.Application(…)` is not the construction half of a module-scope finding.
+    'Gtk.Application',
+    'Adw.Application',
 ]);
 
 /** Prefixes whose whole family is non-widget: controllers, gestures and list models. */
@@ -203,9 +215,102 @@ function declaresTemplate(body: ClassBody): boolean {
     return false;
 }
 
+/**
+ * `class X extends Gtk.Y` / `extends Adw.Y` — INCLUDING the application bases that
+ * {@link gtkAdwSuperClass} deliberately answers `null` for.
+ *
+ * The module-scope walk uses this to decide what NOT to enter, so the two halves of the rule can
+ * never both report the same tree. It has to be the wider test: a `Gtk.Application` subclass is
+ * exempt by a decision already made above (it builds a `CssProvider` and an `AboutDialog` from its
+ * own metadata, and reporting that taught the rule's first reader that it cries wolf) — entering
+ * its body from module scope would take that exemption away by the back door.
+ */
+function extendsGtkAdw(node: Node): boolean {
+    const superClass = node.superClass as Node | undefined;
+    if (!superClass || superClass.type !== 'MemberExpression' || superClass.computed === true) return false;
+    const object = superClass.object as Node | undefined;
+    const property = superClass.property as Node | undefined;
+    if (object?.type !== 'Identifier' || property?.type !== 'Identifier') return false;
+    const ns = object.name as string;
+    return ns === 'Gtk' || ns === 'Adw';
+}
+
+/** The nodes that own a scope here: a function is the unit a reader can move into a `.blp`. */
+const SCOPE_TYPES = new Set<string>(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+
+/** One assembly site: what it built directly, whether it parented, and the scopes nested in it. */
+interface Scope {
+    node: Node;
+    constructed: string[];
+    parents: boolean;
+    children: Scope[];
+}
+
+/**
+ * How a scope is named in its own report. A class gets to be named by its base; a function has no
+ * base, so the message names the SHAPE the reader is looking at instead of saying "somewhere".
+ */
+function describeScope(node: Node): string {
+    if (node.type === 'Program') return 'This module assembles an interface at top level';
+    if (node.type === 'FunctionDeclaration') {
+        const id = node.id as Node | undefined;
+        const name = id?.type === 'Identifier' ? (id.name as string) : null;
+        return name === null ? 'This function assembles an interface' : `\`${name}()\` assembles an interface`;
+    }
+    return 'This callback assembles an interface';
+}
+
+/**
+ * Depth-first descent that attributes every construction and every parenting call to the nearest
+ * enclosing function, and refuses to enter a Gtk/Adw class body.
+ *
+ * It cannot be {@link walk}: walk's visitor is flat, and this needs a scope that is pushed on the
+ * way down and popped on the way out. The three skipped keys are walk's, for walk's reasons
+ * (`parent` loops; `tokens`/`comments` hang off Program and pass the structural node test).
+ */
+function descend(node: Node, scope: Scope): void {
+    if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && extendsGtkAdw(node)) return;
+
+    let current = scope;
+    if (SCOPE_TYPES.has(node.type)) {
+        current = { node, constructed: [], parents: false, children: [] };
+        scope.children.push(current);
+    }
+
+    const type = newGtkAdwType(node);
+    if (type !== null) {
+        if (!isNonWidgetConstruction(type) && !current.constructed.includes(type)) current.constructed.push(type);
+    } else {
+        const method = memberCallName(node);
+        if (method !== null && PARENTING_METHODS.has(method)) current.parents = true;
+    }
+
+    for (const key of Object.keys(node)) {
+        if (key === 'parent' || key === 'tokens' || key === 'comments') continue;
+        const value = node[key];
+        if (Array.isArray(value)) {
+            for (const item of value) if (isNode(item)) descend(item, current);
+        } else if (isNode(value)) {
+            descend(value, current);
+        }
+    }
+}
+
+/** `Gtk.Box, Gtk.Label, Gtk.Button, +2 more` — the evidence, capped so a message stays readable. */
+function listConstructed(constructed: string[]): string {
+    const shown = constructed.slice(0, 3).join(', ');
+    return constructed.length > 3 ? `${shown}, +${constructed.length - 3} more` : shown;
+}
+
+/** The half of the message that is the same wherever the assembly happened. */
+const WHY =
+    'a string set from TypeScript can never be marked translatable, so an interface built this ' +
+    'way cannot be translated at all. Populating data-driven children inside a template is fine ' +
+    'and is not reported.';
+
 export const preferBlueprintTemplateRule: Rule = {
     create(context: Context) {
-        const check = (node: Node): void => {
+        const checkClass = (node: Node): void => {
             const base = gtkAdwSuperClass(node);
             if (base === null) return;
             const body = node.body as ClassBody | undefined;
@@ -228,18 +333,55 @@ export const preferBlueprintTemplateRule: Rule = {
             // adjustment, and parenting without constructing is moving an existing widget.
             if (constructed.length === 0 || !parents) return;
 
-            const shown = constructed.slice(0, 3).join(', ');
-            const more = constructed.length > 3 ? `, +${constructed.length - 3} more` : '';
             context.report({
                 message:
-                    `\`${base}\` subclass assembles its interface in TypeScript (${shown}${more}) with no ` +
-                    `Blueprint \`Template\`. Declare the widget tree in a co-located \`.blp\` and keep only ` +
-                    `logic here — a string set from TypeScript can never be marked translatable, so an ` +
-                    `interface built this way cannot be translated at all. Populating data-driven children ` +
-                    `inside a template is fine and is not reported.`,
+                    `\`${base}\` subclass assembles its interface in TypeScript ` +
+                    `(${listConstructed(constructed)}) with no Blueprint \`Template\`. Declare the widget ` +
+                    `tree in a co-located \`.blp\` and keep only logic here — ${WHY}`,
                 node,
             });
         };
-        return { ClassDeclaration: check, ClassExpression: check };
+
+        /**
+         * Report the DEEPEST scope that holds both signals, once.
+         *
+         * Signals bubble outward so that a function which builds a container and a callback which
+         * fills it are one finding rather than two halves that each look ordinary; reporting at the
+         * innermost scope that is already complete then puts the message on the code a reader can
+         * actually move into a `.blp`, instead of on the whole module.
+         */
+        const settle = (scope: Scope): { constructed: string[]; parents: boolean; reported: boolean } => {
+            const constructed = [...scope.constructed];
+            let parents = scope.parents;
+            let reported = false;
+            for (const child of scope.children) {
+                const inner = settle(child);
+                for (const type of inner.constructed) if (!constructed.includes(type)) constructed.push(type);
+                if (inner.parents) parents = true;
+                if (inner.reported) reported = true;
+            }
+            if (!reported && constructed.length > 0 && parents) {
+                context.report({
+                    message:
+                        `${describeScope(scope.node)} in TypeScript (${listConstructed(constructed)}) outside ` +
+                        `any widget class, so no Blueprint \`Template\` can hold it. Declare the widget tree ` +
+                        `in a co-located \`.blp\`, register it on a widget subclass and keep only logic here ` +
+                        `— ${WHY}`,
+                    node: scope.node,
+                });
+                reported = true;
+            }
+            return { constructed, parents, reported };
+        };
+
+        const checkModule = (program: Node): void => {
+            // The statements, not the Program node: `descend` skips `tokens`/`comments` by key, but
+            // starting at the body keeps that a belt-and-braces guard rather than the only one.
+            const root: Scope = { node: program, constructed: [], parents: false, children: [] };
+            for (const statement of (program.body as Node[] | undefined) ?? []) descend(statement, root);
+            settle(root);
+        };
+
+        return { ClassDeclaration: checkClass, ClassExpression: checkClass, Program: checkModule };
     },
 };
