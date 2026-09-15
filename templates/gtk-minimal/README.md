@@ -1,6 +1,13 @@
 # new-gjsify-app
 
-A minimal GTK 4 app — `Gtk.Window` + `Gtk.Label`, no Adwaita, no Blueprint — scaffolded from the gjsify `gtk-minimal` template.
+A minimal GTK 4 app — `Gtk.ApplicationWindow` + `Gtk.Label`, no Adwaita — scaffolded from the
+gjsify `gtk-minimal` template.
+
+The window is declared in `src/main-window.blp` and `src/main-window.ts` holds only logic.
+That split is not decoration: a caption assigned from TypeScript cannot be marked
+`translatable`, so `xgettext` never sees it and the interface is untranslatable by
+construction. Building the tree in Blueprint needs `blueprint-compiler` on the build host —
+the one system tool this template adds beyond GTK 4 itself.
 
 ## Install
 
