@@ -17,12 +17,18 @@
 
 ## What was measured, and what was not
 
-Two sides, two kinds of evidence. **gjsify** was read at `da8680b220` on a Fedora
-workstation; every row names the grep that produced it. **Yarn** was read from
-yarnpkg.com and the `yarnpkg/berry` sources; every row names the URL or file. Nothing here
-was produced by running Yarn 4 — no `yarn install` was executed for this document, so every
-Yarn row is a claim about what Yarn's documentation and source *say*, not about observed
-behaviour. Where a question could only be settled by running it, the row says so and stops.
+Three kinds of evidence. **gjsify** was read at `da8680b220` on a Fedora workstation; every
+row names the grep that produced it. **Yarn** was read from yarnpkg.com and the
+`yarnpkg/berry` sources; every row names the URL or file.
+
+**And, on review, Yarn 4.9.2 was run.** The first revision of this document was written
+without executing Yarn and said so. The three claims decisions rest on — cache-hit
+re-verification, the conditional-package exception, and whether Yarn detects an extraneous
+`node_modules` entry — were afterwards settled by running `yarn@4.9.2` against scratch
+projects on this workstation. Rows marked **(run)** are observed behaviour, and the
+sections that rely on them say which command produced what. Every other Yarn row is still
+a claim about what the source and docs *say*; where a question remains read and not run,
+the row says so and stops.
 
 | probe | result |
 |---|---|
@@ -38,8 +44,11 @@ behaviour. Where a question could only be settled by running it, the row says so
 | lockfile entry shape (`python3 -c "json.load(...)"`, 1852 packages) | every entry carries `version` + `resolved` + `integrity` (SRI `sha512-…`) |
 | `grep -rl '"@girs/' --include=package.json` | **204** manifests declare `@girs/*` — the blast radius of incident 1 |
 | `npm-registry/src/tarball.ts` + `integrity.ts` | SRI **is** verified on download (`verifyIntegrity`, `IntegrityError`, covered by `index.spec.ts`) |
-| `getCachedTarball()` (`install-tarball-cache.ts:83-88`) | SRI is **not** re-verified on a cache HIT — the bytes at the content-addressed path are returned as-is. Deliberate, and stated in the caller's comment |
-| **Not measured:** whether Yarn's node_modules linker prunes in the cases that matter here | would need a Yarn 4 checkout and a deliberately dirtied `node_modules`. Claimed from source/docs below, never observed |
+| `getCachedTarball()` (`install-tarball-cache.ts:85-89`) | SRI is **not** re-verified on a cache HIT — the bytes at the content-addressed path are returned as-is (`readCacheFile` is `existsSync` + `readFileSync`, nothing else). Deliberate, and stated in the caller's comment. `getForeignCachedTarball()` (npm's cacache) has the same property, so the store has **two** unverified readers, not one |
+| lockfile coverage of *conditional* packages (`json.load`, filter `os`/`cpu`) | **134** platform-gated entries, **0** of them without `integrity`. gjsify hashes the platform bindings Yarn declines to — see § 2 |
+| **(run)** `yarn@4.9.2 install`, cache zip swapped for another package's | `YN0018: left-pad@npm:1.3.0: The remote archive doesn't match the expected checksum`, no flag passed. Identical result with `enableGlobalCache: false` and `true` |
+| **(run)** `yarn@4.9.2 install`, tampered `@esbuild/linux-x64` zip (a `conditions:` package) | installs silently, `TAMPERED.txt` lands in `node_modules`. `--check-cache` catches it. The lockfile carries **no `checksum:` line at all** for that entry |
+| **(run)** `yarn@4.9.2 install --immutable`, four tree states | a package `node_modules/.yarn-state.yml` records but the lockfile dropped is **pruned silently**; a hand-planted one it never recorded **survives**, exit 0; deleting that state file relinks the tree and sweeps both. This corrects the first revision's reframing of incident 2 — see § 2 |
 | **Not measured:** any PnP behaviour under GJS | no PnP install was attempted under SpiderMonkey. The refusal in § 5 is argued from PnP's documented mechanism, not from a failed run |
 
 ## Context — three incidents, one week
@@ -120,18 +129,55 @@ not a disk scan, is what a tree is checked against.** Three consequences follow.
   (`enforceConsistentDependenciesAcrossTheProject`), under a heading that says Yarn is
   "thinking to provide some of them as builtin helpers later on".
 
-### The finding that reframes incident 2
+### How Yarn 4 actually behaves on incident 2 — corrected on review
 
-**Stock Yarn 4 would not have caught it either.** Tree-vs-lockfile divergence under
-`nodeLinker: node-modules` is not enforceable with Yarn as shipped: `--immutable` reads the
-lockfile, and the linker's diff cannot see a package it never wrote. The open feature
-request for precisely this capability — berry#3210, *"[Feature] A flag to enforce
-consistency of unplugged files and node_modules"* — has been open since 2021.
+An earlier revision of this section claimed that **stock Yarn 4 would not have caught
+incident 2 either**, and concluded that PR #1686 puts gjsify ahead of Yarn. That is a
+flattering conclusion about our own work, so it was put to a real Yarn. It is **half right,
+and the wrong half was load-bearing.** What follows replaces it.
 
-So PR #1686 is not gjsify catching up to Yarn. It is gjsify shipping something Yarn has
-wanted for four years, and that changes what the rest of this document is allowed to
-recommend: **on the tree question there is no design to copy.** What there is, is Yarn's
-*precedent for the remedy* — see § 6.
+Yarn's node-modules linker keeps a record of what it linked: `node_modules/.yarn-state.yml`,
+written inside the tree, listing every package and its locations. Four runs with
+`yarn@4.9.2`, `nodeLinker: node-modules`, separate the cases the earlier claim ran together.
+
+1. **A package the record names, that the lockfile no longer wants, is removed.** Install
+   with `left-pad` + `is-odd`, then drop `is-odd` from the manifest and install again:
+   `is-odd` and its transitive `is-number` are gone from `node_modules`. This holds under
+   `yarn install --immutable` too — exit 0, no message, tree silently corrected.
+2. **A package in no record is invisible and survives.** Hand-plant `node_modules/evil/`
+   with a `package.json` no manifest and no lockfile mentions, and drop a stray file inside
+   a package that *is* declared. `yarn install --immutable` exits 0, warns about nothing,
+   and leaves both in place.
+3. **No record at all means a rebuild.** Delete `node_modules/.yarn-state.yml` and both the
+   planted package and the stray file are swept away as collateral — Yarn stops diffing and
+   relinks the tree wholesale.
+4. Deleting `.yarn/install-state.gz` changes none of this; it is the resolution cache, not
+   the linker's record. The earlier revision tested that file and mistook it for this one.
+
+**Applied to incidents 2 and 3, this reverses the conclusion.** Both were a `node_modules`
+restored from a cache built for a *different lockfile* — 311 packages an earlier, legitimate
+install had written. Under Yarn those packages are exactly case 1: the restored tree carries
+its own `.yarn-state.yml` naming them, the next install diffs against it, and they are
+pruned. Yarn would not have *reported* the divergence — but it would not have been poisoned
+by it either, and no cache would have needed deleting by hand.
+
+So the honest split is this. Yarn has the **prune** and gjsify does not: gjsify's installer
+only ever adds, which is why a stale tree accumulated instead of converging. Yarn lacks the
+**refusal** and gjsify is about to have it: `--immutable` silently fixes rather than failing,
+and berry#3210 — *"[Feature] A flag to enforce consistency of unplugged files and
+node_modules"*, open since 2021-08-01 — is a request for precisely that. PR #1686 is
+genuinely ahead of Yarn on the refusal. It is **not** the half that would have prevented
+these two incidents; the prune is, and that is the half gjsify is missing.
+
+That promotes P3 from a nice borrowing to the item that closes the real gap, and it means
+the tree question does have a design to copy after all — `.yarn-state.yml`, exactly as § P3
+already argues. Case 2 marks the limit of what copying it buys: a record-based diff still
+cannot see a package no install of ours ever wrote, so #1686's disk scan remains the only
+thing that catches a true stranger. The two are complements, not alternatives.
+
+One boundary, so this is not read wider than it was tested: all of the above is the
+`node-modules` linker. PnP's linker sweeps its own output the same way — `PnpLinker.ts`
+removes any entry under `.yarn/unplugged` the current install did not write.
 
 ## 3. Decision — prioritised, with the cost named
 
@@ -190,21 +236,44 @@ makes the hash easier to collide with, because we check the file hashes during e
 anyway."* A stale or foreign hit is therefore a *superset* of what is needed, never a
 *wrong* answer.
 
-**With one exception, and it lands squarely on this repo.** `Cache.ts` skips verification
-entirely for *conditional* locators — `optionalDependencies` gated by `os`/`cpu`:
+**Run, not inferred.** With `yarn@4.9.2`, a scratch project and one cache zip overwritten by
+another package's, a plain `yarn install` — no `--check-cache`, no flag of any kind — fails
+with `YN0018: left-pad@npm:1.3.0: The remote archive doesn't match the expected checksum`.
+The same holds under `enableGlobalCache: true`, which is v4's default and where the cache
+filename does not even carry the hash. So the re-hash is not conditional on `--check-cache`,
+not conditional on the cache mode, and not an artefact of the filename: `--check-cache` only
+*escalates* it, from "re-hash off disk" to "re-download and compare against the remote".
+
+**With one exception, and it lands squarely on this repo — though not the way it first
+looks.** `Cache.ts` skips verification entirely for *conditional* locators —
+`optionalDependencies` gated by `os`/`cpu`:
 `if (controlPath === null && opts.unstablePackages?.has(locator.locatorHash)) return
 {isValid: true, hash: null};`. Those are exactly the platform-binary packages, and this
 workspace is unusually full of them: `@rolldown/binding-*`, `@gjsify/*-<os>-<arch>`,
 `lightningcss-native-*`, `oxfmt-native-*` — the set ADR 0017 created and ADR 0025's prune
-pass exists to clean up after. So "content-addressed means a prefix restore cannot be wrong"
-holds for ordinary packages and **not** for the platform bindings, unless `--check-cache` is
-passed (it supplies a control path, which closes the hole). P2's wiring must decide
-deliberately whether the platform packages are inside that guarantee or outside it.
+pass exists to clean up after. Confirmed by running it: a tampered `@esbuild/linux-x64` zip
+installs silently and the planted file lands in `node_modules`; `--check-cache` catches it.
+
+The deeper reason is worth stating, because it changes what P2 has to decide. Yarn does not
+merely skip the *check* for these packages — it never records the hash. `exposedChecksum`
+drops conditional locators from the lockfile, and the lockfile confirms it: the
+`@esbuild/linux-x64` entry carries `conditions: os=linux & cpu=x64` and **no `checksum:`
+line at all**. Yarn's exception is therefore a limitation gjsify does not inherit:
+`gjsify-lock.json` carries `integrity` for all 1852 entries, including all 134 platform-gated
+ones. So "content-addressed means a prefix restore cannot be wrong" holds for ordinary
+packages and not for Yarn's platform bindings — but gjsify has the hash Yarn declines to
+keep, and P2 should put the platform packages **inside** the guarantee rather than treat
+this as an open question.
 
 Two further conditions, because a CI job can silently void the whole argument: the lockfile
 must come from the trusted checkout rather than from the restored cache, and
 `checksumBehavior` must stay `throw` — `ignore` skips the comparison outright and `update`
 rewrites the lockfile to match whatever the cache holds. Both are bypasses, not degradations.
+
+One reading trap worth naming for whoever traces this next: `linkEverything()` *does* pass
+`skipIntegrityCheck: true`. That is not a second exception — the fetch step has already
+validated every entry by the time the linker runs, and re-hashing there would only pay the
+cost twice. The guarantee lives in `fetchEverything()`, and only there.
 
 That property **does not extend to `node_modules`**. An extracted
 tree is not content-addressed, carries no checksum, and gjsify's own
@@ -220,14 +289,24 @@ its analysis found CI never persists `.gjsify-cache` at all, so a lockfile chang
 re-downloads all ~1850 tarballs on top of a ~16 min extract.
 
 **One coupling that must ship with it.** gjsify verifies SRI on *download*
-(`npm-registry/src/tarball.ts` → `verifyIntegrity`, `IntegrityError`) but **not on a cache
+(`npm-registry/src/tarball.ts:41` → `verifyIntegrity`, `IntegrityError`) but **not on a cache
 hit**: `getCachedTarball()` returns the bytes at the content-addressed path with no
 re-hash, and the caller's comment says why — "tarballs are immutable per SRI integrity, so a
 hash hit is byte-identical to what the registry would return and needs no verifying
-re-download". That reasoning is sound for a cache this machine wrote. It stops being sound
+re-download". The claim was re-checked against the whole path rather than the one function,
+because a missing safeguard is the kind of finding that causes work: `readCacheFile()` is
+`existsSync` + `readFileSync` and hashes nothing; the only caller
+(`install-backend-native.ts:1707`) goes straight from those bytes to `extractWithStallGuard`;
+and the one gate upstream of it, `isAlreadyExtracted`, compares `name` + `version`. There is
+no check elsewhere. Note also that the store has **two** unverified readers, not one —
+`getForeignCachedTarball()` reads npm's cacache on the same SRI key with the same trust, and
+its own doc comment says so. Whatever P2 wires must cover both.
+
+That reasoning is sound for a cache this machine wrote. It stops being sound
 the moment the store is restored from a **shared CI cache by prefix**, which is exactly what
-P2 proposes. Yarn re-hashes on every install *including* cache hits, and `Cache.ts` says the
-design leans on it: *"we check the file hashes during each install anyway."*
+P2 proposes. Yarn re-hashes on every install *including* cache hits — run, not inferred,
+above — and `Cache.ts` says the design leans on it: *"we check the file hashes during each
+install anyway."*
 
 So P2 is two changes, not one: cache the store, **and** verify on cache hit. Shipping the
 first without the second moves trust onto an artifact nothing checks — the same mistake in a
@@ -425,7 +504,10 @@ statement about browsers, Bun, Deno or other non-Node hosts either way.
   the tree. "A tree is not safe to restore by prefix" becomes a stated rule rather than a
   lesson re-learned per incident.
 - P3's assembly record is a prerequisite for the reachability pruning ADR 0025 deferred, so
-  two open items collapse into one piece of work.
+  two open items collapse into one piece of work. § 2's measurements raise its standing
+  further: the record is what prunes a stale restored tree, and pruning — not refusing — is
+  what would have prevented incidents 2 and 3. #1686 supplies the refusal Yarn still lacks;
+  it does not supply this.
 - Nothing here changes the published contract of `@gjsify/cli`, except P4's new flag.
 
 ## Implementation
@@ -433,6 +515,11 @@ statement about browsers, Bun, Deno or other non-Node hosts either way.
 Order: **P4 → P2 → P1 → P3**, with P5 revisited after P2 and P6 not scheduled.
 P4 and P2 are days and close the incident that reproduced itself; P1 is the structural one;
 P3 is a track, not a task, and should be split (record first, verification later).
+
+That order was set before § 2's measurements, and this ADR does not silently re-decide it:
+P3's *record* half is now the item with the strongest incident claim behind it, and it is
+the cheap half of a track whose expensive half can wait. Whether the record moves ahead of
+P1 — or of P2 — is left open deliberately, and should be settled when this is accepted.
 
 None of this is scheduled here. On acceptance it goes to `status/open-todos.md` per
 governance; this ADR records the *why*.
@@ -459,23 +546,29 @@ Yarn documentation, read 2026-09-15:
 `packages/plugin-essentials/sources/{commands/install,commands/dedupe,index}.ts` ·
 `packages/yarnpkg-pnp/sources/loader/applyPatch.ts` ·
 `packages/yarnpkg-pnp/sources/esm-loader/loaderFlags.ts` ·
-`packages/plugin-pnp/sources/index.ts`
+`packages/plugin-pnp/sources/{index,PnpLinker}.ts`
 
 Open upstream issue relied on in § 2:
 [berry#3210](https://github.com/yarnpkg/berry/issues/3210) — *"[Feature] A flag to enforce
 consistency of unplugged files and node_modules"*, open since 2021-08-01 (state verified via
 the GitHub API; its comment thread was not readable and is not relied on).
 
-**Not verified anywhere in this document:** no Yarn 4 install was executed. The
-`NodeModulesLinker` conclusions in § 2 are traced through `master`'s branches, and no
-acceptance test covering extraneous-package survival was found
+**Run on review**, with `yarn@4.9.2` (`repo.yarnpkg.com/4.9.2`) under Node 24 on Fedora,
+against throwaway projects — three experiments, each stated where it is relied on: cache-hit
+re-verification (§ P2), the conditional-package exception (§ P2), and extraneous-entry
+survival under `--immutable`, with and without `.yarn/install-state.gz` (§ 2). The source
+trace that preceded them was confirmed rather than corrected, except where § P2 now says so.
+
+**Still not verified.** The `pnpm` linker was not inspected, so § 2 is a claim about
+`nodeLinker: node-modules` only, and the experiments used that linker. No acceptance test
+covering extraneous-package survival exists upstream
 (`packages/acceptance-tests/pkg-tests-specs/sources/node-modules.test.ts` has no match for
-`extraneous|stale|leftover`). The `pnpm` linker was not inspected, so § 2 is a claim about
-`nodeLinker: node-modules` only. Yarn makes **no** official statement about PnP under
+`extraneous|stale|leftover`), so the § 2 result rests on this workstation's runs, not on
+Yarn's own suite. Yarn makes **no** official statement about PnP under
 browsers, Bun, Deno or any other non-Node host, so § 5 argues from the implementation's
 Node API surface, never from a Yarn claim; whether Yarn's ESM wiring has since moved to
 `module.register()` was not exhaustively audited, and only "`--require` plus
-`--experimental-loader`" is verified.
+`--experimental-loader`" is verified. No PnP install was attempted under GJS.
 
 Two doc/source discrepancies were found and are noted rather than resolved:
 `yarnrc.json` gives `enableImmutableInstalls` a `"default": false` while the runtime default
