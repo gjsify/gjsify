@@ -450,3 +450,40 @@ remembered, an opt-out one covers what they wrote. And what it cannot see is enu
 header AND exercised in `tests/e2e/foreign-platform-paths-gate`, where the blind spots are
 asserted as passes: a documented limitation nobody runs is a limitation that quietly becomes a
 bug. Both cases in that suite marked as regressions were green against the first cut.
+
+## Validating against a weaker command than the gate runs
+
+**Rule: read the command out of the workflow and run THAT. Not the one you believe is
+equivalent — "equivalent" is exactly the claim that fails, and it fails in three distinct
+ways: a different tool, the same tool at a different version, and the same tool with weaker
+flags.**
+
+All three were measured on one PR, in one day.
+
+**A different tool.** Formatting was validated with `biome` while the gate runs `oxfmt`. Two
+formatters agreeing on most files says nothing about the file they disagree on, which is the
+only one that matters.
+
+**The same tool, a different version.** The retry after that used `npx oxfmt` — which fetched
+0.68.0, while the lockfile pins 0.61.0. Right tool, right flags, wrong bytes: a formatter's
+output is its version's output, so this passes locally and fails in CI with a diff nobody can
+reproduce without noticing the version.
+
+**The same tool, weaker flags.** An os-axis claim was checked with
+`scripts/audit-runtimes.mjs --check`, while both `audit-runtimes.yml` jobs run
+`--check --strict`. A rule that `--check` tolerates and `--strict` refuses produces precisely
+the green-here-red-there shape, and the gap is invisible unless you read the workflow. (In that
+instance the strict run also passed and the red was something else entirely — but the reasoning
+that reached it was built on the weaker command and could not have known.)
+
+The habit, not just the rule: when you cite a command as evidence, cite the one CI executes.
+This entry exists because its author wrote "`--check` accepts the declaration" in a PR body,
+then went back and ran `--check --strict` and corrected the line.
+
+**And a red required check is not proof you broke something.** Today's red on this same PR was
+neither a tool nor a flag: `gitlab.gnome.org` answered 503, so `git submodule update --init
+--depth 1 refs/libadwaita` exhausted its three retries. The job name said `Detect
+runtime-triplet drift`, which sounds like a manifest problem and is not one. So: read the
+failing STEP rather than the job name, then check whether `main` is red on the same step, then
+ask whether the cause is inside this repository at all. Here `main` was red on the identical
+step in two jobs, which answers all three questions at once.
