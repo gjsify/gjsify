@@ -72,9 +72,11 @@ export function resolveFontSources(options: ResolveFontSourcesOptions = {}): Fon
  * which is the only party that knows whether the payload became `/usr`, a `--prefix` tree, `/app`,
  * a bundle's `Contents/Resources` or a Windows program directory.
  *
- * There is NO system fallback, and that is the one place this parts company with
- * `resolveLocaleDir`, whose `/usr/share/locale` default is both correct and free. The analogous
- * `/usr/share/fonts` is neither: fontconfig has already scanned it, so walking it again would add
+ * There is NO system fallback, on ANY platform — where `resolveLocaleDir` keeps one for Linux,
+ * whose `/usr/share/locale` default is there both correct and free (it has none for darwin or
+ * win32, which have no such directory). The analogous
+ * `/usr/share/fonts` is correct on no platform: fontconfig has already scanned it, so walking it
+ * again would add
  * hundreds of `add_font_file` calls to every startup to arrive at families the font map holds
  * anyway. `undefined` therefore means "this application ships no faces of its own" — the ordinary
  * case, and a quiet one, because the launcher exports the variable only when it staged a face.

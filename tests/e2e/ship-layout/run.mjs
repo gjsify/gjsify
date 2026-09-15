@@ -390,7 +390,11 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(!launcher.includes('DYLD_'), 'the macOS launcher must not export a DYLD_ variable');
         assert.match(launcher, /contents=\$\(dirname -- "\$here"\)/);
         assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Frameworks"/);
-        assert.match(launcher, /XDG_DATA_DIRS="\$contents\/Resources\/share:/);
+        // The bundle's own share dir and NO Linux system default after it: the XDG spec's
+        // `/usr/local/share:/usr/share` is Homebrew's on an Intel Mac, absent on Apple
+        // Silicon, and Apple's own `/usr/share` carries no schemas and no icon theme.
+        assert.match(launcher, /XDG_DATA_DIRS="\$contents\/Resources\/share"\$\{XDG_DATA_DIRS:\+:\$XDG_DATA_DIRS\}/);
+        assert.ok(!launcher.includes('/usr/share'), 'the macOS launcher must not name a Linux system path');
         // The font handover (ADR 0038). Informational on macOS and NOT the
         // mechanism — `Info.plist`'s `ATSApplicationFontsPath` is, and the OS has
         // already acted on it before this script runs, because Pango here is

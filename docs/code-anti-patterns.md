@@ -400,3 +400,45 @@ refusal follows `Gio.ActionMap`, which `Gtk.ApplicationWindow` implements and
 overlap. `as unknown as` would silence it; naming the type that actually declares
 the method — `Gtk.Window`, which owns `present()` — needs no escape hatch at all
 and says something truer about the call.
+
+## A Linux system path as the default on every platform
+
+**Rule: a default that names `/usr/share`, `/usr/local/share`, `/usr/lib` or `/etc` is a
+LINUX default. Before it can be the fallback for code that also runs on macOS and Windows,
+say what those two get — and "nothing" is usually the right answer, because an artifact that
+carries its own data has no business reading a system tree it was built to not need.**
+
+Measured twice, years apart, in code that was green the whole time.
+
+**The `.app` launcher.** `gjsify ship` wrote
+`XDG_DATA_DIRS="$contents/Resources/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"` into
+every generated macOS bundle — the XDG base-directory spec's default, copied from the prefix
+launcher where it is correct and load-bearing. On a Mac `/usr/local/share` is Intel Homebrew's
+prefix and does not exist on Apple Silicon at all, and `/usr/share` is Apple's, carrying no
+`glib-2.0/schemas` and no `icons/hicolor`. So the pair named either nothing or a package manager
+the user never opted into. The `.cmd` sibling appended nothing, so the two forms had disagreed
+since they were written and neither said which was meant.
+
+**`resolveLocaleDir`.** Its last step returned `/usr/share/locale` on every platform, and this
+is the shape that costs the most: on macOS that directory EXISTS. It holds Apple's locale data
+and never an application's catalogues, so `bindtextdomain` succeeded, nothing threw, every
+lookup returned its msgid, and `Translator.localeDir` reported a plausible path. An app that is
+merely untranslated is indistinguishable from an app that has no translation — no test, no
+type and no Linux CI run can tell them apart. A Windows `/usr/share/locale` was only useless;
+the macOS one was a lie that resolved.
+
+Both now answer darwin and win32 with no directory: the launcher prepends the bundle's own share
+tree and appends an inherited `XDG_DATA_DIRS` only when one is set (`${VAR:+:$VAR}`, the
+semantics the `.cmd` form already had), and `systemLocaleDir` returns `undefined` there, so
+`initLocale` leaves the domain unbound rather than binding somewhere arbitrary. Linux is
+untouched, and so is every platform nobody measured — `freebsd`, `sunos`, and the `undefined`
+a `--globals none` GJS bundle has instead of a `process.platform`. `resolveFontDir` had reached
+the same answer for fonts first, for a different reason, and is the precedent.
+
+`scripts/check-foreign-platform-paths.mjs` holds the class in three scopes: whole-file for the
+modules that only build a `.app`, `.dmg`, `.ico` or `.msi`; per-function for the two foreign
+renderers inside `launcher.ts`, whose Linux sibling must keep its default; and, for
+`packages/framework/*/src`, a Linux path literal only where a `darwin`/`win32` decision sits in
+code within 15 lines of it. Comments are exempt — this tree explains a rule by quoting the path
+it forbids. What the gate cannot see is written in its header rather than left to be discovered:
+it checks that a platform decision is NEXT TO the literal, not that the decision is right.
