@@ -10,9 +10,19 @@
 // Env composition is split out as the pure `computeNativeEnvForBundle()` so the e2e tests can
 // assert the env without spawning gjs.
 
-import { dirname, resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import type { ChildProcess } from 'node:child_process';
 import { detectNativePackages, buildNativeEnv, type NativeEnv } from './detect-native-packages.js';
 import { type SpawnCompletionContract, describeExit, spawnToCompletion } from './spawn.js';
+import {
+    captureNativeBacktrace,
+    createHangWatchdog,
+    formatHangReport,
+    hangGraceMs,
+    heartbeatEnv,
+} from './hang-watchdog.js';
 
 /**
  * Pure env computation: the typelib + shared-library search paths {@link runGjsBundle} would
@@ -84,6 +94,20 @@ export interface RunGjsBundleOptions {
     quiet?: boolean;
 }
 
+/**
+ * A private directory for the heartbeat file. Returns `undefined` when `/tmp` refuses —
+ * a read-only or full temp dir is a reason to run without the watchdog, never to fail the run
+ * the watchdog only watches.
+ */
+function safeMkdtemp(): string | undefined {
+    try {
+        return mkdtempSync(join(tmpdir(), 'gjsify-hb-'));
+    } catch (_e) {
+        /* no writable temp dir — run unwatched rather than not at all */
+        return undefined;
+    }
+}
+
 export async function runGjsBundle(
     bundlePath: string,
     extraArgs: string[] = [],
@@ -91,10 +115,18 @@ export async function runGjsBundle(
 ): Promise<void> {
     const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(bundlePath);
 
-    const env = {
-        ...process.env,
-        ...nativeEnv,
-    };
+    // The breadcrumb `@gjsify/unit` writes what it is running into, and this process polls —
+    // the only way a bundle that has stopped turning its main loop can still say which test it
+    // died in. Anything that is not a unit run never writes the file, so the watchdog stays
+    // inert; see `utils/hang-watchdog.ts`. The path is fresh per spawn, and `heartbeatEnv`
+    // REMOVES an inherited one when this spawn mints none, so two runs can never write into
+    // one file — but a bundle that spawns a unit run without going through this function still
+    // hands it whatever it inherited, so route such a spawn here.
+    const graceMs = hangGraceMs(process.env);
+    const heartbeatDir = graceMs > 0 ? safeMkdtemp() : undefined;
+    const heartbeatPath = heartbeatDir ? join(heartbeatDir, 'unit.heartbeat') : undefined;
+
+    const env = heartbeatEnv({ ...process.env, ...nativeEnv }, heartbeatPath);
 
     const gjsArgs = ['-m', bundlePath, ...extraArgs];
 
@@ -116,13 +148,63 @@ export async function runGjsBundle(
         return process.exit(code);
     };
 
+    let child: ChildProcess | undefined;
+    let hung = false;
+    const watchdog = heartbeatPath
+        ? createHangWatchdog({
+              read: () => {
+                  try {
+                      return readFileSync(heartbeatPath, 'utf8');
+                  } catch (_e) {
+                      /* not written yet, or caught mid-rename — both mean "no claim yet" */
+                      return null;
+                  }
+              },
+              graceMs,
+              onHang: (heartbeat, overdueMs) => {
+                  const pid = child?.pid;
+                  if (pid === undefined) return;
+                  hung = true;
+                  // The backtrace is taken BEFORE the kill: it is the only artefact that
+                  // survives to say WHERE the wedge was, and a dead process has none.
+                  console.error(
+                      formatHangReport({
+                          label: heartbeat.label,
+                          overdueMs,
+                          pid,
+                          graceMs,
+                          backtrace: captureNativeBacktrace(pid),
+                      }),
+                  );
+                  // SIGABRT first so a GJS built with a fatal-signal handler still gets to
+                  // dump what it knows; SIGKILL behind it because a process blocked in a
+                  // native call may never run a handler at all.
+                  child?.kill('SIGABRT');
+                  setTimeout(() => child?.kill('SIGKILL'), 2_000);
+              },
+          })
+        : undefined;
+
     let result;
     try {
-        result = await spawnToCompletion('gjs', gjsArgs, { completion: options.completion, env });
+        result = await spawnToCompletion('gjs', gjsArgs, {
+            completion: options.completion,
+            env,
+            onSpawn: (c) => {
+                child = c;
+                watchdog?.start();
+            },
+        });
     } catch (err) {
         console.error((err as Error).message);
         return failed(1);
+    } finally {
+        watchdog?.stop();
+        if (heartbeatDir) rmSync(heartbeatDir, { recursive: true, force: true });
     }
+    // A killed child reports only its signal; without this the hang report above would be
+    // followed by a bare "gjs exited with signal SIGABRT" and read as a crash.
+    if (hung) return failed(result.code ?? 1);
     if (result.code !== 0) {
         console.error(`gjs exited with ${describeExit(result)}`);
         return failed(result.code ?? 1);

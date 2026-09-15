@@ -1,0 +1,264 @@
+name: Check out one pinned refs/ submodule
+description: >
+  Realize ONE `refs/` submodule with the network on the FAILURE path instead of the
+  happy path: a cache keyed on the commit the superproject pins, then the canonical
+  remote, then an optional mirror — and, whichever of the three answered, a
+  verification that the tree on disk IS that commit.
+
+
+  THE INCIDENT. On 2026-09-15 gitlab.gnome.org served 503 to every git request for
+  some hours. `Detect runtime-triplet drift` — a REQUIRED check — failed at
+  `git submodule update --init --depth 1 refs/libadwaita`, all three retries
+  exhausted, and with it nothing in the repository could merge. The retry loop that
+  step already had is the right shape for a blip and no help at all for an outage:
+  three attempts inside 30 s against a host that was down for hours. Five more steps
+  across `release.yml` and `node-gi.yml` fetch `refs/adwaita-fonts` from the SAME
+  host, so the same outage also stands between a tag and a release.
+
+
+  WHY A CACHE IS EXACTLY RIGHT HERE, AND WHY IT HAS NO `restore-keys`. The
+  superproject pins a submodule to a COMMIT, so the content behind that SHA is
+  immutable: a cache entry keyed on the SHA cannot go stale, because a different
+  content is a different key. That is a stronger property than the node_modules
+  cache has — that one is keyed on a lockfile HASH with a prefix fallback, and the
+  fallback is what poisoned a pull request on 2026-09-15 (#1686). So there is no
+  `restore-keys:` here and there must never be one: a prefix fallback would hand a
+  gate the tree of some OTHER pin and call it a hit. Same shape as the
+  `gi-test-typelibs-<rev>` cache in `node-gi.yml`, for the same reason.
+
+
+  WHY THE MIRROR IS SAFE. A git commit id is the hash of its tree, so fetching the
+  PINNED SHA from any host yields that exact tree or git refuses the object. The
+  mirror is therefore not a trust decision, it is a transport decision, and the
+  verification below is what makes it one: the step hard-fails unless
+  `git rev-parse HEAD` in the submodule equals the pin and the worktree matches that
+  commit. `.gitmodules` is never edited — the override lives in `.git/config` for
+  the length of one fetch and is synced back afterwards — so the canonical URL
+  remains the repository's declared provenance. Measured 2026-09-15 while GitLab was
+  down: `github.com/GNOME/libadwaita` serves 42f647ff (carrying
+  `doc/style-classes.md`) and `github.com/GNOME/adwaita-fonts` serves bd828c71.
+
+
+  WHAT THIS ACTION WILL NOT DO. It never skips. A gate whose input is absent must go
+  red naming the outage, never green having compared nothing — the most expensive
+  failure class in this repository, and the one `check-adwaita-style-classes.mjs`
+  exists to make loud. If all three sources fail, the step exits 1 with a message
+  that says which host refused and that the pin is unreachable.
+
+inputs:
+  path:
+    description: >
+      The submodule's path as `.gitmodules` declares it, e.g. `refs/libadwaita`.
+      TARGETED, always: realizing the whole `refs/` pool costs ~150 GB.
+    required: true
+  mirror:
+    description: >
+      Optional fetch URL to fall back to when the canonical remote refuses. Only
+      ever reached after the canonical remote has failed three times, always
+      announced, and always followed by the same pin verification.
+    required: false
+    default: ''
+  reason:
+    description: >
+      What reads this submodule, quoted verbatim in the failure text so the log says
+      what is blocked rather than only what failed.
+    required: true
+
+outputs:
+  source:
+    description: Where the tree came from — `cache`, `origin` or `mirror`.
+    value: ${{ steps.realize.outputs.source }}
+  sha:
+    description: The commit the superproject pins, which the tree on disk equals.
+    value: ${{ steps.pin.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    # `HEAD:<path>` reads the gitlink OUT OF THE COMMIT, so the pin comes from the
+    # checkout rather than from `git submodule status` — which reports the WORKTREE
+    # and would read empty for an uninitialised submodule, which is every one of
+    # them at this point in a job.
+    - name: Resolve the pinned commit
+      id: pin
+      shell: bash
+      env:
+        REF_PATH: ${{ inputs.path }}
+      run: |
+        set -eu
+        sha=$(git rev-parse "HEAD:$REF_PATH")
+        # `git config --get-regexp` prints `submodule.<name>.path <path>`; the NAME is
+        # what `.git/config` is keyed by and it is not required to equal the path.
+        name=$(git config --file .gitmodules --get-regexp '^submodule\..*\.path$' |
+          sed -n "s|^submodule\.\(.*\)\.path $REF_PATH\$|\1|p")
+        if [ -z "$name" ]; then
+          echo "::error::$REF_PATH is not declared in .gitmodules"
+          exit 1
+        fi
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        echo "name=$name" >> "$GITHUB_OUTPUT"
+        echo "$REF_PATH is pinned at $sha (submodule name: $name)"
+
+    # RESTORE-ONLY, and the save is a separate step AFTER verification — the same
+    # split as the build-output cache in `gjsify-setup`, for a reason worth stating
+    # exactly. `actions/cache` declares `post-if: "success()"` (checked against v4 and
+    # v6), so its automatic save does NOT run on a failed job; the argument for the
+    # split is not that one. It is that job success is far coarser than this tree
+    # verifying against its pin: a job can go green for reasons that have nothing to
+    # do with this submodule, and the post-job save would then publish whatever the
+    # directory happens to hold at the END of the job. An explicit save placed
+    # immediately after the verification ties the entry to the check that earned it,
+    # and lets the save be skipped outright on a cache hit.
+    - name: Restore the pinned tree
+      id: cache
+      uses: actions/cache/restore@v4
+      with:
+        # Both halves, because the verification below is a git operation: the
+        # worktree alone would leave `<path>/.git` pointing at a gitdir that is not
+        # there, and an unverifiable restore is one this action refuses to use.
+        path: |
+          ${{ inputs.path }}
+          .git/modules/${{ steps.pin.outputs.name }}
+        key: refs-submodule-v1-${{ runner.os }}-${{ inputs.path }}-${{ steps.pin.outputs.sha }}
+
+    - name: Realize the submodule (cache, then origin, then mirror)
+      id: realize
+      shell: bash
+      # No `timeout-minutes:` here — GitHub does not support it on a step inside a
+      # composite action. The caller carries it instead, which is where the original
+      # inline steps had it and for the reason they record: it covers what no retry
+      # count can, a fetch that HANGS rather than refusing.
+      env:
+        REF_PATH: ${{ inputs.path }}
+        REF_NAME: ${{ steps.pin.outputs.name }}
+        REF_SHA: ${{ steps.pin.outputs.sha }}
+        REF_MIRROR: ${{ inputs.mirror }}
+        REF_REASON: ${{ inputs.reason }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        set -eu
+
+        # The whole contract: HEAD is the pinned commit, and the files beside it are
+        # that commit's tree — a content check, not a bookkeeping one. `diff` re-hashes
+        # instead of trusting the index's stat cache, though NOT because a restore
+        # resets the mtimes: measured, tar preserves them. It re-hashes because git's
+        # default `core.checkStat` also compares ctime and inode, which a restore into
+        # a fresh runner cannot reproduce. Verified on a restored tree: content changed
+        # to the same size with the mtime put back was still caught. `core.checkStat =
+        # minimal` compares only mtime and size and would quietly undo that, so it must
+        # never be set for a `refs/` submodule.
+        verify() {
+          [ -e "$REF_PATH/.git" ] || return 1
+          [ "$(git -C "$REF_PATH" rev-parse HEAD 2>/dev/null || echo none)" = "$REF_SHA" ] || return 1
+          git -C "$REF_PATH" diff --quiet HEAD -- 2>/dev/null || return 1
+          # `diff HEAD` reports tracked files that were changed or removed and says
+          # nothing about files that were ADDED, so on its own it answers "the commit's
+          # files are all here, unmodified" and not "this tree IS the commit". Measured:
+          # drop one extra file into a restored tree and every check above still passes.
+          # The realistic producer is not a doctored archive but retry 2 of the loop
+          # below completing on top of what retry 1 left behind.
+          [ -z "$(git -C "$REF_PATH" ls-files --others --exclude-standard 2>/dev/null)" ] || return 1
+          return 0
+        }
+
+        canonical=$(git config --file .gitmodules --get "submodule.$REF_NAME.url")
+        source=''
+
+        if [ "$CACHE_HIT" = 'true' ]; then
+          if verify; then
+            source='cache'
+            echo "$REF_PATH restored from the pin-keyed cache at $REF_SHA — no network."
+          else
+            # Not fatal, and not silent either. A key that names a SHA cannot be stale,
+            # so this can only be a truncated or corrupt archive; drop it and fetch.
+            echo "::warning::the cache entry for $REF_PATH at $REF_SHA did not verify against the pin — discarding it and fetching instead."
+            rm -rf "$REF_PATH" ".git/modules/$REF_NAME"
+          fi
+        fi
+
+        if [ -z "$source" ]; then
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 -- "$REF_PATH"; then
+              source='origin'
+              break
+            fi
+            if [ "$attempt" = 3 ]; then break; fi
+            echo "::warning::$REF_PATH checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+        fi
+
+        if [ -z "$source" ] && [ -n "$REF_MIRROR" ]; then
+          echo "::warning::$canonical refused three attempts, which reads as an upstream outage rather than a blip. Falling back to the mirror $REF_MIRROR for the PINNED commit $REF_SHA — a commit id is a content hash, so this is the same tree or the verification below fails."
+          # Start clean: a half-made gitdir from the failed attempt carries the
+          # canonical URL as its own `origin`, and `submodule update` would fetch
+          # from that remote and not from the config below.
+          rm -rf "$REF_PATH" ".git/modules/$REF_NAME"
+          # `git submodule init` copies the URL out of `.gitmodules` only when it is
+          # not already set, so setting it first is what makes the override stick.
+          # `.gitmodules` itself is never touched.
+          git config "submodule.$REF_NAME.url" "$REF_MIRROR"
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 -- "$REF_PATH"; then
+              source='mirror'
+              break
+            fi
+            if [ "$attempt" = 3 ]; then break; fi
+            echo "::warning::mirror fetch of $REF_PATH failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          # Put the declared provenance back so nothing later in the job — or in a
+          # cached gitdir a later run restores — inherits the mirror as its remote.
+          git config --unset "submodule.$REF_NAME.url" || true
+          git submodule sync -- "$REF_PATH" >/dev/null 2>&1 || true
+          # `sync` is swallowed above because it is allowed to be a no-op, but what it
+          # writes into `.git/modules/<name>` is what the SAVE step then publishes under
+          # the pin's key — so the canonical URL landing there cannot be left to it.
+          # Set it outright, and go red rather than cache a gitdir that names the mirror.
+          if [ -n "$source" ]; then
+            git -C "$REF_PATH" remote set-url origin "$canonical" || true
+            restored=$(git -C "$REF_PATH" config --get remote.origin.url || echo none)
+            if [ "$restored" != "$canonical" ]; then
+              echo "::error::$REF_PATH still names $restored as its remote after the mirror fetch, not the canonical $canonical. Refusing to leave the mirror as declared provenance."
+              exit 1
+            fi
+          fi
+        fi
+
+        if [ -z "$source" ]; then
+          echo "::error::could not realize $REF_PATH at $REF_SHA. The pin-keyed cache held no entry for this commit, $canonical refused three attempts, and ${REF_MIRROR:-no mirror is configured}. $REF_REASON. This is an upstream outage, not a defect in the change under test — and it is reported rather than skipped, because a gate that passes without reading its input is worth less than no gate."
+          exit 1
+        fi
+
+        # Runs for EVERY source, cache included. This is the machine-checked half of
+        # the provenance the `refs/` policy asks for: whatever answered, the tree is
+        # the pin or the step is red.
+        if ! verify; then
+          echo "::error::$REF_PATH is on disk (source: $source) but is NOT the pinned commit $REF_SHA, or its worktree does not match that commit. Refusing to hand a gate a tree it did not ask for."
+          exit 1
+        fi
+
+        echo "source=$source" >> "$GITHUB_OUTPUT"
+        echo "$REF_PATH @ $REF_SHA verified (source: $source)" >> "$GITHUB_STEP_SUMMARY"
+
+    # Only on a miss, and only now that the tree is proven to be the pin — so the
+    # key can never come to name anything else.
+    #
+    # The condition NAMES the two sources that may be saved rather than excluding the
+    # one that may not, and that is the whole point. `realize` writes `source` on its
+    # LAST line, after the verification; every failure path exits before reaching it,
+    # so the output is the empty string — and the excluding form `!= 'cache'` reads
+    # TRUE exactly then. Measured on a local rig: with the canonical remote pointed at
+    # an unresolvable host and the mirror at a repository that does not carry the pin,
+    # the step ends with `refs/<sub>` on disk holding a FOREIGN tree under a valid
+    # `.git`, and no `source` output. Under the excluding form the only thing between
+    # that tree and a cache entry keyed on the pin is the implicit `success()` the
+    # runner ANDs into a conditional. The including form needs no such default.
+    - name: Save the pinned tree
+      if: steps.realize.outputs.source == 'origin' || steps.realize.outputs.source == 'mirror'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ inputs.path }}
+          .git/modules/${{ steps.pin.outputs.name }}
+        key: refs-submodule-v1-${{ runner.os }}-${{ inputs.path }}-${{ steps.pin.outputs.sha }}
