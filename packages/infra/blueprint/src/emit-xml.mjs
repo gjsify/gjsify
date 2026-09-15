@@ -69,7 +69,12 @@ import { numberLiteral } from './number-literal.mjs';
  * right for the ones that are properties and a knowing divergence for the rest — the same stance
  * `resolveIdent`'s absence takes.
  *
- * The third seam answers what GType NAME a type reference spells. `Adw.Bin` is `AdwBin`, and
+ * The third seam answers the other half of that block: what one entry's VALUE emits. `checked:
+ * true` is a `GtkAccessibleTristate` and emits `1`, while `hidden: true` is a boolean and emits
+ * `true` — same spelling, different bytes, and nothing but GTK's ARIA table tells them apart,
+ * which is why this is a seam and not a rule in here.
+ *
+ * The fourth seam answers what GType NAME a type reference spells. `Adw.Bin` is `AdwBin`, and
  * every corpus file imports one of two namespaces whose C prefix IS the namespace name — which is
  * the only reason concatenating the two ever produced a golden. `Gio.ListStore` is `GListStore`.
  * Without the seam the emitter concatenates, right for those two and a knowing divergence for
@@ -80,6 +85,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @typedef {Object} EmitOptions
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
  * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
+ * @property {(name: string, member: string, where: string) => string | null} [accessibilityValue]
  * @property {(type: TypeRef, where: string) => string} [gtypeName]
  */
 
@@ -90,6 +96,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @typedef {Object} EmitContext
  * @property {EmitOptions['resolveIdent']} resolveIdent
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
+ * @property {EmitOptions['accessibilityValue']} accessibilityValue
  * @property {EmitOptions['gtypeName']} gtypeName
  * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
@@ -115,6 +122,7 @@ export function emitGtkBuilderXml(file, options) {
     const seams = {
         resolveIdent: options?.resolveIdent,
         accessibilityElement: options?.accessibilityElement,
+        accessibilityValue: options?.accessibilityValue,
         gtypeName: options?.gtypeName,
     };
     /** @type {EmitContext} */
@@ -576,25 +584,26 @@ function emitExtension(xml, extension, context) {
         // holding one element per entry. The two blocks agree on the wrapper and on nothing
         // else, and each half of that was MEASURED on 0.20.4 rather than assumed.
         //
-        // NEITHER resolves its VALUES through the widget, because the widget is the table
-        // lying nearest to hand and it is the wrong one in both. `Gtk.Grid { Gtk.Label {
-        // layout { halign: center; } } }` emits `center` and not `3` — a layout entry belongs
-        // to the layout CHILD (`GtkGridLayoutChild`), which has no `halign`. And `Gtk.Label {
-        // accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is not
-        // orientable at all, because the ARIA table answers there and not the ParamSpecs.
-        // Passing the widget would be right by accident inside `Gtk.Box` and wrong inside
-        // `Gtk.Label`, so this passes nothing and the source spelling stands;
-        // `corpus/divergences.mjs` holds what that costs.
+        // NEITHER resolves anything through the widget, because the widget is the table lying
+        // nearest to hand and it is the wrong one in both. `Gtk.Grid { Gtk.Label { layout {
+        // halign: center; } } }` emits `center` and not `3` — a layout entry belongs to the
+        // layout CHILD (`GtkGridLayoutChild`), which has no `halign`, and the compiler does not
+        // check it against anything, so a layout value is written as the source spelled it.
         //
-        // The ELEMENT NAME is where the two blocks differ, and this file wrote `<property>`
-        // for every entry until a corpus file held anything but a property: `row-index` is a
-        // `<relation>` and `checked` a `<state>`, and GtkBuilder rejects either spelled as
-        // the other. Which is which is vocabulary data, so it is asked per entry —
-        // `src/resolve-ident.mjs` says what can and cannot be answered there.
+        // The a11y block resolves BOTH halves, and neither against the widget either. `Gtk.Label
+        // { accessibility { orientation: vertical; } }` emits `1` although `GtkLabel` is not
+        // orientable at all, because GTK's ARIA table answers there and not the ParamSpecs —
+        // passing the widget would be right by accident inside `Gtk.Box` and wrong here. The
+        // ELEMENT is the half this file wrote as `<property>` for every entry until a corpus file
+        // held anything but a property: `row-index` is a `<relation>` and `checked` a `<state>`,
+        // and GtkBuilder rejects either spelled as the other. The VALUE is the half that waited
+        // on `@girs` to publish the ARIA types. Both are vocabulary data, both are asked per
+        // entry, and `src/resolve-ident.mjs` says what each can answer.
         const elementOf =
             extension.name === 'accessibility' && context.accessibilityElement !== undefined
                 ? context.accessibilityElement
                 : () => 'property';
+        const ariaValue = extension.name === 'accessibility' ? context.accessibilityValue : undefined;
         xml.startTag(extension.name, {});
         for (const entry of extension.entries) {
             // `labelled-by: [labelA, labelB]` is one ELEMENT PER VALUE under the same name, not a
@@ -605,7 +614,7 @@ function emitExtension(xml, extension, context) {
                     name: entry.name,
                     ...translatedAttributes(value),
                 });
-                xml.text(scalarText(value, null, null, context));
+                xml.text(extensionText(value, entry.name, ariaValue, context));
                 xml.endTag();
             }
         }
@@ -628,6 +637,28 @@ function emitExtension(xml, extension, context) {
     }
 
     throw new Error(`blueprint: line ${extension.line}: no emitter rule for the "${extension.name}" block`);
+}
+
+/**
+ * One entry of an extension block, through the ARIA value seam where the block has one.
+ *
+ * Only an IDENTIFIER or a BOOLEAN can spell an enum member, and the oracle says so by name rather
+ * than by silence: `checked: 1` is "Cannot convert number to Gtk.AccessibleTristate" and
+ * `checked: _("x")` the same sentence for a translated string. So those two kinds reach the seam,
+ * and a boolean reaches it as the text `true` — a member of `GtkAccessibleTristate`, not a
+ * boolean, on a slot the table types as an enum. Everything else keeps the source spelling, which
+ * is what a `layout { }` entry always takes.
+ *
+ * @param {Value} value @param {string} name @param {EmitOptions['accessibilityValue']} ariaValue
+ * @param {EmitContext} context
+ */
+function extensionText(value, name, ariaValue, context) {
+    if (ariaValue !== undefined && (value.kind === 'ident' || value.kind === 'bool')) {
+        const member = value.kind === 'bool' ? String(value.value) : value.name;
+        const resolved = ariaValue(name, member, `line ${value.line}`);
+        if (resolved !== null && resolved !== undefined) return resolved;
+    }
+    return scalarText(value, null, null, context);
 }
 
 /** @param {XmlWriter} xml @param {Property} setter @param {EmitContext} context */

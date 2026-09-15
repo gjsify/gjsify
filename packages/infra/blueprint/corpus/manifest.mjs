@@ -204,9 +204,9 @@ export const CORPUS_RULES = [
     {
         file: '20-accessibility.blp',
         isolates:
-            'an `accessibility { }` block holding one entry of each ARIA kind, a translatable one and a list-valued relation',
+            'an `accessibility { }` block holding every kind of ARIA element, every kind of ARIA VALUE the table can type, a translatable entry and a list-valued relation',
         surprise:
-            "the block is not a list of `<property>` elements: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `checked: true` is `1` and `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all. And `labelled-by: [labelA, labelB]` is TWO `<relation>` elements of the same name, never one holding a list",
+            "the block is not a list of `<property>` elements and not a list of source spellings either: a relation emits `<relation>` and a state `<state>`, and both the element and the VALUE come from GTK's ARIA table and not from the widget — `orientation: vertical` is `1` on a `GtkButton`, which is not orientable at all. The three `<state>` lines are the ones to read: `checked: true` is `1` because that slot is a `GtkAccessibleTristate`, `hidden: true` — spelled identically, one line below — stays `true` because that one is a boolean, and `pressed: mixed` is `2` — the tristate's third member, and the one identifier on a state where the other two carry booleans. And `labelled-by: [labelA, labelB]` is TWO `<relation>` elements of the same name, never one holding a list",
     },
     {
         file: '21-value-array.blp',
@@ -378,6 +378,14 @@ export const CORPUS_REFUSALS = [
         projection: 'projects',
         line: 5,
         names: 'not an accessibility property',
+    },
+    {
+        file: 'unknown-accessibility-member.blp',
+        construct: "a member the ARIA slot's enum does not have, `orientation: sideways`",
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 5,
+        names: 'not a member of GtkOrientation',
     },
     {
         file: 'styles-with-semicolon.blp',
