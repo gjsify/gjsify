@@ -31,9 +31,16 @@ Two routes, neither taken here:
   mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
   change, in the layer that owns the `.app` layout, not in the runtime.
 - **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
-  rendering for the whole application, which is not a decision a runtime bundle may take for its
-  consumer.
+  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. TAKEN, 2026-09-14
+  (ADR 0038 § Amendment 3): `maybeWireGtkWindowingEnv()` sets it for a windowing bundle, and the
+  objection recorded here — that it changes text rendering for the whole application, which is
+  not a decision a runtime bundle may take for its consumer — is overruled there, on the ground
+  that the bundle was already making that choice by compiled-in ordering. What is NOT measured is
+  the result on a real Mac, as opposed to a macOS CI runner: the `macos-gtk-windowing` leg runs
+  the script-coverage proof, but every runner has Homebrew, so a green leg says nothing about the
+  machine a stranger downloads the `.app` to. The simulated no-Homebrew case in
+  `font-script-coverage.test.mjs` is what stands in for it; until someone runs a shipped `.app` on
+  a clean Mac, this line stays.
 
 The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
 future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
@@ -1795,13 +1802,13 @@ consumed as a DIRECTORY in a different run.
 macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
 ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
 
-### The win32 GTK bundle ships fontconfig config that nothing reads
+### The win32 GTK bundle's fontconfig config — proposed for deletion, then reversed
 
 `gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
 bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
 and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
-compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
-/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
+compiled and not selected by default on Windows; that is now MEASURED (ADR 0038 § W1-W2,
+Windows 11 / GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
 `PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
 when that directory is the ONLY configured one, which is the row that distinguishes "read
 and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
@@ -1810,9 +1817,11 @@ process does see the face. So none of this affects text rendering. The bundle al
 it on the target, which is a second reason the arrangement cannot be made to work rather
 than merely being unused.
 
-Two things make it worth removing rather than leaving as harmless: the code comment beside
-it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
-claim that made ADR 0038's first draft wrong in the same direction; and the builder's
+Two things made it look worth removing rather than leaving as harmless: the code comment
+beside it says gvsbuild's pango "can be fontconfig-backed … so either path works", read at
+the time as the claim that made ADR 0038's first draft wrong in the same direction — and that
+half of it turns out to be CORRECT, which is the first thing this entry got backwards; and the
+builder's
 `else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
 meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
 default `sysconfdir` — so the "when present" test always passes and the log line implying a
@@ -1824,6 +1833,28 @@ different finding.
 shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
 is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
 still not evidence for it.
+
+**REVERSED 2026-09-14 — this payload is load-bearing after all, and the reason it looked dead
+is worth more than the entry was.** ADR 0038 § Amendment 3 has the loader select the backend
+that reads this configuration (`PANGOCAIRO_BACKEND=fc`), so `etc/fonts` becomes the configuration
+a win32 process actually loads. It does NOT contradict § W1-W2 above: those measured a
+*pangowin32* map, which is filled exclusively from the DirectWrite system collection and would
+ignore a fully-read `fonts.conf`; what changes is which map exists.
+
+The intermediate reading — that gvsbuild's pango has no fontconfig backend to select, so the
+variable is inert on win32 — was WRONG and is kept here because it was well-evidenced.
+`pangocairo-1.0-0.dll` in `GTK4_Gvsbuild_2026.6.0_x64.zip` registers `PangoCairoFcFontMap`,
+imports `fontconfig-1.dll`, and lists ` win32 fontconfig`. What CI run 34873488108 actually
+measured is that a `process.env` write does not reach `getenv()` on Windows: Node writes the
+Win32 environment block, pango reads the C runtime's copy. `mirrorWindowingEnvIntoCrt()` in
+`gi.js` closes that with `g_setenv()`. The same defect applies to `FONTCONFIG_FILE` itself, which
+fontconfig also reads with `getenv()` — so this payload had two reasons to look unread and now
+has none.
+
+What remains of this entry: the bundle still ships no `fc-cache.exe`, so the cache stays baked at
+build time with no supported way to rebuild it on the target; and the builder's `else` branch
+("no etc/fonts … skipping") is still probably unreachable. Neither is a reason to delete the
+payload any more.
 
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 

@@ -259,6 +259,23 @@ export default async () => {
                 // portal produces this, and `GtkColorChooserDialog` stays under test
                 // for everything else it might say.
                 const missingPortal = /^Cannot get portal org\.freedesktop\.portal\./;
+                // THE SECOND EXEMPTION, and like the first it is about the machine.
+                // `GtkFontChooserDialog` builds its language filter from iso-codes,
+                // and reaches for it only once fontconfig drives Pango — which is
+                // what `PANGOCAIRO_BACKEND=fc` selects for a bundled darwin runtime.
+                // The path it names is a LINUX one (`/usr/share/xml/iso-codes/`) that
+                // macOS does not have at all, so the file is absent on a user's Mac by
+                // construction and GTK says so twice, for iso_639 and iso_639_3.
+                //
+                // Measured on the same head, which is why this is scoped to the message
+                // rather than skipped by platform: darwin-arm64 is SILENT and
+                // darwin-x64 warns, so the axis is what the runner happens to carry,
+                // not the code. Shipping iso-codes in the bundle would buy a language
+                // filter in a dialog most applications never open, at the price of
+                // carrying two XML catalogues; the dialog works either way, unlabelled
+                // languages and all. `GtkFontChooserDialog` stays under test for
+                // everything else it might say.
+                const missingIsoCodes = /^Failed to load '.*\/iso-codes\/iso_639(_3)?\.xml'/;
                 for (const w of GENERATED_WIDGETS) {
                     // A class the installed library does not have cannot be built. The
                     // absence is weighed above, once; here it is simply not a row.
@@ -291,7 +308,9 @@ export default async () => {
                     } catch (error) {
                         failed.push(`${w.gtype}: ${(error as Error).message}`);
                     }
-                    const said = diagnostics.seen.filter((message) => !missingPortal.test(message));
+                    const said = diagnostics.seen.filter(
+                        (message) => !missingPortal.test(message) && !missingIsoCodes.test(message),
+                    );
                     if (said.length > 0) noisy.push(`${w.gtype}: ${said.join(' | ')}`);
                     diagnostics.reset();
                 }

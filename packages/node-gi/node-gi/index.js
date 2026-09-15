@@ -30,9 +30,12 @@ maybeReexecForGtkRuntime();
 // g_module_open of typelib backers — no re-exec needed.
 maybePrependGtkRuntimeDllPath();
 
-// Windows full-windowing GTK: point GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE /
-// XDG_DATA_DIRS / FONTCONFIG_* at the data a real GTK window needs. Strict no-op for
-// the display-free bundle, which therefore loads byte-unchanged.
+// Windows/macOS full-windowing GTK: point GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE /
+// XDG_DATA_DIRS / FONTCONFIG_* at the data a real GTK window needs, and PANGOCAIRO_BACKEND
+// at the one backend that reads any of the font half. Strict no-op for the display-free
+// bundle, which therefore loads byte-unchanged. On win32 these writes reach the Win32
+// environment block ONLY — gi.js replays them into the C runtime's copy on the first
+// requireGi(), which is the environment pango's and fontconfig's getenv() read.
 maybeWireGtkWindowingEnv();
 
 const require = createRequire(import.meta.url);

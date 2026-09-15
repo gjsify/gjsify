@@ -732,8 +732,19 @@ loader publishes that directory as `GJSIFY_GTK_RUNTIME_FONT_DIR`. `initFonts()` 
 first. Two variables and not one, deliberately: an app that ships a brand face must never have to
 choose between its face and the platform's. `gjsify ship` stages and names only the app's, which is
 what every row above is about; `InitFontsResult.dir` likewise still means the app's directory alone.
-The runtime half, the three-state UI-font SIZE policy that comes with it, and the macOS limitation
-(a CoreText map registers neither) are ADR 0038 § Amendment 2 and the `bundled-fonts` guide.
+The runtime half and the three-state UI-font SIZE policy that comes with it are ADR 0038
+§ Amendment 2 and the `bundled-fonts` guide.
+
+**The darwin and windows rows describe the map GTK resolves by DEFAULT, and the bundled runtime
+selects a different one.** `pangocairo` builds the first backend compiled in
+(coretext → win32 → fc), and neither platform map's script fallback reaches every face the system
+installs — non-Latin text was tofu in every shipped app, so `@gjsify/node-gi`'s loader sets
+`PANGOCAIRO_BACKEND=fc` for a windowing bundle (ADR 0038 § Amendment 3). Both bundles' pango can
+honour it, so on both a `--app node` artifact carrying the bundle reads its faces through
+fontconfig and `add_font_file` works on the resulting map. The declarative
+`ATSApplicationFontsPath` route stays emitted and stays correct for a CoreText map, and the
+`add_font_file` handover stays wired on both platforms: neither `gjsify ship` nor the loader can
+know whether a given process ends up on the bundle's map or on the platform's.
 
 Three things follow, each of which looks wrong until the reason is read:
 
