@@ -473,6 +473,9 @@ These are false or unreachable on `main` right now, not after some future change
 | ADR 0062's "the only one of the four GTK scaffolds with no `.blp`" | `0062:123-126` | #1690 (§ 4.6) |
 | `prefer-blueprint-template` "returns `{ClassDeclaration, ClassExpression}`" | `0062:113` | #1690 widened it to include `Program` (§ 4.6) |
 | the one `SHADOW_DIVERGENCES` entry | `corpus/divergences.mjs:106-127` | retires the moment #1692 merges (§ 1.1) |
+| "gtk-minimal has no `.blp`" in two more places | `packages/infra/create-gjsify/README.md:60`, `website/src/content/docs/cli-reference.md:75` | #1690 |
+| "the eleven real files" in the parser package itself | `packages/infra/blueprint/README.md:25,28`, `corpus/manifest.mjs:40,41,48` | #1690 — twelve now (**#1694's territory; do not edit**) |
+| `bindtextdomain(domain, … ?? '/usr/share/locale')` | `docs/adr/0024-ship-installable-artifacts.md:991` | #1685 — off Linux the app now binds nothing. ADR 0059:223-224 *announces* this amendment; 0024 never received it |
 
 The pattern is worth naming: **five of the six were killed by a PR that merged within hours of
 the document asserting them**, in one direction or the other. That is the characteristic damage
@@ -515,18 +518,31 @@ published from a different repository (`gjsify/types`), on its own release caden
 cannot fix a half-published `@girs`, and a gate that fails for a reason the PR author cannot
 act on is a gate that gets ignored or disabled.
 
-**The argument for** is that the failure is recurring and this repo is where it hurts. `@girs`
-publishes roughly alphabetically, which is close to *reverse* topological order, so a partial
-publish reliably leaves packages whose own dependencies do not yet resolve — and `npm view`
-reports stale data without a cache-buster, so the window is easy to misread as finished. The
-existing script would **not** catch it: it drops `@girs` targets by design, so a gjsify release
-pinning a half-published `@girs` set passes.
+**The argument for is stronger than it first looks, and it is measured.** 25 `@girs` names sit
+in the **`dependencies`** — not devDependencies — of *published* packages
+(`packages/web/fetch`, `packages/web/websocket`, `packages/node/zlib`, …). A half-published set
+therefore breaks `npm i @gjsify/fetch` for a stranger, which is this repo's problem by any
+reading. The existing script cannot see it three times over: `@girs` are not workspace members,
+so every `@girs` edge dies at `:398-401`; it walks only repo manifests, so a transitive
+`@girs`→`@girs` edge is never constructed; and it reads direct edges only.
 
-**Recommendation: yes, but not as a gate on `main`.** A checked-in script under `scripts/`,
-invoked deliberately at release time and by `#1692`-shaped dependency bumps, gets the value
-without the un-actionable-red problem. It is the same shape as `check-refs-pin.mjs` — a tool the
-person doing the bump runs, not a wall every PR hits. *Cost: small — the logic exists, it needs
-a home, a cache-buster and a test.* **Separate work; it must not ride along with the flip.**
+**The repo has already accepted this exact argument once.**
+`.github/workflows/audit-runtimes.yml:288-299` justifies `scripts/check-shipped-runtime-packages.mjs`
+with "The registry is a different question, and until now nothing asked it" — for names the
+closure script "structurally cannot see". That is the same sentence one family over.
+
+**And it is cheap.** From the 25 roots the transitive closure is **33 packages, ~3 s** — not
+700. A host already exists: `tests/e2e/published-closure/run.mjs` stands up a fake registry.
+Measured at both 5.1.0 and 5.2.0 the closure is complete (`missing=0`), so nothing is broken
+today; this is a guard against the next window, not a repair.
+
+**Recommendation: yes, and trigger it on the PR that bumps the pin plus the `pre-release`
+phase (`audit-runtimes.yml:321`) — not on `release.yml`'s post-release call.** That puts the red
+in front of the person who can clear it (the bumper) and keeps it off every unrelated PR.
+*Cost: small.* One caveat if the ad-hoc script is adopted as a starting point:
+`/tmp/claude-1000/girs-closure.mjs:40` checks `seen` but not the queue, so a name enqueued by
+two parents is fetched twice — which is why it prints `present=33` against `reachable=30`.
+**Separate work; it must not ride along with the flip.**
 
 ### 6.2 A synthetic manifest pins seven `@girs` on the pre-ADR-0019 scheme — P2
 
@@ -538,35 +554,64 @@ a home, a cache-buster and a test.* **Separate work; it must not ride along with
 @girs/adw-1 1.10.0-4.0.4
 ```
 
-That is the old compound `<library-version>-<generator-version>` spelling. The current scheme is
-a plain package version — `packages/infra/blueprint/package.json:14-15` pins `5.1.0`, and #1692
-moves the tree to `5.2.0`.
+That is the old compound `<library-version>-<generator-version>` spelling, and it is the exact
+form **ADR 0019 forbids by name**: `docs/adr/0019-ts-for-gir-as-library.md:213` — "Do not
+reintroduce a padded `libraryVersion`." The current scheme is a bare version on all 25 tracked
+names (`5.1.0` today, `5.2.0` after #1692).
 
-It is invisible to the pin gate because the gate reads **tracked `package.json` manifests**, and
-this manifest does not exist until the suite writes it at runtime into a temp directory. It has
-not moved since #678.
+**Why the gate cannot see it.** `scripts/check-girs-exact-pins.mjs` (CI at
+`.github/workflows/main.yml:495`) walks `package.json` **files** (`:48-62`), and its `SKIP_DIRS`
+(`:37-47`) does *not* skip `tests/`. So the gate would catch this — if the manifest were a file.
+It is a JS object literal materialised into a tmpdir at runtime, so the walker never meets it,
+escaping both the exactness arm (`:99-103`) and the uniformity arm (`:121-136`), which would
+otherwise fail the tree on 5.1.0-vs-4.0.4.
 
-What breaks if it stays: nothing today — the suite either resolves these ancient versions from
-the registry or is testing something other than what the repo ships. Either way it is a test
-whose fixture and whose subject have silently diverged, which is the cheapest kind of
-green-that-proves-nothing. *Cost: small — update the seven specs and, better, derive them from
-the tree so they cannot drift again.* **Separate work**, and explicitly **not** in the flip PR:
-it touches `@girs` version declarations, which #1692 owns.
+**Compounding: the suite installs these live from npm.** `tests/e2e/helpers.mjs:153-160` rewrites
+only names present in the tarball map, and `@girs` are not — so this is the suite's only
+live-network dependency. All seven versions still resolve, so it is green today.
 
-### 6.3 Three pre-existing Blueprint parser gaps, recorded on #1694 — P2, all blocked
+**What is actually broken:** the `@girs/<ns>/vocabulary` subpath that #1683 built on **does not
+exist at 4.0.4**, so the only storybook-on-node e2e structurally cannot cover today's ARIA path
+and stays green while it rots. That is the cheapest kind of green-that-proves-nothing.
 
-A review of #1694 recorded three gaps in the in-repo parser: undeclared loss kinds for
-`condition` / `setters` appearing outside a breakpoint; a refusal that blames the wrong cause;
-and no property-type checking for object values.
+*Cost: seven one-token edits. Better — lift the block into a tracked
+`tests/e2e/storybook-on-node/fixture/package.json` (~10 lines, **no gate change needed**, the
+walker already reaches there) so it can never drift invisibly again. The real risk is the suite
+failing to compile at 5.1.0, which is precisely the signal you want.* **Separate work**, and
+explicitly **not** in the flip PR: it touches `@girs` version declarations, which #1692 owns.
 
-All three live under `packages/infra/blueprint/**`, which is **off limits while #1694 is in
-flight**. They are real and they are parser-correctness items, which puts them upstream of the
-flip in principle — a parser about to become authoritative should not mis-blame a refusal.
+### 6.3 Three pre-existing Blueprint parser gaps, recorded on #1694 — P2, mostly blocked
 
-**Recommendation: none of them rides along with the flip.** They are #1694's neighbourhood; the
-flip should wait for #1694 to land and then treat them as a single follow-up in the package
-#1694 leaves behind. Blocking the flip on three cosmetic-to-moderate parser issues would be the
-wrong trade, but landing the flip *and* editing that package in the same PR would collide.
+Located read-only; `packages/infra/blueprint/**` was not edited.
+
+| gap | where | current behaviour | fix cost | collides with #1694? |
+|---|---|---|---|---|
+| (a) undeclared loss kinds for `condition`/`setters` outside a breakpoint | `src/project.mjs:175` pushes `kind: extension.name`; the declared union is `corpus/expectations.mjs:82-84` and its hand-kept mirror `scripts/check-blueprint-corpus.mjs:125-140` | inside a breakpoint the child is dropped whole (`project.mjs:177-181`), so only the outside case reaches `:175`, reported as an **unnamed** loss | ~4 lines in 2 files + one rule pair + one expectation | **yes** — #1694 edits that same typedef and Set |
+| (b) a refusal that blames the wrong cause | `src/parser.mjs:838-843` | guards `peek().type === 'ident'` across all three menu kinds and blames "`MenuItem` in `ast.d.mts` has no `id` field", while its own comment at `:835-837` states the real scope (only `section`/`submenu` take an id). For `item foo {` the true cause is a missing `{`/`(` | 1-2 lines + one unit test — gate on `kind !== 'item'` and let `expect('{')` at `:845` speak | **no** |
+| (c) no property-type checking for object values | `src/emit-xml.mjs:331-337` never reads `ownerType`, while the scalar tail at `:344-345` routes through `scalarText`→`identText`→`resolve-ident.mjs:249` and throws on a bad member | `label: Gtk.Box { }` emits **silently**; same asymmetry at `project.mjs:95-101` vs `:69` | ~60-120 lines plus a `@girs`-derived table and a `corpus/refused/` entry | mild — #1694 edits the JSDoc above and `resolve-ident.mjs:274-291` |
+
+(c) is the one that matters for the flip's premise: it is a hole in clause 3's "an unrecognised
+construct is a hard error, never silent wrong output" — the *asymmetry* is that the emitter
+refuses what it must READ and copies what it need not, which ADR 0053's Amendment 2 closing
+paragraph already names. It does not block the flip (the compiler remains the validator per
+clause 4), but it should be recorded against clause 3 rather than discovered later.
+
+**Recommendation: none rides along with the flip.** (b) is free and uncoupled and can go any
+time after #1694. (a) and (c) belong to the package #1694 leaves behind.
+
+### 6.4 Leftovers from parallel work itself — P2/P3
+
+| what | file:line | why |
+|---|---|---|
+| **a half-swept cache-buster class** | `scripts/check-shipped-runtime-packages.mjs:344-349` | #1682 measured **today** that `no-cache`/`max-age=0`/`no-store`/`pragma` all still return `cf-cache-status: HIT`, and added a `__gjsify_readback=<nonce>` query buster to `publish-readback.ts:265` and `verify-published-closure.mjs:434`. The third registry reader was not updated and still carries the comment #1682 disproved. Near-identical `probe()` in both scripts; both read `status/pending-npm-bootstrap.json`. **P2** |
+| four hand-rolled submodule checkouts the new action does not cover | `.github/workflows/prebuilds.yml:717,755,1279,1310` | #1688's composite action covers all six gitlab.gnome.org steps; these four still `git submodule update --init --recursive refs/{oxc,rolldown}` with no cache and no mirror. ADR 0061 scopes itself to the six (`:61`) and never says why these are out. **P3** — say why, or cover them |
+| a byte-identical 9-line block in two jobs | `.github/workflows/audit-runtimes.yml:391-399` and `:1197-1206` | jobs `check` and `check-windows` both run `check-foreign-platform-paths.mjs`, which only reads files — so the Windows copy re-runs an OS-independent gate. **P3** |
+
+**For the record, what is clean:** every file added today is referenced (the heartbeat watchdog,
+`install-extraneous`, `check-foreign-platform-paths.mjs` at `audit-runtimes.yml:398`), all four
+new ADRs are indexed at `docs/adr/README.md:82-85`, and there are no duplicate exported function
+names among today's changed `.ts`. The parallel day did not produce orphaned code — it produced
+orphaned *claims*.
 
 ## 7. The decision: what rides along with the flip, and what does not
 
@@ -605,8 +650,14 @@ and the bootstrap weight of `@girs/gtk-4.0` + `@girs/adw-1` must be measured (§
 | 6.1 | a `@girs` transitive closure oracle in `scripts/` | P2 | release tooling |
 | 6.2 | the storybook-on-node synthetic manifest | P2 | **blocked**: touches `@girs` declarations, #1692's territory |
 | 6.3 | three parser gaps from #1694's review | P2 | **blocked**: `packages/infra/blueprint/**` is #1694's territory |
+| 6.4 | `check-shipped-runtime-packages.mjs:344-349` still header-only cache-bust | P2 | #1682 disproved its comment today; finish the sweep it started |
+| 5.1 | ADR 0024:991 never received the `bindtextdomain` amendment 0059 announces | P2 | shipping, not Blueprint |
+| 5.1 | "gtk-minimal has no `.blp`" in `create-gjsify/README.md:60`, `cli-reference.md:75` | P3 | docs sweep |
+| 5.1 | the eleven-real-files counts inside `packages/infra/blueprint/` | P3 | **blocked**: #1694's territory |
 | 4.2 | forward pointer at 0029's first stale 705 | P3 | docs sweep |
 | 4.5 | two ADR header formats | P3 | docs sweep |
+| 6.4 | `prebuilds.yml` submodule steps outside #1688's action | P3 | cover them, or say in ADR 0061 why not |
+| 6.4 | the duplicated `audit-runtimes.yml` block | P3 | CI tidy-up |
 | 4.8 | ADR 0059's Status vs its shipped step | P3 | one-line amendment |
 
 ### 7.3 Suggested order
@@ -622,8 +673,8 @@ and the bootstrap weight of `@girs/gtk-4.0` + `@girs/adw-1` must be measured (§
 
 ### 7.4 Does the flip need an ADR of its own?
 
-**Yes, and ADR 0063 is free** — 0059-0062 are taken on `main` and no open PR (#1677, #1692,
-#1694) claims a new number.
+**Yes, and ADR 0063 is free** — 0059-0062 are taken on `main`, and none of the three open PRs
+(#1677, #1692, #1694) claims a new number.
 
 ADR 0053 already decided *that* the parser becomes authoritative, so the flip needs no new
 decision about Blueprint. What it needs a decision for is what § 1.2 and § 1.4 surfaced and 0053
