@@ -28,10 +28,10 @@
         "bridge"
     ],
     "dependencies": {
-        "@girs/gdk-4.0": "5.1.0",
-        "@girs/gjs": "5.1.0",
-        "@girs/glib-2.0": "5.1.0",
-        "@girs/gtk-4.0": "5.1.0",
+        "@girs/gdk-4.0": "5.2.0",
+        "@girs/gjs": "5.2.0",
+        "@girs/glib-2.0": "5.2.0",
+        "@girs/gtk-4.0": "5.2.0",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^"
     },
