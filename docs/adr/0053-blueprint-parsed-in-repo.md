@@ -21,9 +21,12 @@ NOTATIONS over that vocabulary. `adw-*` elements and GtkBuilder XML are the runt
 underneath them. Blueprint is not a runtime format: it compiles TO GtkBuilder XML, which
 puts it on `SharedNode`'s level rather than one below it.
 
-### What the eleven `.blp` files actually use
+### What the twelve `.blp` files actually use
 
-Measured across every `.blp` tracked in this repo, 2026-09-10:
+Measured across every `.blp` tracked in this repo, 2026-09-10 — eleven files then. #1690 added
+a twelfth, `templates/gtk-minimal/src/main-window.blp`. Re-measured 2026-09-16: it adds one
+`using`, one `template`, one object id, one `_()` and one `styles` block to the counts below,
+moves no other row, and leaves all three zeros zero.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
@@ -65,7 +68,7 @@ is pure Python but reads typelibs through `GIRepository`, so it needs a PyGObjec
 publishes no Windows wheel — which ships it as a shebang script Windows cannot execute, and
 whose typelibs then collide with the gjsify GTK runtime bundle's own.
 
-The cost lands where the rule is enforced. Eleven `.blp` exist in the tree and NONE is under
+The cost lands where the rule is enforced. Twelve `.blp` exist in the tree and NONE is under
 `packages/`. `packages/framework/adwaita-app/src/loading-stack.ts:12-25` records a `.blp`
 written and REVERTED — the compiler is absent on the macOS and Windows runners, and
 library-mode Blueprint arrives only in 0.43.0, so a cold bootstrap from the published CLI
@@ -131,7 +134,7 @@ dependency and becomes the oracle the parser is measured against.**
    after an upstream release, a shadow run that starts reporting again IS the upgrade notice.
 
 6. **The corpus is WRITTEN, not collected.** One small `.blp` per language rule, checked in,
-   no third-party licensing to track, complete on every runner — plus the eleven real files
+   no third-party licensing to track, complete on every runner — plus the twelve real files
    as a reality probe. A sweep over third-party `.blp` may be a LOCAL extra; it must never
    become the part of the corpus CI lacks, or the run that gates the merge checks less than
    the run on a laptop. Per ADR 0030 § 5 an exemption is DATA, never a code path: a tolerated
@@ -139,10 +142,17 @@ dependency and becomes the oracle the parser is measured against.**
 
 7. **Done is a deletion, not a feature list.** This work is complete when these are gone:
    `resolve-compiler.ts` and its spec — 505 lines that exist only to find a binary and
-   explain its absence — the line-level `oxlint-disable` in `loading-stack.ts`, and the
-   MSYS2 branch of `gjsify system-check`. `check-doc-fences.mjs`'s skip does not vanish but
-   becomes TWO-STAGE: the parse arm runs everywhere, the typelib arm wherever clause 4's
-   compiler is present, and the report names which of the two ran. `@gjsify/storybook`'s
+   explain its absence, the MSYS2 probe at `resolve-compiler.ts:67-130` among them — and the
+   line-level `oxlint-disable` in `loading-stack.ts`. This clause once named "the MSYS2 branch
+   of `gjsify system-check`" as a THIRD item. That was one deletion counted twice under an
+   address that never held it: `git log -S` on both `blueprint` and `msys2` over
+   `packages/infra/cli/src/commands/system-check.ts` returns no commit. The branch lives in
+   `resolve-compiler.ts`, and the CLI reaches it by delegation from
+   `packages/infra/cli/src/utils/check-system-deps.ts:544-575` — a CONSUMER to re-point, not a
+   third thing to delete. A deletion list is a completion test, and an item addressed to a file
+   that cannot contain it can never be checked off honestly. `check-doc-fences.mjs`'s skip does
+   not vanish but becomes TWO-STAGE: the parse arm runs everywhere, the typelib arm wherever
+   clause 4's compiler is present, and the report names which of the two ran. `@gjsify/storybook`'s
    programmatic window is a DIFFERENT item — `.oxlintrc.json` scopes that whole package off
    the rule, so what it needs is a scoping decision and not a deletion. Until the parser is
    authoritative no library package gains a `.blp`; porting continues where the compiler

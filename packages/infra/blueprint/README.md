@@ -22,10 +22,10 @@ every construct the subset refuses is refused by name, held by a corpus of its o
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
-| `corpus/real/*.ui` | the same, for the 11 `.blp` files this repo already builds |
+| `corpus/real/*.ui` | the same, for the 12 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
-| `corpus/real-expectations.mjs` | the same for the 11 real files |
+| `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
