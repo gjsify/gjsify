@@ -1,0 +1,33 @@
+using Gtk 4.0;
+
+template $MainWindow: Gtk.ApplicationWindow {
+  title: "new-gjsify-app";
+  default-width: 480;
+  default-height: 280;
+
+  child: Gtk.Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-top: 24;
+    margin-bottom: 24;
+    margin-start: 24;
+    margin-end: 24;
+
+    Gtk.Label {
+      // `_()` is what makes this reachable for xgettext. The same words assigned from
+      // TypeScript could not be marked translatable at all — that is the whole reason the
+      // tree lives here and not in the callback that used to build it.
+      label: _("Hello from gjsify!");
+
+      styles [
+        "title-2",
+      ]
+    }
+
+    // Named, and left empty: the platform and PID are runtime FACTS, so TypeScript fills
+    // them in. Declaring the container here and populating it there is the intended split.
+    Gtk.Label hint {
+      xalign: 0.5;
+    }
+  };
+}

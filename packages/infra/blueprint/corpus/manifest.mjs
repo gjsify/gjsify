@@ -428,9 +428,14 @@ export const CORPUS_REFUSALS = [
  */
 
 /**
- * The eleven `.blp` files that are already part of a shipped build. They are the
- * probe against reality: a corpus of rules written by the same person who writes the
- * parser proves that person self-consistent and nothing else.
+ * Every `.blp` file that is already part of a shipped build. They are the probe against
+ * reality: a corpus of rules written by the same person who writes the parser proves that
+ * person self-consistent and nothing else.
+ *
+ * The count is NOT written here. This comment said "eleven" and was stale the first time a
+ * twelfth `.blp` was added, which is the same failure `check-blueprint-corpus.mjs`'s own
+ * header records at "25 rules". The gate counts the list; a reader who needs the number
+ * reads the list.
  *
  * @type {readonly CorpusRealFile[]}
  */
@@ -470,4 +475,5 @@ export const CORPUS_REAL_FILES = [
     { slug: 'templates_adw-canvas2d_src_main-window', source: 'templates/adw-canvas2d/src/main-window.blp' },
     { slug: 'templates_adw-game_src_main-window', source: 'templates/adw-game/src/main-window.blp' },
     { slug: 'templates_adw-webgl_src_main-window', source: 'templates/adw-webgl/src/main-window.blp' },
+    { slug: 'templates_gtk-minimal_src_main-window', source: 'templates/gtk-minimal/src/main-window.blp' },
 ];
