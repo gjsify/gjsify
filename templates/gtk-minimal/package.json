@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/template-gtk-minimal",
-    "description": "Minimal GTK4 app — Gtk.Window + Gtk.Label (no Adwaita, no Blueprint).",
+    "description": "Minimal GTK4 app — Gtk.ApplicationWindow + Gtk.Label, no Adwaita (Blueprint UI).",
     "version": "0.1.10",
     "type": "module",
     "private": true,
@@ -19,12 +19,14 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "dependencies": {
         "@girs/gio-2.0": "5.2.0",
         "@girs/glib-2.0": "5.2.0",
+        "@girs/gobject-2.0": "5.2.0",
         "@girs/gtk-4.0": "5.2.0",
         "@gjsify/node-gi": "file:../../packages/node-gi/node-gi"
     },

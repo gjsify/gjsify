@@ -81,6 +81,7 @@ the TODO records the *what's left*.
 | [0058](0058-translatable-marking-gets-a-spelling.md) | The translatable marking gets a spelling; the other twelve losses stay refusals | Proposed |
 | [0059](0059-foreign-platforms-carry-their-own-configuration.md) | A foreign platform carries its own CONFIGURATION, not only its own libraries | Proposed |
 | [0060](0060-what-the-cli-borrows-from-yarn.md) | What `gjsify install` borrows from Yarn 4 next, and what it refuses | Proposed |
+| [0061](0061-pinned-upstream-on-the-failure-path.md) | A pinned `refs/` submodule is a cache key, and upstream is the failure path | Accepted |
 | [0062](0062-the-blueprint-conversion-frontier-is-composition.md) | The Blueprint conversion frontier is composition, not `.ui` files | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)

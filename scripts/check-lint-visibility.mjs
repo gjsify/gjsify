@@ -123,16 +123,6 @@ const EXEMPT = [
         why: 'hand-copied ambient declarations for an untyped upstream package, kept as it was written.',
     },
     {
-        prefix: 'templates',
-        why:
-            'scaffolding copied into a NEW project by `gjsify create`, not compiled as part of this ' +
-            'tree. Measured 2026-08 with the ignore lifted: 2 findings, both ' +
-            '`gjsify/no-literal-widget-label` in `templates/gtk-minimal`, on the hello-world caption a ' +
-            'user replaces first — the same posture `.oxlintrc.json` already grants `examples/` and ' +
-            '`showcases/` for demo captions. Un-ignoring templates is a defensible separate change; it ' +
-            'wants that override extended, not a new blind spot.',
-    },
-    {
         prefix: 'website/src/components/AdwWidget.astro',
         why:
             "oxlint's .astro reader finds `<script>` by text scan and takes the one inside this file's " +
