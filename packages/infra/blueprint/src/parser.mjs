@@ -412,8 +412,8 @@ class Parser {
             } else if (token.text === 'menu') {
                 roots.push(this.parseMenu());
             } else if (token.type === 'ident' || token.text === '$') {
-                // `$` is routed here rather than refused as "not a type name", so the refusal
-                // comes from `parseTypeRef` and names the extern type it actually is.
+                // `$` reaches `parseTypeRef` the same way an identifier does: an extern type
+                // is an object like any other, and a root is one of the four places it sits.
                 roots.push(this.parseObject());
             } else {
                 throw this.fail(token, `found ${describe(token)}, expected a type name, \`template\` or \`menu\``);
@@ -452,19 +452,21 @@ class Parser {
      * @returns {TypeRef}
      */
     parseTypeRef() {
-        if (this.at('$')) {
-            throw this.fail(
-                this.peek(),
-                'found `$`; an extern type `$Name` is not in this subset — `TypeRef` in ast.d.mts records a namespace and a name and has no field marking a type as extern',
-            );
-        }
+        // `$Name` is an EXTERN type: a class the application registers itself, which no
+        // `using` imports and no GIR describes. The sigil is the whole syntax — everything
+        // after it is spelled like any other type — and `TypeRef.extern` carries it onward,
+        // because the two exits have to treat the type differently and neither can tell from
+        // the name (`$GtkBox` is legal and is NOT `GtkBox`).
+        const extern = this.at('$') ? this.advance() : undefined;
         const first = this.expectIdentifier('a type name');
+        const line = extern?.line ?? first.line;
+        const sigil = extern === undefined ? {} : { extern: /** @type {true} */ (true) };
         if (!this.at('.')) {
-            return { name: first.text, line: first.line };
+            return { ...sigil, name: first.text, line };
         }
         this.advance();
         const name = this.expectIdentifier('a type name after `.`');
-        return { namespace: first.text, name: name.text, line: first.line };
+        return { ...sigil, namespace: first.text, name: name.text, line };
     }
 
     /** @returns {TemplateNode} */
@@ -538,7 +540,10 @@ class Parser {
                 continue;
             }
             if (token.text === '$') {
-                // Same routing as at the top level: let `parseTypeRef` name the extern type.
+                // An extern child, `$MyWidget { }`. It is decided on the sigil alone and
+                // before the two-token discrimination below, because `$` is never the start
+                // of a property, a signal or an extension — the handler form `$name()` only
+                // ever appears to the RIGHT of a `=>`.
                 children.push({ object: this.parseObject(), line: token.line, order: order++ });
                 continue;
             }
@@ -970,6 +975,27 @@ class Parser {
                 throw this.fail(token, 'found `[`, expected a value — a list is not permitted here');
             }
             return this.parseListValue();
+        }
+
+        // An extern object as a property VALUE — `content: $MyWidget { }`. Decided before the
+        // `ident` gate below, because `$` is an operator token and would otherwise never reach
+        // the object branch at the foot of this function.
+        if (token.text === '$') {
+            const name = this.peek(1);
+            // `$name(…)` is a CLOSURE, not a type. The oracle refuses one here too — it admits
+            // closures only inside `bind` — and without this the object branch would refuse it
+            // by complaining about a missing `{`, which names a brace where the construct is
+            // the thing a reader has to remove.
+            if (name.type === 'ident' && this.at('(', 2)) {
+                throw this.fail(
+                    token,
+                    `found the closure \`$${name.text}(…)\`; a closure expression is not in this subset — \`Value\` in ast.d.mts has no closure member, and the oracle admits one only inside \`bind\``,
+                );
+            }
+            if (!options.allowObject) {
+                throw this.fail(token, 'found an object, expected a scalar value — an object is not permitted here');
+            }
+            return { kind: 'object', object: this.parseObject(), line: token.line };
         }
 
         if (token.type !== 'ident') {

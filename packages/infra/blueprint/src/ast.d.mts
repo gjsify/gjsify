@@ -49,6 +49,21 @@ export interface BlueprintImport {
 export interface TypeRef {
     readonly namespace?: string;
     readonly name: string;
+    /**
+     * Set only for an EXTERN type, the `$Name` form — a class this file does not import and
+     * the GIR does not describe, because the application registers it at runtime.
+     *
+     * It is a flag and not a spelling because extern-ness changes two answers that the name
+     * alone cannot. The GType NAME is the sigil-free source spelling concatenated
+     * (`$Ns.Other` is `NsOther`), never a C prefix, because there is no namespace to have
+     * one. And no identifier inside such an object is READ: measured on
+     * `blueprint-compiler` 0.20.4, `$GtkBox { orientation: vertical; }` emits `vertical`
+     * where `Gtk.Box { orientation: vertical; }` emits `1` — the same GType name, two
+     * different bytes, so a reader keyed on the name is wrong on exactly that file.
+     *
+     * Absent, never `false`, for the reason the `namespace` key is absent above.
+     */
+    readonly extern?: true;
     readonly line: number;
 }
 
