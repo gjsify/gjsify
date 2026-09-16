@@ -3099,13 +3099,13 @@ export interface GApplicationProps {
     'resource-base-path'?: string | null;
     /** The human-readable version number of the application. */
     version?: string | null;
-    onActivate?: G.Application.SignalSignatures['activate'];
-    onCommandLine?: G.Application.SignalSignatures['command-line'];
-    onHandleLocalOptions?: G.Application.SignalSignatures['handle-local-options'];
-    onNameLost?: G.Application.SignalSignatures['name-lost'];
-    onOpen?: G.Application.SignalSignatures['open'];
-    onShutdown?: G.Application.SignalSignatures['shutdown'];
-    onStartup?: G.Application.SignalSignatures['startup'];
+    onActivate?: Gio.Application.SignalSignatures['activate'];
+    onCommandLine?: Gio.Application.SignalSignatures['command-line'];
+    onHandleLocalOptions?: Gio.Application.SignalSignatures['handle-local-options'];
+    onNameLost?: Gio.Application.SignalSignatures['name-lost'];
+    onOpen?: Gio.Application.SignalSignatures['open'];
+    onShutdown?: Gio.Application.SignalSignatures['shutdown'];
+    onStartup?: Gio.Application.SignalSignatures['startup'];
     onNotifyActionGroup?: NotifyHandler;
     onNotifyApplicationId?: NotifyHandler;
     onNotifyFlags?: NotifyHandler;
@@ -3137,12 +3137,12 @@ export interface GMountOperationProps {
     pim?: number;
     /** The user name that is used for authentication when carrying out the mount operation. */
     username?: string | null;
-    onAborted?: G.MountOperation.SignalSignatures['aborted'];
-    onAskPassword?: G.MountOperation.SignalSignatures['ask-password'];
-    onAskQuestion?: G.MountOperation.SignalSignatures['ask-question'];
-    onReply?: G.MountOperation.SignalSignatures['reply'];
-    onShowProcesses?: G.MountOperation.SignalSignatures['show-processes'];
-    onShowUnmountProgress?: G.MountOperation.SignalSignatures['show-unmount-progress'];
+    onAborted?: Gio.MountOperation.SignalSignatures['aborted'];
+    onAskPassword?: Gio.MountOperation.SignalSignatures['ask-password'];
+    onAskQuestion?: Gio.MountOperation.SignalSignatures['ask-question'];
+    onReply?: Gio.MountOperation.SignalSignatures['reply'];
+    onShowProcesses?: Gio.MountOperation.SignalSignatures['show-processes'];
+    onShowUnmountProgress?: Gio.MountOperation.SignalSignatures['show-unmount-progress'];
     onNotifyAnonymous?: NotifyHandler;
     onNotifyChoice?: NotifyHandler;
     onNotifyDomain?: NotifyHandler;

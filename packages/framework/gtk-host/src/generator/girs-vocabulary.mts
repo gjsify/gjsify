@@ -20,6 +20,7 @@
  * literal fixtures instead of against whichever `@girs` happens to be installed.
  */
 
+import GIRepository from 'gi://GIRepository?version=3.0';
 import GLib from 'gi://GLib?version=2.0';
 
 import type { Declaration, PropMember, SignalMember, SurfaceModel } from './model.mjs';
@@ -58,14 +59,26 @@ function read(path: string): string {
     return new TextDecoder().decode(bytes);
 }
 
-/** `GtkBox` -> `Gtk`, `Box`. The vocabulary keys are GTypes, which carry both. */
-function splitGType(gtype: string, namespaces: readonly string[]): WidgetRef {
+/**
+ * `GtkBox` -> `Gtk`, `Box`. The vocabulary keys are GTypes, which carry both — but only
+ * for a GType whose prefix IS its namespace, which is every `Gtk`/`Adw` one and none of
+ * the foreign ones. `GApplication` is `Gio.Application`, and the `G` it starts with is
+ * shared by Gio, GLib and GObject, so no split of the STRING can tell them apart.
+ *
+ * The typelib is asked first because it indexes by GType name and simply knows; the
+ * prefix walk is the fallback for a GType the installed libraries do not carry. See the
+ * long note in `buildFromVocabulary` for the measurement and for what the `G` that used
+ * to be on the prefix list emitted.
+ */
+function splitGType(gtype: string, namespaces: readonly string[], byGType: ReadonlyMap<string, WidgetRef>): WidgetRef {
+    const known = byGType.get(gtype);
+    if (known) return known;
     for (const ns of namespaces) {
         if (gtype.startsWith(ns) && gtype.length > ns.length) {
             return { gtype, namespace: ns, name: gtype.slice(ns.length) };
         }
     }
-    throw new Error(`cannot split GType ${gtype} across ${namespaces.join(', ')}`);
+    throw new Error(`cannot split GType ${gtype} across ${namespaces.join(', ')} and no loaded typelib declares it`);
 }
 
 /** Every member a declaration renders, by the key it is emitted under. */
@@ -150,15 +163,55 @@ export async function buildFromVocabulary(
     // and `GtkMountOperation` extends `GMountOperation` — both Gio, both reached only as
     // ancestors, neither a DECLS key of its own. @girs 5.2.0 is the first vocabulary to
     // carry those two classes at all (ts-for-gir #474 widened DECLS past the widgets), so
-    // before it every GType here started with `Gtk` or `Adw` and this list did not have to
-    // say so. It is the GType prefix and not the TypeScript namespace: Gio and GLib both
-    // spell theirs `G`.
+    // before it every GType here started with `Gtk` or `Adw` and nothing had to answer
+    // for the rest.
     //
-    // SORTED LONGEST FIRST, which is the whole reason this is not a plain concatenation:
-    // `splitGType` returns on the first prefix that matches, so a `G` examined before
-    // `Gtk` splits `GtkBox` into `G` + `tkBox` — a name that still renders, still
-    // compiles, and is wrong everywhere it appears.
-    const prefixes = [...sources.map((s) => s.prefix), 'G'].sort((a, b) => b.length - a.length);
+    // A GTYPE PREFIX IS NOT A TYPESCRIPT NAMESPACE, and adding `G` to this list to make
+    // the split succeed is what made it look like one. Gio, GLib and GObject all spell
+    // their GType prefix `G`, so `GApplication` split to namespace `G` — which is not a
+    // name `emitProps` can import, and `emitProps` SKIPS a namespace it cannot import
+    // rather than failing. The artefact went out carrying thirteen references to a
+    // namespace no import declares — `G.Application.SignalSignatures['activate']` and
+    // twelve more, thirteen `TS2503: Cannot find namespace 'G'` in the type surface
+    // consumers import. The answer is `Gio.Application`, and no prefix table can spell
+    // it, because the prefix is the half the three namespaces share.
+    //
+    // So ASK THE TYPELIB, which indexes by GType name and therefore needs no table at
+    // all — the same oracle and the same reasoning as `scripts/generate-enum-values.mjs`,
+    // whose own comment records that keeping a second prefix-to-namespace list is how
+    // Pango came to be missing there once already. Measured over the 392 declaration
+    // GTypes of @girs 5.2.0: the typelib answers 388, disagrees with the prefix split on
+    // NONE, and is the only source for the 2 foreign ones.
+    //
+    // The prefix split stays as the FALLBACK, for the 4 GTypes a vocabulary newer than
+    // the installed libraries names and the typelib has never heard of — all `Gtk`/`Adw`
+    // by construction, since a foreign GType could not have been reached without the
+    // library that declares it. SORTED LONGEST FIRST: `splitGType` returns on the first
+    // prefix that matches, so a one-letter prefix examined before `Gtk` would split
+    // `GtkBox` into `G` + `tkBox` — a name that still renders, still compiles, and is
+    // wrong everywhere it appears. Nothing on this list is a prefix of another today;
+    // the sort is what keeps that from mattering.
+    const prefixes = sources.map((s) => s.prefix).sort((a, b) => b.length - a.length);
+
+    // GType name -> the namespace and class name the typelib registers it under. Built
+    // from whatever `repo.require` has pulled in so far, which is each source namespace
+    // plus its whole dependency closure — Gio, GLib, Gdk, Gsk and Pango arrive without
+    // being named here, which is the point.
+    const repo = new GIRepository.Repository();
+    const byGType = new Map<string, WidgetRef>();
+    const indexLoadedNamespaces = (): void => {
+        for (const ns of repo.get_loaded_namespaces()) {
+            for (let i = 0; i < repo.get_n_infos(ns); i++) {
+                const info = repo.get_info(ns, i);
+                if (!(info instanceof GIRepository.ObjectInfo) && !(info instanceof GIRepository.InterfaceInfo))
+                    continue;
+                const gtype = info.get_type_name();
+                // First writer wins, in `repo.require` order: a GType two namespaces both
+                // expose belongs to the one that declares it, not to an importer.
+                if (gtype && !byGType.has(gtype)) byGType.set(gtype, { gtype, namespace: ns, name: info.get_name() });
+            }
+        }
+    };
     const declarations = new Map<string, Declaration>();
     const closure = new Map<string, readonly string[]>();
     const enumNicks = new Map<string, readonly string[]>();
@@ -195,6 +248,15 @@ export async function buildFromVocabulary(
             p.libraryVersion ? `${p.namespace}-${p.version}/${p.libraryVersion}` : `${p.namespace}-${p.version}`,
         );
 
+        // Load the typelib this vocabulary describes, and index everything it drags in.
+        // Required HERE, from `PROVENANCE`, rather than up front from `source.pkg`: the
+        // namespace spelling and the version are the vocabulary's own statement, and
+        // parsing them back out of `gtk-4.0` would be a second answer to a question the
+        // file already answers — the same reason the provenance line above is built from
+        // it and not from the package name.
+        repo.require(p.namespace, p.version, 0);
+        indexLoadedNamespaces();
+
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) enumNicks.set(gtype, nicks);
         namespacesUsed.add(source.prefix);
 
@@ -223,9 +285,8 @@ export async function buildFromVocabulary(
         for (const [gtype, chain] of Object.entries(runtime.DECLS)) {
             closure.set(gtype, chain);
             for (const link of chain) referenced.add(link);
-            const ref = splitGType(gtype, prefixes);
-            if (gtype === 'GtkWidget' || chain.includes('GtkWidget') || childHolders.has(gtype))
-                widgets.push(ref);
+            const ref = splitGType(gtype, prefixes, byGType);
+            if (gtype === 'GtkWidget' || chain.includes('GtkWidget') || childHolders.has(gtype)) widgets.push(ref);
         }
 
         // Every GType the surface names owes a declaration, not only the ones carrying
@@ -266,7 +327,7 @@ export async function buildFromVocabulary(
                     },
                 ];
             });
-            const ref = splitGType(gtype, prefixes);
+            const ref = splitGType(gtype, prefixes, byGType);
             const signals: SignalMember[] = (runtime.OWN_SIGNALS[gtype] ?? []).map((signal) => ({
                 signal,
                 prop: eventPropOf(signal),
@@ -282,7 +343,7 @@ export async function buildFromVocabulary(
                 .slice(1)
                 .filter((base) => base !== gtype)
                 .map((base) => {
-                    const b = splitGType(base, prefixes);
+                    const b = splitGType(base, prefixes, byGType);
                     return `${b.namespace}.${b.name}`;
                 });
             declarations.set(`${ref.namespace}.${ref.name}`, {
@@ -314,7 +375,7 @@ export async function buildFromVocabulary(
     // GtkConstraintTarget — are still named in `extends`. They hold no properties, so
     // the empty interface is the whole point: it makes the clause resolve.
     for (const gtype of referenced) {
-        const ref = splitGType(gtype, prefixes);
+        const ref = splitGType(gtype, prefixes, byGType);
         const key = `${ref.namespace}.${ref.name}`;
         if (declarations.has(key)) continue;
         declarations.set(key, {
@@ -343,17 +404,39 @@ export async function buildFromVocabulary(
 
     // Import only what the rendered types actually name. The vocabulary imports more
     // than any one surface uses, and an unused import is a lint failure.
+    //
+    // AND REFUSE TO EMIT A NAMESPACE NOTHING CAN IMPORT, which is the mechanism rather
+    // than the fix. Skipping a namespace this map has no package for is right for the
+    // SECOND segment of a qualified name — `Gtk.Box.SignalSignatures['x']` offers `Box.`
+    // to the same regex — and it was silently wrong for the first, which is how thirteen
+    // `G.Application…` references reached a shipped artefact with no generator output to
+    // show for it. The two cases are told apart by position: only a segment that starts a
+    // qualified name is a namespace, so `(?<![\w.])` is what makes the refusal safe. The
+    // typelib lookup in `splitGType` is why nothing trips this today; this is what says so
+    // the next time a vocabulary widens.
     const packages: Record<string, string> = Object.fromEntries(sources.map((s) => [s.prefix, `@girs/${s.pkg}`]));
+    const unimportable = new Map<string, string>();
     for (const declaration of declarations.values()) {
         for (const member of [...declaration.props, ...declaration.signals]) {
-            for (const m of member.ts.matchAll(/\b([A-Z][A-Za-z0-9]*)\./g)) {
+            for (const m of member.ts.matchAll(/(?<![\w.])([A-Z][A-Za-z0-9]*)\./g)) {
                 const ns = m[1]!;
-                const pkg = importable.get(ns);
-                if (!pkg || namespacesUsed.has(ns)) continue;
+                if (namespacesUsed.has(ns)) continue;
+                const pkg = importable.get(ns) ?? packages[ns];
+                if (!pkg) {
+                    unimportable.set(ns, `${declaration.gtype}: ${member.ts}`);
+                    continue;
+                }
                 namespacesUsed.add(ns);
                 packages[ns] = pkg;
             }
         }
+    }
+    if (unimportable.size > 0) {
+        const shown = [...unimportable].map(([ns, where]) => `${ns} (first seen in ${where})`).join('; ');
+        throw new Error(
+            `${unimportable.size} namespace(s) named by a rendered type have no @girs package to import them from, ` +
+                `so every reference to them would be emitted undefined: ${shown}`,
+        );
     }
 
     widgets.sort((a, b) => (a.gtype < b.gtype ? -1 : 1));

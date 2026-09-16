@@ -71,6 +71,7 @@
     "vue-tsc@^3.3.11",
     "react-reconciler@^0.33.0",
     "@types/react-reconciler@^0.33.0",
+    "@girs/girepository-3.0@5.2.0",
     "@girs/javascriptcore-6.0@5.2.0",
     "@react-navigation/core@^7.21.13",
     "@react-navigation/routers@^7.6.4",
@@ -1740,6 +1741,18 @@
       "version": "5.2.0",
       "resolved": "https://registry.npmjs.org/@girs/giounix-2.0/-/giounix-2.0-5.2.0.tgz",
       "integrity": "sha512-XHYmiE+ULVg/RflmWtaQA4MSu3liD/v3RBkFJpGcQ1H8dsYirnzf/h4EK57RDfIpLQSpr1gE5vefMxU5yQhLmA==",
+      "dependencies": {
+        "@girs/gjs": "^5.2.0",
+        "@girs/gio-2.0": "^5.2.0",
+        "@girs/gobject-2.0": "^5.2.0",
+        "@girs/glib-2.0": "^5.2.0",
+        "@girs/gmodule-2.0": "^5.2.0"
+      }
+    },
+    "node_modules/@girs/girepository-3.0": {
+      "version": "5.2.0",
+      "resolved": "https://registry.npmjs.org/@girs/girepository-3.0/-/girepository-3.0-5.2.0.tgz",
+      "integrity": "sha512-2Uq0IiM57vOZ5IkJ6v4JrzMTpuOZM9fBb1BREnIT5yODwqce8X35NTQIFx7iv5IVHzUmFg062XN4LIv+oCxLcg==",
       "dependencies": {
         "@girs/gjs": "^5.2.0",
         "@girs/gio-2.0": "^5.2.0",

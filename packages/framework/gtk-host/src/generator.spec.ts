@@ -244,10 +244,14 @@ export default async () => {
         });
 
         await it('keys its widget rows on classes that can be instantiated', async () => {
-            // The generator turns `Object.keys(DECLS)` into tags. Taking `OWN_PROPS`
-            // instead — the obvious shortcut, since that is where the members are —
-            // would emit a row for every abstract class and every interface: twelve of
-            // them here, each a tag whose `ctor` cannot be called.
+            // The generator draws its tags from `DECLS` — from the widgets and child
+            // holders among its keys since @girs 5.2.0, from all of them before that,
+            // and either way from nowhere else. Taking `OWN_PROPS` instead — the obvious
+            // shortcut, since that is where the members are — would emit a row for every
+            // abstract class and every interface: twelve of them here, each a tag whose
+            // `ctor` cannot be called. That is what this asserts, and it is unaffected by
+            // which subset of `DECLS` becomes a tag: `OWN_PROPS` carries names `DECLS`
+            // does not carry at all, so the two can never be the same list.
             expect('GtkWidget' in VOCABULARY_DECLS).toBe(false);
             expect('GtkOrientable' in VOCABULARY_DECLS).toBe(false);
             const notInstantiable = Object.keys(VOCABULARY_OWN_PROPS).filter((g) => !(g in VOCABULARY_DECLS));
