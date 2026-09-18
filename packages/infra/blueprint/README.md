@@ -46,6 +46,12 @@ node scripts/check-blueprint-corpus.mjs --write           # re-derive every gold
 node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to skip stage B
 ```
 
+Beside the gate there is a reporter, `scripts/report-blueprint-census.mjs`: what the real
+`.blp` files in the tree actually use, at any revision you name. It gates nothing and takes a
+tree-ish (default `HEAD`), deriving its file list from `git ls-tree` so an older revision
+reproduces that revision's numbers. ADR 0053 § Context carries its table, and carries it that
+way because the hand-count it replaced could not be re-derived once the tree moved past it.
+
 Stage A — corpus complete and each file listed once, expectations structurally valid and
 projecting as many objects as their golden holds, every refusal listed with the line and the
 text its error must carry, no tracked `.blp` left unprobed — runs anywhere. Stage B recompiles every file and diffs it, and needs `blueprint-compiler` on
