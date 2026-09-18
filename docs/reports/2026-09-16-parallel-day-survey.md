@@ -433,7 +433,7 @@ of 0062's own worked examples. Almost every count in it is now off by that one f
 | "142 of 705 GIRs" | `:226` | denominator **718**; and 142 is *packages carrying the subpath*, while the namespace gate it is attached to is **108** (`0029:864`) |
 | tracked `.ui` 42, 11 reality-probe goldens | `:70` | **47 / 12** (35 rule goldens after #1694) |
 | tracked `.blp` 57, 11 shipped | `:71` | **62 / 12** — 35 rules, 15 refused, 12 shipped; the table at `:76-83` omits `templates/gtk-minimal/src` |
-| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The **file** delta is one file, `templates/gtk-minimal/src/index.ts`, leaving via #1690; the construction delta is two contributions — −5 with that file, and **+1 from a comment**. #1690 added a line to `prefer-blueprint-template.ts` reading ``// `new Adw.Application(…)` is not the construction half of a module-scope finding`` (`:131`), and the census's `new (Gtk\|Adw).X(` is a regex over text, so it counts prose about a construction as a construction. It does not move the file count and did not move it here; it is worth knowing before the next re-run, because a census that reads comments can be changed by a comment |
+| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The **file** delta is one file, `templates/gtk-minimal/src/index.ts`, leaving via #1690; the construction delta is two contributions — −5 with that file, and **+1 from a comment** #1690 added to `prefer-blueprint-template.ts:131`. **The census's `new (Gtk\|Adw).X(` is a regex over text, so it counts constructions written in comments as constructions** — see § 4.6.1 |
 | "42 corpus files", "41 byte-equal", "0 of 11 shipped" | `:35,187,202` | corpus **47**, none excused (§ 1.1); shipped denominator **12** |
 | `prefer-blueprint-template.ts:243` returns `{ClassDeclaration, ClassExpression}` | `:113` | now `:386`, returns `{ClassDeclaration, ClassExpression, Program}` |
 | "the only one of the four GTK scaffolds with no `.blp`" | `:123-126` | **false** since #1690 |
@@ -447,6 +447,26 @@ where there are now 47 (§ 1.1). So the table is stale by construction, not mere
 
 *This is the largest single cluster in the survey, and it is cheap: one re-measurement pass over
 one ADR.*
+
+#### 4.6.1 The assembly census counts constructions that are written in comments — P2
+
+Not a quirk of the one comment in the delta above. Measured over the 609 at `b87098a17f`:
+**24 of them sit on comment lines, across 15 files, and in 10 of those files the entire
+construction count is prose.** The clean specimen is
+`packages/infra/oxlint-plugin-gjsify/src/prefer-blueprint-template.ts`: its only two hits are
+`:87`, a JSDoc line reading "`new Gtk.GestureClick()` + `add_controller`", and `:131`,
+"``// `new Adw.Application(…)` is not the construction half of a module-scope finding``". That
+file's whole contribution to a census of *imperative widget construction* is text nobody runs.
+`packages/framework/gtk-host/src/host.ts` contributes four the same way.
+
+24 is a **lower bound**: it was measured by asking whether the matching line *begins* with `//`,
+`*` or `/*`, which misses a construction mentioned in a trailing comment.
+
+This is a defect in the method, not in the number, and it is **not fixed here**: the ADR 0062
+re-measurement (§ 7.2) has to decide it, because deciding it changes what 127/613/442 meant as
+well as what 126/609/439 means. What matters before then is that 609 is now quoted in this report
+and will be quoted again, and that anyone reading a future delta as signal should know the filter
+admits prose — a comment can move it, and one did.
 
 ### 4.7 ADR 0060 describes three problems that were already fixed when it merged — P1
 
@@ -727,7 +747,7 @@ while this survey was in review.
 | 4.7 | ADR 0060's P2 is already implemented | **P1** | `install`, not Blueprint; and it is urgent on its own — someone will build it twice |
 | 4.10 | 0062 vs 0029 on `@girs` 5.2.0 publication | **P1** | #1692 merged and disproved 0062's claim in the tree; the ADR edit is now simply overdue |
 | 4.1 | 705 → 718 in `0062:226` and `0034:823` | P2 | docs sweep |
-| 4.6 | ADR 0062's whole count set re-measured | P2 | a re-measurement pass over one ADR; large enough to be its own PR |
+| 4.6 | ADR 0062's whole count set re-measured, **and § 4.6.1 decided**: does the assembly census count constructions written in comments? | P2 | a re-measurement pass over one ADR; large enough to be its own PR |
 | 4.9 | five mis-aimed cross-references | P2 | docs sweep, same PR as 4.1/4.6 |
 | 4.11 | 0058 "twelve" vs 0062 "thirteen" | P2 | docs sweep |
 | 3.1 | `requireTool()` for the five `--require-<tool>` sites | P2 | a refactor; nothing about the flip needs it |
