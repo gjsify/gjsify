@@ -284,3 +284,6 @@
 [submodule "refs/metro"]
 	path = refs/metro
 	url = https://github.com/facebook/metro.git
+[submodule "refs/blueprint-compiler"]
+	path = refs/blueprint-compiler
+	url = https://gitlab.gnome.org/GNOME/blueprint-compiler.git
