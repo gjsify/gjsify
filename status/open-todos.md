@@ -6663,6 +6663,10 @@ it once already:
   `Could not find object with ID nope`. So the seam already in place (`accessibilityValue`
   returning null for a non-member) is the same fork the property path uses.
 
-Separately and pre-existing: the parser accepts a bare identifier in `styles [ ]`, where the
-oracle refuses any unquoted item with `Unexpected tokens` — that is a parser rule, not a
-reference one.
+Separately and pre-existing: `listItemText` admits a bare identifier for ALL THREE bracketed
+lists, not just `styles`. In `widgets [ ]` that is right (the items are ids); in `styles [ ]` and
+`strings [ ]` the oracle refuses any unquoted item with `Unexpected tokens`, so
+`Gtk.StringList { strings [doesNotExist] }` emits `<item>doesNotExist</item>` here and is
+refused there. That is a parser rule rather than a reference one, and it is the reason the list
+gap cannot be closed by adding `objectRef` to `listItemText` alone: the three lists want three
+different answers.

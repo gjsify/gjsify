@@ -213,11 +213,20 @@ object id". That gives seven, and every one is accounted for:
 | a property value, resolver branch | `value.name` | checked |
 | `object` on a `<setter>` | the setter target | checked |
 | `object` on a `<signal>` | `signal.object` | checked |
-| a property value, pass-through branch | `value.name` | NOT a reference — `layout { }` and menu attributes are untyped and the oracle passes the spelling through too |
+| a property value, pass-through branch | `value.name` | NOT a reference — a `layout { }` entry is resolved by the layout manager, and a property on an EXTERN body (or a setter on an extern target) has no vocabulary to resolve against; the oracle passes the spelling through in both, byte-equal |
 | `<widget name=…>` in a list | `listItemText` | unchecked, declared |
 | an `accessibility { }` entry | `extensionText` | unchecked, declared |
-| `id` on a `<response>` | `response.name` | NOT a reference — a response id is not an object id |
+| `id` on a `<response>` | `response.name` | NOT a reference — a response id is not an object id, and stays one even when an object of that id exists |
+| an item of a property array | `arrayItemText` | a reference the oracle resolves, that our parser never reaches — see below |
 
 The two unchecked ones are in `status/open-todos.md` with what each would take. The rule for
-anyone adding an eighth: if the string is an id, it takes `objectRef`, and it gets a file under
+anyone adding another: if the string is an id, it takes `objectRef`, and it gets a file under
 `corpus/refused/` so stage E holds the refusal by name and by line.
+
+The last row is the one to read before loosening anything. `css-classes: [doesNotExist];` is a
+reference to the oracle — `Could not find object with ID doesNotExist` — but `arrayItemText`
+never sees it, because the parser refuses a non-string array item first. Both ends refuse, so
+nothing diverges today, and the day that parser rule is relaxed the reference becomes unchecked
+in the same commit. It is the same shape as the named-menu-section note in `indexObjectIds`: a
+row whose verdict rests on a limit somewhere else, which is why it is written down beside the
+rows that rest on the language.
