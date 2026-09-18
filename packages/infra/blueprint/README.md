@@ -22,10 +22,10 @@ every construct the subset refuses is refused by name, held by a corpus of its o
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
-| `corpus/real/*.ui` | the same, for the 11 `.blp` files this repo already builds |
+| `corpus/real/*.ui` | the same, for the 12 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
-| `corpus/real-expectations.mjs` | the same for the 11 real files |
+| `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
@@ -45,6 +45,21 @@ node scripts/check-blueprint-corpus.mjs                   # from the repo root
 node scripts/check-blueprint-corpus.mjs --write           # re-derive every golden
 node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to skip stage B
 ```
+
+Beside it, the census — what the real `.blp` files in the tree actually use:
+
+```sh
+node scripts/report-blueprint-census.mjs              # at HEAD
+node scripts/report-blueprint-census.mjs 3e12aefe1a^  # …or at any revision
+node scripts/report-blueprint-census.mjs --markdown   # ADR 0053's table block
+node scripts/check-blueprint-census.mjs               # the ADR still matches the tree
+```
+
+The reporter derives its file list from `git ls-tree`, so an older revision reproduces that
+revision's numbers. ADR 0053 § Context does not transcribe its table — it carries the
+`--markdown` output verbatim, and the gate fails when the two drift. That arrangement exists
+because the hand-count it replaced went stale the moment a twelfth `.blp` landed and nothing
+noticed, so a failure there is fixed by pasting the measurement, never by editing a number.
 
 Stage A — corpus complete and each file listed once, expectations structurally valid and
 projecting as many objects as their golden holds, every refusal listed with the line and the
