@@ -75,9 +75,9 @@
 
 /**
  * The constructs that fall outside `SharedNode`. Five of these are the ones ADR 0053
- * clause 3 names from the census of the eleven real files; the rest are what a corpus
- * written per LANGUAGE RULE rather than per real file turns up, which is the point of
- * having one.
+ * clause 3 names from the census of the eleven real files there were then; the rest are
+ * what a corpus written per LANGUAGE RULE rather than per real file turns up, which is
+ * the point of having one.
  *
  * `extern` is the odd one and worth reading twice: it is the only kind where the projection
  * keeps the TEXT and loses the meaning. `SharedNode.tag` is a GIR class name, which is what a
@@ -456,7 +456,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [{ kind: 'object-id', line: 7, detail: 'the id `lonely`, on an unqualified type' }],
-        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
+        note: 'Three of the twelve real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
     },
     {
         file: '25-bracket-breakpoint.blp',

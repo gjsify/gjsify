@@ -36,17 +36,17 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE ELEVEN REAL FILES DO NOT REACH
+// WHAT THE TWELVE REAL FILES DO NOT REACH
 //
-// They are a probe against reality, not a measure of breadth, and citing "eleven real
+// They are a probe against reality, not a measure of breadth, and citing "twelve real
 // files" as coverage would be wrong twice over. They exercise six of the fifteen loss
 // kinds — `template`, `object-id`, `translatable`, `binding`, `breakpoint`, `styles`.
 // The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
 // `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
-// one to read carefully: three real files DO carry comments, and the convention in
-// `expectations.mjs` is that comments are never listed per entry.) And eleven files are
-// about six distinct SHAPES: the three `templates/*/src/main-window.blp` differ in one
+// one to read carefully: four real files DO carry comments, and the convention in
+// `expectations.mjs` is that comments are never listed per entry.) And twelve files are
+// about seven distinct SHAPES: the three `templates/adw-*/src/main-window.blp` differ in one
 // title string, and fireworks and pixel differ only in the template class name, the
 // window title, a group title, four row titles and five object ids.
 //
@@ -64,7 +64,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The eleven `.blp` files this repo already builds are the reality probe ADR 0053
+// The twelve `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep

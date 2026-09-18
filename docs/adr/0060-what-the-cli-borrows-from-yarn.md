@@ -1,6 +1,9 @@
 # 60. What `gjsify install` borrows from Yarn 4 next, and what it refuses
 
-- **Status:** Proposed (2026-09-15)
+- **Status:** Proposed (2026-09-15), **amended 2026-09-16** — see
+  [Amendment](#amendment-2026-09-16--p2-shipped-in-1686-one-commit-before-this-adr-merged).
+  The decision and its ordering stand; **P2 is done**, and the six items marked
+  **[corrected]** below did not hold when this merged.
 - **Deciders:** Pascal Garber
 - **Scope:** `@gjsify/cli`'s package-management surface — `install`, its lockfile
   (`gjsify-lock.json` v4), `--immutable`, the tarball store, `upgrade --check/--align`,
@@ -11,7 +14,8 @@
   PUBLISHED bootstrap — the release-latency constraint that decides item P1's *location*),
   [ADR 0025](0025-prune-the-install-prefix.md) (prune decides by manifest read; reachability
   deferred for want of an assembly record),
-  [ADR 0029](0029-girs-widget-vocabulary.md) (the `@girs` subpath hazard § Risks 1),
+  [ADR 0029](0029-girs-widget-vocabulary.md) (the `@girs` subpath hazard § Risks 1)
+  **[corrected]**,
   PR #1686 / issue #1683 (the tree-verification fix this ADR generalises),
   `status/open-todos.md` § *No prefix carries that list*
 
@@ -20,6 +24,11 @@
 Three kinds of evidence. **gjsify** was read at `da8680b220` on a Fedora workstation; every
 row names the grep that produced it. **Yarn** was read from yarnpkg.com and the
 `yarnpkg/berry` sources; every row names the URL or file.
+
+**Items marked [corrected] did not survive re-measurement** — two were closed by #1686
+before this document merged, three counts were never right, and one is a mis-described
+cross-reference. The Amendment gives each one's state on `main` and the command that reads
+it. The Yarn rows are untouched by it.
 
 **And, on review, Yarn 4.9.2 was run.** The first revision of this document was written
 without executing Yarn and said so. The three claims decisions rest on — cache-hit
@@ -35,17 +44,17 @@ the row says so and stops.
 | `grep -n "describeLockfileDrift(existingLock" install-backend-native.ts` | one hit, `:334` — `--immutable` compares `lockfile.requested` against the live top-level specs. **Manifests vs lockfile only; the tree is never read** |
 | `grep -rn "install-state\|installState" packages/infra/cli/src` | **0 hits** — no record of what a prefix was assembled from exists |
 | `function isAlreadyExtracted` (`:1655-1674`) | compares `package.json`'s `name` + `version` **only**. The recorded `integrity` is never checked against extracted bytes |
-| `grep -rn "GJSIFY_INSTALL_FORCE_EXTRACT"` over the whole tree | **2 hits, both on one line of one file** (`:1698-1699`). The re-extract lever is an undocumented env var: no flag, no `--help`, no mention in any workflow or doc |
+| `grep -rn "GJSIFY_INSTALL_FORCE_EXTRACT"` over the whole tree | **2 hits, both on one line of one file** **[corrected]** (`:1698-1699`). The re-extract lever is an undocumented env var: no flag, no `--help`, no mention in any workflow or doc |
 | `ls packages/infra/cli/src/commands \| grep -c dedupe` | **0** — no `dedupe` command |
 | `grep -c "'--mode'" commands/install.ts` | **0** — no `--mode=` variants |
 | `git ls-files \| grep -c yarn.config` | **0** — no constraints file of any kind |
 | `git ls-files packages/infra/manifest-conformance/lib/rules \| wc -l` | **14** — a rule registry already exists, with a `field-coverage` meta-rule |
-| `grep -rn "restore-keys" .github/actions/gjsify-setup/action.yml` | `:119-120` → `node-modules-v1-`, a bare prefix matching any commit's tree |
+| `grep -rn "restore-keys" .github/actions/gjsify-setup/action.yml` | `:119-120` → `node-modules-v1-`, a bare prefix matching any commit's tree **[corrected]** |
 | lockfile entry shape (`python3 -c "json.load(...)"`, 1852 packages) | every entry carries `version` + `resolved` + `integrity` (SRI `sha512-…`) |
-| `grep -rl '"@girs/' --include=package.json` | **204** manifests declare `@girs/*` — the blast radius of incident 1 |
+| `grep -rl '"@girs/' --include=package.json` | **204** manifests declare `@girs/*` — the blast radius of incident 1 **[corrected]** |
 | `npm-registry/src/tarball.ts` + `integrity.ts` | SRI **is** verified on download (`verifyIntegrity`, `IntegrityError`, covered by `index.spec.ts`) |
-| `getCachedTarball()` (`install-tarball-cache.ts:85-89`) | SRI is **not** re-verified on a cache HIT — the bytes at the content-addressed path are returned as-is (`readCacheFile` is `existsSync` + `readFileSync`, nothing else). Deliberate, and stated in the caller's comment. `getForeignCachedTarball()` (npm's cacache) has the same property, so the store has **two** unverified readers, not one |
-| lockfile coverage of *conditional* packages (`json.load`, filter `os`/`cpu`) | **134** platform-gated entries, **0** of them without `integrity`. gjsify hashes the platform bindings Yarn declines to — see § 2 |
+| `getCachedTarball()` (`install-tarball-cache.ts:85-89`) | SRI is **not** re-verified on a cache HIT — the bytes at the content-addressed path are returned as-is (`readCacheFile` is `existsSync` + `readFileSync`, nothing else). Deliberate, and stated in the caller's comment. `getForeignCachedTarball()` (npm's cacache) has the same property, so the store has **two** unverified readers, not one **[corrected]** |
+| lockfile coverage of *conditional* packages (`json.load`, filter `os`/`cpu`) | **134** **[corrected]** platform-gated entries, **0** of them without `integrity`. gjsify hashes the platform bindings Yarn declines to — see § 2 |
 | **(run)** `yarn@4.9.2 install`, cache zip swapped for another package's | `YN0018: left-pad@npm:1.3.0: The remote archive doesn't match the expected checksum`, no flag passed. Identical result with `enableGlobalCache: false` and `true` |
 | **(run)** `yarn@4.9.2 install`, tampered `@esbuild/linux-x64` zip (a `conditions:` package) | installs silently, `TAMPERED.txt` lands in `node_modules`. `--check-cache` catches it. The lockfile carries **no `checksum:` line at all** for that entry |
 | **(run)** `yarn@4.9.2 install --immutable`, four tree states | a package `node_modules/.yarn-state.yml` records but the lockfile dropped is **pruned silently**; a hand-planted one it never recorded **survives**, exit 0; deleting that state file relinks the tree and sweeps both. This corrects the first revision's reframing of incident 2 — see § 2 |
@@ -221,6 +230,11 @@ stale lockfile. Whatever gjsify wires must run `--align` *before* `install --imm
 after, or CI will trade one red for another.
 
 ### P2 — cache the content-addressed store, not the tree; keep the prefix fallback there. *(incident 3)*
+
+> **Done — shipped whole in #1686 (`ab53678d65`), which merged BEFORE this ADR.** All three
+> parts: the store is cached with a prefix fallback, the `node_modules` fallback stays
+> dropped, and SRI is re-verified on a cache hit. The reasoning below is kept because it is
+> why; the premises it argues from are corrected in the Amendment. Do not build this twice.
 
 This is the item with the best cost/benefit in the document, and PR #1686 already names it
 as the next move.
@@ -575,3 +589,77 @@ Two doc/source discrepancies were found and are noted rather than resolved:
 is `isCI`, and it gives `compressionLevel` a `"default": "mixed"` while both its own prose
 and `Configuration.ts` say `0`. In both cases the prose matches the code and the schema's
 `default` field is stale — worth knowing before quoting that schema as authority.
+
+## Amendment (2026-09-16) — P2 shipped in #1686, one commit before this ADR merged
+
+This ADR was measured at `da8680b220` and merged as #1687 (`1bd3159d4b`). PR #1686
+(`ab53678d65`) — which § Related already calls *"the tree-verification fix this ADR
+generalises"* — landed **between** those two points and closed **all three** of P2's
+premises. P2 was therefore implemented before the document proposing it existed, and left
+standing it would have been built a second time. That, not the arithmetic below, is why this
+amendment exists.
+
+**P2 is done, not pending**; its heading in § 3 now says so. The decision, the P1–P6 set and
+the `P4 → P2 → P1 → P3` order in § Implementation are deliberately **not** rewritten — an ADR
+records what was decided when it was decided, and P2's reasoning is still why the shipped
+shape is the right one. Only the evidence that reasoning quotes changes.
+
+### P2's three premises, against `main`
+
+| claimed | on `main` today |
+|---|---|
+| "SRI is **not** re-verified on a cache HIT … the store has **two** unverified readers, not one" (§ evidence, and again under P2's *"One coupling that must ship with it"*) | **False.** `getCachedTarball()` re-hashes and unlinks the blob on a mismatch — `install-tarball-cache.ts:114,118`. `getForeignCachedTarball()` re-hashes too (`:220`), and its doc comment (`:206-213`) retires the old argument by name: *"the next stage will probably notice" is not verification* |
+| `restore-keys: node-modules-v1-`, "a bare prefix matching any commit's tree" (§ evidence; incident 3) | **Gone for the tree.** `.github/actions/gjsify-setup/action.yml:118` reads "EXACT KEY ONLY — no `restore-keys` fallback, deliberately", and `:120-126` keeps incident 3 as the reason. `restore-keys` survives in that file only where P2 asked for it: the tarball store (`:191`) and the build cache (`:369`) |
+| "CI never persists `.gjsify-cache` at all" (under P2) | **False.** `action.yml:185-192` restores `.gjsify-cache/gjsify/tarballs` under `gjsify-tarballs-v1-<hashFiles(gjsify-lock.json)>` with `restore-keys: gjsify-tarballs-v1-`, and `:291-296` saves it |
+
+### Three counts that were never right
+
+These did not move under the document. They read the same at `da8680b220` — the commit
+§ evidence names — as on `main`, so the error is in the probe, not in the tree, and no later
+change can be blamed for them:
+
+```sh
+git ls-files '*package.json' | xargs grep -l '"@girs/' | wc -l   # 146, not 204
+python3 -c "import json; p = json.load(open('gjsify-lock.json'))['packages']; \
+print(len(p), len([k for k, v in p.items() if 'os' in v or 'cpu' in v]))"  # 1853 211, not 134
+git grep -c GJSIFY_INSTALL_FORCE_EXTRACT -- . ':!docs/adr'       # 5 hits in 2 files
+```
+
+- **204 manifests declare `@girs/*` → 146.** That row's `grep -rl` recurses into
+  `node_modules`, so it counted installed copies alongside tracked ones. Incident 1's blast
+  radius is smaller than stated, not larger.
+- **134 platform-gated lockfile entries → 211**, of 1853. The half P2 leans on is unaffected
+  and holds: **0** of the 211 lack `integrity`, so gjsify does keep the hash Yarn's
+  `exposedChecksum` drops for conditional locators.
+- **`GJSIFY_INSTALL_FORCE_EXTRACT` is not "2 hits, both on one line of one file".** Five
+  hits across two files: `install-backend-native.ts:1723-1724` (cited here as `:1698-1699`)
+  and `tests/e2e/install-incremental-extract/run.mjs:23,182,189`, whose
+  `it('GJSIFY_INSTALL_FORCE_EXTRACT=1 re-extracts everything')` exercises the lever.
+
+### What holds, and is left alone
+
+- **P4 stands, and so does the rest of its row.** The lever still has no flag, no `--help`
+  entry and no mention in any workflow or doc; `git grep` finds it in one source file and
+  one e2e suite, nowhere else. Only *invisible* needs softening — it is tested, just not
+  reachable by anyone who has not read the installer. Nothing has shipped it.
+- **Every Yarn row.** Nothing here re-runs `yarn@4.9.2` or re-reads `yarnpkg/berry`. The
+  three **(run)** experiments, § 2's linker reading and § 5's refusal are claims about Yarn,
+  and it is this repository that moved under them.
+- **P1, P3, P5 and P6.** None has shipped.
+
+### One cross-reference
+
+§ Related cites ADR 0029 as "the `@girs` subpath hazard § Risks 1". `0029:387` § Risks has
+three entries and the first is **Release coupling** (caret-vs-exact-pin); none of the three
+concerns a subpath. The link resolves, its description does not — the hazard meant here is
+0029's release-coupling risk.
+
+### Status
+
+Left at **Proposed**. P2 having shipped is an argument for accepting this, but acceptance is
+a decision and this amendment only corrects measurements. Whoever accepts it should settle
+that together with § Implementation's open question about where P3's record half sits in the
+order.
+
+Found by the parallel-day survey (#1695 § 4.7, § 4.9). Every row above was re-read against
+`main` at `e49f9fbcf4` rather than carried over from the survey.

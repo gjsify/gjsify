@@ -21,25 +21,45 @@ NOTATIONS over that vocabulary. `adw-*` elements and GtkBuilder XML are the runt
 underneath them. Blueprint is not a runtime format: it compiles TO GtkBuilder XML, which
 puts it on `SharedNode`'s level rather than one below it.
 
-### What the eleven `.blp` files actually use
+### What the twelve `.blp` files actually use
 
-Measured across every `.blp` tracked in this repo, 2026-09-10:
+Measured over the twelve real `.blp` in this tree by
+`node scripts/report-blueprint-census.mjs`, which derives its file list from `git ls-tree` at
+the revision it is given. This whole section is EMITTED by that script — heading, table and
+the two paragraphs below it — and `scripts/check-blueprint-census.mjs` fails when the ADR and
+the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
-| `using Adw 1;` | 22 | carried by the class name | yes — namespace and version |
-| `Adw.HeaderBar { }` | 81 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` | 197 | `props: { title: '…' }` | yes — a ParamSpec |
+| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 23 | carried by the class name | yes — namespace and version |
+| `Adw.HeaderBar { }` — an object as its own statement | 83 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
+| `title: "…"` — every property whose value is not an anonymous object | 208 | `props: { title: '…' }` | yes — a ParamSpec |
 | `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 23 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
-| `content: Adw.ToolbarView { }` | 19 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
-| `styles ["flat"]` | 5 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
-| `template $Foo: Adw.Bin` | 11 | — | **no** — a GtkBuilder composite-template declaration |
-| `Gtk.Box canvasContainer { }` | 41 of those | — | **no** — a GtkBuilder object id |
-| `_("Back")` | 23 | — | **no** — a `translatable` attribute on the emitted XML |
+| `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 20 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
+| `styles ["flat"]` | 6 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
+| `template $Foo: Adw.Bin` | 12 | — | **no** — a GtkBuilder composite-template declaration |
+| `Gtk.Box canvasContainer { }` | 42 of those 83 | — | **no** — a GtkBuilder object id |
+| `_("Back")` | 24 | — | **no** — a `translatable` attribute on the emitted XML |
 | `bind …` | 6 | — | **no** — a GObject property binding, addressed by id |
 | `condition (…)` + `setters { }` | 6 + 6 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
 Zero signal handlers (`=>`), zero `menu` blocks and zero inline `Gtk.Adjustment` objects.
+
+Three labels say what they count, because the old ones undersold it. The `using` row counts
+EVERY import line — 11 `using Adw 1;` and 12 `using Gtk 4.0;`, since not every file
+imports both — where reading it as the Adw one alone gives 11. The object row is anchored at
+the start of a line and so excludes an object in property-value position, which the row below
+it counts instead. The object-id row is the subset of that object row which names its object,
+which is what its "of those" means and what `bind` resolves against.
+
+The two property rows are a PARTITION, and that is the one thing to carry away from this
+table: 208 + 20 = 228, every property assignment in the tree. The 20 are the ones whose
+value is an ANONYMOUS object. The other 208 are not one thing: 205 have no object value at
+all, and three have an object value that carries a GtkBuilder id — `content: Gtk.Box
+canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
+unreproducible during a recount, because both halves were measured against a guess instead of
+against their own total: 208 + 20 was sitting beside the 228 that was already known. Two orphan
+numbers that sum to a number you already have are a partition, not noise.
 
 Six construct classes stand outside `SharedNode`, and they are not all the same kind of
 outside. `template` is not even a tree construct: it is a file-level statement that this
@@ -65,7 +85,7 @@ is pure Python but reads typelibs through `GIRepository`, so it needs a PyGObjec
 publishes no Windows wheel — which ships it as a shebang script Windows cannot execute, and
 whose typelibs then collide with the gjsify GTK runtime bundle's own.
 
-The cost lands where the rule is enforced. Eleven `.blp` exist in the tree and NONE is under
+The cost lands where the rule is enforced. Every `.blp` the census above counts is outside
 `packages/`. `packages/framework/adwaita-app/src/loading-stack.ts:12-25` records a `.blp`
 written and REVERTED — the compiler is absent on the macOS and Windows runners, and
 library-mode Blueprint arrives only in 0.43.0, so a cold bootstrap from the published CLI
@@ -131,18 +151,25 @@ dependency and becomes the oracle the parser is measured against.**
    after an upstream release, a shadow run that starts reporting again IS the upgrade notice.
 
 6. **The corpus is WRITTEN, not collected.** One small `.blp` per language rule, checked in,
-   no third-party licensing to track, complete on every runner — plus the eleven real files
-   as a reality probe. A sweep over third-party `.blp` may be a LOCAL extra; it must never
-   become the part of the corpus CI lacks, or the run that gates the merge checks less than
-   the run on a laptop. Per ADR 0030 § 5 an exemption is DATA, never a code path: a tolerated
+   no third-party licensing to track, complete on every runner — plus the real files the
+   census above counts, as a reality probe. A sweep over third-party `.blp` may be a LOCAL
+   extra; it must never become the part of the corpus CI lacks, or the run that gates the
+   merge checks less than the run on a laptop. Per ADR 0030 § 5 an exemption is DATA, never a code path: a tolerated
    divergence is a ledger entry, never an `if` inside the parser.
 
 7. **Done is a deletion, not a feature list.** This work is complete when these are gone:
    `resolve-compiler.ts` and its spec — 505 lines that exist only to find a binary and
-   explain its absence — the line-level `oxlint-disable` in `loading-stack.ts`, and the
-   MSYS2 branch of `gjsify system-check`. `check-doc-fences.mjs`'s skip does not vanish but
-   becomes TWO-STAGE: the parse arm runs everywhere, the typelib arm wherever clause 4's
-   compiler is present, and the report names which of the two ran. `@gjsify/storybook`'s
+   explain its absence, the MSYS2 probe at `resolve-compiler.ts:67-130` among them — and the
+   line-level `oxlint-disable` in `loading-stack.ts`. This clause once named "the MSYS2 branch
+   of `gjsify system-check`" as a THIRD item. That was one deletion counted twice under an
+   address that never held it: `git log -S` on both `blueprint` and `msys2` over
+   `packages/infra/cli/src/commands/system-check.ts` returns no commit. The branch lives in
+   `resolve-compiler.ts`, and the CLI reaches it by delegation from
+   `packages/infra/cli/src/utils/check-system-deps.ts:544-575` — a CONSUMER to re-point, not a
+   third thing to delete. A deletion list is a completion test, and an item addressed to a file
+   that cannot contain it can never be checked off honestly. `check-doc-fences.mjs`'s skip does
+   not vanish but becomes TWO-STAGE: the parse arm runs everywhere, the typelib arm wherever
+   clause 4's compiler is present, and the report names which of the two ran. `@gjsify/storybook`'s
    programmatic window is a DIFFERENT item — `.oxlintrc.json` scopes that whole package off
    the rule, so what it needs is a scoping decision and not a deletion. Until the parser is
    authoritative no library package gains a `.blp`; porting continues where the compiler
