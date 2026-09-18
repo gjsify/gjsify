@@ -112,18 +112,6 @@ export interface IdentValue {
     readonly line: number;
 }
 
-/**
- * `null`. A KEYWORD in the oracle's grammar rather than an identifier, and legal in exactly
- * one position: a `setters { }` value, where it compiles to an empty `<setter …></setter>`.
- * It gets its own member because reading it as an `IdentValue` is indistinguishable from an
- * object id named `null` — and that is not a theoretical confusion: it is how the string
- * `null` reached a live property in a wild file with every corpus stage green.
- */
-export interface NullValue {
-    readonly kind: 'null';
-    readonly line: number;
-}
-
 /** A property whose value is an object written inline: `content: Gtk.Box { … }`. */
 export interface ObjectValue {
     readonly kind: 'object';
@@ -148,15 +136,7 @@ export interface ListValue {
     readonly line: number;
 }
 
-export type Value =
-    | StringValue
-    | NumberValue
-    | BoolValue
-    | NullValue
-    | IdentValue
-    | ObjectValue
-    | BindingValue
-    | ListValue;
+export type Value = StringValue | NumberValue | BoolValue | IdentValue | ObjectValue | BindingValue | ListValue;
 
 export interface Property {
     readonly name: string;
