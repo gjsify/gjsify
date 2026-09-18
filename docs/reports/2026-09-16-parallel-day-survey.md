@@ -254,8 +254,11 @@ the flip landing and the skips going, the proof is green and empty.
 Several PRs independently added a mechanism for one failure class: **a step that cannot read its
 input must not report an answer.** Counted across the tree (not only today's diffs, because the
 pre-existing ones decide the duplication question): **15 named mechanisms — 5 in § 3.1, 6 in
-§ 3.2, 4 in § 3.3 — plus roughly 20 further "this would pass vacuously" asserts.** The arithmetic
-is spelled out because the first draft said 16 against an enumeration of 15.
+§ 3.2, 4 in § 3.3 — plus roughly 20 further "this would pass vacuously" asserts.** *Named* here
+means **cited below with a `file:line`**; § 3.3's four other spellings are described rather than
+addressed and fall in the "roughly 20". The arithmetic is spelled out, and so is the reading,
+because the first draft said 16 against an enumeration of 15 and nothing in the sentence could
+catch that.
 
 They do not all share a shape, and that turns out to be the right answer rather than a defect.
 
@@ -430,7 +433,7 @@ of 0062's own worked examples. Almost every count in it is now off by that one f
 | "142 of 705 GIRs" | `:226` | denominator **718**; and 142 is *packages carrying the subpath*, while the namespace gate it is attached to is **108** (`0029:864`) |
 | tracked `.ui` 42, 11 reality-probe goldens | `:70` | **47 / 12** (35 rule goldens after #1694) |
 | tracked `.blp` 57, 11 shipped | `:71` | **62 / 12** — 35 rules, 15 refused, 12 shipped; the table at `:76-83` omits `templates/gtk-minimal/src` |
-| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The entire delta is one file, `templates/gtk-minimal/src/index.ts`, leaving the census via #1690 |
+| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The **file** delta is one file, `templates/gtk-minimal/src/index.ts`, leaving via #1690; the construction delta is two contributions — −5 with that file, and **+1 from a comment**. #1690 added a line to `prefer-blueprint-template.ts` reading ``// `new Adw.Application(…)` is not the construction half of a module-scope finding`` (`:131`), and the census's `new (Gtk\|Adw).X(` is a regex over text, so it counts prose about a construction as a construction. It does not move the file count and did not move it here; it is worth knowing before the next re-run, because a census that reads comments can be changed by a comment |
 | "42 corpus files", "41 byte-equal", "0 of 11 shipped" | `:35,187,202` | corpus **47**, none excused (§ 1.1); shipped denominator **12** |
 | `prefer-blueprint-template.ts:243` returns `{ClassDeclaration, ClassExpression}` | `:113` | now `:386`, returns `{ClassDeclaration, ClassExpression, Program}` |
 | "the only one of the four GTK scaffolds with no `.blp`" | `:123-126` | **false** since #1690 |
@@ -685,7 +688,8 @@ uncoupled and can go at any time. (a) and (c) are the package #1694 left behind.
 | **a half-swept cache-buster class** | `scripts/check-shipped-runtime-packages.mjs:344-349`, the `'cache-control': 'no-cache'` fetch header and the comment above it | #1682 measured **today** that `no-cache`/`max-age=0`/`no-store`/`pragma` all still return `cf-cache-status: HIT`, and added a `__gjsify_readback=<nonce>` query buster to `publish-readback.ts:265` and `verify-published-closure.mjs:434`. The third registry reader was not updated and still carries the comment #1682 disproved. Near-identical `probe()` in both scripts; both read `status/pending-npm-bootstrap.json`. **P2** |
 | three hand-rolled submodule checkouts the new action does not cover | `.github/workflows/prebuilds.yml:717,755,1279` | #1688's composite action covers all six gitlab.gnome.org steps; these three still `git submodule update --init --recursive refs/{oxc,rolldown}` with no cache and no mirror. ADR 0061 scopes itself to the six (`:61`, "used by all six steps") and never says why these are out. **P3** — say why, or cover them |
 | ~~a fourth checkout~~ — **counted here in error** | `.github/workflows/prebuilds.yml:1310` | it is `--init --depth 1 refs/rolldown`, not `--recursive`, and the two comment lines directly above it give the reason: "rolldown's own submodules are test fixtures the Cargo path-dep never reaches, and the shallow fetch still lands the pinned commit that `refs-pin` verifies". It shares the no-cache/no-mirror gap, but "never says why" is false of this one |
-| a byte-identical **8**-line block in two jobs | `.github/workflows/audit-runtimes.yml:391-398` and `:1198-1205` (six comment lines + `name:` + `run:`; `diff` over those two ranges is empty. The first draft cited `:391-399` and `:1197-1206`, both of which take in a surrounding blank line and so report nine) | jobs `check` and `check-windows` both run `check-foreign-platform-paths.mjs`, which only reads files — so the Windows copy re-runs an OS-independent gate. **P3** |
+| **91 byte-identical lines — ten whole steps — in two jobs** | `.github/workflows/audit-runtimes.yml:332-422` ↔ `:1139-1229`, a fixed offset of 807. Measured by taking a pair of lines known to match and extending the range one line at a time in both directions until `diff` stops being empty: one line wider in either direction fails. The run is bounded by a blank line at each end, so 89 lines of content | jobs `check` and `check-windows` duplicate ten consecutive gates — `check-workflow-inline-scripts`, `check-probe-outcomes-read`, `check-workflow-script-checkout`, `check-workflow-registry-installs`, `check-workflow-release-globs`, `check-ship-format-vocabulary`, `check-foreign-platform-paths`, `check-e2e-suite-coverage`, `check-e2e-harness-duplication`, `check-adr-index` — every one of which only reads tracked files, so the Windows copy re-runs ten OS-independent gates. **P3** |
+| *how the same number was got wrong twice* | first draft: "a 9-line block at `:391-399` / `:1197-1206`". First correction: "an 8-line block at `:391-398` / `:1198-1205`" | Both of those ranges really are identical — and so is every range between them, because all of them sit inside the 91. **A range that is identical is not a range that is maximally identical**, and reporting a sub-range as though it were the measurement is how both numbers happened; the second time it was reported as the exact one. The rule this earns, and it is the cheap half of § 3.3's: for a duplication claim, extend until it breaks and say where it broke |
 
 **For the record, what is clean:** every file added today is referenced (the heartbeat watchdog,
 `install-extraneous`, `check-foreign-platform-paths.mjs` at `audit-runtimes.yml:398`), all four
@@ -738,7 +742,7 @@ while this survey was in review.
 | 4.2 | forward pointer at 0029's first stale 705 | P3 | docs sweep |
 | 4.5 | two ADR header formats | P3 | docs sweep |
 | 6.4 | the three `prebuilds.yml` submodule steps outside #1688's action | P3 | cover them, or say in ADR 0061 why not |
-| 6.4 | the duplicated `audit-runtimes.yml` block | P3 | CI tidy-up |
+| 6.4 | the 91 duplicated `audit-runtimes.yml` lines — ten OS-independent gates re-run on Windows | P3 | CI tidy-up |
 | 4.8 | ADR 0059's Status vs its shipped step | P3 | one-line amendment |
 
 ### 7.3 Suggested order
