@@ -30,28 +30,49 @@ import { blueprintCensus, renderAdrBlock } from './report-blueprint-census.mjs';
 /** The decision record whose evidence this gate holds to the tree. */
 const ADR = 'docs/adr/0053-blueprint-parsed-in-repo.md';
 
-/** The table's header row, which is what locates the block inside the ADR. */
-const HEADER = '| Blueprint | count | `SharedNode` | GIR-derived? |';
+/** The heading the emitted census section opens with, which is what locates it. */
+const HEADING = /^### What the [\w-]+ `\.blp` files actually use$/;
+
+/** The table's header row — used only to catch a SECOND, stale copy of the table. */
+const TABLE_HEADER = '| Blueprint | count | `SharedNode` | GIR-derived? |';
 
 /**
- * The census block as the ADR currently carries it: the table, one blank line, and the
- * sentence stating the three zeros. Read structurally rather than by line number, so
- * ordinary editing above it cannot silently move the gate off its target.
+ * A count of real `.blp` files asserted in prose. Outside the emitted block such a claim is
+ * ungated and free to rot — which is exactly how this ADR failed before: the table was
+ * fixed and the paragraph under it went on asserting "twelve real" where nothing looked.
  */
-function adrBlock(text) {
+const COUNT_CLAIM = /\b(?:eleven|twelve|thirteen|fourteen|\d+)\s+(?:real\s+)?(?:`?\.blp`?|real files)/i;
+
+/**
+ * The census section as the ADR carries it, located by its heading and taken to the length
+ * the reporter emits. Structural rather than line-numbered, so editing above it cannot move
+ * the gate off its target.
+ */
+function adrBlock(text, expectedLines) {
     const lines = text.split('\n');
-    const start = lines.indexOf(HEADER);
-    if (start === -1) throw new Error(`${ADR} has no census table — expected a row reading:\n  ${HEADER}`);
-
-    let end = start;
-    while (end < lines.length && lines[end].startsWith('|')) end += 1;
-    if (lines[end] !== '') throw new Error(`${ADR}: the census table is not followed by a blank line`);
-
-    const zeros = end + 1;
-    if (!lines[zeros] || lines[zeros].startsWith('|')) {
-        throw new Error(`${ADR}: the census table is not followed by the sentence stating the zero counts`);
+    const start = lines.findIndex((line) => HEADING.test(line));
+    if (start === -1) throw new Error(`${ADR} has no census section — expected a heading matching ${HEADING}`);
+    if (lines.slice(start + 1).some((line) => HEADING.test(line))) {
+        throw new Error(`${ADR} has more than one census heading — a second copy is a second thing to drift`);
     }
-    return { text: [...lines.slice(start, end), '', lines[zeros]].join('\n'), line: start + 1 };
+
+    // A stale duplicate of the table further down would otherwise sit unchecked, because
+    // the block is located by its heading and the comparison would never reach it.
+    const tables = lines.reduce((at, line, i) => (line === TABLE_HEADER ? [...at, i + 1] : at), []);
+    if (tables.length !== 1) {
+        throw new Error(`${ADR} holds ${tables.length} census tables (lines ${tables.join(', ')}) — there must be one`);
+    }
+
+    return { text: lines.slice(start, start + expectedLines).join('\n'), line: start + 1 };
+}
+
+/** Every line OUTSIDE the block that states a `.blp` count, which nothing would check. */
+function ungatedCountClaims(text, block) {
+    const gated = new Set(block.text.split('\n'));
+    return text
+        .split('\n')
+        .map((line, i) => ({ line, at: i + 1 }))
+        .filter(({ line }) => COUNT_CLAIM.test(line) && !gated.has(line));
 }
 
 function main() {
@@ -72,22 +93,37 @@ function main() {
         return process.exit(2);
     }
 
+    let adr;
     let committed;
     let measured;
     let report;
+    let ungated;
     try {
-        committed = adrBlock(readFileSync(join(root, ADR), 'utf-8'));
+        adr = readFileSync(join(root, ADR), 'utf-8');
         report = blueprintCensus('HEAD');
         measured = renderAdrBlock(report);
+        committed = adrBlock(adr, measured.split('\n').length);
+        ungated = ungatedCountClaims(adr, committed);
     } catch (error) {
         console.error(`check-blueprint-census: ${error.message}`);
         return process.exit(2);
     }
 
+    if (ungated.length > 0) {
+        console.error(
+            `check-blueprint-census: ${ungated.length} \`.blp\` count(s) stated outside the emitted block,\n` +
+                '  where nothing checks them — the failure this gate exists to end, one paragraph down.\n' +
+                '  Say it without the number and point at the census, or move the sentence into the block.\n',
+        );
+        for (const { at, line } of ungated) console.error(`  ${ADR}:${at}: ${line.trim()}`);
+        return process.exit(1);
+    }
+
     if (committed.text === measured) {
         console.log(
             `check-blueprint-census: ADR 0053's census matches the tree — ` +
-                `${report.paths.length} real .blp, namespaces ${report.namespaces.join(', ')}.`,
+                `${report.paths.length} real .blp, namespaces ${report.namespaces.join(', ')}, ` +
+                `${report.counts.propsScalar} + ${report.counts.propsAnonymousObject} = ${report.counts.propsAll} properties.`,
         );
         return process.exit(0);
     }

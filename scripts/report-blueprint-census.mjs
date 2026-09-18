@@ -16,11 +16,18 @@
 // repair was about to publish "these two rows cannot be reproduced" in the ADR. They
 // reproduce. 197 + 19 = 216, which is the total property-assignment count that was already
 // measured and sitting right there: TWO ORPHAN NUMBERS THAT SUM TO A NUMBER YOU ALREADY
-// HAVE ARE A PARTITION, NOT NOISE. The split is by whether the value object carries a
-// GtkBuilder id — three `content: Gtk.Box canvasContainer { }` do, and the row's own
-// example, `content: Adw.ToolbarView { }`, does not. `assertPartition` below holds that
-// identity on every run, because what hid it was that nobody checked the halves against
-// the whole.
+// HAVE ARE A PARTITION, NOT NOISE. The 19 are the properties whose value is an ANONYMOUS
+// object; the other 197 are everything else, which is mostly properties with no object
+// value at all plus three whose value object carries a GtkBuilder id. `assertPartition`
+// below holds that identity on every run, because what hid it was that nobody checked the
+// halves against the whole.
+//
+// AND THE FIRST `assertPartition` COULD NOT FAIL. It computed one half by subtracting the
+// other and then checked that they added back up — a tautology, under a comment saying it
+// held the identity on every run. That is the same defect as the stale table it was written
+// to guard: something reporting success without doing any checking. Each count now comes
+// from its own pattern, so the sum is a claim that can be false, and mutating any one of
+// the four patterns makes it false.
 //
 // THE FILE LIST IS DERIVED, NEVER LISTED. It comes from `git ls-tree` at the revision,
 // minus the corpus's own fixtures — so a thirteenth `.blp` is in the census the day it
@@ -68,6 +75,14 @@ const PATTERNS = {
     // ANONYMOUS. Drop it and three id-carrying `content: Gtk.Box canvasContainer {` join
     // the count, which is exactly the 22-vs-19 that made this row look unreproducible.
     propsAnonymousObject: new RegExp(String.raw`^\s*${PROP}\s*${OBJECT}\s*\{`),
+    // Counted from its OWN pattern, never as `propsAll - propsAnonymousObject`. Subtracting
+    // is what made the first `assertPartition` a tautology: it reported success without
+    // checking anything, which is the defect this whole census exists to document. Derived
+    // independently, the sum below is a real claim about two regexes and breaks when either
+    // one drifts away from the other.
+    propsScalar: new RegExp(String.raw`^\s*${PROP}(?!\s*${OBJECT}\s*\{)`),
+    propsObjectValued: new RegExp(String.raw`^\s*${PROP}\s*${OBJECT}`),
+    propsIdentifiedObject: new RegExp(String.raw`^\s*${PROP}\s*${OBJECT}\s+[A-Za-z_][A-Za-z0-9_]*`),
     slots: /^\s*\[[a-z]+\]/,
     styles: /styles\s*\[/,
     templates: /^template \$/,
@@ -106,7 +121,7 @@ const CENSUS_ROWS = [
     },
     {
         blueprint: '`title: "…"` — every property whose value is not an anonymous object',
-        cell: (c) => `${c.propsAll - c.propsAnonymousObject}`,
+        cell: (c) => `${c.propsScalar}`,
         sharedNode: "`props: { title: '…' }`",
         gir: 'yes — a ParamSpec',
     },
@@ -170,18 +185,31 @@ function git(args) {
 }
 
 /**
- * The two property rows partition the whole: every property assignment either has an
- * anonymous object for a value or it does not. Held on every run because the one time it
- * was not held, two perfectly good rows were nearly written off as unreproducible.
+ * Two partitions, each over counts taken from INDEPENDENT patterns, so each sum is a claim
+ * that can be false:
+ *
+ *   every property assignment  = not-an-anonymous-object + anonymous-object
+ *   every object-valued one    = anonymous + id-carrying
+ *
+ * The first version of this function computed one side by subtracting the other and then
+ * checked that they added back up. That is a tautology: it could not fail, and it sat under
+ * a comment claiming it held the identity on every run. A check that reports success without
+ * checking is the same defect as the stale table this census replaced, so the shape matters
+ * more than the arithmetic — each number here comes from its own regex against the lines.
  */
 function assertPartition(counts) {
-    const anonymous = counts.propsAnonymousObject;
-    const rest = counts.propsAll - anonymous;
-    if (rest + anonymous !== counts.propsAll || rest < 0) {
-        throw new Error(
-            `property rows do not partition: ${rest} + ${anonymous} != ${counts.propsAll} — ` +
-                'one pattern is matching a line the other does not.',
-        );
+    const sums = [
+        ['every property assignment', counts.propsAll, ['propsScalar', 'propsAnonymousObject']],
+        ['object-valued properties', counts.propsObjectValued, ['propsAnonymousObject', 'propsIdentifiedObject']],
+    ];
+    for (const [what, whole, parts] of sums) {
+        const total = parts.reduce((sum, key) => sum + counts[key], 0);
+        if (total !== whole) {
+            throw new Error(
+                `${what} do not partition: ${parts.map((key) => `${key}=${counts[key]}`).join(' + ')} ` +
+                    `= ${total}, but the whole is ${whole} — two of these patterns have drifted apart.`,
+            );
+        }
     }
 }
 
@@ -204,17 +232,23 @@ export function blueprintCensus(rev) {
     assertPartition(counts);
 
     // Reported so a namespace this census has never seen announces itself instead of
-    // falling through a filter. `using Ns 1;` carries one too.
+    // falling through a filter. `using Ns 1;` carries one too. A bare `$Extern` object has
+    // no namespace to report and so cannot appear here — it moves the counts, silently, and
+    // the object rows are where it would show.
     const objectNamespace = new RegExp(String.raw`(?:^\s*|:\s*)([A-Z][A-Za-z0-9]*)\.`);
     const namespaces = new Set();
+    const usingByNamespace = {};
     for (const line of lines) {
         const object = line.match(objectNamespace);
         if (object) namespaces.add(object[1]);
         const imported = line.match(/^using ([A-Z][A-Za-z0-9]*)/);
-        if (imported) namespaces.add(imported[1]);
+        if (imported) {
+            namespaces.add(imported[1]);
+            usingByNamespace[imported[1]] = (usingByNamespace[imported[1]] ?? 0) + 1;
+        }
     }
 
-    return { rev, paths, counts, namespaces: [...namespaces].sort(), rows: CENSUS_ROWS };
+    return { rev, paths, counts, namespaces: [...namespaces].sort(), usingByNamespace, rows: CENSUS_ROWS };
 }
 
 /** The zeros the ADR states in prose. Emitted with their real values, so drift shows. */
@@ -227,19 +261,62 @@ function zeroSentence(counts) {
     return `${signals[0].toUpperCase()}${signals.slice(1)}, ${menus} and ${adjustments}.`;
 }
 
+/** Small counts read as words in the ADR's prose, which is where they have to be emitted. */
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+/** `12` → `twelve`, and anything past the table's vocabulary stays a numeral. */
+function word(n) {
+    return WORDS[n] ?? `${n}`;
+}
+
 /**
- * ADR 0053's table block, verbatim. `check-blueprint-census.mjs` holds the ADR to these
- * exact bytes, which is what stops the table from being hand-copied — the way the last
- * transcription lost the markers it was meant to carry.
+ * ADR 0053's WHOLE census section, verbatim: the heading, the sentence that says what was
+ * measured, the table, the zeros, and the two paragraphs that read numbers out of it.
+ * `check-blueprint-census.mjs` holds the ADR to these exact bytes.
+ *
+ * THE PROSE IS IN HERE FOR A REASON. An earlier version emitted only the table, and the
+ * paragraph under it went on asserting "twelve real", "11 + 12" and "208 + 20 = 228" in
+ * plain text where nothing checked them — so falsifying all four left the gate green. That
+ * is this PR's own failure moved one paragraph down: a number a reader will believe must
+ * not sit outside the thing that checks numbers. Prose that states a count belongs here;
+ * prose that states a JUDGEMENT belongs in the ADR, below the block.
  */
 export function renderAdrBlock(report) {
     const { counts } = report;
+    const files = report.paths.length;
+    const adwImports = report.usingByNamespace.Adw ?? 0;
+    const identified = counts.propsIdentifiedObject;
+    const noObjectValue = counts.propsScalar - identified;
     return [
+        `### What the ${word(files)} \`.blp\` files actually use`,
+        '',
+        `Measured over the ${word(files)} real \`.blp\` in this tree by`,
+        '`node scripts/report-blueprint-census.mjs`, which derives its file list from `git ls-tree` at',
+        'the revision it is given. This whole section is EMITTED by that script — heading, table and',
+        'the two paragraphs below it — and `scripts/check-blueprint-census.mjs` fails when the ADR and',
+        'the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.',
+        '',
         '| Blueprint | count | `SharedNode` | GIR-derived? |',
         '|---|---|---|---|',
         ...report.rows.map((row) => `| ${row.blueprint} | ${row.cell(counts)} | ${row.sharedNode} | ${row.gir} |`),
         '',
         zeroSentence(counts),
+        '',
+        `Three labels say what they count, because the old ones undersold it. The \`using\` row counts`,
+        `EVERY import line — ${adwImports} \`using Adw 1;\` and ${counts.using - adwImports} \`using Gtk 4.0;\`, since not every file`,
+        `imports both — where reading it as the Adw one alone gives ${adwImports}. The object row is anchored at`,
+        'the start of a line and so excludes an object in property-value position, which the row below',
+        'it counts instead. The object-id row is the subset of that object row which names its object,',
+        'which is what its "of those" means and what `bind` resolves against.',
+        '',
+        'The two property rows are a PARTITION, and that is the one thing to carry away from this',
+        `table: ${counts.propsScalar} + ${counts.propsAnonymousObject} = ${counts.propsAll}, every property assignment in the tree. The ${counts.propsAnonymousObject} are the ones whose`,
+        `value is an ANONYMOUS object. The other ${counts.propsScalar} are not one thing: ${noObjectValue} have no object value at`,
+        `all, and ${word(identified)} have an object value that carries a GtkBuilder id — \`content: Gtk.Box`,
+        "canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared",
+        'unreproducible during a recount, because both halves were measured against a guess instead of',
+        `against their own total: ${counts.propsScalar} + ${counts.propsAnonymousObject} was sitting beside the ${counts.propsAll} that was already known. Two orphan`,
+        'numbers that sum to a number you already have are a partition, not noise.',
     ].join('\n');
 }
 
@@ -247,7 +324,7 @@ function renderText(report) {
     const { counts } = report;
     const rows = report.rows.map((row) => [row.blueprint.replace(/`/g, ''), row.cell(counts)]);
     const width = Math.max(...rows.map(([label]) => label.length));
-    const scalar = counts.propsAll - counts.propsAnonymousObject;
+    const scalar = counts.propsScalar;
     return [
         `${report.paths.length} real .blp at ${report.rev}`,
         ...rows.map(([label, cell]) => `  ${label.padEnd(width)}  ${cell}`),

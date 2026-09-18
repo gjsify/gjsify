@@ -23,11 +23,11 @@ puts it on `SharedNode`'s level rather than one below it.
 
 ### What the twelve `.blp` files actually use
 
-Measured over the twelve real `.blp` in this tree by `node scripts/report-blueprint-census.mjs`,
-which derives its file list from `git ls-tree` at the revision it is given. The table below is
-EMITTED by that script, not transcribed from it, and `scripts/check-blueprint-census.mjs` fails
-when the two disagree — so a thirteenth `.blp` cannot leave this table quietly wrong, which is
-exactly what a twelfth one did.
+Measured over the twelve real `.blp` in this tree by
+`node scripts/report-blueprint-census.mjs`, which derives its file list from `git ls-tree` at
+the revision it is given. This whole section is EMITTED by that script — heading, table and
+the two paragraphs below it — and `scripts/check-blueprint-census.mjs` fails when the ADR and
+the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
@@ -45,20 +45,21 @@ exactly what a twelfth one did.
 
 Zero signal handlers (`=>`), zero `menu` blocks and zero inline `Gtk.Adjustment` objects.
 
-Three labels now say what they count, because the old ones undersold it. The `using` row counts
-EVERY import line — 11 `using Adw 1;` and 12 `using Gtk 4.0;`, since `templates/gtk-minimal`
-imports only Gtk — where reading it as the Adw one alone gives 11. The object row is anchored at
-the start of a line and so excludes an object in property-value position, which the row below it
-counts instead. The object-id row is the subset of that object row which names its object, which
-is what its "of those" means and what `bind` resolves against.
+Three labels say what they count, because the old ones undersold it. The `using` row counts
+EVERY import line — 11 `using Adw 1;` and 12 `using Gtk 4.0;`, since not every file
+imports both — where reading it as the Adw one alone gives 11. The object row is anchored at
+the start of a line and so excludes an object in property-value position, which the row below
+it counts instead. The object-id row is the subset of that object row which names its object,
+which is what its "of those" means and what `bind` resolves against.
 
-The two property rows are a PARTITION, and that is the one thing to carry away from this table:
-208 + 20 = 228, every property assignment in the tree, split by whether the value object carries
-a GtkBuilder id. Three `content: Gtk.Box canvasContainer { }` do; `content: Adw.ToolbarView { }`
-does not. The split was nearly declared unreproducible during a recount, because both halves
-were measured against a guess instead of against their own total. Two orphan numbers that sum to
-a number already measured are a partition, not noise — and the script asserts that identity on
-every run so the next reader does not have to notice it.
+The two property rows are a PARTITION, and that is the one thing to carry away from this
+table: 208 + 20 = 228, every property assignment in the tree. The 20 are the ones whose
+value is an ANONYMOUS object. The other 208 are not one thing: 205 have no object value at
+all, and three have an object value that carries a GtkBuilder id — `content: Gtk.Box
+canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
+unreproducible during a recount, because both halves were measured against a guess instead of
+against their own total: 208 + 20 was sitting beside the 228 that was already known. Two orphan
+numbers that sum to a number you already have are a partition, not noise.
 
 Six construct classes stand outside `SharedNode`, and they are not all the same kind of
 outside. `template` is not even a tree construct: it is a file-level statement that this
@@ -84,7 +85,7 @@ is pure Python but reads typelibs through `GIRepository`, so it needs a PyGObjec
 publishes no Windows wheel — which ships it as a shebang script Windows cannot execute, and
 whose typelibs then collide with the gjsify GTK runtime bundle's own.
 
-The cost lands where the rule is enforced. Twelve `.blp` exist in the tree and NONE is under
+The cost lands where the rule is enforced. Every `.blp` the census above counts is outside
 `packages/`. `packages/framework/adwaita-app/src/loading-stack.ts:12-25` records a `.blp`
 written and REVERTED — the compiler is absent on the macOS and Windows runners, and
 library-mode Blueprint arrives only in 0.43.0, so a cold bootstrap from the published CLI
@@ -150,10 +151,10 @@ dependency and becomes the oracle the parser is measured against.**
    after an upstream release, a shadow run that starts reporting again IS the upgrade notice.
 
 6. **The corpus is WRITTEN, not collected.** One small `.blp` per language rule, checked in,
-   no third-party licensing to track, complete on every runner — plus the twelve real files
-   as a reality probe. A sweep over third-party `.blp` may be a LOCAL extra; it must never
-   become the part of the corpus CI lacks, or the run that gates the merge checks less than
-   the run on a laptop. Per ADR 0030 § 5 an exemption is DATA, never a code path: a tolerated
+   no third-party licensing to track, complete on every runner — plus the real files the
+   census above counts, as a reality probe. A sweep over third-party `.blp` may be a LOCAL
+   extra; it must never become the part of the corpus CI lacks, or the run that gates the
+   merge checks less than the run on a laptop. Per ADR 0030 § 5 an exemption is DATA, never a code path: a tolerated
    divergence is a ledger entry, never an `if` inside the parser.
 
 7. **Done is a deletion, not a feature list.** This work is complete when these are gone:
