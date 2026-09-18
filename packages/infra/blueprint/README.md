@@ -44,6 +44,11 @@ while it drifted.
 node scripts/check-blueprint-corpus.mjs                   # from the repo root
 node scripts/check-blueprint-corpus.mjs --write           # re-derive every golden
 node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to skip stage B
+
+# and the measurement that is NOT the corpus: the same parser over `.blp` nobody here wrote,
+# from nine pinned upstreams. Needs the binary, the tree's @girs pins, and the network once.
+node scripts/blueprint-wild-sweep.mjs --help
+node scripts/blueprint-wild-sweep.mjs --dry-run           # the pinned sources, fetch nothing
 ```
 
 Stage A — corpus complete and each file listed once, expectations structurally valid and

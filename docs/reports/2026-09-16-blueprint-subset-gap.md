@@ -36,7 +36,9 @@ compiled by the oracle, and the two outputs compared byte for byte.
 
 ### Every source, pinned — and the script that redoes all of it
 
-`scripts/blueprint-wild-sweep.mjs` is in this commit, and every number below is what it prints.
+`scripts/blueprint-wild-sweep.mjs` is in this commit, and every number below is what it prints —
+with one exception named where it stands: § 1's six-and-nine split over `corpus/refused/` is a
+hand re-run against the manifest, which `check-blueprint-corpus.mjs` stage B is the gate for.
 It carries the list of sources itself, one commit each: the five that are submodules of this
 repository are verified against the gitlink and cloned if the tree does not have them, and the
 four that are not are shallow-cloned at their exact sha into a cache outside the repository
@@ -89,6 +91,15 @@ one is silently wrong.** Counting only the 235 files this studio did not write: 
 `refs/troll/gjspack/test/fixtures/invalid-blueprint.blp`, a fixture that exists to be invalid, and
 both compilers refuse it. So clause 3 is behaving exactly as designed — a foreign file either builds
 or names its construct — and the subset is the only thing standing between 92.7% and the rest.
+
+**"Both refuse it" is not the same as agreeing, and this file is the example.** The sweep prints
+the two reasons side by side rather than calling the bucket agreement, because nothing compares
+them: the oracle answers `Namespace Gtk does not contain a type called FooApplicationWindow`, and
+we answer `found \`MyAppWindow\`, expected \`$\`` — our parser stops on a pre-0.8.0 template
+spelling and never reaches the type the fixture was written to be wrong about. Same verdict,
+unrelated reasons. One file here, and 50 in the language corpus, sit in a bucket that could hide a
+subset gap behind an oracle error on the same file; printing both reasons is the cheapest thing
+that keeps that visible.
 
 The language corpus is harsher and should be: 44 of 95 byte-equal, 50 refused, 1 wrong. A test suite
 is written to reach corners, which is what makes it useful here — it names five constructs no
@@ -195,6 +206,16 @@ green." Stage E exists because of that case. `null` is the second instance, foun
 that finds them — running the parser over files it has not seen. It is the reason this report puts a
 one-file construct near the top of the plan.
 
+**And two more that are not constructs at all.** Probing the classifier turned up a third and
+fourth thing we accept that 0.20.4 refuses, both about bytes rather than grammar. A file beginning
+with a UTF-8 **BOM** compiles here and the oracle answers `Could not determine what kind of syntax
+is meant here` at line 1 column 1; a file containing an **invalid UTF-8 byte sequence** compiles
+here — the emitter writes U+FFFD into the property — and the oracle does not even reach an error
+message, it crashes with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 34:
+invalid start byte`. Neither is in `refused/` and neither has a rule file, so nothing in this
+repository would have noticed either. They are recorded in `status/open-todos.md` with the oracle's
+exact words; they need a `refused/` file each, not parser features.
+
 ## 4. Cost per construct
 
 | construct | new token | new AST node / field | emitter work | projection loss | outside the parser? |
@@ -238,10 +259,12 @@ Every closed gap needs a rule file and an oracle-derived golden, and three of th
 | `translation-domain` | 1 | 1 | `translation-domain.blp` retires |
 | `template` with no parent | 2 | 2 | — |
 | `bind-property` | — | — | **+1 new**, kept forever |
+| a UTF-8 BOM, and invalid UTF-8 (§ 3) | — | — | **+2 new**, kept forever |
 
 About **20 new rule files with 21 goldens** — response flags widen `31-responses.blp` rather than
-adding a file, which is why the two columns differ by one — plus two new refusal files and five
-refusals retiring: 15 refusals become 12, and 35 rule files become roughly 55.
+adding a file, which is why the two columns differ by one — plus four new refusal files and five
+refusals retiring: 15 refusals become 14, and 35 rule files become roughly 55. Two of those four
+are the encoding divergences in § 3, which need a refusal and no feature.
 
 **One construct cannot be covered by a golden, and it is the one that caused the damage.** A golden
 exists only for a file the parser ACCEPTS and the oracle COMPILES. `null` on a plain property is
@@ -293,11 +316,18 @@ a foreign `.blp` from a GNOME-adjacent application is unlikely to be refused, an
 `.blp` must never become the part of the corpus CI lacks. But it explicitly allows a LOCAL sweep, and
 that is what every number here is. So the thing checked in is the SWEEP and not the files:
 `scripts/blueprint-wild-sweep.mjs`, in this commit, which materialises each pinned source, runs
-parse plus emit against the oracle, and prints every table above. It costs nothing on a runner
-without the binary, it is how each of these numbers was obtained rather than a plan to obtain them
-again, and the next person who wants to know what an application does can add four lines to its
-source list instead of arguing from eleven files. The corpus stays written; the measurement is
-repeatable.
+parse plus emit against the oracle, and prints every table above. It is how each of these numbers
+was obtained rather than a plan to obtain them again, and the next person who wants to know what an
+application does can add four lines to its source list instead of arguing from eleven files. The
+corpus stays written; the measurement is repeatable.
+
+**It is not free, and it does not pretend to be.** The sweep needs `blueprint-compiler` 0.20.4 on
+PATH, the tree's `@girs` pins installed, and the network the first time a pool is cloned; it exits
+non-zero naming whichever is missing. There is deliberately no skip mode, and that is the
+difference from `check-blueprint-corpus.mjs`: that harness commits its goldens so four of its five
+stages run anywhere, while here the binary IS the other half of every comparison. A skipping sweep
+would print a green line about no measurement, which is the shape `--require-oracle` was added over
+there to close. So it stays a local tool, run deliberately, and the repository holds its output.
 
 ## The plan, in order
 

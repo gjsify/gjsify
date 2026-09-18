@@ -24,9 +24,20 @@
 // `git submodule update --remote` moves the corpus under the report without touching a
 // byte of either. When they disagree the run stops and names both, and
 // `--accept-moved-pins` is how someone says "yes, re-measure against the new tree" out
-// loud. The three that are not submodules are shallow-cloned at their exact sha into a
+// loud. The four that are not submodules are shallow-cloned at their exact sha into a
 // cache OUTSIDE this repository, because clause 6 is about the repository and not about
 // the machine.
+//
+// WHAT THIS NEEDS BEFORE IT CAN SAY ANYTHING
+//
+// Three prerequisites, all asserted below rather than assumed, each with its own message:
+// `blueprint-compiler` 0.20.4 on PATH, the `@girs` versions `packages/infra/blueprint`
+// pins INSTALLED in the tree being measured, and network access the first time a pool is
+// cloned. There is deliberately no skip mode. `check-blueprint-corpus.mjs` has one because
+// its goldens are committed and most of it runs without the binary; here the binary IS the
+// other half of every comparison, so a run without it has nothing to report and would only
+// be a green line about no measurement — the exact shape that script's `--require-oracle`
+// exists to close.
 //
 // THE ORACLE IS PINNED TOO, AND THE VERSION IS ASSERTED
 //
@@ -51,7 +62,8 @@
 //   silently-different      both emit, the bytes differ — the worst outcome here, because
 //                           nothing in this repository goes red for it
 //   refused-by-us           the oracle compiles it and our pipeline throws — the subset gap
-//   refused-by-oracle       both refuse — a file that is not Blueprint, and agreement
+//   refused-by-oracle       both refuse — nothing here compares WHY, so this is never
+//                           called agreement; every one is printed with both reasons
 //   accepted-past-oracle    the oracle refuses it and we emit anyway — we accept what the
 //                           language does not have
 //
@@ -74,9 +86,12 @@
 //                             where they are no longer the ones the report was written at
 //        --root <dir>         the repository to read the parser and the gitlinks from
 //        --help               this text
+//
+// Needs `blueprint-compiler` 0.20.4 on PATH and the tree's `@girs` pins installed; it
+// exits non-zero naming which one is missing rather than measuring half of anything.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -326,25 +341,109 @@ const clone = (source, commit, why) => {
     return { dir, note };
 };
 
-/** Every `.blp` a pool contributes, sorted, with `.git` never walked into. */
+/**
+ * Every `.blp` a pool contributes, sorted, with `.git` never walked into.
+ *
+ * `statSync` FOLLOWS symlinks, so a checkout holding a dangling one threw `ENOENT` out of a
+ * directory listing and a symlink pointing at its own ancestor recursed until the stack gave
+ * out — both in Node's voice, from a line that says nothing about which tree it was reading.
+ * `lstatSync` answers about the link itself, so neither is reachable now; `depth` bounds what
+ * is left, since the parameter was already being carried and never read.
+ */
+const MAX_WALK_DEPTH = 32;
+
 const blueprintsIn = (dir, source) => {
     const base = source.subdir ? join(dir, source.subdir) : dir;
     if (!existsSync(base)) die(`${source.pool}: ${source.subdir ?? '.'} is not in the checkout at ${dir}.`);
     const found = [];
     const walk = (at, depth) => {
-        for (const entry of readdirSync(at).sort()) {
-            if (entry === '.git' || entry === 'node_modules') continue;
-            const path = join(at, entry);
-            if (statSync(path).isDirectory()) {
+        if (depth > MAX_WALK_DEPTH) {
+            die(`${source.pool}: ${relative(dir, at)} is more than ${MAX_WALK_DEPTH} directories deep — a link loop?`);
+        }
+        let entries;
+        try {
+            entries = readdirSync(at, { withFileTypes: true });
+        } catch (error) {
+            return die(`${source.pool}: cannot read ${relative(dir, at) || '.'}: ${error.message}`);
+        }
+        for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+            if (entry.name === '.git' || entry.name === 'node_modules') continue;
+            const path = join(at, entry.name);
+            // A `Dirent` answers about the link, not its target — the same question `lstat`
+            // answers, and the one that makes a dangling link a file this loop skips.
+            if (entry.isDirectory()) {
                 if (source.recursive !== false) walk(path, depth + 1);
-            } else if (entry.endsWith('.blp')) {
+            } else if (entry.isFile() && entry.name.endsWith('.blp')) {
                 found.push(path);
+            } else if (entry.isSymbolicLink() && entry.name.endsWith('.blp')) {
+                // A `.blp` reached through a link is a real file of this pool, and a broken
+                // link is a checkout problem worth naming rather than silently dropping.
+                if (existsSync(path)) found.push(path);
+                else die(`${source.pool}: ${relative(dir, path)} is a symlink to nothing.`);
             }
         }
     };
     walk(base, 0);
     return found;
 };
+
+// ---------------------------------------------------------------- the OTHER pinned input
+
+// The oracle is not the only version this measurement depends on, and it was the only one
+// checked. Emission needs introspection: `resolve-ident.mjs` reads `@girs/gtk-4.0/vocabulary`
+// and `@girs/adw-1/vocabulary`, so every table below is a statement about a parser AND a
+// vocabulary. The report says `@girs` 5.2.0. On a machine with 5.0.0 installed this printed a
+// different table and said nothing; in a tree with nothing installed it died in Node's voice
+// with `ERR_MODULE_NOT_FOUND` rather than in this script's.
+//
+// That is the same defect this sweep was written to find, one dependency over: two inputs at
+// two versions, and no line saying so. `package.json` is the pin — `check-girs-exact-pins.mjs`
+// keeps those specs exact — so it is read rather than restated, and a spec that has stopped
+// being exact fails here too, because a range cannot be asserted against and would quietly
+// turn this check back off.
+const BLUEPRINT_PKG = join(root, 'packages/infra/blueprint/package.json');
+const declaredDeps = JSON.parse(readFileSync(BLUEPRINT_PKG, 'utf8')).dependencies ?? {};
+
+/** The version actually on disk, resolved the way Node resolves it: up the `node_modules` chain. */
+const installedVersionOf = (name) => {
+    // Not through the exports map: `@girs/adw-1` does not expose `./package.json`, so
+    // `require.resolve` would throw for a package that is installed and perfectly fine.
+    let at = join(root, 'packages/infra/blueprint', 'src');
+    for (;;) {
+        const candidate = join(at, 'node_modules', ...name.split('/'), 'package.json');
+        if (existsSync(candidate)) return JSON.parse(readFileSync(candidate, 'utf8')).version;
+        const up = dirname(at);
+        if (up === at) return null;
+        at = up;
+    }
+};
+
+for (const [name, want] of Object.entries(declaredDeps)) {
+    if (!/^\d+\.\d+\.\d+$/.test(want)) {
+        die(
+            `packages/infra/blueprint/package.json pins ${name} as "${want}", which is a range.\n` +
+                '  This sweep asserts the vocabulary it measures with, and a range cannot be asserted\n' +
+                '  against. Make the pin exact (scripts/check-girs-exact-pins.mjs) — otherwise this\n' +
+                '  check is off and nothing says so.',
+        );
+    }
+    const have = installedVersionOf(name);
+    if (have === null) {
+        die(
+            `${name} is not installed under ${relative(process.cwd(), root) || '.'}, and emission needs its\n` +
+                `  vocabulary — \`resolve-ident.mjs\` imports ${name}/vocabulary, so there is nothing to\n` +
+                '  measure without it. Run `gjsify install` in THIS tree, or --root a tree that has it.',
+        );
+    }
+    if (have !== want) {
+        die(
+            `this tree has ${name} ${have} and the report's numbers are ${want}.\n` +
+                '  The vocabulary decides which types resolve, so another one prints a different table\n' +
+                '  under the same headings. Install the pinned version, or re-measure deliberately and\n' +
+                '  move the report with what it says.',
+        );
+    }
+}
 
 // ---------------------------------------------------------------- the two implementations
 
@@ -355,12 +454,20 @@ const { accessibilityElement, accessibilityValue, gtypeName, resolveIdent } = aw
     `file://${join(BLUEPRINT_SRC, 'resolve-ident.mjs')}`
 );
 
+/** The oracle colours its diagnostics; leaving the escapes in makes them ungreppable. */
+const ESC = String.fromCharCode(27);
+const plain = (text) =>
+    text
+        .split(ESC)
+        .map((part, i) => (i === 0 ? part : part.replace(/^\[[0-9;]*m/, '')))
+        .join('');
+
 /** What the oracle does with a file: its XML, or the first line of why not. */
 const runOracle = (path) => {
     const run = spawnSync(ORACLE.tool, ['compile', path], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
     return run.status === 0
         ? { xml: run.stdout }
-        : { error: (run.stderr || '').trim().split('\n')[0] || 'exit ' + run.status };
+        : { error: plain((run.stderr || '').trim().split('\n')[0]) || `exit ${run.status}` };
 };
 
 /** What this repository does with the same file. */
@@ -433,6 +540,13 @@ const CONSTRUCTS = [
  * comparison; every combination of them is a row here and there is no `else`, so an
  * outcome this does not name comes back `null` and stops the run instead of being counted
  * as whichever bucket happens to be last.
+ *
+ * `refused-by-oracle` is the one bucket that cannot be called agreement. Both sides said no;
+ * nothing here compares WHY, and two compilers refusing the same file for unrelated reasons
+ * is a real thing this cannot distinguish from a shared verdict — a subset gap could hide
+ * behind an oracle error on the same file. There is no comparison to write: the two produce
+ * unrelated prose, and matching it would be this script guessing. So both reasons are
+ * printed side by side, every one of them, and the reader does the comparing.
  */
 const classify = (oracle, ours) => {
     const oracleEmitted = typeof oracle.xml === 'string';
@@ -465,6 +579,7 @@ if (dryRun) {
 const rows = [];
 const unexpected = [];
 const refusalsByMessage = new Map();
+const bothRefused = [];
 const divergent = [];
 const census = new Map(CONSTRUCTS.map(([name]) => [name, { wild: 0, language: 0 }]));
 /** Which constructs each file that does NOT build correctly today needs — § 6's arithmetic. */
@@ -476,7 +591,14 @@ for (const source of selected) {
     const counts = Object.fromEntries(BUCKETS.map((b) => [b, 0]));
     for (const path of files) {
         const key = `${source.pool}:${relative(dir, path)}`;
-        const text = readFileSync(path, 'utf8');
+        let text;
+        try {
+            text = readFileSync(path, 'utf8');
+        } catch (error) {
+            // Unreadable is not a verdict. Counting it anywhere would put a file the run
+            // never saw into a bucket, which is the miscount this whole table is about.
+            die(`${key}: cannot be read, so it cannot be classified: ${error.message}`);
+        }
         const found = CONSTRUCTS.filter(([, test]) => test(text)).map(([name]) => name);
         for (const name of found) census.get(name)[source.language ? 'language' : 'wild'] += 1;
         const oracle = runOracle(path);
@@ -496,6 +618,7 @@ for (const source of selected) {
             const construct = ours.error.replace(/^.*?:\d+:\d+:\s*/, '').replace(/"[^"]*"/g, '"…"');
             refusalsByMessage.set(construct, [...(refusalsByMessage.get(construct) ?? []), key]);
         }
+        if (bucket === 'refused-by-oracle') bothRefused.push([key, oracle.error, ours.error]);
         if (bucket === 'silently-different' || bucket === 'accepted-past-oracle') divergent.push([bucket, key]);
     }
     rows.push({ source, note, files: files.length, counts });
@@ -552,7 +675,8 @@ console.log(
 );
 console.log(
     `\n${sum(wild, 'refused-by-us')} of the ${wildRefused} refusals are files the oracle compiles; ` +
-        `${sum(wild, 'refused-by-oracle')} ${sum(wild, 'refused-by-oracle') === 1 ? 'is' : 'are'} refused by both.`,
+        `${sum(wild, 'refused-by-oracle')} ${sum(wild, 'refused-by-oracle') === 1 ? 'is' : 'are'} refused by ` +
+        'both — for reasons this does not compare, printed below.',
 );
 
 console.log(`\n${bucketTable(wild)}`);
@@ -565,6 +689,13 @@ if (language.length > 0) {
             `${l.counts['refused-by-us'] + l.counts['refused-by-oracle']} refused, ` +
             `${l.counts['silently-different'] + l.counts['accepted-past-oracle']} wrong.`,
     );
+}
+
+if (bothRefused.length > 0) {
+    console.log('\n## Refused by both — the two reasons, uncompared\n');
+    for (const [key, theirs, ours] of bothRefused) {
+        console.log(`  ${key}\n       oracle: ${theirs}\n       ours:   ${ours}`);
+    }
 }
 
 if (divergent.length > 0) {

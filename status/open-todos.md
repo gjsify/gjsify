@@ -6610,3 +6610,31 @@ would remove that latency and add a network dependency plus a job that can go re
 something no PR caused; not obviously worth it, and worth revisiting only if a pin ever sits
 still long enough for the latency to matter.
 
+
+### The Blueprint parser reads bytes the reference compiler refuses to read at all
+
+`scripts/blueprint-wild-sweep.mjs` classifies each file by what BOTH compilers do with it, and
+one of its five buckets is `accepted-past-oracle` — we emit XML for a file `blueprint-compiler`
+rejects. No file in the 273 wild or 95 language samples lands there. Two hand-written probes do,
+and both are about encoding rather than grammar:
+
+- **A UTF-8 BOM.** `﻿using Gtk 4.0;` parses and emits here. The oracle 0.20.4 exits 1 with
+  `error: Could not determine what kind of syntax is meant here` at line 1 column 1 — it treats
+  U+FEFF as an ordinary character and finds no production that starts with it.
+- **An invalid UTF-8 byte sequence.** A `0xff` inside a string literal emits here as U+FFFD,
+  silently, into a live property. The oracle does not reach an error message at all: it exits 1
+  with a Python traceback, `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position
+  34: invalid start byte`, and prints "The blueprint-compiler program has crashed".
+
+Both are the ADR 0053 clause 3 shape — wrong output where the language has none — and neither is
+visible to anything in this repository: `corpus/refused/` holds no file for either, so stage E
+cannot ask, and stages C and D only see files the parser accepts. `readFileSync(path, 'utf8')`
+is where both enter: Node replaces undecodable bytes rather than throwing, and strips nothing.
+
+The fix is two `refused/` files and a check in the reader, not a parser feature — the subset does
+not gain anything by accepting either. The oracle's own handling of the second one is a bug on its
+side (a traceback is not a diagnostic), which is worth reporting upstream but changes nothing
+here: it refuses the file, and we do not.
+
+Measured on `blueprint-compiler-0.20.4-1.fc44.noarch` against the parser at `@girs` 5.2.0. The
+sweep names both by path when they are in a pool, so a `refused/` file for each closes it.
