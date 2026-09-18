@@ -87,8 +87,14 @@
 //        --root <dir>         the repository to read the parser and the gitlinks from
 //        --help               this text
 //
-// Needs `blueprint-compiler` 0.20.4 on PATH and the tree's `@girs` pins installed; it
-// exits non-zero naming which one is missing rather than measuring half of anything.
+// Three prerequisites, and there is deliberately NO SKIP MODE: without any of them the run
+// exits non-zero naming the one that is missing, rather than reporting a measurement it did
+// not make.
+//   1. `blueprint-compiler` 0.20.4 on PATH — it is the other half of every comparison
+//   2. the `@girs` versions `packages/infra/blueprint/package.json` pins, installed in the
+//      tree being measured — emission resolves types through their vocabulary
+//   3. network access the FIRST time each non-submodule pool is cloned; afterwards the
+//      cache (--cache-dir) serves it and the run needs none
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
