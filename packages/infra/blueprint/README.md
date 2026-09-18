@@ -46,11 +46,20 @@ node scripts/check-blueprint-corpus.mjs --write           # re-derive every gold
 node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to skip stage B
 ```
 
-Beside the gate there is a reporter, `scripts/report-blueprint-census.mjs`: what the real
-`.blp` files in the tree actually use, at any revision you name. It gates nothing and takes a
-tree-ish (default `HEAD`), deriving its file list from `git ls-tree` so an older revision
-reproduces that revision's numbers. ADR 0053 § Context carries its table, and carries it that
-way because the hand-count it replaced could not be re-derived once the tree moved past it.
+Beside it, the census — what the real `.blp` files in the tree actually use:
+
+```sh
+node scripts/report-blueprint-census.mjs              # at HEAD
+node scripts/report-blueprint-census.mjs 3e12aefe1a^  # …or at any revision
+node scripts/report-blueprint-census.mjs --markdown   # ADR 0053's table block
+node scripts/check-blueprint-census.mjs               # the ADR still matches the tree
+```
+
+The reporter derives its file list from `git ls-tree`, so an older revision reproduces that
+revision's numbers. ADR 0053 § Context does not transcribe its table — it carries the
+`--markdown` output verbatim, and the gate fails when the two drift. That arrangement exists
+because the hand-count it replaced went stale the moment a twelfth `.blp` landed and nothing
+noticed, so a failure there is fixed by pasting the measurement, never by editing a number.
 
 Stage A — corpus complete and each file listed once, expectations structurally valid and
 projecting as many objects as their golden holds, every refusal listed with the line and the
