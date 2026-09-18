@@ -649,4 +649,18 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
     },
+
+    {
+        file: '36-setter-null.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 200, 'height-request': 200 },
+            children: [{ tag: 'GtkLabel', props: { label: 'text', 'width-request': 40 } }],
+        },
+        lost: [
+            { kind: 'object-id', line: 8, detail: 'the id `labelOne`, which both setters on lines 18 and 19 need' },
+            { kind: 'breakpoint', line: 14, detail: 'the whole `[breakpoint]` child, and with it the two `null` setters' },
+        ],
+        note: 'The projection loses this file the same way `25-bracket-breakpoint.blp` does, and that is the point of putting the rule HERE rather than only in `refused/`: `null` never reaches `SharedNode` at all, so the projection cannot be the exit that catches it. Only the XML exit can, and before this rule existed it did not — it wrote the four characters `null` into the body of a live `<setter>`. The golden proves the empty element, on a string property and an int property both.',
+    },
 ];

@@ -301,6 +301,13 @@ export const CORPUS_RULES = [
         surprise:
             'the extern spelling reaches it and GtkBuilder resolves the result, so the vocabulary gate is a gate on the DOTTED form only — and it is still not a hole in that gate, because concatenation cannot produce `GListStore` from `$Gio.ListStore` (that is `GioListStore`): the C name has to be written out, which is exactly the assertion the sigil exists to make',
     },
+    {
+        file: '36-setter-null.blp',
+        isolates:
+            'the keyword `null` as a `setters { }` value — the one position in the whole grammar where the oracle admits it',
+        surprise:
+            'it emits `<setter …></setter>` with an EMPTY body, and does so whatever the property is typed as: `label` (a string) and `width-request` (an int) both come out empty, so `null` is not a value of the property type but the absence of one. That is why it needs a member of its own in `ast.d.mts`: read as an `IdentValue` it is indistinguishable from an object id spelled `null`, and the emitter then writes the four characters `null` into the body — which is exactly what it did to a wild file, in a live property, with every stage of this corpus green. `refused/null-value.blp` holds the other half: everywhere else the oracle says "null is not permitted here".',
+    },
 ];
 
 /**
@@ -445,6 +452,14 @@ export const CORPUS_REFUSALS = [
         projection: 'refuses',
         line: 1,
         names: 'expected `using Gtk`',
+    },
+    {
+        file: 'null-value.blp',
+        construct: 'the keyword `null` as a plain property value, `label: null;`',
+        oracle: 'refuses',
+        projection: 'refuses',
+        line: 4,
+        names: '`null`',
     },
 ];
 

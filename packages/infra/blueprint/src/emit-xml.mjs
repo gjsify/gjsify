@@ -691,10 +691,15 @@ function emitSetter(xml, setter, context) {
         property,
         ...translatedAttributes(setter.value),
     });
-    // The owner type here is the type of the object the setter POINTS AT, not the
-    // breakpoint it sits in, so an enum-valued setter resolves against the right widget.
-    // Measured: `boxOne.halign: baseline_fill` inside an `Adw.Breakpoint` is `4`.
-    xml.text(scalarText(setter.value, context.idTypes.get(target) ?? null, property, context));
+    // `null` is the one value with no text at all: the oracle writes `<setter …></setter>`
+    // and GtkBuilder reads the empty body as "unset". `scalarText` cannot express that and
+    // must not — a `null` reaching it is a parser that let a keyword through as a name.
+    if (setter.value.kind !== 'null') {
+        // The owner type here is the type of the object the setter POINTS AT, not the
+        // breakpoint it sits in, so an enum-valued setter resolves against the right widget.
+        // Measured: `boxOne.halign: baseline_fill` inside an `Adw.Breakpoint` is `4`.
+        xml.text(scalarText(setter.value, context.idTypes.get(target) ?? null, property, context));
+    }
     xml.endTag();
 }
 

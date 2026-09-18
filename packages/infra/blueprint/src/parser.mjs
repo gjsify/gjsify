@@ -726,7 +726,12 @@ class Parser {
         this.expect(':', '`:`');
         // Only `accessibility` takes the list form (`labelled-by: [a, b];`); `layout` and
         // `setters` take a plain `Value` in the oracle's grammar and take one here.
-        const value = this.parseValue({ allowObject: false, allowList: block === 'accessibility' });
+        // `setters` is also the one block that admits `null` — see `parseValue`.
+        const value = this.parseValue({
+            allowObject: false,
+            allowList: block === 'accessibility',
+            allowNull: block === 'setters',
+        });
         this.expect(';', '`;`');
         return { name, value, line: first.line };
     }
@@ -943,7 +948,7 @@ class Parser {
     }
 
     /**
-     * @param {{ allowObject: boolean, allowList: boolean }} options
+     * @param {{ allowObject: boolean, allowList: boolean, allowNull?: boolean }} options
      * @returns {Value}
      */
     parseValue(options) {
@@ -1012,6 +1017,23 @@ class Parser {
         if (token.text === 'true' || token.text === 'false') {
             this.advance();
             return { kind: 'bool', value: token.text === 'true', line: token.line };
+        }
+        // `null` is a keyword, and the oracle admits it in exactly ONE position: a
+        // `setters { }` value, where it compiles to an empty `<setter …></setter>`. Measured
+        // against blueprint-compiler 0.20.4 — a plain property (`label: null;`, and an
+        // object-typed one like `extra-menu: null;`), a bind source, a menu attribute and a
+        // `styles [ ]` item are each refused, the first three with "null is not permitted
+        // here". Falling through to `IdentValue` below is what wrote the four characters
+        // `null` into a live property of a wild file while every corpus stage stayed green.
+        if (token.text === 'null') {
+            if (!options.allowNull) {
+                throw this.fail(
+                    token,
+                    'found `null`; it is not permitted here — the oracle admits `null` only as a `setters { }` value',
+                );
+            }
+            this.advance();
+            return { kind: 'null', line: token.line };
         }
         if (token.text === 'bind') {
             return this.parseBinding();
@@ -1098,6 +1120,18 @@ class Parser {
      */
     parseBinding() {
         const keyword = this.advance();
+        // A binding's SOURCE is an expression position, and `null` is a keyword in expression
+        // positions only — which is the whole of the rule, measured against 0.20.4 and worth
+        // stating because it is not obvious: `Gtk.Label null { }` is a legal object id (it
+        // warns, "null may be a confusing object ID"), `null.visible: false;` is a legal
+        // setter TARGET, and `bind l1.null` fails only for want of a property called `null`.
+        // Name positions take the name; value and expression positions take the keyword.
+        if (this.peek().text === 'null' && this.peek().type === 'ident') {
+            throw this.fail(
+                this.peek(),
+                'found `null`; it is not permitted here — a binding source is an expression, and the oracle admits `null` only as a `setters { }` value',
+            );
+        }
         const source = this.expectIdentifier('the id of the object to bind to');
         this.expect('.', '`.` — a binding is written `bind <object>.<property>`');
         const property = this.expectIdentifier('a property name');
