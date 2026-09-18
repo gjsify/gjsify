@@ -1,12 +1,14 @@
-# Parallel-day survey 2026-09-16 — what twelve merged PRs left behind
+# Parallel-day survey 2026-09-16 — what eleven merged PRs left behind
 
-A step-back pass over one day of parallel agent work in `gjsify/gjsify`: twelve PRs merged
-(`bc78d1b689..3e12aefe1a`, eleven commits) plus a `ts-for-gir` v5.2.0 release. This file is the
+A step-back pass over one day of parallel agent work in `gjsify/gjsify`: **eleven** PRs merged
+(`bc78d1b689..3e12aefe1a` — eleven commits, eleven distinct PR refs: #1682-#1691 and #1693) plus
+a `ts-for-gir` v5.2.0 release. This file is the
 *why + priority* record for the refactor that follows; the ADRs are the decisions and
 `status/open-todos.md` tracks the work.
 
 > **Every reading below is measured at `b87098a17f`**, and every `file:line` is relative to that
-> one commit. Line numbers are a convenience and not the claim: where a durable anchor existed
+> one commit. Where something was *not* measured it says so on the spot and again in § 8.
+> Line numbers are a convenience and not the claim: where a durable anchor existed
 > the citation names the function, const or quoted string to ripgrep for instead. The reason is
 > this document's own history — its first draft was measured at `3e12aefe1a`, and #1692, #1694
 > and #1697 merged six minutes later, moving most of its line numbers and falsifying two of its
@@ -46,8 +48,10 @@ serve, so the proof would go green by not running. It rides along or the flip pr
 Read-only, on a worktree at `origin/main` — **`b87098a17f`**, the base named at the top and the
 base every citation in this file is relative to. `refs/` submodules and `node_modules` are absent
 there, so anything that depends on them is marked *unmeasured* rather than guessed. Counts come
-from `git ls-files`, `wc -l` and `grep -c` on tracked files; the `@girs` registry readings in
-§ 6.1 are the one exception and say so where they are made.
+from `git ls-files`, `wc -l` and `grep -c` on tracked files. Two readings step outside that: the
+`@girs` closure in § 6.1 calls `registry.npmjs.org`, and ADR 0062's assembly census in § 4.6 was
+re-derived by implementing the method the ADR states at `0062:38-41`. Both say so where they are
+made. § 8 lists what could not be measured at all.
 
 ## 1. The flip: what ADR 0053 clause 5 actually requires
 
@@ -249,8 +253,9 @@ the flip landing and the skips going, the proof is green and empty.
 
 Several PRs independently added a mechanism for one failure class: **a step that cannot read its
 input must not report an answer.** Counted across the tree (not only today's diffs, because the
-pre-existing ones decide the duplication question): **16 named mechanisms, plus roughly 20
-further "this would pass vacuously" asserts.**
+pre-existing ones decide the duplication question): **15 named mechanisms — 5 in § 3.1, 6 in
+§ 3.2, 4 in § 3.3 — plus roughly 20 further "this would pass vacuously" asserts.** The arithmetic
+is spelled out because the first draft said 16 against an enumeration of 15.
 
 They do not all share a shape, and that turns out to be the right answer rather than a defect.
 
@@ -295,10 +300,10 @@ The more useful finding is underneath the spelling. Two scripts added today —
 `scripts/check-source-visibility.mjs` (exit 2 at `:150,171,184,317,491`, exit 1 at `:598`) —
 distinguish **exit 2 = "could not measure"** from **exit 1 = "measured, found findings"**. That
 distinction is exactly what makes this failure class machine-readable, and it is applied
-systematically by 2 scripts out of ~20 and documented nowhere. (The `SELF-TEST FAILED` block near the top of
-`check-source-visibility.mjs` is *not* one of them: a broken self-test is a measurement that
-failed, and it exits **1**. The convention is finer than a glance at the file suggests, which is
-another argument for writing it down.)
+systematically by 2 scripts out of ~20 and documented nowhere. (The `SELF-TEST FAILED` block
+near the top of `check-source-visibility.mjs` is *not* one of them: a broken self-test is a
+measurement that failed, and it exits **1**. The convention is finer than a glance at the file
+suggests, which is another argument for writing it down.)
 
 A third script reached the same rule independently. `scripts/check-foreign-platform-paths.mjs:91`
 exits 2 when `--root` is given with no directory after it, and its comment says why in the
@@ -403,15 +408,17 @@ The four new ADRs do not agree on their own metadata block:
 |---|---|
 | 0053 and every earlier ADR | `- Status: **Accepted**` / `- Date:` / `- Deciders:` / `- Related:` |
 | **0061, 0062** | same as above — consistent |
-| **0059, 0060** | `- **Status:** Proposed (2026-09-15)` / `- **Deciders:**` / `- **Scope:**` |
+| **0059, 0060** | `- **Status:** Proposed (2026-09-15)` / `- **Deciders:**` / `- **Scope:**` / `- **Related:**` |
 
-0059 and 0060 bold the *label* instead of the value, fold `Date` into `Status`, introduce a
-`Scope:` field no other ADR has, and carry no `Related:` line — 0059 folds its relations into
-`Scope` prose instead (`:7-8`).
+0059 and 0060 bold the *label* instead of the value, fold `Date` into `Status`, and introduce a
+`Scope:` field no other ADR has — 0059's `Scope` additionally carries relations in prose
+(`:5-12`), which is a second place to look for something one line below it already lists.
 
-Neither shape is wrong; having both is. `Related:` is the line the cross-reference audit reads,
-so dropping it makes the next audit more expensive. *Cost: two small header edits. Separate
-work — a docs sweep, not the flip.*
+**Both do carry `Related:`** — `0059:13-19` and `0060:9-16`. The first draft of this section said
+they did not, which was the whole weight of the finding, and it was simply wrong. What is left is
+smaller but real: two header shapes on one day, and a field (`Scope:`) that overlaps `Related:`
+without saying which is authoritative. *Cost: two small header edits. Separate work — a docs
+sweep, not the flip.*
 
 ### 4.6 ADR 0062 was written against a tree that moved under it the same day — P2
 
@@ -423,13 +430,17 @@ of 0062's own worked examples. Almost every count in it is now off by that one f
 | "142 of 705 GIRs" | `:226` | denominator **718**; and 142 is *packages carrying the subpath*, while the namespace gate it is attached to is **108** (`0029:864`) |
 | tracked `.ui` 42, 11 reality-probe goldens | `:70` | **47 / 12** (35 rule goldens after #1694) |
 | tracked `.blp` 57, 11 shipped | `:71` | **62 / 12** — 35 rules, 15 refused, 12 shipped; the table at `:76-83` omits `templates/gtk-minimal/src` |
-| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** by the ADR's own method — *measured at `3e12aefe1a` and deliberately not re-run: #1692 regenerated `packages/framework/gtk-host/src/generated/**`, and the ADR does not state the census's file filter, so a re-run would be a different method rather than a fresh reading* |
+| assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The entire delta is one file, `templates/gtk-minimal/src/index.ts`, leaving the census via #1690 |
 | "42 corpus files", "41 byte-equal", "0 of 11 shipped" | `:35,187,202` | corpus **47**, none excused (§ 1.1); shipped denominator **12** |
 | `prefer-blueprint-template.ts:243` returns `{ClassDeclaration, ClassExpression}` | `:113` | now `:386`, returns `{ClassDeclaration, ClassExpression, Program}` |
 | "the only one of the four GTK scaffolds with no `.blp`" | `:123-126` | **false** since #1690 |
 
-The loss census at `:144-145` is **unmeasured** here (it needs a parser run) but is structurally
-consistent: `corpus/expectations.mjs` declares 14 kinds and the 13-row table sums to 144.
+The loss census — the 13-row table at `:166-181`, whose `| **total** | **144** |` row is `:181`
+(`:144-145` in the first draft was the *blocker* table, a different table two sections up) — is
+**unmeasured** here, because it needs a parser run. It is no longer structurally consistent
+either: `corpus/expectations.mjs` now declares **15** loss kinds, not 14 — `extern` arrived with
+#1694, which is in this document's own base — and the census was re-derived over 42 corpus files
+where there are now 47 (§ 1.1). So the table is stale by construction, not merely by a number.
 
 *This is the largest single cluster in the survey, and it is cheap: one re-measurement pass over
 one ADR.*
@@ -443,11 +454,11 @@ the things 0060 proposes:
 |---|---|---|
 | "SRI is **not** re-verified on a cache HIT … two unverified readers" | `:47`, P2 at `:223,285-313` | **false** — in `packages/infra/cli/src/utils/install-tarball-cache.ts`, `getCachedTarball` (`:114`) verifies and unlinks on mismatch, `getForeignCachedTarball` (`:220`) verifies and returns a miss |
 | `restore-keys` fallback → `node-modules-v1-` | `:43` | **gone** — `.github/actions/gjsify-setup/action.yml:118` now reads "EXACT KEY ONLY — no `restore-keys` fallback, deliberately" |
-| "CI never persists `.gjsify-cache` at all" | `:288` | **false** — it does, `action.yml:180-192` |
+| "CI never persists `.gjsify-cache` at all" | `:288` | **false** — it does: the step "Save the tarball store", `actions/cache/save@v6` at `gjsify-setup/action.yml:291-296`. (The first draft cited `:180-192`, which is the *Restore* step — the claim was right, the citation could not carry it.) |
 
 So **0060's P2 is already implemented** and the ADR proposes it as future work. Two more counts
 are wrong in the other direction: `:45` "204 manifests declare `@girs/*`" is **146** tracked
-`package.json` (the ADR's `grep -r` counted `node_modules`), and `:48`/`:263` "134
+`package.json` (the ADR's `grep -r` counted `node_modules`), and `:48`/`:262` "134
 platform-gated entries" is **211**. `:38`/`:360-369` says `GJSIFY_INSTALL_FORCE_EXTRACT` has
 "2 hits, both on one line of one file" and has "no mention in any workflow or doc" — it is **5
 hits in 2 files**, and `tests/e2e/install-incremental-extract/run.mjs` exercises it.
@@ -471,9 +482,9 @@ to a section that says something else:
 
 | citing | claims the target says | the target actually says |
 |---|---|---|
-| `0060:14` | ADR 0029 "§ Risks 1 — the `@girs` subpath hazard" | `0029:389` § Risks 1 is **Release coupling** (caret-vs-exact-pin); 0029 has 3 Risks, none about a subpath |
+| `0060:14` | ADR 0029 "§ Risks 1 — the `@girs` subpath hazard" | `0029:389` § Risks 1 is **Release coupling** (caret-vs-exact-pin). The subpath argument is § Risks **3** (`0029:402-409`, "the surface is a **separate subpath**"), which is plausibly what was meant — so the mis-aim is the number, not the reference |
 | `0062:274` | "ADR 0030 § 5 asks this of any parser change" (an oracle held against on every run) | `0030:102` § 5 is **"An exemption is DATA, never a code path"**; the oracle property is 0030 clause **1** (`:80`) |
-| `0062:321` | "ADR 0058 § 7's last alternative" | `0058:398` § 7 is "This is Proposed, and it supersedes nothing"; the quoted reasoning is § **Alternatives rejected**, last bullet (`:446-448`) |
+| `0062:320` | "ADR 0058 § 7's last alternative" | `0058:398` § 7 is "This is Proposed, and it supersedes nothing"; the quoted reasoning is § **Alternatives rejected**, last bullet (`:446-448`) |
 | `0062:158` | "ADR 0058 § 6 keeps all three as refusals, and § 3 decides `slot` by a GIR lookup" | **self-contradictory** — `0058:390-396` § 6 lists ten kinds and **not** `slot`; § 3 makes `slot` a lookup. Should read "keeps two of the three" |
 | `0062:310` | "ADR 0053's § Context says JSX / Vue SFCs / Solid are on Blueprint's level" | `0053:19-22` says *Blueprint and `SharedNode`* are on one level; it says nothing about JSX/Vue/Solid |
 
@@ -674,7 +685,7 @@ uncoupled and can go at any time. (a) and (c) are the package #1694 left behind.
 | **a half-swept cache-buster class** | `scripts/check-shipped-runtime-packages.mjs:344-349`, the `'cache-control': 'no-cache'` fetch header and the comment above it | #1682 measured **today** that `no-cache`/`max-age=0`/`no-store`/`pragma` all still return `cf-cache-status: HIT`, and added a `__gjsify_readback=<nonce>` query buster to `publish-readback.ts:265` and `verify-published-closure.mjs:434`. The third registry reader was not updated and still carries the comment #1682 disproved. Near-identical `probe()` in both scripts; both read `status/pending-npm-bootstrap.json`. **P2** |
 | three hand-rolled submodule checkouts the new action does not cover | `.github/workflows/prebuilds.yml:717,755,1279` | #1688's composite action covers all six gitlab.gnome.org steps; these three still `git submodule update --init --recursive refs/{oxc,rolldown}` with no cache and no mirror. ADR 0061 scopes itself to the six (`:61`, "used by all six steps") and never says why these are out. **P3** — say why, or cover them |
 | ~~a fourth checkout~~ — **counted here in error** | `.github/workflows/prebuilds.yml:1310` | it is `--init --depth 1 refs/rolldown`, not `--recursive`, and the two comment lines directly above it give the reason: "rolldown's own submodules are test fixtures the Cargo path-dep never reaches, and the shallow fetch still lands the pinned commit that `refs-pin` verifies". It shares the no-cache/no-mirror gap, but "never says why" is false of this one |
-| a byte-identical 9-line block in two jobs | `.github/workflows/audit-runtimes.yml:391-399` and `:1197-1206` | jobs `check` and `check-windows` both run `check-foreign-platform-paths.mjs`, which only reads files — so the Windows copy re-runs an OS-independent gate. **P3** |
+| a byte-identical **8**-line block in two jobs | `.github/workflows/audit-runtimes.yml:391-398` and `:1198-1205` (six comment lines + `name:` + `run:`; `diff` over those two ranges is empty. The first draft cited `:391-399` and `:1197-1206`, both of which take in a surrounding blank line and so report nine) | jobs `check` and `check-windows` both run `check-foreign-platform-paths.mjs`, which only reads files — so the Windows copy re-runs an OS-independent gate. **P3** |
 
 **For the record, what is clean:** every file added today is referenced (the heartbeat watchdog,
 `install-extraneous`, `check-foreign-platform-paths.mjs` at `audit-runtimes.yml:398`), all four
