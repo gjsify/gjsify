@@ -23,26 +23,57 @@ puts it on `SharedNode`'s level rather than one below it.
 
 ### What the twelve `.blp` files actually use
 
-Measured across every `.blp` tracked in this repo, 2026-09-10 — eleven files then. #1690 added
-a twelfth, `templates/gtk-minimal/src/main-window.blp`. Re-measured 2026-09-16: it adds one
-`using`, one `template`, one object id, one `_()` and one `styles` block to the counts below,
-moves no other row, and leaves all three zeros zero.
+Measured over the twelve real `.blp` at `db9b112e44`, 2026-09-18, by
+`node scripts/report-blueprint-census.mjs`. That script derives its file list from
+`git ls-tree` at the revision it is given, which makes this table dateABLE rather than
+dated: run it at an older revision and that revision's numbers come back, and a thirteenth
+`.blp` is in the census the day it lands.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
-| `using Adw 1;` | 22 | carried by the class name | yes — namespace and version |
-| `Adw.HeaderBar { }` | 81 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` | 197 | `props: { title: '…' }` | yes — a ParamSpec |
+| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 23 | carried by the class name | yes — namespace and version |
+| `Adw.HeaderBar { }` — an object as its own statement | 83 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
+| property assignments, all | 228 | `props: { title: '…' }` | yes — a ParamSpec |
+| property assignments, object-valued | 23 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
+| property assignments, scalar (228 − 23) | 205 | `props: { title: '…' }` | yes — a ParamSpec |
 | `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 23 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
-| `content: Adw.ToolbarView { }` | 19 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
-| `styles ["flat"]` | 5 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
-| `template $Foo: Adw.Bin` | 11 | — | **no** — a GtkBuilder composite-template declaration |
-| `Gtk.Box canvasContainer { }` | 41 of those | — | **no** — a GtkBuilder object id |
-| `_("Back")` | 23 | — | **no** — a `translatable` attribute on the emitted XML |
+| `styles ["flat"]` | 6 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
+| `template $Foo: Adw.Bin` | 12 | — | **no** — a GtkBuilder composite-template declaration |
+| `Gtk.Box canvasContainer { }` | 42 of those 83 | — | **no** — a GtkBuilder object id |
+| `_("Back")` | 24 | — | **no** — a `translatable` attribute on the emitted XML |
 | `bind …` | 6 | — | **no** — a GObject property binding, addressed by id |
 | `condition (…)` + `setters { }` | 6 + 6 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
 Zero signal handlers (`=>`), zero `menu` blocks and zero inline `Gtk.Adjustment` objects.
+
+Three labels changed because the old ones undersold what was counted. The `using` row counts
+EVERY import line: every real file imports both Gtk and Adw, so reading it as `using Adw 1;`
+alone halves it. The object row is anchored at the start of a line and therefore does NOT
+count an object in property-value position. The object-id row is the subset of that row which
+names its object — what "of those" means, and what `bind` resolves against.
+
+#### Two rows of the 2026-09-10 census are recollection, not evidence
+
+The hand-count this table replaces carried a `title: "…"` row at **197** and a
+`content: Adw.ToolbarView { }` row at **19**. Neither reproduces from the tree, at its own
+revision or any later one, under any definition tried. They are absent above rather than
+quietly relabelled over a number that does reproduce. What the tree gives instead, over the
+eleven files as they stood at `3e12aefe1a^` — the last revision that had eleven of them:
+
+- for **197** — 216 property assignments in all, 194 with object-valued ones removed, or 85
+  counting only those whose value is a string literal;
+- for **19** — 14 `content:` properties, 16 counting `child:` alongside them, or 22 counting
+  every property whose value is an object.
+
+The three `property assignments` rows are what stand in that place now. They are measurable
+questions in the same neighbourhood and they carry their own labels; they are NOT the old
+rows recovered. Relabelling one of them back to `title: "…"` would make this table lie a
+second time, and more convincingly than the first.
+
+Every other row of the original reproduces exactly at that same `3e12aefe1a^`, which is why
+they are carried forward here. That is the standard this ADR holds its own evidence to: a
+decision record whose table cannot be re-derived from the tree has stopped being evidence,
+and the only one who finds out is whoever tries to check it.
 
 Six construct classes stand outside `SharedNode`, and they are not all the same kind of
 outside. `template` is not even a tree construct: it is a file-level statement that this
