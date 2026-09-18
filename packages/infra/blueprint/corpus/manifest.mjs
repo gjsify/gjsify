@@ -490,6 +490,14 @@ export const CORPUS_REFUSALS = [
         names: 'no object in this file is declared with that id',
     },
     {
+        file: 'signal-object-unresolved.blp',
+        construct: 'an unresolved reference as the object of a signal handler, `clicked => $onClicked(doesNotExist);`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'no object in this file is declared with that id',
+    },
+    {
         file: 'setter-null-enum.blp',
         construct: 'the null literal as a `setters { }` value on an ENUM-typed property, `labelOne.halign: null;`',
         oracle: 'refuses',

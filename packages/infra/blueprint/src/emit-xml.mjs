@@ -578,7 +578,16 @@ function emitSignal(xml, signal, context) {
         handler: signal.handler,
         swapped: swappedAttribute(signal.flags),
         after: signal.flags.includes('after') ? 'True' : null,
-        object: signal.object === undefined ? null : objectId(signal.object, context),
+        // The fourth reference site. The `object` of `clicked => $onClicked(someId)` is an id
+        // GtkBuilder resolves like any other, and the oracle answers an unknown one with
+        // `Could not find object with ID 'doesNotExist'`. It shipped unchecked in the first cut
+        // of this rule because that cut enumerated the sites it remembered; the enumeration
+        // that found it is mechanical and is written down in this package's README — every
+        // attribute or text node in this file built from a parsed identifier is a candidate.
+        object:
+            signal.object === undefined
+                ? null
+                : objectRef(signal.object, signal.line, 'the object of a signal handler', context),
     });
 }
 
@@ -922,8 +931,15 @@ function indexObjectIds(file, seams) {
         else if (root.kind === 'template') indexBody(root.body, byId, seams);
         // A top-level `menu` is a reference target like any object — 12-menu.blp points at one
         // with `menu-model: mainMenu` — and it is indexed as `null` for the reason an extern
-        // target is: there is no GType whose ParamSpecs an enum could resolve against. Only
-        // the root carries an id; the `section` / `item` / `submenu` inside it carry none.
+        // target is: there is no GType whose ParamSpecs an enum could resolve against.
+        //
+        // Only the ROOT is indexed, and that is a bet on a parser limit rather than a fact
+        // about the language: the oracle accepts `menu top { section sec { … } }` and resolves
+        // `menu-model: sec` against it. Nothing diverges today because `MenuItem` has no `id`
+        // field and the parser refuses a named section by name and line, so such a file never
+        // reaches this index. WHOEVER LIFTS THAT LIMIT must index sections and submenus here
+        // in the same commit, or the reference check below turns into a false refusal on a
+        // file the oracle compiles.
         else if (root.id !== undefined) byId.set(root.id, null);
     }
     return byId;
