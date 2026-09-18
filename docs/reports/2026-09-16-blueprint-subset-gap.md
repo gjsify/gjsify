@@ -27,12 +27,46 @@ Two corpora, neither checked in (see § What the corpus needs):
 
 | corpus | files | what it is |
 |---|---:|---|
-| the wild | 273 | `.blp` from eight projects: `refs/epiphany` (37), `refs/Gradia` (21), `refs/showtime` (4), `refs/troll` (4), `refs/map-editor` (38), Workbench demos (103), Muzika (58), GNOME Decibels (8) |
-| the language | 52 | the valid samples in `blueprint-compiler`'s own test suite — not real-world, but the language's definition by example |
+| the wild | 273 | `.blp` from eight projects, one of them this studio's own: `refs/epiphany` (37), `refs/Gradia` (21), `refs/showtime` (4), `refs/troll` (4), `refs/map-editor` (38), Workbench demos (103), Muzika (58), GNOME Decibels (8) |
+| the language | 95 | every `.blp` under `tests/samples/` in `blueprint-compiler` 0.20.4 — not real-world, but the language's definition by example |
 
 `refs/map-editor` is JumpLink's own and is counted separately where it matters. Each file was parsed
 and emitted through `src/parser.mjs` + `src/emit-xml.mjs` + `src/resolve-ident.mjs` at `@girs` 5.2.0,
 compiled by the oracle, and the two outputs compared byte for byte.
+
+### Every source, pinned — and the script that redoes all of it
+
+`scripts/blueprint-wild-sweep.mjs` is in this commit, and every number below is what it prints.
+It carries the list of sources itself, one commit each: the five that are submodules of this
+repository are verified against the gitlink and cloned if the tree does not have them, and the
+four that are not are shallow-cloned at their exact sha into a cache outside the repository
+(`--cache-dir`, default `$XDG_CACHE_HOME/gjsify/blueprint-wild-sweep`). ADR 0053 clause 6 is why
+the files are not here and the sweep is.
+
+| pool | upstream | commit |
+|---|---|---|
+| Workbench demos | `https://github.com/workbenchdev/demos.git` | `ca4bc5c2681cfd909c7f5787c11059351c0179f9` |
+| Muzika | `https://github.com/vixalien/muzika.git` | `032b880e6a5da2f4ddd501c95ca21e7b67cfa6d0` |
+| `refs/map-editor` | `https://github.com/PixelRPG/map-editor.git` | `e835c417089e900b3d2f56f13661b31f9d10f311` |
+| `refs/epiphany` | `https://gitlab.gnome.org/GNOME/epiphany.git` | `48bb1e24f4e8b4a74c19c3908470fc6fab10b765` |
+| `refs/Gradia` | `https://github.com/AlexanderVanhee/Gradia.git` | `50689c927162e90e7db6dcb64de5f31eb0bdf79e` |
+| Decibels | `https://gitlab.gnome.org/GNOME/Incubator/decibels.git` | `116f735e2310df7313968e727e63491eef49c46f` |
+| `refs/troll` | `https://github.com/sonnyp/troll.git` | `37b53b29db0b6496f31e13c7f843100db31c9eb1` |
+| `refs/showtime` | `https://gitlab.gnome.org/GNOME/showtime.git` | `6df538fc257416921b14e0572fc0770242355949` |
+| the language | `https://gitlab.gnome.org/jwestman/blueprint-compiler.git` | `31b62c24a72c1670d2d93dcdf2d130f1ae12778e` (tag `v0.20.4`, `tests/samples/`) |
+
+The five `refs/` commits are the gitlinks this repository pinned at
+`db9b112e44bc6b6a42e9bebd6d206630189afbfc` (`feat(blueprint): accept an extern type` — #1694),
+the commit this report was written on top of. The sweep re-reads them and stops rather than
+reprinting this table from a moved pin.
+
+**Decibels is the GNOME Incubator project and not the author's GitHub mirror**, which carries no
+`.blp` at all — an easy hour to lose. **The language corpus is the reference implementation's own
+`tests/samples/` at the tag of the oracle this measures against**, `v0.20.4`, taken whole rather
+than filtered: `sample_errors/` is excluded because those files exist to be rejected and would
+measure error messages rather than the subset, and `formatting/` and `linter_samples/` are about
+neither. An earlier draft of this report used a 2023 checkout of the same repository and counted
+52 files; that number is gone, along with everything derived from it.
 
 ## The headline
 
@@ -56,9 +90,13 @@ one is silently wrong.** Counting only the 235 files this studio did not write: 
 both compilers refuse it. So clause 3 is behaving exactly as designed — a foreign file either builds
 or names its construct — and the subset is the only thing standing between 92.7% and the rest.
 
-The language corpus is harsher and should be: 28 of 52 byte-equal, 23 refused, 1 wrong. A test suite
-is written to reach corners, which is what makes it useful here — it names four constructs no
-application in the wild corpus happens to use.
+The language corpus is harsher and should be: 44 of 95 byte-equal, 50 refused, 1 wrong. A test suite
+is written to reach corners, which is what makes it useful here — it names five constructs no
+application in the wild corpus happens to use. Its one wrong file is
+`tests/samples/adw_breakpoint.blp`, and it is wrong for the SAME reason Muzika's window is
+(§ 3): `label.extra-menu: null;` in a setter, the string `null` written into a live property.
+The reference implementation ships the file that would have caught this, and the corpus here
+never had it.
 
 ## 1. The fifteen refusals: six are Blueprint, nine are not
 
@@ -69,7 +107,7 @@ correct in all fifteen rows.
 
 | refusal file | construct | seen in the wild |
 |---|---|---:|
-| `namespace-without-vocabulary.blp` | a type from a namespace with no vocabulary (`Gio.ListStore`) | 6 files |
+| `namespace-without-vocabulary.blp` | a type from a namespace with no vocabulary (`Gio.ListStore`) | 7 files, 6 of them stopping here first |
 | `inline-menu.blp` | `menu { }` as a property value | 1 file |
 | `internal-child.blp` | an `[internal-child …]` bracket | 1 file |
 | `response-flags.blp` | `destructive` / `suggested` / `disabled` in `responses [ ]` | 1 file |
@@ -96,24 +134,34 @@ of the 273 wild files (21%), more than every remaining gap combined.
 ## 2. What the wild actually uses, ordered
 
 Counted by files containing the construct, not by first parse error — a file that fails on its first
-unsupported construct hides the others behind it.
+unsupported construct hides the others behind it. The sweep does this with text matches rather
+than a parse, for the reason a parse cannot: our parser stops at the construct it refuses, so it
+is unable to count what it has not read. The matchers are in the script, named and readable, so
+the next reader can disagree with a regex instead of with a number.
 
-| # | construct | wild (273) | language (52) | in the 15? |
+| # | construct | wild (273) | language (95) | in the 15? |
 |---:|---|---:|---:|---|
-| 1 | expressions: `expr`, `bind $closure(…)`, `as <Type>`, `typeof<Type>`, `a.b.c` | 7 (2.6%) | 8 (15%) | only `a.b.c` |
-| 2 | a type from a namespace with no vocabulary | 6 (2.2%) | 4 (7.7%) | yes |
-| 3 | `marks [ ]` on `Gtk.Scale` | 2 (0.7%) | 1 | **no** |
-| 4 | inline `template Type { }` (a `Gtk.BuilderListItemFactory` subscope) | 2 (0.7%) | 2 | **no** |
-| 5 | `null` as a value | 1 (0.4%) | 1 | **no** — and it is not refused, see § 3 |
-| 6 | `[internal-child …]` | 1 (0.4%) | 1 | yes |
-| 7 | inline `menu { }` as a value | 1 (0.4%) | 0 | yes |
-| 8 | response flags | 1 (0.4%) | 1 | yes |
-| 9 | `mime-types [ ]` on `Gtk.FileFilter` | 1 (0.4%) | 1 | **no** |
-| 10 | `template` with no parent, and `template Gtk.ListItem` | 0 | 3 (5.8%) | **no** |
-| 11 | `items [ ]` on `Gtk.ComboBoxText` | 0 | 1 | **no** |
-| 12 | `[action response=…]` action widgets | 0 | 1 | **no** |
-| 13 | `translation-domain` | 0 | 1 | yes |
-| 14 | `bind-property` (the pre-0.8.2 spelling) | 0 | 1 | **no** |
+| 1 | expressions: `expr`, `bind $closure(…)`, `as <Type>`, `typeof<Type>`, `a.b.c` | 7 (2.6%) | 25 (26.3%) | only `a.b.c` |
+| 2 | a type from a namespace with no vocabulary | 7 (2.6%) | 4 (4.2%) | yes |
+| 3 | inline `template Type { }` (a `Gtk.BuilderListItemFactory` subscope) | 2 (0.7%) | 7 (7.4%) | **no** |
+| 4 | `marks [ ]` on `Gtk.Scale` | 2 (0.7%) | 1 (1.1%) | **no** |
+| 5 | response flags | 1 (0.4%) | 2 (2.1%) | yes |
+| 6 | `null` as a value | 1 (0.4%) | 1 (1.1%) | **no** — and it is not refused, see § 3 |
+| 7 | `[internal-child …]` | 1 (0.4%) | 1 (1.1%) | yes |
+| 8 | `mime-types [ ]` on `Gtk.FileFilter` | 1 (0.4%) | 1 (1.1%) | **no** |
+| 9 | inline `menu { }` as a value | 1 (0.4%) | 0 | yes |
+| 10 | `template` with no parent, and `template Gtk.ListItem` | 0 | 8 (8.4%) | **no** |
+| 11 | `offsets [ ]` on `Gtk.LevelBar` | 0 | 1 (1.1%) | **no** |
+| 12 | `items [ ]` on `Gtk.ComboBoxText` | 0 | 1 (1.1%) | **no** |
+| 13 | `[action response=…]` action widgets | 0 | 1 (1.1%) | **no** |
+| 14 | `translation-domain` | 0 | 1 (1.1%) | yes |
+| 15 | `bind-property` (the pre-0.8.2 spelling) | 0 | 0 | **no** |
+
+Two rows are worth reading twice. `offsets [ ]` on `Gtk.LevelBar` is in this table because the
+sweep found it and nobody here had thought of it — a tenth gap, and a fifteenth row the earlier
+draft did not have. And `bind-property` is now 0 everywhere: at `v0.20.4` the spelling survives
+only in the `.ui` files the samples are compared against, in no `.blp` the suite compiles, which
+is what a retired syntax looks like from the outside.
 
 **The finding that reorders the plan: five of the nine constructs that block a real file were not in
 `refused/` at all.** The refusal list is a record of what someone thought to write a file for, and it
@@ -121,11 +169,12 @@ was written by the same people who wrote the parser — ADR 0053 clause 6's own 
 that proves its author self-consistent, arriving one directory over from where it was expected. The
 wild corpus found them in an afternoon.
 
-**Expressions are the largest single item and the corpus barely touches them.** `binding-lookup-chain`
+**Expressions tie namespace vocabulary for most frequent in the wild, lead the language corpus
+six to one, and the corpus barely touches them.** `binding-lookup-chain`
 holds `bind a.b.c` alone, which is the smallest member of a family that also contains closures
 (`bind $_get_play_icon(template.paused) as <string>`, Showtime), casts
 (`expr(item as <StringObject>).string`, Epiphany), `typeof<>` and the `expr` keyword. Four of
-Epiphany's five refusals and both of Showtime's are this one family, and a list-view `expression:`
+Epiphany's five refusals and two of Showtime's three are this one family, and a list-view `expression:`
 property is how every modern `Gtk.ColumnView` is written.
 
 ## 3. The one file that is worse than a refusal
@@ -153,7 +202,7 @@ one-file construct near the top of the plan.
 | expressions | `expr`, `as`, `typeof`, `<`/`>` in cast position | an `ExpressionValue` (lookup chain, closure call, cast, constant); `BindingValue` stops being `{source, property}` and takes an expression | `<binding>` / `<lookup>` / `<closure>` / `<constant>`, nested and recursive | fold into the existing `binding` kind | a cast to a foreign type (`as <Gio.Icon>`) needs § 2's vocabulary |
 | namespace vocabulary | none | none | none | none | **yes** — ts-for-gir must emit `./vocabulary` for more namespaces, and the GType name is not the namespace plus the name (`Gio.ListStore` is `GListStore`) |
 | inline `template Type { }` | none | `TemplateNode` becomes a `Value`; `parent` optional, `className` admits a real type | large: the subscope is a **complete nested `<interface>` document, CDATA-escaped inside `<property name="bytes">`**, and ids inside it are ALSO emitted at top level | new loss kind | no |
-| `marks` / `mime-types` / `items` / action widgets | none | none — `Extension` already carries `{name, entries}` | one emission shape each | `value-list`-shaped | no |
+| `marks` / `mime-types` / `items` / `offsets` / action widgets | none | none — `Extension` already carries `{name, entries}` | one emission shape each | `value-list`-shaped | no |
 | response flags | none | `Extension.entries` must carry flags beside the value | `appearance="…"`, `enabled="false"` | existing `responses` kind | no |
 | `null` | `null` keyword | a `NullValue`, or `IdentValue` with a guard | empty element text; refuse outside a setter | keeps its `null` | no |
 | `[internal-child …]` | none | `Child.internalChild`, because `Child.slot` is bracket text alone and cannot tell the two apart | `<child internal-child="…">` | existing `object-id`-ish | no |
@@ -161,8 +210,8 @@ one-file construct near the top of the plan.
 | `translation-domain` | none | a field on `BlueprintFile` | `<interface domain="…">` | new loss kind | no |
 | `template` with no parent | none | `TemplateNode.parent` optional | `<template class="…">` with no `parent=` | existing `template` kind | no |
 
-Only one row has an owner outside this repository, and it is the second most frequent. ADR 0062 left
-the case for changing ts-for-gir's namespace gate at "nine files"; this report adds six more, from
+Only one row has an owner outside this repository, and it is tied for the most frequent. ADR 0062 left
+the case for changing ts-for-gir's namespace gate at "nine files"; this report adds seven more, from
 five namespaces (`GtkSource`, `WebKit`, `Shumate`, `Gio`, `Gdk`) and four projects that have never
 heard of us. A second question comes with it and is not answered here: whether `@gjsify/blueprint`
 depends on a dozen `@girs` packages, or whether a consumer declares the namespaces its file uses.
@@ -181,7 +230,7 @@ Every closed gap needs a rule file and an oracle-derived golden, and three of th
 | expressions | 6 (lookup chain, closure, closure with args, cast, `typeof`, `expr` in an `expression:` property) | 6 | `binding-lookup-chain.blp` retires |
 | namespace vocabulary | 1 | 1, but only once the vocabulary exists | stays refused meanwhile |
 | inline `template Type { }` | 2 (a plain subscope; one whose ids also appear at top level) | 2 | — |
-| typed extensions (`marks`, `mime-types`, `items`, action widgets) | 4 | 4 | — |
+| typed extensions (`marks`, `mime-types`, `items`, `offsets`, action widgets) | 5 | 5 | — |
 | response flags | widen `31-responses.blp` | 1 | `response-flags.blp` retires |
 | `null` | 1 (a setter) | 1 | **+1 new** (`null` on a plain property) |
 | `[internal-child …]` | 1 | 1 | `internal-child.blp` retires |
@@ -190,8 +239,9 @@ Every closed gap needs a rule file and an oracle-derived golden, and three of th
 | `template` with no parent | 2 | 2 | — |
 | `bind-property` | — | — | **+1 new**, kept forever |
 
-About **19 new rule files with 19 goldens**, two new refusal files, five refusals retiring: 15
-refusals become 12, and 35 rule files become roughly 54.
+About **20 new rule files with 21 goldens** — response flags widen `31-responses.blp` rather than
+adding a file, which is why the two columns differ by one — plus two new refusal files and five
+refusals retiring: 15 refusals become 12, and 35 rule files become roughly 55.
 
 **One construct cannot be covered by a golden, and it is the one that caused the damage.** A golden
 exists only for a file the parser ACCEPTS and the oracle COMPILES. `null` on a plain property is
@@ -203,39 +253,51 @@ doing.
 
 ## 6. The honest bottom line
 
-Ordered by files unblocked, over the 234 valid foreign files (the 235 minus Troll's invalid fixture,
-and minus this studio's own `refs/map-editor`):
+Ordered by files unblocked, over the 234 valid foreign files — the 235 foreign ones (273 less this
+studio's own 38 in `refs/map-editor`) less Troll's invalid fixture:
 
-| after closing | cumulative | of valid foreign files |
+| after closing | cumulative | of the 234 |
 |---|---:|---:|
 | today | 215 | 91.9% |
 | + namespace vocabulary | 221 | 94.4% |
 | + expressions | 225 | 96.2% |
 | + inline `template Type { }` | 227 | 97.0% |
 | + `marks` | 229 | 97.9% |
-| + `mime-types` | 230 | 98.3% |
+| + response flags | 230 | 98.3% |
 | + `null` | 231 | 98.7% |
 | + `[internal-child …]` | 232 | 99.1% |
-| + inline `menu { }` | 233 | 99.6% |
-| + response flags | 234 | 100% |
+| + `mime-types` | 233 | 99.6% |
+| + inline `menu { }` | 234 | 100% |
 
-**And the honest part: that last row says 100% of 234 files from eight projects, and nothing more.**
+**Read against § 2 this table looks like an arithmetic error, and it is an overlap.** Expressions
+appear in 7 wild files there and are credited with +4 here, because a file moves only when its
+WHOLE remaining need is closed: two of the other three also want an inline `template` (Workbench's
+List View Widgets, Epiphany's location entry) and the third also wants `mime-types` (Showtime's
+window). The same overlap shortens namespace vocabulary from 7 files to +6, and its missing file is
+Epiphany's location entry again — which wants a cast to `Gio.Icon`, so it is counted in both rows
+of § 2 and paid for in neither until expressions and inline `template` are both done. The sweep
+prints the per-file need list this paragraph summarises.
+
+**And the honest part: that last row says 100% of 234 files from seven projects, and nothing more.**
 Two-thirds of those files come from Workbench and Muzika, and Workbench demos are written to
-demonstrate one widget each. Four constructs the language has (`translation-domain`, `items [ ]`,
-action widgets, `template` with no parent) appear in ZERO of them and in the compiler's own tests, so
-the wild corpus underestimates the language by at least four constructs it happened not to sample.
+demonstrate one widget each. Five constructs the language has (`translation-domain`, `items [ ]`,
+action widgets, `template` with no parent, `offsets [ ]`) appear in ZERO of them and in the
+compiler's own tests, so the wild corpus underestimates the language by at least five constructs it
+happened not to sample.
 No file in it used a GTK 3 spelling, a `Gtk.ColumnView` with a sorter expression, or libpanel. The
-true statement is: **after the top four, a foreign `.blp` from a GNOME-adjacent application is
-unlikely to be refused, and "unlikely" is 97% over this sample, not a property of the language.**
+true statement is: **after the top three — namespace vocabulary, expressions, inline `template` —
+a foreign `.blp` from a GNOME-adjacent application is unlikely to be refused, and "unlikely" is
+97.0% over this sample, not a property of the language.**
 
 **How to get a corpus that answers it better.** ADR 0053 clause 6 forbids the obvious move: third-party
 `.blp` must never become the part of the corpus CI lacks. But it explicitly allows a LOCAL sweep, and
-that is what every number here is. So the thing to check in is the SWEEP, not the files — a
-`scripts/blueprint-wild-sweep.mjs <dir>` that walks any tree, runs parse plus emit against the oracle,
-and prints the same table: refused by construct, byte-equal, and divergent. Checked in, it costs
-nothing on a runner without the binary, it reproduces this report's numbers on demand, and the next
-person who wants to know what an application does can point it at the application instead of
-arguing from eleven files. The corpus stays written; the measurement becomes repeatable.
+that is what every number here is. So the thing checked in is the SWEEP and not the files:
+`scripts/blueprint-wild-sweep.mjs`, in this commit, which materialises each pinned source, runs
+parse plus emit against the oracle, and prints every table above. It costs nothing on a runner
+without the binary, it is how each of these numbers was obtained rather than a plan to obtain them
+again, and the next person who wants to know what an application does can add four lines to its
+source list instead of arguing from eleven files. The corpus stays written; the measurement is
+repeatable.
 
 ## The plan, in order
 
@@ -263,7 +325,7 @@ turn on. Items 2 to 7 then move the percentage in public.
 ## What this report did not do
 
 - **No parser code.** Every gap is described by what it needs, not by a patch.
-- **No corpus edits.** The 19 rule files and 2 refusal files are counted, not written.
+- **No corpus edits.** The 20 rule files and 2 refusal files are counted, not written.
 - **No claim about the `SharedNode` projection.** ADR 0053 clause 4 keeps the byte-equal diff a
   statement about the parser and the AST. The projection was not measured over foreign files at all,
   and the loss kinds in § 4 are proposals for whoever closes each gap.
