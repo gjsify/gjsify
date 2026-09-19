@@ -474,6 +474,15 @@ jobs:
       - name: Check the Blueprint corpus and its goldens
         run: su testuser -c 'node scripts/check-blueprint-corpus.mjs --require-oracle'
 
+      # ADR 0053's census table is EMITTED by `report-blueprint-census.mjs`, not written by
+      # hand, and this is what holds the committed ADR to it. The table went stale the day
+      # #1690 added a twelfth `.blp` and nothing failed; it survived two reviews that way.
+      # Lives here rather than in the corpus gate because it reads a doc, not the corpus —
+      # and here the job carries no classifier gate, so a docs-only PR runs it too, which
+      # is precisely the PR that edits this table.
+      - name: Check ADR 0053's census against the tree
+        run: su testuser -c 'node scripts/check-blueprint-census.mjs'
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

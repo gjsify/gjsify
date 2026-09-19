@@ -28,6 +28,7 @@ import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
 import shipBundleDiscoverySuite from './utils/ship/discover-bundle.spec.js';
 import base64Suite from './utils/base64.spec.js';
+import hangWatchdogSuite from './utils/hang-watchdog.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
@@ -126,6 +127,7 @@ import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import jsxConfigSuite from './utils/jsx-config.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import prunePrefixSuite from './utils/prune-prefix.spec.js';
+import installExtraneousSuite from './utils/install-extraneous.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
@@ -251,6 +253,7 @@ run(
         shipFontsSuite,
         msgfmtMergeSuite,
         base64Suite,
+        hangWatchdogSuite,
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,
@@ -344,6 +347,7 @@ run(
         jsxConfigSuite,
         nodeBundleGuardSuite,
         prunePrefixSuite,
+        installExtraneousSuite,
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
         doubleDashArgsSuite,

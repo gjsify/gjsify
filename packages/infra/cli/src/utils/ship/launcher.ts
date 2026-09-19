@@ -262,7 +262,22 @@ function renderAppBundleLauncher(
         'set -e',
         'here=$(cd -- "$(dirname -- "$0")" && pwd)',
         'contents=$(dirname -- "$here")',
-        `XDG_DATA_DIRS="$contents/${under(dirs.data)}:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"`,
+        // NO SYSTEM DEFAULT, which is where this line differs from the prefix form's
+        // and is the one place the two must NOT be copies. `/usr/local/share:/usr/share`
+        // is the XDG base-directory spec's default for a LINUX system, and macOS has
+        // neither: `/usr/local/share` is Intel Homebrew's (Apple Silicon puts it under
+        // `/opt/homebrew`) and `/usr/share` holds Apple's own data, no `glib-2.0/schemas`
+        // and no `icons/hicolor`. So the baked pair either named nothing or named a
+        // package manager the user never opted into — and a `.app` carries its own
+        // closure precisely so it depends on neither.
+        //
+        // `${VAR:+:$VAR}` rather than `${VAR:-<default>}`: a developer who HAS exported
+        // `XDG_DATA_DIRS` still keeps it, appended after the bundle's own, and an unset
+        // one contributes nothing rather than an empty entry (which GLib reads as the
+        // current directory). Same semantics the `.cmd` form gets from `prependVar`,
+        // which is why the two now agree — before this they did not, and neither form
+        // said so.
+        `XDG_DATA_DIRS="$contents/${under(dirs.data)}"\${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}`,
         'export XDG_DATA_DIRS',
     ];
 

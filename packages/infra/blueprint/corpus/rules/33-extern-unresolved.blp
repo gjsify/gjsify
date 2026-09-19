@@ -1,0 +1,28 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.BreakpointBin {
+  width-request: 100;
+  height-request: 100;
+
+  Adw.Breakpoint {
+    condition ("max-width: 400px")
+
+    setters {
+      lookalike.orientation: vertical;
+      genuine.orientation: vertical;
+    }
+  }
+
+  Gtk.Box {
+    orientation: vertical;
+
+    $GtkBox lookalike {
+      orientation: vertical;
+    }
+
+    Gtk.Box genuine {
+      orientation: vertical;
+    }
+  }
+}

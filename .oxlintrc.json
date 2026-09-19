@@ -145,7 +145,7 @@
                 "**/stories/**",
                 "**/test/**",
                 "**/*.test.*",
-                "**/*.spec.ts",
+                "**/*.spec.*",
                 // A type-test fixture is COMPILE-ONLY: it is never constructed, never
                 // rendered, and its captions exist to be a type. `@ts-expect-error` makes
                 // the assertion, and a caption that had to route through `_()` would be
@@ -159,7 +159,34 @@
                 "packages/napi/**",
                 "packages/framework/storybook/**",
                 "packages/framework/devtools-browser/**",
-                "packages/framework/video/**"
+                "packages/framework/video/**",
+                // Added when `prefer-blueprint-template` stopped visiting only a CLASS and
+                // started seeing assembly in callbacks and factory functions. It then reported
+                // 10 sites, none of them in application code. The three PACKAGE entries below
+                // are whole units that implement widgets on someone else's instruction — their
+                // own package descriptions say so ("the element model UI-framework renderers
+                // bind to", "the React Native view vocabulary rendered onto GTK4/Adwaita",
+                // "NativeScript renderer for the @gjsify/stories contract"), so a file added to
+                // one of them tomorrow is still renderer code and the glob is still true of it.
+                // The two narrow entries are NOT that: they are single files inside packages
+                // whose other files get no exemption, so they are named one by one rather than
+                // by directory. An ignore that covers more than what was measured is how this
+                // rule went blind in the first place.
+                "packages/framework/gtk-host/**",
+                "packages/framework/react-native/**",
+                "packages/nativescript-bridge/storybook/**",
+                // `webgl`'s conformance setup opens a window only to obtain a GL context; the
+                // rest of the package is not exempt.
+                "packages/framework/webgl/src/ts/conformance/**",
+                // `@gjsify/adwaita-app`'s nav shell is the shell a consumer app is handed, so it
+                // is exempt by nature like a renderer. Its sibling `src/loading-stack.ts` is NOT
+                // listed: that one is blocked by the TOOLCHAIN (blueprint-compiler absent on the
+                // macOS and Windows runners, library-mode Blueprint only from 0.43.0, after the
+                // ADR 0002 cold bootstrap has already parsed the file), it keeps its line-level
+                // disable next to the measurement, and ADR 0053 § 7 names that disable's deletion
+                // as a signal the in-repo parser is done. Scoping the package would have retired
+                // that signal for an unrelated reason.
+                "packages/framework/adwaita-app/src/nav-shell.ts"
             ],
             "rules": {
                 "gjsify/prefer-blueprint-template": "off",
@@ -294,7 +321,14 @@
         "packages/**/conformance.*.js",
         "**/@types",
         "**/src/generated",
-        "**/templates",
+        // NO `**/templates` here any more. It was written for "scaffolding copied into a new
+        // project, not compiled as part of this tree", and what it actually bought was that
+        // `templates/gtk-minimal` — the starting point handed to every `gjsify create` user —
+        // shipped a window assembled in a callback with a literal, untranslatable caption, and
+        // no lint run in this repository ever looked at it. 14 source files, and the scaffolds
+        // are the one place where a convention either demonstrates itself or teaches its
+        // opposite. `packages/infra/cli/src/templates` (`.tmpl` payload) and the Tiled `.tx`
+        // assets under `showcases/` were the pattern's other matches; oxlint reads neither.
         "**/prebuilds",
         "**/.yarn/cache",
         "**/.yarn/install-state.gz",

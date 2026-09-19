@@ -75,13 +75,19 @@
 
 /**
  * The constructs that fall outside `SharedNode`. Five of these are the ones ADR 0053
- * clause 3 names from the census of the eleven real files; the rest are what a corpus
- * written per LANGUAGE RULE rather than per real file turns up, which is the point of
- * having one.
+ * clause 3 names from the census of the eleven real files there were then; the rest are
+ * what a corpus written per LANGUAGE RULE rather than per real file turns up, which is
+ * the point of having one.
+ *
+ * `extern` is the odd one and worth reading twice: it is the only kind where the projection
+ * keeps the TEXT and loses the meaning. `SharedNode.tag` is a GIR class name, which is what a
+ * renderer looks up; `$MyWidget` is a class the application registers at runtime and is in no
+ * GIR, so the tag is spelled exactly right and resolves to nothing. Declared here rather than
+ * discovered as a missing widget.
  *
  * @typedef {'template'|'object-id'|'translatable'|'signal'|'binding'|'breakpoint'
  *          |'menu'|'styles'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'|'responses'} LossKind
+ *          |'sibling-object'|'responses'|'extern'} LossKind
  */
 
 /**
@@ -450,7 +456,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [{ kind: 'object-id', line: 7, detail: 'the id `lonely`, on an unqualified type' }],
-        note: 'Three of the eleven real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
+        note: 'Three of the twelve real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
     },
     {
         file: '25-bracket-breakpoint.blp',
@@ -558,5 +564,145 @@ export const RULE_EXPECTATIONS = [
                 detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
             },
         ],
+    },
+    {
+        file: '32-extern-nested.blp',
+        node: {
+            tag: 'AdwToolbarView',
+            children: [
+                { tag: 'GalleryHeaderBar', slot: 'top' },
+                {
+                    tag: 'GalleryToolbarView',
+                    slot: 'content',
+                    children: [
+                        { tag: 'GtkLabel', props: { label: 'a real child of an extern parent' } },
+                        { tag: 'NsInner' },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'extern',
+                line: 6,
+                detail: '`$GalleryHeaderBar` is not a GIR class, so the tag resolves to nothing',
+            },
+            { kind: 'extern', line: 9, detail: '`$GalleryToolbarView` likewise, in the property-valued position' },
+            { kind: 'object-id', line: 9, detail: 'the id `pane`' },
+            {
+                kind: 'extern',
+                line: 14,
+                detail: '`$Ns.Inner`, whose tag `NsInner` is a concatenation and not a C prefix',
+            },
+        ],
+        note: 'The three extern tags are spelled exactly as the XML spells them and none of them is resolvable — which is the whole content of the `extern` loss. The `GtkLabel` between them shows that a real subtree under an extern parent projects normally.',
+    },
+    {
+        file: '33-extern-unresolved.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 100, 'height-request': 100 },
+            children: [
+                {
+                    tag: 'GtkBox',
+                    props: { orientation: 'vertical' },
+                    children: [
+                        { tag: 'GtkBox', props: { orientation: 'vertical' } },
+                        { tag: 'GtkBox', props: { orientation: 'vertical' } },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            { kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' },
+            { kind: 'extern', line: 20, detail: '`$GtkBox`, an extern class that SPELLS a GIR one' },
+            { kind: 'object-id', line: 20, detail: 'the id `lookalike`, which the first setter targets' },
+            { kind: 'object-id', line: 24, detail: 'the id `genuine`, which the second setter targets' },
+        ],
+        note: 'All three `orientation` props project as the string `vertical`, because an enum member keeps its source spelling on this exit whatever it sits on — so the projection is where this file says NOTHING and the `.ui` golden is where it bites: two of those three lines emit `1` and the extern one emits `vertical`.',
+    },
+    {
+        file: '34-extern-template-parent.blp',
+        node: { tag: 'CorpusExternBase', props: { orientation: 'vertical' } },
+        lost: [
+            { kind: 'template', line: 3, detail: 'the template class `$CorpusExternChild`' },
+            {
+                kind: 'extern',
+                line: 3,
+                detail: 'the parent `$CorpusExternBase`, which becomes the root tag and is no GIR class',
+            },
+        ],
+        note: 'The parent is what survives as the tag — the rule `08-template.blp` already pins — and here the survivor is extern too, so the one node this file projects carries a tag nothing can look up.',
+    },
+    {
+        file: '35-extern-real-class.blp',
+        node: {
+            tag: 'GtkListView',
+            children: [{ tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] }],
+        },
+        lost: [
+            {
+                kind: 'extern',
+                line: 5,
+                detail: '`$GListStore` — a tag that IS resolvable, and still extern, because nothing in it was read',
+            },
+        ],
+        note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
+    },
+
+    {
+        file: '36-setter-null.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 200, 'height-request': 200 },
+            children: [{ tag: 'GtkLabel', props: { label: 'text', 'width-request': 40 } }],
+        },
+        lost: [
+            { kind: 'object-id', line: 8, detail: 'the id `labelOne`, which both setters on lines 18 and 19 need' },
+            {
+                kind: 'breakpoint',
+                line: 14,
+                detail: 'the whole `[breakpoint]` child, and with it the two `null` setters',
+            },
+        ],
+        note: 'The projection loses this file the same way `25-bracket-breakpoint.blp` does, and that is the point of putting the rule HERE rather than only in `refused/`: the setters never reach `SharedNode` at all, so the projection cannot be the exit that catches a wrong one. Only the XML exit can, and before this rule existed it did not — it wrote the four characters `null` into the body of a live `<setter>`. The golden proves the empty element, on a string property and an int property both.',
+    },
+
+    {
+        file: '37-layout-untyped-ident.blp',
+        node: {
+            tag: 'GtkGrid',
+            children: [{ tag: 'GtkLabel', props: { label: 'text' } }],
+        },
+        lost: [
+            {
+                kind: 'layout',
+                line: 7,
+                detail: 'the whole `layout { }` block, and with it both untyped identifiers',
+            },
+        ],
+        note: 'The projection drops every block extension unread, so this file is one where the XML exit is the only one that can be wrong — and it was: the reference check on `identText` refused this file in an earlier cut, and the corpus held no `layout { }` value that was not a number, so nothing said so. The two exits are asymmetric here by design and not by omission.',
+    },
+
+    {
+        file: '38-null-object-id.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [{ tag: 'GtkMenuButton', props: { 'menu-model': 'null' } }, { tag: 'GtkLabel' }],
+        },
+        lost: [
+            {
+                kind: 'menu',
+                line: 3,
+                detail: 'the whole `menu null { … }` — a sibling of the object and not a widget, the same loss as `12-menu.blp`',
+            },
+            { kind: 'object-id', line: 14, detail: 'the id `labelA`, which the list on line 19 points at' },
+            {
+                kind: 'sibling-object',
+                line: 18,
+                detail: 'the whole `Gtk.SizeGroup`, a second top-level object where `SharedNode` is one tree',
+            },
+        ],
+        note: 'The projection keeps `menu-model` as the four characters `null`, exactly as it keeps an enum member: it reads the identifier and never asks what it points at. That is the same reading the XML exit had before this change, and it is right HERE — the object exists — which is why the fix is a lookup and not a ban on the spelling. The projection cannot make that distinction at all, holding no id index, so it is the XML exit that carries the rule and this expectation records the asymmetry rather than papering over it.',
     },
 ];

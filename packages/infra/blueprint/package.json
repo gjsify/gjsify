@@ -11,8 +11,8 @@
         "./corpus/real-expectations": "./corpus/real-expectations.mjs"
     },
     "dependencies": {
-        "@girs/adw-1": "5.1.0",
-        "@girs/gtk-4.0": "5.1.0"
+        "@girs/adw-1": "5.2.0",
+        "@girs/gtk-4.0": "5.2.0"
     },
     "scripts": {
         "clear": "echo 'nothing to do'",

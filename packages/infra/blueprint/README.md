@@ -22,10 +22,10 @@ every construct the subset refuses is refused by name, held by a corpus of its o
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
-| `corpus/real/*.ui` | the same, for the 11 `.blp` files this repo already builds |
+| `corpus/real/*.ui` | the same, for the 12 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
-| `corpus/real-expectations.mjs` | the same for the 11 real files |
+| `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
@@ -45,6 +45,21 @@ node scripts/check-blueprint-corpus.mjs                   # from the repo root
 node scripts/check-blueprint-corpus.mjs --write           # re-derive every golden
 node scripts/check-blueprint-corpus.mjs --require-oracle  # …and refuse to skip stage B
 ```
+
+Beside it, the census — what the real `.blp` files in the tree actually use:
+
+```sh
+node scripts/report-blueprint-census.mjs              # at HEAD
+node scripts/report-blueprint-census.mjs 3e12aefe1a^  # …or at any revision
+node scripts/report-blueprint-census.mjs --markdown   # ADR 0053's table block
+node scripts/check-blueprint-census.mjs               # the ADR still matches the tree
+```
+
+The reporter derives its file list from `git ls-tree`, so an older revision reproduces that
+revision's numbers. ADR 0053 § Context does not transcribe its table — it carries the
+`--markdown` output verbatim, and the gate fails when the two drift. That arrangement exists
+because the hand-count it replaced went stale the moment a twelfth `.blp` landed and nothing
+noticed, so a failure there is fixed by pasting the measurement, never by editing a number.
 
 Stage A — corpus complete and each file listed once, expectations structurally valid and
 projecting as many objects as their golden holds, every refusal listed with the line and the
@@ -159,6 +174,25 @@ would drift.
     the oracle does. Stage D caught both the moment `rules/17-numeric-forms.blp` held the form
     — the first defects that stage has found.
 
+12. **An extern type is not a type with the sigil stripped.** `$MyWidget { }` — the form 49
+    files and 58 sites need (ADR 0062) — emits `<object class="MyWidget">`, and a dotted
+    `$Ns.Inner` CONCATENATES to `NsInner`, which is the one place concatenation is right
+    rather than the fallback item 8 corrected. What the name cannot carry is the other half:
+    nothing inside an extern object is resolved, because the class is in no GIR. Measured in
+    one file, `rules/33-extern-unresolved.ui`: `$GtkBox { orientation: vertical; }` emits
+    `vertical` and `Gtk.Box { orientation: vertical; }` emits `1`, under the identical
+    `class="GtkBox"`. So extern-ness travels on `TypeRef.extern` and cannot be read back off
+    the GType name — and it travels to TWO call sites, the object body and a `setters { }`
+    target, which is why that file writes both.
+
+    It is also the one spelling that reaches a namespace the resolver has no vocabulary for,
+    and `rules/35-extern-real-class.blp` pins how far that goes. `Gio.ListStore` is refused
+    (`refused/namespace-without-vocabulary.blp`) and `$Gio.ListStore` does NOT reach it —
+    concatenation makes that `GioListStore`, a different class. `$GListStore` does, because
+    the C name is written out, and GtkBuilder resolves the result. So the gate holds on the
+    dotted form, the extern form asks for the GType by name, and the `extern` loss says the
+    projection read nothing inside the object — never that the tag is unknown.
+
 Most of these were found the same way: by asking a rule file that probed ONE shape of its
 construct what the other shapes looked like. A rule file that probes one case proves nothing
 about the others, and a construct nothing probes is one nothing prints either.
@@ -174,3 +208,40 @@ It claimed the published types already carried positional enum values — measur
 independent review reached the same wrong answer from the same stale file. Two readings of one
 out-of-date artefact agree with each other and not with the tree, which is worth more than the
 claim they agreed on: read what is INSTALLED, and say which version that was.
+
+## Reference sites, enumerated
+
+An object reference is an id GtkBuilder looks up, and the oracle refuses one nothing declares
+(`error: Could not find object with ID doesNotExist`). The emitter must refuse it too, so the
+question "have we covered them all" needs an answer that is not a memory of the ones we fixed —
+the first cut of that rule fixed three sites and shipped a fourth unchecked, and it was a
+reviewer and not the corpus that found it.
+
+The enumeration is mechanical. Every attribute or text node `emit-xml.mjs` builds from a parsed
+IDENTIFIER is a candidate; `grep -n 'xml.startTag\|xml.selfClosing\|xml.text' src/emit-xml.mjs`
+lists all of them, and each one is then read off as "does GtkBuilder resolve this string as an
+object id". That gives seven, and every one is accounted for:
+
+| site | written from | verdict |
+|---|---|---|
+| `bind-source` on a property | `value.source` | checked (`objectRef`) |
+| a property value, resolver branch | `value.name` | checked |
+| `object` on a `<setter>` | the setter target | checked |
+| `object` on a `<signal>` | `signal.object` | checked |
+| a property value, pass-through branch | `value.name` | NOT a reference — a `layout { }` entry is resolved by the layout manager, and a property on an EXTERN body (or a setter on an extern target) has no vocabulary to resolve against; the oracle passes the spelling through in both, byte-equal |
+| `<widget name=…>` in a list | `listItemText` | unchecked, declared |
+| an `accessibility { }` entry | `extensionText` | unchecked, declared |
+| `id` on a `<response>` | `response.name` | NOT a reference — a response id is not an object id, and stays one even when an object of that id exists |
+| an item of a property array | `arrayItemText` | a reference the oracle resolves, that our parser never reaches — see below |
+
+The two unchecked ones are in `status/open-todos.md` with what each would take. The rule for
+anyone adding another: if the string is an id, it takes `objectRef`, and it gets a file under
+`corpus/refused/` so stage E holds the refusal by name and by line.
+
+The last row is the one to read before loosening anything. `css-classes: [doesNotExist];` is a
+reference to the oracle — `Could not find object with ID doesNotExist` — but `arrayItemText`
+never sees it, because the parser refuses a non-string array item first. Both ends refuse, so
+nothing diverges today, and the day that parser rule is relaxed the reference becomes unchecked
+in the same commit. It is the same shape as the named-menu-section note in `indexObjectIds`: a
+row whose verdict rests on a limit somewhere else, which is why it is written down beside the
+rows that rest on the language.

@@ -213,6 +213,39 @@ export default async () => {
         });
     });
 
+    await describe('ship launcher: XDG_DATA_DIRS carries no foreign default', async () => {
+        // `/usr/local/share:/usr/share` is the XDG spec's default for a LINUX system. The `.app`
+        // form baked it too: on Apple Silicon `/usr/local/share` is nothing, on Intel it is
+        // Homebrew's, and `/usr/share` is Apple's own with no `glib-2.0/schemas` and no
+        // `icons/hicolor`. The `.cmd` form appended nothing — so the two forms already disagreed
+        // and neither said which was meant.
+        await it('names no Linux system directory on darwin or win32', () => {
+            const rendered = renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin, CARRIED);
+            expect(rendered.includes('/usr/local/share')).toBe(false);
+            expect(rendered.includes('/usr/share')).toBe(false);
+            const cmd = renderLauncher(settings([]), 'gjs.js', LAYOUTS.windows, CARRIED_WIN);
+            expect(cmd.includes('/usr/local/share')).toBe(false);
+            expect(cmd.includes('/usr/share')).toBe(false);
+        });
+
+        // Still PREPENDED, and still `${VAR:+:$VAR}` rather than a bare `:$VAR` — an unset
+        // variable would otherwise leave a trailing separator, and an empty entry in
+        // `XDG_DATA_DIRS` is read as the current directory.
+        await it('keeps a set XDG_DATA_DIRS after the bundle, and adds nothing when unset', () => {
+            const rendered = renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin, CARRIED);
+            expect(
+                rendered.includes('XDG_DATA_DIRS="$contents/Resources/share"${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}'),
+            ).toBe(true);
+        });
+
+        // The Linux form is the one place the default is CORRECT, and dropping it there would
+        // hide the system icon theme and every system schema from a `.deb`.
+        await it('leaves the Linux default exactly where it was', () => {
+            const linux = renderLauncher(settings([]), 'gjs.js', LAYOUTS.linux);
+            expect(linux.includes('${XDG_DATA_DIRS:-/usr/local/share:/usr/share}')).toBe(true);
+        });
+    });
+
     await describe('ship launcher arguments', async () => {
         await it('single-quotes for /bin/sh, on both POSIX layouts', () => {
             const args = ["it's", '--flag=a b'];

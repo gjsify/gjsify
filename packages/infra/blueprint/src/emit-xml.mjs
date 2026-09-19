@@ -87,6 +87,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
  * @property {(name: string, member: string, where: string) => string | null} [accessibilityValue]
  * @property {(type: TypeRef, where: string) => string} [gtypeName]
+ * @property {(typeName: string | null, propertyName: string) => string | null} [enumOrFlagsTypeOf]
  */
 
 /**
@@ -98,7 +99,8 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
  * @property {EmitOptions['accessibilityValue']} accessibilityValue
  * @property {EmitOptions['gtypeName']} gtypeName
- * @property {Map<string, string>} idTypes  object id -> GType name, for `setters { }`
+ * @property {EmitOptions['enumOrFlagsTypeOf']} enumOrFlagsTypeOf
+ * @property {Map<string, string | null>} idTypes  object id -> GType name, `null` where the object is extern, for `setters { }`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
 
@@ -124,6 +126,7 @@ export function emitGtkBuilderXml(file, options) {
         accessibilityElement: options?.accessibilityElement,
         accessibilityValue: options?.accessibilityValue,
         gtypeName: options?.gtypeName,
+        enumOrFlagsTypeOf: options?.enumOrFlagsTypeOf,
     };
     /** @type {EmitContext} */
     const context = { ...seams, idTypes: indexObjectIds(file, seams), templateClass: findTemplateClass(file) };
@@ -227,8 +230,24 @@ function formatAttributes(attrs) {
 function emitObject(xml, object, context) {
     const className = gtypeName(object.type, context);
     xml.startTag('object', { class: className, id: object.id });
-    emitBody(xml, object.body, className, context);
+    emitBody(xml, object.body, ownerOf(object.type, className), context);
     xml.endTag();
+}
+
+/**
+ * What a body's values are resolved AGAINST, or `null` for an extern type.
+ *
+ * `null` is the answer `identText` already had for "no owner" and it is the right one here:
+ * an extern class is in no GIR, so no property of it can be joined to an enum and every
+ * identifier keeps the spelling the source gave it. Keying that on the GType NAME instead
+ * would be wrong on one file and green on every other — `$GtkBox { orientation: vertical; }`
+ * is `vertical` to the oracle and `1` to a reader that trusts the name
+ * (`33-extern-unresolved.blp`).
+ *
+ * @param {TypeRef} type @param {string} gtype @returns {string | null}
+ */
+function ownerOf(type, gtype) {
+    return type.extern === true ? null : gtype;
 }
 
 /** @param {XmlWriter} xml @param {TemplateNode} template @param {EmitContext} context */
@@ -238,7 +257,7 @@ function emitTemplate(xml, template, context) {
     // template class is the one being defined and has no ParamSpecs of its own yet.
     const parent = gtypeName(template.parent, context);
     xml.startTag('template', { class: template.className, parent });
-    emitBody(xml, template.body, parent, context);
+    emitBody(xml, template.body, ownerOf(template.parent, parent), context);
     xml.endTag();
 }
 
@@ -255,7 +274,7 @@ function emitTemplate(xml, template, context) {
  * Two members on ONE line are not in any golden. The sort is stable, so they keep the
  * group order below.
  *
- * @param {XmlWriter} xml @param {ObjectBody} body @param {string} ownerType @param {EmitContext} context
+ * @param {XmlWriter} xml @param {ObjectBody} body @param {string | null} ownerType @param {EmitContext} context
  */
 function emitBody(xml, body, ownerType, context) {
     const members = inSourceOrder([
@@ -312,7 +331,7 @@ function emitChild(xml, child, context) {
 
 // ------------------------------------------------------------------ properties
 
-/** @param {XmlWriter} xml @param {Property} property @param {string} ownerType @param {EmitContext} context */
+/** @param {XmlWriter} xml @param {Property} property @param {string | null} ownerType @param {EmitContext} context */
 function emitProperty(xml, property, ownerType, context) {
     const value = property.value;
 
@@ -321,7 +340,9 @@ function emitProperty(xml, property, ownerType, context) {
         // a `sync-create` the source never wrote.
         xml.selfClosing('property', {
             name: property.name,
-            'bind-source': objectId(value.source, context),
+            // A binding SOURCE is a reference too, and takes the same check: the oracle
+            // answers `bind doesNotExist.label` with "Could not find object with ID".
+            'bind-source': objectRef(value.source, value.line, 'the source of a binding', context),
             'bind-property': value.property,
             'bind-flags': bindFlags(value.flags),
         });
@@ -484,6 +505,14 @@ function identText(value, ownerType, propertyName, context) {
     if (ownerType !== null && propertyName !== null && context.resolveIdent !== undefined) {
         const resolved = context.resolveIdent(ownerType, propertyName, value.name, `line ${value.line}`);
         if (resolved !== null && resolved !== undefined) return resolved;
+        // Not a member of an enum or flags type this resolver knows, so what is left is an
+        // object reference — and a reference is checked. ONLY this branch checks, and the two
+        // ways out of it above are the documented pass-throughs, not oversights: with no
+        // resolver the spelling stands (see the note above), and with no owner and property to
+        // ask about it stands too. That second one is what keeps `layout { }` working, where
+        // the oracle passes the spelling through as well: `layout { column: null; }` emits
+        // `<property name="column">null</property>` with no object named `null` anywhere.
+        return objectRef(value.name, value.line, `the value of \`${propertyName}\``, context);
     }
     return objectId(value.name, context);
 }
@@ -549,7 +578,16 @@ function emitSignal(xml, signal, context) {
         handler: signal.handler,
         swapped: swappedAttribute(signal.flags),
         after: signal.flags.includes('after') ? 'True' : null,
-        object: signal.object === undefined ? null : objectId(signal.object, context),
+        // The fourth reference site. The `object` of `clicked => $onClicked(someId)` is an id
+        // GtkBuilder resolves like any other, and the oracle answers an unknown one with
+        // `Could not find object with ID 'doesNotExist'`. It shipped unchecked in the first cut
+        // of this rule because that cut enumerated the sites it remembered; the enumeration
+        // that found it is mechanical and is written down in this package's README — every
+        // attribute or text node in this file built from a parsed identifier is a candidate.
+        object:
+            signal.object === undefined
+                ? null
+                : objectRef(signal.object, signal.line, 'the object of a signal handler', context),
     });
 }
 
@@ -670,15 +708,41 @@ function emitSetter(xml, setter, context) {
     const target = setter.name.slice(0, dot);
     const property = setter.name.slice(dot + 1);
 
-    xml.startTag('setter', {
-        object: objectId(target, context),
-        property,
-        ...translatedAttributes(setter.value),
-    });
     // The owner type here is the type of the object the setter POINTS AT, not the
     // breakpoint it sits in, so an enum-valued setter resolves against the right widget.
     // Measured: `boxOne.halign: baseline_fill` inside an `Adw.Breakpoint` is `4`.
-    xml.text(scalarText(setter.value, context.idTypes.get(target) ?? null, property, context));
+    const ownerType = context.idTypes.get(target) ?? null;
+
+    xml.startTag('setter', {
+        object: objectRef(target, setter.line, 'the target of a setter', context),
+        property,
+        ...translatedAttributes(setter.value),
+    });
+    if (isNullLiteral(setter.value, context)) {
+        // The null literal, and the ONE position the oracle admits it: `<setter …></setter>`
+        // with an empty body, which GtkBuilder reads as "unset". It is the literal only
+        // because no object claims the name — with a `Gtk.Label null` in the file the
+        // identifier wins even here, and the oracle answers `Cannot assign Gtk.Label to
+        // string`, which `objectRef` above has already let through as the reference it is.
+        //
+        // Not for every property type, though. Measured on 0.20.4: string, int, double and
+        // object-typed properties come out empty, an enum one is `null is not a member of
+        // Gtk.Align` and a flags one the same. That half is detectable here because the
+        // resolver knows which properties carry those types — see the header of
+        // `36-setter-null.blp` in the manifest for the half that is NOT (a boolean property,
+        // `Expected 'true' or 'false' for boolean value`, which needs ParamSpec types this
+        // vocabulary does not have).
+        const enumType = context.enumOrFlagsTypeOf?.(ownerType, property) ?? null;
+        if (enumType !== null) {
+            throw new Error(
+                `blueprint: line ${setter.line}: \`null\` is not a member of ${enumType}, and ` +
+                    `\`${target}.${property}\` carries that type — the null literal is a value ` +
+                    'for a string, numeric or object-typed property only',
+            );
+        }
+    } else {
+        xml.text(scalarText(setter.value, ownerType, property, context));
+    }
     xml.endTag();
 }
 
@@ -772,6 +836,10 @@ function emitMenu(xml, menu, context) {
  */
 function gtypeName(type, context) {
     if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`);
+    // An extern type never defaults to Gtk: there is no import behind it, so the sigil-free
+    // spelling IS the GType name. Getting this wrong in the fallback would be a `GtkMyWidget`
+    // no GtkBuilder can find, which is the shape of wrong output ADR 0053 clause 3 refuses.
+    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
     return `${type.namespace ?? 'Gtk'}${type.name}`;
 }
 
@@ -785,6 +853,51 @@ function gtypeName(type, context) {
  */
 function objectId(id, context) {
     return id === 'template' && context.templateClass !== undefined ? context.templateClass : id;
+}
+
+/**
+ * An object REFERENCE: the same spelling, but only once the file is known to declare it.
+ *
+ * `objectId` answers what to WRITE. This answers whether there is anything to write at all,
+ * and it is the rule the emitter did not have: the oracle resolves every reference and
+ * refuses an unresolved one — `extra-menu: doesNotExist;` is `error: Could not find object
+ * with ID doesNotExist` — while this emitter copied the spelling into the XML and said
+ * nothing. GtkBuilder then meets an id nothing declares, at runtime, in a file that compiled.
+ *
+ * `null` was the instance of that a wild file hit, and it is not a keyword: blueprint reads
+ * it as an identifier like any other, so `label: null` with a `Gtk.Label null` in the file is
+ * `error: Cannot assign Gtk.Label to string` — a TYPE error, which means the id resolved. The
+ * null LITERAL is only what is left when no object claims the name, and `emitSetter` is the
+ * one place that reading reaches the XML.
+ *
+ * @param {string} id @param {number} line @param {string} where  what the id is, for the message
+ * @param {EmitContext} context
+ */
+function objectRef(id, line, where, context) {
+    if (id === 'template' && context.templateClass !== undefined) return context.templateClass;
+    if (!context.idTypes.has(id)) {
+        throw new Error(
+            `blueprint: line ${line}: \`${id}\` is ${where}, and no object in this file is ` +
+                `declared with that id — the reference compiler refuses the same file with ` +
+                `"Could not find object with ID ${id}"`,
+        );
+    }
+    return id;
+}
+
+/**
+ * Whether this value is the null LITERAL rather than a reference to an object called `null`.
+ *
+ * The distinction is the whole rule, and it is decided by the file and not by the spelling:
+ * blueprint has no `null` keyword, so an identifier spelled `null` is a reference wherever
+ * something answers to the name, and the literal only where nothing does. Both halves are
+ * measured — `Gtk.Label null { }` compiles (with `warning: null may be a confusing object
+ * ID`) and `bind null.label` then binds to it.
+ *
+ * @param {Value} value @param {EmitContext} context
+ */
+function isNullLiteral(value, context) {
+    return value.kind === 'ident' && value.name === 'null' && !context.idTypes.has('null');
 }
 
 /** @param {readonly BlueprintImport[]} imports */
@@ -811,22 +924,39 @@ function findTemplateClass(file) {
  * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
  */
 function indexObjectIds(file, seams) {
-    /** @type {Map<string, string>} */
+    /** @type {Map<string, string | null>} */
     const byId = new Map();
     for (const root of file.roots) {
         if (root.kind === 'object') indexObject(root, byId, seams);
         else if (root.kind === 'template') indexBody(root.body, byId, seams);
+        // A top-level `menu` is a reference target like any object — 12-menu.blp points at one
+        // with `menu-model: mainMenu` — and it is indexed as `null` for the reason an extern
+        // target is: there is no GType whose ParamSpecs an enum could resolve against.
+        //
+        // Only the ROOT is indexed, and that is a bet on a parser limit rather than a fact
+        // about the language: the oracle accepts `menu top { section sec { … } }` and resolves
+        // `menu-model: sec` against it. Nothing diverges today because `MenuItem` has no `id`
+        // field and the parser refuses a named section by name and line, so such a file never
+        // reaches this index. WHOEVER LIFTS THAT LIMIT must index sections and submenus here
+        // in the same commit, or the reference check below turns into a false refusal on a
+        // file the oracle compiles.
+        else if (root.id !== undefined) byId.set(root.id, null);
     }
     return byId;
 }
 
-/** @param {ObjectNode} object @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectNode} object @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexObject(object, byId, seams) {
-    if (object.id !== undefined) byId.set(object.id, gtypeName(object.type, seams));
+    // An extern target is indexed as `null` and not left out: absent and extern are the same
+    // to `Map.get`, and they must be, because `lookalike.orientation: vertical` on an extern
+    // target keeps its spelling while the same setter on a `Gtk.Box` is `1`. The setter path
+    // is a SECOND call site of the resolver, so an implementation that fixes only the object
+    // body above is byte-equal on every golden that has no `setters { }` in it.
+    if (object.id !== undefined) byId.set(object.id, ownerOf(object.type, gtypeName(object.type, seams)));
     indexBody(object.body, byId, seams);
 }
 
-/** @param {ObjectBody} body @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectBody} body @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexBody(body, byId, seams) {
     for (const property of body.properties) indexValue(property.value, byId, seams);
     for (const child of body.children) {
@@ -834,7 +964,7 @@ function indexBody(body, byId, seams) {
     }
 }
 
-/** @param {Value} value @param {Map<string, string>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {Value} value @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
 function indexValue(value, byId, seams) {
     if (value.kind === 'object') indexObject(value.object, byId, seams);
     else if (value.kind === 'list') {

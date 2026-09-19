@@ -36,17 +36,17 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE ELEVEN REAL FILES DO NOT REACH
+// WHAT THE TWELVE REAL FILES DO NOT REACH
 //
-// They are a probe against reality, not a measure of breadth, and citing "eleven real
-// files" as coverage would be wrong twice over. They exercise six of the fourteen loss
+// They are a probe against reality, not a measure of breadth, and citing "twelve real
+// files" as coverage would be wrong twice over. They exercise six of the fifteen loss
 // kinds — `template`, `object-id`, `translatable`, `binding`, `breakpoint`, `styles`.
-// The other eight (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
-// `sibling-object`, `responses`) are declared by no real expectation and are held only by the rules
+// The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
+// `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
-// one to read carefully: three real files DO carry comments, and the convention in
-// `expectations.mjs` is that comments are never listed per entry.) And eleven files are
-// about six distinct SHAPES: the three `templates/*/src/main-window.blp` differ in one
+// one to read carefully: four real files DO carry comments, and the convention in
+// `expectations.mjs` is that comments are never listed per entry.) And twelve files are
+// about seven distinct SHAPES: the three `templates/adw-*/src/main-window.blp` differ in one
 // title string, and fireworks and pixel differ only in the template class name, the
 // window title, a group title, four row titles and five object ids.
 //
@@ -64,7 +64,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The eleven `.blp` files this repo already builds are the reality probe ADR 0053
+// The twelve `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -274,6 +274,54 @@ export const CORPUS_RULES = [
         surprise:
             'each response is `<response id="…">` with the translatable attributes after the id; the flags `suggested` / `destructive` / `disabled` would add `appearance` and `enabled="false"`, and the parser refuses them by name, so the subset holds the form without them',
     },
+    {
+        file: '32-extern-nested.blp',
+        isolates:
+            'an extern type `$Name` as a nested object — as a `[top]` child, as a property value, with an id, holding a real child, and once with a dotted namespace',
+        surprise:
+            'the sigil is the whole syntax and the GType name is what is left of it — `$Ns.Inner` is `NsInner`, a CONCATENATION and not a C prefix, because there is no namespace behind an extern type to have one',
+    },
+    {
+        file: '33-extern-unresolved.blp',
+        isolates:
+            'that nothing inside an extern object is resolved against the vocabulary, on both call sites — an object body and a `setters { }` target',
+        surprise:
+            '`$GtkBox { orientation: vertical; }` emits `vertical` and `Gtk.Box { orientation: vertical; }` emits `1`, in the same file and under the same `class="GtkBox"`: the emitted NAME is identical and the bytes are not, so extern-ness has to travel with the type and cannot be read back off the GType name',
+    },
+    {
+        file: '34-extern-template-parent.blp',
+        isolates: 'an extern type as a template PARENT, `template $Child: $Base`',
+        surprise:
+            'neither name is touched — `class="CorpusExternChild" parent="CorpusExternBase"` — and the body resolves against nothing, so the parent is the second place in one file that can lose the vocabulary',
+    },
+    {
+        file: '35-extern-real-class.blp',
+        isolates:
+            'an extern type whose GType name is a REAL class, from a namespace this resolver has no vocabulary for — the same `GListStore` that `refused/namespace-without-vocabulary.blp` refuses one spelling above',
+        surprise:
+            'the extern spelling reaches it and GtkBuilder resolves the result, so the vocabulary gate is a gate on the DOTTED form only — and it is still not a hole in that gate, because concatenation cannot produce `GListStore` from `$Gio.ListStore` (that is `GioListStore`): the C name has to be written out, which is exactly the assertion the sigil exists to make',
+    },
+    {
+        file: '36-setter-null.blp',
+        isolates:
+            'the null LITERAL as a `setters { }` value — an identifier spelled `null` in the one position where nothing answers to the name, so nothing can resolve it',
+        surprise:
+            "it emits `<setter …></setter>` with an EMPTY body, which GtkBuilder reads as \"unset\" — and it is NOT the absence of a value for any property you like. Measured on 0.20.4: a string (`label`), an int (`width-request`), a double and an object-typed property come out empty, an enum one is `null is not a member of Gtk.Align` (`refused/setter-null-enum.blp`) and a flags one the same. A BOOLEAN one is refused too — `Expected 'true' or 'false' for boolean value` — and that half this emitter cannot detect: telling it apart needs the ParamSpec TYPE of every property, where `resolve-ident.mjs` carries enum and flags types only. So `labelOne.visible: null;` is accepted here and refused by the oracle, a divergence recorded in `status/open-todos.md` rather than guessed at. Before this rule existed the emitter wrote the four characters `null` into the body of a live `<setter>` in a wild file, with every stage of this corpus green.",
+    },
+    {
+        file: '37-layout-untyped-ident.blp',
+        isolates:
+            'an identifier as a `layout { }` value, where the emitter has neither an owner type nor a ParamSpec to ask about it',
+        surprise:
+            'the spelling passes straight through — `<property name="column">null</property>`, with no object anywhere called `null` — and that is the oracle\'s own answer, not a shortfall of this subset: a layout property belongs to the layout CHILD and is resolved by the layout manager at build time, so nothing type-checks it here. This file exists because the reference check on `identText` is the kind of rule that grows over a position it was never measured against: an earlier cut of that check refused this file, and nothing in the corpus noticed. `row: start` is beside `column: null` so the pass-through is pinned as a rule about the POSITION and not about one spelling.',
+    },
+    {
+        file: '38-null-object-id.blp',
+        isolates:
+            'the identifier `null` where the file DOES declare an object by that name, in the two positions that resolve one: an object-typed property and a `widgets [ ]` item',
+        surprise:
+            'there is nothing special about it. `null` is not a keyword in this grammar — `menu null { }` declares an id (the oracle warns `null may be a confusing object ID` and compiles), `menu-model: null` then points at it, and `bind null.label` binds to it. The literal in `36-setter-null.blp` is only what is LEFT when no object claims the name, which is why `isNullLiteral` in `emit-xml.mjs` asks the file and not the spelling. Stated the other way: the identifier wins over the literal, and it wins inside a `setters { }` block too — `labelOne.label: null;` with this `null` declared is `Cannot assign Gtk.Label to string`, a TYPE error, so the id resolved.',
+    },
 ];
 
 /**
@@ -308,12 +356,12 @@ export const CORPUS_REFUSALS = [
         names: 'no vocabulary for',
     },
     {
-        file: 'extern-type.blp',
-        construct: 'an extern type, `$MyWidget { }`',
-        oracle: 'compiles',
+        file: 'closure-value.blp',
+        construct: 'a closure as a plain property value, `label: $format("a")`',
+        oracle: 'refuses',
         projection: 'refuses',
         line: 4,
-        names: 'extern type',
+        names: 'closure',
     },
     {
         file: 'binding-lookup-chain.blp',
@@ -419,6 +467,44 @@ export const CORPUS_REFUSALS = [
         line: 1,
         names: 'expected `using Gtk`',
     },
+    {
+        file: 'null-value.blp',
+        construct:
+            'the identifier `null` as a plain property value, `label: null;`, where the file declares no object by that name',
+        oracle: 'refuses',
+        // The projection reads the value as the identifier it is and keeps the SPELLING, the
+        // same way it keeps an enum member — so it projects a `GtkLabel` whose `label` is the
+        // four characters `null`. That is this stage earning its keep rather than a hole: the
+        // two exits disagree, only the XML one can tell a reference from a literal (it is the
+        // one that holds `idTypes`), and clause 3 is a rule about the exit that emits.
+        projection: 'projects',
+        line: 4,
+        names: '`null`',
+    },
+    {
+        file: 'unresolved-reference.blp',
+        construct: 'an object reference to an id the file never declares, `extra-menu: doesNotExist;`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'no object in this file is declared with that id',
+    },
+    {
+        file: 'signal-object-unresolved.blp',
+        construct: 'an unresolved reference as the object of a signal handler, `clicked => $onClicked(doesNotExist);`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'no object in this file is declared with that id',
+    },
+    {
+        file: 'setter-null-enum.blp',
+        construct: 'the null literal as a `setters { }` value on an ENUM-typed property, `labelOne.halign: null;`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 13,
+        names: 'is not a member of GtkAlign',
+    },
 ];
 
 /**
@@ -428,9 +514,14 @@ export const CORPUS_REFUSALS = [
  */
 
 /**
- * The eleven `.blp` files that are already part of a shipped build. They are the
- * probe against reality: a corpus of rules written by the same person who writes the
- * parser proves that person self-consistent and nothing else.
+ * Every `.blp` file that is already part of a shipped build. They are the probe against
+ * reality: a corpus of rules written by the same person who writes the parser proves that
+ * person self-consistent and nothing else.
+ *
+ * The count is NOT written here. This comment said "eleven" and was stale the first time a
+ * twelfth `.blp` was added, which is the same failure `check-blueprint-corpus.mjs`'s own
+ * header records at "25 rules". The gate counts the list; a reader who needs the number
+ * reads the list.
  *
  * @type {readonly CorpusRealFile[]}
  */
@@ -470,4 +561,5 @@ export const CORPUS_REAL_FILES = [
     { slug: 'templates_adw-canvas2d_src_main-window', source: 'templates/adw-canvas2d/src/main-window.blp' },
     { slug: 'templates_adw-game_src_main-window', source: 'templates/adw-game/src/main-window.blp' },
     { slug: 'templates_adw-webgl_src_main-window', source: 'templates/adw-webgl/src/main-window.blp' },
+    { slug: 'templates_gtk-minimal_src_main-window', source: 'templates/gtk-minimal/src/main-window.blp' },
 ];

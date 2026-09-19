@@ -2,7 +2,7 @@
 // Runs on GJS + Node (pure logic, explicit env — no platform imports).
 
 import { describe, expect, it } from '@gjsify/unit';
-import { SYSTEM_LOCALE_DIR, resolveLocaleDir } from './locale-dir.js';
+import { SYSTEM_LOCALE_DIR, resolveLocaleDir, systemLocaleDir } from './locale-dir.js';
 
 export default async () => {
     await describe('resolveLocaleDir', async () => {
@@ -37,6 +37,36 @@ export default async () => {
 
         await it('trims surrounding whitespace off a real value', () => {
             expect(resolveLocaleDir({ env: { GJSIFY_LOCALE_DIR: '  /app/share/locale\n' } })).toBe('/app/share/locale');
+        });
+
+        // `/usr/share/locale` does not exist on Windows and DOES exist on macOS, where it holds
+        // Apple's locale data and never an app's catalogues — so the old unconditional fallback
+        // bound a real directory that could not resolve one msgid. Nothing is the true answer.
+        await it('gives darwin and win32 no system directory at all', () => {
+            expect(resolveLocaleDir({ platform: 'darwin' })).toBe(undefined);
+            expect(resolveLocaleDir({ platform: 'win32' })).toBe(undefined);
+            expect(systemLocaleDir('darwin')).toBe(undefined);
+            expect(systemLocaleDir('win32')).toBe(undefined);
+        });
+
+        // The steps ABOVE the system one are what a shipped app actually reaches, on every OS:
+        // its launcher exports `GJSIFY_LOCALE_DIR` whenever it staged catalogues. Dropping the
+        // system default must not have dropped those, or the `.app` loses its translations.
+        await it('still answers darwin and win32 from the bundle', () => {
+            const env = { GJSIFY_LOCALE_DIR: '/Applications/Hello.app/Contents/Resources/share/locale' };
+            expect(resolveLocaleDir({ platform: 'darwin', env })).toBe(env.GJSIFY_LOCALE_DIR);
+            expect(resolveLocaleDir({ platform: 'win32', fallbackDir: 'C:\\Hello\\share\\locale' })).toBe(
+                'C:\\Hello\\share\\locale',
+            );
+        });
+
+        // Linux is untouched, and so is every platform this project did not measure — including
+        // the `undefined` a `--globals none` GJS bundle has instead of a `process.platform`.
+        await it('leaves linux and every unmeasured platform as they were', () => {
+            expect(resolveLocaleDir({ platform: 'linux' })).toBe(SYSTEM_LOCALE_DIR);
+            expect(resolveLocaleDir({ platform: 'freebsd' })).toBe(SYSTEM_LOCALE_DIR);
+            expect(systemLocaleDir(undefined)).toBe(SYSTEM_LOCALE_DIR);
+            expect(systemLocaleDir()).toBe(SYSTEM_LOCALE_DIR);
         });
     });
 };

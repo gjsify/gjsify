@@ -1642,27 +1642,27 @@ jobs:
       # tarball. TARGETED — realizing every `refs/` submodule costs ~150 GB, against
       # ~7.5 MB for this one; `submodules:` on actions/checkout is never used here.
       #
-      # Retried and time-boxed for the reason `audit-runtimes.yml` records at its own
-      # `refs/libadwaita` step: this puts gitlab.gnome.org in the path of a required
-      # check, and a non-retrying fetch reddened two unrelated PRs on 2026-08-12. git
-      # re-clones a failed fetch on its own, but that is a repeat, not a back-off.
+      # Cached, retried, mirrored and time-boxed by the shared action, for the reason
+      # `audit-runtimes.yml` records at its own `refs/libadwaita` step: gitlab.gnome.org
+      # sits in the path of a required check AND of a release, and on 2026-09-15 it
+      # served 503 to every git request for hours. The action prefers a cache keyed on
+      # the pinned COMMIT, which cannot be stale, and reaches the network only on a miss.
+      # `timeout-minutes` stays on THIS step because GitHub does not honour it inside a
+      # composite action.
       #
       # Missing it is not silent: the builder warns where the cause is visible and the
       # `fonts` windowing-data set fails the build at the verify step — which is the
-      # point, because 0.50.0 shipped with no UI font and nothing said anything.
+      # point, because 0.50.0 shipped with no UI font and nothing said anything. The
+      # action is the same shape — it never skips; three dead sources are a red step.
       - name: Check out refs/adwaita-fonts (the bundle ships its faces)
-        shell: bash
-        timeout-minutes: 5
-        run: |
-          for attempt in 1 2 3; do
-            if git submodule update --init --depth 1 refs/adwaita-fonts; then break; fi
-            if [ "$attempt" = 3 ]; then
-              echo "::error::could not check out refs/adwaita-fonts after 3 attempts"
-              exit 1
-            fi
-            echo "::warning::refs/adwaita-fonts checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
-            sleep $((attempt * 10))
-          done
+        timeout-minutes: 10
+        uses: ./.github/actions/checkout-ref-submodule
+        with:
+          path: refs/adwaita-fonts
+          mirror: https://github.com/GNOME/adwaita-fonts.git
+          reason: >-
+            The GTK runtime bundle ships these faces under `share/fonts`, and the
+            `fonts` windowing-data set fails the build without them
 
       # --windowing adds libadwaita + libgtksourceview (+ their otool deps) to the
       # relocated closure, and the runtime data tree. The builder derives its own target
@@ -2731,27 +2731,27 @@ jobs:
       # tarball. TARGETED — realizing every `refs/` submodule costs ~150 GB, against
       # ~7.5 MB for this one; `submodules:` on actions/checkout is never used here.
       #
-      # Retried and time-boxed for the reason `audit-runtimes.yml` records at its own
-      # `refs/libadwaita` step: this puts gitlab.gnome.org in the path of a required
-      # check, and a non-retrying fetch reddened two unrelated PRs on 2026-08-12. git
-      # re-clones a failed fetch on its own, but that is a repeat, not a back-off.
+      # Cached, retried, mirrored and time-boxed by the shared action, for the reason
+      # `audit-runtimes.yml` records at its own `refs/libadwaita` step: gitlab.gnome.org
+      # sits in the path of a required check AND of a release, and on 2026-09-15 it
+      # served 503 to every git request for hours. The action prefers a cache keyed on
+      # the pinned COMMIT, which cannot be stale, and reaches the network only on a miss.
+      # `timeout-minutes` stays on THIS step because GitHub does not honour it inside a
+      # composite action.
       #
       # Missing it is not silent: the builder warns where the cause is visible and the
       # `fonts` windowing-data set fails the build at the verify step — which is the
-      # point, because 0.50.0 shipped with no UI font and nothing said anything.
+      # point, because 0.50.0 shipped with no UI font and nothing said anything. The
+      # action is the same shape — it never skips; three dead sources are a red step.
       - name: Check out refs/adwaita-fonts (the bundle ships its faces)
-        shell: bash
-        timeout-minutes: 5
-        run: |
-          for attempt in 1 2 3; do
-            if git submodule update --init --depth 1 refs/adwaita-fonts; then break; fi
-            if [ "$attempt" = 3 ]; then
-              echo "::error::could not check out refs/adwaita-fonts after 3 attempts"
-              exit 1
-            fi
-            echo "::warning::refs/adwaita-fonts checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
-            sleep $((attempt * 10))
-          done
+        timeout-minutes: 10
+        uses: ./.github/actions/checkout-ref-submodule
+        with:
+          path: refs/adwaita-fonts
+          mirror: https://github.com/GNOME/adwaita-fonts.git
+          reason: >-
+            The GTK runtime bundle ships these faces under `share/fonts`, and the
+            `fonts` windowing-data set fails the build without them
 
       - name: Build the FULL-windowing GTK runtime bundle (--windowing)
         shell: pwsh

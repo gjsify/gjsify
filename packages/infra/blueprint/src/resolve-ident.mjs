@@ -234,6 +234,25 @@ function membersOf(enumType) {
 }
 
 /**
+ * The enum or flags type a property carries, or `null` for a property that carries neither
+ * (or one this vocabulary has never heard of — the two are not told apart, and a caller that
+ * needs them told apart needs a different question).
+ *
+ * The signature the emitter's `EmitOptions.enumOrFlagsTypeOf` declares. `resolveIdent` below
+ * answers what one identifier MEANS; this answers what the property would accept, which is
+ * the question the null literal raises: the oracle writes an empty `<setter>` for a string,
+ * numeric or object-typed property and refuses an enum or flags one, so the emitter has to
+ * ask about the property rather than about the value.
+ *
+ * @param {string | null} typeName  GType name, or `null` for an extern target with no vocabulary
+ * @param {string} propertyName
+ * @returns {string | null}
+ */
+export function enumOrFlagsTypeOf(typeName, propertyName) {
+    return typeName === null ? null : typeOfProperty(typeName, propertyName);
+}
+
+/**
  * Resolve one identifier written as a property value.
  *
  * The signature the emitter's `EmitOptions.resolveIdent` declares. Returning `null` means the
@@ -274,11 +293,18 @@ const C_PREFIXES = new Map([
  * The signature the emitter's `EmitOptions.gtypeName` declares. An unqualified name is a Gtk type
  * — `24-unqualified-type.blp` pins that `using Adw 1;` does not make a bare `Bin` legal.
  *
- * @param {{ namespace?: string, name: string }} type
+ * An EXTERN type takes neither rule. `$MyWidget` is a class the application registers, so there
+ * is no namespace to default and no C prefix to look up: its GType name is what the source
+ * spells with the sigil removed, and a dotted `$Ns.Inner` CONCATENATES to `NsInner` — measured
+ * on the oracle, and the one place in this module where concatenation is the answer rather than
+ * the fallback that was wrong for `Gio`.
+ *
+ * @param {{ namespace?: string, name: string, extern?: true }} type
  * @param {string} where  `line N`, for an error message that can be acted on
  * @returns {string}
  */
 export function gtypeName(type, where) {
+    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
     const namespace = type.namespace ?? 'Gtk';
     const prefix = C_PREFIXES.get(namespace);
     if (prefix === undefined) {

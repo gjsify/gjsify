@@ -50,10 +50,13 @@ import { numberLiteral } from './number-literal.mjs';
  * @param {ProjectOptions | undefined} options
  * @returns {(type: TypeRef) => string}
  */
-const tagReader = (options) => (type) =>
-    options?.gtypeName === undefined
-        ? `${type.namespace ?? 'Gtk'}${type.name}`
-        : options.gtypeName(type, `line ${type.line}`);
+const tagReader = (options) => (type) => {
+    if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`);
+    // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
+    // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
+    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
+    return `${type.namespace ?? 'Gtk'}${type.name}`;
+};
 
 /** `Adw.Breakpoint` is dropped whole rather than projected — it is not a widget. */
 const isBreakpoint = (node) =>
@@ -186,6 +189,12 @@ const lossesOf = (file) => {
 
     /** @param {ObjectNode} object */
     const walkObject = (object) => {
+        // An extern type is the one loss where the text SURVIVES and the meaning does not.
+        // `SharedNode.tag` is a GIR class name — that is what a renderer looks up — and
+        // `MyWidget` is a class the application registers at runtime, in no GIR at all. So
+        // the tag is spelled right and is not resolvable, and a consumer told nothing would
+        // discover that as a missing widget rather than as a declared limit.
+        if (object.type.extern === true) lost.push({ kind: 'extern', line: object.line });
         if (object.id !== undefined) lost.push({ kind: 'object-id', line: object.line });
         walkBody(object.body);
     };
@@ -207,6 +216,9 @@ const lossesOf = (file) => {
         keptWidget = true;
         if (root.kind === 'template') {
             lost.push({ kind: 'template', line: root.line });
+            // The template's own class is the `template` loss above; an extern PARENT is a
+            // second one, because the parent is what becomes the root tag.
+            if (root.parent.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
             walkBody(root.body);
         } else walkObject(root);
     }

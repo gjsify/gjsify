@@ -54,7 +54,7 @@ function resolveTemplatesRoot(): string | undefined {
 }
 
 const FALLBACK_DESCRIPTIONS: Record<string, string> = {
-    'gtk-minimal': 'Minimal GTK4 app — Gtk.Window + Gtk.Label (no Adwaita, no Blueprint).',
+    'gtk-minimal': 'Minimal GTK4 app — Gtk.ApplicationWindow + Gtk.Label, no Adwaita (Blueprint UI).',
     cli: 'Command-line tool using yargs (Node.js + GJS).',
     'adw-canvas2d': 'Adwaita app with HTML Canvas 2D rendering (Blueprint UI).',
     'adw-webgl': 'Adwaita app with WebGL + three.js (Blueprint UI).',

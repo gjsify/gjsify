@@ -42,13 +42,13 @@
         "framework"
     ],
     "dependencies": {
-        "@girs/adw-1": "5.1.0",
-        "@girs/gdk-4.0": "5.1.0",
-        "@girs/gio-2.0": "5.1.0",
-        "@girs/gjs": "5.1.0",
-        "@girs/glib-2.0": "5.1.0",
-        "@girs/gobject-2.0": "5.1.0",
-        "@girs/gtk-4.0": "5.1.0",
+        "@girs/adw-1": "5.2.0",
+        "@girs/gdk-4.0": "5.2.0",
+        "@girs/gio-2.0": "5.2.0",
+        "@girs/gjs": "5.2.0",
+        "@girs/glib-2.0": "5.2.0",
+        "@girs/gobject-2.0": "5.2.0",
+        "@girs/gtk-4.0": "5.2.0",
         "@gjsify/devtools": "workspace:^"
     },
     "devDependencies": {
@@ -66,6 +66,15 @@
             "nativescript": "none"
         },
         "tier": 2,
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "darwin": "`locale.ts` reads `process.platform` to decide whether `initLocale` binds a text domain at all, so this package owes an OS claim (ADR 0018). The DECISION is complete and asserted from any host: the platform is an argument to `systemLocaleDir(platform)`, and `locale-dir.spec.ts` drives darwin, win32, linux, an unmeasured platform and an absent `process.platform` through it from Linux. What no runner observes is the SELECTION — `locale.ts` reading the real `process.platform` on a real Mac and skipping `bindtextdomain`. NO LEG OF THIS PACKAGE'S SUITE HAS EVER RUN ON DARWIN: `gtk-os-suites.yml` runs `@gjsify/gtk-host` (gating) and `@gjsify/react-native` (probe) on the darwin legs and nothing else, and `macos-suites.yml` is a Node-pillar workflow that states outright that `gtk4` is not installed. This is exactly the position `@gjsify/path` records for win32 — semantics exercised from every host, selection observable nowhere — and it takes the same word. Promote from the first run of this package's own suite on a darwin leg.",
+            "win32": "As darwin for why a claim is owed and why it is not `supported`: `locale-dir.spec.ts` asserts the win32 answer from Linux, and nothing runs this package's suite on a Windows host — `gtk-os-suites.yml`'s win32 leg carries `@gjsify/gtk-host` and `@gjsify/react-native` as probes and nothing else. One thing is BETTER here than on darwin and is worth recording so the promotion is not blocked on the wrong obstacle: there is no GJS host on Windows at all (ADR 0024 § 4), so the route is Node, where `process.platform` comes from the host itself and is authoritative — the unexercised `uname` probe that keeps `@gjsify/process` at win32 `partial` is not on this path. What is unexercised is this package, not the platform read underneath it. Promote from the first run of this package's own suite on a win32 leg."
+        },
         "storybook": {
             "applicationId": "org.gjsify.AdwaitaAppStorybook",
             "title": "Adwaita App",

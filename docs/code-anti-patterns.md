@@ -400,3 +400,90 @@ refusal follows `Gio.ActionMap`, which `Gtk.ApplicationWindow` implements and
 overlap. `as unknown as` would silence it; naming the type that actually declares
 the method — `Gtk.Window`, which owns `present()` — needs no escape hatch at all
 and says something truer about the call.
+
+## A Linux system path as the default on every platform
+
+**Rule: a default that names `/usr/share`, `/usr/local/share`, `/usr/lib` or `/etc` is a
+LINUX default. Before it can be the fallback for code that also runs on macOS and Windows,
+say what those two get — and "nothing" is usually the right answer, because an artifact that
+carries its own data has no business reading a system tree it was built to not need.**
+
+Measured twice, years apart, in code that was green the whole time.
+
+**The `.app` launcher.** `gjsify ship` wrote
+`XDG_DATA_DIRS="$contents/Resources/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"` into
+every generated macOS bundle — the XDG base-directory spec's default, copied from the prefix
+launcher where it is correct and load-bearing. On a Mac `/usr/local/share` is Intel Homebrew's
+prefix and does not exist on Apple Silicon at all, and `/usr/share` is Apple's, carrying no
+`glib-2.0/schemas` and no `icons/hicolor`. So the pair named either nothing or a package manager
+the user never opted into. The `.cmd` sibling appended nothing, so the two forms had disagreed
+since they were written and neither said which was meant.
+
+**`resolveLocaleDir`.** Its last step returned `/usr/share/locale` on every platform, and this
+is the shape that costs the most: on macOS that directory EXISTS. It holds Apple's locale data
+and never an application's catalogues, so `bindtextdomain` succeeded, nothing threw, every
+lookup returned its msgid, and `Translator.localeDir` reported a plausible path. An app that is
+merely untranslated is indistinguishable from an app that has no translation — no test, no
+type and no Linux CI run can tell them apart. A Windows `/usr/share/locale` was only useless;
+the macOS one was a lie that resolved.
+
+Both now answer darwin and win32 with no directory: the launcher prepends the bundle's own share
+tree and appends an inherited `XDG_DATA_DIRS` only when one is set (`${VAR:+:$VAR}`, the
+semantics the `.cmd` form already had), and `systemLocaleDir` returns `undefined` there, so
+`initLocale` leaves the domain unbound rather than binding somewhere arbitrary. Linux is
+untouched, and so is every platform nobody measured — `freebsd`, `sunos`, and the `undefined`
+a `--globals none` GJS bundle has instead of a `process.platform`. `resolveFontDir` had reached
+the same answer for fonts first, for a different reason, and is the precedent.
+
+`scripts/check-foreign-platform-paths.mjs` holds the class in three scopes: whole-file for the
+modules that only build a `.app`, `.dmg`, `.ico` or `.msi`; all of `launcher.ts` EXCEPT
+`renderPrefixLauncher`, the one renderer whose Linux default is correct; and, for
+`packages/framework/*/src`, a Linux path literal only where a `darwin`/`win32` decision sits in
+code within 15 lines of it. Comments are exempt — this tree explains a rule by quoting the path
+it forbids — and template literals are tracked across lines, because `launcher.ts` emits a shell
+script and a shell script in TypeScript wants to be one.
+
+Two things about that gate are worth copying rather than just reading. It scans the launcher by
+EXCLUSION, one named renderer cut out, after scanning the two foreign renderers by name left
+every shared helper in the file outside all three scopes — an opt-in list covers what somebody
+remembered, an opt-out one covers what they wrote. And what it cannot see is enumerated in its
+header AND exercised in `tests/e2e/foreign-platform-paths-gate`, where the blind spots are
+asserted as passes: a documented limitation nobody runs is a limitation that quietly becomes a
+bug. Both cases in that suite marked as regressions were green against the first cut.
+
+## Validating against a weaker command than the gate runs
+
+**Rule: read the command out of the workflow and run THAT. Not the one you believe is
+equivalent — "equivalent" is exactly the claim that fails, and it fails in three distinct
+ways: a different tool, the same tool at a different version, and the same tool with weaker
+flags.**
+
+All three were measured on one PR, in one day.
+
+**A different tool.** Formatting was validated with `biome` while the gate runs `oxfmt`. Two
+formatters agreeing on most files says nothing about the file they disagree on, which is the
+only one that matters.
+
+**The same tool, a different version.** The retry after that used `npx oxfmt` — which fetched
+0.68.0, while the lockfile pins 0.61.0. Right tool, right flags, wrong bytes: a formatter's
+output is its version's output, so this passes locally and fails in CI with a diff nobody can
+reproduce without noticing the version.
+
+**The same tool, weaker flags.** An os-axis claim was checked with
+`scripts/audit-runtimes.mjs --check`, while both `audit-runtimes.yml` jobs run
+`--check --strict`. A rule that `--check` tolerates and `--strict` refuses produces precisely
+the green-here-red-there shape, and the gap is invisible unless you read the workflow. (In that
+instance the strict run also passed and the red was something else entirely — but the reasoning
+that reached it was built on the weaker command and could not have known.)
+
+The habit, not just the rule: when you cite a command as evidence, cite the one CI executes.
+This entry exists because its author wrote "`--check` accepts the declaration" in a PR body,
+then went back and ran `--check --strict` and corrected the line.
+
+**And a red required check is not proof you broke something.** Today's red on this same PR was
+neither a tool nor a flag: `gitlab.gnome.org` answered 503, so `git submodule update --init
+--depth 1 refs/libadwaita` exhausted its three retries. The job name said `Detect
+runtime-triplet drift`, which sounds like a manifest problem and is not one. So: read the
+failing STEP rather than the job name, then check whether `main` is red on the same step, then
+ask whether the cause is inside this repository at all. Here `main` was red on the identical
+step in two jobs, which answers all three questions at once.
