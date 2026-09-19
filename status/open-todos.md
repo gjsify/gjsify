@@ -6232,8 +6232,8 @@ calls `installBundledIconTheme()`.
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-16 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 47 corpus files
-(35 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 15
+2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 53 corpus files
+(41 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 21
 refusals each name their construct and line. Clause 5's condition is met; after it come the
 flip and the deletions.
 
