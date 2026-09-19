@@ -5,8 +5,10 @@
 //
 // WHY A SECOND MECHANISM IS NEEDED. The verdict step governs a run that is still EXECUTING: it
 // re-reads the description before concluding. A run that has already concluded cannot re-read
-// anything, and the rollup keeps the LATEST check run per context — so a stale conclusion that
-// happens to be the newest entry owns that context until something moves it.
+// anything, and `statusCheckRollup.state` takes the WORST entry per context — measured on
+// acca841ff1…0830, whose newest `Lint commit messages` entry is SUCCESS, whose other contexts
+// are all success or skipped, and which rolls up FAILURE. So a stale conclusion is the commit's
+// colour until something moves it.
 //
 // THAT IS WHERE #1704 SITS, and the part worth keeping is what did NOT fix it. Its
 // `Lint commit messages` entries are SUCCESS at 06:49 and then FAILURE at 07:13, 07:14 and

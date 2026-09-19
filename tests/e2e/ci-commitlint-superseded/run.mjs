@@ -2,14 +2,13 @@
 // `scripts/decide-commitlint-verdict.mjs` (a run whose description moved under it ends green)
 // and `scripts/rerun-superseded-commitlint.mjs` (a run that already concluded gets restarted).
 //
-// THE MECHANISM IS UNDER FIXTURES BECAUSE THE OBVIOUS READING OF IT IS WRONG. The rollup keeps
-// the LATEST check run per context, not the worst: acca841ff1 carries `Lint commit messages` =
-// FAILURE, FAILURE, SUCCESS, SUCCESS with no other context non-success and rolls up SUCCESS,
-// and #1667 MERGED on c0629ff7 over an older failure of that same required context. So the
-// defect is not a red that lingers — it is that WHICH run reports last is decided by the runner
-// queue. On fc14d85a99 three runs were created 06:02:32 / :38 / :46 and their check runs
-// STARTED 06:05:19, 06:06:54, 06:06:56: the run created second started last, so a superseded
-// body state owns the context.
+// THE MECHANISM, measured twice because the first reading was wrong. `statusCheckRollup.state`
+// takes the WORST entry per context, not the latest: acca841ff1…0830 carries
+// `Lint commit messages` = FAILURE, FAILURE, SUCCESS, SUCCESS with no other context
+// non-success, and rolls up FAILURE. So one run that judged a description nobody can read any
+// more is the commit's colour for good. Whether the `main` ruleset weighs required contexts the
+// same way is NOT established — every merge here is by an owner the ruleset lets bypass — and
+// the fix deliberately does not rest on it.
 //
 // #1704 IS THE WORKED CASE, and the part that matters most is what did NOT fix it. Its entries
 // are SUCCESS at 06:49 and then FAILURE at 07:13, 07:14 and 07:22 — three hand re-runs, each

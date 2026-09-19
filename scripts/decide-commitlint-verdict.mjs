@@ -3,27 +3,34 @@
 // step of `.github/workflows/commitlint.yml`, and the reason an edited-away body state no
 // longer owns the commit's required context.
 //
-// THE MECHANISM, measured 2026-09-19 and not what it first looked like. `commitlint.yml`
-// triggers on `edited`, so every edit of a PR description starts another run ON THE SAME
-// COMMIT, each carrying the description as its own event delivered it. The rollup then keeps
-// the LATEST check run per context — not the worst:
+// `commitlint.yml` triggers on `edited`, so every edit of a PR description starts another run
+// ON THE SAME COMMIT, each carrying the description as its own event delivered it.
 //
-//   acca841ff1  Lint commit messages = FAILURE, FAILURE, SUCCESS, SUCCESS; no other context
-//               non-success; rollup SUCCESS. Two older failures of a REQUIRED context do not
-//               poison it.
-//   c0629ff7    FAILURE then SUCCESS, and #1667 MERGED on it. Latest-wins governs merging,
-//               not only the display.
+// THE MECHANISM, measured 2026-09-19 — and re-measured, because the first reading of it was
+// wrong and had already reached five files. `statusCheckRollup.state` takes the WORST entry per
+// context, not the latest:
 //
-// So the defect is not that a stale red lingers, it is that WHICH run reports last is decided
-// by when a runner picked the job up, and that has nothing to do with which edit is current:
+//   acca841ff1…0830  `Lint commit messages` = FAILURE, FAILURE, SUCCESS, SUCCESS; NO other
+//                    context non-success; rollup FAILURE. The newest entry is green and the
+//                    commit is red.
+//   c0629ff751…b5b1  FAILURE then SUCCESS; rollup FAILURE.
 //
-//   fc14d85a99  three runs created 06:02:32 / :38 / :46; their check runs STARTED 06:05:19,
-//               06:06:54, 06:06:56. The run created SECOND started LAST, so a superseded body
-//               state is the newest entry and the commit is red.
-//   4db0edf92e  (#1704) SUCCESS at 06:49, then three FAILURE at 07:13, 07:14 and 07:22 — the
-//               hand re-runs, which replay the same superseded payload and therefore fail
-//               again. That PR is BLOCKED as this is written. Re-running by hand does not
-//               repair this; it reproduces it.
+// So a superseded run's conclusion is the commit's colour for as long as the commit lives, and
+// that field is what `gh pr checks`, the PR page and anything asking "is this red?" reports.
+//
+// WHAT IS DELIBERATELY NOT CLAIMED: whether the `main` ruleset's required-context evaluation is
+// worst-wins too. #1667 merged on c0629ff7 while that commit's rollup was FAILURE, but the
+// ruleset carries `bypass_actors` — `OrganizationAdmin` and RepositoryRole 5, both
+// `bypass_mode: always` — and every merge in this repository is by the owner, so that merge
+// cannot tell a satisfied rule from a bypassed one. Cite it as neither.
+//
+// Which is why the fix does not rest on it. A verdict that is a function of the CURRENT text is
+// right under either rule: there is no stale non-success left to be weighed, whichever way the
+// weighing goes.
+//
+// AND THE OBVIOUS REPAIR MAKES IT WORSE. 4db0edf92e (#1704) carried SUCCESS at 06:49 and then
+// FAILURE at 07:13, 07:14 and 07:22: three hand re-runs, each replaying the same superseded
+// payload under the old workflow and therefore failing again.
 //
 // SO THE VERDICT IS A FUNCTION OF THE CURRENT TEXT, NOT OF THE PAYLOAD THIS RUN WOKE UP WITH.
 // Every check step runs under `continue-on-error` and this step decides the job. It re-reads

@@ -20,25 +20,27 @@ on:
   push:
     branches: [main]
 
-# DELIBERATELY NO `concurrency:` BLOCK, and the reason is not the one it looks like.
+# DELIBERATELY NO `concurrency:` BLOCK.
 #
-# The rollup keeps the LATEST check run per context, not the worst — measured on acca841ff1
-# (`Lint commit messages` = FAILURE, FAILURE, SUCCESS, SUCCESS, no other context non-success,
-# rollup SUCCESS) and on c0629ff7, where #1667 MERGED over an older failure of that same
-# required context. So a stale red does not linger by itself. What bites is that WHICH run
-# reports last is decided by when a runner picked the job up: on fc14d85a99 three runs were
-# created 06:02:32 / :38 / :46 and their check runs STARTED 06:05:19, 06:06:54, 06:06:56 — the
-# run created SECOND started LAST, so a superseded body state owns the context.
+# `statusCheckRollup.state` takes the WORST entry per context, not the latest — measured on
+# acca841ff1…0830, whose `Lint commit messages` entries are FAILURE, FAILURE, SUCCESS, SUCCESS,
+# whose every other context is success or skipped, and which rolls up FAILURE. So one run that
+# judged a description nobody can read any more is the commit's colour for good.
 #
-# A group would narrow that window and would not close it. It leaves a CANCELLED conclusion,
-# which is not a pass (b0ee2c0068 carries one as the newest `Lint commit messages` entry), it
-# keeps the verdict a function of run ORDER rather than of the description, and it has no view
-# at all of the case #1704 is in RIGHT NOW: its three newest entries are hand re-runs from
-# 07:13, 07:14 and 07:22 that replayed the same superseded payload and failed again. Nothing
-# about cancelling reaches a run that has already concluded.
+# NOT CLAIMED, because it is not established: whether the `main` ruleset's required-context
+# evaluation weighs the same way. #1667 merged on c0629ff7 while that commit's rollup was
+# FAILURE, but this ruleset carries `bypass_actors` (`OrganizationAdmin` and RepositoryRole 5,
+# both `bypass_mode: always`) and every merge here is by the owner, so that merge distinguishes
+# nothing. `status/open-todos.md` carries the open question.
+#
+# A group does not help either way. It leaves a CANCELLED conclusion, which is not a pass
+# (b0ee2c0068 carries one as the newest `Lint commit messages` entry), and it has no view at all
+# of a run that has already concluded — which is where #1704 ended up, its three newest entries
+# being hand re-runs from 07:13, 07:14 and 07:22 that replayed the same superseded payload and
+# failed again.
 #
 # What does close it is the last step of the job below: every run judges the description AS IT
-# IS NOW, so it no longer matters which one reports last.
+# IS NOW, so no stale conclusion is left for any rule to weigh.
 
 jobs:
   commitlint:

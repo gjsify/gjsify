@@ -4,41 +4,48 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### A superseded description state can own a required context, and it cost two diagnoses
+### A superseded description state is the commit's colour, and one open question under it
 
 `commitlint.yml` triggers on `edited` so that the PR title and body are checked at all, and the
 price is that every edit of a description starts another run ON THE SAME COMMIT, each judging the
-description its own event delivered. The rollup keeps the LATEST check run per context — measured
-on acca841ff1, where `Lint commit messages` is FAILURE, FAILURE, SUCCESS, SUCCESS with no other
-context non-success and the rollup is SUCCESS, and on c0629ff7, where #1667 MERGED over an older
-failure of that same required context. So a stale red does not linger by itself.
+description its own event delivered. `statusCheckRollup.state` then takes the WORST entry per
+context, not the latest — measured on acca841ff1…0830, whose `Lint commit messages` entries are
+FAILURE, FAILURE, SUCCESS, SUCCESS, whose every other context is success or skipped, and which
+rolls up FAILURE. One run that judged a description nobody can read any more is what the PR page,
+`gh pr checks` and every agent asking "is this red?" report, for as long as the commit lives.
 
-What bites is that WHICH run reports last is decided by when a runner picked the job up, not by
-which edit is current. On fc14d85a99 three runs were created 06:02:32 / :38 / :46 and their check
-runs started 06:05:19, 06:06:54, 06:06:56 — the run created second started last, so a superseded
-body state owns the context and the commit is red.
+On 2026-09-19 that cost two diagnoses inside an hour (#1703, #1704), and the obvious repair made
+it worse: #1704's three newest entries were hand re-runs replaying the same superseded payload
+and failing again. Closed at the source — a run whose description moved under it ends GREEN
+naming the run that will decide (`scripts/decide-commitlint-verdict.mjs`, which refuses to void
+without such a run), and a run that had already concluded is restarted so that rule reaches it
+(`scripts/rerun-superseded-commitlint.mjs`). Cancelling was measured and rejected: it leaves a
+CANCELLED conclusion, which is not a pass, and cannot reach a concluded run at all.
 
-On 2026-09-19 that cost two diagnoses inside an hour. #1703 nearly had an agent dispatched to
-debug a failure that no longer existed. #1704 is still BLOCKED as this is written, and the way it
-got there is the part worth keeping: its three newest entries are HAND RE-RUNS from 07:13, 07:14
-and 07:22, each replaying the same superseded payload and failing again. The obvious repair
-reproduced the defect. Nothing in a rollup distinguishes a superseded red from a live one, so the
-cost is paid in diagnosis by whoever reads it, every time.
+**OPEN, and it is a measurement nobody here has taken: does the `main` RULESET weigh required
+contexts the same way the rollup field does?** The two are different machinery. #1667 merged on
+c0629ff7 while that commit's rollup was FAILURE, which looks like the ruleset taking the latest
+run per context — but the ruleset carries `bypass_actors` (`OrganizationAdmin` and RepositoryRole
+5, both `bypass_mode: always`) and every merge in this repository is by the owner, so that merge
+cannot tell a satisfied rule from a bypassed one. The rule-suite API records
+`required_status_checks` per push and would settle it, but it retains about a day, so #1667 has
+aged out. The cheap way to close this: on any PR targeting `main` whose other two required
+contexts are green, produce an older commitlint FAILURE followed by a newer SUCCESS and read
+`mergeStateStatus`. BLOCKED means worst-wins there too; anything else means a PR can be mergeable
+while reading red, which is its own trap and worth writing down.
 
-Now closed at the source: a run whose description moved under it ends GREEN naming the run that
-will decide (`scripts/decide-commitlint-verdict.mjs`), and a run that had already concluded is
-restarted so that rule applies to it (`scripts/rerun-superseded-commitlint.mjs`). Cancelling was
-measured and rejected — it leaves a CANCELLED conclusion (b0ee2c0068 carries one as the newest
-entry for that context), it keeps the verdict a function of report order rather than of the
-description, and it cannot reach a run that has already concluded.
+Nothing in the fix depends on the answer — a verdict that is a function of the current text
+leaves no stale conclusion for either rule to weigh — but two things downstream do: how loudly a
+superseded red should be treated, and whether `clear-superseded` is a merge-unblocker or only a
+legibility repair.
 
-WHAT IS STILL OPEN is the shape rather than this instance. `commitlint.yml` is the only workflow
+ALSO STILL OPEN is the shape rather than this instance. `commitlint.yml` is the only workflow
 whose verdict depends on something OTHER than the commit, so it is the only one where a
 conclusion can be stale while the commit is not. Any future check that reads the PR description,
-a label or a review inherits the same defect, and nothing enumerates that class — the rule lives
-in one workflow's comments, not in a gate. Adjacent and untested: the void needs a later run to
-exist, which an edit authored with `GITHUB_TOKEN` would not produce; no workflow here holds
-`pull-requests: write` today, so the refusal path is reasoned and fixtured but has never fired.
+a label or a review inherits the same defect, and nothing enumerates that class. Adjacent and
+untested: the void needs a later run to exist, which an edit authored with `GITHUB_TOKEN` would
+not produce; no workflow here holds `pull-requests: write` today, so the refusal path is reasoned
+and fixtured but has never fired.
 
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 
