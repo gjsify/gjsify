@@ -15,11 +15,22 @@
 // suite CAN need setup the shared batch does not do. The missing half was a record of
 // which omissions were meant, which `e2e-unlisted-suites.mjs` now carries.
 //
-// WHAT IT CHECKS, three directions
+// THE SAME INCIDENT ONE LEVEL DOWN
+//
+// The directions below took the SUITE as the unit: a directory with a `run.mjs`. Measured
+// 2026-09-19, that let the same gap reopen inside a directory this file called covered.
+// `tests/e2e/cli-only/` is listed, and `check-deps.mjs` and `showcase.mjs` sit beside its
+// `run.mjs`, define tests with `node:test`, are named by no script and imported by no suite.
+// Both ran nowhere and had for as long as they existed — `check-deps.mjs` is the only thing
+// asserting what `gjsify system-check` prints, cited as the guard in ADR 0012 and (before it
+// was noticed) in ADR 0063. A unit that is a directory cannot see a file.
+//
+// WHAT IT CHECKS, four directions
 //
 //   1. a suite on disk that is neither listed nor ledgered      → FAIL (the silent gap)
 //   2. a ledger entry that IS listed                            → FAIL (self-retiring)
 //   3. a ledger entry whose directory no longer exists          → FAIL (stale deferral)
+//   4. a test FILE in a suite dir that nothing runs             → FAIL (the gap, one level down)
 //
 // (2) and (3) keep the ledger from becoming where omissions go to die — an entry cannot
 // outlive its cause, as with the retired `PREBUILD_GIR_GAPS` and `unchecked-fields.mjs` — and every
@@ -104,6 +115,38 @@ for (const [name, reason] of Object.entries(E2E_UNLISTED_SUITES)) {
     }
 }
 
+// 4. A test FILE beside a suite's `run.mjs` that no script names and no suite imports.
+//
+// `node:test` is what makes a file a test rather than a fixture or a helper: a helper does not
+// import it, and a test file cannot avoid it. The reachability test is the suite's own static
+// imports, because that is the only way a sibling gets run without being named by a script.
+const importsOf = (src) => {
+    const specs = new Set();
+    for (const m of src.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)) specs.add(m[1]);
+    for (const m of src.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) specs.add(m[1]);
+    return specs;
+};
+
+let suiteFiles = 0;
+for (const name of onDisk) {
+    const dir = join(e2eDir, name);
+    const pulled = importsOf(readFileSync(join(dir, 'run.mjs'), 'utf8'));
+    for (const file of readdirSync(dir)) {
+        if (!file.endsWith('.mjs') || file === 'run.mjs') continue;
+        const source = readFileSync(join(dir, file), 'utf8');
+        if (!/\bfrom\s*['"]node:test['"]/.test(source)) continue;
+        suiteFiles++;
+        const rel = `tests/e2e/${name}/${file}`;
+        if (listed.has(rel) || pulled.has(`./${file}`)) continue;
+        problems.push(
+            `${rel} defines tests with \`node:test\` and runs NOWHERE — package.json#scripts.test:e2e ` +
+                `does not name it and tests/e2e/${name}/run.mjs does not import it. Add it to the ` +
+                'script beside its suite, or import it from that run.mjs. The ledger is for ' +
+                'DIRECTORIES and does not cover a file.',
+        );
+    }
+}
+
 if (problems.length > 0) {
     fail([`${problems.length} problem(s):`, ...problems]);
 }
@@ -115,6 +158,7 @@ const deferred = Object.entries(E2E_UNLISTED_SUITES);
 const running = onDisk.filter((name) => listed.has(`tests/e2e/${name}/run.mjs`)).length;
 console.log(
     `check-e2e-suite-coverage: ${running}/${onDisk.length} e2e suite(s) run, ` +
+        `${suiteFiles} extra test file(s) beside a run.mjs all reachable, ` +
         `${deferred.length} deliberately unlisted, 0 unaccounted for.`,
 );
 for (const [name, reason] of deferred) {

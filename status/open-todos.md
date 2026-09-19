@@ -6506,6 +6506,17 @@ deleted. The compiler itself stays, as the oracle stage B
 runs: deleting the binary from the image would delete the only independent reading the goldens
 have.
 
+**Three of the four are done (ADR 0063).** `resolve-compiler.ts` and its spec are gone with the
+published `./resolve` subpath they backed; the CLI consumer was re-pointed by deletion rather
+than redirection, because a `system-check` row for a binary no build can spend is a check that
+fails for the wrong reason; and `check-doc-fences.mjs` is two-stage, where stage PARSE caught a
+doc sample the oracle compiles and the build now refuses. **What is left is the CONVERSION half,
+and it is not a toolchain question any more.** `loading-stack.ts` keeps its `oxlint-disable`
+until the widget is declared in a `.blp` — a change to the widget, owned by ADR 0062's frontier,
+with a runtime to prove rather than a line to drop. `@gjsify/storybook`'s programmatic window is
+the same shape and clause 7 already calls it a scoping decision rather than a deletion. A
+deletion list is a completion test: these two are the unchecked boxes.
+
 One thing the corpus settled that the ADR's mapping table did not have: more construct classes
 fall outside `SharedNode` than the census of the twelve real files found, and the translatable
 marker is the one that costs — a caption parsed into a plain string loses exactly the attribute

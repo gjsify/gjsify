@@ -101,6 +101,13 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(parsed.length > 0, 'JSON array should not be empty');
     });
 
+    // `bundlePath` was asserted here and `gjsify showcase --json` does not emit it — the field
+    // is in no line of packages/infra/cli/src, and the command answers `name`, `packageName`,
+    // `category`, `description`. It went with the showcase-decoupling refactor (Phase D) that
+    // the sibling run.mjs records, and nothing failed, because THIS FILE RAN NOWHERE: it sat
+    // beside a listed `run.mjs`, named by no script and imported by no suite, until ADR 0063's
+    // work listed it. A test nobody runs drifts from the code it tests and reports nothing, and
+    // this line is what that costs.
     it('--json entries have required fields', () => {
         const { stdout } = runShowcase(projectDir, ['--json']);
         const parsed = JSON.parse(stdout);
@@ -108,11 +115,24 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
             assert.ok('name' in entry, `Missing "name": ${JSON.stringify(entry)}`);
             assert.ok('packageName' in entry, `Missing "packageName": ${JSON.stringify(entry)}`);
             assert.ok('category' in entry, `Missing "category": ${JSON.stringify(entry)}`);
-            assert.ok('bundlePath' in entry, `Missing "bundlePath": ${JSON.stringify(entry)}`);
+            assert.ok('description' in entry, `Missing "description": ${JSON.stringify(entry)}`);
             assert.equal(typeof entry.name, 'string');
             assert.equal(typeof entry.packageName, 'string');
-            assert.equal(entry.category, 'dom', `Expected category "dom", got: ${entry.category}`);
+            assert.match(
+                entry.category,
+                /^[a-z][a-z0-9-]*$/,
+                `category should be a lowercase slug, got: ${JSON.stringify(entry.category)}`,
+            );
         }
+        // NOT `every category is "dom"`, which is what stood here: measured, the command reports
+        // `{ dom: 7, gtk: 1, node: 1 }`, so that claim was false about correct code and had been
+        // since the first non-dom showcase shipped. It is the second stale assertion in this one
+        // test — see the note above. A list of the categories that exist today would drift the same
+        // way, so what is held is the SHAPE plus one anchor that proves the reader read something.
+        assert.ok(
+            parsed.some((entry) => entry.category === 'dom'),
+            `expected at least one dom showcase among ${parsed.length} entries`,
+        );
     });
 
     it('--json contains known showcases', () => {

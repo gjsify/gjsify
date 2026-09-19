@@ -760,7 +760,7 @@ export interface ConfigDataFlatpak extends AppMetadata {
     command?: string;
     /** Finish-args (capabilities). Default depends on `runtime` + `--cli-only`. */
     finishArgs?: string[];
-    /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
+    /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. a GI library the runtime lacks). */
     extraModules?: unknown[];
     /**
      * Full replacement for the manifest's `modules` array: used verbatim, with

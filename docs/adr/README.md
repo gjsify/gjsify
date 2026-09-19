@@ -83,6 +83,7 @@ the TODO records the *what's left*.
 | [0060](0060-what-the-cli-borrows-from-yarn.md) | What `gjsify install` borrows from Yarn 4 next, and what it refuses — P2 shipped in #1686 before it merged (amended) | Proposed |
 | [0061](0061-pinned-upstream-on-the-failure-path.md) | A pinned `refs/` submodule is a cache key, and upstream is the failure path | Accepted |
 | [0062](0062-the-blueprint-conversion-frontier-is-composition.md) | The Blueprint conversion frontier is composition, not `.ui` files | Proposed |
+| [0063](0063-the-blueprint-toolchain-dependency-is-deleted.md) | The Blueprint toolchain dependency is deleted, and the oracle stays | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

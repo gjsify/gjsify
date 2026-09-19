@@ -28,15 +28,21 @@
 //      `border-top` was dropped too, so a reader who copies it gets neither.
 //
 // None of the four needs a browser, a build or an install to see. Three need
-// nothing but the repo's own tracked files; the fourth needs one binary.
+// nothing but the repo's own tracked files; the fourth is read twice, once by a
+// parser this repository ships and once by the binary that is its oracle.
 //
 // WHAT EACH ARM CHECKS, AND WHAT IT DELIBERATELY DOES NOT
 //
-//   BLUEPRINT   every ```blueprint fence is handed to `blueprint-compiler
-//               compile`. A diagnostic on stderr fails too, not just a non-zero
-//               exit: the whole class here is "compiles, means something else",
-//               and `Unused import: Adw` is how a GTK-only block advertises that
-//               it copied a header it does not need.
+//   BLUEPRINT   TWO STAGES. Stage PARSE hands every ```blueprint fence to
+//               `@gjsify/blueprint`, the in-repo parser the build itself takes
+//               since ADR 0053 clause 5, and needs no binary and no typelib, so
+//               it runs everywhere. Stage ORACLE re-compiles the same fences with
+//               `blueprint-compiler` wherever it is present with GTK's typelibs,
+//               for the ParamSpec validation clause 4 keeps it for. A diagnostic
+//               on stderr fails too, not just a non-zero exit: the whole class
+//               here is "compiles, means something else", and `Unused import: Adw`
+//               is how a GTK-only block advertises that it copied a header it does
+//               not need. The report names which stages ran.
 //
 //   IMPORTS     inside a ```ts fence: every identifier of the icon-export shape
 //               (`somethingSymbolic`) must be imported IN THAT FENCE, and every
@@ -106,6 +112,12 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// The surface ADR 0053 clause 5 made authoritative for the build, reached the way a consumer
+// reaches it. Importing it is what lets the blueprint arm run where no GNOME is installed, and a
+// STATIC import deliberately: an uninstalled tree stops this script at module load rather than
+// letting one arm skip itself, which is the whole failure class this file is written against.
+import * as blueprint from '@gjsify/blueprint';
 
 import {
     chainOf,
@@ -347,15 +359,84 @@ function fenceParseProblem(text, blocks) {
 }
 
 // ---------------------------------------------------------------------------
-// Arm: blueprint
+// Arm: blueprint — TWO STAGES, and the report names which of them ran
 // ---------------------------------------------------------------------------
+//
+// ADR 0053 clause 7 says this skip "does not vanish but becomes TWO-STAGE: the parse arm runs
+// everywhere, the typelib arm wherever clause 4's compiler is present". It is two stages because
+// the two answer different questions and neither contains the other.
+//
+//   PARSE    `@gjsify/blueprint`, the surface the build itself takes since the clause 5 flip.
+//            Needs no GNOME, no binary and no typelib — the emitter's introspection comes from
+//            the `@girs` vocabulary, a pinned npm dependency — so it runs on EVERY host. It
+//            catches a syntax error, and it catches a construct outside the parser's subset,
+//            which is the one that matters most for a doc sample: a fence the parser refuses is
+//            a fence nobody can paste into a build.
+//
+//   ORACLE   `blueprint-compiler`, wherever it is present with GTK's typelibs. Clause 4 keeps
+//            it for what a parser reading into a tree does not do — validating a property name
+//            against the installed ParamSpec, so `Gtk.Box { spacinng: 4; }` is refused — and for
+//            the warnings the parser has no opinion about at all, of which `Unused import: Adw`
+//            is the one this arm was written for.
+//
+// Deleting the skip instead of splitting it would have retired the second question with the
+// first. Keeping it whole would have left every run off the ci-fedora image proving nothing.
 
 /** blueprint-compiler colours unconditionally, and the escapes reach a CI log as mojibake. */
 // oxlint-disable-next-line no-control-regex -- the escape sequence IS what this strips
 const ANSI_SGR = /\u001b\[[0-9;]*m/g;
 
 /**
- * Can the compile arm actually run here?
+ * The five seams `@gjsify/blueprint`'s emitter reaches introspection through, handed over exactly
+ * as `@gjsify/vite-plugin-blueprint` hands them.
+ *
+ * ALL FIVE, and a dropped one does NOT throw: `emitGtkBuilderXml` documents a fallback for each,
+ * so the arm would keep passing while emitting `vertical` where GtkBuilder is given `1`. The
+ * plugin holds that with `Required<EmitOptions>`, a TYPE — which a `.mjs` script has no access
+ * to, so the names are a list here and each is asserted callable before a fence is read. The
+ * WHOLE surface is held one gate over, by `check-blueprint-corpus.mjs`; this holds its own five.
+ */
+const BLUEPRINT_SEAM_NAMES = [
+    'accessibilityElement',
+    'accessibilityValue',
+    'enumOrFlagsTypeOf',
+    'gtypeName',
+    'resolveIdent',
+];
+const BLUEPRINT_SEAMS = Object.freeze(Object.fromEntries(BLUEPRINT_SEAM_NAMES.map((n) => [n, blueprint[n]])));
+{
+    const absent = BLUEPRINT_SEAM_NAMES.filter((n) => typeof blueprint[n] !== 'function');
+    if (absent.length > 0) {
+        fail('scan', `@gjsify/blueprint exports no ${absent.join(', ')} — stage PARSE would narrow silently`);
+    }
+}
+
+/**
+ * Stage PARSE — hand every blueprint fence to the in-repo parser and emitter.
+ *
+ * The fence is handed over under a NAME rather than written to a temp file, and the name is not
+ * the bare page path. `BlueprintSyntaxError` renders `<name>:<line>:<column>` into its message,
+ * where the line is counted inside the fence — so passing `feedback.mdx` produced
+ * `feedback.mdx:10:29` next to this arm's own `feedback.mdx:190`, two different numbers under one
+ * filename and only one of them a place in the file. Naming the fence disambiguates both.
+ */
+function parseBlueprintFences(fenceList, where) {
+    let parsed = 0;
+    for (const fence of fenceList) {
+        if (fence.lang !== 'blueprint') continue;
+        parsed++;
+        const name = `${where} (blueprint fence opened at line ${fence.line}), fence line`;
+        try {
+            blueprint.emitGtkBuilderXml(blueprint.parseBlueprint(`${fence.body}\n`, name), BLUEPRINT_SEAMS);
+        } catch (error) {
+            fail(`${where}:${fence.line}`, `@gjsify/blueprint refused this block — ${error.message}`);
+        }
+    }
+    return parsed;
+}
+
+/**
+ * Can the ORACLE stage actually run here?
  *
  * `--version` answers a DIFFERENT question. Measured on a bare `ubuntu-latest`
  * with the package installed: every one of the 40 fences came back with
@@ -930,11 +1011,12 @@ if (sources.length === 0) {
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'gjsify-doc-fences-'));
-const blueprint = blueprintAvailable(dir);
+const oracle = blueprintAvailable(dir);
 let snippetFences = 0;
 let checkedSnippets = 0;
 let tsFences = 0;
 let blueprintFences = 0;
+let blueprintParsed = 0;
 let styledFences = 0;
 let nsWrites = 0;
 let nsCalls = 0;
@@ -974,7 +1056,9 @@ try {
         checkIconStrings(text, rel, icons, webIcons, exempt);
         checkClasses(text, rel, styled, webIcons, exempt);
         styledFences += checkStyleTokens(text, rel, list);
-        if (blueprint.ok) {
+        // Stage PARSE, unconditionally — it is the half that has no host requirement.
+        blueprintParsed += parseBlueprintFences(list, rel);
+        if (oracle.ok) {
             blueprintFences += checkBlueprint(list, rel, dir);
         } else {
             blueprintFences += list.filter((f) => f.lang === 'blueprint').length;
@@ -1346,6 +1430,21 @@ if (styledFences === 0) {
     fail('scan', 'no className-bearing tsx fence was found — the TOKENS extractor is broken, not the docs');
 }
 if (blueprintFences === 0) fail('scan', 'no `blueprint` fence was found — the extractor is broken');
+// Stage PARSE has no skip path, so a zero here is not a host telling the truth about itself: it
+// is this stage having read nothing while the line above says fences exist.
+//
+// WHAT THIS CANNOT CATCH, stated so nobody reads it as more: both counters are `fence.lang ===
+// 'blueprint'` over the same list, so no .mdx anyone writes can make them differ. It is a CODE
+// drift guard — one stage gaining a filter, an early `continue`, a wrong loop — and it is worth
+// its two lines for that alone, because such a stage would otherwise go quiet rather than red.
+// A check whose trigger nobody can state gets trusted for the wrong reason later.
+if (blueprintParsed !== blueprintFences) {
+    fail(
+        'scan',
+        `stage PARSE saw ${blueprintParsed} blueprint fence(s) and stage ORACLE ${blueprintFences}. ` +
+            'The two stages read the same list, so a difference is one of them skipping silently.',
+    );
+}
 if (nsWrites === 0) {
     fail(
         'scan',
@@ -1361,13 +1460,16 @@ if (nsCalls === 0) {
     );
 }
 
-if (blueprint.ok) {
-    notes.push(`${blueprintFences} blueprint fence(s) compiled with blueprint-compiler`);
+notes.push(`${blueprintParsed} blueprint fence(s) parsed and emitted by @gjsify/blueprint (stage PARSE)`);
+if (oracle.ok) {
+    notes.push(`${blueprintFences} blueprint fence(s) re-compiled by blueprint-compiler (stage ORACLE)`);
 } else {
     notes.push(
-        `SKIPPED: ${blueprintFences} blueprint fence(s) NOT compiled — ${blueprint.why}. ` +
-            "The other three arms ran. main.yml's `tree-checks` job is where this arm is real: " +
-            'the ci-fedora image bakes blueprint-compiler, gtk4-devel and gobject-introspection.',
+        `stage ORACLE SKIPPED: ${blueprintFences} blueprint fence(s) NOT re-compiled — ${oracle.why}. ` +
+            'Stage PARSE ran on all of them and the other three arms ran, so this is the ParamSpec ' +
+            "validation and the compiler's warnings going unread, not the fences going unchecked. " +
+            "main.yml's `tree-checks` job is where this stage is real: the ci-fedora image bakes " +
+            'blueprint-compiler, gtk4-devel and gobject-introspection.',
     );
 }
 notes.push(

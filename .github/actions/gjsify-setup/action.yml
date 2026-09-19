@@ -361,15 +361,98 @@ runs:
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.build-cache-paths.outputs.paths }}
-        # v3: cache now also covers packages/*/*/dist-templates (create-gjsify's
-        # processed templates — a build output the e2e create-app suite needs).
-        # The v2 fedora-only restore-key gives a warm lib/dist baseline during
-        # the transition so the first v3 run isn't a cold full build.
-        key: build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+        # v3 added packages/*/*/dist-templates (create-gjsify's processed templates).
+        #
+        # v4 is an INCOMPATIBLE-PAYLOAD bump, which is what the version segment is for.
+        # ADR 0063 removed the published `./resolve` subpath of
+        # `@gjsify/vite-plugin-blueprint`, and every v3 archive holds a
+        # `packages/infra/cli/lib` built while the CLI still imported it. Restored over a
+        # checkout whose `package.json` no longer exports it, that `lib/` cannot be LOADED
+        # at all: `ERR_PACKAGE_PATH_NOT_EXPORTED` from `check-system-deps.js`, which bricks
+        # the very CLI the bootstrap step uses to rebuild it. Measured on run 35466252963
+        # (`Build Fedora 44`) and 35466252957 (`Build Documentation`), both reached through
+        # the un-hashed third restore-key. The v2/v3 fallbacks are NOT carried over: a warm
+        # baseline that can only come from a poisoned archive is the defect, not a saving.
+        #
+        # The bare fedora-scoped restore-key stays for v4 — it is a real warm-start win.
+        # What makes it safe is the step below, which drops the CLI's `lib/` whenever the
+        # archive came from that key, so a manifest-mismatched payload costs a cold
+        # bootstrap rather than a red run nobody can read.
+        key: build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
         restore-keys: |
-          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
-          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
-          build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
+          build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+          build-v4-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
+
+    # WHICH KEY MATCHED DECIDES WHETHER `cli/lib` CAN BE TRUSTED TO RUN THE BUILD.
+    #
+    # The primary key and the first restore-key both carry the manifest hash over
+    # `packages/*/*/package.json`, so an archive reached through either agrees with this
+    # tree about every `exports` map. The bare fedora-scoped key carries no such hash, and
+    # an archive reached through IT can hold a `packages/infra/cli/lib` built against a
+    # different export surface. That is not a stale-output nuisance: the `.bin` shim
+    # dispatches to that `lib/`, so an import it can no longer resolve bricks the CLI the
+    # bootstrap step uses to rebuild it. ADR 0063 removed `@gjsify/vite-plugin-blueprint`'s
+    # `./resolve`, and `Build Fedora 44` (run 35466252963) and `Build Documentation`
+    # (35466252957) both died on `ERR_PACKAGE_PATH_NOT_EXPORTED` from
+    # `cli/lib/utils/check-system-deps.js` before a single package was built.
+    #
+    # NOT a load probe, which was tried and measured USELESS here: `gjsify --version`
+    # returns 0 on exactly this broken tree because the CLI loads subcommand modules
+    # lazily and never reaches `check-system-deps.js` on that path. A probe that passes on
+    # the failing case is worse than none. The key that matched is the honest signal, and
+    # it is known before anything is executed.
+    #
+    # Dropping only `cli/lib` and not the whole archive is deliberate: every other
+    # package's `lib/` is rebuilt by the build steps and cannot brick the tool doing the
+    # rebuilding. The existing `-f packages/infra/cli/lib/index.js` tests in `main.yml`
+    # and `deploy-docs.yml` then take their cold branch, which is the behaviour they were
+    # written for.
+    - name: Drop a cache-restored CLI lib that no manifest hash vouches for
+      shell: bash
+      env:
+        MATCHED: ${{ steps.build-cache.outputs.cache-matched-key }}
+        PRIMARY: ${{ steps.build-cache.outputs.cache-primary-key }}
+        EXACT: ${{ steps.build-cache.outputs.cache-hit }}
+      run: |
+        # SELF-TEST, because this step's whole behaviour rests on an output name that
+        # cannot be verified anywhere but here: an empty `cache-matched-key` is
+        # indistinguishable from "no cache restored", so a typo would turn this guard into
+        # a silent no-op and the failure it prevents would come back looking new. On an
+        # exact hit the two keys are equal BY DEFINITION, so that case proves the wiring.
+        if [ "$EXACT" = "true" ] && [ "$MATCHED" != "$PRIMARY" ]; then
+          echo "::error::cache-hit=true but cache-matched-key ('$MATCHED') is not cache-primary-key."
+          echo "The restore action's outputs are not what this step reads. Fix the names before trusting it."
+          exit 1
+        fi
+        if [ -z "$MATCHED" ]; then
+          echo "No build-output cache was restored — nothing to drop."
+          exit 0
+        fi
+        # The primary key is <prefix>-<src-hash>; <prefix>- is exactly the manifest-scoped
+        # restore-key, and the src hash carries no dashes, so stripping the last segment
+        # reconstructs it without a second copy of the hashFiles expression.
+        SAFE_PREFIX="${PRIMARY%-*}-"
+        case "$MATCHED" in
+          "$SAFE_PREFIX"*)
+            echo "Build cache matched a manifest-scoped key — cli/lib agrees with this tree's exports."
+            ;;
+          *)
+            echo "::warning::Build cache matched \"$MATCHED\", which carries no manifest hash."
+            echo "Dropping packages/infra/cli/lib so the bootstrap rebuilds it from source."
+            # The tsbuildinfo goes WITH it. `tsc` treats a surviving one as proof the
+            # outputs are current, so deleting the tree alone makes the next build exit 0
+            # having emitted nothing (#67) — the `lib/` would simply stay missing, which is
+            # a worse failure than the one this step exists to prevent.
+            # `find -delete` rather than a shell glob: an unmatched `*.tsbuildinfo` is
+            # passed through literally by bash (and swallowed by `rm -f`) but ABORTS the
+            # whole command under zsh's `nomatch`. Measured both ways — the zsh run left
+            # `lib/` in place while reporting only the glob. This step declares bash, so
+            # that is latent rather than live, and latent is exactly how it gets found the
+            # hard way later.
+            rm -rf packages/infra/cli/lib
+            find packages/infra/cli -maxdepth 1 -name '*.tsbuildinfo' -delete
+            ;;
+        esac
 
     # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED SOURCE.
     # A restore-key fallback can extract an OLD archive whose stale resolve-npm/lib

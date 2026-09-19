@@ -315,7 +315,7 @@ Four of them are useful on their own, with or without the gjsify CLI:
 
 | Plugin | What it does |
 |---|---|
-| `@gjsify/vite-plugin-blueprint` | Compiles `.blp` to an XML string via `blueprint-compiler`, so `import T from './window.blp'` works in Vite dev and in a production build |
+| `@gjsify/vite-plugin-blueprint` | Compiles `.blp` to an XML string with the in-repo `@gjsify/blueprint` parser — no `blueprint-compiler`, nothing spawned — so `import T from './window.blp'` works in Vite dev and in a production build |
 | `@gjsify/vite-plugin-gettext` | Runs the `xgettext` / `msgfmt` / `po2json` pipeline, the same plugin in both environments |
 | [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) | Compiles SolidJS JSX in `universal` generate mode, so the output calls a GTK renderer instead of the DOM |
 | [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) | Compiles Vue 3 single-file components for the `@vue/runtime-core` GTK renderer |

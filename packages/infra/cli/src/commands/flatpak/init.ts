@@ -200,7 +200,10 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         //   `flatpak.extraModules` — prepended to the meson default.
         //                            Right shape for meson-built GTK apps
         //                            that want a few extra sibling modules
-        //                            (e.g. blueprint-compiler).
+        //                            (e.g. a GI library the runtime lacks). NOT
+        //                            blueprint-compiler: ADR 0053 clause 5 parses
+        //                            `.blp` in the bundler, so a manifest that
+        //                            builds it builds a tool nothing runs.
         const modules: unknown[] = [];
         if (flatpak.modules?.length) {
             modules.push(...flatpak.modules);

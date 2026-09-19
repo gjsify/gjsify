@@ -82,33 +82,33 @@ describe('gjsify system-check E2E', { timeout: 10 * 60 * 1000 }, () => {
         }
     });
 
-    // blueprint-compiler was checked TWICE — once here as a required `checkBinary`
-    // PATH probe named "Blueprint Compiler", once as the optional, consumer-scoped
-    // `checkBlueprintCompiler()` that goes through the same resolver the build
-    // uses. Two entries, two severities, two mechanisms, one binary: the required
-    // copy reported a miss on win32 (where MSYS2 keeps the compiler off PATH by
-    // design), exited 1 on any host without it whether or not the project has a
-    // single `.blp`, and put `blueprint-compiler` into the install hint twice.
-    it('reports blueprint-compiler exactly once, and not as required', () => {
+    // blueprint-compiler was checked TWICE — once as a required `checkBinary` PATH
+    // probe named "Blueprint Compiler", once as an optional, consumer-scoped check
+    // going through the same resolver the build used. Two entries, two severities,
+    // two mechanisms, one binary: the required copy reported a miss on win32 (where
+    // MSYS2 keeps the compiler off PATH by design), exited 1 on any host without it
+    // whether or not the project has a single `.blp`, and put `blueprint-compiler`
+    // into the install hint twice. That was narrowed to one optional row, and ADR
+    // 0063 removed the row: ADR 0053 clause 5 moved the `.blp` transform into
+    // `@gjsify/blueprint`, so the binary is an ORACLE the corpus gate uses and
+    // nothing a user of this CLI has to install. Asking for it here would be
+    // `system-check` naming a toolchain no build of theirs can spend.
+    //
+    // The whole of stdout, not just the status lines: the `Missing optional:`
+    // summary and the `To install:` command are the two places a re-added row would
+    // surface from a table rather than from a check.
+    it('never asks for blueprint-compiler, in any section', () => {
         const { stdout } = runCheck(projectDir);
-        // Status lines only — the `Missing optional:` summary and the `To install:`
-        // command legitimately name the same dependency again.
-        const mentions = stdout.split('\n').filter((line) => /^\s*[✓✗⚠]/.test(line) && /blueprint/i.test(line));
+        // A count of zero is the shape that goes green on an empty read, so the read is
+        // established first: these two lines are printed by every run of the command.
+        assert.match(stdout, /Required:/, `system-check printed no report at all:\n${stdout}`);
+        assert.match(stdout, /Optional:/, `system-check printed no optional section:\n${stdout}`);
+
+        const mentions = stdout.split('\n').filter((line) => /blueprint/i.test(line));
         assert.equal(
             mentions.length,
-            1,
-            `Expected exactly one blueprint-compiler status line, got ${mentions.length}:\n${mentions.join('\n')}`,
-        );
-        assert.match(
-            mentions[0],
-            /\.blp templates/,
-            `The surviving line should be the consumer-scoped optional check\nOutput:\n${stdout}`,
-        );
-
-        const requiredSection = stdout.slice(stdout.indexOf('Required:'), stdout.indexOf('Optional:'));
-        assert.ok(
-            !/blueprint/i.test(requiredSection),
-            `blueprint-compiler must not appear under Required:\n${requiredSection}`,
+            0,
+            `system-check must not mention blueprint-compiler at all, got:\n${mentions.join('\n')}`,
         );
     });
 

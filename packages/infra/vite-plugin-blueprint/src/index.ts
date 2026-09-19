@@ -17,15 +17,11 @@ export interface BlueprintPluginOptions {
     verbose?: boolean;
 }
 
-export {
-    BlueprintCompileError,
-    BlueprintCompilerNotFoundError,
-    type BlueprintHost,
-    currentBlueprintHost,
-    formatMissingBlueprintCompiler,
-    type ResolvedBlueprintCompiler,
-    resolveBlueprintCompiler,
-} from './resolve-compiler.js';
+// No error type is re-exported here, and that is the shape rather than an omission. What `load()`
+// throws is `@gjsify/blueprint`'s `BlueprintSyntaxError` / `BlueprintEmitError`, raised by the
+// package that DEFINES them and that every consumer of this plugin already has as a declared
+// dependency — `plugin.spec.ts` catches them from there. A re-export would give the same two
+// classes a second import path whose only job is to stay in step with the first.
 
 /**
  * The five seams `@gjsify/blueprint`'s emitter reaches introspection through, answered by that

@@ -11,7 +11,7 @@
 // Kept deliberately pure — no `gi://` / `@girs/*` imports, no side effects —
 // so it stays loadable on every host and so consumers can import it via the
 // `@gjsify/rolldown-plugin-gjsify/runtime` subpath without pulling the rest of
-// the plugin (which transitively loads blueprint-compiler, deepkit, etc.).
+// the plugin (which transitively loads the Blueprint parser, deepkit, etc.).
 
 /**
  * `true` when running under Bun.

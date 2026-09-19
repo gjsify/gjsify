@@ -11,6 +11,8 @@ This page is for **contributors** working on the GJSify monorepo itself. If you 
 - **Node.js** 24+ (only for `node:` runtime parity testing; not required for install/build/publish)
 - GNOME development libraries: `glib2-devel`, `gobject-introspection-devel`, `gtk4-devel`, `libsoup3-devel`, `vala`, `blueprint-compiler`
 
+> `blueprint-compiler` is here and NOT in [Getting Started](/gjsify/getting-started/) on purpose. Building a `.blp` needs nothing on the machine — the transform is in `@gjsify/blueprint` (ADR 0053 clause 5). Contributors need the binary because it is the **oracle** the corpus is measured against: `node scripts/check-blueprint-corpus.mjs --require-oracle` recompiles every golden with it and refuses to pass without it, and `scripts/check-doc-fences.mjs`'s ORACLE stage uses it for the ParamSpec validation the parser does not do. Without it those runs skip or fail, which is the only thing you lose.
+
 On Fedora:
 
 ```bash

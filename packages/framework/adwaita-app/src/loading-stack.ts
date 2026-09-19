@@ -10,19 +10,24 @@
 // pre-populated — you can still `add_named`/style it like any stack.
 //
 // WHY THIS IS STILL ASSEMBLED IN TYPESCRIPT, against the rule the repo now enforces. It was
-// converted to a `.blp` and reverted, for two reasons that a template cannot work around:
+// converted to a `.blp` and reverted, for two reasons that a template could not work around:
 //
 //   · `blueprint-compiler` is not installed on the macOS or Windows runners, and this package
-//     builds on all three. A `.blp` here makes the compiler a hard build requirement for every
+//     builds on all three. A `.blp` here made the compiler a hard build requirement for every
 //     host, not just the ones that ship an app.
 //   · The repo BOOTSTRAPS from the published CLI (ADR 0002). Library-mode Blueprint arrives in
-//     0.43.0, so during a cold bootstrap the transform does not exist yet and the `.blp` reaches
+//     0.43.0, so during a cold bootstrap the transform did not exist yet and the `.blp` reached
 //     rolldown's JavaScript parser — `using Gtk 4.0;` reads as a `using` declaration with no
 //     initializer. The consumer-gate jobs (better-sqlite3, node-gi) failed exactly there.
 //
-// So the capability is real and its e2e proves it (`tests/e2e/library-blueprint/`); this widget is
-// the wrong FIRST consumer. Revisit once 0.43.0 is published and the runners carry the compiler —
-// the error title below is untranslatable until then, in every consumer application.
+// THE FIRST REASON IS GONE. ADR 0053 clause 5 moved the transform into `@gjsify/blueprint`, which
+// needs no binary on any runner, and ADR 0063 deleted the resolver that went looking for one. The
+// second is gone on its own terms too: 0.43.0 is long published. What is left is not a toolchain
+// question at all — it is the CONVERSION, which is a change to this widget rather than to the
+// build, and ADR 0062 owns that frontier. So the capability is real and its e2e proves it on all
+// three hosts (`tests/e2e/library-blueprint/`), and this comment stops being a toolchain excuse
+// the day the `.blp` lands. The error title below is untranslatable until then, in every consumer
+// application — which is the cost, and it is now the only one.
 
 import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject?version=2.0';
@@ -33,11 +38,11 @@ import Gtk from 'gi://Gtk?version=4.0';
  * switches between: `loading` (a centered `Adw.Spinner`), `content` (a settable
  * child), and `error` (an `Adw.StatusPage`). Starts on `loading`.
  */
-// A `.blp` here needs blueprint-compiler on the macOS + Windows runners and a library-mode
-// transform that only exists from 0.43.0, which the cold bootstrap does not have — see the header.
-// The suppression stays LINE-LEVEL and stays here, next to the measurement: ADR 0053 § 7 names
-// its deletion as one of the signals that the in-repo parser is done, and a package-wide entry in
-// `.oxlintrc.json` would retire that signal for a reason that has nothing to do with the parser.
+// This tree is still assembled rather than declared, and after ADR 0063 the reason is the port and
+// no longer the toolchain — see the header. The suppression stays LINE-LEVEL and stays here, next
+// to the measurement: ADR 0053 § 7 names its deletion as one of the signals that the in-repo
+// parser is done, and a package-wide entry in `.oxlintrc.json` would retire that signal for a
+// reason that has nothing to do with the parser.
 // oxlint-disable-next-line gjsify/prefer-blueprint-template -- measured, see the two lines above
 export class LoadingStack extends Gtk.Stack {
     private readonly _content: Adw.Bin;
