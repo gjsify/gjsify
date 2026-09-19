@@ -101,10 +101,19 @@ export interface BoolValue {
 /**
  * A bare identifier on the right of a property.
  *
- * Three different things wear this shape and the syntax cannot tell them apart: an enum
- * member (`orientation: vertical`), a reference to an object id (`menu-model: mainMenu`) and
- * a flag set (`state-flags: active|focused`). Naming it `ident` rather than guessing is the
- * point — clause 3's "never a silent pass-through" applies to interpretation too.
+ * FOUR different things wear this shape and the syntax cannot tell them apart: an enum member
+ * (`orientation: vertical`), a reference to an object id (`menu-model: mainMenu`), a flag set
+ * (`state-flags: active|focused`) and the `null` literal (`extra-menu: null`). Naming it
+ * `ident` rather than guessing is the point — clause 3's "never a silent pass-through"
+ * applies to interpretation too.
+ *
+ * There is deliberately no `NullValue` kind, and the fourth reading is why: `null` is a legal
+ * object id, so `label: null` in a file holding `Gtk.Label null { }` is a REFERENCE that
+ * resolves — measured on the oracle, which answers with a type error and not an unknown id.
+ * The literal is only what is left when no object in the file claims the name, which is a
+ * question about the whole file that the token cannot answer where it is read. The emitter
+ * asks it against the ids it has collected (`emit-xml.mjs` § `objectRef`); a parser that
+ * decided it at the token would have to un-decide it one object later.
  */
 export interface IdentValue {
     readonly kind: 'ident';
@@ -160,7 +169,12 @@ export interface TypeValue {
 /** A bracketed list of values: `styles [...]`, `strings [...]`, `widgets [...]`. */
 export interface ListValue {
     readonly kind: 'list';
-    readonly items: readonly Value[];
+    /**
+     * Scalars only. A list member is parsed with `allowObject: false, allowList: false` and
+     * each refusal names itself, so neither an `ObjectValue` nor a nested `ListValue` can
+     * land here — declaring the full `Value` promised two arms no file can reach.
+     */
+    readonly items: readonly Exclude<Value, ObjectValue | ListValue>[];
     readonly line: number;
 }
 
@@ -355,10 +369,20 @@ export interface Extension {
     readonly name: string;
     /** For `condition ("max-width: 400px")`: the parenthesised text, undecoded. */
     readonly argument?: string;
-    readonly entries: readonly Property[];
+    readonly entries: readonly ExtensionEntry[];
     readonly line: number;
     readonly order: number;
 }
+
+/**
+ * One `name: value;` inside such a block — a `Property` without the `order`.
+ *
+ * `order` exists to interleave the four sibling arrays of an `ObjectBody`; a block keeps ONE
+ * array, so there is nothing to interleave and the parser stamps no counter. Measured over
+ * every `.blp` this repository tracks: not one entry carries one, while every object-body and
+ * menu-body member does. Declaring these as `Property` promised a field none of them has.
+ */
+export type ExtensionEntry = Omit<Property, 'order'>;
 
 export interface ObjectBody {
     readonly properties: readonly Property[];

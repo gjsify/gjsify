@@ -37,7 +37,7 @@ import { numberLiteral } from './number-literal.mjs';
  * hand in the resolver's seam rather than rely on that.
  *
  * @typedef {Object} ProjectOptions
- * @property {(type: TypeRef, where: string) => string} [gtypeName]
+ * @property {(type: TypeRef, where: string, position?: 'object' | 'reference') => string} [gtypeName]
  */
 
 /**
