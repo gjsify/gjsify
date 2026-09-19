@@ -44,6 +44,13 @@
 //
 // Both ledgers hold the line's exact text, so editing or deleting the line retires the entry
 // instead of silently widening it, and an entry that matches nothing is itself a failure.
+//
+// AN UNUSED LEDGER ENTRY IS A CHECK, not bookkeeping, and that is not obvious. It says one of
+// two things: the line moved, or the line never stated anything to excuse. The second is how
+// the `$extern` record was found — its first wording, "took the rules to" a number, reads as
+// nothing at all, because `to` is not one of the words that link a noun to its count. The entry
+// went unused, the gate said so, and the sentence was respelled to name what it counts. A
+// ledger that only ever grows would have called that sentence gated while it stated nothing.
 // Anything else that states a count fails as UNGATED — the arm that catches the file nobody
 // thought to look in, which is why the sweep reads the tree rather than a list of documents.
 // That arm earned its keep on its first run: `.gitattributes` said eleven `.blp` under
@@ -143,6 +150,13 @@ const MEASURE = {
  * forty hex digits, within the first twenty lines. `docs/reports/2026-09-16-blueprint-subset-
  * gap.md` opens with exactly that and states the corpus size six times; without this rule its
  * arrival turns the gate red on a document that is right about the tree it measured.
+ *
+ * SAMPLE SIZE OF ONE, said out loud because the next person to add a report inherits it. A
+ * survey of every base-commit anchor in the tree found six files carrying one somewhere and NOT
+ * ONE carrying it in a preamble — that report will be the first. So this shape is load-bearing
+ * rather than observed: a report that anchors itself further down, or in another spelling, is
+ * gated as live prose and the fix is to move its anchor up, not to widen this pattern until it
+ * matches whatever was written.
  */
 const REPORT = /^docs\/reports\//;
 const REPORT_ANCHOR = /\b(?:measured|read|re-measured)\s+(?:at|against)\s+`?[0-9a-f]{7,40}`?/i;
