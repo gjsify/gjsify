@@ -234,6 +234,25 @@ function membersOf(enumType) {
 }
 
 /**
+ * The enum or flags type a property carries, or `null` for a property that carries neither
+ * (or one this vocabulary has never heard of — the two are not told apart, and a caller that
+ * needs them told apart needs a different question).
+ *
+ * The signature the emitter's `EmitOptions.enumOrFlagsTypeOf` declares. `resolveIdent` below
+ * answers what one identifier MEANS; this answers what the property would accept, which is
+ * the question the null literal raises: the oracle writes an empty `<setter>` for a string,
+ * numeric or object-typed property and refuses an enum or flags one, so the emitter has to
+ * ask about the property rather than about the value.
+ *
+ * @param {string | null} typeName  GType name, or `null` for an extern target with no vocabulary
+ * @param {string} propertyName
+ * @returns {string | null}
+ */
+export function enumOrFlagsTypeOf(typeName, propertyName) {
+    return typeName === null ? null : typeOfProperty(typeName, propertyName);
+}
+
+/**
  * Resolve one identifier written as a property value.
  *
  * The signature the emitter's `EmitOptions.resolveIdent` declares. Returning `null` means the

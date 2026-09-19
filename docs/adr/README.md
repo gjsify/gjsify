@@ -80,7 +80,7 @@ the TODO records the *what's left*.
 | [0057](0057-bundle-images-do-not-search-outside-the-bundle.md) | A runtime bundle's images do not search outside the bundle: an absolute `LC_RPATH` is a redirect, not a fallback | Accepted |
 | [0058](0058-translatable-marking-gets-a-spelling.md) | The translatable marking gets a spelling; the other twelve losses stay refusals | Proposed |
 | [0059](0059-foreign-platforms-carry-their-own-configuration.md) | A foreign platform carries its own CONFIGURATION, not only its own libraries | Proposed |
-| [0060](0060-what-the-cli-borrows-from-yarn.md) | What `gjsify install` borrows from Yarn 4 next, and what it refuses | Proposed |
+| [0060](0060-what-the-cli-borrows-from-yarn.md) | What `gjsify install` borrows from Yarn 4 next, and what it refuses — P2 shipped in #1686 before it merged (amended) | Proposed |
 | [0061](0061-pinned-upstream-on-the-failure-path.md) | A pinned `refs/` submodule is a cache key, and upstream is the failure path | Accepted |
 | [0062](0062-the-blueprint-conversion-frontier-is-composition.md) | The Blueprint conversion frontier is composition, not `.ui` files | Proposed |
 

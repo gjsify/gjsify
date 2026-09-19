@@ -6231,14 +6231,16 @@ calls `installBundledIconTheme()`.
 `@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. **The shadow run is nearly silent**: 45 of
-the 46 corpus files are byte-equal and `corpus/divergences.mjs` holds one entry on one line,
-below. Clause 5's condition is that one entry, and after it come the flip and the deletions.
+beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
+2026-09-16 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 47 corpus files
+(35 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 15
+refusals each name their construct and line. Clause 5's condition is met; after it come the
+flip and the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
 and a template parent — and the corpus grew four rule files for it (32-35), taking the
-rules to 35 and the corpus to 46. Two things it does NOT do: it converts no consumer, and it
+rules to 35 and the corpus to 47. Two things it does NOT do: it converts no consumer, and it
 does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
@@ -6262,15 +6264,20 @@ byte the corpus had and is wrong: `hidden: true` stays `true`. Measured by writi
 into the emitter — against the old fixture it is BYTE-EQUAL, against the one that now carries
 a boolean row it fails on the line. A corpus proves a rule only over the cases it holds.
 
-Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines), the
-one `oxlint-disable` in `loading-stack.ts`, the programmatic storybook window, the `not on PATH`
-skip in `check-doc-fences.mjs` — which becomes two-stage rather than vanishing, per clause 7 —
-and the MSYS2 branch of `gjsify system-check`. The compiler itself stays, as the oracle stage B
+Done is a deletion list, not a feature list: `resolve-compiler.ts` and its spec (505 lines,
+the MSYS2 probe at `:67-130` among them), the one `oxlint-disable` in `loading-stack.ts`, the
+programmatic storybook window, and the `not on PATH` skip in `check-doc-fences.mjs` — which
+becomes two-stage rather than vanishing, per clause 7. This list used to carry "the MSYS2
+branch of `gjsify system-check`" as a separate item; it is not one. `git log -S` finds no
+commit putting `blueprint` or `msys2` into `commands/system-check.ts`, and the branch is
+inside `resolve-compiler.ts` already counted above. What the CLI contributes is a CONSUMER,
+`utils/check-system-deps.ts:544-575`, which delegates to it and gets re-pointed rather than
+deleted. The compiler itself stays, as the oracle stage B
 runs: deleting the binary from the image would delete the only independent reading the goldens
 have.
 
 One thing the corpus settled that the ADR's mapping table did not have: more construct classes
-fall outside `SharedNode` than the census of the eleven real files found, and the translatable
+fall outside `SharedNode` than the census of the twelve real files found, and the translatable
 marker is the one that costs — a caption parsed into a plain string loses exactly the attribute
 ADR 0033 prefers a template for. The per-kind count is below, under "Inverting the Blueprint
 projection needs the GIR", and is not repeated here.
@@ -6428,7 +6435,7 @@ on 0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; 
 in-repo emitter writes all three as written. A single-word member happens to load anyway, because
 GtkBuilder resolves an enum nick as well as a number; a member Blueprint spells with an
 underscore (`word_char`, `both_axes`) is neither a nick nor a number to GtkBuilder and does not.
-None of the eleven real files does this today, which is why the gap was invisible until
+None of the twelve real files does this today, which is why the gap was invisible until
 `03-property-enum` was asked for its other case. The corpus now HOLDS it rather than hiding it:
 `29-enum-non-widget.blp` diverges on one named line and every other line of it is held to the
 golden, so a `.blp` in this repo that reaches the same shape surfaces as an unledgered
@@ -6450,9 +6457,10 @@ SECOND case nobody has seen. The same figures are already held per line by stage
 `check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
 one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
 holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence). Read those two
-numbers as a date: #1681 takes the corpus to 31 rules and 42 files, which moves every figure
-in this paragraph and none of the conclusions below — those rest on the eleven real files,
-which it does not touch.
+numbers as a date: #1681 takes the corpus to 31 rules and 42 files, #1690 adds a twelfth real
+`.blp` and #1694 four more rule files, so the tree holds 35 rules and 47 files as of
+2026-09-16. Every figure in this paragraph moves with them and none of the conclusions below
+does — those rest on the real files, which #1694 does not touch and #1690 only adds to.
 
 `slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
 placement on the child wrapper; `content:` is `<property name="content">`, an object as a
@@ -6609,6 +6617,67 @@ The cost is latency, and the bump is where it is paid. A scheduled job polling t
 would remove that latency and add a network dependency plus a job that can go red for
 something no PR caused; not obviously worth it, and worth revisiting only if a pin ever sits
 still long enough for the latency to matter.
+
+
+### The Blueprint emitter checks that a reference RESOLVES, and cannot check that it FITS
+
+`emit-xml.mjs` now refuses an object reference no object in the file declares — the defect that
+let `extra-menu: doesNotExist;` and the null literal reach a live property unremarked. That check
+is a lookup in the file's own id index, so it needs no vocabulary and is complete for the
+positions it covers. What it cannot do is the oracle's SECOND question, which needs the ParamSpec
+type of every property, where `resolve-ident.mjs` carries enum and flags types and nothing else.
+
+Three divergences follow from that one gap, each accepted here and refused by
+blueprint-compiler 0.20.4, each measured:
+
+- **A boolean setter takes the null literal.** `labelOne.visible: null;` emits
+  `<setter object="labelOne" property="visible"></setter>`; the oracle answers
+  `error: Expected 'true' or 'false' for boolean value`. The ENUM and FLAGS halves of the same
+  rule ARE caught, via `enumOrFlagsTypeOf` — `refused/setter-null-enum.blp` holds that half —
+  which is exactly why the boolean one is worth naming: the file looks like it covers the rule.
+- **A reference of the wrong type resolves.** With a `Gtk.Label null` in the file, `label: null;`
+  is a legal reference that this emitter writes out, and the oracle answers
+  `error: Cannot assign Gtk.Label to string`. `38-null-object-id.blp` pins the half that is
+  right (`menu-model: null` pointing at a `menu null`), and the wrong half is undetectable the
+  same way.
+- **A property name nobody has.** `bind labelOne.null` passes; the oracle answers
+  `error: Gtk.Label does not have a property called null`. This one is not about `null` at all —
+  every misspelled property name takes the same path.
+
+Closing the first two is one piece of work: a property TYPE table beside the enum one, generated
+from the same `@girs` metadata by the same generator. ADR 0053 clause 6 is the constraint — a
+hand-written table is the `if` it refuses — so those two wait on the generator, not on a decision.
+
+**The third does not wait for anything.** `does not have a property called X` needs only the set
+of property NAMES, and `OWN_PROPS` plus `DECLS` are already exported by the same
+`@girs/*/vocabulary` modules `resolve-ident.mjs` imports for the enum table. It is left out of
+this change to keep one rule per change, not because it is blocked. One measured caution for
+whoever takes it: 7 properties are present in the vocabulary and absent from the libadwaita
+installed here, so the table runs AHEAD of the oracle — a name-only check would accept files the
+oracle refuses, which is the safe direction, but it cannot be turned into a refusal without
+deciding what a vocabulary/runtime disagreement means.
+
+**A second, unrelated gap in the same check: two paths, not one.** Both write an id the check
+never sees, and they are different functions, which is why naming only the list form understated
+it once already:
+
+- `emitListProperty` takes no `EmitContext`, so `widgets [doesNotExist]` emits
+  `<widget name="doesNotExist"/>` where the oracle says `Could not find object with ID`.
+  Threading the context in closes it.
+- `extensionText` reaches `scalarText` with no owner type, so an `accessibility { }` entry passes
+  in BOTH forms — the list `labelled-by: [doesNotExist]` and the scalar `labelled-by: nope;`.
+  Measured, and simpler than it first looked: a bare identifier there is a reference on EVERY
+  entry that is not an enum member — `labelled-by`, `described-by` and `label` alike each answer
+  `Could not find object with ID nope`. So the seam already in place (`accessibilityValue`
+  returning null for a non-member) is the same fork the property path uses.
+
+Separately and pre-existing: `listItemText` admits a bare identifier for ALL THREE bracketed
+lists, not just `styles`. In `widgets [ ]` that is right (the items are ids); in `styles [ ]` and
+`strings [ ]` the oracle refuses any unquoted item with `Unexpected tokens`, so
+`Gtk.StringList { strings [doesNotExist] }` emits `<item>doesNotExist</item>` here and is
+refused there. That is a parser rule rather than a reference one, and it is the reason the list
+gap cannot be closed by adding `objectRef` to `listItemText` alone: the three lists want three
+different answers.
 
 
 ### The Blueprint parser reads bytes the reference compiler refuses to read at all
