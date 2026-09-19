@@ -878,4 +878,16 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'A `try` is a binding to this exit like any other, so the fallback chain — the entire reason the construct exists — is dropped with it. The trailing comma on line 12 is invisible in both exits; it is in the file because a grammar that accepts one and a grammar that does not are two grammars, and only a file says which this is.',
     },
+    {
+        file: '49-namespace-core-vocabulary.blp',
+        node: {
+            tag: 'GtkListView',
+            children: [
+                { tag: 'GdkCursor', slot: 'cursor', props: { name: 'pointer' } },
+                { tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] },
+            ],
+        },
+        lost: [{ kind: 'sibling-object', line: 17, detail: 'the top-level `GObject.Object`, whose tag is `GObject`' }],
+        note: 'The tags are the whole assertion, and two of the three are the reason this file exists: `GListStore` and `GObject` are what the prefix `G` produces, and nothing in the spelling `Gio.ListStore` or `GObject.Object` carries either. The third, `GdkCursor`, is the case concatenation would also get right — it is here so the file cannot be read as being about a rule that only ever fires on `G`. The `GObject` one reaches this exit only as a declared loss, because the projection is one tree and the file writes two objects at top level.',
+    },
 ];

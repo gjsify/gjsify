@@ -81,32 +81,19 @@
 // the GIR's `c:identifier-prefixes` for both namespaces is `G`, and an emitter concatenating writes
 // `GioListStore` and `GObjectObject`, classes GtkBuilder cannot find, with no error anywhere.
 //
-// SO THE PREFIX IS DERIVED FROM THE VOCABULARY, NOT KEPT IN A MAP HERE
+// SO THE PREFIX IS READ OFF THE VOCABULARY, NOT KEPT IN A MAP HERE
 //
 // It used to be a two-entry `Map` in this file, which is the hand-written table ADR 0053 clause 6
 // forbids — it just happened to be short enough not to look like one, and it is why a fifth
-// namespace could not be added without editing code. `DECLS` names every instantiable GType the
-// namespace declares, so the prefix is the longest common prefix of those names, backed off to a
-// CamelCase boundary: `{GtkSourceView, GtkSourceBuffer, …}` gives `GtkSource`, and a hypothetical
-// `{GObject, GBinding, GParamSpec, …}` gives `G`, which is the answer `GObject.Object` needs and
-// the one no concatenation reaches. The back-off is what keeps a namespace with ONE declared type
-// honest: `{FooBar}` has itself as its common prefix, the remainder is empty rather than a fresh
-// CamelCase word, and the derivation walks back to `Foo`.
-//
-// IT IS A DERIVATION OVER THE FIVE NAMESPACES LOADED HERE, NOT A LAW ABOUT GIR
-//
-// Say what was measured. On the five vocabularies this module loads it reproduces
-// `c:identifier-prefixes` verbatim. Swept over the 135 GIRs installed on one workstation, of the
-// 104 that declare a concrete class it gets 28 WRONG (27%): `GdkX11` and `GdkWayland` answer
-// themselves where the GIR says `Gdk`, eight `Gst*` namespaces answer `GstAudio`/`GstGL`/`GstVa`
-// where it says `Gst`, `GstCheck`'s one class `GstTestClock` answers `GstTest`, `Colorhug`'s one
-// class answers `ChDevice` where it says `Ch`, `GnomeBG` stops mid-word at `GnomeB`, `Nice`
-// backs off to nothing at all, and four namespaces declare a MULTI-VALUED prefix (`Camel,camel`,
-// `ECal,E`, `GUnix,G`) that a single string cannot express. None of the 28 is reachable today —
-// not one publishes a `./vocabulary`, because none declares a `GtkWidget` descendant — and the
-// day one does, this derivation is what has to be replaced by the prefix itself, emitted upstream.
-// The one-type back-off is the same kind of claim: it answers `Foo` for `{FooBar}` and `GstTest`
-// for `{GstTestClock}`, so it bounds the damage rather than removing it.
+// namespace could not be added without editing code. It then became a DERIVATION off `DECLS`: the
+// longest common prefix of every declared GType, backed off to a CamelCase boundary, which is
+// right on every namespace loaded here and wrong on 28 of the 104 that declare a concrete class in
+// the 135 GIRs installed on one workstation. That derivation named the condition for its own
+// deletion — the day one of the 28 published a vocabulary — and `@girs` 5.3.0 met it twice over:
+// #476 emits a vocabulary for every namespace a UI file can name, and it ships the GIR's
+// `c:identifier-prefixes` as `PROVENANCE.identifierPrefixes`. The prefix is read from that field
+// now. `identifierPrefix()` below is what is left of the question: which entry, where a namespace
+// declares more than one, and the eight measured counterexamples are in its header.
 //
 // AND IN OBJECT POSITION THE NAME IS CHECKED AGAINST THE SAME TABLE
 //
@@ -166,16 +153,18 @@
 //
 // An EXTERN type (`$MyWidget`) is in no GIR and takes none of these rules.
 //
-// A `using` FOR A NAMESPACE WITH NO VOCABULARY IS STILL REFUSED
+// A `using` FOR A NAMESPACE NOT LOADED HERE IS STILL REFUSED, AND THE REASON CHANGED UNDER IT
 //
-// ts-for-gir emits `./vocabulary` only for namespaces that declare a concrete `GtkWidget`
-// descendant, so `@girs/gtksource-5`, `@girs/shumate-1.0` and `@girs/webkit-6.0` have one and
-// `@girs/gdk-4.0`, `@girs/gio-2.0` and `@girs/gobject-2.0` do not — although `Gdk.Cursor`,
-// `Gio.ListStore` and `GObject.Object` are all legal in a `.blp`. Those stay a hard error naming
-// the line and the namespace, per clause 3, rather than plausible XML; the fix is upstream, in that
-// gate, and this module needs no change when it lands — a namespace arrives by being added to
-// `VOCABULARIES` below, and everything else is read out of it.
-// `corpus/refused/namespace-without-vocabulary.blp` holds the case.
+// Until `@girs` 5.3.0 ts-for-gir emitted `./vocabulary` only for a namespace declaring a concrete
+// `GtkWidget` descendant, so `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` — all three legal
+// in a `.blp`, all three written by files the reference implementation compiles — were refused for
+// a reason nothing here could close. ts-for-gir #476 closed it: every namespace a UI file can name
+// publishes one now, and those three are loaded below. What is left is not an upstream gap but the
+// finite thing it always was underneath — the dependency set of this package. A namespace outside
+// it is still a hard error naming the line and the namespace, per clause 3, rather than plausible
+// XML, and `corpus/refused/namespace-without-vocabulary.blp` holds the case with `GdkPixbuf`,
+// whose C prefix is `Gdk`: concatenating writes `GdkPixbufPixbuf` where the oracle writes
+// `GdkPixbuf`, so guessing there is wrong in a way that reads perfectly.
 //
 // AN `accessibility { }` ENTRY NAMES ITS OWN ELEMENT, AND THE NAMES ARE ALSO DATA
 //
@@ -204,50 +193,103 @@
 import { BlueprintEmitError, SUBSET_NOTE } from './errors.mjs';
 
 import * as ADW from '@girs/adw-1/vocabulary';
+import * as GDK from '@girs/gdk-4.0/vocabulary';
+import * as GIO from '@girs/gio-2.0/vocabulary';
+import * as GOBJECT from '@girs/gobject-2.0/vocabulary';
 import * as GTK from '@girs/gtk-4.0/vocabulary';
 import * as GTK_SOURCE from '@girs/gtksource-5/vocabulary';
+import * as PANGO from '@girs/pango-1.0/vocabulary';
 import * as SHUMATE from '@girs/shumate-1.0/vocabulary';
 import * as WEBKIT from '@girs/webkit-6.0/vocabulary';
 
 /**
- * Every `@girs` vocabulary this resolver reads, in one list.
+ * Every `@girs` vocabulary this resolver reads, keyed by the specifier it is imported from.
  *
- * The list is the DEPENDENCY set and nothing else: a namespace is here because
- * `packages/infra/blueprint/package.json` depends on the package, and an npm dependency has to be
- * written down somewhere. Everything the resolver then knows about it — which namespace it IS, what
- * its C identifier prefix is, which GTypes it declares, which of its properties are enums — is read
- * out of the module, so adding the sixth namespace is one import and one dependency line and no
- * table anywhere.
+ * Two kinds of entry, and only the first kind is a choice. A SEED is a namespace a `.blp` in
+ * reach may NAME, which is a fact about the corpus and the wild sweep, not about `@girs`: Gtk and
+ * Adw are what the corpus wrote; GtkSource, Shumate, WebKit, Gdk and Gio are what the sweep and
+ * the reference implementation's own `tests/samples` reach (273 `.blp`, 235 of them foreign —
+ * `scripts/blueprint-wild-sweep.mjs`, tabled in
+ * `docs/reports/2026-09-16-blueprint-subset-gap.md` § 2). The rest are CLOSURE: a vocabulary
+ * names the siblings it needs in `PROVENANCE.requiredVocabularies`, and `assertClosed()` below
+ * holds this map to it. GObject and Pango are here for no other reason.
  *
- * Why these five: Gtk and Adw are what the corpus wrote; GtkSource, Shumate and WebKit are the
- * three namespaces the wild sweep reaches that publish a `./vocabulary` today — 273 `.blp`, 235
- * of them foreign (`scripts/blueprint-wild-sweep.mjs`, tabled in
- * `docs/reports/2026-09-16-blueprint-subset-gap.md` § 2). That sweep also reaches `Gdk`, and the reference implementation's
- * own samples reach `Gio` and `GObject`; those three publish none, so they are refused by name
- * rather than guessed at — see the header.
+ * THE LIST IS NOT DERIVABLE AND ITS COMPLETENESS NOW IS, WHICH IS THE WHOLE OF WHAT 5.3.0 BOUGHT.
+ * A static `import` cannot take a computed specifier, and a dynamic one cannot be bundled — the
+ * GJS build resolves these at build time, so a specifier the bundler cannot see is a module that
+ * is not there at run time. So the SPELLING stays hand-written; what stopped being hand-judged is
+ * whether it is enough. Before `requiredVocabularies` (ts-for-gir #476, `@girs` 5.3.0) a missing
+ * sibling was silent: the join simply found nothing and `resolveIdent` returned `null`, which the
+ * emitter reads as "not ours" and writes the source spelling — the plausible wrong output ADR 0053
+ * clause 3 exists to prevent. It is now an import-time throw naming both packages.
  *
- * FOUR OF THE FIVE HAVE A GOLDEN AND SHUMATE DOES NOT, which is worth saying here rather than
- * only in the ledger. A golden needs the oracle, the oracle needs the typelib, and the
- * `ci-fedora` image carries `gtk4-devel`, `libadwaita-devel`, `gtksourceview5-devel` and
- * `webkitgtk6.0-devel` and no libshumate. A rule file naming Shumate would red stage B until
- * that image is rebuilt, and an image is only pushed from `main`, so a PR cannot carry both
- * halves. Measured locally, a Shumate golden IS byte-equal; what holds it out is the image and
- * nothing about the code. `status/open-todos.md` carries the follow-up. Until then Shumate is
- * covered here only by load — `merged()` and `NAMESPACES` read every entry of this array on
- * import, so a broken or conflicting Shumate vocabulary fails every corpus run — and by the wild
- * sweep, which is not a gate.
+ * Everything else about a namespace — which one it IS, its C identifier prefix, which GTypes it
+ * declares, which of its properties are enums — is read out of the module, so a sixth seed is one
+ * import, one row here and one dependency line.
+ *
+ * FOUR OF THE NINE HAVE A GOLDEN, which is worth saying here rather than only in the ledger. A
+ * golden needs the oracle, the oracle needs the typelib, and the `ci-fedora` image carries
+ * `gtk4-devel`, `libadwaita-devel`, `gtksourceview5-devel` and `webkitgtk6.0-devel` and no
+ * libshumate. A rule file naming Shumate would red stage B until that image is rebuilt, and an
+ * image is only pushed from `main`, so a PR cannot carry both halves. Measured locally, a Shumate
+ * golden IS byte-equal; what holds it out is the image and nothing about the code.
+ * `status/open-todos.md` carries the follow-up. Until then Shumate — and the same goes for the
+ * four namespaces reached only through the closure — is covered here by LOAD: `merged()`,
+ * `assertClosed()` and `NAMESPACES` read every entry of this map on import, so a broken or
+ * conflicting one fails every corpus run.
+ *
+ * @type {ReadonlyMap<string, typeof GTK>}
  */
-const VOCABULARIES = [GTK, ADW, GTK_SOURCE, SHUMATE, WEBKIT];
+const LOADED = new Map([
+    ['@girs/adw-1/vocabulary', ADW],
+    ['@girs/gdk-4.0/vocabulary', GDK],
+    ['@girs/gio-2.0/vocabulary', GIO],
+    ['@girs/gobject-2.0/vocabulary', GOBJECT],
+    ['@girs/gtk-4.0/vocabulary', GTK],
+    ['@girs/gtksource-5/vocabulary', GTK_SOURCE],
+    ['@girs/pango-1.0/vocabulary', PANGO],
+    ['@girs/shumate-1.0/vocabulary', SHUMATE],
+    ['@girs/webkit-6.0/vocabulary', WEBKIT],
+]);
+
+/**
+ * Every vocabulary names the siblings it needs, and this refuses a map that is missing one.
+ *
+ * Read the failure it replaces rather than the rule: `GtkSizeGroup.mode` resolved at `@girs` 5.2.0
+ * only because Gtk's own vocabulary happened to carry the enum, and 83 `PROP_ENUMS` rows in 33
+ * packages were joins of exactly that kind — right while a sibling was loaded, silently unanswered
+ * while it was not. 5.3.0 carries the numbers per package and says in `requiredVocabularies` which
+ * siblings a join may reach into, which is what makes the question askable at all.
+ */
+function assertClosed() {
+    for (const [specifier, vocabulary] of LOADED) {
+        for (const required of vocabulary.PROVENANCE.requiredVocabularies) {
+            if (LOADED.has(required)) continue;
+            throw new Error(
+                `blueprint: ${specifier} declares it needs ${required}, which this resolver does not ` +
+                    'load — a property-to-enum join reaching into it would find nothing and be read as ' +
+                    '"not an enum", so the emitter would write the source spelling out as if it were an ' +
+                    'object id. Import it beside the others and add the dependency to ' +
+                    'packages/infra/blueprint/package.json.',
+            );
+        }
+    }
+}
+assertClosed();
+
+const VOCABULARIES = [...LOADED.values()];
 
 /**
  * One table folded across every vocabulary, refusing to merge two rows that disagree.
  *
  * A GType NAME is globally unique, so the tables cannot collide by construction and the shipped
- * ones do not — measured on `@girs` 5.2.0 across these five, 21 keys appear in more than one
- * vocabulary (Gtk's enums re-declared by a namespace that inherits them) and every one of them
- * carries the same value. That is a property of the data, not of the code, and it stops holding
- * silently: a later `@girs` where two namespaces number the same GType differently would otherwise
- * be decided by the order of this array. So it is checked rather than asserted in a comment.
+ * ones do not — measured on `@girs` 5.3.0 across these nine, 185 rows across three tables appear in
+ * more than one vocabulary (a namespace re-declaring an enum it inherits) and every one of them
+ * carries the same value; `DECLS` and `PROP_ENUMS` overlap nowhere at all. That is a property of
+ * the data, not of the code, and it stops holding silently: a later `@girs` where two namespaces
+ * number the same GType differently would otherwise be decided by the order of this array. So it is
+ * checked rather than asserted in a comment — and the count above is what 5.3.0 did to it, up from
+ * 21 across the five loaded before, which is the shape a bump moves without touching a line here.
  *
  * @param {string} table  the export name, for the message
  * @returns {Record<string, any>}
@@ -280,7 +322,7 @@ function merged(table) {
 // The ARIA tables are merged for one reason beyond symmetry: `ARIA_SLOTS` reads the merged
 // `ENUM_NICKS`, so taking the value types from Gtk alone would let the name half and the value half
 // disagree the day another namespace declares an ARIA slot of its own. None does today — measured
-// on 5.2.0, only Gtk's two tables have entries.
+// on 5.3.0 across all nine, only Gtk's two tables have entries, 53 and 6.
 const ARIA_VALUE_TYPES = merged('ARIA_VALUE_TYPES');
 const ARIA_VALUE_ENUMS = merged('ARIA_VALUE_ENUMS');
 const DECLS = merged('DECLS');
@@ -423,31 +465,46 @@ export function resolveIdent(typeName, propertyName, member, where) {
 }
 
 /**
- * The GIR `c:identifier-prefixes` of one namespace, read off the GTypes it declares.
+ * The C identifier prefix one namespace declares, chosen where it declares more than one.
  *
- * The longest common prefix of every declared GType, backed off until what follows it in EVERY
- * name is a fresh CamelCase word. The back-off is the whole guard: without it a namespace whose
- * declared types happen to share more than their prefix — one type, or two siblings like
- * `FooBarOne` and `FooBarTwo` — would answer `FooBar` and write `FooBarBarOne`. With it, the
- * remainder test fails at `FooBar`, and the walk stops at the last position that leaves every
- * remainder starting a word.
+ * `PROVENANCE.identifierPrefixes` is the GIR's `c:identifier-prefixes` verbatim, shipped since
+ * `@girs` 5.3.0. Before it this module DERIVED the prefix — the longest common prefix of every
+ * declared GType, backed off to a CamelCase boundary — and said so in the comment that stood here:
+ * a derivation over the five namespaces then loaded, not a law about GIR, which over the 135 GIRs
+ * installed on one workstation got 28 of the 104 that declare a concrete class wrong, and which
+ * was to be replaced by the upstream prefix the day one of those 28 published a vocabulary.
  *
- * Measured on `@girs` 5.2.0: Gtk → `Gtk`, Adw → `Adw`, GtkSource → `GtkSource`, Shumate →
- * `Shumate`, WebKit → `WebKit`, each of which is that GIR's `c:identifier-prefixes` verbatim.
+ * THAT DAY IS THIS BUMP, so the derivation is gone rather than kept beside the data it guessed at.
+ * 5.3.0 emits a vocabulary for every namespace a UI file can name, not only the widget-bearing
+ * ones, and all eight of the namespaces the old comment named by hand now publish one: measured on
+ * their 5.3.0 tarballs, the derivation answers `GdkX11`/`GdkWayland` where the GIR says `Gdk`,
+ * `GstAudio`/`GstGL` and `GstTest` where it says `Gst`, `GnomeB` where it says `Gnome`, and the
+ * empty string for `Nice`. Reading the field gets all eight right, and the nine loaded here
+ * unchanged — Gtk `Gtk`, Adw `Adw`, GtkSource `GtkSource`, Shumate `Shumate`, WebKit `WebKit`,
+ * Gdk `Gdk`, Pango `Pango`, and `G` for both Gio and GObject, which is the answer
+ * `Gio.ListStore` -> `GListStore` needs and no concatenation reaches.
  *
+ * WHY A CHOICE IS STILL NEEDED. Four namespaces declare more than one prefix (`Camel,camel`,
+ * `ECal,E`, `GUnix,G`), and a GType name takes exactly one. The one that can be right is one that
+ * every declared GType already starts with, and where several do, the longest — `Camel` over
+ * `camel` for `{CamelFolder, …}`, `E` over `ECal` for a namespace that declares an `EReminder…`
+ * beside its `ECal…`. None of the nine loaded here is multi-valued, so this branch is exercised by
+ * no golden and is written to refuse rather than to guess.
+ *
+ * @param {{ namespace: string, identifierPrefixes: string[] }} provenance
  * @param {string[]} gtypes  every GType name the namespace declares
- * @returns {string}  the prefix, possibly empty for a namespace that shares none
+ * @returns {string}
  */
-function identifierPrefix(gtypes) {
-    let prefix = gtypes.reduce((a, b) => {
-        let i = 0;
-        while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
-        return a.slice(0, i);
-    });
-    while (prefix.length > 0 && !gtypes.every((name) => /^[^a-z]/.test(name.slice(prefix.length)))) {
-        prefix = prefix.slice(0, -1);
-    }
-    return prefix;
+function identifierPrefix(provenance, gtypes) {
+    const usable = provenance.identifierPrefixes
+        .filter((prefix) => gtypes.every((name) => name.startsWith(prefix)))
+        .sort((a, b) => b.length - a.length);
+    if (usable.length > 0) return usable[0];
+    throw new Error(
+        `blueprint: @girs says ${provenance.namespace} has C identifier prefix(es) ` +
+            `${provenance.identifierPrefixes.join(', ')}, and not one of them starts every GType it ` +
+            'declares, so there is no prefix a type reference in that namespace could take',
+    );
 }
 
 /**
@@ -464,7 +521,10 @@ const NAMESPACES = new Map(
         const gtypes = Object.keys(vocabulary.DECLS);
         return [
             vocabulary.PROVENANCE.namespace,
-            { prefix: identifierPrefix(gtypes), declares: (name) => name in vocabulary.DECLS },
+            {
+                prefix: identifierPrefix(vocabulary.PROVENANCE, gtypes),
+                declares: (name) => name in vocabulary.DECLS,
+            },
         ];
     }),
 );
@@ -505,16 +565,16 @@ export function gtypeName(type, where, position) {
     const namespace = type.namespace ?? 'Gtk';
     const known = NAMESPACES.get(namespace);
     if (known === undefined) {
-        // The vocabulary comes from `@girs/…/vocabulary`, which ts-for-gir emits only for a
-        // namespace declaring a concrete GtkWidget descendant — so closing this is upstream, not
-        // here. That is for whoever maintains this file and not for the message: someone whose
-        // build just stopped needs the extern form, not the provenance.
+        // Closing this is a dependency line and an import in `LOADED`, not an upstream release —
+        // since `@girs` 5.3.0 every namespace a UI file can name publishes a vocabulary. That is
+        // for whoever maintains this file and not for the message: someone whose build just
+        // stopped needs the extern form, not the provenance.
         throw new BlueprintEmitError(
             `\`${namespace}.${type.name}\` names a namespace this resolver has no ` +
                 `vocabulary for (it has ${[...NAMESPACES.keys()].join(', ')}), so its GType name cannot ` +
                 'be derived: the C prefix is not the namespace name, and guessing it would emit a class ' +
                 'GtkBuilder resolves to nothing. Write the GType name out with the extern form instead — ' +
-                `\`Gio.ListStore\` is \`$GListStore\` — which needs no vocabulary. ${SUBSET_NOTE}`,
+                `\`GdkPixbuf.Pixbuf\` is \`$GdkPixbuf\` — which needs no vocabulary. ${SUBSET_NOTE}`,
             where,
         );
     }

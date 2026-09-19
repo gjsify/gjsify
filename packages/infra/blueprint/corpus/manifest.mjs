@@ -297,7 +297,7 @@ export const CORPUS_RULES = [
     {
         file: '35-extern-real-class.blp',
         isolates:
-            'an extern type whose GType name is a REAL class, from a namespace this resolver has no vocabulary for — the same `GListStore` that `refused/namespace-without-vocabulary.blp` refuses one spelling above',
+            'an extern type whose GType name is a REAL class — `GListStore`, whose namespace this resolver had no vocabulary for when this file was written, and has loaded since the `@girs` 5.3.0 bump',
         surprise:
             'the extern spelling reaches it and GtkBuilder resolves the result, so the vocabulary gate is a gate on the DOTTED form only — and it is still not a hole in that gate, because concatenation cannot produce `GListStore` from `$Gio.ListStore` (that is `GioListStore`): the C name has to be written out, which is exactly the assertion the sigil exists to make',
     },
@@ -327,7 +327,7 @@ export const CORPUS_RULES = [
         isolates:
             'a type from a namespace beyond the two the corpus was written against — `GtkSource.View` holding a `GtkSource.Buffer`, and a `WebKit.WebView` beside it',
         surprise:
-            'the `using GtkSource 5;` and `using WebKit 6.0;` lines leave NO trace in the output — `<requires>` names gtk alone whatever else a file imports (`18-multiple-imports.ui` said so for Adw, and a third and fourth namespace do not change it), so the class name is the only evidence a namespace was resolved at all. Which is why refusing an unknown namespace matters more than it looks: what it replaces is an `<object class="…">` that is one word wrong and reads perfectly. The GType name is the namespace\'s C identifier prefix plus the type name, and for every namespace that ships a `@girs` vocabulary TODAY that prefix equals the namespace name — the case that tells the two rules apart (`Gio.ListStore` is `GListStore`, prefix `G`) is exactly the one with no vocabulary, and it sits in `refused/namespace-without-vocabulary.blp`',
+            'the `using GtkSource 5;` and `using WebKit 6.0;` lines leave NO trace in the output — `<requires>` names gtk alone whatever else a file imports (`18-multiple-imports.ui` said so for Adw, and a third and fourth namespace do not change it), so the class name is the only evidence a namespace was resolved at all. Which is why refusing an unknown namespace matters more than it looks: what it replaces is an `<object class="…">` that is one word wrong and reads perfectly. The GType name is the namespace\'s C identifier prefix plus the type name, and for these three the prefix equals the namespace name — the cases that tell the two rules apart are `Gio.ListStore` (`GListStore`, prefix `G`), loaded since the `@girs` 5.3.0 bump, and `GdkPixbuf.Pixbuf` (`GdkPixbuf`, prefix `Gdk`), which is not and sits in `refused/namespace-without-vocabulary.blp`',
     },
     {
         file: '40-namespace-vocabulary-enum.blp',
@@ -384,6 +384,13 @@ export const CORPUS_RULES = [
         surprise:
             "the arms are ordinary expressions and the element is a plain `<try>` with no attributes, but the arms do NOT inherit a type from anywhere: each closure among them needs its own cast. That is why the reference implementation's own `expr_try.blp` is still refused here — its first closure has none, and the type the oracle infers for it comes from the property's GType",
     },
+    {
+        file: '49-namespace-core-vocabulary.blp',
+        isolates:
+            'the three namespaces that were refused BY NAME until the `@girs` 5.3.0 bump — `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object`, each legal in a `.blp` and each written by a file the reference implementation compiles',
+        surprise:
+            'two of the three GType names are not the namespace plus the type, and the one file that used to hold this shape had to hold it as a REFUSAL. `Gio.ListStore` is `GListStore` and `GObject.Object` is `GObject`, because the C identifier prefix of both namespaces is `G` — concatenating writes `GioListStore` and `GObjectObject`, classes GtkBuilder resolves to nothing, with no error anywhere. `Gdk.Cursor` is the third one and the only one where concatenation happens to be right, which is exactly why it is here beside the other two rather than standing for them. What made the file writable is not this package: ts-for-gir #476 stopped gating the `./vocabulary` subpath on "declares a concrete GtkWidget descendant", so these three publish one and `src/resolve-ident.mjs` loads them. The prefix is read from `PROVENANCE.identifierPrefixes` and derived from nothing',
+    },
 ];
 
 /**
@@ -410,11 +417,20 @@ export const CORPUS_RULES = [
  */
 export const CORPUS_REFUSALS = [
     {
+        // `Gio.ListStore` was this file until the `@girs` 5.3.0 bump, and what replaced it is not
+        // a weaker case but a sharper one. ts-for-gir #476 stopped gating the `./vocabulary`
+        // subpath on "declares a concrete GtkWidget descendant", so the namespaces that used to
+        // have none — Gdk, Gio, GObject — publish one and this resolver loads them. What is left
+        // is the finite thing it always really was: the set of packages `package.json` depends on.
+        // `GdkPixbuf` is the sharpest member of it, because its C prefix is `Gdk` and its class is
+        // `Pixbuf`, so the oracle writes `<object class="GdkPixbuf">` where concatenating the
+        // namespace onto the name writes `GdkPixbufPixbuf` — a class GtkBuilder resolves to
+        // nothing, with no error anywhere. That is exactly the output clause 3 refuses to guess.
         file: 'namespace-without-vocabulary.blp',
-        construct: 'a type from a namespace the resolver has no vocabulary for (`Gio.ListStore`)',
+        construct: 'a type from a namespace the resolver has no vocabulary for (`GdkPixbuf.Pixbuf`)',
         oracle: 'compiles',
         projection: 'refuses',
-        line: 6,
+        line: 4,
         names: 'no vocabulary for',
     },
     {

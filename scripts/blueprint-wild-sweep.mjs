@@ -503,6 +503,29 @@ const BUCKETS = ['byte-equal', 'silently-different', 'refused-by-us', 'refused-b
  * against the file it is about — `menu-model: menu { }` is an inline menu and a `menu { }`
  * root is not; a response flag trails the label rather than opening the entry.
  */
+/**
+ * Does `resolve-ident.mjs` have a vocabulary for this namespace? Memoised, because the sweep asks
+ * it once per qualified name in 368 files.
+ *
+ * `gtypeName` in REFERENCE position applies the C prefix and checks nothing else, so the only way
+ * it throws is the namespace — which makes the throw the answer rather than an accident worth
+ * swallowing. There is no predicate to call instead: the resolver's business is to answer for a
+ * type, and this is the one question a report has that a compile does not.
+ */
+const VOCABULARY_KNOWN = new Map();
+const hasVocabulary = (namespace) => {
+    const cached = VOCABULARY_KNOWN.get(namespace);
+    if (cached !== undefined) return cached;
+    let known = true;
+    try {
+        gtypeName({ namespace, name: 'CensusProbe' }, { file: '<census>', line: 0 }, 'reference');
+    } catch {
+        known = false;
+    }
+    VOCABULARY_KNOWN.set(namespace, known);
+    return known;
+};
+
 const CONSTRUCTS = [
     [
         'expressions: `expr`, `bind $closure(…)`, `as <Type>`, `typeof<Type>`, `a.b.c`',
@@ -515,10 +538,15 @@ const CONSTRUCTS = [
     ],
     [
         'a type from a namespace with no vocabulary',
-        // The namespaces `resolve-ident.mjs` has no vocabulary for, used as a TYPE. A bare
-        // `using Gio 2.0;` is not the construct — emission only needs the GType name when a
-        // type from the namespace is actually named.
-        (t) => /\b(Gio|GtkSource|WebKit2?|Shumate|Gdk|GObject|Gsk|Pango|Graphene|Gst|Panel)\.[A-Z]/.test(t),
+        // ASKED, NOT LISTED. This used to name the namespaces in a regex, and a hand-kept list of
+        // what another module knows is wrong the moment that module learns one more: at the `@girs`
+        // 5.3.0 bump it still counted `Gio`, `Gdk` and `GObject` as unresolvable after the resolver
+        // had loaded all three, and it had counted `GtkSource`, `Shumate` and `WebKit` that way for
+        // longer. So the resolver answers instead. A bare `using Gio 2.0;` is still not the
+        // construct — emission needs the GType name only where a type from the namespace is NAMED,
+        // which is what the `.` plus a capital matches, and `$Ns.Inner` is excluded because an
+        // extern type asks no vocabulary anything.
+        (t) => [...t.matchAll(/(?<![$\w-])([A-Z][A-Za-z0-9]*)\.[A-Z]/g)].some(([, ns]) => !hasVocabulary(ns)),
     ],
     ['`marks [ ]` on `Gtk.Scale`', (t) => /^\s*marks\s*\[/m.test(t)],
     ['inline `template Type { }`', (t) => /^[ \t]+template\s+/m.test(t)],

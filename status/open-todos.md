@@ -6420,8 +6420,9 @@ reasoning and decided the shape — an in-repo TypeScript parser whose second ex
 run in shadow beside the compiler until it reports no divergence. **The shadow run is silent, and
 ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBlueprint` +
 `emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
-the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4: 48 rule files and 12
-reality probes, all 60 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
+the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4, re-measured again on
+the `@girs` 5.3.0 bump: 49 rule files and 12
+reality probes, all 61 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
 naming their construct, their file and their line. Those four are held to the tree by
 `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every one of
 them wrong again within hours — and the gate is bidirectional, so deleting the sentence fails too.
