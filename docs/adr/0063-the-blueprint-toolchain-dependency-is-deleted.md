@@ -147,6 +147,29 @@ build-tool subpath as a package-manager-independent `which`, and should look for
   `tests/e2e/cli-only/check-deps.mjs` holds that over the whole of stdout rather than over the
   status lines — the install hint and the `Missing optional:` summary are where a re-added table
   row would surface without a check behind it.
+- **That e2e file ran nowhere, and rewriting it is how that surfaced.** `check-deps.mjs` and its
+  neighbour `showcase.mjs` sit beside `tests/e2e/cli-only/run.mjs`, define tests with `node:test`,
+  and are named by no script and imported by no suite: `package.json#scripts.test:e2e` lists only
+  `run.mjs`, `e2e-shard.mjs` parses that script rather than globbing, and
+  `check-e2e-suite-coverage.mjs` takes the DIRECTORY as its unit, so a covered directory hid two
+  unrun files. Both are now listed, and the coverage check gained a fourth direction that takes
+  the FILE as the unit — the same incident its own header records, one level down. This ADR's
+  claim above would otherwise have been the thing it exists to refuse: a guard cited in a document
+  and run by nothing.
+- **And the unrun file had drifted, which is the second half of the cost.** Listed and run,
+  `showcase.mjs` failed on `Missing "bundlePath"`. The first hypothesis was that it needed built
+  examples — its own header says `Requires: yarn build && yarn build:examples` — and that was
+  FALSIFIED by running `gjsify run build:examples` and re-running it: 8 pass, the same 1 fail.
+  `gjsify showcase --json` emits `name`, `packageName`, `category`, `description`, and
+  `bundlePath` appears in no line of `packages/infra/cli/src`. The field went with the
+  showcase-decoupling refactor the sibling `run.mjs` records, and nothing failed because nothing
+  ran. The assertion now names a field the command answers. Behind it sat a SECOND stale line in
+  the same test: every entry's `category` had to be `dom`, and the command reports
+  `{ dom: 7, gtk: 1, node: 1 }` — false about correct code since the first showcase outside that category
+  shipped. Neither is weakened to pass; both were claims that had stopped being true, and what
+  replaces them is a shape plus an anchor rather than a list that drifts the same way. A test that
+  runs nowhere does not merely fail to catch a regression — it stops describing the code, silently,
+  and the drift compounds where nobody is looking.
 - The corpus harness, `--require-oracle`, `scripts/blueprint-wild-sweep.mjs` and the ci-fedora
   image's `blueprint-compiler` all stay, untouched. Clause 4 makes the binary the thing that
   proves the emitted XML; deleting it would delete the only independent reading the goldens have,

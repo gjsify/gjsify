@@ -99,6 +99,11 @@ describe('gjsify system-check E2E', { timeout: 10 * 60 * 1000 }, () => {
     // surface from a table rather than from a check.
     it('never asks for blueprint-compiler, in any section', () => {
         const { stdout } = runCheck(projectDir);
+        // A count of zero is the shape that goes green on an empty read, so the read is
+        // established first: these two lines are printed by every run of the command.
+        assert.match(stdout, /Required:/, `system-check printed no report at all:\n${stdout}`);
+        assert.match(stdout, /Optional:/, `system-check printed no optional section:\n${stdout}`);
+
         const mentions = stdout.split('\n').filter((line) => /blueprint/i.test(line));
         assert.equal(
             mentions.length,
