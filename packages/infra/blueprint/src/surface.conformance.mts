@@ -19,7 +19,11 @@
 // `scripts/check-type-surfaces.mjs` § WHY NEGATIVE-FIRST names the same trap one package over.
 // So the last assertion is a FAILURE that must happen: `@ts-expect-error` is reported as an
 // unused directive (TS2578) when the line below it compiles, so the file asserts its own
-// reading. Delete the sentinel and the rest of this file proves nothing. The file's own ABSENCE
+// reading. It is written on `Same`, the helper every assertion above actually runs on, and not
+// on some other one. A sentinel exercising a helper the work does NOT use guards nothing:
+// measured, with the sentinel written on an `IsNever` that only it used, weakening `Same` to
+// `type Same<Union, Named> = true` made all five substantive assertions vacuous and the file
+// still compiled, exit 0. That `IsNever` is gone; its only reader was the guard for it. Delete the sentinel and the rest of this file proves nothing. The file's own ABSENCE
 // is the one thing it cannot assert, so `tsconfig.json` names it under `files` rather than
 // matching it with a glob: renamed or deleted, the project fails to load (TS6053).
 //
@@ -65,7 +69,6 @@ type SurfaceModule = typeof Surface;
 
 /** Compiles only for `true`; every assertion below is one of these. */
 type Assert<T extends true> = T;
-type IsNever<T> = [T] extends [never] ? true : false;
 /**
  * Both directions: nothing in the union is unnameable, and nothing named has left the union.
  *
@@ -134,8 +137,9 @@ export type CastWithoutATypeHasABuiltin = Assert<
     Same<Extract<CastExpression, { type?: undefined }>['builtin'], string>
 >;
 
-// THE SENTINEL. `Value` holds more than a string, so `Assert` is handed `false` and TypeScript
-// reports it — which is what makes the unused-directive error impossible and every assertion
-// above load-bearing. If this line ever stops erroring, TS2578 fails the check.
+// THE SENTINEL. `Value` holds more than a string, so `Same` is `false`, `Assert` refuses it and
+// TypeScript reports it — which is what makes the unused-directive error impossible and every
+// assertion above load-bearing. It runs through BOTH helpers the assertions run through, so
+// weakening either one turns this line green and TS2578 fails the check.
 // @ts-expect-error
-export type SentinelMustFail = Assert<IsNever<Exclude<Value, StringValue>>>;
+export type SentinelMustFail = Assert<Same<Value, StringValue>>;

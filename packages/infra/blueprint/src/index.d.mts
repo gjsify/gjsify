@@ -11,51 +11,31 @@
  * half: what a bare identifier means, which element an ARIA entry becomes, what GType name a
  * type spells. That split is deliberate and stated there — do not move the seams into it.
  *
- * EVERY type the AST can hold is re-exported, including the nine expression nodes, and that is
- * not tidiness. A consumer narrowing a `Value` or an `Expression` has to be able to NAME the
- * arm it handles; one missing re-export and it writes the arm as a structural literal that
- * stops matching the day the node grows a field. When a node is added to `ast.d.mts` it is
- * added here in the same change.
+ * EVERY type the AST can hold is re-exported, and that is not tidiness. A consumer narrowing a
+ * `Value` or an `Expression` has to be able to NAME the arm it handles; one missing re-export
+ * and it writes the arm as a structural literal that stops matching the day the node grows a
+ * field.
+ *
+ * WHY A WILDCARD AND NOT THE LIST OF 34
+ *
+ * The list was here, complete, and complete is not the property that matters — STAYING complete
+ * is, and nothing could hold it. TypeScript has no `keyof` over a module's TYPE exports, so
+ * `surface.conformance.mts` cannot assert it and only a script diffing two files could; a
+ * comment saying "add it here too" is discipline, and discipline is not a check. `export type *`
+ * removes the question instead of answering it: a type added to `ast.d.mts` is reachable here
+ * the moment it exists, and there is no second list to fall behind.
+ *
+ * The cost is that `ast.d.mts` becomes public in full, and it is the right file for that — its
+ * own header is explicit that it holds the syntax and NOTHING about what any of it means. A
+ * helper type added there would ship; a helper type does not belong there. What the wildcard
+ * does NOT cover is an arm written INLINE into a union rather than as a named interface: it has
+ * nothing to re-export and a consumer cannot name it. That is what the union assertions in
+ * `surface.conformance.mts` hold, which is why both exist.
  */
 
 import type { BlueprintFile, TypeRef } from './ast.mjs';
 
-export type {
-    BindingValue,
-    BlueprintFile,
-    BlueprintImport,
-    BoolValue,
-    CastExpression,
-    Child,
-    ClosureExpression,
-    Expression,
-    Extension,
-    ExtensionEntry,
-    IdentExpression,
-    IdentValue,
-    ItemExpression,
-    ListValue,
-    LiteralExpression,
-    LookupExpression,
-    MenuAttribute,
-    MenuItem,
-    MenuNode,
-    NumberValue,
-    ObjectBody,
-    ObjectNode,
-    ObjectValue,
-    ParenExpression,
-    Property,
-    Signal,
-    StringValue,
-    TemplateNode,
-    TopLevel,
-    TryExpression,
-    TypeExpression,
-    TypeRef,
-    TypeValue,
-    Value,
-} from './ast.mjs';
+export type * from './ast.mjs';
 
 export { BlueprintSyntaxError } from './ast.mjs';
 
