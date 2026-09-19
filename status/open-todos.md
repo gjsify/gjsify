@@ -6340,16 +6340,20 @@ calls `installBundledIconTheme()`.
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-16 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 47 corpus files
-(35 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 15
-refusals each name their construct and line. Clause 5's condition is met; after it come the
-flip and the deletions.
+2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 50 corpus files
+(38 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 19
+refused `.blp` files each name their construct and line. Those four numbers are held to the
+tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
+every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
+the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
-and a template parent — and the corpus grew four rule files for it (32-35), taking the
-rules to 35 and the corpus to 47. Two things it does NOT do: it converts no consumer, and it
-does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
+and a template parent — and the corpus grew rule files 32-35 for it:
+#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did
+and is not a claim about this tree — what the corpus holds NOW is measured a paragraph above
+and held to the tree there. Two things `$extern` does NOT do: it converts no
+consumer, and it does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
@@ -6562,13 +6566,13 @@ kinds are unreachable from the eleven shipped files** — `menu`, `signal`, `acc
 `layout`, `sibling-object`, `value-list` — which is ADR 0053 clause 6's written corpus
 earning its keep, and a standing warning that a construct no real file uses is one whose
 SECOND case nobody has seen. The same figures are already held per line by stage D of
-`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
-one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
-holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence). Read those two
-numbers as a date: #1681 takes the corpus to 31 rules and 42 files, #1690 adds a twelfth real
-`.blp` and #1694 four more rule files, so the tree holds 35 rules and 47 files as of
-2026-09-16. Every figure in this paragraph moves with them and none of the conclusions below
-does — those rest on the real files, which #1694 does not touch and #1690 only adds to.
+`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted was the
+one in `src/project.mjs`'s header, which said 36 trees and 119 losses after #1644 added a rule
+file to what #1635 had counted, and which states no count at all any more. Read every figure
+in this paragraph as a date: #1681, #1690, #1694 and #1700 each grew the corpus after this
+census was taken, and what the tree holds now is what the harness prints rather than what a
+paragraph says. None of the conclusions below moves with them — those rest on the real files,
+which #1694 does not touch and #1690 only adds to.
 
 `slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
 placement on the child wrapper; `content:` is `<property name="content">`, an object as a

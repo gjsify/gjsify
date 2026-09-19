@@ -9,11 +9,13 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**One divergence is left, on one line, waiting on a fact.** Clause 5 makes the parser
-authoritative once the shadow run is silent; `corpus/divergences.mjs` holds one entry — an enum
-property of a class that is not a widget (`GtkSizeGroup.mode`) has no join to its enum, because
-the `@girs` vocabulary is a widget vocabulary. Everything else in the corpus is byte-equal, and
-every construct the subset refuses is refused by name, held by a corpus of its own.
+**The shadow run is silent, which is clause 5's precondition and not its conclusion.**
+`corpus/divergences.mjs` is where a disagreement would be recorded, per line and with a reason;
+how many it excuses is printed by stage C on every run and is deliberately not restated here.
+Its own header says what used to be in it — the last entry was an enum property of a class that
+is not a widget (`GtkSizeGroup.mode`), which had no join to its enum until the `@girs`
+vocabulary stopped being a widget-only vocabulary. Every construct the subset refuses is
+refused by name, held by a corpus of its own.
 
 ## What is in here
 
@@ -166,7 +168,8 @@ would drift.
    must spell right.
 9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
    `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
-   for a class outside the widget tree — the one ledger entry left (`rules/29-enum-non-widget.ui`).
+   for a class outside the widget tree — the last entry the shadow ledger held
+   (`rules/29-enum-non-widget.ui`), retired by the `@girs` 5.2.0 bump in #1692.
 10. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
     "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
