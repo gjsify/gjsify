@@ -505,9 +505,12 @@ Windows call has no home in `@gjsify/*` yet."* Both are retired by `initFonts()`
 on the `initLocale` precedent. The host layer is what § *What this does NOT decide* named (ADR
 0027), and two facts settle it independently of the ancestry: `adwaita-app` declares
 `gjsify.runtimes.node: "none"` while Windows has no GJS host at all, so the call would live on a
-runtime slot its own package disclaims; and `gtk-os-suites.yml` builds `@gjsify/gtk-host` in BOTH
-the darwin and the win32 legs while `adwaita-app` appears in neither, so an `initFonts()` there
-would be gated by nothing on the one platform that needs it. The shape `locale-dir.ts` set is
+runtime slot its own package disclaims; and `gtk-os-suites.yml` builds and RUNS `@gjsify/gtk-host`'s suite in
+BOTH the darwin and the win32 legs while `adwaita-app` appears in neither, so an `initFonts()`
+there would be exercised by nothing at all on the one platform that needs it. Exercised, not
+gated: the win32 `gtk-host` step is a `continue-on-error` probe until its Unix-only table rows
+are fixed, so what the win32 leg buys `gtk-host` today is a printed measurement, and only the
+darwin leg's copy can fail a run. The shape `locale-dir.ts` set is
 kept — a pure `resolveFontDir` beside a GI-bound caller — it is simply mirrored into the other
 package. It is a SUBPATH so that `gi://PangoCairo` stays out of the root import graph every
 renderer binds to.
