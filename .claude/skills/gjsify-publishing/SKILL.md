@@ -5,8 +5,9 @@ description: Read BEFORE adding a new @gjsify/* package name, before running `gj
 
 # gjsify — publishing and releases
 
-Two failure modes here have each stalled the release train for every alphabetically later
-package. Both are documented in full, with the measured incidents, in
+Two failure modes here have each cost a release in this repo. One stalled a train; the other
+SHIPS one, which is worse and is the live risk ([#1713](https://github.com/gjsify/gjsify/issues/1713)).
+Both are documented in full, with the measured incidents and their dates, in
 [docs/publishing.md](../../../docs/publishing.md) — **read that file now**, then act.
 
 The two things to check before you do anything:
@@ -14,7 +15,10 @@ The two things to check before you do anything:
 1. **Adding a new `@gjsify/*` name?** npm Trusted Publishing (OIDC) requires the package to
    ALREADY EXIST, so the first publish is a manual maintainer action, not CI. Run
    `gjsify onboard` (idempotent, `--dry-run` first). Skipping it makes `release.yml`'s OIDC
-   exchange 404 and exits 1 — the v0.4.20 incident left 60+ packages stuck at 0.4.19.
+   exchange 404 — which, since `fb3034a205` added `--tolerate-untrusted-new` (2026-05-22), the
+   sweep TOLERATES: it skips the name with exit 0 and publishes its dependents behind it. Do not
+   expect a red leg to stop you. The exit-1 stall is the v0.4.20 incident (2026-05-21, 60+
+   packages stuck at 0.4.19) and is the reason the flag exists, not what happens now.
 
 2. **Cutting a release?** A publish sweep has no transaction, so its ORDER is a correctness
    property. `npm:publish` must run `gjsify foreach --topological` with `includeOptional`
