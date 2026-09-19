@@ -407,6 +407,22 @@ jobs:
           GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN: '1'
         run: node --test tests/e2e/ship-signing/run.mjs
 
+      # Blueprint reaches a `--library` build here for the first time. ADR 0053
+      # clause 5 moved the `.blp` transform out of a spawned `blueprint-compiler`
+      # and into JavaScript, which is what makes this leg possible AND what makes
+      # it necessary: the compiler was never installed on this runner, so the
+      # `e2e` job — ubuntu + ci-fedora, the only place that suite ran — proved
+      # nothing about darwin, and the suite's own SKIP condition only ever fired
+      # for a local developer. Path handling is the reason to pay for it: it used
+      # to happen inside another process and now happens in ours.
+      #
+      # `library-blueprint` and not `create-app`: the second scaffolds nine
+      # templates and npm-installs each, which is a 15-minute-per-template budget
+      # this workflow does not have. The three `.blp` templates it covers are the
+      # same transform this suite exercises directly.
+      - name: '`gjsify build --library` compiles Blueprint (ADR 0053 clause 5)'
+        run: node --test tests/e2e/library-blueprint/run.mjs
+
       # Manifest conformance including `os-axis` — cheap, and it is the check
       # that the declarations these suites back up are still present. It prints
       # every claim below `supported` with its reason, so the log carries the

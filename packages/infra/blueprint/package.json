@@ -1,8 +1,7 @@
 {
     "name": "@gjsify/blueprint",
     "version": "0.51.1",
-    "description": "The GNOME Blueprint parser, GtkBuilder-XML emitter and SharedNode projection of ADR 0053, with the corpus of reference-compiler goldens they are measured against. NOT published to npm.",
-    "private": true,
+    "description": "The GNOME Blueprint parser, GtkBuilder-XML emitter and SharedNode projection of ADR 0053, with the corpus of reference-compiler goldens they are measured against.",
     "type": "module",
     "main": "src/index.mjs",
     "types": "src/index.d.mts",
@@ -16,6 +15,10 @@
         "./corpus/real-expectations": "./corpus/real-expectations.mjs",
         "./package.json": "./package.json"
     },
+    "files": [
+        "corpus",
+        "src"
+    ],
     "dependencies": {
         "@girs/adw-1": "5.2.0",
         "@girs/gtk-4.0": "5.2.0",
@@ -45,5 +48,8 @@
         "gtkbuilder",
         "corpus"
     ],
-    "license": "MIT"
+    "license": "MIT",
+    "gjsify": {
+        "tier": 1
+    }
 }

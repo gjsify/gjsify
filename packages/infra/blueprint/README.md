@@ -9,9 +9,11 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**The shadow run is silent, which is clause 5's precondition and not its conclusion.**
-`corpus/divergences.mjs` is where a disagreement would be recorded, per line and with a reason;
-how many it excuses is printed by stage C on every run and is deliberately not restated here.
+**The shadow run is silent, and since ADR 0053 Amendment 3 the build takes it:**
+`@gjsify/vite-plugin-blueprint` calls `parseBlueprint` + `emitGtkBuilderXml` and spawns nothing,
+with no fallback to the binary. `corpus/divergences.mjs` is where a disagreement would be
+recorded, per line and with a reason; how many it excuses is printed by stage C on every run and
+is deliberately not restated here.
 Its own header says what used to be in it — the last entry was an enum property of a class that
 is not a widget (`GtkSizeGroup.mode`), which had no join to its enum until the `@girs`
 vocabulary stopped being a widget-only vocabulary. Every construct the subset refuses is
@@ -29,7 +31,8 @@ refused by name, held by a corpus of its own.
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
 | `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
-| `src/index.mjs` | the package's whole surface: one compile, and the five seams it needs |
+| `src/index.mjs` | the package's whole surface: one compile, the five seams it needs, and what it throws |
+| `src/errors.mjs` | both error classes — the refusal is part of the contract, so it is not two homes |
 | `src/index.d.mts` | the types for those, hand-written — there is no build step |
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
@@ -47,21 +50,30 @@ while it drifted.
 
 ```js
 import { emitGtkBuilderXml, gtypeName, parseBlueprint, resolveIdent } from '@gjsify/blueprint';
+// and what a refusal is, because clause 3 makes it part of the contract:
+import { BlueprintEmitError, BlueprintSyntaxError } from '@gjsify/blueprint';
 ```
 
 One compile is `parseBlueprint` then `emitGtkBuilderXml`, and the emitter reaches introspection
 through five optional seams (`EmitOptions`) that `resolve-ident.mjs` answers from the `@girs`
-vocabulary. Those seven names plus `BlueprintSyntaxError` are the whole surface, and
+vocabulary. Those seven names plus the two error classes are the whole surface, and
 `scripts/check-blueprint-corpus.mjs` imports the package by this specifier — so a dropped export
 is a red gate and not a discovery made later by a consumer.
+
+**Both classes carry `file` and `line` as FIELDS, and `BlueprintSyntaxError` a `column` besides.**
+A consumer that had to regex `blueprint: line 8: …` out of a message would be pinned to the
+wording of a sentence written to be read. `BlueprintEmitError` has no column because an AST node
+has a line and nothing finer — see the header of `src/errors.mjs`.
 
 `src/project.mjs` is deliberately NOT on it. The `SharedNode` projection is ADR 0053 clause 1's
 second, declared-lossy exit; its only caller is stage D of that same gate, one directory over, and
 nothing outside this repository has asked for a shape whose whole point is what it drops.
 
-The package is `private` and is not published. The first publish is a human step — OIDC cannot
-create a package name — and it belongs to the change that makes the parser authoritative, not to
-the one that gave it a door.
+The package is on the release train, and it had to be: `@gjsify/vite-plugin-blueprint` is
+published and tier 1, and `scripts/verify-published-closure.mjs` refuses a release-pinned edge
+from a published package to a `private` target — npm would resolve the NAME to whatever unrelated
+package owns it. The first publish is still a human step, because OIDC cannot create a package
+name, and it is queued in `status/pending-npm-bootstrap.json` until a maintainer does it.
 
 ## Running it
 

@@ -6411,18 +6411,41 @@ ship 26.5 KiB and a startup call to apps with no icons. The day a template draws
 change is one line: `runAdwaitaApp` already defaults this on, and a hand-built application
 calls `installBundledIconTheme()`.
 
-### Blueprint reaches the build through a binary two of three runners lack
+### Blueprint no longer reaches the build through a binary — the deletions are what is left
 
-`@gjsify/vite-plugin-blueprint` shells out to GNOME's `blueprint-compiler`, which is installed on
-neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
-decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
-beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 60 corpus files
-(48 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 25
-refused `.blp` files each name their construct and line. Those four numbers are held to the
-tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
-every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
-the deletions.
+`@gjsify/vite-plugin-blueprint` used to shell out to GNOME's `blueprint-compiler`, which is
+installed on neither the macOS nor the Windows runner. ADR 0053 carries the census and the
+reasoning and decided the shape — an in-repo TypeScript parser whose second exit is `SharedNode`,
+run in shadow beside the compiler until it reports no divergence. **The shadow run is silent, and
+ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBlueprint` +
+`emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
+the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4: 48 rule files and 12
+reality probes, all 60 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
+naming their construct, their file and their line. Those four are held to the tree by
+`check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every one of
+them wrong again within hours — and the gate is bidirectional, so deleting the sentence fails too.
+
+**What the flip forced beyond the ADR's own list:** `@gjsify/blueprint` is no longer `private`.
+`verify-published-closure.mjs` refuses a release-pinned edge from a PUBLISHED package to a private
+target by name, so the parser is on the release train and its first publish is queued in
+`status/pending-npm-bootstrap.json` — a manual maintainer step with a credential and an OTP, which
+OIDC cannot do.
+
+**And the failure mode is not a stalled train, which is what makes it easy to miss.** An earlier
+draft of that ledger entry said this name was alphabetically first and would stall everything;
+measured, it is 12th of the 215 non-private `@gjsify/*` names — the same 215
+`verify-published-closure` counts as publishable — behind `abort-controller`, `adwaita-app` and
+`adwaita-core` among others, and the release does not walk them alphabetically anyway.
+`npm:publish:prebuilt` runs `gjsify foreach --topological … gjsify publish
+--tolerate-untrusted-new`, and `--tolerate-untrusted-new` returns `skipped-untrusted-new` with
+exit 0 for a name OIDC cannot create — the flag exists so one un-bootstrapped package does not
+break the serialized loop. Measured, that loop emits `@gjsify/blueprint` before
+`@gjsify/vite-plugin-blueprint`. So an un-bootstrapped parser is SKIPPED and the plugin is
+PUBLISHED behind it, pinning a name npm does not have, on a required `dependencies` edge: every
+consumer install of the plugin fails, on every package manager. The release goes red afterwards,
+in `verify-published-closure`'s post-release phase, which ignores the ledger by design — after
+the tarball is on the registry. The bootstrap is a BEFORE for that reason and not for an
+alphabetical one.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
@@ -6449,13 +6472,15 @@ uncast closure's return type — and `@girs`'s vocabulary ships no property-to-G
 namespace vocabulary one below, one table over; 8 files in `tests/samples` stop there and 0
 wild files do, because every closure in the wild corpus writes its cast.
 
-The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
-interface and changes what it calls, and byte-equality on the corpus is evidence about the
-corpus: the parser accepts a documented SUBSET (clause 3), and a `.blp` outside it is a hard
-error rather than wrong output, so the flip has to say what a build does when a real file trips
-one. An inline `template`, `marks [ ]`, a response flag, `[internal-child]`, an inline `menu`
-as a property value and `mime-types [ ]` are the refusals that block a real file today, each
-with its own message.
+**The flip landed, and what it answered is the question this paragraph used to hold open.**
+`@gjsify/vite-plugin-blueprint` kept its public interface and changed what it calls. Byte-equality
+on the corpus is evidence about the corpus: the parser accepts a documented SUBSET (clause 3), and
+a `.blp` outside it is a hard error rather than wrong output. What a build does when a real file
+trips one is now decided — it fails, naming the construct, the file and the line, through
+`BlueprintSyntaxError` or `BlueprintEmitError`, both of which carry `file` and `line` as fields so
+a wrapping tool never regexes a message. The constructs that do it are the ones
+`corpus/refused/` records with `oracle: 'compiles'`, and they are listed by name in ADR 0053
+Amendment 3 rather than kept in a second list here.
 
 **And "outside the subset is a hard error, never wrong output" is a property to re-measure
 before the flip, not to assume.** It was untrue for `accessibility { }` until that rule file

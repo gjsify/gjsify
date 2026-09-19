@@ -281,6 +281,22 @@ jobs:
       - name: '@gjsify/cli'
         run: node packages\infra\cli\lib\index.js workspace @gjsify/cli run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/cli run test:node
 
+      # Blueprint reaches a `--library` build here for the first time, and win32
+      # is the leg with the most to say. ADR 0053 clause 5 moved the `.blp`
+      # transform out of a spawned `blueprint-compiler` and into JavaScript: the
+      # old path needed an MSYS2 install whose shebang script Windows cannot
+      # execute, so this runner could never have run the suite, and the `e2e`
+      # job — ubuntu + ci-fedora — proved nothing about win32. The suite's own
+      # SKIP condition only ever fired for a local developer. What this measures
+      # that Fedora cannot: separator and path handling that used to belong to
+      # another process and now belongs to ours, on a job that deliberately
+      # removes the git-bash POSIX utilities from PATH.
+      #
+      # `library-blueprint` and not `create-app`: the second scaffolds nine
+      # templates and npm-installs each, a budget this workflow does not have.
+      - name: '`gjsify build --library` compiles Blueprint (ADR 0053 clause 5)'
+        run: node --test tests\e2e\library-blueprint\run.mjs
+
       # Manifest conformance including `os-axis` — cheap, and it is the check
       # that the declarations these suites back up are still present.
       - name: Conformance audit (os-axis included)

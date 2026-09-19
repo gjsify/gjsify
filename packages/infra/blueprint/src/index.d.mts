@@ -5,7 +5,7 @@
  * AND NOT A `.ts` says why, and `@gjsify/manifest-conformance` ships the same arrangement for
  * the same reason. The cost is this file, kept in sync by hand; what keeps the cost honest is
  * that the VALUES are proven elsewhere: `scripts/check-blueprint-corpus.mjs` imports this
- * package by specifier and names any of the eight that stops being a function, on every run.
+ * package by specifier and names any of the nine that stops being a function, on every run.
  *
  * `ast.d.mts` carries the AST and nothing about what it MEANS. The seams below are the other
  * half: what a bare identifier means, which element an ARIA entry becomes, what GType name a
@@ -33,11 +33,11 @@
  * `surface.conformance.mts` hold, which is why both exist.
  */
 
-import type { BlueprintFile, TypeRef } from './ast.mjs';
+import type { BlueprintFile, SourceLocation, TypeRef } from './ast.mjs';
 
 export type * from './ast.mjs';
 
-export { BlueprintSyntaxError } from './ast.mjs';
+export { BlueprintEmitError, BlueprintSyntaxError } from './ast.mjs';
 
 /**
  * How the emitter is told what a bare identifier means — the five seams through which
@@ -46,15 +46,15 @@ export { BlueprintSyntaxError } from './ast.mjs';
  * costs; `resolve-ident.mjs` implements all five against the `@girs` vocabulary.
  */
 export interface EmitOptions {
-    resolveIdent?: (typeName: string, propertyName: string, member: string, where: string) => string | null;
-    accessibilityElement?: (name: string, where: string) => 'property' | 'relation' | 'state';
-    accessibilityValue?: (name: string, member: string, where: string) => string | null;
+    resolveIdent?: (typeName: string, propertyName: string, member: string, where: SourceLocation) => string | null;
+    accessibilityElement?: (name: string, where: SourceLocation) => 'property' | 'relation' | 'state';
+    accessibilityValue?: (name: string, member: string, where: SourceLocation) => string | null;
     /**
      * `position` is which question is being asked: `'object'` is a type being INSTANTIATED,
      * anything else a type merely NAMED. The two have different answers and only the first
      * can be refused for being abstract — `resolve-ident.mjs` § `gtypeName` has the table.
      */
-    gtypeName?: (type: TypeRef, where: string, position?: 'object' | 'reference') => string;
+    gtypeName?: (type: TypeRef, where: SourceLocation, position?: 'object' | 'reference') => string;
     enumOrFlagsTypeOf?: (typeName: string | null, propertyName: string) => string | null;
 }
 
@@ -69,7 +69,7 @@ export declare function resolveIdent(
     typeName: string,
     propertyName: string,
     member: string,
-    where: string,
+    where: SourceLocation,
 ): string | null;
 
 /** The enum or flags type one property holds, or `null` where the vocabulary has no join. */
@@ -83,12 +83,12 @@ export declare function enumOrFlagsTypeOf(typeName: string | null, propertyName:
  */
 export declare function gtypeName(
     type: Pick<TypeRef, 'namespace' | 'name' | 'extern'>,
-    where: string,
+    where: SourceLocation,
     position?: 'object' | 'reference',
 ): string;
 
 /** Which element one `accessibility { }` entry becomes. */
-export declare function accessibilityElement(name: string, where: string): 'property' | 'relation' | 'state';
+export declare function accessibilityElement(name: string, where: SourceLocation): 'property' | 'relation' | 'state';
 
 /** What one `accessibility { }` entry's VALUE emits, or `null` where the source spelling stands. */
-export declare function accessibilityValue(name: string, member: string, where: string): string | null;
+export declare function accessibilityValue(name: string, member: string, where: SourceLocation): string | null;

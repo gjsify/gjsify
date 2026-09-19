@@ -46,29 +46,8 @@
  * @import { Value, StringValue, ListValue, BindingValue, Expression } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES } from './builtin-types.mjs';
+import { BlueprintSyntaxError, SUBSET_NOTE } from './errors.mjs';
 import { numberLiteral } from './number-literal.mjs';
-
-/**
- * What the parser throws, and the only thing it throws.
- *
- * The location is repeated in `message` as well as carried in the fields: a caller that only
- * prints the error still gets the line clause 3 asks it to name.
- */
-export class BlueprintSyntaxError extends Error {
-    /**
-     * @param {string} message  what was found and what was expected
-     * @param {string} file     path, for the message only — nothing here reads it
-     * @param {number} line     1-based
-     * @param {number} column   1-based
-     */
-    constructor(message, file, line, column) {
-        super(`${file}:${line}:${column}: ${message}`);
-        this.name = 'BlueprintSyntaxError';
-        this.file = file;
-        this.line = line;
-        this.column = column;
-    }
-}
 
 // ---------------------------------------------------------------------------------------
 // Lexer
@@ -398,9 +377,14 @@ class Parser {
         }
 
         if (this.at('translation-domain')) {
+            // Out of scope because `BlueprintFile` holds imports and roots and nothing else. That
+            // is the reason and it belongs here: the MESSAGE is read by someone who installed a
+            // build plugin and has never seen this file.
             throw this.fail(
                 this.peek(),
-                'found `translation-domain`; `BlueprintFile` in ast.d.mts holds imports and roots only, so the file-level translation domain is out of scope',
+                'a file-level `translation-domain` is outside the subset this parser holds. The ' +
+                    '`_("…")` markers still reach the XML as `translatable="yes"`; set the domain on the ' +
+                    `builder instead of in the \`.blp\`, or drop the line where the app has one. ${SUBSET_NOTE}`,
             );
         }
 
@@ -421,7 +405,7 @@ class Parser {
             }
         }
 
-        return { imports, roots };
+        return { file: this.file, imports, roots };
     }
 
     /** @returns {BlueprintImport} */
@@ -599,9 +583,14 @@ class Parser {
         const bracket = this.expect('[', '`[`');
         const slot = this.expectIdentifier('a child slot name');
         if (slot.text === 'internal-child') {
+            // `Child.slot` is the bracket TEXT alone, so it cannot tell `<child internal-child=…>`
+            // from `<child type=…>` — which is why this is refused rather than emitted as the
+            // wrong one of the two.
             throw this.fail(
                 slot,
-                'found `internal-child`; `Child.slot` in ast.d.mts is the bracket text alone and cannot distinguish `<child internal-child=…>` from `<child type=…>`, so it is out of scope',
+                'an `[internal-child …]` bracket is outside the subset this parser holds. A bracket ' +
+                    'here becomes `<child type="…">`, a different element that GtkBuilder reads ' +
+                    `differently, so it is refused rather than spelled as the wrong one. ${SUBSET_NOTE}`,
             );
         }
         if (slot.text === 'action' && this.at('response')) {
@@ -784,9 +773,12 @@ class Parser {
                 );
             }
             if (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
+                // `ExtensionEntry` carries a name, a value and a line, and has no field for a flag.
                 throw this.fail(
                     this.peek(),
-                    `found the response flag \`${this.peek().text}\`; \`ExtensionEntry\` in ast.d.mts carries a name, a value and a line, and has no field for it`,
+                    `a response flag (\`${this.peek().text}\`) is outside the subset this parser holds. ` +
+                        'Declare the response without the flag and set its appearance or enabled state ' +
+                        `from code on the dialog. ${SUBSET_NOTE}`,
                 );
             }
             entries.push({ name: id.text, value, line: id.line });
@@ -1032,7 +1024,9 @@ class Parser {
             // readers had to write and none could take. `ast.d.mts` § `Child` records that.
             throw this.fail(
                 token,
-                'found an inline `menu`; `Value` in ast.d.mts has no menu member, so a menu is supported only as a top-level root',
+                'an inline `menu` as a property value is outside the subset this parser holds. Declare ' +
+                    'the menu at the top level, give it an id, and point the property at it: ' +
+                    `\`menu myMenu { … }\` beside the object, then \`menu-model: myMenu\`. ${SUBSET_NOTE}`,
             );
         }
 
@@ -1289,7 +1283,9 @@ class Parser {
  * Parse a `.blp` source into the AST `ast.d.mts` declares.
  *
  * @param {string} source  the `.blp` text
- * @param {string} file    path, for error messages only — nothing here reads the filesystem
+ * @param {string} file    the path this source came from — nothing here reads the filesystem, but
+ *                         it travels on the returned `BlueprintFile` so the two exits after this
+ *                         one can name it without being told a second time
  * @returns {BlueprintFile}
  * @throws {BlueprintSyntaxError} on any construct outside the subset, naming its line
  */

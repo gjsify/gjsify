@@ -2,7 +2,7 @@
 //
 // WHY THIS IS A FILE AND NOT A PARAGRAPH IN A PULL REQUEST
 //
-// `scripts/check-blueprint-corpus.mjs` holds the eight runtime names on every run, and that is
+// `scripts/check-blueprint-corpus.mjs` holds the nine runtime names on every run, and that is
 // the half a type cannot do: it proves the values exist. This is the other half, and nothing
 // held it. A consumer narrowing a `Value` or an `Expression` must be able to NAME the arm it
 // handles; one dropped re-export and it writes that arm as a structural literal, which keeps
@@ -64,7 +64,7 @@ import type {
     Value,
 } from '@gjsify/blueprint';
 
-/** The module's VALUE exports — the eight names, not the types beside them. */
+/** The module's VALUE exports — the nine names, not the types beside them. */
 type SurfaceModule = typeof Surface;
 
 /** Compiles only for `true`; every assertion below is one of these. */
@@ -79,10 +79,11 @@ type Assert<T extends true> = T;
  */
 type Same<Union, Named> = [Exclude<Union, Named>, Exclude<Named, Union>] extends [never, never] ? true : false;
 
-/** The eight the flip consumes. `check-blueprint-corpus.mjs` holds the same list at run time. */
+/** The nine the flip consumes. `check-blueprint-corpus.mjs` holds the same list at run time. */
 export type SurfaceIsExactlyThese = Assert<
     Same<
         keyof SurfaceModule,
+        | 'BlueprintEmitError'
         | 'BlueprintSyntaxError'
         | 'accessibilityElement'
         | 'accessibilityValue'

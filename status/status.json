@@ -46,6 +46,10 @@
       "status": "full",
       "note": "AsyncLocalStorage (run, enterWith, snapshot, exit), AsyncResource (bind, runInAsyncScope, triggerAsyncId), createHook."
     },
+    "@gjsify/blueprint": {
+      "status": "full",
+      "note": "The in-repo Blueprint parser of ADR 0053: `.blp` text → AST → GtkBuilder XML, with a second, declared-lossy exit to the `SharedNode` shape ADR 0051 renders. Authoritative for the build since the clause 5 flip, so `blueprint-compiler` is the oracle a committed corpus of goldens is measured against rather than a build dependency. The emitter reaches introspection through five seams answered from the `@girs` vocabulary, so it needs no GNOME on the host; a construct outside its subset is a hard error naming the construct, the file and the line."
+    },
     "@gjsify/bridge-types": {
       "status": "full",
       "note": "DOMBridgeContainer (interface), BridgeEnvironment (isolated document+body+window per bridge), BridgeWindow (rAF, performance.now, viewport)."
@@ -471,7 +475,7 @@
     },
     "@gjsify/vite-plugin-blueprint": {
       "status": "full",
-      "note": "Compile `.blp` files via blueprint-compiler → XML string (Vite/Rollup/Rolldown; GJS + browser). `import T from './window.blp'` → string; types via `@gjsify/vite-plugin-blueprint/types`; output compressed via minify-xml."
+      "note": "Compile `.blp` files to a GtkBuilder-XML string (Vite/Rollup/Rolldown; GJS + browser) through the in-repo `@gjsify/blueprint` parser — ADR 0053 clause 5: no `blueprint-compiler` on PATH, no spawn, and no fallback to one. `import T from './window.blp'` → string; types via `@gjsify/vite-plugin-blueprint/types`; output compressed via minify-xml. A construct outside the parser's subset fails the build by name, file and line."
     },
     "@gjsify/vite-plugin-gettext": {
       "status": "full",

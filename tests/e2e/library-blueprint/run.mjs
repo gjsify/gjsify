@@ -18,12 +18,22 @@
 // Asserts:
 //   1. the emitted module carries the COMPILED GTK Builder XML, with `translatable="yes"`
 //      surviving into it — the point of using Blueprint at all;
-//   2. a malformed `.blp` fails LOUDLY with a blueprint-compiler diagnostic, not with a
-//      JavaScript parse error. That is the discriminator: a JS-parser message would mean the
-//      transform never ran and assertion 1 passed for some other reason.
+//   2. a malformed `.blp` fails LOUDLY with a Blueprint diagnostic, not with a JavaScript parse
+//      error. That is the discriminator: a JS-parser message would mean the transform never ran
+//      and assertion 1 passed for some other reason.
 //
-// SKIP conditions, so a host without the toolchain reports nothing rather than a false failure:
-// no `blueprint-compiler` on PATH, or no built CLI to run.
+// ONE SKIP condition, and it is no longer the toolchain. Until ADR 0053 clause 5's flip this
+// suite also skipped where `blueprint-compiler` was absent — which on CI was nowhere: the `e2e`
+// job was the only place it ran and the ci-fedora image bakes the compiler in, so that arm only
+// ever fired for a developer without it locally. What DID leave macOS and Windows unmeasured is
+// simpler and was easy to mistake for the guard: neither workflow ran this suite at all.
+//
+// Both do now (`macos-suites.yml`, `windows-suites.yml`), and that is the coverage the flip makes
+// possible rather than a tidy-up: the transform stopped being a spawned process, so the two
+// runners that could never host `blueprint-compiler` can host the transform — and win32 is where
+// path handling moved out of another process and into ours.
+//
+// The only skip left is a missing CLI to run it with.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,19 +43,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The zero-dependency subpath, and the resolver rather than a PATH probe: on win32 MSYS2 does not
-// put its bin dirs on PATH, so `blueprint-compiler --version` answers "missing" on a host where
-// every build works. The resolver is what the plugin actually spawns, so it is the only answer
-// that predicts the build — the same reasoning `tests/e2e/create-app` records.
-import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI = join(REPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
-const SKIP =
-    (!existsSync(CLI) && 'no built CLI at packages/infra/cli/lib/index.js') ||
-    (!resolveBlueprintCompiler() && 'no blueprint-compiler the build could find');
+const SKIP = !existsSync(CLI) && 'no built CLI at packages/infra/cli/lib/index.js';
 
 const GOOD_BLP = `using Gtk 4.0;
 
@@ -60,8 +62,8 @@ template $E2eBlueprintWidget: Gtk.Box {
 }
 `;
 
-// `template` without a type is a blueprint-compiler error, and deliberately NOT a JavaScript one:
-// the whole point is to see WHOSE parser rejected the file.
+// `template` without a type is a Blueprint error, and deliberately NOT a JavaScript one: the
+// whole point is to see WHOSE parser rejected the file.
 const BAD_BLP = `using Gtk 4.0;
 
 template {
@@ -131,7 +133,7 @@ describe('gjsify build --library compiles Blueprint', { skip: SKIP, timeout: 5 *
         assert.equal((out.match(/translatable="yes"/g) ?? []).length, 1);
     });
 
-    it('fails through blueprint-compiler, not through the JavaScript parser', () => {
+    it('fails through the Blueprint parser, not through the JavaScript parser', () => {
         const r = build(bad);
         assert.notEqual(r.status, 0, 'a malformed .blp must fail the build');
         const log = `${r.stdout}\n${r.stderr}`;

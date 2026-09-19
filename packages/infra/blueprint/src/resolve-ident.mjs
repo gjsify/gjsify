@@ -200,6 +200,9 @@
 // two lines apart is the table. Resolving them through the widget's ParamSpecs instead would be
 // right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`.
 
+/** @import { SourceLocation } from './ast.d.mts' */
+import { BlueprintEmitError, SUBSET_NOTE } from './errors.mjs';
+
 import * as ADW from '@girs/adw-1/vocabulary';
 import * as GTK from '@girs/gtk-4.0/vocabulary';
 import * as GTK_SOURCE from '@girs/gtksource-5/vocabulary';
@@ -256,6 +259,12 @@ function merged(table) {
         for (const [key, value] of Object.entries(vocabulary[table] ?? {})) {
             const seen = out[key];
             if (seen !== undefined && JSON.stringify(seen) !== JSON.stringify(value)) {
+                // The throw in this module that is deliberately NOT a `BlueprintEmitError`,
+                // and the reason is that class's own contract: it carries a file and a line,
+                // and this has neither. It is raised while the vocabularies are being merged at
+                // import time, about the DEPENDENCY rather than about anyone's `.blp` — no
+                // source has been read yet, and an invented location would send a reader to a
+                // line of their own file for a defect one package over.
                 throw new Error(
                     `blueprint: @girs vocabularies disagree about ${table}[${key}]: ` +
                         `${JSON.stringify(seen)} vs ${JSON.stringify(value)} — a GType name is globally ` +
@@ -309,7 +318,7 @@ function typeOfProperty(typeName, propertyName) {
  * One member of a known enum or flags type — its nick, its number and which of the two kinds
  * of type it belongs to — or a thrown error naming it.
  *
- * @param {string} enumType @param {string} member @param {string} where
+ * @param {string} enumType @param {string} member @param {SourceLocation} where
  * @returns {{ nick: string, value: number, flags: boolean }}
  */
 function lookupMember(enumType, member, where) {
@@ -326,9 +335,10 @@ function lookupMember(enumType, member, where) {
     // the entry says which library produced it. A nick the enum does not have is a typo, and
     // the oracle refuses the same file with the same information.
     if (UNREADABLE[key] !== undefined) {
-        throw new Error(
-            `blueprint: ${where}: \`${member}\` is a member of ${enumType} whose value ` +
+        throw new BlueprintEmitError(
+            `\`${member}\` is a member of ${enumType} whose value ` +
                 `@girs could not read (${UNREADABLE[key]}), so its number cannot be emitted`,
+            where,
         );
     }
     // The nick is printed beside the member because the two differ by the one transform this
@@ -336,9 +346,10 @@ function lookupMember(enumType, member, where) {
     // day that transform was the thing that broke: "`baseline_fill` is not a member of
     // GtkAlign — it has …, `baseline_fill`, …".
     const nicks = membersOf(enumType);
-    throw new Error(
-        `blueprint: ${where}: \`${member}\` (nick \`${nick}\`) is not a member of ${enumType}` +
+    throw new BlueprintEmitError(
+        `\`${member}\` (nick \`${nick}\`) is not a member of ${enumType}` +
             (nicks.length === 0 ? '' : ` — it has ${nicks.map((n) => `\`${n.replaceAll('-', '_')}\``).join(', ')}`),
+        where,
     );
 }
 
@@ -391,7 +402,7 @@ export function enumOrFlagsTypeOf(typeName, propertyName) {
  * @param {string} typeName  GType name of the object the property sits on
  * @param {string} propertyName
  * @param {string} member  the identifier as the source spelled it; a flag set is `a|b`
- * @param {string} where  `line N`, for an error message that can be acted on
+ * @param {SourceLocation} where  the file and line the construct sits on
  * @returns {string | null}
  */
 export function resolveIdent(typeName, propertyName, member, where) {
@@ -403,8 +414,9 @@ export function resolveIdent(typeName, propertyName, member, where) {
     if (members.length === 1) return String(members[0].value);
     // …and the set form is refused where the oracle refuses it, on a type that is not flags.
     if (!members.every((entry) => entry.flags)) {
-        throw new Error(
-            `blueprint: ${where}: \`${member}\` joins members with \`|\`, and ${enumType} is not a flags type`,
+        throw new BlueprintEmitError(
+            `\`${member}\` joins members with \`|\`, and ${enumType} is not a flags type`,
+            where,
         );
     }
     return members.map((entry) => entry.nick).join('|');
@@ -484,7 +496,7 @@ const NAMESPACES = new Map(
  * answer rather than the fallback that was wrong for `Gio`.
  *
  * @param {{ namespace?: string, name: string, extern?: true }} type
- * @param {string} where  `line N`, for an error message that can be acted on
+ * @param {SourceLocation} where  the file and line the construct sits on
  * @param {'object' | 'reference'} [position]  where the type is written; see above
  * @returns {string}
  */
@@ -493,21 +505,27 @@ export function gtypeName(type, where, position) {
     const namespace = type.namespace ?? 'Gtk';
     const known = NAMESPACES.get(namespace);
     if (known === undefined) {
-        throw new Error(
-            `blueprint: ${where}: \`${namespace}.${type.name}\` names a namespace this resolver has no ` +
-                `vocabulary for (it has ${[...NAMESPACES.keys()].join(', ')}), so its GType name cannot be ` +
-                'derived — the C prefix is not the namespace name (`Gio.ListStore` is `GListStore`). ' +
-                `\`@girs/…/vocabulary\` is what carries it, and ts-for-gir emits that subpath only for ` +
-                'namespaces declaring a concrete GtkWidget descendant',
+        // The vocabulary comes from `@girs/…/vocabulary`, which ts-for-gir emits only for a
+        // namespace declaring a concrete GtkWidget descendant — so closing this is upstream, not
+        // here. That is for whoever maintains this file and not for the message: someone whose
+        // build just stopped needs the extern form, not the provenance.
+        throw new BlueprintEmitError(
+            `\`${namespace}.${type.name}\` names a namespace this resolver has no ` +
+                `vocabulary for (it has ${[...NAMESPACES.keys()].join(', ')}), so its GType name cannot ` +
+                'be derived: the C prefix is not the namespace name, and guessing it would emit a class ' +
+                'GtkBuilder resolves to nothing. Write the GType name out with the extern form instead — ' +
+                `\`Gio.ListStore\` is \`$GListStore\` — which needs no vocabulary. ${SUBSET_NOTE}`,
+            where,
         );
     }
     const gtype = `${known.prefix}${type.name}`;
     if (position === 'object' && !known.declares(gtype)) {
-        throw new Error(
-            `blueprint: ${where}: namespace ${namespace} declares no instantiable type called ` +
+        throw new BlueprintEmitError(
+            `namespace ${namespace} declares no instantiable type called ` +
                 `\`${type.name}\` (its GType name would be \`${gtype}\`), so there is nothing to ` +
                 `instantiate — @girs ${namespace} vocabulary is what was asked, and it lists the ` +
                 'abstract classes nowhere, which is why one is legal as a template parent and not here',
+            where,
         );
     }
     return gtype;
@@ -544,13 +562,13 @@ const ARIA_SLOTS = new Map(
  * GtkBuilder rejects at load — the plausible-looking wrong output ADR 0053 clause 3 is about.
  *
  * @param {string} name  the entry name, kebab-spelled as the ARIA nick is
- * @param {string} where  `line N`, for an error message that can be acted on
+ * @param {SourceLocation} where  the file and line the construct sits on
  * @returns {'property' | 'relation' | 'state'}
  */
 export function accessibilityElement(name, where) {
     const slot = ARIA_SLOTS.get(name);
     if (slot !== undefined) return slot.element;
-    throw new Error(`blueprint: ${where}: \`${name}\` is not an accessibility property, relation or state`);
+    throw new BlueprintEmitError(`\`${name}\` is not an accessibility property, relation or state`, where);
 }
 
 /**
@@ -567,7 +585,7 @@ export function accessibilityElement(name, where) {
  *
  * @param {string} name  the entry name, kebab-spelled as the ARIA nick is
  * @param {string} member  the identifier or boolean as the source spelled it
- * @param {string} where  `line N`, for an error message that can be acted on
+ * @param {SourceLocation} where  the file and line the construct sits on
  * @returns {string | null}
  */
 export function accessibilityValue(name, member, where) {

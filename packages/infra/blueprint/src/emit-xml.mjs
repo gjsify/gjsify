@@ -38,6 +38,7 @@
  *   TypeRef, Value } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES, BUILTIN_INTEGERS, BUILTIN_LITERAL_CLASS } from './builtin-types.mjs';
+import { BlueprintEmitError, SUBSET_NOTE } from './errors.mjs';
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -97,6 +98,7 @@ import { numberLiteral } from './number-literal.mjs';
  * emitted without and a single node does not carry.
  *
  * @typedef {Object} EmitContext
+ * @property {string} file  the path the AST was parsed from, so a refusal names it
  * @property {EmitOptions['resolveIdent']} resolveIdent
  * @property {EmitOptions['accessibilityElement']} accessibilityElement
  * @property {EmitOptions['accessibilityValue']} accessibilityValue
@@ -106,6 +108,14 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {Map<string, string>} idClasses  object id -> GType name, extern ones INCLUDED, for `<lookup type=…>`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
+
+/**
+ * The location a refusal names, from the context every emit path already carries.
+ *
+ * @param {Pick<EmitContext, 'file'>} context @param {number} line
+ * @returns {import('./ast.d.mts').SourceLocation}
+ */
+const at = (context, line) => ({ file: context.file, line });
 
 /** Byte-identical in every golden in the corpus, including the `@generated` marker. */
 const GENERATED_NOTICE =
@@ -125,6 +135,9 @@ const GENERATED_NOTICE =
  */
 export function emitGtkBuilderXml(file, options) {
     const seams = {
+        // Off the AST and not off a second argument: the two cannot then disagree, and a
+        // refusal naming a file the bytes did not come from is the costliest kind to read.
+        file: file.file,
         resolveIdent: options?.resolveIdent,
         accessibilityElement: options?.accessibilityElement,
         accessibilityValue: options?.accessibilityValue,
@@ -359,13 +372,14 @@ function emitProperty(xml, property, ownerType, context) {
             return;
         }
         if (value.flags.length > 0) {
-            throw new Error(
-                `blueprint: line ${value.line}: \`${value.flags.join(' ')}\` is a binding flag on an ` +
+            throw new BlueprintEmitError(
+                `\`${value.flags.join(' ')}\` is a binding flag on an ` +
                     'expression that is not a single lookup — the reference compiler refuses the same ' +
                     'file with "Only bindings with a single lookup can have flags"',
+                at(context, value.line),
             );
         }
-        checkItemPlacement(value.expression, value.form, false);
+        checkItemPlacement(value.expression, value.form, false, context);
         // `bind` makes the property TRACK the expression and `expr` makes the expression BE
         // the value, and the difference is the element name and nothing else — measured:
         // `label: bind true` is `<binding name="label">` and `expression: expr true` is
@@ -385,7 +399,7 @@ function emitProperty(xml, property, ownerType, context) {
     }
 
     if (value.kind === 'list') {
-        emitListProperty(xml, property, value);
+        emitListProperty(xml, property, value, context);
         return;
     }
 
@@ -459,37 +473,40 @@ function coreOf(/** @type {Expression} */ expression) {
  *
  * @param {Expression} node @param {'bind' | 'expr'} form
  * @param {boolean} asLookupBase  whether this position is the thing a `.property` reads from
+ * @param {Pick<EmitContext, 'file'>} context
  */
-function checkItemPlacement(node, form, asLookupBase) {
+function checkItemPlacement(node, form, asLookupBase, context) {
     if (node.kind === 'item') {
         if (!asLookupBase) {
-            throw new Error(
-                `blueprint: line ${node.line}: \`item\` is used as a value — the reference compiler ` +
+            throw new BlueprintEmitError(
+                `\`item\` is used as a value — the reference compiler ` +
                     `refuses the same file with '"item" can only be used for looking up properties'`,
+                at(context, node.line),
             );
         }
         if (form !== 'expr') {
-            throw new Error(
-                `blueprint: line ${node.line}: \`item\` is used inside a \`bind\` — the reference compiler ` +
+            throw new BlueprintEmitError(
+                `\`item\` is used inside a \`bind\` — the reference compiler ` +
                     `refuses the same file with '"item" can only be used in an expression literal'`,
+                at(context, node.line),
             );
         }
         return;
     }
     if (node.kind === 'paren' || node.kind === 'cast') {
-        checkItemPlacement(node.of, form, asLookupBase);
+        checkItemPlacement(node.of, form, asLookupBase, context);
         return;
     }
     if (node.kind === 'lookup') {
-        checkItemPlacement(node.of, form, true);
+        checkItemPlacement(node.of, form, true, context);
         return;
     }
     if (node.kind === 'closure') {
-        for (const argument of node.args) checkItemPlacement(argument, form, false);
+        for (const argument of node.args) checkItemPlacement(argument, form, false, context);
         return;
     }
     if (node.kind === 'try') {
-        for (const arm of node.arms) checkItemPlacement(arm, form, false);
+        for (const arm of node.arms) checkItemPlacement(arm, form, false, context);
     }
 }
 
@@ -544,12 +561,14 @@ function expressionType(expression, context) {
         const declared = context.idClasses.get(expression.name);
         if (declared !== undefined) return declared;
     }
-    throw new Error(
-        `blueprint: line ${expression.line}: ${describeExpression(expression)} is read for a property and its ` +
+    throw new BlueprintEmitError(
+        `${describeExpression(expression)} is read for a property and its ` +
             'own type is not written in this file — deriving it needs the GType of a property, a table ' +
             '`@girs` does not ship (`OWN_PROPS` holds property NAMES, `PROP_ENUMS` only the enum-typed ' +
-            'ones), so the `type` of the lookup around it cannot be spelled. Write the cast the oracle ' +
-            'infers: `a.b as <Type>.c` rather than `a.b.c`',
+            'ones), so the `type` of the lookup around it cannot be spelled. Write the cast out — ' +
+            '`a.b as <Type>.c` rather than `a.b.c` — which names the same type `blueprint-compiler` ' +
+            `would have inferred. ${SUBSET_NOTE}`,
+        at(context, expression.line),
     );
 }
 
@@ -591,7 +610,7 @@ function emitExpression(xml, node, imposed, context) {
         // the one position `item` is legal in. Stated rather than left to fall through into
         // `emitConstant`, where an unhandled kind would become a confusing message about a
         // constant it is not.
-        throw new Error(`blueprint: line ${node.line}: \`item\` reached the emitter outside a lookup base`);
+        throw new BlueprintEmitError('`item` reached the emitter outside a lookup base', at(context, node.line));
     }
 
     if (node.kind === 'lookup') {
@@ -611,12 +630,14 @@ function emitExpression(xml, node, imposed, context) {
 
     if (node.kind === 'closure') {
         if (imposed === undefined) {
-            throw new Error(
-                `blueprint: line ${node.line}: the closure \`$${node.name}(…)\` has no \`as <Type>\` and its ` +
+            throw new BlueprintEmitError(
+                `the closure \`$${node.name}(…)\` has no \`as <Type>\` and its ` +
                     'return type would have to be inferred from the GType of the property it is assigned to — ' +
                     'a table `@girs` does not ship. Write the cast: `bind $' +
-                    `${node.name}(…) as <Type>\`. The oracle asks for it too wherever it cannot infer one ` +
-                    '("Closure expression must be cast to the closure\'s return type")',
+                    `${node.name}(…) as <Type>\`. \`blueprint-compiler\` asks for the same cast wherever ` +
+                    'it cannot infer one ("Closure expression must be cast to the closure\'s return ' +
+                    `type"). ${SUBSET_NOTE}`,
+                at(context, node.line),
             );
         }
         xml.startTag('closure', { function: node.name, type: imposed.gtype });
@@ -627,9 +648,10 @@ function emitExpression(xml, node, imposed, context) {
 
     if (node.kind === 'try') {
         if (node.arms.length === 0) {
-            throw new Error(
-                `blueprint: line ${node.line}: \`try { }\` has no branches — the reference compiler ` +
+            throw new BlueprintEmitError(
+                '`try { }` has no branches — the reference compiler ' +
                     'refuses the same file with "A try expression must have at least one branch"',
+                at(context, node.line),
             );
         }
         xml.startTag('try', {});
@@ -696,16 +718,18 @@ function emitConstant(xml, node, imposed, context) {
 
     if (imposed !== undefined) {
         if (imposed.builtin === undefined || BUILTIN_LITERAL_CLASS.get(imposed.builtin) !== literalClass) {
-            throw new Error(
-                `blueprint: line ${node.line}: a ${literalClass} constant is cast to \`${imposed.gtype}\`, ` +
+            throw new BlueprintEmitError(
+                `a ${literalClass} constant is cast to \`${imposed.gtype}\`, ` +
                     'and the reference compiler refuses that conversion',
+                at(context, node.line),
             );
         }
         if (fractional && BUILTIN_INTEGERS.has(imposed.builtin)) {
-            throw new Error(
-                `blueprint: line ${node.line}: \`${/** @type {{ raw: string }} */ (value).raw}\` is cast to ` +
+            throw new BlueprintEmitError(
+                `\`${/** @type {{ raw: string }} */ (value).raw}\` is cast to ` +
                     `\`${imposed.builtin}\`, and the reference compiler refuses it — ` +
                     `"Cannot convert ${/** @type {{ raw: string }} */ (value).raw} to integer"`,
+                at(context, node.line),
             );
         }
     }
@@ -734,18 +758,19 @@ function emitConstant(xml, node, imposed, context) {
  * newline, the spelling GtkBuilder's GStrv parser splits on (21-value-array.ui).
  *
  * @param {XmlWriter} xml @param {Property} property @param {Extract<Value, { kind: 'list' }>} value
+ * @param {Pick<EmitContext, 'file'>} context
  */
-function emitListProperty(xml, property, value) {
+function emitListProperty(xml, property, value, context) {
     if (property.name === 'styles') {
         xml.startTag('style', {});
-        for (const item of value.items) xml.selfClosing('class', { name: listItemText(item) });
+        for (const item of value.items) xml.selfClosing('class', { name: listItemText(item, context) });
         xml.endTag();
         return;
     }
 
     if (property.name === 'widgets') {
         xml.startTag('widgets', {});
-        for (const item of value.items) xml.selfClosing('widget', { name: listItemText(item) });
+        for (const item of value.items) xml.selfClosing('widget', { name: listItemText(item, context) });
         xml.endTag();
         return;
     }
@@ -754,7 +779,7 @@ function emitListProperty(xml, property, value) {
         xml.startTag('items', {});
         for (const item of value.items) {
             xml.startTag('item', translatedAttributes(item));
-            xml.text(listItemText(item));
+            xml.text(listItemText(item, context));
             xml.endTag();
         }
         xml.endTag();
@@ -762,7 +787,7 @@ function emitListProperty(xml, property, value) {
     }
 
     xml.startTag('property', { name: property.name });
-    xml.text(value.items.map((item) => arrayItemText(item)).join('\n'));
+    xml.text(value.items.map((item) => arrayItemText(item, context)).join('\n'));
     xml.endTag();
 }
 
@@ -771,21 +796,22 @@ function emitListProperty(xml, property, value) {
  * one and dies with a CompilerBugError, so `_()` inside `css-classes: [ … ]` is refused here by
  * name rather than emitted as something the reference never produces.
  *
- * @param {Value} item
+ * @param {Value} item @param {Pick<EmitContext, 'file'>} context
  */
-function arrayItemText(item) {
+function arrayItemText(item, context) {
     if (item.kind === 'string' && item.translatable === undefined) return item.value;
-    throw new Error(
-        `blueprint: line ${item.line}: a property array holds plain strings only — ` +
+    throw new BlueprintEmitError(
+        'a property array holds plain strings only — ' +
             `${item.kind === 'string' ? 'a translated string' : `a ${item.kind}`} is not one the reference compiler emits`,
+        at(context, item.line),
     );
 }
 
-/** @param {Value} item */
-function listItemText(item) {
+/** @param {Value} item @param {Pick<EmitContext, 'file'>} context */
+function listItemText(item, context) {
     if (item.kind === 'string') return item.value;
     if (item.kind === 'ident') return item.name;
-    throw new Error(`blueprint: line ${item.line}: a list item that is neither a string nor an identifier`);
+    throw new BlueprintEmitError('a list item that is neither a string nor an identifier', at(context, item.line));
 }
 
 /**
@@ -816,7 +842,7 @@ function scalarText(value, ownerType, propertyName, context) {
     // the GType name as plain text, with none of the `<constant type="GType">` wrapper the
     // same syntax takes inside an expression.
     if (value.kind === 'type') return gtypeName(value.type, context, 'reference');
-    throw new Error(`blueprint: line ${value.line}: a ${value.kind} value where a scalar was expected`);
+    throw new BlueprintEmitError(`a ${value.kind} value where a scalar was expected`, at(context, value.line));
 }
 
 /**
@@ -839,7 +865,7 @@ function scalarText(value, ownerType, propertyName, context) {
  */
 function identText(value, ownerType, propertyName, context) {
     if (ownerType !== null && propertyName !== null && context.resolveIdent !== undefined) {
-        const resolved = context.resolveIdent(ownerType, propertyName, value.name, `line ${value.line}`);
+        const resolved = context.resolveIdent(ownerType, propertyName, value.name, at(context, value.line));
         if (resolved !== null && resolved !== undefined) return resolved;
         // Not a member of an enum or flags type this resolver knows, so what is left is an
         // object reference — and a reference is checked. ONLY this branch checks, and the two
@@ -941,7 +967,7 @@ function emitExtension(xml, extension, context) {
     if (extension.name === 'condition') {
         // 14-breakpoint.ui: the condition is element TEXT, not an attribute and not a property.
         xml.startTag('condition', {});
-        xml.text(conditionText(extension));
+        xml.text(conditionText(extension, context));
         xml.endTag();
         return;
     }
@@ -984,7 +1010,7 @@ function emitExtension(xml, extension, context) {
             // list inside one element (20-accessibility.ui). Only the a11y block takes the form.
             const values = entry.value.kind === 'list' ? entry.value.items : [entry.value];
             for (const value of values) {
-                xml.startTag(elementOf(entry.name, `line ${entry.line}`), {
+                xml.startTag(elementOf(entry.name, at(context, entry.line)), {
                     name: entry.name,
                     ...translatedAttributes(value),
                 });
@@ -1010,7 +1036,7 @@ function emitExtension(xml, extension, context) {
         return;
     }
 
-    throw new Error(`blueprint: line ${extension.line}: no emitter rule for the "${extension.name}" block`);
+    throw new BlueprintEmitError(`no emitter rule for the "${extension.name}" block`, at(context, extension.line));
 }
 
 /**
@@ -1029,7 +1055,7 @@ function emitExtension(xml, extension, context) {
 function extensionText(value, name, ariaValue, context) {
     if (ariaValue !== undefined && (value.kind === 'ident' || value.kind === 'bool')) {
         const member = value.kind === 'bool' ? String(value.value) : value.name;
-        const resolved = ariaValue(name, member, `line ${value.line}`);
+        const resolved = ariaValue(name, member, at(context, value.line));
         if (resolved !== null && resolved !== undefined) return resolved;
     }
     return scalarText(value, null, null, context);
@@ -1039,7 +1065,7 @@ function extensionText(value, name, ariaValue, context) {
 function emitSetter(xml, setter, context) {
     const dot = setter.name.indexOf('.');
     if (dot < 1) {
-        throw new Error(`blueprint: line ${setter.line}: a setter needs an "<object>.<property>" target`);
+        throw new BlueprintEmitError('a setter needs an "<object>.<property>" target', at(context, setter.line));
     }
     const target = setter.name.slice(0, dot);
     const property = setter.name.slice(dot + 1);
@@ -1070,10 +1096,11 @@ function emitSetter(xml, setter, context) {
         // vocabulary does not have).
         const enumType = context.enumOrFlagsTypeOf?.(ownerType, property) ?? null;
         if (enumType !== null) {
-            throw new Error(
-                `blueprint: line ${setter.line}: \`null\` is not a member of ${enumType}, and ` +
+            throw new BlueprintEmitError(
+                `\`null\` is not a member of ${enumType}, and ` +
                     `\`${target}.${property}\` carries that type — the null literal is a value ` +
                     'for a string, numeric or object-typed property only',
+                at(context, setter.line),
             );
         }
     } else {
@@ -1088,13 +1115,13 @@ function emitSetter(xml, setter, context) {
  * nowhere else. A value that arrives without quotes is passed through, so a parser that
  * decodes it after all produces the same bytes.
  *
- * @param {Extension} extension
+ * @param {Extension} extension @param {Pick<EmitContext, 'file'>} context
  */
-function conditionText(extension) {
+function conditionText(extension, context) {
     const argument = extension.argument ?? '';
     const quote = argument.charAt(0);
     if (argument.length < 2 || (quote !== '"' && quote !== "'") || !argument.endsWith(quote)) return argument;
-    return unescapeQuoted(argument.slice(1, -1));
+    return unescapeQuoted(argument.slice(1, -1), at(context, extension.line));
 }
 
 /** Blueprint's escape set, and it is closed: an unknown escape is an error upstream, not a literal. */
@@ -1107,8 +1134,8 @@ const STRING_ESCAPES = new Map([
     ['\n', '\n'],
 ]);
 
-/** @param {string} body */
-function unescapeQuoted(body) {
+/** @param {string} body @param {import('./ast.d.mts').SourceLocation} where */
+function unescapeQuoted(body, where) {
     let out = '';
     for (let i = 0; i < body.length; i += 1) {
         if (body[i] !== '\\') {
@@ -1118,7 +1145,7 @@ function unescapeQuoted(body) {
         i += 1;
         const replacement = STRING_ESCAPES.get(body[i]);
         if (replacement === undefined) {
-            throw new Error(`blueprint: invalid escape sequence "\\${body[i]}" in a condition`);
+            throw new BlueprintEmitError(`invalid escape sequence "\\${body[i]}" in a condition`, where);
         }
         out += replacement;
     }
@@ -1172,11 +1199,11 @@ function emitMenu(xml, menu, context) {
  * answers the two differently: `Gtk.Widget { }` is an error in both compilers and
  * `template $Foo: Gtk.Widget { }` is a file the oracle compiles. See `src/resolve-ident.mjs`.
  *
- * @param {TypeRef} type @param {Pick<EmitContext, 'gtypeName'>} context
+ * @param {TypeRef} type @param {Pick<EmitContext, 'gtypeName' | 'file'>} context
  * @param {'object' | 'reference'} position
  */
 function gtypeName(type, context, position) {
-    if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`, position);
+    if (context.gtypeName !== undefined) return context.gtypeName(type, at(context, type.line), position);
     // An extern type never defaults to Gtk: there is no import behind it, so the sigil-free
     // spelling IS the GType name. Getting this wrong in the fallback would be a `GtkMyWidget`
     // no GtkBuilder can find, which is the shape of wrong output ADR 0053 clause 3 refuses.
@@ -1217,10 +1244,11 @@ function objectId(id, context) {
 function objectRef(id, line, where, context) {
     if (id === 'template' && context.templateClass !== undefined) return context.templateClass;
     if (!context.idTypes.has(id)) {
-        throw new Error(
-            `blueprint: line ${line}: \`${id}\` is ${where}, and no object in this file is ` +
+        throw new BlueprintEmitError(
+            `\`${id}\` is ${where}, and no object in this file is ` +
                 `declared with that id — the reference compiler refuses the same file with ` +
                 `"Could not find object with ID ${id}"`,
+            at(context, line),
         );
     }
     return id;
@@ -1269,7 +1297,7 @@ function findTemplateClass(file) {
  * `bind (t.prop)` is `<lookup name="prop" type="MyThing">t</lookup>`. One map cannot be both
  * without losing the case that needed the distinction.
  *
- * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
+ * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName' | 'file'>} seams
  * @returns {{ byId: Map<string, string | null>, classes: Map<string, string> }}
  */
 function indexObjectIds(file, seams) {
@@ -1301,7 +1329,7 @@ function indexObjectIds(file, seams) {
  * @typedef {{ byId: Map<string, string | null>, classes: Map<string, string> }} IdIndex
  */
 
-/** @param {ObjectNode} object @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectNode} object @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName' | 'file'>} seams */
 function indexObject(object, index, seams) {
     // An extern target is indexed as `null` and not left out: absent and extern are the same
     // to `Map.get`, and they must be, because `lookalike.orientation: vertical` on an extern
@@ -1316,7 +1344,7 @@ function indexObject(object, index, seams) {
     indexBody(object.body, index, seams);
 }
 
-/** @param {ObjectBody} body @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {ObjectBody} body @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName' | 'file'>} seams */
 function indexBody(body, index, seams) {
     for (const property of body.properties) indexValue(property.value, index, seams);
     for (const child of body.children) {
@@ -1324,7 +1352,7 @@ function indexBody(body, index, seams) {
     }
 }
 
-/** @param {Value} value @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+/** @param {Value} value @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName' | 'file'>} seams */
 function indexValue(value, index, seams) {
     if (value.kind === 'object') indexObject(value.object, index, seams);
     else if (value.kind === 'list') {

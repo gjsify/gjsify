@@ -616,8 +616,9 @@ const SURFACE = '@gjsify/blueprint';
 // The WHOLE surface and not the six names this file happens to call: an export nothing here
 // reads is still a promise the flip's consumer will hold the package to, and a gate that only
 // asserts its own diet is how `BlueprintSyntaxError` disappears with every stage still green.
-// A class is a function, so one test holds all eight.
+// A class is a function, so one test holds all nine.
 const SURFACE_NAMES = [
+    'BlueprintEmitError',
     'BlueprintSyntaxError',
     'accessibilityElement',
     'accessibilityValue',
@@ -918,17 +919,29 @@ if (surface !== undefined) {
     } = surface;
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
 
-    // A parser error is `refused/<file>:<line>:<column>:`, an emitter or resolver error
-    // `line N:`, and both are matched WITH their delimiters. Measured: `:3:` alone was
-    // satisfied by a column of 3 on line 4, and `line 3` alone by the prose "closing the `{`
-    // on line 3" of an error at end of file — two wrong lines this stage passed.
-    const namesLine = (message, refusal) =>
-        message.includes(`refused/${refusal.file}:${refusal.line}:`) || message.includes(`line ${refusal.line}:`);
+    // A parser error is `refused/<file>:<line>:<column>:` and an emitter or resolver error
+    // `refused/<file>:<line>:` — the same anchor, one field shorter, because an AST node
+    // carries no column. Both are matched WITH their delimiters. Measured: `:3:` alone was
+    // satisfied by a column of 3 on line 4, and a prose fallback of `line 3` by "closing the
+    // `{` on line 3" of an error at end of file — two wrong lines this stage passed. That
+    // fallback is gone rather than kept as a second arm: since `BlueprintEmitError` every
+    // refusal names the file it was parsed under, so an arm that matched a bare `line N:`
+    // would fire for exactly the error this stage now exists to refuse — one with no file.
+    const namesLine = (message, refusal) => message.includes(`refused/${refusal.file}:${refusal.line}:`);
     // The construct is matched with that location prefix removed. The prefix carries the FILE
     // NAME, so `translation-domain` matched its own path and the by-name half was vacuous for
     // it: the file altered to fail for another reason on the same line stayed green here.
+    //
+    // The column group is optional because an emitter refusal has no column, and without that
+    // the strip misses all 16 of them — but MISSING the strip is only vacuous where the path
+    // happens to carry the construct name, which is 3: `expression-item-in-bind` (`item`),
+    // `expression-try-empty` (`try`) and `expression-cast-literal` (`cast`). The other 13 go red
+    // under either regex when their message stops naming the construct, and `null-value` is the
+    // near miss worth knowing — its `names` is `` `null` `` WITH backticks, which the path does
+    // not carry. Three is small and it is the wrong thing to measure: the structural hole was
+    // all 16, and which of them a sabotage happens to expose is an accident of spelling.
     const namesConstruct = (message, refusal) =>
-        message.replace(/^refused\/[^:\n]+:\d+:\d+: /, '').includes(refusal.names);
+        message.replace(/^refused\/[^:\n]+:\d+:(?:\d+:)? /, '').includes(refusal.names);
     const hold = (refusal, exit, message) => {
         if (!namesConstruct(message, refusal)) {
             problems.push(

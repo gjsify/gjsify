@@ -476,9 +476,29 @@ export interface MenuNode {
 export type TopLevel = ObjectNode | TemplateNode | MenuNode;
 
 export interface BlueprintFile {
+    /**
+     * The path `parseBlueprint` was given, carried rather than re-supplied.
+     *
+     * It is the one thing here that is NOT syntax, and it is here because the alternative is
+     * worse: the emitter and the projection both refuse constructs by file and line, and a
+     * second `file` argument beside the AST is an argument that can disagree with the one the
+     * parse used. A refusal naming a file the bytes did not come from is the defect that costs
+     * most to read.
+     */
+    readonly file: string;
     readonly imports: readonly BlueprintImport[];
     /** In source order. A file may hold more than one, and `12-menu.blp` does. */
     readonly roots: readonly TopLevel[];
+}
+
+/**
+ * Where a refusal happened — what the emitter and the resolver hand each other instead of a
+ * formatted `line N` string, and what `BlueprintEmitError` stores.
+ */
+export interface SourceLocation {
+    readonly file: string;
+    /** 1-based, as every node's `line` is. */
+    readonly line: number;
 }
 
 /**
@@ -493,4 +513,18 @@ export declare class BlueprintSyntaxError extends Error {
     readonly line: number;
     readonly column: number;
     constructor(message: string, file: string, line: number, column: number);
+}
+
+/**
+ * What the two exits AFTER the parse throw — the XML emitter and the `@girs` resolver it reaches
+ * introspection through.
+ *
+ * The same clause and the same contract as the class above, one stage later: a consumer catching
+ * either reads `.file` and `.line` off it rather than regexing a sentence. There is no `column`,
+ * because an AST node carries a line and no column and an invented one points at nothing.
+ */
+export declare class BlueprintEmitError extends Error {
+    readonly file: string;
+    readonly line: number;
+    constructor(message: string, where: SourceLocation);
 }
