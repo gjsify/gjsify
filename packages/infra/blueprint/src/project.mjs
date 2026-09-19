@@ -25,7 +25,7 @@
 // one anyway, because from the READER's side the loss is real, and stage D drops that kind
 // before comparing rather than teaching this file to invent it.
 
-/** @import { BlueprintFile, ObjectBody, ObjectNode, TemplateNode, TypeRef, Value } from './ast.d.mts' */
+/** @import { BlueprintFile, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -37,7 +37,7 @@ import { numberLiteral } from './number-literal.mjs';
  * hand in the resolver's seam rather than rely on that.
  *
  * @typedef {Object} ProjectOptions
- * @property {(type: TypeRef, where: string, position?: 'object' | 'reference') => string} [gtypeName]
+ * @property {(type: TypeRef, where: SourceLocation, position?: 'object' | 'reference') => string} [gtypeName]
  */
 
 /**
@@ -55,14 +55,14 @@ import { numberLiteral } from './number-literal.mjs';
  * `emit-xml.mjs` the object position is the one that has to say `'object'`, so dropping THAT
  * fails stage E. Between the two exits, each position is guarded at one of them.
  *
- * @param {ProjectOptions | undefined} options
+ * @param {ProjectOptions | undefined} options @param {string} file  the path a refusal names
  * @returns {(type: TypeRef, position?: 'object' | 'reference') => string}
  */
 const tagReader =
-    (options) =>
+    (options, file) =>
     /** @param {TypeRef} type @param {'object' | 'reference'} [position] */
     (type, position = 'object') => {
-        if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`, position);
+        if (options?.gtypeName !== undefined) return options.gtypeName(type, { file, line: type.line }, position);
         // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
         // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
         if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
@@ -250,7 +250,7 @@ const lossesOf = (file) => {
  * @returns {{ node: object, lost: { kind: string, line: number }[] }}
  */
 export function projectToSharedNode(file, options) {
-    const tag = tagReader(options);
+    const tag = tagReader(options, file.file);
     const root = file.roots.find((candidate) => candidate.kind !== 'menu');
     if (root === undefined) {
         // Every corpus file has one. A file of nothing but menus would need a projection

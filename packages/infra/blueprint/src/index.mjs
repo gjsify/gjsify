@@ -15,10 +15,11 @@
 //
 // One compile is `parseBlueprint` then `emitGtkBuilderXml`, and the emitter reaches
 // introspection through five seams it does not implement (`EmitOptions`) — so the five
-// answers from `resolve-ident.mjs` are part of the same job and not a second one. Plus
-// `BlueprintSyntaxError`, because clause 3 makes the refusal the contract: a consumer that
-// cannot tell a Blueprint syntax error from any other `Error` cannot report the line the
-// parser went to the trouble of carrying.
+// answers from `resolve-ident.mjs` are part of the same job and not a second one. Plus BOTH
+// error classes, because clause 3 makes the refusal the contract: a consumer that cannot tell
+// a Blueprint refusal from any other `Error` cannot report the file and line the two exits went
+// to the trouble of carrying. Two classes and not one, because the parse half has a column and
+// the emit half has no such thing to give.
 //
 // WHAT IS DELIBERATELY NOT HERE: `src/project.mjs`
 //
@@ -33,8 +34,9 @@
 //
 // Every export is a promise, and a subpath promises the FILE LAYOUT on top of the names:
 // `./parser`, `./emit-xml` and `./resolve-ident` would make merging or splitting a module a
-// breaking change for a consumer that only ever wanted eight names. One door promises the
-// eight.
+// breaking change for a consumer that only ever wanted nine names. One door promises the
+// nine — and the move of `BlueprintSyntaxError` out of `parser.mjs` and into `errors.mjs`,
+// which this barrel absorbed without a consumer noticing, is the property being bought.
 //
 // There is no build step, and that is load-bearing: `tree-checks` installs the workspace and
 // does NOT build it, so a surface behind a build is a surface the gate cannot run. The types
@@ -42,7 +44,8 @@
 // DECLARATION FILE AND NOT A `.ts` already argues for and `@gjsify/manifest-conformance`
 // already ships.
 
-export { BlueprintSyntaxError, parseBlueprint } from './parser.mjs';
+export { BlueprintEmitError, BlueprintSyntaxError } from './errors.mjs';
+export { parseBlueprint } from './parser.mjs';
 export { emitGtkBuilderXml } from './emit-xml.mjs';
 export {
     accessibilityElement,

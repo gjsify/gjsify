@@ -46,29 +46,8 @@
  * @import { Value, StringValue, ListValue, BindingValue, Expression } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES } from './builtin-types.mjs';
+import { BlueprintSyntaxError } from './errors.mjs';
 import { numberLiteral } from './number-literal.mjs';
-
-/**
- * What the parser throws, and the only thing it throws.
- *
- * The location is repeated in `message` as well as carried in the fields: a caller that only
- * prints the error still gets the line clause 3 asks it to name.
- */
-export class BlueprintSyntaxError extends Error {
-    /**
-     * @param {string} message  what was found and what was expected
-     * @param {string} file     path, for the message only — nothing here reads it
-     * @param {number} line     1-based
-     * @param {number} column   1-based
-     */
-    constructor(message, file, line, column) {
-        super(`${file}:${line}:${column}: ${message}`);
-        this.name = 'BlueprintSyntaxError';
-        this.file = file;
-        this.line = line;
-        this.column = column;
-    }
-}
 
 // ---------------------------------------------------------------------------------------
 // Lexer
@@ -421,7 +400,7 @@ class Parser {
             }
         }
 
-        return { imports, roots };
+        return { file: this.file, imports, roots };
     }
 
     /** @returns {BlueprintImport} */
@@ -1289,7 +1268,9 @@ class Parser {
  * Parse a `.blp` source into the AST `ast.d.mts` declares.
  *
  * @param {string} source  the `.blp` text
- * @param {string} file    path, for error messages only — nothing here reads the filesystem
+ * @param {string} file    the path this source came from — nothing here reads the filesystem, but
+ *                         it travels on the returned `BlueprintFile` so the two exits after this
+ *                         one can name it without being told a second time
  * @returns {BlueprintFile}
  * @throws {BlueprintSyntaxError} on any construct outside the subset, naming its line
  */
