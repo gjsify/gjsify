@@ -507,9 +507,10 @@ Two things to fix, and they are separable:
 
 ### Two CI probes were ripe for over a week and nobody re-read the row
 
-Both `continue-on-error` steps in `gtk-os-suites.yml` carried a written retirement
-condition, both conditions came true, and neither step changed — because prose above a step
-only fires when a person re-reads it. Measured 2026-09-19 over all 71 `push`-to-`main` runs
+`gtk-os-suites.yml` carried FOUR `continue-on-error` steps — one on darwin, three on win32 —
+and every one of them a written retirement condition. Two of those conditions had come true
+and neither step had changed, because prose above a step only fires when a person re-reads
+it. Three flags are left after the promotion below, counted from the tree. Measured 2026-09-19 over all 71 `push`-to-`main` runs
 from 2026-09-10, reading the `::warning title=Probe failed::` annotations
 `report-probe-outcome.mjs` emits, scoped to the job that owns the step and joined on the
 reader's `PROBE_LABEL`. A leg that was absent, skipped or cancelled measured NOTHING and is

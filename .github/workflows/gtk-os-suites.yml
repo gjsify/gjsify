@@ -184,9 +184,18 @@
 # holds two red suites that each exited 1. That is the probe shape working as
 # designed, and it is also exactly how a green-that-checked-nothing looks from the
 # outside — so: the win32 job's colour answers "did the shipped closure stage,
-# verify and LOAD", not "does the layer pass". The numbers are in the step logs and
-# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever
-# flips either step to gating should delete this paragraph with it.
+# verify and LOAD", and since 2026-09-19 also "does this tree's declared win32 media
+# contract match the PUBLISHED payload" — but still not "does the layer pass". The
+# numbers are in the step logs and the attribution is in `@gjsify/react-native`'s
+# `gjsify.osNotes.win32`. Whoever flips either step to gating should delete this
+# paragraph with it.
+#
+# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: THREE
+# `continue-on-error` steps — one on darwin (react-native) and two on win32
+# (gtk-host, react-native). It was four until the win32 conformance audit was
+# promoted on 2026-09-19. Each remaining one carries `retire-when:` clauses that
+# `scripts/check-probe-retirement.mjs` evaluates on every run, so this number now
+# changes when a condition comes true rather than when somebody notices it has.
 #
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
@@ -237,11 +246,13 @@
 #     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
 #     `EnumWindows` by PID from inside the interactive session).
 #   · `@gjsify/react-native`'s step is a `continue-on-error` PROBE on both — see the
-#     darwin step's comment, which carries the measurement that corrected its own
-#     retirement condition. In short: an engine fix in THIS checkout is invisible to
-#     these legs until it is PUBLISHED, because the addon here is the released one, so
-#     a gate would report a defect the leg cannot fix and did not find. Same reason
-#     `node-gi.yml` kept `gtk-host` out of CI until it went in at 0 failures.
+#     darwin step's comment, which now carries a measurement that corrected its own
+#     retirement condition TWICE. The short version this line used to give — an engine
+#     fix in THIS checkout is invisible until it is PUBLISHED, because the addon here
+#     is the released one — was true and is no longer what blocks the step: that
+#     release shipped on 2026-09-03, and the probe was still red in 70 of the 71 `main`
+#     runs from 2026-09-10, on defects of its own. Same reason `node-gi.yml` kept
+#     `gtk-host` out of CI until it went in at 0 failures.
 #   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
 #     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
 #
