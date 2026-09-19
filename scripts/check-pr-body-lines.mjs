@@ -91,7 +91,9 @@ const over = lines
     .filter((line) => line.length > bodyLimit);
 
 if (over.length > 0) {
-    console.error(`::error::The PR body will not survive commitlint: ${over.length} line(s) over ${bodyLimit} characters.`);
+    console.error(
+        `::error::The PR body will not survive commitlint: ${over.length} line(s) over ${bodyLimit} characters.`,
+    );
     for (const line of over) {
         const preview = line.text.length > 80 ? `${line.text.slice(0, 77)}…` : line.text;
         console.error(`::error::  line ${line.number}: ${line.length} characters — ${preview}`);
