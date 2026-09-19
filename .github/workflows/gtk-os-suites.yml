@@ -181,30 +181,48 @@
 # READING THE JOB COLOUR IS NOT READING THE RESULT
 #
 # On win32 BOTH suite steps are probes, so the job reports `success` while the log
-# holds two red suites that each exited 1. That is the probe shape working as
-# designed, and it is also exactly how a green-that-checked-nothing looks from the
-# outside — so: the win32 job's colour answers "did the shipped closure stage,
-# verify and LOAD", and since 2026-09-19 also "does this tree's declared win32 media
-# contract match the PUBLISHED payload" — but still not "does the layer pass". The
-# numbers are in the step logs and the attribution is in `@gjsify/react-native`'s
-# `gjsify.osNotes.win32`. Whoever flips either step to gating should delete this
-# paragraph with it.
+# holds red steps that each exited 1. That is the probe shape working as designed, and
+# it is also exactly how a green-that-checked-nothing looks from the outside — so: the
+# win32 job's colour answers "did the shipped closure stage, verify and LOAD", and since
+# 2026-09-19 also "does this tree's declared win32 media contract match the PUBLISHED
+# payload" — but still not "does the layer pass". The numbers are in the step logs and
+# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever flips
+# either suite step to gating should delete this paragraph with it.
 #
 # THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: THREE
-# `continue-on-error` steps — one on darwin (react-native) and two on win32
-# (gtk-host, react-native). It was four until the win32 conformance audit was
-# promoted on 2026-09-19. Each remaining one carries `retire-when:` clauses that
+# `continue-on-error` steps — one on darwin (react-native) and two on win32 (gtk-host,
+# react-native). It was four until the win32 conformance audit was promoted on
+# 2026-09-19. Each remaining one carries `retire-when:` clauses that
 # `scripts/check-probe-retirement.mjs` evaluates on every run, so this number now
 # changes when a condition comes true rather than when somebody notices it has.
+#
+# WHERE TO READ WHAT A PROBE DID, without opening a log you had no reason to open:
+# every `continue-on-error` step here is followed by a `Probe outcome: …` step running
+# `scripts/report-probe-outcome.mjs`, which writes the step's REAL `outcome` as a
+# job-summary row and emits a `::warning::` on the run and on the PR saying the job is
+# green only because of the flag. `scripts/check-probe-outcomes-read.mjs` holds every
+# such step in the repository to having an `id` its workflow reads, so a probe cannot
+# go dark; it deliberately does not make any of them fail. The word "probe" is
+# overloaded in this file and the distinction matters: a step named `… — probe` with
+# `continue-on-error` cannot fail the build, while the "Batteries-included probe" step
+# GATES — there it means "probe the primitive rather than the wrapper".
+#
+# The standing cost of that arrangement, and what is still missing to retire each of the
+# three remaining flags, is an item in `status/open-todos.md`. NONE of them is now
+# waiting only on somebody re-reading a probe row, and the way that stopped being true
+# is the useful part: both conditions that had come true were acted on — the win32
+# conformance audit was promoted, and the darwin react-native probe was MEASURED first
+# and found red in 70 of 71 runs, so its condition was corrected rather than flipped. A
+# met condition is not evidence that a step passes.
 #
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
 # win32's react-native probe read 7 of 848 against 2 of 857 on darwin (measured
 # 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 are the
 # cross-OS #1438 baseline and 1 a knock-on of one of those (the same `popped` seam) —
-# fixed in the ENGINE on 2026-09-02 and still counted here, because the fix is in the
-# addon's C++ and these legs install the PUBLISHED addon (see the table above): the
-# first release carrying it is what removes them, not the merge. 2 are inherited from
+# fixed in the ENGINE by #1488, merged 2026-09-03, and still counted here, because the
+# fix is in the addon's C++ and these legs install the PUBLISHED addon (see the table
+# above): the first release carrying it is what removes them, not the merge. 2 are inherited from
 # the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
@@ -291,7 +309,10 @@ permissions:
 
 jobs:
   darwin:
-    name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node)
+    # `node-gi on Node` rather than a bare `node`: the suite is `test:gjs-on-node`, whose
+    # name says gjs and whose host is Node. Nothing GJS runs on this leg — it installs no
+    # `gjs` at all (see WHAT IT DOES NOT PROVE in the header).
+    name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node-gi on Node)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -550,7 +571,16 @@ jobs:
             "--media-payload=@gjsify/gtk-runtime-$TARGET=packages/node-gi/node-gi/prebuilds/$TARGET"
 
   win32:
-    name: GTK suites on the shipped closure (win32-x64 / node)
+    # The name says what a GREEN here means, because two of its four measuring steps are
+    # probes: the closure staged, verified and LOADED — and, since the conformance audit
+    # was promoted on 2026-09-19, that this tree's declared win32 media contract matches
+    # the PUBLISHED payload. It does not say the SUITES passed, which is what the name
+    # claims and why the name still holds: both suite steps are still
+    # `continue-on-error`. This job going green while they are red is the designed
+    # behaviour — see READING THE JOB COLOUR IS NOT READING THE RESULT in the header.
+    # Rename it back to "GTK suites on the shipped closure" when the last
+    # `continue-on-error` goes.
+    name: Shipped GTK closure loads; suites are probes (win32-x64 / node-gi on Node)
     runs-on: windows-latest
     timeout-minutes: 60
 

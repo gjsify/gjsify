@@ -85,11 +85,11 @@ Bundling wraps ESM with `__toCommonJS` → a namespace object, not a constructor
 
 ## The OS axis — this pillar is what the macOS and Windows legs run
 
-`main.yml` is Linux-only. `macos-suites.yml` and `windows-suites.yml` run the
-Node-pillar suites (`path`, `os`, `process`, `util`, `fs`, `child_process`,
-`net`, …) — on `main`, the nightly, and **since 2026-08-16 on your PR as well**
-(ADR 0018 § 5 re-measured: a change here kept being green everywhere its author
-could see and reddening `main`). ADVISORY, so nothing stops the merge: READ them.
+`main.yml` is Linux-only. `macos-suites.yml` runs these on `test:node` AND `test:gjs`,
+`windows-suites.yml` on `test:node` ALONE (no GJS host there: green checks the SPEC, not
+the port) — on `main`, the nightly and **since 2026-08-16 your PR too** (ADR 0018 § 5
+re-measured: a change here kept being green everywhere its author could see and reddening
+`main`). ADVISORY, nothing stops the merge: READ them.
 
 |**A POSIX literal cannot fail on Linux.** `O_CREAT` is 0o100 on Linux, 0x200 on
 darwin, 0x100 on win32; `O_APPEND` is 0o2000 vs 0x8; `EEXIST` is errno -17 vs

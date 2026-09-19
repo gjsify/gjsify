@@ -31,7 +31,7 @@ Composition-first (Remix/Astro/SvelteKit feel). Anything NOT Node/Web/DOM/infra 
 
 Reusable GTK component explorer. Stories = `StoryWidget` subclasses with `static getMetadata(): StoryMeta` (title `"Category/Name"` groups the sidebar; `controls` drive a live two-way-bound Adwaita panel), exported as a `StoryModule`. Consumers add `@gjsify/storybook`, write `*.story.ts`, run `gjsify storybook` — no per-project storybook app. Config is `package.json#gjsify.storybook` and is MACHINE-CHECKED by the portable `storybook` conformance rule ([storybook/README.md](storybook/README.md#the-gjsifystorybook-block-is-machine-checked)). One story serves the GTK / browser (`@gjsify/adwaita-storybook`) / NS (`@gjsify/storybook-nativescript`) renderers via the pure `stories` contract + `storybook-core` logic.
 
-**Self-verify (node-gi capstone):** `installStorybookProbe` + `probeEnabled()` drive a running storybook HEADLESSLY IN-PROCESS, no DBus — how `--runtime node` proves the full Libadwaita gallery renders on Node on Linux AND Windows ([storybook/README.md](storybook/README.md#self-verify-the-node-gi-capstone)).
+**Self-verify (node-gi capstone):** `installStorybookProbe` + `probeEnabled()` drive a running storybook HEADLESSLY IN-PROCESS, no DBus — how `--runtime node` proves the gallery renders on Node on Linux AND, per `scope`, Windows ([storybook/README.md](storybook/README.md#self-verify-the-node-gi-capstone)).
 
 ### Devtools (`@gjsify/devtools` + bridge)
 
