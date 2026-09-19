@@ -45,7 +45,7 @@ upstream gap, not a missing task here: nobody ships a prebuilt `libgjs` for
 Windows, and gjs has to be built against a SpiderMonkey that Windows package
 managers do not provide in a form its build system takes.
 
-Everything else works. On Node, Bun or Deno a Windows machine runs the toolchain
+Everything that does not end in a `gjs` process works. On Node, Bun or Deno a Windows machine runs the toolchain
 (`gjsify install`, `gjsify build` for `--app node`, `--app browser` and
 `--library`, `gjsify check`, `gjsify clear`, `gjsify copy`), and showcases run on
 those three:
@@ -69,8 +69,13 @@ that leg.
 
 You do not have to supply GTK yourself. `@gjsify/gtk-runtime-win32-x64` ships the
 GTK 4 / Adwaita closure that `@gjsify/node-gi` loads `gi://` namespaces from, so
-there is no gvsbuild or system GTK to install. CI runs a real GTK window and the
-full Adwaita storybook against that bundle.
+there is no gvsbuild or system GTK to install. CI opens a real GTK window and runs
+the full Adwaita storybook against that bundle on `windows-latest`, under Node, on a
+runner with no gvsbuild on it — against the bundle built in that same run, which is
+what proves the bundle this commit would publish. A separate workflow
+(`gtk-os-suites.yml`) runs the GTK-bearing suites against the PUBLISHED tarball
+instead, which is the one a stranger downloads; the two have been different bytes
+before.
 
 Web views reach Windows too. `@gjsify/webview2-native` supplies a `WebKit-6.0`
 namespace backed by Microsoft's WebView2, so the code that embeds a page on Linux

@@ -116,6 +116,16 @@ That is how `gjsify storybook --runtime node` proves the full Libadwaita gallery
 on Linux AND on Windows (the `--windowing` GTK bundle, no gvsbuild): CI
 `storybook-node-gi-bundle` feeds `gtk-smoke` and `windows-gtk-storybook`.
 
+**Both are `node-gi.yml` legs, so read the Windows half with its condition attached.**
+`windows-gtk-storybook` needs `windows`, and `node-gi.yml`'s `scope` job runs the Windows
+matrix only when `packages/node-gi/**` (or the consumer harness, the workflow itself, or
+`.github/scripts/**`) changed — plus every `workflow_dispatch` and the 03:17 UTC nightly,
+which run the full matrix by definition. So "renders on Windows" is a statement about the
+last run that EXECUTED that leg, not about this commit: on a consumer-only `main` push the
+leg is `skipped`, which is the same colour as green, and `ci-summary`'s gate-history table
+is what names the SHA where it last actually ran. The Linux `gtk-smoke` leg has no such
+caveat.
+
 ## Exports
 
 - `StoryWidget` — Adw.Bin base class; `fromMeta()`, `addContent()`, `initialize()`/`updateArgs()`/`teardown()` hooks

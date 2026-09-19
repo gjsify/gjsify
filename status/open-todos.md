@@ -435,13 +435,36 @@ carries a name and a duration and no cause. An assertion failure would print a d
 this prints `'test failed'`.
 
 **And the baseline WAS unknown, which is worse than the flake.** node-gi.yml's `scope`
-job narrows the OS matrix, so the Windows legs run only when `packages/node-gi/**` is
-touched. Measured while chasing this: the leg is `skipped` on every recent `main`
-push, so a green tick on `main` says nothing about it, and the last run that actually
-EXECUTED it was two PRs earlier. Reading `main` as the baseline would have blamed the
-wrong change — it nearly did. `ci-summary` now names, per job GitHub resolved to
-`skipped`, the SHA at which that job last actually executed, so this half costs a
-glance at the step summary.
+job narrows the OS matrix, so on a `pull_request` or a `main` push the Windows legs run
+only when `packages/node-gi/**`, `scripts/node-gi-consumer-harness.mjs`, `node-gi.yml`
+itself or `.github/scripts/**` changed. Measured while chasing this: the leg is `skipped`
+on every recent `main` push, so a green tick on `main` says nothing about it, and the last
+run that actually EXECUTED it was two PRs earlier. Reading `main` as the baseline would
+have blamed the wrong change — it nearly did. `ci-summary` now names, per job GitHub
+resolved to `skipped`, the SHA at which that job last actually executed, so this half
+costs a glance at the step summary.
+
+**What a reader may and may not conclude, spelled out — because "unknown" is not "never
+measured", and the loose version of this sentence sends the next person to the wrong
+instrument.** `scope`'s `case "$EVENT"` answers `true` for every event that is neither
+`pull_request` nor `push`, so the 03:17 UTC nightly and any `workflow_dispatch` run the
+FULL matrix. Three separate readings, and only the third is a baseline for a commit:
+
+- a green `main` tick at commit X says **nothing** about node-gi's Windows legs at X —
+  `skipped` and `success` are the same colour in the checks UI;
+- the last nightly says something about the `main` of that morning, so the newest Windows
+  measurement is normally under a day old — but it is not this commit's, and a consumer-only
+  merge lands between the two with no Windows leg of its own;
+- `ci-summary`'s gate-history table is the only thing that tells those two apart, by naming
+  the SHA at which each skipped leg last actually executed.
+
+**What it would take, and what it costs today.** Closing it per-commit means dropping the
+`scope` narrowing for `push` to `main` — the full macOS x10 / Windows x6 / arm64 matrix on
+every merge, which is the cost `scope` exists to avoid, so this is a decision and not an
+oversight. The cheaper half is already paid: the gate-history table. What is left unpriced
+is that reading it is a convention rather than a mechanism — nothing fails, warns or blocks
+when a Windows regression is attributed to a commit whose Windows legs never ran, which is
+exactly the afternoon this entry cost.
 
 What would make the next occurrence cost minutes instead of an afternoon, in order:
 
@@ -501,6 +524,60 @@ Two things to fix, and they are separable:
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
+
+### Four `gtk-os-suites.yml` steps cannot fail the build, and two of them look retirable
+
+`gtk-os-suites.yml` carries four `continue-on-error: true` steps: `rn-probe` on darwin,
+and `gtk-host-probe`, `rn-probe-win32` and `conformance-win32` on win32. Each is a
+deliberate probe with a written retirement condition beside it, and the arrangement is the
+one [ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for — a
+knowingly-red gate teaches people to skip the job, and the next real finding then lands
+where nobody looks.
+
+**What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
+`success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
+read green while the step exited 1. Only `steps.<id>.outcome` records what happened, and
+only `scripts/report-probe-outcome.mjs` puts it where a person looks — a job-summary row
+plus a `::warning::` annotation on the run and the PR.
+`scripts/check-probe-outcomes-read.mjs` holds every such step to having an `id` that the
+workflow reads, so a probe cannot go dark; it deliberately does NOT demand that the outcome
+fail anything. The measured price of the gap it was born from (#1552): on #1541's first
+push, run 33851595137 reported green on every gate while three probes were red — 6 of 2042
+on both darwin legs and 8 of 2038 on win32 — and TWO of the win32 eight were not the PR's
+at all and had been failing with nobody counting them (#1556). They were found by someone
+reading a log they had no reason to open.
+
+**What is still missing to retire each one** — and two of the four are waiting on a check
+nobody has made rather than on work nobody has done:
+
+- `conformance-win32` — condition: *the first run after a published
+  `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`* (#1626/#1633, ADR 0056).
+  #1633 landed in **0.49.0 (2026-09-11)** and the registry's `latest` is **0.51.1**, so the
+  release half is MET. Missing: someone reads the probe row on the next run and, if it is
+  green, deletes `continue-on-error`, the `id` and the note.
+- `rn-probe` (darwin) — condition: *the first published `@gjsify/node-gi` carrying #1438's
+  engine fix*, then *the first run where the only failures left are this operating system's
+  own*. The fix is #1488, merged **2026-09-03 01:34 UTC**, and its merge commit
+  `d7da6c3b91` is an ANCESTOR of `v0.46.0`, cut 08:55 UTC the same day — the ancestry is
+  what proves the release carries it, and a date beside a version number is not, which is
+  why this reads `git merge-base --is-ancestor` rather than two timestamps compared by
+  eye. `latest` is 0.51.1, so the release half is MET too. Missing: the second half is
+  unrecorded — no run's darwin probe row has been read back since, which is the whole
+  point of a condition naming a release rather than an issue and is why it is written
+  here instead of assumed.
+- `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
+  Windows host*. Blocked on the entry above (#1446); unchanged.
+- `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
+  assertions attributed in the workflow header (`get_path()` answering the NATIVE path),
+  which are the suite's expectation and not a win32 defect.
+
+**What it would take to close the class rather than the four instances.** Either the probe
+reporter grows a mode that FAILS when a probe's retirement condition is already satisfied
+(it would have to be machine-readable — a `PROBE_RETIRES_AT` naming a published version,
+which `check-probe-outcomes-read.mjs` could resolve against the registry), or the periodic
+read becomes somebody's listed job. Today it is neither, and a probe outlives its condition
+in silence for as long as nobody looks — which is the same currency as the green-that-
+checked-nothing this file records elsewhere.
 
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 

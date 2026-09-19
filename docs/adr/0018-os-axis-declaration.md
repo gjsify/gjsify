@@ -258,9 +258,14 @@ nightly, not on every PR* — was a cost judgement, and re-measuring it on
   10x macOS are real, and they apply to a private repository's Actions bill.
   `gjsify/gjsify` is public and both legs use standard images
   (`windows-latest`, `macos-latest`, `macos-15-intel`).
-- **The runner pool was already in use on PRs.** `node-gi.yml` spawns Windows
-  and macOS jobs on every pull request under a `paths-ignore` deny-list. The two
-  suite workflows were declining a runner class their own PRs already occupied.
+- **The runner pool was already in use on PRs.** `node-gi.yml` reaches pull
+  requests under a `paths-ignore` deny-list and spawns its Windows and macOS
+  jobs on any of them its `scope` job selects. The two suite workflows were
+  declining a runner class their own PRs already occupied. This is a COST
+  premise and nothing else: `scope` narrows that matrix to node-gi's own
+  sources, so those legs are not every-PR coverage of anything — between two
+  touches of `packages/node-gi/**` the Windows state there is UNKNOWN, not
+  green, and `status/open-todos.md` carries the afternoon that cost.
 - **Neither leg is the critical path.** A successful run of either finishes well
   inside `main.yml`'s, so offering them on a PR does not lengthen the wait.
 - **The `pull_request` trigger the ADR credited was not coverage.** Both were
