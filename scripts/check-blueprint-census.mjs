@@ -25,6 +25,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { CATEGORIES, findClaims } from './blueprint-count-claims.mjs';
 import { blueprintCensus, renderAdrBlock } from './report-blueprint-census.mjs';
 
 /** The decision record whose evidence this gate holds to the tree. */
@@ -37,17 +38,18 @@ const HEADING = /^### What the [\w-]+ `\.blp` files actually use$/;
 const TABLE_HEADER = '| Blueprint | count | `SharedNode` | GIR-derived? |';
 
 /**
- * A corpus count asserted in prose. Outside the emitted block such a claim is ungated and free
- * to rot — which is exactly how this ADR failed before: the table was fixed and the paragraph
- * under it went on asserting "twelve real" where nothing looked.
+ * WHAT COUNTS AS A COUNT IS NOT DECIDED HERE. `blueprint-count-claims.mjs` decides it, and
+ * `check-blueprint-corpus-counts.mjs` reads through the same module — because this gate and
+ * that one are the two halves of one question and each used to carry its own vocabulary. That
+ * seam was a hole: this gate matched line-at-a-time against a shorter noun list, so a claim
+ * WRAPPED across two lines, or spelled as `negative cases`, passed here AND passed there,
+ * since that gate hands this file over to this one. A wrap is the exact shape #1698 was
+ * written for. Two vocabularies over one file is the defect, not either regex.
  *
- * The goldens, rule files and refusals joined the `.blp` counts here after one of each was
- * found still sitting outside the block ("38 goldens, 37 byte-equal"), untouched by a gate
- * whose header claimed it refused counts stated elsewhere in this ADR. A claim narrower than
- * its own description is the shape of a check that reports success without checking.
+ * Outside the emitted block a count is ungated and free to rot — which is how this ADR failed
+ * before: the table was fixed and the paragraph under it went on asserting "twelve real" where
+ * nothing looked, and "38 goldens, 37 byte-equal" sat there through the repair after that.
  */
-const COUNT_CLAIM =
-    /\b(?:eleven|twelve|thirteen|fourteen|\d+)\s+(?:real\s+)?(?:`?\.blp`?|real files|goldens?|rule files?|refusals?|corpus files?|reality probes?)/i;
 
 /**
  * The census section as the ADR carries it, located by its heading and taken to the length
@@ -74,11 +76,16 @@ function adrBlock(text, expectedLines) {
 
 /** Every line OUTSIDE the block that states a `.blp` count, which nothing would check. */
 function ungatedCountClaims(text, block) {
-    const gated = new Set(block.text.split('\n'));
-    return text
-        .split('\n')
-        .map((line, i) => ({ line, at: i + 1 }))
-        .filter(({ line }) => COUNT_CLAIM.test(line) && !gated.has(line));
+    // By OFFSET, not by line text: the emitted block is a contiguous run, and comparing line
+    // strings would also excuse an identical line copied anywhere else in the file.
+    const from = text.indexOf(block.text);
+    const to = from + block.text.length;
+    const lines = text.split('\n');
+    // The whole ADR is about this corpus, end to end, so the loose spellings are read
+    // throughout it — this is the one file where "rules" cannot mean a lint registry.
+    return findClaims(text, [[0, text.length]])
+        .filter((claim) => claim.index < from || claim.index >= to)
+        .map((claim) => ({ line: lines[claim.line], at: claim.line + 1, claim }));
 }
 
 function main() {
@@ -121,7 +128,10 @@ function main() {
                 '  where nothing checks them — the failure this gate exists to end, one paragraph down.\n' +
                 '  Say it without the number and point at the census, or move the sentence into the block.\n',
         );
-        for (const { at, line } of ungated) console.error(`  ${ADR}:${at}: ${line.trim()}`);
+        for (const { at, line, claim } of ungated) {
+            console.error(`  ${ADR}:${at}: ${line.trim()}`);
+            console.error(`    reads as: ${claim.stated} ${CATEGORIES[claim.key].label}(s)`);
+        }
         return process.exit(1);
     }
 

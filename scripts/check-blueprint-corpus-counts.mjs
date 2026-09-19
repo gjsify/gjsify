@@ -3,86 +3,90 @@
 //
 // WHY THIS EXISTS. The corpus sizes — rule files, reality probes, goldens, refusals — are
 // restated in prose in several files. Nothing held them to the tree, so every corpus change
-// invalidated them in silence. It failed twice in one day: #1698
-// corrected the counts in `status/open-todos.md`, and #1700 added three rule files and four
-// refusals hours later and left every one of them wrong again. #1698 built exactly this gate
-// one file over, for ADR 0053's census; this is the same class, and a gate is the only
-// difference between a rule and a preference.
+// invalidated them in silence. It failed twice in one day: #1698 corrected the counts in
+// `status/open-todos.md`, and #1700 added rule files and refusals hours later and left every
+// one of them wrong again. #1698 built exactly this gate one file over, for ADR 0053's census;
+// this is the same class, and a gate is the only difference between a rule and a preference.
 //
 // THE NUMBERS ARE MEASURED, NEVER TRANSCRIBED. Each count comes from its own listing in the
-// tree, and the fix for a failure here is to re-run the harness and write down what it
-// prints — never to edit a digit until the message stops. Editing a digit is how the wrong
-// count got there both times.
+// tree, and the fix for a failure here is to re-run the harness and write down what it prints —
+// never to edit a digit until the message stops. Editing a digit is how the wrong count got
+// there both times.
 //
 // FIVE VERDICTS, AND EVERY LINE THAT STATES A COUNT GETS ONE.
 //
 //   LIVE      — `SITES`: every count in the file must equal the tree, and the file must still
 //               STATE each count it is listed for. A document that answers a stale number by
-//               deleting the sentence has not been corrected, it has been emptied, so a
-//               missing claim fails as loudly as a wrong one.
-//   SNAPSHOT  — `SNAPSHOTS`: a whole file whose numbers are a measurement over the tree it was
-//               taken against. Named, with the reason written down.
-//   DATED     — `DATED_LINES`: one line inside a LIVE file whose number is an incident, a
-//               delta or a quotation rather than a claim about this tree.
-//   ELSEWHERE — `OTHER_SUBJECT`: one line that matches the nouns while counting something
-//               else entirely.
-//   OWNED     — `OWNED_ELSEWHERE`: a file another gate holds to a stricter contract. The
-//               entry names that script, and fails when it leaves the tree.
+//               deleting the sentence has not been corrected, it has been emptied, so a missing
+//               claim fails as loudly as a wrong one.
+//   SNAPSHOT  — `SNAPSHOTS`: a file whose numbers are a measurement over the tree it was taken
+//               against. Scanned like any other, and held to a DIGEST of the lines that stated
+//               a count when the entry was written, so a line added to a dated document — which
+//               is not itself dated — has to be re-justified. A whole-file skip made exactly
+//               that invisible.
+//   DATED     — `DATED_LINES`: one line inside a LIVE file whose number is an incident, a delta
+//               or a quotation rather than a claim about this tree.
+//   ELSEWHERE — `OTHER_SUBJECT`: one line that matches the nouns while counting something else.
+//   OWNED     — `OWNED_ELSEWHERE`: a file another gate holds to a stricter contract. The entry
+//               names that script, fails when it leaves the tree, and is counted SEPARATELY in
+//               the summary rather than inside the scanned total.
 //
 // Both ledgers hold the line's exact text, so editing or deleting the line retires the entry
 // instead of silently widening it, and an entry that matches nothing is itself a failure.
 // Anything else that states a count fails as UNGATED — the arm that catches the file nobody
 // thought to look in, which is why the sweep reads the tree rather than a list of documents.
+// That arm earned its keep on its first run: `.gitattributes` said eleven `.blp` under
+// `showcases/` and `templates/` where the tree held twelve.
 //
 // WHAT INPUT MAKES EACH CHECK FAIL, asked of every one of them because #1698 shipped an
 // assertion that could not fail: a digit, a spelled-out number or a thousands-separated one
 // moved in a live file; a live file that stops stating a count it owns; a count appearing in
-// any tracked file with no verdict; a ledger entry whose line no longer reads as recorded; and
-// a corpus that grows or shrinks by one file, which moves the tree side of every comparison at
-// once. `rules + probes ===
-// goldens` is a claim about three independent listings — `corpus/rules/*.blp`, tracked `.blp`
-// minus the corpus, and `corpus/*/*.ui` — and no term of it is computed from the others, so
-// the sum can be false. The manifest cross-checks have the same shape: the list and the
-// directory are read separately.
+// any tracked file with no verdict; a line with a count added to a dated one; a ledger entry
+// whose line no longer reads as recorded; and a corpus that grows or shrinks by one file, which
+// moves the tree side of every comparison at once. `rules + probes === goldens` is a claim
+// about three independent listings — `corpus/rules/*.blp`, tracked `.blp` minus the corpus, and
+// `corpus/*/*.ui` — and no term of it is computed from the others, so the sum can be false. The
+// manifest cross-checks have the same shape: the list and the directory are read separately.
 //
-// WHAT IS SWEPT, EXACTLY — because an arm that promises more than it does is this gate's own
-// failure class, one level up. EVERY tracked file is read: no allow-list of extensions (an
-// adversarial pass walked a stale count through `.sh`, `.py`, `.rs`, `.html`, `.xml`, `.svg`,
-// `.po`, `.rst`, `.jsonc` and an extensionless `NOTES` when there was one), no filter on what
-// the file says. Binary is decided by a NUL byte at the read, not by its name.
+// WHAT IS READ, EXACTLY — because an arm that promises more than it does is this gate's own
+// failure class, one level up, and this paragraph has been wrong before. EVERY tracked file is
+// opened: no allow-list of extensions and no deny-list either (an adversarial pass walked a
+// stale count through `.sh`, `.py`, `.rs`, `.html`, `.xml`, `.svg`, `.po`, `.rst`, `.jsonc` and
+// an extensionless `NOTES` past the allow-list, then through `.mpd` past the deny-list). Binary
+// is decided by a NUL byte in the bytes, with nothing in front of it. Gitlinks are dropped by
+// mode: the five reference pools under `refs/` are other people's repositories. Two kinds of
+// file are then NOT scanned here, and the summary names each rather than folding it into the
+// total — files that are not text, and the one handed to `check-blueprint-census.mjs`, which
+// reads it through the same vocabulary this file does. A "swept" number that includes files
+// nothing was looked for in is the same lie as a green that checked nothing.
 //
-// The NOUNS are what is scoped, in two tiers. A PLAIN spelling can only be this corpus — "rule
-// files", "reality probes", "corpus files", "refused `.blp`", "`.ui` goldens", "negative
-// cases" — and is matched everywhere in the tree. A LOOSE spelling ("rules", "probes",
-// "goldens", "fixtures", "refusals") names a dozen other things here, and is read only inside
-// the package that IS the corpus, or in a file whose path names it. That boundary is measured,
-// not preferred: reading the loose set wherever a file merely MENTIONS the corpus turns
-// `status/open-todos.md` into sixty findings that are e2e fixtures and lint rules, and a gate
-// nobody reads twice gates nothing. The cost is stated rather than hidden — a bare "rules"
-// count in a file outside the package is not seen, which is why the live documents here were
-// moved to the unambiguous spelling instead of being excused.
+// WHERE A CLAIM IS FOUND, and in which spellings, is `blueprint-count-claims.mjs` — shared with
+// `check-blueprint-census.mjs`, because the seam between two gates with two vocabularies over
+// one file was itself a hole. In short: both orders — a count before its noun and a noun with
+// its count after, which is what a table writes — across line ends because this repo hard-wraps,
+// plain
+// spellings everywhere and loose ones only in regions about this corpus. The cost of that last
+// boundary is stated rather than hidden — a bare "rules" count outside such a region is not
+// seen, which is why the live documents here were moved to the unambiguous spelling instead of
+// being excused. A number with no noun near it at all ("42 of 42 byte-equal") is outside the
+// sweep; `corpus/divergences.mjs` carried exactly that and now states no count.
 //
-// Matching runs ACROSS line ends, because this repo hard-wraps: the sentence this gate exists
-// for says "and the 19" at the end of one line and the noun at the start of the next. Between
-// the number and its noun may stand whitespace at any indent, one blank line, one markdown
-// table pipe, emphasis marks, a backtick — never a word. A number with no noun near it at all
-// ("42 of 42 byte-equal") is outside the sweep; `corpus/divergences.mjs` carried exactly that
-// and now states no count, which is the fix this gate asks for anyway.
+// THIS FILE IS SCANNED LIKE ANY OTHER, MINUS THE BYTES IT QUOTES. The ledgers below hold other
+// files' lines verbatim, and the stale-entry arm already holds each of those texts to a line in
+// the file it names; reading them again here would make the ledger fail for containing what it
+// excuses. So each quoted text is BLANKED, in place, before this file is scanned — the rest of
+// every line is read exactly as it would be anywhere else, because `line.includes(quoted)` let
+// a live count appended to a declaration ride along behind the text it quotes. Found the hard
+// way three times: the first version was proved green while still UNTRACKED, so `git ls-files`
+// never handed it to its own sweep and it went red the moment it was committed; the second
+// excluded itself wholesale and hid twelve lines in the one file a reader opens for the
+// explanation; the third skipped whole lines and hid whatever was appended to them.
 //
-// THIS FILE IS SWEPT LIKE ANY OTHER, MINUS ITS QUOTATIONS. The ledgers below hold other files'
-// lines verbatim, and the stale-entry arm already requires each of those texts to still be a
-// line in the file it names; reading them a second time as claims of their own would make the
-// ledger fail for containing what it excuses. So the skip is per LINE and only while the line
-// still carries a ledgered text — a bounded blind spot rather than a whole unread file. The one
-// count here that is not a quotation is the incident in the paragraph above, and it is ledgered
-// by name like any other. Found the hard way twice: the first version was written, mutated and
-// proved green while still UNTRACKED, so `git ls-files` never handed it to its own sweep and it
-// went red the moment it was committed; the second excluded itself wholesale and hid twelve
-// lines in the one file a reader opens for the explanation.
-//
-// ADR 0053 IS NOT SWEPT HERE. `check-blueprint-census.mjs` holds it to a stricter contract —
-// its census section is EMITTED, and a corpus count stated anywhere else in that ADR is
-// refused outright rather than compared. One file, one gate, or one failure gets two fixes.
+// ADR 0053 IS OWNED BY `check-blueprint-census.mjs`, which holds it to a stricter contract: its
+// census section is EMITTED, and a count stated anywhere else in that ADR is refused outright
+// rather than compared. One file, one gate, or one failure gets two fixes — and since that gate
+// now finds claims through the same module, the ownership is a division of labour rather than a
+// second vocabulary with a hole between them.
 //
 // In CI this runs in `tree-checks`, beside `check-blueprint-census.mjs`: the one job with no
 // classifier gate, so a docs-only PR runs it — and a docs-only PR is precisely the one that
@@ -92,100 +96,28 @@
 // Exits 0 when the documents agree with the tree, 1 when they drift, 2 on a usage or read error.
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { CATEGORIES, findClaims, looseRegions, readText } from './blueprint-count-claims.mjs';
 
 const CORPUS = 'packages/infra/blueprint/corpus';
 
 /** How a reader is told to re-measure, printed with every failure. */
 const MEASURE_WITH = 'node scripts/check-blueprint-corpus.mjs';
 
-const ONES = [
-    'zero',
-    'one',
-    'two',
-    'three',
-    'four',
-    'five',
-    'six',
-    'seven',
-    'eight',
-    'nine',
-    'ten',
-    'eleven',
-    'twelve',
-    'thirteen',
-    'fourteen',
-    'fifteen',
-    'sixteen',
-    'seventeen',
-    'eighteen',
-    'nineteen',
-];
-const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
-
 /**
- * Spelled-out numbers count as much as digits. ADR 0053's gate found that the number a reader
- * believes is as often written out as typed, and `corpus/manifest.mjs` states the probe count
- * four times without ever using a digit — a sweep for `\d+` would report that file clean.
- * `forty-two`, `forty two` and `42` get one reading, or the sweep has a blind spot.
+ * How the TREE answers each count. The spellings that STATE one live in
+ * `blueprint-count-claims.mjs`, shared with `check-blueprint-census.mjs`; what is here is the
+ * measurement. Every one is its own listing — none is derived from another, which is what lets
+ * the partition below be a claim rather than an identity.
  */
-const NUMBER_WORD = [
-    ...ONES,
-    ...Object.keys(TENS).flatMap((ten) => [...ONES.slice(1, 10).map((one) => `${ten}[- ]${one}`), ten]),
-].join('|');
-
-const readNumber = (text) => {
-    const word = text
-        .toLowerCase()
-        .replace(/[,\u202f]/g, '')
-        .replace(/\s+/g, '-');
-    if (/^\d+$/.test(word)) return Number(word);
-    const [tens, ones] = word.split('-');
-    if (tens in TENS) return TENS[tens] + (ones ? ONES.indexOf(ones) : 0);
-    return ONES.indexOf(word);
-};
-
-/** A backtick, written as an escape so this file's own nouns are not mistaken for template holes. */
-const TICK = String.raw`\x60?`;
-
-/**
- * The four counts. `plain` is a spelling that can only be this corpus, and is swept over the
- * WHOLE tree; `loose` is a spelling that names a dozen other things (bare `rules` in a lint
- * registry, `fixtures` in a test suite) and is swept only where the file is about this corpus.
- * Two tiers because one tier has to choose between missing a count in a file that never says
- * "Blueprint" and reporting every lint rule in the repository — and an adversarial pass walked
- * a stale count through a `.blp` comment under `templates/` on exactly that gap.
- *
- * Every measurement is its own listing: none is derived from another, which is what lets the
- * partition below be a claim rather than an identity.
- */
-const CATEGORIES = {
-    rules: {
-        label: 'rule file',
-        plain: String.raw`(?:blueprint\s+|written\s+|corpus\s+)?rule\s+(?:files?|goldens?|cases?)|(?:blueprint|written|corpus)\s+rules?`,
-        loose: String.raw`rules?`,
-        measure: (tree) => tree.lsFiles(`${CORPUS}/rules/*.blp`).length,
-    },
-    probes: {
-        label: 'reality probe',
-        plain: String.raw`reality[-\s]probes?|reality-probe\s+goldens?|(?:real|shipped)\s+${TICK}\.blp${TICK}`,
-        loose: String.raw`probes?|real(?:ity)?\s+files?|${TICK}\.blp${TICK}\s+files?`,
-        measure: (tree) => tree.lsFiles('*.blp').filter((path) => !path.startsWith(`${CORPUS}/`)).length,
-    },
-    goldens: {
-        label: 'golden',
-        plain: String.raw`corpus\s+(?:files?|goldens?)|${TICK}\.ui${TICK}\s+goldens?`,
-        loose: String.raw`goldens?|fixtures?|${TICK}\.ui${TICK}\s+files?`,
-        measure: (tree) => tree.lsFiles(`${CORPUS}/*/*.ui`).length,
-    },
-    refusals: {
-        label: 'refusal',
-        plain: String.raw`refused\s+(?:${TICK}\.blp${TICK}|files?)(?:\s+files?)?|refusal\s+files?|negative\s+cases?`,
-        loose: String.raw`refusals?`,
-        measure: (tree) => tree.lsFiles(`${CORPUS}/refused/*.blp`).length,
-    },
+const MEASURE = {
+    rules: (tree) => tree.lsFiles(`${CORPUS}/rules/*.blp`).length,
+    probes: (tree) => tree.lsFiles('*.blp').filter((path) => !path.startsWith(`${CORPUS}/`)).length,
+    goldens: (tree) => tree.lsFiles(`${CORPUS}/*/*.ui`).length,
+    refusals: (tree) => tree.lsFiles(`${CORPUS}/refused/*.blp`).length,
 };
 
 /** This script. Its ledger quotations are skipped line by line — see the header for why. */
@@ -206,17 +138,25 @@ const SITES = [
 ];
 
 /**
- * Whole files whose numbers are a measurement over the tree they were taken against. A decision
- * record states what was true when the decision was taken; correcting it to today would destroy
- * the evidence the decision rests on.
+ * Files whose numbers are a measurement over the tree they were taken against. A decision record
+ * states what was true when the decision was taken; correcting it to today would destroy the
+ * evidence the decision rests on.
+ *
+ * `claims` is a digest of the lines that stated a count when the entry was written — sorted,
+ * de-duplicated, sha256, first sixteen hex digits. It is what makes this per LINE rather than a
+ * whole-file skip: a line ADDED to a dated document is not itself dated, and until the digest
+ * existed a fresh live count appended to either ADR was invisible. The failure prints every
+ * counted line, so re-justifying is reading them rather than trusting a hash.
  */
 const SNAPSHOTS = [
     {
         file: 'docs/adr/0058-translatable-marking-gets-a-spelling.md',
+        claims: 'c51004f9266df25e',
         why: 'its § Context says in as many words to read the numbers "as a date, not as a constant" and tells the reader to re-derive rather than reconcile',
     },
     {
         file: 'docs/adr/0062-the-blueprint-conversion-frontier-is-composition.md',
+        claims: 'a9a9c5dcff806020',
         why: "a dated re-derivation of 0058's census, with a § Method naming the revision, the compiler and the `@girs` pin it was taken under",
     },
 ];
@@ -280,83 +220,7 @@ const OTHER_SUBJECT = [
         text: '* point at are load-bearing) are three files that would otherwise collapse into one rule.',
         why: 'a rule of the LANGUAGE, which is what a corpus file isolates rather than how many exist',
     },
-    {
-        file: SELF,
-        text: '// corrected the counts in `status/open-todos.md`, and #1700 added three rule files and four',
-        why: 'what #1700 added, which is the incident — the only count in this file that is not a quotation',
-    },
 ];
-
-/**
- * Binary by extension — a shortcut for the common cases, not the rule. The rule is the NUL-byte
- * test at the read, so an extension nobody listed is SWEPT rather than skipped. The first
- * version of this file had an allow-list of extensions, which is the same shape as an
- * allow-list of nouns and failed the same way: `.sh`, `.py`, `.rs`, `.html`, `.xml`, `.svg`,
- * `.po`, `.rst`, `.jsonc` and an extensionless `NOTES` each carried a stale count straight
- * through it.
- */
-const BINARY_EXT =
-    /\.(?:png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|woff2?|ttf|otf|eot|zip|gz|tgz|bz2|xz|zst|7z|rar|tar|pdf|mp[34]|m4[av]|webm|ogg|oga|wav|flac|mov|avi|so|dylib|dll|exe|node|wasm|class|jar|bin|dat|db|sqlite3?|gresource|compiled|typelib|mpd|pyc)$/i;
-
-/**
- * Where the LOOSE spellings are read: inside the package that IS the corpus, or in a file whose
- * PATH names it. Nowhere else, and the boundary is a measurement rather than a preference —
- * reading `rules`, `probes`, `goldens` and `fixtures` wherever a file merely MENTIONS the corpus
- * turns `status/open-todos.md`, a seven-thousand-line repo-wide ledger, into sixty findings that
- * are e2e fixtures and lint rules. The PLAIN spellings ignore this entirely and are swept over
- * the whole tree, so the arm that catches "the file nobody thought to look in" is unconditional
- * for every spelling that can only mean this corpus. That arm earned its keep on the first run:
- * `.gitattributes` said eleven `.blp` under `showcases/` and `templates/` where the tree held
- * twelve, in a file no reviewer of a corpus change would ever open.
- */
-const CORPUS_OWN_FILES = /^packages\/infra\/blueprint\/|blueprint[\s\-_/]*corpus|corpus[\s\-_/]*blueprint/i;
-
-/**
- * Every claim in a whole file, scanned ACROSS line ends and reported against the line the
- * number falls on. Markdown here is hard-wrapped at about ninety columns, which splits a
- * claim as often as not: the sentence this gate was written for says "and the 19" at the end
- * of one line and "refusals" at the start of the next. A line-at-a-time sweep reads that file
- * as stating no refusal count at all — green, and blind to the exact claim that went stale
- * twice.
- */
-/**
- * What may sit between the number and its noun: whitespace at any indent, a hard wrap, a blank
- * line, a markdown table pipe, emphasis marks, a backtick. Never a word, so the gap cannot
- * swallow "N of the M real files" into a claim. It was three characters wide once, and a
- * markdown table cell and a four-space continuation indent both walked through that. One pipe
- * and not two, because `line < 1 || refusal.line` is code and a table cell is not.
- */
-const GAP = String.raw`[\s\x60*_]{0,8}\|?[\s\x60*_]{0,8}`;
-
-function claimsIn(text, { loose }) {
-    const lineStarts = [0];
-    for (let i = 0; i < text.length; i += 1) if (text[i] === '\n') lineStarts.push(i + 1);
-    const lineOf = (index) => {
-        let low = 0;
-        let high = lineStarts.length - 1;
-        while (low < high) {
-            const mid = (low + high + 1) >> 1;
-            if (lineStarts[mid] <= index) low = mid;
-            else high = mid - 1;
-        }
-        return low;
-    };
-
-    const found = [];
-    for (const [key, category] of Object.entries(CATEGORIES)) {
-        const noun = loose ? `${category.plain}|${category.loose}` : category.plain;
-        const re = new RegExp(String.raw`\b(${NUMBER_WORD}|\d[\d,\u202f]*)\b${GAP}(?:${noun})\b`, 'gi');
-        for (const match of text.matchAll(re)) {
-            found.push({
-                key,
-                stated: readNumber(match[1]),
-                text: match[0].replace(/\s+/g, ' '),
-                line: lineOf(match.index),
-            });
-        }
-    }
-    return found;
-}
 
 async function readTree(root) {
     const git = (args) => {
@@ -368,7 +232,7 @@ async function readTree(root) {
         `file://${join(root, CORPUS, 'manifest.mjs')}`
     );
     const ctx = { lsFiles: (pattern) => git(['ls-files', '--', pattern]) };
-    const counts = Object.fromEntries(Object.entries(CATEGORIES).map(([key, c]) => [key, c.measure(ctx)]));
+    const counts = Object.fromEntries(Object.entries(MEASURE).map(([key, measure]) => [key, measure(ctx)]));
     // `-s` because a plain listing hands back gitlinks too — the five reference pools under
     // `refs/` are other people's repositories, and `readFileSync` on one answers EISDIR.
     // Symlinks stay in: one that points at a file is read through, and one that does not is
@@ -442,42 +306,46 @@ async function main() {
     const ungated = [];
     const stated = new Set();
     const usedLedger = new Set();
-    const swept = [];
+    const snapshotClaims = new Map();
+    const scanned = [];
+    const notText = [];
 
-    // Every line of every ledger, so this file's own quotations can be skipped ONE LINE AT A
-    // TIME. Skipping the whole file was an unbounded blind spot in the one place a reader comes
-    // for the explanation; this is bounded by construction — a line is skipped only while it
-    // still carries a text the stale-entry arm below is already holding to a line elsewhere.
+    // Quotations of OTHER files' lines, blanked out of this file before it is scanned. Not
+    // `line.includes(quoted)`: that skipped the whole line, so a live count appended to a
+    // ledger declaration rode along behind the text it quotes. Blanking keeps every byte's
+    // offset, so the remainder of the line is scanned exactly as it would be anywhere else: a
+    // count APPENDED to a declaration line is read like any other, and only the quoted bytes
+    // are silent. This file therefore states no count of its own — its header writes the
+    // incident without digits rather than earning an exemption for it.
     const quotations = [...DATED_LINES, ...OTHER_SUBJECT].map((entry) => entry.text);
+    const mask = (text) => quotations.reduce((out, quoted) => out.split(quoted).join(' '.repeat(quoted.length)), text);
 
     for (const file of tree.files) {
-        if (BINARY_EXT.test(file)) continue;
-        let text;
-        try {
-            text = readFileSync(join(root, file), 'utf8');
-        } catch (error) {
-            // A tracked path that is not a readable file: a symlink to a directory, or one
-            // whose target is gone. Nothing to sweep, and not this gate's business to fail on.
-            if (['EISDIR', 'ELOOP', 'ENOENT', 'EACCES'].includes(error.code)) continue;
-            console.error(`check-blueprint-corpus-counts: cannot read ${file}: ${error.message}`);
-            return process.exit(2);
-        }
-        // Binary by content, which is the rule the extension list above only shortcuts.
-        if (text.includes('\u0000')) continue;
-        const loose = CORPUS_OWN_FILES.test(file);
-        swept.push(file);
-        if (SNAPSHOTS.some((entry) => entry.file === file)) {
-            usedLedger.add(`snapshot\u0000${file}`);
+        const text = readText(join(root, file));
+        // Not text at all: a NUL byte in the bytes, a symlink to a directory, a vanished
+        // target. Counted and named in the summary, never folded into "swept".
+        if (text === null) {
+            notText.push(file);
             continue;
         }
-        if (OWNED_ELSEWHERE.some((entry) => entry.file === file)) {
+        const owned = OWNED_ELSEWHERE.find((entry) => entry.file === file);
+        if (owned) {
             usedLedger.add(`owned\u0000${file}`);
             continue;
         }
 
-        const site = SITES.find((entry) => entry.file === file);
+        const claims = findClaims(file === SELF ? mask(text) : text, looseRegions(file, text));
+        scanned.push(file);
         const lines = text.split('\n');
-        for (const claim of claimsIn(text, { loose })) {
+        const snapshot = SNAPSHOTS.find((entry) => entry.file === file);
+        if (snapshot) {
+            usedLedger.add(`snapshot\u0000${file}`);
+            snapshotClaims.set(file, [...new Set(claims.map((claim) => lines[claim.line].trim()))]);
+            continue;
+        }
+
+        const site = SITES.find((entry) => entry.file === file);
+        for (const claim of claims) {
             const trimmed = lines[claim.line].trim();
             const ledgered = [...DATED_LINES, ...OTHER_SUBJECT].find(
                 (entry) => entry.file === file && entry.text === trimmed,
@@ -486,9 +354,6 @@ async function main() {
                 usedLedger.add(`line\u0000${file}\u0000${ledgered.text}`);
                 continue;
             }
-            // Only after the exact-match arm, or an entry recorded against a line OF this file
-            // would be skipped here and then report itself stale below.
-            if (file === SELF && quotations.some((quoted) => trimmed.includes(quoted))) continue;
             if (!site) {
                 ungated.push({ file, at: claim.line + 1, line: trimmed, claims: [claim] });
                 continue;
@@ -549,6 +414,26 @@ async function main() {
             problems.push(
                 `\`SNAPSHOTS\` names ${entry.file}, which the sweep never reached — the entry is dead weight`,
             );
+            continue;
+        }
+        // A snapshot is dated as a WHOLE, and a line appended to it tomorrow is not. So the
+        // entry records which lines carried a count when it was written, and any change to that
+        // set — one added, one edited, one removed — has to be re-justified. The first version
+        // skipped these files outright, which made a fresh live count in a decision record
+        // invisible: the same unbounded blind spot as excluding this script wholesale.
+        const now = snapshotClaims.get(entry.file) ?? [];
+        const digest = createHash('sha256')
+            .update([...now].sort().join('\n'))
+            .digest('hex')
+            .slice(0, 16);
+        if (digest !== entry.claims) {
+            problems.push(
+                `${entry.file} is a SNAPSHOT and its counted lines have changed — ${now.length} line(s) now\n` +
+                    `    state a count, digest ${digest}, where the entry was written against ${entry.claims}.\n` +
+                    '    A line added to a dated document is not itself dated. Re-read them, then either\n' +
+                    '    move the new one to a live document or record the new digest:\n' +
+                    now.map((line) => `      ${line}`).join('\n'),
+            );
         }
     }
     for (const entry of OWNED_ELSEWHERE) {
@@ -574,8 +459,13 @@ async function main() {
     const summary = Object.entries(counts)
         .map(([key, n]) => `${n} ${CATEGORIES[key].label}(s)`)
         .join(', ');
+    // Every number here is what it says: `scanned` counts files a claim was actually looked for
+    // in, and the two others are named rather than folded into it. A "swept" total that counts
+    // files nothing was looked for in is the same lie as a green that checked nothing.
     console.log(
-        `check-blueprint-corpus-counts: ${swept.length} file(s) swept, every stated count is the tree's — ${summary}.`,
+        `check-blueprint-corpus-counts: ${scanned.length} file(s) scanned, ${notText.length} not text, ` +
+            `${OWNED_ELSEWHERE.length} handed to ${OWNED_ELSEWHERE.map((entry) => entry.by).join(', ')}; ` +
+            `every stated count is the tree's — ${summary}.`,
     );
     return process.exit(0);
 }
