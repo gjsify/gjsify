@@ -4,6 +4,50 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `statusCheckRollup.state` answers twice, and nothing here knows which answer merges
+
+Measured 2026-09-19 on acca841ff1…0830 and c0629ff751…b5b1, deterministically and in the same
+minute:
+
+    statusCheckRollup { state }                       -> SUCCESS
+    statusCheckRollup { state contexts(first:1){...} } -> FAILURE
+
+Selecting `contexts` at all — even `first:1 { totalCount }` — flips it. The bare shape reads like
+latest-per-context, the other like worst-over-all-entries. Both commits have a newest
+`Lint commit messages` entry of SUCCESS with older FAILUREs; acca841ff1 has no other non-success
+context at all. Two people measuring the same commit that day got opposite answers, each reading
+the field correctly, and a claim built on one of them propagated into six files twice before
+anyone re-derived it.
+
+WHY IT MATTERS: `Lint commit messages` is one of the three required contexts on `main`, so
+"is a superseded red still blocking?" has no answer from this field. The ruleset is different
+machinery and cannot be read from history here — #1667 merged on c0629ff7 whose entries are
+FAILURE then SUCCESS, but the ruleset carries `bypass_actors` (`OrganizationAdmin` and
+RepositoryRole 5, both `bypass_mode: always`) and every merge in this repository is by the owner,
+so it cannot tell a satisfied rule from a bypassed one. The rule-suite API records
+`required_status_checks` per push and would settle it, but retains about a day, so #1667 has aged
+out.
+
+THE MEASUREMENT THAT CLOSES IT, and it is cheap: on any PR targeting `main` whose other two
+required contexts are green, produce an older commitlint FAILURE followed by a newer SUCCESS and
+read `mergeStateStatus`. BLOCKED means the ruleset weighs every entry; anything else means a PR
+can be mergeable while the checks list reads red — which is its own trap and worth writing down.
+Do not run it on a PR somebody is waiting to merge: it deliberately reddens it, and
+`clear-superseded` then repairs it out from under the reading.
+
+The commitlint fix does not depend on the answer — a verdict that is a function of the current
+text leaves no stale entry for either aggregation to weigh — but two things downstream do: how
+loudly a superseded red should be treated, and whether `clear-superseded` unblocks merges or only
+restores legibility.
+
+ALSO OPEN is the shape rather than the instance. `commitlint.yml` is the only workflow whose
+verdict depends on something OTHER than the commit, so it is the only one where a conclusion can
+be stale while the commit is not. Any future check that reads the PR description, a label or a
+review inherits it, and nothing enumerates that class. Adjacent and untested: the void needs a
+later run to exist, which an edit authored with `GITHUB_TOKEN` would not produce; no workflow
+here holds `pull-requests: write` today, so the refusal path is reasoned and fixtured but has
+never fired.
+
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 
 The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
@@ -31,9 +75,16 @@ Two routes, neither taken here:
   mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
   change, in the layer that owns the `.app` layout, not in the runtime.
 - **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
-  rendering for the whole application, which is not a decision a runtime bundle may take for its
-  consumer.
+  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. TAKEN, 2026-09-14
+  (ADR 0038 § Amendment 3): `maybeWireGtkWindowingEnv()` sets it for a windowing bundle, and the
+  objection recorded here — that it changes text rendering for the whole application, which is
+  not a decision a runtime bundle may take for its consumer — is overruled there, on the ground
+  that the bundle was already making that choice by compiled-in ordering. What is NOT measured is
+  the result on a real Mac, as opposed to a macOS CI runner: the `macos-gtk-windowing` leg runs
+  the script-coverage proof, but every runner has Homebrew, so a green leg says nothing about the
+  machine a stranger downloads the `.app` to. The simulated no-Homebrew case in
+  `font-script-coverage.test.mjs` is what stands in for it; until someone runs a shipped `.app` on
+  a clean Mac, this line stays.
 
 The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
 future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
@@ -428,13 +479,36 @@ carries a name and a duration and no cause. An assertion failure would print a d
 this prints `'test failed'`.
 
 **And the baseline WAS unknown, which is worse than the flake.** node-gi.yml's `scope`
-job narrows the OS matrix, so the Windows legs run only when `packages/node-gi/**` is
-touched. Measured while chasing this: the leg is `skipped` on every recent `main`
-push, so a green tick on `main` says nothing about it, and the last run that actually
-EXECUTED it was two PRs earlier. Reading `main` as the baseline would have blamed the
-wrong change — it nearly did. `ci-summary` now names, per job GitHub resolved to
-`skipped`, the SHA at which that job last actually executed, so this half costs a
-glance at the step summary.
+job narrows the OS matrix, so on a `pull_request` or a `main` push the Windows legs run
+only when `packages/node-gi/**`, `scripts/node-gi-consumer-harness.mjs`, `node-gi.yml`
+itself or `.github/scripts/**` changed. Measured while chasing this: the leg is `skipped`
+on every recent `main` push, so a green tick on `main` says nothing about it, and the last
+run that actually EXECUTED it was two PRs earlier. Reading `main` as the baseline would
+have blamed the wrong change — it nearly did. `ci-summary` now names, per job GitHub
+resolved to `skipped`, the SHA at which that job last actually executed, so this half
+costs a glance at the step summary.
+
+**What a reader may and may not conclude, spelled out — because "unknown" is not "never
+measured", and the loose version of this sentence sends the next person to the wrong
+instrument.** `scope`'s `case "$EVENT"` answers `true` for every event that is neither
+`pull_request` nor `push`, so the 03:17 UTC nightly and any `workflow_dispatch` run the
+FULL matrix. Three separate readings, and only the third is a baseline for a commit:
+
+- a green `main` tick at commit X says **nothing** about node-gi's Windows legs at X —
+  `skipped` and `success` are the same colour in the checks UI;
+- the last nightly says something about the `main` of that morning, so the newest Windows
+  measurement is normally under a day old — but it is not this commit's, and a consumer-only
+  merge lands between the two with no Windows leg of its own;
+- `ci-summary`'s gate-history table is the only thing that tells those two apart, by naming
+  the SHA at which each skipped leg last actually executed.
+
+**What it would take, and what it costs today.** Closing it per-commit means dropping the
+`scope` narrowing for `push` to `main` — the full macOS x10 / Windows x6 / arm64 matrix on
+every merge, which is the cost `scope` exists to avoid, so this is a decision and not an
+oversight. The cheaper half is already paid: the gate-history table. What is left unpriced
+is that reading it is a convention rather than a mechanism — nothing fails, warns or blocks
+when a Windows regression is attributed to a commit whose Windows legs never ran, which is
+exactly the afternoon this entry cost.
 
 What would make the next occurrence cost minutes instead of an afternoon, in order:
 
@@ -488,12 +562,99 @@ Two things to fix, and they are separable:
 1. **The table.** Either the generator marks a row's platform availability, or the
    table stops offering a class the running GTK does not have. This is the one that
    makes the win32 leg gating again — the step is `continue-on-error` with that as its
-   printed retirement condition.
+   retirement condition, now spelled as `retire-when:` clauses over
+   `src/generated/widgets.ts` and #1446 rather than as a sentence. The day both rows
+   leave the table and the issue closes, `scripts/check-probe-retirement.mjs` fails and
+   names the step; nobody has to re-read this paragraph for that to happen.
 2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
    properties of undefined (reading '$gtype')`, which does not say WHICH row. A
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
+
+### Three `gtk-os-suites.yml` steps cannot fail the build, and none is now merely unread
+
+`gtk-os-suites.yml` carried FOUR `continue-on-error: true` steps — `rn-probe` on darwin, and
+`gtk-host-probe`, `rn-probe-win32` and `conformance-win32` on win32 — each a deliberate probe
+with a written retirement condition beside it, the arrangement
+[ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for: a
+knowingly-red gate teaches people to skip the job, and the next real finding then lands where
+nobody looks. Three are left; `conformance-win32` was promoted on 2026-09-19.
+
+**What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
+`success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
+read green while the step exited 1. Only `steps.<id>.outcome` records what happened, and
+only `scripts/report-probe-outcome.mjs` puts it where a person looks — a job-summary row
+plus a `::warning::` annotation on the run and the PR.
+`scripts/check-probe-outcomes-read.mjs` holds every such step to having an `id` that the
+workflow reads, so a probe cannot go dark. The measured price of the gap it was born from
+(#1552): on #1541's first push, run 33851595137 reported green on every gate while three
+probes were red — 6 of 2042 on both darwin legs and 8 of 2038 on win32 — and TWO of the
+win32 eight were not the PR's at all and had been failing with nobody counting them
+(#1556). They were found by someone reading a log they had no reason to open.
+
+**The class is closed, and the two instances that proved it were worth the trouble.** Both
+remaining conditions are now `retire-when:` clauses beside their step, and
+`scripts/check-probe-retirement.mjs` evaluates every one on every run and FAILS when one
+comes true — which is what the last paragraph of this entry used to ask for. Measured
+2026-09-19 over all 71 `push`-to-`main` runs from 2026-09-10, reading the
+`::warning title=Probe failed::` annotations, scoped to the job that owns the step and
+joined on the reader's `PROBE_LABEL`. A leg that was absent, skipped or cancelled measured
+NOTHING and is counted as neither:
+
+| probe | condition met | green | red | no measurement | verdict |
+|---|---|---|---|---|---|
+| `conformance-win32` | 2026-09-11, 0.49.0 | **58** | 5 | 8 | PROMOTED to a gate |
+| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG |
+| `gtk-host-probe` (win32) | no — #1446 open | 0 | 70 | 1 | left a probe |
+| `rn-probe-win32` | 1 of 2 clauses | 0 | 70 | 1 | left a probe |
+
+`conformance-win32`'s five reds are all between 04:24Z and 06:16Z on 2026-09-11, inside the
+widening window that closed when 0.49.0 published at 08:08:06Z; it was green in all 48
+measured runs afterwards and stayed advisory for every one of them.
+
+Both met conditions were verified off the artifacts rather than off the dates, cache-busted
+(`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`): the published
+`@gjsify/gtk-runtime-win32-x64` tarball carries `gstvorbis.dll` at 0.49.0 and 0.51.1 and not
+at 0.48.0, and `d7da6c3b91` (#1488, closing #1438) is an ANCESTOR of `v0.46.0` and not of
+`v0.45.0` — the ancestry is what proves the release carries it, and a date beside a version
+number is not. So both conditions genuinely held. **A held condition still told us nothing
+about whether the step passes**, which is why the new check fails on a ripe probe in BOTH
+directions rather than only on a green one.
+
+**A first pass at these numbers was wrong and the way it was wrong is the same defect.** It
+read 25 green / 1 red over 21 runs, because it matched the annotation against the step's
+`name` while the annotation carries `PROBE_LABEL` — a separate string nothing coupled to the
+name — and because it searched every job in a run rather than the one that owns the step, so
+a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now holds
+`PROBE_LABEL` to the step name, which is what makes the join sound.
+
+**What is still missing to retire each of the three left:**
+
+- `rn-probe` (darwin) — the RELEASE condition is met and was a PROXY: the step was red in 70
+  of 71 runs, on defects of its own. Its condition is now `retire-when: probe-green 5`,
+  after three wrong proxies (an issue number, then "#1438 closes", then "the release
+  carrying it"). What it is actually failing on, measured on run 35423439012 against a
+  published 0.51.1 and none of it #1438:
+  - **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
+    bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
+    `a real tree, through a real reconciler` case that walks up from a child dies on it. One
+    is a natural-size read — `Expected 0 to be greater than 0` on the content box that
+    should stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`,
+    on the `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+  - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
+    `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
+    chrome`. A different and worse shape than arm64's seven, and not attributed.
+
+  Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
+  x64 death needs a local reproduction before it can be counted as anything.
+- `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
+  Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
+  clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
+- `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
+  assertions attributed in the workflow header (`get_path()` answering the NATIVE path),
+  which are the suite's expectation and not a win32 defect. Its release clause is MET and
+  kept, because a met clause is how a conjunction shows which half is left.
 
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
@@ -1795,13 +1956,13 @@ consumed as a DIRECTORY in a different run.
 macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
 ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
 
-### The win32 GTK bundle ships fontconfig config that nothing reads
+### The win32 GTK bundle's fontconfig config — proposed for deletion, then reversed
 
 `gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
 bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
 and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
-compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
-/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
+compiled and not selected by default on Windows; that is now MEASURED (ADR 0038 § W1-W2,
+Windows 11 / GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
 `PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
 when that directory is the ONLY configured one, which is the row that distinguishes "read
 and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
@@ -1810,9 +1971,11 @@ process does see the face. So none of this affects text rendering. The bundle al
 it on the target, which is a second reason the arrangement cannot be made to work rather
 than merely being unused.
 
-Two things make it worth removing rather than leaving as harmless: the code comment beside
-it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
-claim that made ADR 0038's first draft wrong in the same direction; and the builder's
+Two things made it look worth removing rather than leaving as harmless: the code comment
+beside it says gvsbuild's pango "can be fontconfig-backed … so either path works", read at
+the time as the claim that made ADR 0038's first draft wrong in the same direction — and that
+half of it turns out to be CORRECT, which is the first thing this entry got backwards; and the
+builder's
 `else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
 meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
 default `sysconfdir` — so the "when present" test always passes and the log line implying a
@@ -1824,6 +1987,28 @@ different finding.
 shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
 is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
 still not evidence for it.
+
+**REVERSED 2026-09-14 — this payload is load-bearing after all, and the reason it looked dead
+is worth more than the entry was.** ADR 0038 § Amendment 3 has the loader select the backend
+that reads this configuration (`PANGOCAIRO_BACKEND=fc`), so `etc/fonts` becomes the configuration
+a win32 process actually loads. It does NOT contradict § W1-W2 above: those measured a
+*pangowin32* map, which is filled exclusively from the DirectWrite system collection and would
+ignore a fully-read `fonts.conf`; what changes is which map exists.
+
+The intermediate reading — that gvsbuild's pango has no fontconfig backend to select, so the
+variable is inert on win32 — was WRONG and is kept here because it was well-evidenced.
+`pangocairo-1.0-0.dll` in `GTK4_Gvsbuild_2026.6.0_x64.zip` registers `PangoCairoFcFontMap`,
+imports `fontconfig-1.dll`, and lists ` win32 fontconfig`. What CI run 34873488108 actually
+measured is that a `process.env` write does not reach `getenv()` on Windows: Node writes the
+Win32 environment block, pango reads the C runtime's copy. `mirrorWindowingEnvIntoCrt()` in
+`gi.js` closes that with `g_setenv()`. The same defect applies to `FONTCONFIG_FILE` itself, which
+fontconfig also reads with `getenv()` — so this payload had two reasons to look unread and now
+has none.
+
+What remains of this entry: the bundle still ships no `fc-cache.exe`, so the cache stays baked at
+build time with no supported way to rebuild it on the target; and the builder's `else` branch
+("no etc/fonts … skipping") is still probably unreachable. Neither is a reason to delete the
+payload any more.
 
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
@@ -6232,16 +6417,20 @@ calls `installBundledIconTheme()`.
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-16 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 47 corpus files
-(35 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 15
-refusals each name their construct and line. Clause 5's condition is met; after it come the
-flip and the deletions.
+2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 53 corpus files
+(41 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 21
+refused `.blp` files each name their construct and line. Those four numbers are held to the
+tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
+every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
+the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
-and a template parent — and the corpus grew four rule files for it (32-35), taking the
-rules to 35 and the corpus to 47. Two things it does NOT do: it converts no consumer, and it
-does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
+and a template parent — and the corpus grew rule files 32-35 for it:
+#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did
+and is not a claim about this tree — what the corpus holds NOW is measured a paragraph above
+and held to the tree there. Two things `$extern` does NOT do: it converts no
+consumer, and it does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
@@ -6396,23 +6585,36 @@ is the other consumer and it reads the artifact, not the generator, so it is una
 way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
 is the shape the swap would generalise.
 
-### A non-widget's enum property has no join in `@girs`, so `Gtk.SizeGroup.mode` emits its member name
+### The `@girs` vocabulary gate is per NAMESPACE, so `Gdk.Cursor` and `GObject.Object` have no GType name
 
-Measured on `blueprint-compiler` 0.20.4: `Gtk.SizeGroup { mode: horizontal; }` emits
-`<property name="mode">1</property>` and the in-repo emitter writes `horizontal`
-(`packages/infra/blueprint/corpus/rules/29-enum-non-widget.ui:10`, the second entry in
-`corpus/divergences.mjs`, kind `prop-enums-widgets-only`). The number is in the vocabulary —
-`ENUM_VALUES['GtkSizeGroupMode.horizontal']` is `1` on `@girs` 5.0.0 — and the join is not:
-`PROP_ENUMS`, the declaration-keyed "which enum is this property" table ADR 0053 § Amendment 1
-was waiting for, has 71 owners and every one of them is in the widget tree, and `DECLS` has no
-`GtkSizeGroup` at all. `src/resolve-ident.mjs` therefore answers `null` — the "not ours" an object
-id needs, and the wrong answer here — and the source spelling stands.
+**The half of this entry about non-widget DECLARATIONS has closed.** ts-for-gir widened
+`PROP_ENUMS` and `DECLS` past the widget surface in `@girs` 5.2.0, so
+`Gtk.SizeGroup { mode: horizontal; }` is `1` from both compilers and the
+`prop-enums-widgets-only` entry retired from `corpus/divergences.mjs` on the version bump alone,
+with no line of `src/resolve-ident.mjs` changed. That file's header records what made the
+retirement free, and it is the cheapest kind of fix to mistake for luck.
 
-This is the same shape as the ARIA entry below: a corpus divergence that only a ts-for-gir change
-can retire, never a change in this repository. Resolving it here would mean searching the nick
-lists for an enum with a member `horizontal`, which finds several, and guessing is the silent
-wrong output ADR 0053 clause 3 exists to refuse. Both entries self-retire the same way: the day
-the join exists, stage C fails with "byte-equal and still listed, delete the entry".
+**The half about NAMESPACES has not, and it is the one a `.blp` in the wild hits.** A namespace
+emits a `./vocabulary` subpath only if it declares a concrete `GtkWidget` descendant — 142 of the
+705 GIRs, unchanged by the widening. `GtkSource`, `Shumate` and `WebKit` qualify and
+`packages/infra/blueprint` now depends on all three, which took the wild sweep from 216 to 221
+byte-equal foreign files. `Gdk`, `Gio`, `GObject` and `GLib` do not qualify, although
+`Gdk.Cursor` (Muzika), `Gio.Application` and `GObject.Object` (the reference implementation's own
+`tests/samples`) are ordinary `.blp` and the oracle compiles all three. Nothing in this repository
+can close it: the answer is the GIR's `glib:type-name` — `Gio.ListStore` is `GListStore` and
+`GObject.Object` is `GObject`, neither reachable by concatenation — and no artefact those
+namespaces publish carries it. `gtypeName` in `src/resolve-ident.mjs` therefore refuses by name,
+per ADR 0053 clause 3, and `corpus/refused/namespace-without-vocabulary.blp` holds the case.
+
+**What it would take, and it is a decision and not a patch.** Either the gate widens to any
+namespace declaring instantiable GTypes, or the vocabulary keeps its widget scope and a second,
+smaller surface carries what a `.blp` needs from every namespace: the GType name, the ancestry,
+and the property-to-enum join. The consumer side needs no change to take either — a namespace
+arrives in `resolve-ident.mjs` as one import and one dependency line, and everything else, its C
+identifier prefix included, is read out of the module. The measurement that argues for it is the
+wild sweep over 273 wild `.blp` — 235 of them foreign — that `scripts/blueprint-wild-sweep.mjs`
+runs and `docs/reports/2026-09-16-blueprint-subset-gap.md` tables, and those four
+namespaces are its whole remaining namespace bill.
 
 **The scope question, stated rather than assumed.** The `@girs` vocabulary is a WIDGET vocabulary
 by decision: ADR 0029 emits a surface "only for namespaces that actually declare `GtkWidget`
@@ -6424,22 +6626,41 @@ ordinary ones. So closing this is one of two different things: a small WIDENING 
 `PROP_ENUMS` and `DECLS` for the non-widget classes of a namespace that already emits a surface,
 which is all the `.blp` files in this repo could need) or a SCOPE CHANGE (a vocabulary for GObject
 classes generally, which ADR 0029 did not decide). Which one, and what each costs in emitted
-data, is a measurement being made in ts-for-gir and not here. Whichever it is, the consumer side
-needs no change to take it — `resolve-ident.mjs` already walks `DECLS` and reads `PROP_ENUMS` —
-and the retirement is the ledger failure above, not an edit.
+data, was a measurement to be made in ts-for-gir and not here. **The WIDENING is what landed**, in
+5.2.0; the SCOPE CHANGE is what the paragraphs above still ask for, and the wild corpus is what
+turned it from a hypothetical into a bill of four namespaces.
 
-**What it costs while it stands.** Any `.blp` that sets an enum- or flags-typed property on an
-object outside the widget tree gets its member name where the compiler writes a number. Measured
-on 0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; }` is `1`, its
+**What it cost while the widening stood open, kept because it is the failure mode the scope
+change still has.** Any `.blp` that set an enum- or flags-typed property on an object the
+vocabulary did not describe got its member name where the compiler writes a number. Measured on
+0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; }` is `1`, its
 `propagation-phase: capture` is `1`, `Gtk.StringFilter { match-mode: prefix; }` is `2`, and the
-in-repo emitter writes all three as written. A single-word member happens to load anyway, because
+in-repo emitter wrote all three as written. A single-word member happens to load anyway, because
 GtkBuilder resolves an enum nick as well as a number; a member Blueprint spells with an
 underscore (`word_char`, `both_axes`) is neither a nick nor a number to GtkBuilder and does not.
-None of the twelve real files does this today, which is why the gap was invisible until
-`03-property-enum` was asked for its other case. The corpus now HOLDS it rather than hiding it:
-`29-enum-non-widget.blp` diverges on one named line and every other line of it is held to the
-golden, so a `.blp` in this repo that reaches the same shape surfaces as an unledgered
-divergence in stage C, not as a build that loads and misbehaves.
+So the damage was a file that loads and misbehaves, which is why the namespace half refuses
+instead: a `Gdk.Cursor` nobody can name a GType for is an error and not a spelling to pass
+through.
+
+### A Shumate rule file needs a CI image that has libshumate, and a PR cannot push one
+
+`packages/infra/blueprint` depends on `@girs/shumate-1.0` — it is what takes Workbench's Map demo
+to byte-equal — and it is the one of the five namespaces with NO corpus golden. A golden needs the
+oracle, the oracle needs the typelib, and `.docker/ci-fedora.Dockerfile` installs `gtk4-devel`,
+`libadwaita-devel`, `gtksourceview5-devel` and `webkitgtk6.0-devel` and no libshumate. So a rule
+file naming Shumate reds stage B of `check-blueprint-corpus.mjs` until the image is rebuilt, and
+`build-ci-image.yml` only PUSHES on `main` — its pull-request leg builds and never pushes, by
+design, because a fork PR's token cannot write to GHCR. One PR therefore cannot carry both halves.
+
+Measured on this workstation, where every typelib is installed: a Shumate golden is byte-equal, so
+nothing about the code is in question. The gap is that a dependency of a gated package has no
+coverage in the gate — it is exercised only by module load (`merged()` and `NAMESPACES` read every
+vocabulary on import, so a broken or conflicting one fails every corpus run) and by the wild sweep,
+which is not a gate and needs a workstation.
+
+Two commits, in order: add `libshumate-devel` to `.docker/ci-fedora.Dockerfile`, land it, and once
+the weekly or on-push rebuild has pushed `ghcr.io/gjsify/ci-fedora:<major>`, add the rule file and
+its golden. Doing it the other way round is a red PR that looks like a defect in the resolver.
 
 ### Inverting the Blueprint projection needs the GIR, and one loss needs a field
 
@@ -6454,13 +6675,13 @@ kinds are unreachable from the eleven shipped files** — `menu`, `signal`, `acc
 `layout`, `sibling-object`, `value-list` — which is ADR 0053 clause 6's written corpus
 earning its keep, and a standing warning that a construct no real file uses is one whose
 SECOND case nobody has seen. The same figures are already held per line by stage D of
-`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
-one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
-holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence). Read those two
-numbers as a date: #1681 takes the corpus to 31 rules and 42 files, #1690 adds a twelfth real
-`.blp` and #1694 four more rule files, so the tree holds 35 rules and 47 files as of
-2026-09-16. Every figure in this paragraph moves with them and none of the conclusions below
-does — those rest on the real files, which #1694 does not touch and #1690 only adds to.
+`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted was the
+one in `src/project.mjs`'s header, which said 36 trees and 119 losses after #1644 added a rule
+file to what #1635 had counted, and which states no count at all any more. Read every figure
+in this paragraph as a date: #1681, #1690, #1694 and #1700 each grew the corpus after this
+census was taken, and what the tree holds now is what the harness prints rather than what a
+paragraph says. None of the conclusions below moves with them — those rest on the real files,
+which #1694 does not touch and #1690 only adds to.
 
 `slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
 placement on the child wrapper; `content:` is `<property name="content">`, an object as a

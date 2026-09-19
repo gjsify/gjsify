@@ -130,8 +130,12 @@ promise — and #1544 is precisely the difference between the two.
   the decoder table, the per-target plugin gaps and the format gaps had one home between
   them and now have one home each, in the artifact each describes.
 - **The payload half is only as good as the payloads offered to it.** On a Linux PR it
-  inspects none, and says so. `gtk-os-suites.yml` closes that for the two published
-  targets on its own schedule, against the tarball a stranger downloads.
+  inspects none, and says so. `gtk-os-suites.yml` opens the tarball a stranger downloads
+  for all three published bundles (`darwin-arm64`, `darwin-x64`, `win32-x64`) — but it
+  CLOSES the gap on darwin only, where the
+  `--media-payload` audit gates. On win32 that same step is a `continue-on-error` probe
+  for the length of a widening window ([ADR 0056](0056-win32-audio-payload-is-bounded-by-gvsbuild.md)),
+  so its finding is printed and annotated and stops nothing.
 - **A fourth bundle cannot be added silently.** The trigger is `files` naming a `gtk/`
   payload, not a package list, so a new target's first commit is a red build asking for
   its audio contract.

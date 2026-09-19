@@ -9,11 +9,13 @@ this repository and that `blueprint-compiler` stops being a build dependency and
 oracle a parser is measured against — and its § Implementation puts this package first,
 because *"a harness with nothing to compare reports green while proving nothing"*.
 
-**One divergence is left, on one line, waiting on a fact.** Clause 5 makes the parser
-authoritative once the shadow run is silent; `corpus/divergences.mjs` holds one entry — an enum
-property of a class that is not a widget (`GtkSizeGroup.mode`) has no join to its enum, because
-the `@girs` vocabulary is a widget vocabulary. Everything else in the corpus is byte-equal, and
-every construct the subset refuses is refused by name, held by a corpus of its own.
+**The shadow run is silent, which is clause 5's precondition and not its conclusion.**
+`corpus/divergences.mjs` is where a disagreement would be recorded, per line and with a reason;
+how many it excuses is printed by stage C on every run and is deliberately not restated here.
+Its own header says what used to be in it — the last entry was an enum property of a class that
+is not a widget (`GtkSizeGroup.mode`), which had no join to its enum until the `@girs`
+vocabulary stopped being a widget-only vocabulary. Every construct the subset refuses is
+refused by name, held by a corpus of its own.
 
 ## What is in here
 
@@ -157,20 +159,51 @@ would drift.
    out too, but by no numbered line: on this GTK the ARIA enums sort first in `ENUM_VALUES` and
    win every collision (20 of 20 rows), so it is `refused/unknown-accessibility-member.blp` that
    catches it, by accepting `sideways`.
-8. **A GType name is not namespace plus name.** `Gio.ListStore` is `<object
-   class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
-   prefix is the namespace, and silently wrong for any third `using`. The name is now a
-   resolver seam that refuses a namespace it has no vocabulary for
-   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which
-   concatenated the same way, takes the same seam, because a tag is the one thing that exit
-   must spell right.
+8. **A GType name is not namespace plus name, and the prefix is not ours to keep.**
+   `Gio.ListStore` is `<object class="GListStore">`, and the emitter concatenated — right for
+   `Gtk` and `Adw`, whose C prefix is the namespace, and silently wrong for any third `using`.
+   The name became a resolver seam that refuses a namespace it has no vocabulary for
+   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which concatenated
+   the same way, takes the same seam, because a tag is the one thing that exit must spell right.
+   The prefix itself was then a two-entry `Map` in `resolve-ident.mjs`, which is the hand-written
+   table ADR 0053 clause 6 forbids, short enough not to look like one: it is now read off the
+   GTypes each vocabulary declares (their longest common prefix, backed off to a CamelCase
+   boundary). **That is a derivation over the five namespaces loaded, not a law about GIR** —
+   swept over the 135 GIRs installed on one workstation it gets 28 of the 104 that declare a
+   concrete class WRONG, `GdkX11` and eight `Gst*` among them, and four namespaces carry a
+   multi-valued prefix a single string cannot express. None of the 28 publishes a vocabulary, so
+   none is reachable; the day one does, the prefix has to come from upstream instead.
+   `rules/39-namespace-vocabulary.blp` holds two namespaces the corpus was not written against.
 9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
    `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
-   for a class outside the widget tree — the one ledger entry left (`rules/29-enum-non-widget.ui`).
-10. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
+   for a class outside the widget tree — the last entry the shadow ledger held
+   (`rules/29-enum-non-widget.ui`), retired by the `@girs` 5.2.0 bump in #1692.
+10. **A type reference asks two different questions, and one table answers only one of them.** `<prefix><Name>` is checked against
+    `DECLS` where the type is INSTANTIATED — a wrong prefix is then a refusal and not a class
+    GtkBuilder resolves to nothing, and that is empirical rather than proved: over all 2182
+    concrete classes in those GIRs there is no case where a wrong derivation still lands on a
+    declared name, and `{FooBarOne, FooBarBarOne}` is the shape that would. It is NOT checked
+    where a type is merely NAMED: `template $Foo: Gtk.Widget { }` is a file the oracle compiles,
+    `DECLS` holds instantiable GTypes only, and applying the object position's check to a template
+    parent refused all 19 abstract classes Gtk and Adw declare. The reference implementation draws
+    the same line, in its own `tests/sample_errors/abstract_class.blp`.
+    `rules/41-template-parent-abstract.blp` and `refused/abstract-instantiation.blp` are the two
+    sides, and neither sweep could have found it — which is what a written rule file is for. The
+    object half is a strengthening the merge-base did not have: `Gtk.Widget { }` used to emit
+    `<object class="GtkWidget">` for a file the oracle rejects.
+11. **The vocabulary gate is per NAMESPACE, and that is a gate and not a shortage of data.**
+    ts-for-gir emits the `./vocabulary` subpath only for a namespace declaring a concrete
+    `GtkWidget` descendant. `GtkSource`, `Shumate` and `WebKit` qualify; `Gdk`, `Gio` and
+    `GObject` do not, although `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` are all legal
+    in a `.blp` and all three appear in files the reference implementation compiles. Nothing in
+    this package can close that — the GType name lives in the GIR's `glib:type-name` and in no
+    `@girs` artefact those three publish — so they stay a hard error naming the namespace, and the
+    fix is upstream in that gate. When it lands, a namespace arrives here as one import and one
+    dependency line: everything else is read out of the module.
+12. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
     "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
-11. **The projection has to read a number's spelling as carefully as the XML exit does.**
+13. **The projection has to read a number's spelling as carefully as the XML exit does.**
     `margin-start: 1_000` projected as `null`, because `Number("1_000")` is `NaN`, while the
     XML exit had stripped the underscore all along — and with the underscore stripped,
     `-0x10` still did, because `Number()` reads no sign on a hex string, while the XML exit
@@ -179,7 +212,7 @@ would drift.
     the oracle does. Stage D caught both the moment `rules/17-numeric-forms.blp` held the form
     — the first defects that stage has found.
 
-12. **An extern type is not a type with the sigil stripped.** `$MyWidget { }` — the form 49
+14. **An extern type is not a type with the sigil stripped.** `$MyWidget { }` — the form 49
     files and 58 sites need (ADR 0062) — emits `<object class="MyWidget">`, and a dotted
     `$Ns.Inner` CONCATENATES to `NsInner`, which is the one place concatenation is right
     rather than the fallback item 8 corrected. What the name cannot carry is the other half:

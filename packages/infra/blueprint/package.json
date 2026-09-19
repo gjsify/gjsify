@@ -12,7 +12,10 @@
     },
     "dependencies": {
         "@girs/adw-1": "5.2.0",
-        "@girs/gtk-4.0": "5.2.0"
+        "@girs/gtk-4.0": "5.2.0",
+        "@girs/gtksource-5": "5.2.0",
+        "@girs/shumate-1.0": "5.2.0",
+        "@girs/webkit-6.0": "5.2.0"
     },
     "scripts": {
         "clear": "echo 'nothing to do'",

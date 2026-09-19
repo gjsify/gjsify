@@ -228,7 +228,7 @@ function formatAttributes(attrs) {
 
 /** @param {XmlWriter} xml @param {ObjectNode} object @param {EmitContext} context */
 function emitObject(xml, object, context) {
-    const className = gtypeName(object.type, context);
+    const className = gtypeName(object.type, context, 'object');
     xml.startTag('object', { class: className, id: object.id });
     emitBody(xml, object.body, ownerOf(object.type, className), context);
     xml.endTag();
@@ -255,7 +255,7 @@ function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
     // type after the colon. The owner type for value resolution is the PARENT — the
     // template class is the one being defined and has no ParamSpecs of its own yet.
-    const parent = gtypeName(template.parent, context);
+    const parent = gtypeName(template.parent, context, 'reference');
     xml.startTag('template', { class: template.className, parent });
     emitBody(xml, template.body, ownerOf(template.parent, parent), context);
     xml.endTag();
@@ -832,10 +832,15 @@ function emitMenu(xml, menu, context) {
  * is a fact about the namespace and not its spelling; the fallback concatenates, which is what
  * the prefix happens to be for the two namespaces every corpus file uses and wrong for `Gio`.
  *
+ * `position` says whether the type is being INSTANTIATED or merely NAMED, because the resolver
+ * answers the two differently: `Gtk.Widget { }` is an error in both compilers and
+ * `template $Foo: Gtk.Widget { }` is a file the oracle compiles. See `src/resolve-ident.mjs`.
+ *
  * @param {TypeRef} type @param {Pick<EmitContext, 'gtypeName'>} context
+ * @param {'object' | 'reference'} position
  */
-function gtypeName(type, context) {
-    if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`);
+function gtypeName(type, context, position) {
+    if (context.gtypeName !== undefined) return context.gtypeName(type, `line ${type.line}`, position);
     // An extern type never defaults to Gtk: there is no import behind it, so the sigil-free
     // spelling IS the GType name. Getting this wrong in the fallback would be a `GtkMyWidget`
     // no GtkBuilder can find, which is the shape of wrong output ADR 0053 clause 3 refuses.
@@ -952,7 +957,7 @@ function indexObject(object, byId, seams) {
     // target keeps its spelling while the same setter on a `Gtk.Box` is `1`. The setter path
     // is a SECOND call site of the resolver, so an implementation that fixes only the object
     // body above is byte-equal on every golden that has no `setters { }` in it.
-    if (object.id !== undefined) byId.set(object.id, ownerOf(object.type, gtypeName(object.type, seams)));
+    if (object.id !== undefined) byId.set(object.id, ownerOf(object.type, gtypeName(object.type, seams, 'object')));
     indexBody(object.body, byId, seams);
 }
 

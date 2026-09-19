@@ -181,21 +181,48 @@
 # READING THE JOB COLOUR IS NOT READING THE RESULT
 #
 # On win32 BOTH suite steps are probes, so the job reports `success` while the log
-# holds two red suites that each exited 1. That is the probe shape working as
-# designed, and it is also exactly how a green-that-checked-nothing looks from the
-# outside — so: the win32 job's colour answers "did the shipped closure stage,
-# verify and LOAD", not "does the layer pass". The numbers are in the step logs and
-# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever
-# flips either step to gating should delete this paragraph with it.
+# holds red steps that each exited 1. That is the probe shape working as designed, and
+# it is also exactly how a green-that-checked-nothing looks from the outside — so: the
+# win32 job's colour answers "did the shipped closure stage, verify and LOAD", and since
+# 2026-09-19 also "does this tree's declared win32 media contract match the PUBLISHED
+# payload" — but still not "does the layer pass". The numbers are in the step logs and
+# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever flips
+# either suite step to gating should delete this paragraph with it.
+#
+# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: THREE
+# `continue-on-error` steps — one on darwin (react-native) and two on win32 (gtk-host,
+# react-native). It was four until the win32 conformance audit was promoted on
+# 2026-09-19. Each remaining one carries `retire-when:` clauses that
+# `scripts/check-probe-retirement.mjs` evaluates on every run, so this number now
+# changes when a condition comes true rather than when somebody notices it has.
+#
+# WHERE TO READ WHAT A PROBE DID, without opening a log you had no reason to open:
+# every `continue-on-error` step here is followed by a `Probe outcome: …` step running
+# `scripts/report-probe-outcome.mjs`, which writes the step's REAL `outcome` as a
+# job-summary row and emits a `::warning::` on the run and on the PR saying the job is
+# green only because of the flag. `scripts/check-probe-outcomes-read.mjs` holds every
+# such step in the repository to having an `id` its workflow reads, so a probe cannot
+# go dark; it deliberately does not make any of them fail. The word "probe" is
+# overloaded in this file and the distinction matters: a step named `… — probe` with
+# `continue-on-error` cannot fail the build, while the "Batteries-included probe" step
+# GATES — there it means "probe the primitive rather than the wrapper".
+#
+# The standing cost of that arrangement, and what is still missing to retire each of the
+# three remaining flags, is an item in `status/open-todos.md`. NONE of them is now
+# waiting only on somebody re-reading a probe row, and the way that stopped being true
+# is the useful part: both conditions that had come true were acted on — the win32
+# conformance audit was promoted, and the darwin react-native probe was MEASURED first
+# and found red in 70 of 71 runs, so its condition was corrected rather than flipped. A
+# met condition is not evidence that a step passes.
 #
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
 # win32's react-native probe read 7 of 848 against 2 of 857 on darwin (measured
 # 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 are the
 # cross-OS #1438 baseline and 1 a knock-on of one of those (the same `popped` seam) —
-# fixed in the ENGINE on 2026-09-02 and still counted here, because the fix is in the
-# addon's C++ and these legs install the PUBLISHED addon (see the table above): the
-# first release carrying it is what removes them, not the merge. 2 are inherited from
+# fixed in the ENGINE by #1488, merged 2026-09-03, and still counted here, because the
+# fix is in the addon's C++ and these legs install the PUBLISHED addon (see the table
+# above): the first release carrying it is what removes them, not the merge. 2 are inherited from
 # the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
@@ -237,11 +264,13 @@
 #     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
 #     `EnumWindows` by PID from inside the interactive session).
 #   · `@gjsify/react-native`'s step is a `continue-on-error` PROBE on both — see the
-#     darwin step's comment, which carries the measurement that corrected its own
-#     retirement condition. In short: an engine fix in THIS checkout is invisible to
-#     these legs until it is PUBLISHED, because the addon here is the released one, so
-#     a gate would report a defect the leg cannot fix and did not find. Same reason
-#     `node-gi.yml` kept `gtk-host` out of CI until it went in at 0 failures.
+#     darwin step's comment, which now carries a measurement that corrected its own
+#     retirement condition TWICE. The short version this line used to give — an engine
+#     fix in THIS checkout is invisible until it is PUBLISHED, because the addon here
+#     is the released one — was true and is no longer what blocks the step: that
+#     release shipped on 2026-09-03, and the probe was still red in 70 of the 71 `main`
+#     runs from 2026-09-10, on defects of its own. Same reason `node-gi.yml` kept
+#     `gtk-host` out of CI until it went in at 0 failures.
 #   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
 #     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
 #
@@ -280,7 +309,10 @@ permissions:
 
 jobs:
   darwin:
-    name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node)
+    # `node-gi on Node` rather than a bare `node`: the suite is `test:gjs-on-node`, whose
+    # name says gjs and whose host is Node. Nothing GJS runs on this leg — it installs no
+    # `gjs` at all (see WHAT IT DOES NOT PROVE in the header).
+    name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node-gi on Node)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -440,10 +472,31 @@ jobs:
       # the artifact a stranger downloads run this layer" (ADR 0024 § 4), and the
       # honest answer for an unreleased fix is "not yet".
       #
-      # RETIREMENT CONDITION, corrected: not an issue number but a RELEASE — the first
-      # published `@gjsify/node-gi` carrying #1438's engine fix. Delete
-      # `continue-on-error` and this comment on the first run where the only failures
-      # left are this operating system's own.
+      # RETIREMENT CONDITION, CORRECTED A SECOND TIME — and the correction is the finding.
+      # It used to read "the first published `@gjsify/node-gi` carrying #1438's engine fix".
+      # That shipped in 0.46.0 on 2026-09-03 and nobody re-read this row: MEASURED on
+      # 2026-09-19 against a published 0.51.1, over the 71 push-to-`main` runs from
+      # 2026-09-10, this probe was RED in 70 and measured nothing in the other one — not
+      # once green, on either arch. The release was a PROXY for "this can gate now", and the
+      # proxy was wrong for the THIRD time on this one step (`#1438 closes` before it, a
+      # bare issue number before that).
+      #
+      # WHAT IS ACTUALLY RED, measured on run 35423439012 and none of it #1438:
+      #   · darwin-arm64 — 7 of 655. Five are `t.get_ancestor is not a function`: the
+      #     published bridge does not put `Gtk.Widget.get_ancestor` on the instance at all.
+      #     One is a natural-size read of 0 on the content box, one a GTK diagnostic under
+      #     `tabs`. Recorded in `status/open-todos.md`.
+      #   · darwin-x64 — the runner exits 1 with NO summary line, dying after "publishes the
+      #     window chrome" (#1546/#1549). That is worse than a count, and it is not the same
+      #     defect as arm64's.
+      #
+      # So the condition stops being a proxy for the outcome and becomes the outcome: this
+      # step retires on five consecutive recorded `main` outcomes that pass. Three proxies
+      # have now been wrong, and the one thing none of them could be wrong about is what the
+      # probe itself reported. `scripts/check-probe-retirement.mjs` evaluates the clause
+      # below on every run and fails the day it comes true, so this row cannot go unread for
+      # sixteen days again.
+      #   retire-when: probe-green 5
       - name: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
         id: rn-probe
         continue-on-error: true
@@ -502,18 +555,32 @@ jobs:
       # retirement condition naming a RELEASE. It reports rather than silences: the audit
       # still prints the finding, and the reporter puts a `::warning::` on the PR saying the
       # job is green ONLY because of the flag. THIS step, on darwin, keeps gating — its
-      # declaration and the published payload agree — and the win32 copy carries the probe
-      # with the reason written beside it. Little is given up there either way: only the
-      # `--media-payload` comparison goes advisory, because `audit-runtimes.yml` runs
-      # `--check --strict` on every pull request with no paths filter, so the os-axis half
-      # is already held.
+      # declaration and the published payload agree. Little is given up in the window
+      # either: only the `--media-payload` comparison goes advisory, because
+      # `audit-runtimes.yml` runs `--check --strict` on every pull request with no paths
+      # filter, so the os-axis half is already held.
+      #
+      # THE WIN32 COPY IS NO LONGER IN A WINDOW. #1626's widening closed with 0.49.0 on
+      # 2026-09-11 — the probe was red in five runs and green in the 48 since — and that
+      # step gates again. See it for what the retirement cost in attention, and for the
+      # clause vocabulary a future widening states its window in instead of leaving a
+      # sentence for somebody to re-read.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \
             "--media-payload=@gjsify/gtk-runtime-$TARGET=packages/node-gi/node-gi/prebuilds/$TARGET"
 
   win32:
-    name: GTK suites on the shipped closure (win32-x64 / node)
+    # The name says what a GREEN here means, because two of its four measuring steps are
+    # probes: the closure staged, verified and LOADED — and, since the conformance audit
+    # was promoted on 2026-09-19, that this tree's declared win32 media contract matches
+    # the PUBLISHED payload. It does not say the SUITES passed, which is what the name
+    # claims and why the name still holds: both suite steps are still
+    # `continue-on-error`. This job going green while they are red is the designed
+    # behaviour — see READING THE JOB COLOUR IS NOT READING THE RESULT in the header.
+    # Rename it back to "GTK suites on the shipped closure" when the last
+    # `continue-on-error` goes.
+    name: Shipped GTK closure loads; suites are probes (win32-x64 / node-gi on Node)
     runs-on: windows-latest
     timeout-minutes: 60
 
@@ -624,6 +691,14 @@ jobs:
       # stay gating, so the win32 leg still fails loudly if the published bundle
       # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
       # on and the reason this leg exists.
+      #
+      # The clauses below are that sentence as DATA, evaluated every run by
+      # `scripts/check-probe-retirement.mjs`. The generated table is the subject rather
+      # than #1446 alone, because an issue can be closed by a decision while the rows
+      # stay — and the rows are what the suite dereferences.
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
+      #   retire-when: issue-closed 1446
       - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
         id: gtk-host-probe
         continue-on-error: true
@@ -644,6 +719,16 @@ jobs:
       # unreleased engine fix is invisible here. On top of that, win32 has its own
       # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
       # assertions in the header's attribution.
+      #
+      # RETIREMENT CONDITION, as data. The first clause is ALREADY MET — node-gi 0.46.0
+      # carried #1438's engine fix on 2026-09-03 — and is kept rather than dropped because
+      # a met clause is how a conjunction shows which half is left. The table rows are the
+      # half that is not, and the darwin leg above records what a met release clause is and
+      # is not worth on its own.
+      #   retire-when: npm-version-min @gjsify/node-gi latest 0.46.0
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
+      #   retire-when: probe-green 5
       - name: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
         id: rn-probe-win32
         continue-on-error: true
@@ -664,36 +749,31 @@ jobs:
       # the win32 payload is the one whose declared audio contract this closes, since it is
       # the bundle that carries no MP3 decoder while both darwin ones do.
       #
-      # A PROBE, for the widening window the darwin comment describes and only while it
-      # lasts. This tree claims Ogg/Vorbis and the PUBLISHED payload has no `gstvorbis.dll`
-      # until the next release carries it — and THIS WORKFLOW HAS NO `paths:` FILTER, so
-      # gating that disagreement reds this job on `main`, on the nightly and on every
-      # unrelated contributor's PR for the whole window. A check knowingly red for weeks is
-      # one people learn to skip, and the next real win32 media finding then lands on a job
-      # nobody opens. That is the same currency as a guard that cannot fail.
+      # A GATE since 2026-09-19, and WHAT IT NOW GUARANTEES: the audio contract this tree
+      # DECLARES for `@gjsify/gtk-runtime-win32-x64` is one the bundle a stranger downloads
+      # actually keeps. `--media-payload` opens the tarball this job staged from npm, so a
+      # declaration that outruns the payload — or a release that drops a plugin the
+      # declaration still promises — fails the leg instead of printing a warning.
       #
-      # NOT SILENCED, which is the only thing that makes this better than the red: the audit
-      # still runs and still prints the finding, and the reporter puts a `::warning::` on the
-      # PR plus a summary line saying the job is green ONLY because of this flag.
-      # `check-probe-outcomes-read.mjs` refuses a probe whose outcome nothing reads.
+      # IT WAS A PROBE, and the window is worth keeping because it is the shape that will
+      # recur. This tree began claiming Ogg/Vorbis in c11ce0c3c (#1626) at 04:24Z on
+      # 2026-09-11 while the published payload had no `gstvorbis.dll`; gating that
+      # disagreement would have redded this job — which has NO `paths:` filter — on `main`
+      # and on every unrelated contributor's PR until the release caught up. A check
+      # knowingly red for weeks is one people learn to skip, and the next real win32 media
+      # finding then lands on a job nobody opens.
       #
-      # AND ALMOST NOTHING STOPS GATING. `audit-runtimes.yml` runs `--check --strict` on
-      # every pull request with no paths filter of its own, so the os-axis half is already
-      # held there; what becomes advisory here is the `--media-payload` comparison alone —
-      # the one half that legitimately disagrees during a widening. The darwin leg keeps
-      # gating, because its declaration and the published payload agree.
+      # WHAT CLOSED IT, measured rather than assumed: 0.49.0 published `gstvorbis.dll` at
+      # 08:08:06Z the same day (0.48.0's tarball has `gstogg.dll` and no vorbis; 0.49.0's
+      # and 0.51.1's have both — read cache-busted from the tarballs, not from `npm view`).
+      # The probe was red in exactly five runs, all of them between 04:24Z and 06:16Z that
+      # morning, and green in every one of the 48 measured runs since. It stayed advisory
+      # for all 48. That eight-day gap is why `scripts/check-probe-retirement.mjs` exists:
+      # the same widening will happen again the next time a payload claim outruns a
+      # release, and a person will not be watching.
       #
-      # RETIREMENT CONDITION, a RELEASE and not an issue number — the mistake the
-      # react-native probe above records paying for: delete `continue-on-error`, both ids
-      # and this note on the first run after a published `@gjsify/gtk-runtime-win32-x64`
-      # carries `gstvorbis.dll` (#1626).
+      # So when this leg goes red during a future widening, the answer is not to restore
+      # `continue-on-error` — it is to state the condition as a `retire-when:` clause the
+      # way the two probes above do, so the flag removes itself when the release lands.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
-        id: conformance-win32
-        continue-on-error: true
         run: node scripts\audit-runtimes.mjs --check "--media-payload=@gjsify/gtk-runtime-%TARGET%=packages\node-gi\node-gi\prebuilds\%TARGET%"
-      - name: 'Probe outcome: conformance audit'
-        if: always()
-        env:
-          PROBE_LABEL: 'Conformance audit — win32 media claim vs the PUBLISHED payload (red until the release carrying gstvorbis.dll, #1626)'
-          PROBE_OUTCOME: ${{ steps.conformance-win32.outcome }}
-        run: node scripts/report-probe-outcome.mjs

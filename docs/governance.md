@@ -201,6 +201,33 @@ pass is ~25 minutes, and every merge into `main` would force a re-run of every o
 byte fails CI until `--update` runs and the ledger is committed alongside. That friction is
 the mechanism, not a side effect.
 
+### An anchor grep over workflow comments — DECLINED, never built
+
+Recorded so the next person to propose it finds the measurement instead of re-deriving it.
+A real defect prompted it: `macos-suites.yml`'s SIP note claimed "Measured on the
+darwin-x64 VM" with no date, no image and no run, and was contradicted on 2026-09-19 by the
+repository's own probe without anything changing. The obvious gate is a rule that any
+measurement verb in a workflow comment must carry an anchor — a date, a run id, a `#NNN`, a
+SHA or a version.
+
+**Enumerated before proposing, and the arithmetic killed it.** Over `macos-suites.yml` and
+`windows-suites.yml` the pattern flags **14 paragraphs; 12 are false positives**, in three
+kinds — claims the stating step RE-PROVES every run (the brew-formula rows, the
+elevated-runner note, the two steps whose whole job is printing the host), claims that CITE
+an anchored record elsewhere (`status/open-todos.md`, an adjacent dated paragraph), and
+prose that is rationale rather than measurement. Two were real: the SIP note, and a
+`windows-suites.yml` motivation that needed an event anchor, both fixed by hand.
+
+A check wrong 12 times in 14 is worse than no check: it is the shape this section already
+de-gated `check-comment-budget` for, one step further along — people learn to skip it, and
+the next real finding lands on a check nobody reads. **And the false-positive rate is
+itself the finding.** The set is two rather than fourteen BECAUSE the habit is already
+right here: a claim that can rot gets a probe, and the comment names the probe. That is a
+convention to state once, which `docs/code-anti-patterns.md` § *A rule whose premise died
+and whose conclusion did not* now does, not a grep to run forever.
+
+Revisit only if the real instances stop being countable on one hand.
+
 ### The rule this generalises to
 
 Before putting a number behind a required check, ask whether two branches can each spend

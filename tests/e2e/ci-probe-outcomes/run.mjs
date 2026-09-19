@@ -277,3 +277,322 @@ describe('reporting one probe outcome', () => {
         );
     });
 });
+
+// The third half of the same defect: `check-probe-retirement.mjs`.
+//
+// The two checks above make a probe's RESULT visible and deliberately do not ask whether
+// the probe should still be one. Nobody asked either — measured 2026-09-19, two conditions
+// in `gtk-os-suites.yml` had been satisfied for over a week, one of them on a step that had
+// been green for 25 consecutive `main` runs. So the conditions became clauses and this is
+// what evaluates them.
+//
+// SYNTHETIC AND OFFLINE, for the reason the head of this file gives twice over: a gate
+// nobody has watched FAIL is not yet a gate, and the ripe verdict is the one that must be
+// seen. Every case here is a `tree-*` clause, so the suite reads no registry and no API —
+// an e2e whose verdict depends on npm being up is one that teaches people to re-run it.
+
+const RETIRE = join(MONOREPO_ROOT, 'scripts', 'check-probe-retirement.mjs');
+
+/** Run the retirement check over `root`; `{ code, out }` with stdout and stderr joined. */
+function retirement(root, extra = []) {
+    try {
+        const out = execFileSync(process.execPath, [RETIRE, '--root', root, ...extra], { encoding: 'utf-8' });
+        return { code: 0, out };
+    } catch (error) {
+        return { code: error.status ?? 1, out: `${error.stdout ?? ''}${error.stderr ?? ''}` };
+    }
+}
+
+/** A blocked probe carrying `clauses`, plus the reader the sibling check demands. */
+const BLOCKED = (clauses) => `name: probe
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # RETIREMENT CONDITION: when the thing stops being true.
+${clauses.map((c) => `      #   retire-when: ${c}\n`).join('')}      - name: 'The probe (gating blocked on the thing)'
+        id: the-probe
+        continue-on-error: true
+        run: node run-the-suite.mjs
+      - name: 'Probe outcome'
+        if: always()
+        env:
+          PROBE_OUTCOME: \${{ steps.the-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+
+/** `withWorkflows` plus one tracked file the `tree-*` clauses can be about. */
+function withTree(workflow, files = {}) {
+    const root = withWorkflows({ 'probe.yml': workflow });
+    for (const [rel, body] of Object.entries(files)) {
+        mkdirSync(join(root, dirname(rel)), { recursive: true });
+        writeFileSync(join(root, rel), body);
+    }
+    return root;
+}
+
+describe('probe retirement conditions are evaluated, not re-read', () => {
+    it('FAILS when every clause has come true — the verdict the whole check is for', () => {
+        const root = withTree(BLOCKED(['tree-lacks src/table.ts UnixDialog']), {
+            'src/table.ts': 'export const rows = [];\n',
+        });
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /retirement condition is now MET/);
+            assert.match(out, /The probe \(gating blocked on the thing\)/);
+            // The remedy must name BOTH outcomes: a met condition is not evidence that the
+            // step passes, and the darwin probe is the measurement that says so.
+            assert.match(out, /PROXY/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('passes while one clause of a conjunction is still false', () => {
+        const root = withTree(BLOCKED(['tree-lacks src/table.ts UnixDialog', 'tree-lacks src/table.ts Printer']), {
+            'src/table.ts': 'export const rows = ["Printer"];\n',
+        });
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 0);
+            assert.match(out, /1 of 2 clause\(s\) met/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a probe whose condition is prose only', () => {
+        // The defect in one sentence: a sentence above a step only fires when somebody
+        // re-reads it, and for sixteen days nobody did.
+        const root = withTree(BLOCKED([]));
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /states a retirement condition in prose and carries no machine-readable clause/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a clause it cannot evaluate, rather than skipping it', () => {
+        // A typo'd verb that were merely ignored would leave the probe looking clause-bound
+        // and evaluated while nothing read it — the original defect with a new spelling.
+        const root = withTree(BLOCKED(['tree-lacs src/table.ts UnixDialog']));
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /unknown clause verb `tree-lacs`/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a clause with the wrong number of arguments', () => {
+        const root = withTree(BLOCKED(['tree-lacks src/table.ts']));
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /`tree-lacks` takes 2 argument\(s\), got 1/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('leaves a probe that claims no condition alone, and says how many', () => {
+        // `cli-cross-platform.yml`'s ten-step diagnostic sweep is advisory BY DESIGN — its
+        // own header says so. Demanding a condition there would be prose of this check's
+        // making, so the scope is printed rather than silently applied.
+        const advisory = `name: sweep
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Diagnostic: does it load'
+        id: loads
+        continue-on-error: true
+        run: node load.mjs
+      - name: 'Probe outcome'
+        if: always()
+        env:
+          PROBE_OUTCOME: \${{ steps.loads.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+        const root = withWorkflows({ 'sweep.yml': advisory });
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 0);
+            assert.match(out, /0 probe\(s\) with a stated condition, 1 carrying none/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('credits a comment block to the step it sits above, not the one before it', () => {
+        // The walk stops at a BLANK line and not at a bare `#`, which is how these
+        // workflows spell a paragraph break. Getting that backwards would hand one step's
+        // clauses to its neighbour — and then both verdicts are about the wrong step.
+        const two = `name: two
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # RETIREMENT CONDITION for the FIRST probe.
+      #
+      #   retire-when: tree-lacks src/table.ts Nothing
+      - name: 'First (gating blocked on A)'
+        id: first
+        continue-on-error: true
+        run: node a.mjs
+
+      - name: 'Second (gating blocked on B)'
+        id: second
+        continue-on-error: true
+        run: node b.mjs
+      - name: 'Outcomes'
+        if: always()
+        env:
+          A: \${{ steps.first.outcome }}
+          B: \${{ steps.second.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+        const root = withTree(two, { 'src/table.ts': 'export const rows = [];\n' });
+        try {
+            const { code, out } = retirement(root);
+            // The first probe is ripe (the file holds no `Nothing`); the second inherited
+            // no clause and is refused for having none. Both verdicts name their own step.
+            assert.equal(code, 1);
+            assert.match(out, /"Second \(gating blocked on B\)" states a retirement condition in prose/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a PROBE_LABEL that is not the step name', () => {
+        // The real pair, verbatim from `gtk-os-suites.yml` before this landed. Nothing
+        // coupled the annotation to the step, so a reader joining the two records on the
+        // name found no annotation for a step that had them — and read a never-green probe
+        // as green. This is the assertion that makes the join sound.
+        const mismatched = `name: probe
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conformance audit (os-axis + the staged bundle's media claim)
+        id: conformance-win32
+        continue-on-error: true
+        run: node audit.mjs
+      - name: 'Probe outcome: conformance audit'
+        if: always()
+        env:
+          PROBE_LABEL: 'Conformance audit — win32 media claim vs the PUBLISHED payload'
+          PROBE_OUTCOME: \${{ steps.conformance-win32.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+        const root = withWorkflows({ 'probe.yml': mismatched });
+        try {
+            const { code, out } = check(root);
+            assert.equal(code, 1);
+            assert.match(out, /`PROBE_LABEL` is not this step's `name`/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('leaves a probe that reports its outcome without a label alone', () => {
+        // `cli-cross-platform.yml`'s sweep reports through a summary TABLE and passes no
+        // `PROBE_LABEL`. That is a different reporting shape, not a defect — and what it
+        // costs is charged where it lands: `probe-green` refuses such a probe outright.
+        const unlabelled = `name: sweep
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Diagnostic'
+        id: diag
+        continue-on-error: true
+        run: node load.mjs
+      - name: Summary
+        if: always()
+        run: echo "\${{ steps.diag.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+`;
+        const root = withWorkflows({ 'sweep.yml': unlabelled });
+        try {
+            const { code } = check(root);
+            assert.equal(code, 0);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a clause KEY that is nearly right', () => {
+        // A typo'd VERB already errored; a typo'd KEY was prose, and prose is discarded in
+        // silence. Measured: one good clause beside four near misses printed "1 of 1
+        // clause(s) met" and reported the probe RIPE — four conditions dropped, the verdict
+        // computed from the survivor. The same silently-measured-nothing shape, one level in.
+        for (const typo of ['retire-whn:', 'retire-when :', 'Retire-When:', 'retirewhen:']) {
+            const root = withTree(
+                BLOCKED([`tree-lacks src/table.ts Printer`]).replace(
+                    '      #   retire-when: tree-lacks src/table.ts Printer',
+                    `      #   retire-when: tree-lacks src/table.ts Printer\n      #   ${typo} issue-closed 1446`,
+                ),
+                { 'src/table.ts': 'export const rows = [];\n' },
+            );
+            try {
+                const { code, out } = retirement(root);
+                assert.equal(code, 1, `${typo} was accepted silently`);
+                assert.match(out, /is nearly a clause and is therefore not one/);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        }
+    });
+
+    it('refuses a clause that is attached to no probe', () => {
+        // The comment walk starts at the step's dash and stops at a blank line, so a clause
+        // below a blank line — or inside the step block — belongs to nothing and used to
+        // vanish without a word.
+        const detached = BLOCKED(['tree-lacks src/table.ts Printer']).replace('      - name:', '\n      - name:');
+        const root = withTree(detached, { 'src/table.ts': 'export const rows = ["Printer"];\n' });
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /is attached to no probe/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('takes an explicit advisory-by-design opt-out, and prints the reason', () => {
+        const root = withTree(
+            BLOCKED([]).replace(
+                '      # RETIREMENT CONDITION: when the thing stops being true.',
+                '      # RETIREMENT CONDITION: when the thing stops being true.\n' +
+                    '      #   advisory-by-design: the ten-step sweep reports through a summary table',
+            ),
+        );
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 0);
+            assert.match(out, /1 advisory by declaration/);
+            assert.match(out, /reports through a summary table/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('holds over the real .github/workflows tree', () => {
+        // The regression guard, offline: the next probe added with a prose-only condition
+        // fails here as well as in the audit job. The ONLINE half — a published artifact or
+        // a recorded outcome that turned a clause true — is what the audit job runs, and it
+        // cannot be asserted from a suite that must pass with no network.
+        const { code, out } = retirement(MONOREPO_ROOT);
+        assert.equal(code, 0, out);
+        assert.match(out, /probe\(s\) with a stated condition/);
+    });
+});

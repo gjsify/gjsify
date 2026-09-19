@@ -44,7 +44,7 @@
 // The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
 // `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
-// one to read carefully: four real files DO carry comments, and the convention in
+// one to read carefully: four of them DO carry comments, and the convention in
 // `expectations.mjs` is that comments are never listed per entry.) And twelve files are
 // about seven distinct SHAPES: the three `templates/adw-*/src/main-window.blp` differ in one
 // title string, and fireworks and pixel differ only in the template class name, the
@@ -259,7 +259,7 @@ export const CORPUS_RULES = [
         file: '29-enum-non-widget.blp',
         isolates: 'an enum on an object that is not a widget',
         surprise:
-            'the oracle numbers it like any other (`mode: horizontal` is `1`) and the in-repo resolver cannot: `PROP_ENUMS` in the `@girs` vocabulary is keyed by WIDGET types, so a `GtkSizeGroup` property has no join to its enum — the second ledger entry in `corpus/divergences.mjs`',
+            'the oracle numbers it like any other (`mode: horizontal` is `1`) and the in-repo resolver cannot: `PROP_ENUMS` in the `@girs` vocabulary is keyed by WIDGET types, so a `GtkSizeGroup` property had no join to its enum until `@girs` 5.2.0 — the last entry `corpus/divergences.mjs` ever held',
     },
     {
         file: '30-template-self-reference.blp',
@@ -322,6 +322,25 @@ export const CORPUS_RULES = [
         surprise:
             'there is nothing special about it. `null` is not a keyword in this grammar — `menu null { }` declares an id (the oracle warns `null may be a confusing object ID` and compiles), `menu-model: null` then points at it, and `bind null.label` binds to it. The literal in `36-setter-null.blp` is only what is LEFT when no object claims the name, which is why `isNullLiteral` in `emit-xml.mjs` asks the file and not the spelling. Stated the other way: the identifier wins over the literal, and it wins inside a `setters { }` block too — `labelOne.label: null;` with this `null` declared is `Cannot assign Gtk.Label to string`, a TYPE error, so the id resolved.',
     },
+    {
+        file: '39-namespace-vocabulary.blp',
+        isolates:
+            'a type from a namespace beyond the two the corpus was written against — `GtkSource.View` holding a `GtkSource.Buffer`, and a `WebKit.WebView` beside it',
+        surprise:
+            'the `using GtkSource 5;` and `using WebKit 6.0;` lines leave NO trace in the output — `<requires>` names gtk alone whatever else a file imports (`18-multiple-imports.ui` said so for Adw, and a third and fourth namespace do not change it), so the class name is the only evidence a namespace was resolved at all. Which is why refusing an unknown namespace matters more than it looks: what it replaces is an `<object class="…">` that is one word wrong and reads perfectly. The GType name is the namespace\'s C identifier prefix plus the type name, and for every namespace that ships a `@girs` vocabulary TODAY that prefix equals the namespace name — the case that tells the two rules apart (`Gio.ListStore` is `GListStore`, prefix `G`) is exactly the one with no vocabulary, and it sits in `refused/namespace-without-vocabulary.blp`',
+    },
+    {
+        file: '40-namespace-vocabulary-enum.blp',
+        isolates: 'an enum property DECLARED by one of those namespaces rather than by Gtk',
+        surprise:
+            "`smart-home-end: after` is `2` and `background-pattern: grid` is `1`, and neither number is in Gtk's tables: the property-to-enum join is keyed by the type that DECLARES the property, so this one is answered entirely inside GtkSource's own `PROP_ENUMS` and `ENUM_VALUES`. `28-property-enum-foreign.blp` pins the opposite direction — an enum PANGO declares, reached through a Gtk property, with no `using Pango` anywhere — and the two together say the join follows the declaring type in both directions and the `using` list in neither",
+    },
+    {
+        file: '41-template-parent-abstract.blp',
+        isolates: 'an ABSTRACT class as a template parent, `template $Name: Gtk.Widget`',
+        surprise:
+            "the oracle compiles it — `parent=\"GtkWidget\"` — and refuses the same class one line over as an object (`Gtk.Widget can't be instantiated because it's abstract`, `refused/abstract-instantiation.blp`). So a type reference is TWO questions and not one, and the `@girs` table that answers the first answers the second wrong by construction: `DECLS` holds instantiable GTypes, which leaves out all 17 of Gtk's abstract classes and both of Adw's. This file exists because a check written for the object position was applied to both and refused 19 legal parents, and neither the wild corpus (no file there subclasses an abstract class) nor the reference implementation's `tests/samples` (its abstract-class case lives in `sample_errors/`, which is measured nowhere here) could see it",
+    },
 ];
 
 /**
@@ -354,6 +373,31 @@ export const CORPUS_REFUSALS = [
         projection: 'refuses',
         line: 6,
         names: 'no vocabulary for',
+    },
+    {
+        // The other half of the namespace question, and the half the oracle answers the same way.
+        // `39-namespace-vocabulary.blp` says a namespace with a vocabulary resolves; this says a
+        // NAME that vocabulary does not declare is an error and not a class name to guess at. Both
+        // compilers refuse it, for once for the same reason: the oracle answers `Namespace Gtk does
+        // not contain a type called NotAWidget` with a `Did you mean Widget?` hint.
+        file: 'unknown-type-name.blp',
+        construct: 'a type name the namespace does not declare (`Gtk.NotAWidget`)',
+        oracle: 'refuses',
+        projection: 'refuses',
+        line: 3,
+        names: 'declares no instantiable type called',
+    },
+    {
+        // The same check, on a name that DOES exist. It is here rather than beside the rule files
+        // because the oracle refuses it too, and it is the other half of
+        // `rules/41-template-parent-abstract.blp`: one file per position, so applying the object
+        // position's check to a template parent — which refused 19 legal files — fails a stage.
+        file: 'abstract-instantiation.blp',
+        construct: 'an abstract class instantiated as an object (`Gtk.Widget { }`)',
+        oracle: 'refuses',
+        projection: 'refuses',
+        line: 3,
+        names: 'declares no instantiable type called',
     },
     {
         file: 'closure-value.blp',

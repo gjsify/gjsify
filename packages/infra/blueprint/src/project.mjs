@@ -47,16 +47,27 @@ import { numberLiteral } from './number-literal.mjs';
  * 0.20.4, `Bin { }` under `using Adw 1;` is refused with "Namespace Gtk does not contain a
  * type called Bin". So the default is not "the first import", it is Gtk.
  *
+ * `position` is what `src/resolve-ident.mjs` documents, and this exit defaults it the OTHER way
+ * from that seam — to `'object'`, the stronger answer — because the seam is a public contract
+ * handed in from outside and this is a private reader with two call sites, of which the object
+ * one is the common one. The consequence is deliberate: the template parent here is the position
+ * that has to say `'reference'` out loud, so dropping it fails stage D, while over in
+ * `emit-xml.mjs` the object position is the one that has to say `'object'`, so dropping THAT
+ * fails stage E. Between the two exits, each position is guarded at one of them.
+ *
  * @param {ProjectOptions | undefined} options
- * @returns {(type: TypeRef) => string}
+ * @returns {(type: TypeRef, position?: 'object' | 'reference') => string}
  */
-const tagReader = (options) => (type) => {
-    if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`);
-    // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
-    // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
-    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
-    return `${type.namespace ?? 'Gtk'}${type.name}`;
-};
+const tagReader =
+    (options) =>
+    /** @param {TypeRef} type @param {'object' | 'reference'} [position] */
+    (type, position = 'object') => {
+        if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`, position);
+        // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
+        // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
+        if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
+        return `${type.namespace ?? 'Gtk'}${type.name}`;
+    };
 
 /** `Adw.Breakpoint` is dropped whole rather than projected — it is not a widget. */
 const isBreakpoint = (node) =>
@@ -245,7 +256,10 @@ export function projectToSharedNode(file, options) {
         // and projects to an `AdwBin`, because `AdwHeaderBar` is final and cannot be a
         // template parent.
         const template = /** @type {TemplateNode} */ (root);
-        return { node: { tag: tag(template.parent), ...projectBody(template.body, tag) }, lost: lossesOf(file) };
+        return {
+            node: { tag: tag(template.parent, 'reference'), ...projectBody(template.body, tag) },
+            lost: lossesOf(file),
+        };
     }
     return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file) };
 }

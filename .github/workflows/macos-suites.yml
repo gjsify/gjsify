@@ -170,12 +170,16 @@ jobs:
       # loads, its library does not, and the override then marshals a type that
       # is no longer resolvable.
       #
-      # The obvious repair — `DYLD_LIBRARY_PATH=$(brew --prefix)/lib` — DOES NOT
-      # WORK, and the next step measures that rather than asserting it. SIP
-      # strips every `DYLD_*` variable when a PROTECTED binary is exec'd, and
-      # `/bin/sh` and `/bin/bash` are protected, so the value dies at the first
-      # shell boundary — which is every `run:` step, every npm-style script and
-      # every `sh -c` a build spawns. Measured on the darwin-x64 VM:
+      # The obvious repair is `DYLD_LIBRARY_PATH=$(brew --prefix)/lib`. Do not
+      # reach for it — but the reason is CONDITIONAL, and this note asserted it
+      # as an invariant until the probe below caught that.
+      #
+      # THE MECHANISM, where its precondition holds. With System Integrity
+      # Protection ENABLED, macOS strips every `DYLD_*` variable when a PROTECTED
+      # binary is exec'd; `/bin/sh` and `/bin/bash` are protected, so the value
+      # dies at the first shell boundary — every `run:` step, every npm-style
+      # script, every `sh -c` a build spawns. Measured on a local darwin-x64 VM
+      # with SIP on:
       #
       #   DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'   -> empty
       #   DYLD_LIBRARY_PATH=x node   -e 'print process.env…'         -> x
@@ -184,25 +188,53 @@ jobs:
       # which is why `buildNativeEnv()` setting it on a CHILD's launch env is
       # correct and a workflow-level export is not.)
       #
-      # A symlink at the location the existing rpath already names needs no
-      # variable and survives every boundary.
+      # THE PRECONDITION IS ABSENT ON THIS RUNNER. Hosted macOS runners are VMs
+      # with SIP OFF. Measured 2026-09-19 on `macos-15-intel`, runner image
+      # `macos-15/20260824.0482`, macOS 15.7.9, run 35426493474: `csrutil status`
+      # reports `disabled` and `DYLD_LIBRARY_PATH` DOES survive `/bin/sh` there.
+      # So the recorded reason for rejecting the variable — that it cannot reach
+      # the shell — does not hold on this image. Nothing further was measured:
+      # whether an export would then carry all the way to a `gjs` dlopen here is
+      # untested, because nothing needs it to be.
+      #
+      # THE CONCLUSION SURVIVES ON A BETTER GROUND, which is why the repair does
+      # not move. A symlink at the location the existing rpath already names needs
+      # no variable and survives every boundary — on a host with SIP on, where the
+      # variable would be stripped, AND on this one, where it would not. It is
+      # correct in both worlds; the variable is correct in at most one, and which
+      # one is a property of somebody else's runner image.
       - name: Make libgjs resolvable without a DYLD_ variable
         run: |
           prefix="$(brew --prefix)"
           ln -sfn "$prefix/opt/gjs/lib/libgjs.0.dylib" "$prefix/opt/glib/lib/libgjs.0.dylib"
           ls -l "$prefix/opt/glib/lib/libgjs.0.dylib"
 
-      # Prints the measurement above so the log says WHY the repair is a
-      # symlink. A future contributor debugging a dlopen here will reach for
-      # `DYLD_LIBRARY_PATH` first; this is what tells them it cannot work.
-      - name: Show that DYLD_ variables do not survive a shell boundary (SIP)
+      # The PROBE behind the paragraph above, and the reason that paragraph can be
+      # trusted: it RE-MEASURES the premise on every run instead of asserting it
+      # once. It GATES NOTHING — a warning here means the ASSUMPTION has died, not
+      # that the job has, and the step above is correct either way.
+      #
+      # It has already earned its keep. On 2026-09-19 the warning fired on
+      # `macos-15-intel` and the note above was mis-scoped: it had stated a
+      # conditional as an invariant, and nobody had noticed because nothing
+      # re-checked it. That is now what the note records.
+      #
+      # The step's NAME says what it measures, not what it expects to find — the
+      # old one ("Show that DYLD_ variables do not survive a shell boundary")
+      # asserted the very outcome that turned out to be image-dependent, so it went
+      # stale the moment the answer changed. A name that states a kind does not.
+      #
+      # A future contributor debugging a dlopen here will reach for
+      # `DYLD_LIBRARY_PATH` first; this step and that note are what tell them why
+      # the repair is a symlink instead.
+      - name: Re-measure whether DYLD_ variables survive a shell boundary (SIP)
         run: |
           echo "SIP: $(csrutil status 2>/dev/null || echo 'unknown')"
           seen="$(DYLD_LIBRARY_PATH=/tmp/sip-probe /bin/sh -c 'printf %s "$DYLD_LIBRARY_PATH"')"
           if [ -n "$seen" ]; then
-            echo "::warning title=SIP::DYLD_LIBRARY_PATH survived /bin/sh on this image ('$seen') — the note on the step above assumes it does not"
+            echo "::warning title=SIP::DYLD_LIBRARY_PATH survived /bin/sh on this image ('$seen') — SIP is off here, so the stripping mechanism the note above describes is not in play. The symlink repair is correct either way; nothing to do unless you are about to rely on a DYLD_ variable."
           else
-            echo "confirmed: /bin/sh received an empty DYLD_LIBRARY_PATH — a workflow-level export is a no-op"
+            echo "confirmed: /bin/sh received an empty DYLD_LIBRARY_PATH — SIP is stripping it on this image, so a workflow-level export would be a no-op here"
           fi
 
       - name: Verify gjs + the GLib/Gio/GioUnix typelibs

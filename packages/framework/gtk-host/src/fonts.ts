@@ -240,9 +240,12 @@ const ENUMERATE_ATTRIBUTES = 'standard::name,standard::type';
  * Keyed on the ERROR rather than on `process.platform`, which is the difference between a
  * capability test and a guess about who is asking. It costs no `gjsify.os` declaration (this
  * package makes no OS decision, and ADR 0018's candidate set is derived from the code that reads
- * the host), it stays right if a fontconfig-backed Pango is ever selected on darwin — the backend
- * is chosen by what is compiled in, not per platform, and `PANGOCAIRO_BACKEND=fc` selects one — and
- * it stays right for any other map that declines. The OS name was never the thing being asked.
+ * the host), and it stays right for any other map that declines. The OS name was never the thing
+ * being asked — which stopped being hypothetical: the backend is whichever one is selected rather
+ * than one per platform, and `@gjsify/node-gi`'s loader selects `PANGOCAIRO_BACKEND=fc` on the
+ * bundled windowing runtime (ADR 0038 § Amendment 3), so a darwin process on it reaches this
+ * arm's other side and REGISTERS the faces. A `process.platform` branch would have had to be
+ * found and reversed instead.
  */
 export function isUnsupportedByFontMap(error: unknown): boolean {
     return error instanceof GLib.Error && error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED);

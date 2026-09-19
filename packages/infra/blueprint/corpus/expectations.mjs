@@ -705,4 +705,38 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'The projection keeps `menu-model` as the four characters `null`, exactly as it keeps an enum member: it reads the identifier and never asks what it points at. That is the same reading the XML exit had before this change, and it is right HERE — the object exists — which is why the fix is a lookup and not a ban on the spelling. The projection cannot make that distinction at all, holding no id index, so it is the XML exit that carries the rule and this expectation records the asymmetry rather than papering over it.',
     },
+    {
+        file: '39-namespace-vocabulary.blp',
+        node: {
+            tag: 'GtkBox',
+            props: { orientation: 'vertical' },
+            children: [
+                {
+                    tag: 'GtkSourceView',
+                    children: [{ tag: 'GtkSourceBuffer', slot: 'buffer', props: { 'highlight-syntax': true } }],
+                },
+                { tag: 'WebKitWebView', props: { 'zoom-level': 1.5 } },
+            ],
+        },
+        lost: [],
+        note: "Nothing is lost, and the tags are the whole point: the projection spells a tag with the same GType name the XML exit writes into `class=`, through the same seam, so a namespace the resolver cannot answer for stops BOTH exits rather than one. `GtkSourceBuffer` is not a widget and sits in a `slot` exactly as `06-property-object-valued.blp`'s label does — a slot is a property position and says nothing about what fills it.",
+    },
+    {
+        file: '40-namespace-vocabulary-enum.blp',
+        node: { tag: 'GtkSourceView', props: { 'smart-home-end': 'after', 'background-pattern': 'grid' } },
+        lost: [],
+        note: "The XML for the same two properties is `2` and `1`. The projection keeps the member NAME, per `03-property-enum.blp` — and it does so without consulting any vocabulary at all, which is why this file cannot tell a namespace the resolver knows from one it does not. Only the XML exit can, and only its golden pins that these two numbers came out of GtkSource's tables.",
+    },
+    {
+        file: '41-template-parent-abstract.blp',
+        node: { tag: 'GtkWidget', props: { halign: 'center' } },
+        lost: [
+            {
+                kind: 'template',
+                line: 3,
+                detail: 'the template class `$CorpusAbstractParent`, whose parent is what the tag spells',
+            },
+        ],
+        note: 'The tag is the PARENT, as in `08-template.blp`, and the parent here is abstract — so the projection takes the reference position of the same seam the XML exit does, and a check meant for an instantiated type cannot reach either exit without failing this file and `refused/abstract-instantiation.blp` together.',
+    },
 ];

@@ -857,7 +857,7 @@ export const REAL_EXPECTATIONS = [
                 detail: 'the id `canvasContainer`, which the scaffolded TypeScript looks up',
             },
         ],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the eleven probes are fewer than eleven distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the twelve probes are fewer than twelve distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
