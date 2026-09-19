@@ -351,13 +351,13 @@ jobs:
 
       # …and that its RETIREMENT CONDITION is still false. The check above makes a probe's
       # result visible and deliberately does not ask whether the probe should still BE one.
-      # Nobody else asked either: measured 2026-09-19, two of the four conditions in
-      # `gtk-os-suites.yml` had been satisfied for over a week. `conformance-win32` was green
-      # on 25 consecutive `main` runs while still declared advisory, and the darwin
-      # `rn-probe`'s release had shipped 16 days earlier while the probe was red on all 42
-      # legs measured since — a condition that was a PROXY, and wrong for the third time on
-      # that one step. Prose above a step is a TODO with extra steps; the conditions are now
-      # `retire-when:` clauses and this evaluates them.
+      # Nobody else asked either: measured 2026-09-19 over 71 push-to-`main` runs,
+      # two of the four conditions in `gtk-os-suites.yml` had been satisfied for over a
+      # week. `conformance-win32` was green in 48 consecutive runs while still declared
+      # advisory, and the darwin `rn-probe`'s release had shipped 16 days earlier while the
+      # probe was red in 70 of 71 — a condition that was a PROXY, and wrong for the third
+      # time on that one step. Prose above a step is a TODO with extra steps; the conditions
+      # are now `retire-when:` clauses and this evaluates them.
       #
       # `--online` because both of those are facts about PUBLISHED artifacts and RECORDED run
       # outcomes: no checkout holds either, so an offline run would have caught neither. A

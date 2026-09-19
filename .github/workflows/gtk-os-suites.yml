@@ -443,10 +443,11 @@ jobs:
       # RETIREMENT CONDITION, CORRECTED A SECOND TIME — and the correction is the finding.
       # It used to read "the first published `@gjsify/node-gi` carrying #1438's engine fix".
       # That shipped in 0.46.0 on 2026-09-03 and nobody re-read this row: MEASURED on
-      # 2026-09-19 against a published 0.51.1, this probe was RED on all 42 job legs of the
-      # 21 `main` runs since 2026-09-14 — not once green. The release was a PROXY for "this
-      # can gate now", and the proxy was wrong for the THIRD time on this one step (`#1438
-      # closes` before it, a bare issue number before that).
+      # 2026-09-19 against a published 0.51.1, over the 71 push-to-`main` runs from
+      # 2026-09-10, this probe was RED in 70 and measured nothing in the other one — not
+      # once green, on either arch. The release was a PROXY for "this can gate now", and the
+      # proxy was wrong for the THIRD time on this one step (`#1438 closes` before it, a
+      # bare issue number before that).
       #
       # WHAT IS ACTUALLY RED, measured on run 35423439012 and none of it #1438:
       #   · darwin-arm64 — 7 of 655. Five are `t.get_ancestor is not a function`: the
@@ -528,9 +529,10 @@ jobs:
       # filter, so the os-axis half is already held.
       #
       # THE WIN32 COPY IS NO LONGER IN A WINDOW. #1626's widening closed with 0.49.0 on
-      # 2026-09-11 and that step gates again — see it for what the retirement cost in
-      # attention, and for the clause vocabulary a future widening states its window in
-      # instead of leaving a sentence for somebody to re-read.
+      # 2026-09-11 — the probe was red in five runs and green in the 48 since — and that
+      # step gates again. See it for what the retirement cost in attention, and for the
+      # clause vocabulary a future widening states its window in instead of leaving a
+      # sentence for somebody to re-read.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \
@@ -723,10 +725,11 @@ jobs:
       # WHAT CLOSED IT, measured rather than assumed: 0.49.0 published `gstvorbis.dll` at
       # 08:08:06Z the same day (0.48.0's tarball has `gstogg.dll` and no vorbis; 0.49.0's
       # and 0.51.1's have both — read cache-busted from the tarballs, not from `npm view`).
-      # The probe's recorded outcome then went green and STAYED green for 25 consecutive
-      # `main` runs before anybody re-read the row. That eight-day gap is why
-      # `scripts/check-probe-retirement.mjs` exists: the same widening will happen again
-      # the next time a payload claim outruns a release, and a person will not be watching.
+      # The probe was red in exactly five runs, all of them between 04:24Z and 06:16Z that
+      # morning, and green in every one of the 48 measured runs since. It stayed advisory
+      # for all 48. That eight-day gap is why `scripts/check-probe-retirement.mjs` exists:
+      # the same widening will happen again the next time a payload claim outruns a
+      # release, and a person will not be watching.
       #
       # So when this leg goes red during a future widening, the answer is not to restore
       # `continue-on-error` — it is to state the condition as a `retire-when:` clause the

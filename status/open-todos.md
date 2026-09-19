@@ -509,16 +509,29 @@ Two things to fix, and they are separable:
 
 Both `continue-on-error` steps in `gtk-os-suites.yml` carried a written retirement
 condition, both conditions came true, and neither step changed — because prose above a step
-only fires when a person re-reads it. Measured 2026-09-19 over the 21 `push`-to-`main` runs
-since 2026-09-14, plus spot checks back to 2026-09-10, reading the `::warning title=Probe
-failed::` annotations `report-probe-outcome.mjs` emits:
+only fires when a person re-reads it. Measured 2026-09-19 over all 71 `push`-to-`main` runs
+from 2026-09-10, reading the `::warning title=Probe failed::` annotations
+`report-probe-outcome.mjs` emits, scoped to the job that owns the step and joined on the
+reader's `PROBE_LABEL`. A leg that was absent, skipped or cancelled measured NOTHING and is
+counted as neither:
 
-| probe | condition met | recorded outcome | verdict |
-|---|---|---|---|
-| `conformance-win32` | 2026-09-11, 0.49.0 | **25 green, 0 red** | PROMOTED to a gate |
-| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0 green, 42 red** | condition was WRONG |
-| `gtk-host-probe` (win32) | not met (#1446) | 0 green, 21 red | left a probe |
-| `rn-probe-win32` | 1 of 2 clauses met | 0 green, 21 red | left a probe |
+| probe | condition met | green | red | no measurement | verdict |
+|---|---|---|---|---|---|
+| `conformance-win32` | 2026-09-11, 0.49.0 | **58** | 5 | 8 | PROMOTED to a gate |
+| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG |
+| `gtk-host-probe` (win32) | no — #1446 open | 0 | 70 | 1 | left a probe |
+| `rn-probe-win32` | 1 of 2 clauses | 0 | 70 | 1 | left a probe |
+
+`conformance-win32`'s five reds are all between 04:24Z and 06:16Z on 2026-09-11, inside the
+widening window that closed when 0.49.0 published at 08:08:06Z; it was green in all 48
+measured runs afterwards and stayed advisory for every one of them.
+
+**A first pass at these numbers was wrong and the way it was wrong is the same defect.** It
+read 25 green / 1 red over 21 runs, because it matched the annotation against the step's
+`name` while the annotation carries `PROBE_LABEL` — a separate string nothing coupled to the
+name — and because it searched every job in a run rather than the one that owns the step, so
+a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now holds
+`PROBE_LABEL` to the step name, which is what makes the join sound.
 
 Both conditions were verified off the artifacts rather than off the dates, cache-busted
 (`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`): the published
