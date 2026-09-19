@@ -1,18 +1,18 @@
 // What the corpus gate structurally cannot see: this plugin's WIRING.
 //
-// `scripts/check-blueprint-corpus.mjs` holds `@gjsify/blueprint` over all 85 tracked `.blp`, and
+// `scripts/check-blueprint-corpus.mjs` holds `@gjsify/blueprint` over every tracked `.blp`, and
 // it hands in its own five seams. So it proves the parser and the emitter and says nothing about
 // the file you are reading — whether `load()` reads the source at all, whether it hands over the
 // seams it has, whether what comes back is the module a bundler can consume. Every one of those
 // can be wrong with the gate green, and after ADR 0053 clause 5's flip this plugin is the only
 // thing between a `.blp` and a shipped widget.
 //
-// ONE FILE, AND IT IS NOT A SECOND CORPUS. The 12 real `.blp` are byte-compared against the
-// reference compiler's goldens one directory over, on every run; re-comparing them here would be
-// a parallel mechanism measuring what already has one. What is measured here is the join: the
-// plugin's own output against the golden of a file whose bytes MOVE when the wiring is wrong —
-// `orientation: vertical` is `1` only through `resolveIdent`, and `Gtk.ApplicationWindow` is
-// `GtkApplicationWindow` only through `gtypeName`.
+// ONE FILE, AND IT IS NOT A SECOND CORPUS. Every real `.blp` this repo builds is byte-compared
+// against the reference compiler's goldens one directory over, on every run; re-comparing them
+// here would be a parallel mechanism measuring what already has one. What is measured here is
+// the join: the plugin's own output against the golden of a file whose bytes MOVE when the
+// wiring is wrong — `orientation: vertical` is `1` only through `resolveIdent`, and
+// `Gtk.ApplicationWindow` is `GtkApplicationWindow` only through `gtypeName`.
 
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
