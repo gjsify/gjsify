@@ -930,10 +930,16 @@ if (surface !== undefined) {
     const namesLine = (message, refusal) => message.includes(`refused/${refusal.file}:${refusal.line}:`);
     // The construct is matched with that location prefix removed. The prefix carries the FILE
     // NAME, so `translation-domain` matched its own path and the by-name half was vacuous for
-    // it: the file altered to fail for another reason on the same line stayed green here. The
-    // column group is optional for the same reason the line matcher lost its arm — strip both
-    // shapes, or every emitter refusal gets its path handed to `includes` and `item`, `try`,
-    // `cast` and `` `null` `` all match their own file names.
+    // it: the file altered to fail for another reason on the same line stayed green here.
+    //
+    // The column group is optional because an emitter refusal has no column, and without that
+    // the strip misses all 16 of them — but MISSING the strip is only vacuous where the path
+    // happens to carry the construct name, which is 3: `expression-item-in-bind` (`item`),
+    // `expression-try-empty` (`try`) and `expression-cast-literal` (`cast`). The other 13 go red
+    // under either regex when their message stops naming the construct, and `null-value` is the
+    // near miss worth knowing — its `names` is `` `null` `` WITH backticks, which the path does
+    // not carry. Three is small and it is the wrong thing to measure: the structural hole was
+    // all 16, and which of them a sabotage happens to expose is an accident of spelling.
     const namesConstruct = (message, refusal) =>
         message.replace(/^refused\/[^:\n]+:\d+:(?:\d+:)? /, '').includes(refusal.names);
     const hold = (refusal, exit, message) => {
