@@ -4,8 +4,8 @@
 //
 // WHY THIS FILE HAS NO DEPENDENCIES, NOT EVEN `node:fs`
 //
-// `scripts/check-blueprint-corpus.mjs` imports the parser directly, as plain Node, in
-// `tree-checks` — a job that installs the workspace and does NOT build it. So the parser is
+// `scripts/check-blueprint-corpus.mjs` imports the parser through `src/index.mjs`, as plain
+// Node, in `tree-checks` — a job that installs the workspace and does NOT build it. So the parser is
 // `.mjs` beside its own declarations, and it is handed TEXT rather than a path: the caller
 // owns the reading, which is also what lets the shadow arm feed it a string it never wrote
 // to disk.

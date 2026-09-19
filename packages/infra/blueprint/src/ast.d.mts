@@ -7,13 +7,15 @@
 //
 // WHY A DECLARATION FILE AND NOT A `.ts`
 //
-// The shadow arm of `scripts/check-blueprint-corpus.mjs` imports the parser directly, as
-// plain Node, in `tree-checks` — a job that installs the workspace and does NOT build it. A
-// parser behind a build step is a parser that gate cannot run, which is the one shape ADR
-// 0053 spends its whole § Implementation avoiding. So the implementation is `.mjs` and the
-// types live beside it, the arrangement `@gjsify/manifest-conformance` already ships. When
-// the parser becomes authoritative and `@gjsify/vite-plugin-blueprint` consumes it, that is
-// the moment to revisit — not before.
+// The shadow arm of `scripts/check-blueprint-corpus.mjs` imports the parser through
+// `src/index.mjs`, as plain Node, in `tree-checks` — a job that installs the workspace and
+// does NOT build it. A parser behind a build step is a parser that gate cannot run, which is
+// the one shape ADR 0053 spends its whole § Implementation avoiding. So the implementation is
+// `.mjs` and the types live beside it, the arrangement `@gjsify/manifest-conformance` already
+// ships. `src/index.d.mts` does the same for the surface: it is what `package.json` points
+// `types` at, and this file is reachable through it. When the parser becomes authoritative
+// and `@gjsify/vite-plugin-blueprint` consumes it, that is the moment to revisit — not
+// before.
 //
 // WHY EVERY NODE CARRIES A LINE
 //
