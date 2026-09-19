@@ -88,7 +88,25 @@ not that is deleted.**
    parity guard fails the gate when the two stages see different fence counts, because a stage
    that silently reads nothing is the failure this whole file exists to prevent.
 
-5. **The `oxlint-disable` in `loading-stack.ts` and `@gjsify/storybook`'s programmatic window are
+5. **"Asks a user to install" is a DOCS claim, and four pages were still making it.** Deleting the
+   probe does not clear the sentence that documents it, and no todo, survey or ADR tracked any of
+   these — they were found by sweeping `*.md`/`*.mdx` for the binary's name after the code was
+   done. `website/.../cli-reference.md` documented the `system-check` row this ADR removes, which
+   would have made a published page false on the day this merged. `templates/gtk-minimal/README.md`
+   is the worst of them: it ships INTO every scaffolded project, telling its author to install a
+   tool their build cannot spend, and it spoke for the three `adw-*` templates as well.
+   `how-it-works.mdx` described the plugin as compiling "via `blueprint-compiler`".
+   `getting-started.mdx` put the package in three end-user `dnf`/`apt`/`pacman` lines. The
+   Flatpak CLI-tool guide listed it as a build-time helper to bundle. All are corrected, and where
+   the name survives it now appears as a NEGATION.
+
+   **`contributing/development-setup.md` keeps it, and says why in one sentence.** A contributor
+   is not a user here: they run the oracle. `check-blueprint-corpus.mjs --require-oracle` refuses
+   to pass without the binary and `check-doc-fences.mjs`'s ORACLE stage needs it for clause 4's
+   ParamSpec validation. An unexplained survivor is how the next sweep deletes the wrong thing, so
+   the reason sits next to it rather than in this file alone.
+
+6. **The `oxlint-disable` in `loading-stack.ts` and `@gjsify/storybook`'s programmatic window are
    NOT deleted here, and the list stays open because of it.** Both are conversions — a widget that
    must be re-declared in a `.blp` and proved at run time — not lines to drop, and ADR 0053
    Amendment 3 already says each clause-7 item "is its own change". ADR 0062 owns that frontier.
@@ -175,7 +193,7 @@ build-tool subpath as a package-manager-independent `which`, and should look for
   proves the emitted XML; deleting it would delete the only independent reading the goldens have,
   which is the difference between a parser that is checked and one that is merely present.
 - The deletion list is not finished, and this ADR is the record of which boxes are ticked. Two
-  conversions remain (Decision 5). A future reader who finds this ADR and an `oxlint-disable` in
+  conversions remain (Decision 6). A future reader who finds this ADR and an `oxlint-disable` in
   `loading-stack.ts` is looking at an honest completion test, not at drift.
 
 ## Alternatives rejected

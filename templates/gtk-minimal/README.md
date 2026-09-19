@@ -8,10 +8,13 @@ That split is not decoration: a caption assigned from TypeScript cannot be marke
 `translatable`, so `xgettext` never sees it and the interface is untranslatable by
 construction.
 
-Blueprint needs GNOME's `blueprint-compiler` on the machine that runs `npm run build` — the
-one system tool this template asks for beyond GTK 4 itself. It is a BUILD-time tool only: the
-compiled interface is inlined into `dist/`, so the built app runs on a host that has never
-heard of it. The three `adw-*` templates have the same requirement.
+Blueprint needs **no system tool**. `@gjsify/vite-plugin-blueprint` parses the `.blp` and emits
+GtkBuilder XML in process, so `npm run build` asks nothing of your machine beyond GTK 4 itself,
+on any of Linux, macOS and Windows. The compiled interface is inlined into `dist/`, so the built
+app carries it too. The three `adw-*` templates work the same way.
+
+The parser holds a subset of the language, and a construct outside it fails the build naming the
+construct, the file and the line rather than emitting something plausible and wrong.
 
 ## Install
 

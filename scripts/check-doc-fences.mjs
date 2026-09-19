@@ -1432,6 +1432,12 @@ if (styledFences === 0) {
 if (blueprintFences === 0) fail('scan', 'no `blueprint` fence was found — the extractor is broken');
 // Stage PARSE has no skip path, so a zero here is not a host telling the truth about itself: it
 // is this stage having read nothing while the line above says fences exist.
+//
+// WHAT THIS CANNOT CATCH, stated so nobody reads it as more: both counters are `fence.lang ===
+// 'blueprint'` over the same list, so no .mdx anyone writes can make them differ. It is a CODE
+// drift guard — one stage gaining a filter, an early `continue`, a wrong loop — and it is worth
+// its two lines for that alone, because such a stage would otherwise go quiet rather than red.
+// A check whose trigger nobody can state gets trusted for the wrong reason later.
 if (blueprintParsed !== blueprintFences) {
     fail(
         'scan',

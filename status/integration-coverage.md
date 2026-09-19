@@ -208,7 +208,7 @@ bundle and 2 ms to cold start (12 runs, 45 ms → 47 ms). Tree-shaking over Effe
 
 ## execa
 
-Phase D-1 Workstream T — the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-blueprint` (blueprint-compiler) and `@gjsify/vite-plugin-gettext` (xgettext/msgfmt). **Node: 44/44 green. GJS: 44/44 green, 0 ignored** — the async-stdin-piping case that was ignored on GJS now runs and passes (the measured run shows no `(skipped)` and no `✗`), so the Open-TODO note about it no longer describes this suite. Fixes surfaced (landed): named-import `hrtime` preserves `.bigint`; `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple; the `--app gjs` process-stub's `hrtime` gained `.bigint` so pre-register `__esm` lazy-init code cannot hit a TypeError.
+Phase D-1 Workstream T — the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-gettext` (xgettext/msgfmt). It covered `@gjsify/vite-plugin-blueprint` too until ADR 0063; that plugin spawns nothing now. **Node: 44/44 green. GJS: 44/44 green, 0 ignored** — the async-stdin-piping case that was ignored on GJS now runs and passes (the measured run shows no `(skipped)` and no `✗`), so the Open-TODO note about it no longer describes this suite. Fixes surfaced (landed): named-import `hrtime` preserves `.bigint`; `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple; the `--app gjs` process-stub's `hrtime` gained `.bigint` so pre-register `__esm` lazy-init code cannot hit a TypeError.
 
 ## fast-glob
 

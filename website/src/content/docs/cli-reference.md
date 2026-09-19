@@ -1050,7 +1050,9 @@ This used to be called `gjsify check`. The bare name now runs the TypeScript che
 
 **Node.js** is reported but never required. The `install.mjs` bootstrap is run by `gjs`, so "not installed" is a legitimate answer here.
 
-**Build toolchain, optional.** `blueprint-compiler` for `.blp` templates, resolved the same way the build resolves it. A project with no `.blp` never needs it, and a Windows host keeping it off `PATH` under MSYS2 is not a miss. `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
+**Build toolchain, optional.** `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
+
+**Not checked: `blueprint-compiler`.** A `.blp` template asks nothing of your machine — `@gjsify/vite-plugin-blueprint` parses and emits it in process (ADR 0053 clause 5), so there is no toolchain for this command to report on. It used to be a row here; ADR 0063 removed it rather than leave the command asking for a tool no build of yours can spend.
 
 **Library dependencies, optional.** Checked only when the matching `@gjsify/*` package is in your project:
 
