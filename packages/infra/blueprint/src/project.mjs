@@ -47,8 +47,16 @@ import { numberLiteral } from './number-literal.mjs';
  * 0.20.4, `Bin { }` under `using Adw 1;` is refused with "Namespace Gtk does not contain a
  * type called Bin". So the default is not "the first import", it is Gtk.
  *
+ * `position` is what `src/resolve-ident.mjs` documents, and this exit defaults it the OTHER way
+ * from that seam — to `'object'`, the stronger answer — because the seam is a public contract
+ * handed in from outside and this is a private reader with two call sites, of which the object
+ * one is the common one. The consequence is deliberate: the template parent here is the position
+ * that has to say `'reference'` out loud, so dropping it fails stage D, while over in
+ * `emit-xml.mjs` the object position is the one that has to say `'object'`, so dropping THAT
+ * fails stage E. Between the two exits, each position is guarded at one of them.
+ *
  * @param {ProjectOptions | undefined} options
- * @returns {(type: TypeRef) => string}
+ * @returns {(type: TypeRef, position?: 'object' | 'reference') => string}
  */
 const tagReader =
     (options) =>

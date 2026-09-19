@@ -139,8 +139,30 @@
 // Nothing in the shipped vocabulary answers "does this class EXIST", abstract ones included:
 // `OWN_PROPS` and `OWN_SIGNALS` carry `GtkWidget` but would miss a class declaring neither. So a
 // reference position gets the prefix and no membership check — which is what every position did
-// before, so the check is a strengthening of one and never a weakening of the other. The seam
-// therefore takes the POSITION, and silence buys the weaker answer rather than the stronger one.
+// before, so the check is a strengthening of one and never a weakening of the other.
+//
+// THE TWO EXITS DEFAULT THE OTHER WAY FROM EACH OTHER, ON PURPOSE
+//
+// This seam reads silence as a REFERENCE, the weaker answer. It is the public contract — the
+// harness hands it to both exits — and a caller that cannot say where it is must not be given a
+// check that can refuse a legal file. `project.mjs`'s private `tagReader` reads silence as an
+// OBJECT, the stronger one, because it has two call sites and that is the common one, so its
+// single reference site is the one that has to say so out loud.
+//
+// The useful consequence is that each exit makes the OTHER position the explicit one, so between
+// them a dropped argument is loud somewhere. All three were broken on purpose and measured:
+// drop `'object'` in `emitObject` and `refused/abstract-instantiation.blp` is accepted (red);
+// drop `'reference'` in the projection's template call and
+// `rules/41-template-parent-abstract.blp` throws where a tree is expected (red); move the
+// projection's own default off `'object'` and that refusal file's recorded projection verdict
+// flips (red).
+//
+// COUNTED HONESTLY THAT IS THREE OF FIVE CALL SITES, NOT ALL FIVE, and the other two are worth
+// writing down rather than rounding up. `emitTemplate` passes `'reference'`, which is already
+// what omission means, so dropping it is a no-op. `indexObject` passes `'object'` and CAN lose
+// it with no stage moving — because it is REDUNDANT, not unchecked: `emitObject` reaches the
+// same node on the same pass and throws first, with the same line and the same message. The day
+// that index is walked without the emitter walking the same tree, it stops being either.
 //
 // An EXTERN type (`$MyWidget`) is in no GIR and takes none of these rules.
 //
@@ -195,9 +217,9 @@ import * as WEBKIT from '@girs/webkit-6.0/vocabulary';
  * table anywhere.
  *
  * Why these five: Gtk and Adw are what the corpus wrote; GtkSource, Shumate and WebKit are the
- * three namespaces the wild sweep of 273 foreign `.blp` reaches (#1699 § 2) that publish a
- * `./vocabulary` today. That sweep also reaches `Gdk`, and the reference implementation's own
- * samples reach `Gio` and `GObject`; those three publish none, so they are refused by name
+ * three namespaces the wild sweep reaches (#1699 § 2) that publish a `./vocabulary` today — 273
+ * `.blp`, 235 of them foreign. That sweep also reaches `Gdk`, and the reference implementation's
+ * own samples reach `Gio` and `GObject`; those three publish none, so they are refused by name
  * rather than guessed at — see the header.
  *
  * FOUR OF THE FIVE HAVE A GOLDEN AND SHUMATE DOES NOT, which is worth saying here rather than

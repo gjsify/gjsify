@@ -6423,8 +6423,8 @@ smaller surface carries what a `.blp` needs from every namespace: the GType name
 and the property-to-enum join. The consumer side needs no change to take either — a namespace
 arrives in `resolve-ident.mjs` as one import and one dependency line, and everything else, its C
 identifier prefix included, is read out of the module. The measurement that argues for it is the
-wild sweep over 273 foreign `.blp` reported in #1699, and those four namespaces are its whole
-remaining namespace bill.
+wild sweep over 273 wild `.blp` — 235 of them foreign — reported in #1699, and those four
+namespaces are its whole remaining namespace bill.
 
 **The scope question, stated rather than assumed.** The `@girs` vocabulary is a WIDGET vocabulary
 by decision: ADR 0029 emits a surface "only for namespaces that actually declare `GtkWidget`
