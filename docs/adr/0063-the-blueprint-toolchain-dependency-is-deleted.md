@@ -151,8 +151,12 @@ build-tool subpath as a package-manager-independent `which`, and should look for
   ` ```blueprint ` fence in `website/src/content/docs/adwaita/feedback.mdx` declared an
   `Adw.AlertDialog` response with the `destructive` flag. `blueprint-compiler` compiles it, which
   is why the old one-stage arm was green on the only job where it ran; `@gjsify/blueprint` refuses
-  it — a response flag is one of the seven refusals ADR 0053 Amendment 3 enumerates, with a golden
-  in `corpus/refused/response-flags.blp`. Amendment 3's "none of the 85 files here uses one" was
+  it — a response flag is among the constructs ADR 0053 Amendment 3 enumerates as refused although
+  the oracle compiles them, and `corpus/refused/response-flags.blp` is its committed golden. No
+  count is written here on purpose: `check-blueprint-corpus-counts.mjs` refused an earlier draft
+  that said "seven", which was this author counting Amendment 3's list rather than measuring
+  anything, and would have been wrong the day an eighth landed. The gate was right; what the
+  sentence needs is the golden's path, which is checkable, not a number that is not. Amendment 3's "none of the 85 files here uses one" was
   true and was about tracked `.blp`; a fence inside an `.mdx` is neither tracked `.blp` nor
   anything the corpus gate reads. **The sample was fixed rather than exempted**: the flag is
   dropped and the fence says in a comment that the appearance comes from code, which is what the
@@ -188,6 +192,21 @@ build-tool subpath as a package-manager-independent `which`, and should look for
   replaces them is a shape plus an anchor rather than a list that drifts the same way. A test that
   runs nowhere does not merely fail to catch a regression — it stops describing the code, silently,
   and the drift compounds where nobody is looking.
+- **Removing a published subpath poisoned the build-output cache, and that is a consequence worth
+  writing down.** Every `build-v3-*` archive holds a `packages/infra/cli/lib` built while the CLI
+  still imported `@gjsify/vite-plugin-blueprint/resolve`. Restored over a checkout whose
+  `package.json` no longer exports it, that `lib/` cannot be LOADED — and the `.bin` shim
+  dispatches to it, so it bricks the CLI the bootstrap step uses to rebuild it. `Build Fedora 44`
+  and `Build Documentation` both died on `ERR_PACKAGE_PATH_NOT_EXPORTED` before a package was
+  built. The restore reached those archives through a fedora-scoped restore-key carrying no
+  manifest hash. Fixed twice over: the cache is `build-v4` (the version segment is for an
+  incompatible payload, which this is), and `gjsify-setup` now drops `cli/lib` whenever the
+  matched key is not one of the manifest-scoped ones, so the next such removal costs a cold
+  bootstrap instead of a red run naming neither the cache nor the subpath. **A load PROBE was
+  tried first and measured useless**: `gjsify --version` exits 0 on exactly this broken tree,
+  because subcommand modules load lazily and that path never reaches `check-system-deps.js`. A
+  probe that passes on the failing case is worse than none, and which key matched is known before
+  anything runs.
 - The corpus harness, `--require-oracle`, `scripts/blueprint-wild-sweep.mjs` and the ci-fedora
   image's `blueprint-compiler` all stay, untouched. Clause 4 makes the binary the thing that
   proves the emitted XML; deleting it would delete the only independent reading the goldens have,
