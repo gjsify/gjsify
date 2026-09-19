@@ -206,6 +206,15 @@ its own module, the way `libvorbis.py`, `ogg.py`, `opus.py`, `dav1d.py` and `x26
   advisory. The darwin leg keeps gating. **Retirement is a RELEASE, not an issue:** delete
   `continue-on-error`, both step ids and the note on the first run after a published
   `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`.
+- **RETIRED on 2026-09-19, eight days late, and the lateness is the more useful half.** 0.49.0
+  published `gstvorbis.dll` at 08:08:06Z on 2026-09-11 — verified off the tarball bytes,
+  cache-busted: 0.48.0 carries `gstogg.dll` alone, 0.49.0 and 0.51.1 carry both. Measured over the
+  71 push-to-`main` runs from 2026-09-10, the probe was red in exactly five — all between 04:24Z
+  and 06:16Z on 2026-09-11, inside the widening window — and green in all 48 measured runs after
+  the release. It stayed `continue-on-error` for all 48, because the condition above is prose and
+  prose only fires when somebody re-reads it. `scripts/check-probe-retirement.mjs` now evaluates every probe's
+  condition as data on every run and fails the day one comes true. A future widening states its
+  window there, not in a paragraph.
 - **A Windows leg has now run it once, and refuted the easy half.** Run 34502880383 built the
   prefix from scratch (the cache key moved, so nothing reproduced the old bundle) and the named
   assertion fired: `MISSING …\gstvorbis.dll`. Naming the gvsbuild project was not sufficient —

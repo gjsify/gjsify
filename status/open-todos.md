@@ -562,21 +562,24 @@ Two things to fix, and they are separable:
 1. **The table.** Either the generator marks a row's platform availability, or the
    table stops offering a class the running GTK does not have. This is the one that
    makes the win32 leg gating again — the step is `continue-on-error` with that as its
-   printed retirement condition.
+   retirement condition, now spelled as `retire-when:` clauses over
+   `src/generated/widgets.ts` and #1446 rather than as a sentence. The day both rows
+   leave the table and the issue closes, `scripts/check-probe-retirement.mjs` fails and
+   names the step; nobody has to re-read this paragraph for that to happen.
 2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
    properties of undefined (reading '$gtype')`, which does not say WHICH row. A
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
 
-### Four `gtk-os-suites.yml` steps cannot fail the build, and two of them look retirable
+### Three `gtk-os-suites.yml` steps cannot fail the build, and none is now merely unread
 
-`gtk-os-suites.yml` carries four `continue-on-error: true` steps: `rn-probe` on darwin,
-and `gtk-host-probe`, `rn-probe-win32` and `conformance-win32` on win32. Each is a
-deliberate probe with a written retirement condition beside it, and the arrangement is the
-one [ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for — a
-knowingly-red gate teaches people to skip the job, and the next real finding then lands
-where nobody looks.
+`gtk-os-suites.yml` carried FOUR `continue-on-error: true` steps — `rn-probe` on darwin, and
+`gtk-host-probe`, `rn-probe-win32` and `conformance-win32` on win32 — each a deliberate probe
+with a written retirement condition beside it, the arrangement
+[ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for: a
+knowingly-red gate teaches people to skip the job, and the next real finding then lands where
+nobody looks. Three are left; `conformance-win32` was promoted on 2026-09-19.
 
 **What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
 `success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
@@ -584,44 +587,74 @@ read green while the step exited 1. Only `steps.<id>.outcome` records what happe
 only `scripts/report-probe-outcome.mjs` puts it where a person looks — a job-summary row
 plus a `::warning::` annotation on the run and the PR.
 `scripts/check-probe-outcomes-read.mjs` holds every such step to having an `id` that the
-workflow reads, so a probe cannot go dark; it deliberately does NOT demand that the outcome
-fail anything. The measured price of the gap it was born from (#1552): on #1541's first
-push, run 33851595137 reported green on every gate while three probes were red — 6 of 2042
-on both darwin legs and 8 of 2038 on win32 — and TWO of the win32 eight were not the PR's
-at all and had been failing with nobody counting them (#1556). They were found by someone
-reading a log they had no reason to open.
+workflow reads, so a probe cannot go dark. The measured price of the gap it was born from
+(#1552): on #1541's first push, run 33851595137 reported green on every gate while three
+probes were red — 6 of 2042 on both darwin legs and 8 of 2038 on win32 — and TWO of the
+win32 eight were not the PR's at all and had been failing with nobody counting them
+(#1556). They were found by someone reading a log they had no reason to open.
 
-**What is still missing to retire each one** — and two of the four are waiting on a check
-nobody has made rather than on work nobody has done:
+**The class is closed, and the two instances that proved it were worth the trouble.** Both
+remaining conditions are now `retire-when:` clauses beside their step, and
+`scripts/check-probe-retirement.mjs` evaluates every one on every run and FAILS when one
+comes true — which is what the last paragraph of this entry used to ask for. Measured
+2026-09-19 over all 71 `push`-to-`main` runs from 2026-09-10, reading the
+`::warning title=Probe failed::` annotations, scoped to the job that owns the step and
+joined on the reader's `PROBE_LABEL`. A leg that was absent, skipped or cancelled measured
+NOTHING and is counted as neither:
 
-- `conformance-win32` — condition: *the first run after a published
-  `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`* (#1626/#1633, ADR 0056).
-  #1633 landed in **0.49.0 (2026-09-11)** and the registry's `latest` is **0.51.1**, so the
-  release half is MET. Missing: someone reads the probe row on the next run and, if it is
-  green, deletes `continue-on-error`, the `id` and the note.
-- `rn-probe` (darwin) — condition: *the first published `@gjsify/node-gi` carrying #1438's
-  engine fix*, then *the first run where the only failures left are this operating system's
-  own*. The fix is #1488, merged **2026-09-03 01:34 UTC**, and its merge commit
-  `d7da6c3b91` is an ANCESTOR of `v0.46.0`, cut 08:55 UTC the same day — the ancestry is
-  what proves the release carries it, and a date beside a version number is not, which is
-  why this reads `git merge-base --is-ancestor` rather than two timestamps compared by
-  eye. `latest` is 0.51.1, so the release half is MET too. Missing: the second half is
-  unrecorded — no run's darwin probe row has been read back since, which is the whole
-  point of a condition naming a release rather than an issue and is why it is written
-  here instead of assumed.
+| probe | condition met | green | red | no measurement | verdict |
+|---|---|---|---|---|---|
+| `conformance-win32` | 2026-09-11, 0.49.0 | **58** | 5 | 8 | PROMOTED to a gate |
+| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG |
+| `gtk-host-probe` (win32) | no — #1446 open | 0 | 70 | 1 | left a probe |
+| `rn-probe-win32` | 1 of 2 clauses | 0 | 70 | 1 | left a probe |
+
+`conformance-win32`'s five reds are all between 04:24Z and 06:16Z on 2026-09-11, inside the
+widening window that closed when 0.49.0 published at 08:08:06Z; it was green in all 48
+measured runs afterwards and stayed advisory for every one of them.
+
+Both met conditions were verified off the artifacts rather than off the dates, cache-busted
+(`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`): the published
+`@gjsify/gtk-runtime-win32-x64` tarball carries `gstvorbis.dll` at 0.49.0 and 0.51.1 and not
+at 0.48.0, and `d7da6c3b91` (#1488, closing #1438) is an ANCESTOR of `v0.46.0` and not of
+`v0.45.0` — the ancestry is what proves the release carries it, and a date beside a version
+number is not. So both conditions genuinely held. **A held condition still told us nothing
+about whether the step passes**, which is why the new check fails on a ripe probe in BOTH
+directions rather than only on a green one.
+
+**A first pass at these numbers was wrong and the way it was wrong is the same defect.** It
+read 25 green / 1 red over 21 runs, because it matched the annotation against the step's
+`name` while the annotation carries `PROBE_LABEL` — a separate string nothing coupled to the
+name — and because it searched every job in a run rather than the one that owns the step, so
+a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now holds
+`PROBE_LABEL` to the step name, which is what makes the join sound.
+
+**What is still missing to retire each of the three left:**
+
+- `rn-probe` (darwin) — the RELEASE condition is met and was a PROXY: the step was red in 70
+  of 71 runs, on defects of its own. Its condition is now `retire-when: probe-green 5`,
+  after three wrong proxies (an issue number, then "#1438 closes", then "the release
+  carrying it"). What it is actually failing on, measured on run 35423439012 against a
+  published 0.51.1 and none of it #1438:
+  - **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
+    bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
+    `a real tree, through a real reconciler` case that walks up from a child dies on it. One
+    is a natural-size read — `Expected 0 to be greater than 0` on the content box that
+    should stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`,
+    on the `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+  - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
+    `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
+    chrome`. A different and worse shape than arm64's seven, and not attributed.
+
+  Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
+  x64 death needs a local reproduction before it can be counted as anything.
 - `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
-  Windows host*. Blocked on the entry above (#1446); unchanged.
+  Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
+  clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
 - `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
   assertions attributed in the workflow header (`get_path()` answering the NATIVE path),
-  which are the suite's expectation and not a win32 defect.
-
-**What it would take to close the class rather than the four instances.** Either the probe
-reporter grows a mode that FAILS when a probe's retirement condition is already satisfied
-(it would have to be machine-readable — a `PROBE_RETIRES_AT` naming a published version,
-which `check-probe-outcomes-read.mjs` could resolve against the registry), or the periodic
-read becomes somebody's listed job. Today it is neither, and a probe outlives its condition
-in silence for as long as nobody looks — which is the same currency as the green-that-
-checked-nothing this file records elsewhere.
+  which are the suite's expectation and not a win32 defect. Its release clause is MET and
+  kept, because a met clause is how a conjunction shows which half is left.
 
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
