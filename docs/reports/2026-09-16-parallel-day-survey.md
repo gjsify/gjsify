@@ -6,14 +6,18 @@ a `ts-for-gir` v5.2.0 release. This file is the
 *why + priority* record for the refactor that follows; the ADRs are the decisions and
 `status/open-todos.md` tracks the work.
 
-> **Every reading below is measured at `b87098a17f`**, and every `file:line` is relative to that
+> **Every reading below is measured at `3b796bf95e`**, and every `file:line` is relative to that
 > one commit. Where something was *not* measured it says so on the spot and again in § 8.
 > Line numbers are a convenience and not the claim: where a durable anchor existed
 > the citation names the function, const or quoted string to ripgrep for instead. The reason is
 > this document's own history — its first draft was measured at `3e12aefe1a`, and #1692, #1694
 > and #1697 merged six minutes later, moving most of its line numbers and falsifying two of its
-> claims. The day's range (`bc78d1b689..3e12aefe1a`) is unchanged, because that is the subject;
-> the three PRs that merged after it are folded into the state readings.
+> claims. It was then re-measured once, at `b87098a17f`. **This is the second re-measurement**:
+> #1696, #1698 and #1700 merged while this survey was in review — amending ADR 0060, rewriting
+> ADR 0053's census as generated and gated output, and growing the Blueprint corpus from 35+12
+> to 38+12 files — and every citation into what they touched was checked again. #1699 is still
+> open. The day's range (`bc78d1b689..3e12aefe1a`) is unchanged, because that is the subject;
+> every PR that merged after it is folded into the state readings.
 
 **It contains no refactoring.** Its job is to decide what the next change does — specifically,
 what may ride along with the ADR 0053 clause 5/7 flip and what must not.
@@ -34,10 +38,10 @@ Three findings change what the next change should be:
    (§ 1.2, § 1.4). The parser package is `private: true` and exports its test corpus rather than
    its parser; the plugin that must consume it is published tier-1 with a public `./resolve`
    subpath that clause 7 deletes. ADR 0053 anticipated neither.
-3. **ADR 0060 proposes work that was already done before it merged** (§ 4.7). Its P2 — re-verify
+3. **ADR 0060 proposed work that was already done before it merged** (§ 4.7). Its P2 — re-verify
    SRI on a cache hit — is implemented in `packages/infra/cli/src/utils/install-tarball-cache.ts`:
    both `getCachedTarball` (`:114`) and `getForeignCachedTarball` (`:220`) call `verifyIntegrity`.
-   Left standing, it will be built twice — PR #1696 is the correction, in flight.
+   **#1696 has since merged** and amended the ADR in place rather than building P2 twice.
 
 The one item that must not be deferred for tidiness: **two e2e suites skip themselves when
 `blueprint-compiler` is absent** (§ 2.4). After the flip that is every host the flip exists to
@@ -45,7 +49,7 @@ serve, so the proof would go green by not running. It rides along or the flip pr
 
 ## How this was measured
 
-Read-only, on a worktree at `origin/main` — **`b87098a17f`**, the base named at the top and the
+Read-only, on a worktree at `origin/main` — **`3b796bf95e`**, the base named at the top and the
 base every citation in this file is relative to. `refs/` submodules and `node_modules` are absent
 there, so anything that depends on them is marked *unmeasured* rather than guessed. Counts come
 from `git ls-files`, `wc -l` and `grep -c` on tracked files. Two readings step outside that: the
@@ -77,8 +81,8 @@ golden."* `packages/infra/blueprint/package.json` pins `@girs/adw-1` and `@girs/
 extends `PROP_ENUMS` past the widget vocabulary — the exact retirement condition the ledger entry
 named.
 
-**Consequence for sequencing: nothing about clause 5 is blocked any more.** The corpus is 35
-rule files + 12 reality probes = **47**, and the ledger excuses none of them. What remains is
+**Consequence for sequencing: nothing about clause 5 is blocked any more.** The corpus is 38
+rule files + 12 reality probes = **50**, and the ledger excuses none of them. What remains is
 not a precondition but the work in § 1.2-§ 1.5, none of which #1692 touched.
 
 ### 1.2 The build does not import the parser, and cannot today — P1
@@ -143,14 +147,17 @@ is a governance question (`docs/governance.md:12`) and not a cleanup.
 
 ### 1.5 The subset is proven over first-party files only — P2, the honest risk
 
-Byte-equality covers 47 files: 35 corpus rules (`corpus/rules/*.blp`) and the 12 real `.blp` in
-the tree. Every one of the 47 is first-party. The plugin, however, is published, and clause 3
-makes an unrecognised construct a **hard error**. `corpus/refused/` names 15 constructs the
+Byte-equality covers 50 files: 38 corpus rules (`corpus/rules/*.blp`) and the 12 real `.blp` in
+the tree. Every one of the 50 is first-party. The plugin, however, is published, and clause 3
+makes an unrecognised construct a **hard error**. `corpus/refused/` names 19 constructs the
 parser deliberately refuses today — among them `inline-menu.blp`, `internal-child.blp`,
 `translation-domain.blp`, `binding-lookup-chain.blp`, `response-flags.blp` and
-`closure-value.blp`. (`extern-type.blp` was in that list when this was first measured; **#1694
-merged and moved it out**, into four new rule files `32-`…`35-extern-*.blp` — so the set is
-still 15, with a different member.)
+`closure-value.blp`. (`extern-type.blp` was in that list when this was first measured; #1694
+merged and moved it out, into four new rule files `32-`…`35-extern-*.blp`, holding the set at
+15. **#1700 merged since** and grew it to 19: `null-value.blp`, `setter-null-enum.blp`,
+`signal-object-unresolved.blp` and `unresolved-reference.blp` are the refusal half of making an
+unresolved object reference a hard error instead of the literal four characters `null` in the
+output — see § 6.3.)
 
 So the flip converts "works, needs a binary" into "refuses, no binary needed" for any external
 consumer whose `.blp` uses one of those. That trade is defensible — it is clause 3's whole
@@ -158,16 +165,16 @@ design — but it is a downstream-visible behaviour change that the corpus canno
 because the corpus contains no third-party file by construction (clause 6 forbids it).
 
 **`status/open-todos.md` already states this as the open decision** — the paragraph beginning
-"The flip is the part with a decision in it" (`:6247-6252`), which says "the flip has to say what
-a build does when a real file trips one" — and it remains unanswered. It is the one
-question in the flip that no measurement settles.
+"The flip is the part with a decision in it" (`:6249-6254`, was `:6247-6252` before #1698 moved
+it), which says "the flip has to say what a build does when a real file trips one" — and it
+remains unanswered. It is the one question in the flip that no measurement settles.
 
 ### 1.6 Honest cost and risk
 
 | | |
 |---|---|
 | **Cost** | un-private + export the parser; one npm first-publish; re-point 4 consumers; delete 505 lines + a published subpath; re-measure the bootstrap weight; a semver-major on a tier-1 package |
-| **Risk, contained** | in-repo builds — all 12 real `.blp` are inside the proven 47 |
+| **Risk, contained** | in-repo builds — all 12 real `.blp` are inside the proven 50 |
 | **Risk, real** | external `.blp` using a refused construct now fails the build; `@girs` weight in a cold bootstrap is unmeasured |
 | **Blocked on** | **nothing** — #1692 delivered the silence and #1694 moved `extern-type` from refused to accepted; both merged after this survey's first draft |
 | **Not a blocker** | the oracle: `blueprint-compiler` stays for stage B and for typelib validation (ADR 0028 § 6, clause 4) — nothing about the flip deletes the binary |
@@ -217,6 +224,11 @@ address**, plus one genuine consumer update in `check-system-deps.ts` that claus
 Correcting this matters beyond tidiness: a deletion list is a completion test, and an item
 naming a file that cannot contain it can never be checked off honestly.
 
+**CLOSED — #1698 merged (`9d7b0d4b99`) and fixed the address in both places.** ADR 0053 clause 7
+now reads "This clause once named 'the MSYS2 branch of `gjsify system-check`' as a THIRD item.
+That was one deletion counted twice under an address that never held it" and names the real
+location. `status/open-todos.md:6270-6271` carries the identical correction in the same words.
+
 ### 2.2 The deletion list understates its own blast radius — P2
 
 Clause 7 reads as four independent items. Items 1 and 3 are one deletion with four consumers
@@ -227,11 +239,14 @@ the moment the build stops needing the binary.
 
 ### 2.3 `status/open-todos.md` disagrees with the ADR about the storybook window — P3
 
-`status/open-todos.md:6266` lists "the programmatic storybook window" **inside** the
+`status/open-todos.md:6269` lists "the programmatic storybook window" **inside** the
 deletion list (the paragraph beginning "Done is a deletion list, not a feature list"). ADR 0053
 clause 7 says the opposite in as many words: it "is a DIFFERENT item … what it needs is a scoping
 decision and not a deletion". The todo entry turns a scoping question
 into a deletion target. One of the two is wrong and the ADR is the authority.
+
+**Re-verified after #1698**, which rewrote this same paragraph for § 2.1's MSYS2 fix (line moved
+6266→6269): the storybook-window mis-list survived that rewrite untouched. Still open.
 
 ### 2.4 Two e2e suites will skip on exactly the hosts the flip exists to fix — P1, rides along
 
@@ -369,39 +384,41 @@ than rewrite history, which is right — but `:349` reads "Measured on the lande
 the first occurrence would cost nothing and is the difference between an amended ADR and a
 self-contradicting one.
 
-### 4.3 ADR 0053's own census went stale today — P2, rides along
+### 4.3 ADR 0053's own census went stale today — CLOSED by #1698
 
-ADR 0053's measured census is headed **"What the eleven `.blp` files actually use"** (`:24`),
+ADR 0053's measured census was headed **"What the eleven `.blp` files actually use"** (`:24`),
 with `:68` ("Eleven `.blp` exist in the tree") and `:134` ("the eleven real files") repeating it.
 
-PR #1690 added `templates/gtk-minimal/src/main-window.blp` today. **There are now twelve.**
-Verified: 11 at `2b388f3eea`, 12 at `HEAD`.
+PR #1690 added `templates/gtk-minimal/src/main-window.blp`, taking the real count to twelve. To
+#1690's credit it did the corresponding corpus work —
+`packages/infra/blueprint/corpus/real-expectations.mjs:909` carried the new file — so only the
+ADR's prose went stale, not the corpus.
 
-To #1690's credit it did the corresponding work —
-`packages/infra/blueprint/corpus/real-expectations.mjs:909` carries the new file and the entry
-count is 12, so the corpus did not go stale, only the ADR's prose did. The per-construct counts
-in the census table (`22 using Adw 1;`, `81 Adw.HeaderBar`, `197 title:` …) were all measured
-across eleven files and are now understated by one file's worth.
+**#1698 merged (`9d7b0d4b99`) and closed this structurally, not just numerically.** The section
+is no longer hand-written: its heading, table and the two paragraphs below it are now EMITTED by
+`node scripts/report-blueprint-census.mjs`, and `node scripts/check-blueprint-census.mjs` fails
+CI when the ADR and the tree disagree (`docs/adr/0053-blueprint-parsed-in-repo.md:24-30`). A
+thirteenth `.blp` cannot leave this stale again the way a twelfth did. The regenerated numbers:
+23 `using` lines (was 22), 83 `Adw.HeaderBar` (was 81), 208 `title:` (was 197) — all now measured
+across twelve files.
 
-This is the number the flip PR will cite when it says the corpus is silent, so it should be
-corrected **in the flip PR**, not before — except that it is already in flight as **#1698**,
-which touches exactly `0053`, the parser README, `manifest.mjs` and `open-todos.md`. If #1698
-lands first, the flip inherits the corrected census and this row drops out of § 7.1.
+### 4.4 `status/open-todos.md` carried a corpus count stale in both halves — CLOSED, then reopened by #1700 — P3
 
-### 4.4 `status/open-todos.md` carries a corpus count that is stale in both halves — P3
+`status/open-todos.md` used to read "**45 of the 46** corpus files are byte-equal and
+`corpus/divergences.mjs` holds one entry on one line" — wrong in the denominator (46, not
+35 rules + 12 probes = 47) and the numerator (`SHADOW_DIVERGENCES` is `[]`, so no entry is
+excused; the reading should have been 47 of 47).
 
-`status/open-todos.md:6234-6235` reads "**45 of the 46** corpus files are byte-equal and
-`corpus/divergences.mjs` holds one entry on one line". Both halves are wrong on `main`, and for
-two different reasons:
+**#1698 merged (`9d7b0d4b99`) and fixed both halves**: `status/open-todos.md:6235-6236` came to
+read "all 47 corpus files (35 rule files + 12 real `.blp`) are byte-equal … and the 15 refusals
+each name their construct and line."
 
-- **the denominator.** 35 rule files + 12 reality probes = **47**. The 46 is #1694's own arithmetic
-  (35 rules + the eleven real files it still counted), written on a branch that did not yet have
-  #1690's twelfth.
-- **the numerator.** `SHADOW_DIVERGENCES` is `[]` (§ 1.1), so no entry is excused. The reading is
-  **47 of 47**.
-
-Also in flight in #1698. Recorded here because the two errors have different causes and a
-one-number fix would leave one of them standing.
+**#1700 merged after it (`3b796bf95e`) and made the same sentence stale again, the same way.**
+It grew the corpus to 38 rules + 19 refusals = 50 goldens (§ 1.5) without touching this line, so
+`status/open-todos.md:6235-6236` still reads 47/35/15 where the tree is now 50/38/19. Not a new
+defect — the identical failure class recurring in the sentence that was just corrected for it.
+Out of scope for this survey to fix: `status/open-todos.md` is generated status prose, noted
+here rather than audited.
 
 ### 4.5 Two ADR header formats were invented on the same day — P3
 
@@ -417,11 +434,14 @@ The four new ADRs do not agree on their own metadata block:
 `Scope:` field no other ADR has — 0059's `Scope` additionally carries relations in prose
 (`:5-12`), which is a second place to look for something one line below it already lists.
 
-**Both do carry `Related:`** — `0059:13-19` and `0060:9-16`. The first draft of this section said
-they did not, which was the whole weight of the finding, and it was simply wrong. What is left is
+**Both do carry `Related:`** — `0059:13-19` and `0060:17-18` (was `:9-16`; #1696's amendment grew
+the `Status:` line and shifted everything below it). The first draft of this section said they
+did not, which was the whole weight of the finding, and it was simply wrong. What is left is
 smaller but real: two header shapes on one day, and a field (`Scope:`) that overlaps `Related:`
-without saying which is authoritative. *Cost: two small header edits. Separate work — a docs
-sweep, not the flip.*
+without saying which is authoritative. #1696 added a third variant on top of 0060's own shape — a
+multi-line `Status:` carrying an amendment pointer and a `[corrected]` count — which is a further
+data point for "invented on the same day," not a fix to it. *Cost: two small header edits.
+Separate work — a docs sweep, not the flip.*
 
 ### 4.6 ADR 0062 was written against a tree that moved under it the same day — P2
 
@@ -431,19 +451,19 @@ of 0062's own worked examples. Almost every count in it is now off by that one f
 | 0062 says | file:line | measured at `main` |
 |---|---|---|
 | "142 of 705 GIRs" | `:226` | denominator **718**; and 142 is *packages carrying the subpath*, while the namespace gate it is attached to is **108** (`0029:864`) |
-| tracked `.ui` 42, 11 reality-probe goldens | `:70` | **47 / 12** (35 rule goldens after #1694) |
-| tracked `.blp` 57, 11 shipped | `:71` | **62 / 12** — 35 rules, 15 refused, 12 shipped; the table at `:76-83` omits `templates/gtk-minimal/src` |
+| tracked `.ui` 42, 11 reality-probe goldens | `:70` | **50 / 12** (38 rule goldens after #1700, was 35 after #1694) |
+| tracked `.blp` 57, 11 shipped | `:71` | **69 / 12** — 38 rules, 19 refused, 12 shipped (was 62 = 35+15+12); the table at `:76-83` omits `templates/gtk-minimal/src` |
 | assembly census 127 / 613 / 442 | `:103` | **126 / 609 / 439** at `b87098a17f`. The ADR states its filter at `:38-41` (tracked `.ts`/`.mts`/`.mjs`/`.js` outside `refs/`, specs and tests; `new (Gtk\|Adw).X(` **and** one of the 24 `PARENTING_METHODS`), so it re-runs deterministically: implemented from that paragraph it returns 127 / 613 / 442 at the ADR's own commit `ab261c073e` and 126 / 609 / 439 at both `3e12aefe1a` and `b87098a17f`. The **file** delta is one file, `templates/gtk-minimal/src/index.ts`, leaving via #1690; the construction delta is two contributions — −5 with that file, and **+1 from a comment** #1690 added to `prefer-blueprint-template.ts:131`. **The census's `new (Gtk\|Adw).X(` is a regex over text, so it counts constructions written in comments as constructions** — see § 4.6.1 |
-| "42 corpus files", "41 byte-equal", "0 of 11 shipped" | `:35,187,202` | corpus **47**, none excused (§ 1.1); shipped denominator **12** |
+| "42 corpus files", "41 byte-equal", "0 of 11 shipped" | `:35,187,202` | corpus **50**, none excused (§ 1.1); shipped denominator **12** |
 | `prefer-blueprint-template.ts:243` returns `{ClassDeclaration, ClassExpression}` | `:113` | now `:386`, returns `{ClassDeclaration, ClassExpression, Program}` |
 | "the only one of the four GTK scaffolds with no `.blp`" | `:123-126` | **false** since #1690 |
 
 The loss census — the 13-row table at `:166-181`, whose `| **total** | **144** |` row is `:181`
 (`:144-145` in the first draft was the *blocker* table, a different table two sections up) — is
 **unmeasured** here, because it needs a parser run. It is no longer structurally consistent
-either: `corpus/expectations.mjs` now declares **15** loss kinds, not 14 — `extern` arrived with
-#1694, which is in this document's own base — and the census was re-derived over 42 corpus files
-where there are now 47 (§ 1.1). So the table is stale by construction, not merely by a number.
+either: `corpus/expectations.mjs` still declares **15** loss kinds (unmoved by #1700) — `extern`
+arrived with #1694 — and the census was re-derived over 42 corpus files where there are now 50
+(§ 1.1). So the table is stale by construction, not merely by a number.
 
 *This is the largest single cluster in the survey, and it is cheap: one re-measurement pass over
 one ADR.*
@@ -468,26 +488,30 @@ well as what 126/609/439 means. What matters before then is that 609 is now quot
 and will be quoted again, and that anyone reading a future delta as signal should know the filter
 admits prose — a comment can move it, and one did.
 
-### 4.7 ADR 0060 describes three problems that were already fixed when it merged — P1
+### 4.7 ADR 0060 described three problems that were already fixed when it merged — CLOSED by #1696
 
 0060 merged as #1687. #1686 (`ab53678d65`) landed **before** it and had already closed three of
-the things 0060 proposes:
+the things 0060 proposed:
 
-| 0060 claims | file:line | state on `main` |
+| 0060 claimed | file:line (at the time) | state on `main` |
 |---|---|---|
 | "SRI is **not** re-verified on a cache HIT … two unverified readers" | `:47`, P2 at `:223,285-313` | **false** — in `packages/infra/cli/src/utils/install-tarball-cache.ts`, `getCachedTarball` (`:114`) verifies and unlinks on mismatch, `getForeignCachedTarball` (`:220`) verifies and returns a miss |
 | `restore-keys` fallback → `node-modules-v1-` | `:43` | **gone** — `.github/actions/gjsify-setup/action.yml:118` now reads "EXACT KEY ONLY — no `restore-keys` fallback, deliberately" |
-| "CI never persists `.gjsify-cache` at all" | `:288` | **false** — it does: the step "Save the tarball store", `actions/cache/save@v6` at `gjsify-setup/action.yml:291-296`. (The first draft cited `:180-192`, which is the *Restore* step — the claim was right, the citation could not carry it.) |
+| "CI never persists `.gjsify-cache` at all" | `:288` | **false** — it does: the step "Save the tarball store", `actions/cache/save@v6` at `gjsify-setup/action.yml:291-296` |
 
-So **0060's P2 is already implemented** and the ADR proposes it as future work. Two more counts
-are wrong in the other direction: `:45` "204 manifests declare `@girs/*`" is **146** tracked
-`package.json` (the ADR's `grep -r` counted `node_modules`), and `:48`/`:262` "134
-platform-gated entries" is **211**. `:38`/`:360-369` says `GJSIFY_INSTALL_FORCE_EXTRACT` has
-"2 hits, both on one line of one file" and has "no mention in any workflow or doc" — it is **5
+Two more counts were wrong the other way: "204 manifests declare `@girs/*`" was **146** tracked
+`package.json` (the ADR's `grep -r` counted `node_modules`), and "134 platform-gated entries" was
+**211**. `GJSIFY_INSTALL_FORCE_EXTRACT` was "2 hits, both on one line of one file" and is **5
 hits in 2 files**, and `tests/e2e/install-incremental-extract/run.mjs` exercises it.
 
-**This matters more than a number fix: an ADR whose P2 is already done will send someone to
-implement it twice.** The correction is now open as **#1696**.
+**#1696 merged (`b06db82a20`) and closed this — as an amendment, not a rewrite.** ADR 0060's
+Status line now reads "amended 2026-09-16" and marks six items **[corrected]** inline
+(`0060:47,52,54,56,57,18`); a new `## Amendment (2026-09-16)` section re-derives every number
+above against `main` at `e49f9fbcf4` and lands on exactly this survey's figures — 146, 211, 5
+hits in 2 files. It credits the source by name: "Found by the parallel-day survey (#1695 § 4.7,
+§ 4.9)." The decision and the P1-P6 set are deliberately left unrewritten — an ADR whose P2 is
+already done did not need building twice, it needed its own evidence corrected, and that is what
+happened.
 
 ### 4.8 ADR 0059's first step shipped one commit after it merged — P3
 
@@ -505,7 +529,7 @@ to a section that says something else:
 
 | citing | claims the target says | the target actually says |
 |---|---|---|
-| `0060:14` | ADR 0029 "§ Risks 1 — the `@girs` subpath hazard" | `0029:389` § Risks 1 is **Release coupling** (caret-vs-exact-pin). The subpath argument is § Risks **3** (`0029:402-409`, "the surface is a **separate subpath**"), which is plausibly what was meant — so the mis-aim is the number, not the reference |
+| `0060:14` (now `:17-18`) — **CLOSED, differently than guessed** | ADR 0029 "§ Risks 1 — the `@girs` subpath hazard" | `0029:389` § Risks 1 is **Release coupling** (caret-vs-exact-pin), not a subpath. This survey guessed the mis-aim was the NUMBER (meant § Risks 3, `0029:402-409`, the actual subpath risk). **#1696 merged (`b06db82a20`) and disagreed**: its amendment keeps the number and fixes the description instead — "the hazard meant here is 0029's release-coupling risk" |
 | `0062:274` | "ADR 0030 § 5 asks this of any parser change" (an oracle held against on every run) | `0030:102` § 5 is **"An exemption is DATA, never a code path"**; the oracle property is 0030 clause **1** (`:80`) |
 | `0062:320` | "ADR 0058 § 7's last alternative" | `0058:398` § 7 is "This is Proposed, and it supersedes nothing"; the quoted reasoning is § **Alternatives rejected**, last bullet (`:446-448`) |
 | `0062:158` | "ADR 0058 § 6 keeps all three as refusals, and § 3 decides `slot` by a GIR lookup" | **self-contradictory** — `0058:390-396` § 6 lists ten kinds and **not** `slot`; § 3 makes `slot` a lookup. Should read "keeps two of the three" |
@@ -547,14 +571,14 @@ These are false or unreachable on `main` right now, not after some future change
 
 | what | file:line | killed by |
 |---|---|---|
-| ADR 0060's P2 (re-verify SRI on cache hit; drop `restore-keys`; persist the cache) | `0060:47,223,285-313,288` | #1686 — **implemented before the ADR proposing it merged** (§ 4.7) |
+| ADR 0060's P2 claims (re-verify SRI on cache hit; drop `restore-keys`; the manifest/platform-gate counts) | now `0060:47,52,54,56,57` — each tagged **[corrected]** inline | #1686 implemented P2 before the ADR proposing it merged; **#1696 merged and amended the ADR itself** (§ 4.7) — no longer a live document/tree mismatch |
 | ADR 0059's guards G2 and G3, and its Steps row 1 | `0059:129-142,288` | #1685, one commit later (§ 4.8) |
 | ADR 0062's "`@girs` 5.2.0 is half-published" and the three passages resting on it | `0062:238-240,276-280,316,340-342` | the 5.2.0 publish completing on 2026-09-15 (§ 4.10) |
 | ADR 0062's "the only one of the four GTK scaffolds with no `.blp`" | `0062:123-126` | #1690 (§ 4.6) |
 | `prefer-blueprint-template` "returns `{ClassDeclaration, ClassExpression}`" | `0062:113` | #1690 widened it to include `Program` (§ 4.6) |
 | ~~the one `SHADOW_DIVERGENCES` entry~~ | `corpus/divergences.mjs` | **gone** — #1692 merged and `SHADOW_DIVERGENCES` is `[]` (§ 1.1) |
 | "gtk-minimal has no `.blp`" in two more places | `packages/infra/create-gjsify/README.md:60`, `website/src/content/docs/cli-reference.md:75` | #1690 |
-| "the eleven real files" in the parser package itself | `packages/infra/blueprint/README.md:25,28` ("the 11 …"), `corpus/manifest.mjs:39,41,48` ("WHAT THE ELEVEN REAL FILES DO NOT REACH") | #1690 — twelve now. No longer blocked: #1694 merged, and **#1698** is the PR fixing it |
+| "the eleven real files" in the parser package itself | `packages/infra/blueprint/README.md:25,28`, `corpus/manifest.mjs:39,41,48` (now "WHAT THE TWELVE REAL FILES DO NOT REACH") | #1690 made it twelve; **CLOSED — #1698 merged (`9d7b0d4b99`) and fixed both files**, at the same line numbers |
 | `bindtextdomain(domain, … ?? '/usr/share/locale')` | `docs/adr/0024-ship-installable-artifacts.md:991` | #1685 — off Linux the app now binds nothing. ADR 0059:223-224 *announces* this amendment; 0024 never received it |
 
 The pattern is worth naming: **five of these were killed by a PR that merged within hours of the
@@ -574,12 +598,15 @@ changes belong to the PR that earns them". The flip is that PR. What it must car
 | the `blueprint-compiler is checked ONCE` paragraph | `packages/infra/cli/AGENTS.md:163` | describes a probe whose subject the build no longer needs |
 | the comment "NO blueprint-compiler here: it is checked by `checkBlueprintCompiler()`…" | `packages/infra/cli/src/utils/check-system-deps.ts:584-592` | a comment explaining an exclusion that stops mattering |
 | the two e2e SKIP conditions | `library-blueprint/run.mjs:46-48` (`const SKIP =`), `create-app/run.mjs:98-100` (`hasBlueprintCompiler`) | § 2.4 — they would hide the flip's own proof |
-| "eleven `.blp`" | `docs/adr/0053-…:24,68,134` | twelve since #1690 (§ 4.3) |
-| "45 of the 46 corpus files" | `status/open-todos.md:6234-6235` | 47 files, and none excused (§ 4.4) |
-| the wrong address for the MSYS2 branch | `docs/adr/0053-…` clause 7, `status/open-todos.md:6268` | § 2.1 |
 
-None of these is dead *today*. Every one becomes dead the moment the flip lands, which is why
-they belong in that PR and not in a tidy-up before it.
+**Three rows left this table because they are already dead, not "dead on the flip."** "Eleven
+`.blp`" in ADR 0053, "45 of the 46 corpus files" in `open-todos.md`, and the wrong address for
+the MSYS2 branch (both places) — all fixed by **#1698** (`9d7b0d4b99`), landed as its own PR
+rather than waiting for the flip. §§ 4.3, 4.4 and 2.1 record what changed; § 4.4 also records
+that #1700 reopened part of that same corpus-count line with a fresh number.
+
+The remaining four rows are not dead *today*. Every one becomes dead the moment the flip lands,
+which is why they belong in that PR and not in a tidy-up before it.
 
 ## 6. Orphans and homeless things
 
@@ -680,26 +707,36 @@ failing to compile at 5.2.0, which is precisely the signal you want.* **Separate
 still not part of the flip PR — but no longer blocked: #1692 merged, so the `@girs` version
 declarations are nobody's open territory.
 
-### 6.3 Three pre-existing Blueprint parser gaps, recorded on #1694 — P2, now unblocked
+### 6.3 Three pre-existing Blueprint parser gaps, recorded on #1694 — (a)/(b) still open, (c) narrowed by #1700
 
-Located read-only; `packages/infra/blueprint/**` was not edited. All three were re-verified after
-#1694 merged and all three survive it. Each row names the function to search for, because these
-are the citations that moved most when #1694 landed.
+Located read-only; `packages/infra/blueprint/**` was not edited by this survey. All three were
+re-verified after #1694 merged; (a) and (b) survive #1700 unchanged, (c) was narrowed by it.
 
 | gap | where | current behaviour | fix cost |
 |---|---|---|---|
 | (a) undeclared loss kinds for `condition`/`setters` outside a breakpoint | in `walkBody`, `for (const extension of body.extensions)` pushes `kind: extension.name` (`src/project.mjs:178`); the declared union is the `LossKind` typedef (`corpus/expectations.mjs:88-90`) and its hand-kept mirror `const LOSS_KINDS` (`scripts/check-blueprint-corpus.mjs:125-141`) — neither lists `condition` or `setters` | inside a breakpoint the child is dropped whole (the `isBreakpoint(child.object)` branch, `:180-185`), so only the outside case reaches that push, reported as an **unnamed** loss | ~4 lines in 2 files + one rule pair + one expectation |
 | (b) a refusal that blames the wrong cause | `parseMenuItem` in `src/parser.mjs` (`:843-848`) | guards `this.peek().type === 'ident'` across all three menu kinds and blames "`MenuItem` in `ast.d.mts` has no `id` field", while its own comment two lines above states the real scope (only `section`/`submenu` take an id). For `item foo {` the true cause is a missing `{`/`(` | 1-2 lines + one unit test — gate on `kind !== 'item'` and let the following `this.expect('{', …)` speak |
-| (c) no property-type checking for object values | the `value.kind === 'object'` branch of `emitProperty` (`src/emit-xml.mjs:347-353`) never reads `ownerType`, while the scalar tail below it routes through `scalarText`→`identText`→`resolveIdent` (`src/resolve-ident.mjs:249`) and throws on a bad member | `label: Gtk.Box { }` emits **silently**; the same asymmetry sits in the projection, `projectBody`'s object branch vs `scalarOf`'s `value.kind === 'ident'` return | ~60-120 lines plus a `@girs`-derived table and a `corpus/refused/` entry |
+| (c) no property-type checking for object values | the `value.kind === 'object'` branch of `emitProperty` (`src/emit-xml.mjs:352-358`, was `:347-353`) still never reads `ownerType` | `label: Gtk.Box { }` still emits **silently** — unchanged by #1700, which closed a related but distinct gap (below) | ~60-120 lines plus a `@girs`-derived table and a `corpus/refused/` entry |
 
-(c) is the one that matters for the flip's premise: it is a hole in clause 3's "an unrecognised
-construct is a hard error, never silent wrong output" — the *asymmetry* is that the emitter
-refuses what it must READ and copies what it need not, which ADR 0053's Amendment 2 closing
-paragraph already names. It does not block the flip (the compiler remains the validator per
-clause 4), but it should be recorded against clause 3 rather than discovered later.
+**#1700 merged (`3b796bf95e`) and closed the adjacent reference-existence gap this row used to
+lean on for evidence.** A bare identifier used as an object reference — `extra-menu:
+doesNotExist;` — used to pass through `scalarText`→`identText` unchecked; `objectRef()`
+(`emit-xml.mjs:876`) now refuses it at four call sites. The scalar member-lookup path is a
+different function and is unaffected: `resolveIdent` (`src/resolve-ident.mjs:268`, was cited at
+`:249`) throws on a bad enum/flags member via `lookupMember` (`:211`). That leaves (c) narrower
+than this survey first had it: #1700's own commit message names the three divergences that
+remain, "each measured and each recorded in `status/open-todos.md` rather than guessed at" — a
+boolean setter takes the literal, a reference of the wrong TYPE still resolves, and an unknown
+property name still passes.
 
-**Recommendation: none rides along with the flip**, and none is blocked any more. (b) is free and
-uncoupled and can go at any time. (a) and (c) are the package #1694 left behind.
+(c) is still the one that matters for the flip's premise: it is a hole in clause 3's "an
+unrecognised construct is a hard error, never silent wrong output" — the *asymmetry* is that the
+emitter refuses what it must READ and copies what it need not, which ADR 0053's Amendment 2
+closing paragraph already names. It does not block the flip (the compiler remains the validator
+per clause 4), but it should be recorded against clause 3 rather than discovered later.
+
+**Recommendation unchanged: none rides along with the flip.** (b) is free and uncoupled and can
+go at any time. (a) and the narrowed (c) are what #1694 and #1700 both left behind.
 
 ### 6.4 Leftovers from parallel work itself — P2/P3
 
@@ -730,21 +767,24 @@ that also sweeps four ADRs is a PR nobody can review as one thing.
 | 1.2 | un-private `@gjsify/blueprint`, export the parser, first publish | the flip *is* this |
 | 1.4 | delete `resolve-compiler.ts` + spec; re-point 4 consumers | clause 7 item 1; the published `./resolve` subpath goes with it |
 | 2.4 | **remove both e2e SKIP conditions** | otherwise the flip's only cross-platform proof reports green by not running |
-| 2.1 | correct clause 7's MSYS2 address (ADR + `open-todos:6268`) | the deletion list is the completion test; a wrong address cannot be checked off |
-| 4.3 | ADR 0053 "eleven `.blp`" → twelve (`:24,68,134`) | the flip PR cites this census as its evidence — **#1698 may land it first** |
-| 4.4 | `open-todos:6234-6235` 45/46 → 47/47 | same sentence, same claim — **#1698 may land it first** |
 | 5 | `rolldown-plugin-gjsify/AGENTS.md:25`, `cli/AGENTS.md:163`, `check-system-deps.ts:584-592` | ADR 0053 § Implementation says the rule changes belong to the PR that earns them |
-| 2.3 | `open-todos:6266` storybook-window item → scoping, not deletion | one line, same paragraph as the MSYS2 address |
+| 2.3 | `open-todos:6269` storybook-window item → scoping, not deletion | still unresolved; one line, in the paragraph § 2.1's MSYS2 fix already corrected |
+
+**Three rows left this table**, for the same reason they left § 5.2: 2.1 (MSYS2 address) and 4.3
+/ 4.4 (the census and corpus-count staleness) are no longer riding candidates because **#1698
+already landed them**, independently of the flip. That cuts this section's own rule — "rides
+along only if leaving it out would make the flip PR's own claim false" — the other way: none of
+the three needed the flip's cover after all.
 
 One precondition is left, and it is a measurement rather than an edit: the bootstrap weight of
-`@girs/gtk-4.0` + `@girs/adw-1` (§ 1.3). The other — "#1692 must merge first" — was discharged
-while this survey was in review.
+`@girs/gtk-4.0` + `@girs/adw-1` (§ 1.3). The others — "#1692 must merge first" and "#1698 must
+land the census fix" — were both discharged while this survey was in review.
 
 ### 7.2 Does not ride along
 
 | § | item | priority | why separate |
 |---|---|---|---|
-| 4.7 | ADR 0060's P2 is already implemented | **P1** | `install`, not Blueprint; and it is urgent on its own — someone will build it twice |
+| 4.7 | ~~ADR 0060's P2 is already implemented~~ | — | **CLOSED** — #1696 merged and amended the ADR (`b06db82a20`) |
 | 4.10 | 0062 vs 0029 on `@girs` 5.2.0 publication | **P1** | #1692 merged and disproved 0062's claim in the tree; the ADR edit is now simply overdue |
 | 4.1 | 705 → 718 in `0062:226` and `0034:823` | P2 | docs sweep |
 | 4.6 | ADR 0062's whole count set re-measured, **and § 4.6.1 decided**: does the assembly census count constructions written in comments? | P2 | a re-measurement pass over one ADR; large enough to be its own PR |
@@ -758,7 +798,7 @@ while this survey was in review.
 | 6.4 | `check-shipped-runtime-packages.mjs:344-349` still header-only cache-bust | P2 | #1682 disproved its comment today; finish the sweep it started |
 | 5.1 | ADR 0024:991 never received the `bindtextdomain` amendment 0059 announces | P2 | shipping, not Blueprint |
 | 5.1 | "gtk-minimal has no `.blp`" in `create-gjsify/README.md:60`, `cli-reference.md:75` | P3 | docs sweep |
-| 5.1 | the eleven-real-files counts inside `packages/infra/blueprint/` | P3 | **unblocked** — #1694 merged; **#1698** is the PR doing it |
+| 5.1 | ~~the eleven-real-files counts inside `packages/infra/blueprint/`~~ | — | **CLOSED** — #1698 merged and fixed both files (`9d7b0d4b99`) |
 | 4.2 | forward pointer at 0029's first stale 705 | P3 | docs sweep |
 | 4.5 | two ADR header formats | P3 | docs sweep |
 | 6.4 | the three `prebuilds.yml` submodule steps outside #1688's action | P3 | cover them, or say in ADR 0061 why not |
@@ -769,25 +809,32 @@ while this survey was in review.
 
 1. ~~**#1692 merges**~~ — **done**, and it unblocked §§ 1.1, 4.10 and 6.2.
 2. ~~**#1694 merges**~~ — **done**; § 6.3 is unblocked and `extern-type` is now accepted (§ 1.5).
-3. **ADR 0060 correction** (§ 4.7) — independent and P1; **open as #1696**.
-4. **Measure the bootstrap weight** (§ 1.3). If it is bad, the flip changes shape before it is
-   written. This is now the only precondition left, and nothing has claimed it.
-5. **The flip PR** — § 7.1 as one atomic change.
-6. **Docs sweep** — §§ 4.1, 4.2, 4.5, 4.6, 4.8, 4.9, 4.11 in one PR.
-7. **Guard work** — § 3.3 then § 3.1.
-8. **Release tooling** — § 6.1, § 6.2.
+3. ~~**ADR 0060 correction**~~ (§ 4.7) — **done**, as #1696 (`b06db82a20`).
+4. ~~**ADR 0053's census, generated and gated**~~ — not a step planned here; landed anyway as
+   **#1698** (`9d7b0d4b99`), closing §§ 2.1, 4.3 and 4.4 ahead of the flip.
+5. ~~**A Blueprint parser fix**~~ — also not planned here; **#1700** (`3b796bf95e`) landed too,
+   making an unresolved object reference a hard error and growing the corpus to 38 rules + 19
+   refusals = 50 goldens (§ 1.5, § 6.3).
+6. **Measure the bootstrap weight** (§ 1.3). If it is bad, the flip changes shape before it is
+   written. This is still the only precondition left, and nothing has claimed it.
+7. **The flip PR** — § 7.1 as one atomic change.
+8. **Docs sweep** — §§ 4.1, 4.2, 4.5, 4.6, 4.8, 4.9, 4.11 in one PR.
+9. **Guard work** — § 3.3 then § 3.1.
+10. **Release tooling** — § 6.1, § 6.2.
 
 Steps 1 and 2 were struck through by merges that landed six minutes after this survey opened as a
-PR. They are kept rather than deleted, because the shape of the plan — everything sequenced behind
-two PRs — is what the survey measured, and a reader who only sees the answer cannot tell whether
-the sequencing was ever real.
+PR; steps 3-5 by three more that landed while it was in review. They are kept rather than deleted,
+because the shape of the plan — sequenced behind five PRs now, not two — is what the survey
+measured at each point, and a reader who only sees the answer cannot tell whether the sequencing
+was ever real.
 
 ### 7.4 Does the flip need an ADR of its own?
 
 **Yes, and ADR 0063 is free** — 0059-0062 are taken on `main`, and no open PR claims a new
-number. Re-checked at `b87098a17f` against an open set that is almost entirely different from the
-one the first draft checked: #1677 (amends 0038), #1696 (amends 0060), #1698 (amends 0053), #1699
-(a report, no ADR). #1692 and #1694 have merged and added no ADR.
+number. Re-checked at `3b796bf95e` against an open set that has shrunk to two: #1677 (amends
+0038, unrelated to Blueprint) and #1699 (`docs(blueprint): measure the subset gap`, which itself
+says "No ADR number claimed — 0063 is [free]"). #1696 and #1698, open when this was last
+checked, have since merged and added no ADR; neither did #1700.
 
 ADR 0053 already decided *that* the parser becomes authoritative, so the flip needs no new
 decision about Blueprint. What it needs a decision for is what § 1.2 and § 1.4 surfaced and 0053
@@ -815,4 +862,6 @@ flip most needs to establish.
   and registry *policy* question, not a packument read: the `@girs` closure measurement in § 6.1
   did call `registry.npmjs.org`, but nothing here probes the first-publish path.
 - **Whether external consumers use a refused construct** (§ 1.5). Unknowable from this repo;
-  it is a judgement, not a measurement, and § 7.4 is where it gets made.
+  it is a judgement, not a measurement, and § 7.4 is where it gets made. **#1699 is attempting
+  exactly this measurement**, open as this survey was re-measured: a wild sweep against
+  `blueprint-compiler`'s own reference corpus rather than this repo's first-party files.
