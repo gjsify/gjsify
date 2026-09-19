@@ -31,7 +31,10 @@
 //               not a revision someone measured at. The entry is written by hand AND the line
 //               must NAME the event, so it cannot wave through an unanchored number. Counted
 //               apart in the summary for the same reason reports are.
-//   ELSEWHERE — `OTHER_SUBJECT`: one line that matches the nouns while counting something else.
+//   ELSEWHERE — `OTHER_SUBJECT`: a FALSE READING — the nouns match something that is not a count
+//               at all. Records the whole line by default; for prose too long to re-read, the
+//               matched PHRASE instead, which then fails if the file holds a second claim
+//               reading the same words. Never a way to excuse a real count.
 //   OWNED     — `OWNED_ELSEWHERE`: a file another gate holds to a stricter contract. The entry
 //               names that script, fails when it leaves the tree, and is counted SEPARATELY in
 //               the summary rather than inside the scanned total.
@@ -272,7 +275,30 @@ const HISTORICAL_LINES = [
     },
 ];
 
-/** A line matching the nouns while counting something else entirely. Matched by exact text. */
+/**
+ * A line matching the nouns while counting something else entirely — a FALSE READING, never a
+ * real count someone would rather not keep current. That distinction is the whole licence for
+ * this ledger, and `why` has to carry it: say what the number DOES count, not that it is
+ * excused. "Counts rules of the language, not corpus files" is the shape; "known false
+ * positive" is not. Presence and substance are different things and only the first is checked
+ * here — what the sentence has to SAY is a review property, and this gate cannot read it.
+ *
+ * TWO FORMS, AND THE WHOLE-LINE ONE IS THE DEFAULT. `text` records the entire trimmed line, so
+ * editing the line retires the entry: nothing is excused that a human has not looked at since.
+ * `claim` records only the matched phrase, and exists for a line too long for that to mean
+ * anything — `corpus/manifest.mjs` carries eight-hundred-character prose strings, and pasting
+ * one into this ledger would guarantee that the next person to reword it pastes the new eight
+ * hundred characters without reading them. That is a rubber stamp with ceremony, which is the
+ * shape this gate exists to refuse.
+ *
+ * The narrow form is safe only because of the guard below: a `claim` entry FAILS when its file
+ * holds more than one claim matching that phrase, so it cannot quietly grow to cover a second
+ * one. A narrow form without that is a substring match wearing a schema.
+ *
+ * If `claim` entries ever outnumber `text` ones, the finding is not about the documents — it is
+ * that the matcher has become too eager, and the nouns want narrowing rather than the ledger
+ * growing.
+ */
 const OTHER_SUBJECT = [
     {
         file: 'docs/adr/0060-what-the-cli-borrows-from-yarn.md',
@@ -374,6 +400,7 @@ async function main() {
     const scanned = [];
     const notText = [];
     const reports = [];
+    const widening = [];
     let historical = 0;
 
     // Quotations of OTHER files' lines, blanked out of this file before it is scanned. Not
@@ -383,7 +410,9 @@ async function main() {
     // count APPENDED to a declaration line is read like any other, and only the quoted bytes
     // are silent. This file therefore states no count of its own — its header writes the
     // incident without digits rather than earning an exemption for it.
-    const quotations = [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT].map((entry) => entry.text);
+    const quotations = [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT]
+        .flatMap((entry) => [entry.text, entry.claim])
+        .filter(Boolean);
     const mask = (text) => quotations.reduce((out, quoted) => out.split(quoted).join(' '.repeat(quoted.length)), text);
 
     for (const file of tree.files) {
@@ -417,14 +446,30 @@ async function main() {
             continue;
         }
 
+        // The guard that makes the narrow form safe: one phrase, one claim. A second reading of
+        // the same words in the same file would otherwise be covered by an entry nobody wrote
+        // for it, which is a substring match wearing a schema.
+        for (const entry of OTHER_SUBJECT.filter((e) => e.file === file && e.claim)) {
+            const matching = claims.filter((c) => c.text.toLowerCase() === entry.claim.toLowerCase());
+            if (matching.length > 1) {
+                widening.push(
+                    `${file} holds ${matching.length} claims reading "${entry.claim}" and the ledger excuses\n` +
+                        `    that phrase once (line(s) ${matching.map((c) => c.line + 1).join(', ')}). Record the whole\n` +
+                        '    line for each, or narrow the noun that reads them — one entry may not cover two claims.',
+                );
+            }
+        }
+
         const site = SITES.find((entry) => entry.file === file);
         for (const claim of claims) {
             const trimmed = lines[claim.line].trim();
             const ledgered = [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT].find(
-                (entry) => entry.file === file && entry.text === trimmed,
+                (entry) =>
+                    entry.file === file &&
+                    (entry.text === trimmed || (entry.claim && entry.claim.toLowerCase() === claim.text.toLowerCase())),
             );
             if (ledgered) {
-                usedLedger.add(`line\u0000${file}\u0000${ledgered.text}`);
+                usedLedger.add(`line\u0000${file}\u0000${ledgered.text ?? ledgered.claim}`);
                 if (HISTORICAL_LINES.includes(ledgered)) historical += 1;
                 continue;
             }
@@ -437,7 +482,7 @@ async function main() {
         }
     }
 
-    const problems = treeSelfChecks(tree);
+    const problems = [...treeSelfChecks(tree), ...widening];
 
     // Both halves are printed, because "they differ" without the two texts is the kind of
     // failure people fix by editing the number the error happens to mention.
@@ -484,10 +529,23 @@ async function main() {
         }
     }
     for (const entry of [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT]) {
-        if (!usedLedger.has(`line\u0000${entry.file}\u0000${entry.text}`)) {
+        if (Boolean(entry.text) === Boolean(entry.claim)) {
+            problems.push(
+                `a ledger entry for ${entry.file} records ${entry.text ? 'both' : 'neither'} a whole line and a\n` +
+                    '    phrase — it takes exactly one: `text` by default, `claim` only for a line too long to read.',
+            );
+            continue;
+        }
+        if ((entry.why ?? '').trim().length < 20) {
+            problems.push(
+                `a ledger entry for ${entry.file} has no reason worth reading. Say what the number DOES\n` +
+                    '    count, not that it is excused.',
+            );
+        }
+        if (!usedLedger.has(`line\u0000${entry.file}\u0000${entry.text ?? entry.claim}`)) {
             problems.push(
                 `a ledger entry for ${entry.file} matches no line any more — re-justify it or remove it:\n` +
-                    `    recorded: ${entry.text}\n` +
+                    `    recorded: ${entry.text ?? entry.claim}\n` +
                     `    because:  ${entry.why}`,
             );
         }
