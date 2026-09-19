@@ -344,9 +344,13 @@ is the one ledger entry, and it is what clause 6 is for. **A corpus that does no
 construct is the second place a tolerated divergence can hide, and the first place nobody
 looks** — the ledger at least prints itself on every run.
 
-**So clause 5 is not satisfied yet, and clause 7 stays planned.** The shadow run reports one
-divergence; `blueprint-compiler`'s demotion to oracle-only waits on the ARIA value types
-reaching `@girs` the way `PROP_ENUMS` did, which is tracked in `status/open-todos.md`.
+**So clause 5 was not satisfied when this was written, and clause 7 stayed planned.** The shadow
+run reported one divergence; `blueprint-compiler`'s demotion to oracle-only waited on the ARIA
+value types reaching `@girs` the way `PROP_ENUMS` did. They did, in 5.1.0 — Amendment 2 — and the
+entry that then remained went the same way in 5.2.0. Amendment 3 is where the condition is met and
+the build takes it. The sentence above is left standing rather than corrected in place, because
+what it records is not a mistake: it is what a shadow run that still reported looked like, and the
+value of clause 5 is exactly that this paragraph could not be written any other way at the time.
 
 **What this changes for clause 4, exactly.** Its first sentence stands: a byte-equal diff
 proves the parser and the AST, and nothing downstream. Its last paragraph gains a second
@@ -383,9 +387,11 @@ carries no `if` for either — clause 6 unchanged.
 **Measured, and the measurement is the point.** Against `blueprint-compiler` 0.20.4 the corpus
 goes from 40 byte-equal with two ledger entries on three lines to 41 with one entry on one line,
 and the ARIA entry was deleted because stage C failed with "byte-equal and still listed" — the
-self-retiring direction working as designed, for the second time. `Gtk.SizeGroup.mode` remains,
-waiting on `PROP_ENUMS` past the widget vocabulary, so clause 5 is still not satisfied and clause
-7 stays planned.
+self-retiring direction working as designed, for the second time. `Gtk.SizeGroup.mode` remained
+at this point, waiting on `PROP_ENUMS` past the widget vocabulary, so clause 5 was still not
+satisfied and clause 7 still planned. `@girs` 5.2.0 answered it and the entry retired on the
+version bump alone, with no line of `resolve-ident.mjs` changed; Amendment 3 has that measurement
+and what it licensed.
 
 **And the rule file was thin again, in the same place.** Amendment 1 recorded that
 `20-accessibility.blp` held one entry, a string, and that widening it reported three things the
@@ -407,3 +413,68 @@ the WRONG KIND on a typed slot — `checked: 1`, `label: 42`, `hidden: 1`, `row-
 written. The seam refuses what it must READ and cannot (`orientation: sideways`) and copies what it
 need not read; that is the `Gtk.Box { spacinng: 4; }` line one table over, and it moves only if
 the compiler stops being the validator.
+
+## Amendment 3, 2026-09-19 — the shadow run is silent, and the build takes the parser
+
+**Clause 5 makes the in-repo parser authoritative "when it reports none across the corpus". It
+reports none. `@gjsify/vite-plugin-blueprint` stops spawning `blueprint-compiler` and calls
+`parseBlueprint` + `emitGtkBuilderXml` instead, with no fallback to the binary. Clause 7's
+deletion list is NOT started here — `resolve-compiler.ts`, its spec, the `oxlint-disable` in
+`loading-stack.ts` and the fence gate's skip are all still in the tree, and each is its own
+change.**
+
+**An empty ledger is only an answer if something is still asking.** `corpus/divergences.mjs` was
+also empty once before, on a corpus whose `accessibility { }` file held a single string — the
+amendments above are the record of what that cost. So the silence was checked against the
+question that produced the last entry rather than taken on its own: `Gtk.SizeGroup` is an enum
+property on a class outside the widget vocabulary, and the rule files that put it in front of the
+resolver are all still there — `23-widget-reference-list.blp`, `29-enum-non-widget.blp` and
+`38-null-object-id.blp`, the middle one being exactly the `mode: horizontal` that diverged. The
+probe is live and the answer is `1`. That is a measured silence; the other kind is a rule file
+nobody widened.
+
+**What the flip is measured on, re-run rather than cited.** `blueprint-compiler` 0.20.4 against
+the parser at `@girs` 5.2.0, over every tracked `.blp` — the whole set, because stage A refuses
+any tracked `.blp` no corpus entry covers, so "all of them" is a property of the gate rather than
+a count anybody keeps. Every rule file and every real build input is byte-equal, the ledger
+excuses none of them, and what the rest are is printed by
+`node scripts/check-blueprint-corpus.mjs --require-oracle` on every run rather than transcribed
+here. **Nothing in the dangerous direction** — no file we emit XML for that the oracle rejects,
+and no file we emit differently.
+
+**The refusals the oracle COMPILES are the behaviour change, and the price clause 3 named.**
+`internal-child`,
+`translation-domain`, a multi-step `.parent` lookup chain, an inline `menu`, a response flag, an
+untyped closure, and a namespace the resolver has no vocabulary for. A `.blp` using one of them
+used to compile and now fails the build. That is the safe direction of the trade — the
+alternative is output that is plausible and wrong, discovered in a shipped program — but it is a
+behaviour change for anyone outside this repository, and none of the 85 files here uses one. The
+owner of the last two is upstream in ts-for-gir, named in Amendment 1 § item 11 and 17.
+
+**So the refusal had to become something a build can print.** The parse half already threw
+`BlueprintSyntaxError` with `file`, `line` and `column` as fields; the emit half threw
+`new Error('blueprint: line N: …')` at 23 sites and named no file at all, which was survivable
+while its only reader was a corpus harness that knew which file it had handed in. It is not
+survivable as the thing a build shows someone with twelve `.blp` open. `BlueprintEmitError` is
+those 23 sites, with `file` and `line` as fields and the location rendered into the message, and
+it is exported beside `BlueprintSyntaxError` because clause 3 makes the refusal part of the
+contract. It carries no `column`: an AST node has a line and nothing finer, and an invented
+column points at a place nothing measured. The 24th site in that file stays a plain `Error` — it
+fires while the `@girs` vocabularies are merged at import time, about the dependency rather than
+about anyone's `.blp`, and has no file to name.
+
+**One thing the flip forces that clause 7 does not mention: `@gjsify/blueprint` cannot stay
+`private`.** `@gjsify/vite-plugin-blueprint` is published and tier 1, and
+`scripts/verify-published-closure.mjs` refuses a release-pinned edge from a published package to
+a `private` target by name — "dead on arrival", because npm resolves the NAME to whatever
+unrelated package owns it. So the package is on the release train now, and its first publish is
+a manual maintainer step OIDC cannot perform, queued in `status/pending-npm-bootstrap.json`. The
+2026-09-16 survey put this in the flip's cost and it is worth restating as a rule rather than an
+incident: **the boundary that decides whether a package may be private is not "does anything
+import it", it is "does anything PUBLISHED import it".**
+
+**What is still not proven, and by construction.** Byte-equality covers 85 first-party files.
+Clause 6 keeps third-party `.blp` out of the corpus, so the wild sweep
+(`scripts/blueprint-wild-sweep.mjs`) stays a local extra and is not what gates a merge. A
+published plugin meets files nobody here wrote, and the constructs listed above are what that
+meeting looks like when it goes wrong.
