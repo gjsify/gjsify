@@ -1,0 +1,22 @@
+using Gtk 4.0;
+
+menu null {
+  item {
+    label: "Preferences";
+  }
+}
+
+Gtk.Box {
+  Gtk.MenuButton {
+    menu-model: null;
+  }
+
+  Gtk.Label labelA {
+  }
+}
+
+Gtk.SizeGroup {
+  widgets [
+    labelA,
+  ]
+}

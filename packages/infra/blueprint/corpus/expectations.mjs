@@ -649,4 +649,60 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
     },
+
+    {
+        file: '36-setter-null.blp',
+        node: {
+            tag: 'AdwBreakpointBin',
+            props: { 'width-request': 200, 'height-request': 200 },
+            children: [{ tag: 'GtkLabel', props: { label: 'text', 'width-request': 40 } }],
+        },
+        lost: [
+            { kind: 'object-id', line: 8, detail: 'the id `labelOne`, which both setters on lines 18 and 19 need' },
+            {
+                kind: 'breakpoint',
+                line: 14,
+                detail: 'the whole `[breakpoint]` child, and with it the two `null` setters',
+            },
+        ],
+        note: 'The projection loses this file the same way `25-bracket-breakpoint.blp` does, and that is the point of putting the rule HERE rather than only in `refused/`: the setters never reach `SharedNode` at all, so the projection cannot be the exit that catches a wrong one. Only the XML exit can, and before this rule existed it did not — it wrote the four characters `null` into the body of a live `<setter>`. The golden proves the empty element, on a string property and an int property both.',
+    },
+
+    {
+        file: '37-layout-untyped-ident.blp',
+        node: {
+            tag: 'GtkGrid',
+            children: [{ tag: 'GtkLabel', props: { label: 'text' } }],
+        },
+        lost: [
+            {
+                kind: 'layout',
+                line: 7,
+                detail: 'the whole `layout { }` block, and with it both untyped identifiers',
+            },
+        ],
+        note: 'The projection drops every block extension unread, so this file is one where the XML exit is the only one that can be wrong — and it was: the reference check on `identText` refused this file in an earlier cut, and the corpus held no `layout { }` value that was not a number, so nothing said so. The two exits are asymmetric here by design and not by omission.',
+    },
+
+    {
+        file: '38-null-object-id.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [{ tag: 'GtkMenuButton', props: { 'menu-model': 'null' } }, { tag: 'GtkLabel' }],
+        },
+        lost: [
+            {
+                kind: 'menu',
+                line: 3,
+                detail: 'the whole `menu null { … }` — a sibling of the object and not a widget, the same loss as `12-menu.blp`',
+            },
+            { kind: 'object-id', line: 14, detail: 'the id `labelA`, which the list on line 19 points at' },
+            {
+                kind: 'sibling-object',
+                line: 18,
+                detail: 'the whole `Gtk.SizeGroup`, a second top-level object where `SharedNode` is one tree',
+            },
+        ],
+        note: 'The projection keeps `menu-model` as the four characters `null`, exactly as it keeps an enum member: it reads the identifier and never asks what it points at. That is the same reading the XML exit had before this change, and it is right HERE — the object exists — which is why the fix is a lookup and not a ban on the spelling. The projection cannot make that distinction at all, holding no id index, so it is the XML exit that carries the rule and this expectation records the asymmetry rather than papering over it.',
+    },
 ];

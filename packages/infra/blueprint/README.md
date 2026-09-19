@@ -208,3 +208,40 @@ It claimed the published types already carried positional enum values — measur
 independent review reached the same wrong answer from the same stale file. Two readings of one
 out-of-date artefact agree with each other and not with the tree, which is worth more than the
 claim they agreed on: read what is INSTALLED, and say which version that was.
+
+## Reference sites, enumerated
+
+An object reference is an id GtkBuilder looks up, and the oracle refuses one nothing declares
+(`error: Could not find object with ID doesNotExist`). The emitter must refuse it too, so the
+question "have we covered them all" needs an answer that is not a memory of the ones we fixed —
+the first cut of that rule fixed three sites and shipped a fourth unchecked, and it was a
+reviewer and not the corpus that found it.
+
+The enumeration is mechanical. Every attribute or text node `emit-xml.mjs` builds from a parsed
+IDENTIFIER is a candidate; `grep -n 'xml.startTag\|xml.selfClosing\|xml.text' src/emit-xml.mjs`
+lists all of them, and each one is then read off as "does GtkBuilder resolve this string as an
+object id". That gives seven, and every one is accounted for:
+
+| site | written from | verdict |
+|---|---|---|
+| `bind-source` on a property | `value.source` | checked (`objectRef`) |
+| a property value, resolver branch | `value.name` | checked |
+| `object` on a `<setter>` | the setter target | checked |
+| `object` on a `<signal>` | `signal.object` | checked |
+| a property value, pass-through branch | `value.name` | NOT a reference — a `layout { }` entry is resolved by the layout manager, and a property on an EXTERN body (or a setter on an extern target) has no vocabulary to resolve against; the oracle passes the spelling through in both, byte-equal |
+| `<widget name=…>` in a list | `listItemText` | unchecked, declared |
+| an `accessibility { }` entry | `extensionText` | unchecked, declared |
+| `id` on a `<response>` | `response.name` | NOT a reference — a response id is not an object id, and stays one even when an object of that id exists |
+| an item of a property array | `arrayItemText` | a reference the oracle resolves, that our parser never reaches — see below |
+
+The two unchecked ones are in `status/open-todos.md` with what each would take. The rule for
+anyone adding another: if the string is an id, it takes `objectRef`, and it gets a file under
+`corpus/refused/` so stage E holds the refusal by name and by line.
+
+The last row is the one to read before loosening anything. `css-classes: [doesNotExist];` is a
+reference to the oracle — `Could not find object with ID doesNotExist` — but `arrayItemText`
+never sees it, because the parser refuses a non-string array item first. Both ends refuse, so
+nothing diverges today, and the day that parser rule is relaxed the reference becomes unchecked
+in the same commit. It is the same shape as the named-menu-section note in `indexObjectIds`: a
+row whose verdict rests on a limit somewhere else, which is why it is written down beside the
+rows that rest on the language.

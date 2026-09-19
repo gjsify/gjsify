@@ -6618,3 +6618,63 @@ would remove that latency and add a network dependency plus a job that can go re
 something no PR caused; not obviously worth it, and worth revisiting only if a pin ever sits
 still long enough for the latency to matter.
 
+
+### The Blueprint emitter checks that a reference RESOLVES, and cannot check that it FITS
+
+`emit-xml.mjs` now refuses an object reference no object in the file declares — the defect that
+let `extra-menu: doesNotExist;` and the null literal reach a live property unremarked. That check
+is a lookup in the file's own id index, so it needs no vocabulary and is complete for the
+positions it covers. What it cannot do is the oracle's SECOND question, which needs the ParamSpec
+type of every property, where `resolve-ident.mjs` carries enum and flags types and nothing else.
+
+Three divergences follow from that one gap, each accepted here and refused by
+blueprint-compiler 0.20.4, each measured:
+
+- **A boolean setter takes the null literal.** `labelOne.visible: null;` emits
+  `<setter object="labelOne" property="visible"></setter>`; the oracle answers
+  `error: Expected 'true' or 'false' for boolean value`. The ENUM and FLAGS halves of the same
+  rule ARE caught, via `enumOrFlagsTypeOf` — `refused/setter-null-enum.blp` holds that half —
+  which is exactly why the boolean one is worth naming: the file looks like it covers the rule.
+- **A reference of the wrong type resolves.** With a `Gtk.Label null` in the file, `label: null;`
+  is a legal reference that this emitter writes out, and the oracle answers
+  `error: Cannot assign Gtk.Label to string`. `38-null-object-id.blp` pins the half that is
+  right (`menu-model: null` pointing at a `menu null`), and the wrong half is undetectable the
+  same way.
+- **A property name nobody has.** `bind labelOne.null` passes; the oracle answers
+  `error: Gtk.Label does not have a property called null`. This one is not about `null` at all —
+  every misspelled property name takes the same path.
+
+Closing the first two is one piece of work: a property TYPE table beside the enum one, generated
+from the same `@girs` metadata by the same generator. ADR 0053 clause 6 is the constraint — a
+hand-written table is the `if` it refuses — so those two wait on the generator, not on a decision.
+
+**The third does not wait for anything.** `does not have a property called X` needs only the set
+of property NAMES, and `OWN_PROPS` plus `DECLS` are already exported by the same
+`@girs/*/vocabulary` modules `resolve-ident.mjs` imports for the enum table. It is left out of
+this change to keep one rule per change, not because it is blocked. One measured caution for
+whoever takes it: 7 properties are present in the vocabulary and absent from the libadwaita
+installed here, so the table runs AHEAD of the oracle — a name-only check would accept files the
+oracle refuses, which is the safe direction, but it cannot be turned into a refusal without
+deciding what a vocabulary/runtime disagreement means.
+
+**A second, unrelated gap in the same check: two paths, not one.** Both write an id the check
+never sees, and they are different functions, which is why naming only the list form understated
+it once already:
+
+- `emitListProperty` takes no `EmitContext`, so `widgets [doesNotExist]` emits
+  `<widget name="doesNotExist"/>` where the oracle says `Could not find object with ID`.
+  Threading the context in closes it.
+- `extensionText` reaches `scalarText` with no owner type, so an `accessibility { }` entry passes
+  in BOTH forms — the list `labelled-by: [doesNotExist]` and the scalar `labelled-by: nope;`.
+  Measured, and simpler than it first looked: a bare identifier there is a reference on EVERY
+  entry that is not an enum member — `labelled-by`, `described-by` and `label` alike each answer
+  `Could not find object with ID nope`. So the seam already in place (`accessibilityValue`
+  returning null for a non-member) is the same fork the property path uses.
+
+Separately and pre-existing: `listItemText` admits a bare identifier for ALL THREE bracketed
+lists, not just `styles`. In `widgets [ ]` that is right (the items are ids); in `styles [ ]` and
+`strings [ ]` the oracle refuses any unquoted item with `Unexpected tokens`, so
+`Gtk.StringList { strings [doesNotExist] }` emits `<item>doesNotExist</item>` here and is
+refused there. That is a parser rule rather than a reference one, and it is the reason the list
+gap cannot be closed by adding `objectRef` to `listItemText` alone: the three lists want three
+different answers.

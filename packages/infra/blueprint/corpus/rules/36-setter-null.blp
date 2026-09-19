@@ -1,0 +1,22 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.BreakpointBin {
+  width-request: 200;
+  height-request: 200;
+
+  Gtk.Label labelOne {
+    label: "text";
+    width-request: 40;
+  }
+
+  [breakpoint]
+  Adw.Breakpoint {
+    condition ("max-width: 400px")
+
+    setters {
+      labelOne.label: null;
+      labelOne.width-request: null;
+    }
+  }
+}

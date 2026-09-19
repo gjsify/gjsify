@@ -301,6 +301,27 @@ export const CORPUS_RULES = [
         surprise:
             'the extern spelling reaches it and GtkBuilder resolves the result, so the vocabulary gate is a gate on the DOTTED form only — and it is still not a hole in that gate, because concatenation cannot produce `GListStore` from `$Gio.ListStore` (that is `GioListStore`): the C name has to be written out, which is exactly the assertion the sigil exists to make',
     },
+    {
+        file: '36-setter-null.blp',
+        isolates:
+            'the null LITERAL as a `setters { }` value — an identifier spelled `null` in the one position where nothing answers to the name, so nothing can resolve it',
+        surprise:
+            "it emits `<setter …></setter>` with an EMPTY body, which GtkBuilder reads as \"unset\" — and it is NOT the absence of a value for any property you like. Measured on 0.20.4: a string (`label`), an int (`width-request`), a double and an object-typed property come out empty, an enum one is `null is not a member of Gtk.Align` (`refused/setter-null-enum.blp`) and a flags one the same. A BOOLEAN one is refused too — `Expected 'true' or 'false' for boolean value` — and that half this emitter cannot detect: telling it apart needs the ParamSpec TYPE of every property, where `resolve-ident.mjs` carries enum and flags types only. So `labelOne.visible: null;` is accepted here and refused by the oracle, a divergence recorded in `status/open-todos.md` rather than guessed at. Before this rule existed the emitter wrote the four characters `null` into the body of a live `<setter>` in a wild file, with every stage of this corpus green.",
+    },
+    {
+        file: '37-layout-untyped-ident.blp',
+        isolates:
+            'an identifier as a `layout { }` value, where the emitter has neither an owner type nor a ParamSpec to ask about it',
+        surprise:
+            'the spelling passes straight through — `<property name="column">null</property>`, with no object anywhere called `null` — and that is the oracle\'s own answer, not a shortfall of this subset: a layout property belongs to the layout CHILD and is resolved by the layout manager at build time, so nothing type-checks it here. This file exists because the reference check on `identText` is the kind of rule that grows over a position it was never measured against: an earlier cut of that check refused this file, and nothing in the corpus noticed. `row: start` is beside `column: null` so the pass-through is pinned as a rule about the POSITION and not about one spelling.',
+    },
+    {
+        file: '38-null-object-id.blp',
+        isolates:
+            'the identifier `null` where the file DOES declare an object by that name, in the two positions that resolve one: an object-typed property and a `widgets [ ]` item',
+        surprise:
+            'there is nothing special about it. `null` is not a keyword in this grammar — `menu null { }` declares an id (the oracle warns `null may be a confusing object ID` and compiles), `menu-model: null` then points at it, and `bind null.label` binds to it. The literal in `36-setter-null.blp` is only what is LEFT when no object claims the name, which is why `isNullLiteral` in `emit-xml.mjs` asks the file and not the spelling. Stated the other way: the identifier wins over the literal, and it wins inside a `setters { }` block too — `labelOne.label: null;` with this `null` declared is `Cannot assign Gtk.Label to string`, a TYPE error, so the id resolved.',
+    },
 ];
 
 /**
@@ -445,6 +466,44 @@ export const CORPUS_REFUSALS = [
         projection: 'refuses',
         line: 1,
         names: 'expected `using Gtk`',
+    },
+    {
+        file: 'null-value.blp',
+        construct:
+            'the identifier `null` as a plain property value, `label: null;`, where the file declares no object by that name',
+        oracle: 'refuses',
+        // The projection reads the value as the identifier it is and keeps the SPELLING, the
+        // same way it keeps an enum member — so it projects a `GtkLabel` whose `label` is the
+        // four characters `null`. That is this stage earning its keep rather than a hole: the
+        // two exits disagree, only the XML one can tell a reference from a literal (it is the
+        // one that holds `idTypes`), and clause 3 is a rule about the exit that emits.
+        projection: 'projects',
+        line: 4,
+        names: '`null`',
+    },
+    {
+        file: 'unresolved-reference.blp',
+        construct: 'an object reference to an id the file never declares, `extra-menu: doesNotExist;`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'no object in this file is declared with that id',
+    },
+    {
+        file: 'signal-object-unresolved.blp',
+        construct: 'an unresolved reference as the object of a signal handler, `clicked => $onClicked(doesNotExist);`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'no object in this file is declared with that id',
+    },
+    {
+        file: 'setter-null-enum.blp',
+        construct: 'the null literal as a `setters { }` value on an ENUM-typed property, `labelOne.halign: null;`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 13,
+        names: 'is not a member of GtkAlign',
     },
 ];
 
