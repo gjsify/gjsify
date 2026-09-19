@@ -22,16 +22,12 @@ on:
 
 # DELIBERATELY NO `concurrency:` BLOCK.
 #
-# `statusCheckRollup.state` takes the WORST entry per context, not the latest — measured on
-# acca841ff1…0830, whose `Lint commit messages` entries are FAILURE, FAILURE, SUCCESS, SUCCESS,
-# whose every other context is success or skipped, and which rolls up FAILURE. So one run that
-# judged a description nobody can read any more is the commit's colour for good.
-#
-# NOT CLAIMED, because it is not established: whether the `main` ruleset's required-context
-# evaluation weighs the same way. #1667 merged on c0629ff7 while that commit's rollup was
-# FAILURE, but this ruleset carries `bypass_actors` (`OrganizationAdmin` and RepositoryRole 5,
-# both `bypass_mode: always`) and every merge here is by the owner, so that merge distinguishes
-# nothing. `status/open-todos.md` carries the open question.
+# A superseded run leaves a non-success check run attached to the commit, beside the green one.
+# HOW RED THAT MAKES THE PR IS NOT SOMETHING THIS FILE ASSERTS: `statusCheckRollup.state`
+# answers SUCCESS or FAILURE for the SAME commit depending on whether `contexts` is selected
+# alongside it (measured on acca841ff1…0830 and c0629ff751…b5b1, deterministic), and what it
+# does to a MERGE is the ruleset's business — unobservable from history here, because every
+# merge is by an owner the ruleset lets bypass. `status/open-todos.md` carries that question.
 #
 # A group does not help either way. It leaves a CANCELLED conclusion, which is not a pass
 # (b0ee2c0068 carries one as the newest `Lint commit messages` entry), and it has no view at all

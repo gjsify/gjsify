@@ -6,27 +6,29 @@
 // `commitlint.yml` triggers on `edited`, so every edit of a PR description starts another run
 // ON THE SAME COMMIT, each carrying the description as its own event delivered it.
 //
-// THE MECHANISM, measured 2026-09-19 — and re-measured, because the first reading of it was
-// wrong and had already reached five files. `statusCheckRollup.state` takes the WORST entry per
-// context, not the latest:
+// THE FIELD EVERYONE READS GIVES TWO ANSWERS, which is how a wrong claim propagated here twice
+// in one day. On the SAME commit, in the same minute, `statusCheckRollup.state` is:
 //
-//   acca841ff1…0830  `Lint commit messages` = FAILURE, FAILURE, SUCCESS, SUCCESS; NO other
-//                    context non-success; rollup FAILURE. The newest entry is green and the
-//                    commit is red.
-//   c0629ff751…b5b1  FAILURE then SUCCESS; rollup FAILURE.
+//   `statusCheckRollup { state }`                      → SUCCESS
+//   `statusCheckRollup { state contexts(first:1){…} }`  → FAILURE
 //
-// So a superseded run's conclusion is the commit's colour for as long as the commit lives, and
-// that field is what `gh pr checks`, the PR page and anything asking "is this red?" reports.
+// Deterministic, 2/2 and 6/6 across shapes, measured on acca841ff1…0830 (commitlint entries
+// FAILURE, FAILURE, SUCCESS, SUCCESS, no other context non-success) and c0629ff751…b5b1
+// (FAILURE, SUCCESS). Selecting `contexts` AT ALL — even `first:1 { totalCount }` — flips it.
+// The bare shape reads like latest-per-context, the other like worst-over-all-entries. Two
+// people measuring this commit today got opposite answers and both were reading the field
+// correctly.
 //
-// WHAT IS DELIBERATELY NOT CLAIMED: whether the `main` ruleset's required-context evaluation is
-// worst-wins too. #1667 merged on c0629ff7 while that commit's rollup was FAILURE, but the
-// ruleset carries `bypass_actors` — `OrganizationAdmin` and RepositoryRole 5, both
-// `bypass_mode: always` — and every merge in this repository is by the owner, so that merge
-// cannot tell a satisfied rule from a bypassed one. Cite it as neither.
+// SO THE FIELD IS NOT THE ORACLE, and neither reading is asserted here. What is not in doubt is
+// that a superseded run leaves a non-success CHECK RUN attached to the commit, that the checks
+// list shows it next to the green one, and that what it does to a merge is decided by the
+// ruleset — machinery this repository cannot observe from history, because every merge here is
+// by an owner the ruleset lets bypass (`OrganizationAdmin` and RepositoryRole 5, both
+// `bypass_mode: always`). `status/open-todos.md` carries that open question and the measurement
+// that closes it.
 //
-// Which is why the fix does not rest on it. A verdict that is a function of the CURRENT text is
-// right under either rule: there is no stale non-success left to be weighed, whichever way the
-// weighing goes.
+// None of which the fix depends on: if every run judges the description AS IT IS NOW, there is
+// no stale entry left for any aggregation to disagree about.
 //
 // AND THE OBVIOUS REPAIR MAKES IT WORSE. 4db0edf92e (#1704) carried SUCCESS at 06:49 and then
 // FAILURE at 07:13, 07:14 and 07:22: three hand re-runs, each replaying the same superseded

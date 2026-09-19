@@ -5,10 +5,10 @@
 //
 // WHY A SECOND MECHANISM IS NEEDED. The verdict step governs a run that is still EXECUTING: it
 // re-reads the description before concluding. A run that has already concluded cannot re-read
-// anything, and `statusCheckRollup.state` takes the WORST entry per context — measured on
-// acca841ff1…0830, whose newest `Lint commit messages` entry is SUCCESS, whose other contexts
-// are all success or skipped, and which rolls up FAILURE. So a stale conclusion is the commit's
-// colour until something moves it.
+// anything, so its conclusion stays attached to the commit beside the green one. Whether that
+// reads as red depends on which aggregation is asked — see THE FIELD EVERYONE READS GIVES TWO
+// ANSWERS in `decide-commitlint-verdict.mjs` — and this job's purpose is to leave no stale
+// entry for either of them to weigh.
 //
 // THAT IS WHERE #1704 SITS, and the part worth keeping is what did NOT fix it. Its
 // `Lint commit messages` entries are SUCCESS at 06:49 and then FAILURE at 07:13, 07:14 and

@@ -4,48 +4,49 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### A superseded description state is the commit's colour, and one open question under it
+### `statusCheckRollup.state` answers twice, and nothing here knows which answer merges
 
-`commitlint.yml` triggers on `edited` so that the PR title and body are checked at all, and the
-price is that every edit of a description starts another run ON THE SAME COMMIT, each judging the
-description its own event delivered. `statusCheckRollup.state` then takes the WORST entry per
-context, not the latest — measured on acca841ff1…0830, whose `Lint commit messages` entries are
-FAILURE, FAILURE, SUCCESS, SUCCESS, whose every other context is success or skipped, and which
-rolls up FAILURE. One run that judged a description nobody can read any more is what the PR page,
-`gh pr checks` and every agent asking "is this red?" report, for as long as the commit lives.
+Measured 2026-09-19 on acca841ff1…0830 and c0629ff751…b5b1, deterministically and in the same
+minute:
 
-On 2026-09-19 that cost two diagnoses inside an hour (#1703, #1704), and the obvious repair made
-it worse: #1704's three newest entries were hand re-runs replaying the same superseded payload
-and failing again. Closed at the source — a run whose description moved under it ends GREEN
-naming the run that will decide (`scripts/decide-commitlint-verdict.mjs`, which refuses to void
-without such a run), and a run that had already concluded is restarted so that rule reaches it
-(`scripts/rerun-superseded-commitlint.mjs`). Cancelling was measured and rejected: it leaves a
-CANCELLED conclusion, which is not a pass, and cannot reach a concluded run at all.
+    statusCheckRollup { state }                       -> SUCCESS
+    statusCheckRollup { state contexts(first:1){...} } -> FAILURE
 
-**OPEN, and it is a measurement nobody here has taken: does the `main` RULESET weigh required
-contexts the same way the rollup field does?** The two are different machinery. #1667 merged on
-c0629ff7 while that commit's rollup was FAILURE, which looks like the ruleset taking the latest
-run per context — but the ruleset carries `bypass_actors` (`OrganizationAdmin` and RepositoryRole
-5, both `bypass_mode: always`) and every merge in this repository is by the owner, so that merge
-cannot tell a satisfied rule from a bypassed one. The rule-suite API records
-`required_status_checks` per push and would settle it, but it retains about a day, so #1667 has
-aged out. The cheap way to close this: on any PR targeting `main` whose other two required
-contexts are green, produce an older commitlint FAILURE followed by a newer SUCCESS and read
-`mergeStateStatus`. BLOCKED means worst-wins there too; anything else means a PR can be mergeable
-while reading red, which is its own trap and worth writing down.
+Selecting `contexts` at all — even `first:1 { totalCount }` — flips it. The bare shape reads like
+latest-per-context, the other like worst-over-all-entries. Both commits have a newest
+`Lint commit messages` entry of SUCCESS with older FAILUREs; acca841ff1 has no other non-success
+context at all. Two people measuring the same commit that day got opposite answers, each reading
+the field correctly, and a claim built on one of them propagated into six files twice before
+anyone re-derived it.
 
-Nothing in the fix depends on the answer — a verdict that is a function of the current text
-leaves no stale conclusion for either rule to weigh — but two things downstream do: how loudly a
-superseded red should be treated, and whether `clear-superseded` is a merge-unblocker or only a
-legibility repair.
+WHY IT MATTERS: `Lint commit messages` is one of the three required contexts on `main`, so
+"is a superseded red still blocking?" has no answer from this field. The ruleset is different
+machinery and cannot be read from history here — #1667 merged on c0629ff7 whose entries are
+FAILURE then SUCCESS, but the ruleset carries `bypass_actors` (`OrganizationAdmin` and
+RepositoryRole 5, both `bypass_mode: always`) and every merge in this repository is by the owner,
+so it cannot tell a satisfied rule from a bypassed one. The rule-suite API records
+`required_status_checks` per push and would settle it, but retains about a day, so #1667 has aged
+out.
 
-ALSO STILL OPEN is the shape rather than this instance. `commitlint.yml` is the only workflow
-whose verdict depends on something OTHER than the commit, so it is the only one where a
-conclusion can be stale while the commit is not. Any future check that reads the PR description,
-a label or a review inherits the same defect, and nothing enumerates that class. Adjacent and
-untested: the void needs a later run to exist, which an edit authored with `GITHUB_TOKEN` would
-not produce; no workflow here holds `pull-requests: write` today, so the refusal path is reasoned
-and fixtured but has never fired.
+THE MEASUREMENT THAT CLOSES IT, and it is cheap: on any PR targeting `main` whose other two
+required contexts are green, produce an older commitlint FAILURE followed by a newer SUCCESS and
+read `mergeStateStatus`. BLOCKED means the ruleset weighs every entry; anything else means a PR
+can be mergeable while the checks list reads red — which is its own trap and worth writing down.
+Do not run it on a PR somebody is waiting to merge: it deliberately reddens it, and
+`clear-superseded` then repairs it out from under the reading.
+
+The commitlint fix does not depend on the answer — a verdict that is a function of the current
+text leaves no stale entry for either aggregation to weigh — but two things downstream do: how
+loudly a superseded red should be treated, and whether `clear-superseded` unblocks merges or only
+restores legibility.
+
+ALSO OPEN is the shape rather than the instance. `commitlint.yml` is the only workflow whose
+verdict depends on something OTHER than the commit, so it is the only one where a conclusion can
+be stale while the commit is not. Any future check that reads the PR description, a label or a
+review inherits it, and nothing enumerates that class. Adjacent and untested: the void needs a
+later run to exist, which an edit authored with `GITHUB_TOKEN` would not produce; no workflow
+here holds `pull-requests: write` today, so the refusal path is reasoned and fixtured but has
+never fired.
 
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 
