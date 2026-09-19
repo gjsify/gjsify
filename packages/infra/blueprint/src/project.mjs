@@ -81,10 +81,17 @@ const isBreakpoint = (node) =>
  * trees are written in, and it is why the `.ui` golden and not the projection is the oracle
  * for number formatting.
  *
- * @param {Value} value
+ * @param {Value} value @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
  */
-const scalarOf = (value) => {
+const scalarOf = (value, tag) => {
     if (value.kind === 'string') return value.value;
+    // `typeof<Gtk.Label>` is a class NAME, which is the one thing this exit already spells
+    // right — `tag` is the same seam `SharedNode.tag` takes, asked about a value rather than
+    // about an object. So it is projected rather than declared lost. The REFERENCE position,
+    // for the reason `41-template-parent-abstract.blp` records one screen up: `typeof` names
+    // a type without instantiating it, and `typeof<Gtk.Orientation>` is an enum, which the
+    // object position refuses by construction.
+    if (value.kind === 'type') return tag(value.type, 'reference');
     if (value.kind === 'number') {
         // `Number()` alone read `1_000` as `NaN`, and after that was patched here, `-0x10` too:
         // `17-numeric-forms.blp` projected a `null` prop both times. One reader for both exits.
@@ -122,7 +129,7 @@ const projectBody = (body, tag) => {
             });
             continue;
         }
-        const scalar = scalarOf(property.value);
+        const scalar = scalarOf(property.value, tag);
         if (scalar !== undefined) props[property.name] = scalar;
     }
     for (const child of body.children) {

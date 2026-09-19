@@ -1,0 +1,17 @@
+using Gtk 4.0;
+
+template $CorpusExpressionLookup: Gtk.Box {
+  Gtk.Overlay {
+    Gtk.Label labelOne {
+    }
+  }
+
+  $CorpusLookupTarget externOne {
+  }
+
+  Gtk.Label {
+    label: bind labelOne.parent as <Gtk.Overlay>.child as <Gtk.Label>.label;
+    tooltip-text: bind template.name as <$CorpusLookupOther>.deep;
+    name: bind (externOne.thing);
+  }
+}

@@ -33,6 +33,7 @@ refused by name, held by a corpus of its own.
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
 | `src/emit-xml.mjs` | AST → GtkBuilder XML |
 | `src/resolve-ident.mjs` | what a bare identifier means — a member's number, an ARIA name's element, a type's GType name — read from the `@girs` vocabulary |
+| `src/builtin-types.mjs` | Blueprint's own type keywords (`string`, `bool`, `int`, …) and the GType each means — the one table here that is NOT `@girs`-derived, with the argument for why in its header |
 | `src/number-literal.mjs` | one reading of a number's spelling: the parser refuses through it, both exits read through it |
 | `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
 
@@ -231,6 +232,49 @@ would drift.
     dotted form, the extern form asks for the GType by name, and the `extern` loss says the
     projection read nothing inside the object — never that the tag is unknown.
 
+15. **A `bind` has two output shapes and the source decides which — including by its
+    brackets.** `bind labelOne.label` is `<property … bind-source="labelOne"
+    bind-property="label"/>` and `bind (labelOne.label)` is a `<binding>` element wrapping a
+    `<lookup>`: the same lookup, two outputs, told apart by nothing but a parenthesis. The
+    collapsed form survives exactly ONE cast (`… as <string> as <string>` is the element form
+    again) and is the only form that may carry flags — `Only bindings with a single lookup can
+    have flags` is the oracle's own words for the same predicate. A cast between the identifier
+    and the dot moves the id out of the lookup's text and into a nested `<constant>`. A parser
+    that dropped parentheses as noise would emit the collapsed shape for a file the oracle
+    refuses, which is why `ParenExpression` is a node in `ast.d.mts` rather than a formatting
+    detail. `rules/42-expression-binding-shape.blp` is all seven shapes in one file.
+
+16. **The one table in here that is not `@girs`-derived, and the measurement that proves it
+    cannot be.** `as <string>` is `gchararray`, `as <int>` is `gint` — twelve keywords that
+    belong to Blueprint's grammar, not to any GIR, so nothing in `@girs` has a row to key them
+    by. That much is an argument; `as <double>` is the measurement. 0.20.4 writes **`gfloat`**
+    for it, exactly as for `as <float>`, so a table derived from GObject's fundamentals would
+    have said `gdouble` and been wrong on that row. `src/builtin-types.mjs` carries both the
+    table and that reasoning, and `rules/46-expression-cast-builtins.blp` holds the twelve
+    answers.
+
+17. **A second thing `@girs` does not ship, and it has the same owner as item 11.** The oracle
+    infers a type from a PROPERTY in two places: the middle of an uncast lookup chain
+    (`a.parent.name` is `<lookup name="name" type="GtkWidget">`, read off `GtkLabel.parent`)
+    and the return type of an uncast closure (`label: bind $f()` is
+    `<closure … type="gchararray">`, read off `GtkLabel.label`). The vocabulary has no
+    property-to-GType table — `OWN_PROPS` is a list of property NAMES and `PROP_ENUMS` joins
+    only the enum-typed ones — so neither can be derived, and clause 6 forbids writing one out
+    by hand. Both are refused by name and by line
+    (`refused/binding-lookup-chain.blp`, `refused/expression-closure-untyped.blp`), and the fix
+    is upstream in ts-for-gir beside item 11's. Every closure in the 273-file wild corpus writes
+    its cast; eight files in the reference implementation's `tests/samples` do not.
+
+18. **`item` emits nothing, which is exactly why it needs a check of its own.** It is the
+    implicit subject of a list-item expression, so `expr item as <Gtk.Entry>.visible` is
+    `<lookup name="visible" type="GtkEntry"></lookup>` with an empty body. An emitter that
+    simply skipped it therefore produced well-formed output for two files 0.20.4 rejects —
+    `item` inside a `bind` (`"item" can only be used in an expression literal`) and `item` as a
+    value rather than a lookup base (`"item" can only be used for looking up properties`). That
+    is the `accepted-past-oracle` bucket, never seen in the wild corpus before and unreachable
+    by any golden, because a golden exists only for a file both compilers accept.
+    `refused/expression-item-in-bind.blp` holds it.
+
 Most of these were found the same way: by asking a rule file that probed ONE shape of its
 construct what the other shapes looked like. A rule file that probes one case proves nothing
 about the others, and a construct nothing probes is one nothing prints either.
@@ -258,11 +302,11 @@ reviewer and not the corpus that found it.
 The enumeration is mechanical. Every attribute or text node `emit-xml.mjs` builds from a parsed
 IDENTIFIER is a candidate; `grep -n 'xml.startTag\|xml.selfClosing\|xml.text' src/emit-xml.mjs`
 lists all of them, and each one is then read off as "does GtkBuilder resolve this string as an
-object id". That gives seven, and every one is accounted for:
+object id". That gives eleven, and every one is accounted for:
 
 | site | written from | verdict |
 |---|---|---|
-| `bind-source` on a property | `value.source` | checked (`objectRef`) |
+| `bind-source` on a property | `simpleLookup(…).source` | checked (`objectRef`) |
 | a property value, resolver branch | `value.name` | checked |
 | `object` on a `<setter>` | the setter target | checked |
 | `object` on a `<signal>` | `signal.object` | checked |
@@ -271,6 +315,8 @@ object id". That gives seven, and every one is accounted for:
 | an `accessibility { }` entry | `extensionText` | unchecked, declared |
 | `id` on a `<response>` | `response.name` | NOT a reference — a response id is not an object id, and stays one even when an object of that id exists |
 | an item of a property array | `arrayItemText` | a reference the oracle resolves, that our parser never reaches — see below |
+| an identifier inside an expression | `identConstantText` | checked (`objectRef`), in both shapes it takes — a `<lookup>`'s text and a `<constant>` element |
+| `type` on a `<lookup>` | `expressionType` | NOT a reference — it is the GType NAME of the object the id names, read out of the same index, and a `<lookup type=…>` GtkBuilder cannot resolve is a type error and not a missing id. The id it was derived FROM is checked one row up, on the same node |
 
 The two unchecked ones are in `status/open-todos.md` with what each would take. The rule for
 anyone adding another: if the string is an id, it takes `objectRef`, and it gets a file under

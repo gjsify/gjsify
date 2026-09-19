@@ -6417,8 +6417,8 @@ calls `installBundledIconTheme()`.
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 53 corpus files
-(41 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 21
+2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 60 corpus files
+(48 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 25
 refused `.blp` files each name their construct and line. Those four numbers are held to the
 tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
 every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
@@ -6435,12 +6435,27 @@ nothing, so the projection names a new loss kind, `extern`, beside it. The 58 si
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
 
+**Expressions landed, and they are the largest construct family in the language.** `bind` and
+`expr` now take the whole grammar — lookup chains, casts, `$closure(…)` calls, `typeof<Type>`,
+`item`, `try { … }` and constants — and rule files 42-48 hold it, with four new `refused/`
+files beside them. Measured with `scripts/blueprint-wild-sweep.mjs` over the same nine pinned
+pools the 2026-09-16 report used: **263 of 273 wild files byte-equal (96.3%, was 259/94.9%),
+10 refused, 0 silently wrong**, and over the reference implementation's own `tests/samples`
+**58 of 95 byte-equal (was 45)**. No file that compiled before refuses now. What is still
+refused for an expression reason is ONE shape, and its owner is ts-for-gir: the oracle infers a
+type from a property's GType in two positions — the middle of an uncast lookup chain and an
+uncast closure's return type — and `@girs`'s vocabulary ships no property-to-GType table
+(`OWN_PROPS` is names, `PROP_ENUMS` only the enum-typed ones). That is the same gate as the
+namespace vocabulary one below, one table over; 8 files in `tests/samples` stop there and 0
+wild files do, because every closure in the wild corpus writes its cast.
+
 The flip is the part with a decision in it. `@gjsify/vite-plugin-blueprint` keeps its public
 interface and changes what it calls, and byte-equality on the corpus is evidence about the
 corpus: the parser accepts a documented SUBSET (clause 3), and a `.blp` outside it is a hard
 error rather than wrong output, so the flip has to say what a build does when a real file trips
-one. `expr`, `typeof`, an inline `menu` as a property value and a response flag in a `setters`
-block are the refusals that exist today, each with its own message.
+one. An inline `template`, `marks [ ]`, a response flag, `[internal-child]`, an inline `menu`
+as a property value and `mime-types [ ]` are the refusals that block a real file today, each
+with its own message.
 
 **And "outside the subset is a hard error, never wrong output" is a property to re-measure
 before the flip, not to assume.** It was untrue for `accessibility { }` until that rule file
@@ -6928,6 +6943,23 @@ here: it refuses the file, and we do not.
 
 Measured on `blueprint-compiler-0.20.4-1.fc44.noarch` against the parser at `@girs` 5.2.0. The
 sweep names both by path when they are in a pool, so a `refused/` file for each closes it.
+
+**And a THIRD kind lands in the same bucket, which is a decision rather than a gap — but nothing
+here said so with the oracle's own words.** ADR 0053 clause 4 keeps typelib VALIDATION with the
+compiler: "`Gtk.Box { spacinng: 4; }` parses cleanly into a prop nothing rejects until a ParamSpec
+lookup at runtime." Measured, the oracle does not wait for runtime — it answers `Class Gtk.Box does
+not have a property called spacinng`, and `Gtk.Label { label: 4; }` is `Cannot convert number to
+string`. Both emit here, and both did before expressions existed, so this is the shape of the
+carve-out and not a regression. Expressions add two more of it, decidable only with the same
+typelib: `bind $f() as <Gtk.Widget> as <string>` is `Invalid cast. No instance of Gtk.Widget can be
+an instance of string.` and `bind l.label as <Gtk.Widget>` is the same sentence the other way round
+— the second needs `GtkLabel.label`'s GType, the table `@girs` does not ship. A cast between a
+built-in and a class is categorical in both directions and could be refused from the file alone; a
+cast between two classes needs the ancestry, and one over a property needs the missing table. Half a
+validator would refuse nothing a real file writes and could refuse a legal downcast, so the whole of
+it stays where clause 4 put it. What is owed is a `refused/` file naming the class once the position
+changes, and a line in the flip's decision: a build that trips a type error gets it from the
+compiler, and the in-repo parser is not that reader.
 
 ### A `readdirSync` walk feeding `assert.deepEqual` can swap two correct findings (#1707)
 
