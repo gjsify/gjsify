@@ -25,6 +25,27 @@
 // ever carries one, this class takes it the same way the other one does.
 
 /**
+ * The sentence every out-of-subset refusal carries, and it is here because it is the same
+ * sentence at both exits.
+ *
+ * WHO READS THESE MESSAGES CHANGED. While this parser ran in shadow, every refusal was read by
+ * someone holding the corpus harness, so "`Value` in ast.d.mts has no menu member" was the most
+ * useful thing it could say. Since ADR 0053 clause 5 the reader is someone who installed a build
+ * plugin, has never seen `ast.d.mts`, and whose file compiled yesterday with the GNOME tool. The
+ * fact they need first is that the tool is no longer involved — otherwise the obvious next move
+ * is to reinstall it, which cannot help. The implementation reason for each refusal is still
+ * written down, as a comment beside the `throw` where it belongs.
+ *
+ * `corpus/refused/` and not a URL: it ships in the tarball (`files`), a fixture there is named
+ * after its construct, and `check-blueprint-corpus.mjs` fails if one is missing — so the pointer
+ * cannot rot into a 404 or a stale list.
+ */
+export const SUBSET_NOTE =
+    'This build parses Blueprint in process (`@gjsify/blueprint`) and never calls ' +
+    '`blueprint-compiler`, so a file the GNOME compiler accepts can still be refused here; ' +
+    "the package's `corpus/refused/` names every construct the subset does not hold.";
+
+/**
  * What the parser throws, and the only thing it throws.
  *
  * The location is repeated in `message` as well as carried in the fields: a caller that only

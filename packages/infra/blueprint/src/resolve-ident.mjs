@@ -201,7 +201,7 @@
 // right by accident inside `Gtk.Box` and wrong inside `Gtk.Label`.
 
 /** @import { SourceLocation } from './ast.d.mts' */
-import { BlueprintEmitError } from './errors.mjs';
+import { BlueprintEmitError, SUBSET_NOTE } from './errors.mjs';
 
 import * as ADW from '@girs/adw-1/vocabulary';
 import * as GTK from '@girs/gtk-4.0/vocabulary';
@@ -505,12 +505,16 @@ export function gtypeName(type, where, position) {
     const namespace = type.namespace ?? 'Gtk';
     const known = NAMESPACES.get(namespace);
     if (known === undefined) {
+        // The vocabulary comes from `@girs/…/vocabulary`, which ts-for-gir emits only for a
+        // namespace declaring a concrete GtkWidget descendant — so closing this is upstream, not
+        // here. That is for whoever maintains this file and not for the message: someone whose
+        // build just stopped needs the extern form, not the provenance.
         throw new BlueprintEmitError(
             `\`${namespace}.${type.name}\` names a namespace this resolver has no ` +
-                `vocabulary for (it has ${[...NAMESPACES.keys()].join(', ')}), so its GType name cannot be ` +
-                'derived — the C prefix is not the namespace name (`Gio.ListStore` is `GListStore`). ' +
-                `\`@girs/…/vocabulary\` is what carries it, and ts-for-gir emits that subpath only for ` +
-                'namespaces declaring a concrete GtkWidget descendant',
+                `vocabulary for (it has ${[...NAMESPACES.keys()].join(', ')}), so its GType name cannot ` +
+                'be derived: the C prefix is not the namespace name, and guessing it would emit a class ' +
+                'GtkBuilder resolves to nothing. Write the GType name out with the extern form instead — ' +
+                `\`Gio.ListStore\` is \`$GListStore\` — which needs no vocabulary. ${SUBSET_NOTE}`,
             where,
         );
     }

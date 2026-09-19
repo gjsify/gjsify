@@ -38,7 +38,7 @@
  *   TypeRef, Value } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES, BUILTIN_INTEGERS, BUILTIN_LITERAL_CLASS } from './builtin-types.mjs';
-import { BlueprintEmitError } from './errors.mjs';
+import { BlueprintEmitError, SUBSET_NOTE } from './errors.mjs';
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -565,8 +565,9 @@ function expressionType(expression, context) {
         `${describeExpression(expression)} is read for a property and its ` +
             'own type is not written in this file — deriving it needs the GType of a property, a table ' +
             '`@girs` does not ship (`OWN_PROPS` holds property NAMES, `PROP_ENUMS` only the enum-typed ' +
-            'ones), so the `type` of the lookup around it cannot be spelled. Write the cast the oracle ' +
-            'infers: `a.b as <Type>.c` rather than `a.b.c`',
+            'ones), so the `type` of the lookup around it cannot be spelled. Write the cast out — ' +
+            '`a.b as <Type>.c` rather than `a.b.c` — which names the same type `blueprint-compiler` ' +
+            `would have inferred. ${SUBSET_NOTE}`,
         at(context, expression.line),
     );
 }
@@ -633,8 +634,9 @@ function emitExpression(xml, node, imposed, context) {
                 `the closure \`$${node.name}(…)\` has no \`as <Type>\` and its ` +
                     'return type would have to be inferred from the GType of the property it is assigned to — ' +
                     'a table `@girs` does not ship. Write the cast: `bind $' +
-                    `${node.name}(…) as <Type>\`. The oracle asks for it too wherever it cannot infer one ` +
-                    '("Closure expression must be cast to the closure\'s return type")',
+                    `${node.name}(…) as <Type>\`. \`blueprint-compiler\` asks for the same cast wherever ` +
+                    'it cannot infer one ("Closure expression must be cast to the closure\'s return ' +
+                    `type"). ${SUBSET_NOTE}`,
                 at(context, node.line),
             );
         }

@@ -25,9 +25,13 @@ is a build error naming the construct, the file and the line — never a silent 
 that is plausible and wrong is discovered in a shipped program. Today that means an `[internal-child]`
 bracket, a file-level `translation-domain`, an inline `menu` as a property value, a response flag, a
 multi-step lookup chain with no cast (`bind a.b.c`), a closure with no `as <Type>`, and a type from a
-namespace `@girs` publishes no vocabulary for (`Gio`, `Gdk` and `GObject` today). The two error classes are
-`BlueprintSyntaxError` and `BlueprintEmitError` from `@gjsify/blueprint`, and both carry `file` and `line`
-as fields, so a tool wrapping this plugin does not have to read them out of a sentence.
+namespace `@girs` publishes no vocabulary for (`Gio`, `Gdk` and `GObject` today) — for that last one the
+extern form is the way through: `Gio.ListStore` is refused and `$GListStore` is not, because it writes the
+GType name out and needs no vocabulary. Every refusal names the construct, the file, the line and one thing
+to do next, and says that `blueprint-compiler` is not involved, so a file it accepts can still stop here.
+The two error classes are `BlueprintSyntaxError` and `BlueprintEmitError` from `@gjsify/blueprint`, and both
+carry `file` and `line` as fields, so a tool wrapping this plugin does not have to read them out of a
+sentence. The package ships `corpus/refused/`, one named fixture per refused construct.
 
 ## Usage
 
