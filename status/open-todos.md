@@ -6234,9 +6234,9 @@ decides the shape — an in-repo TypeScript parser whose output is `SharedNode`,
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
 2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 50 corpus files
 (38 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 19
-refusals each name their construct and line. Those four numbers are held to the tree by
-`check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every
-one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
+refused `.blp` files each name their construct and line. Those four numbers are held to the
+tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
+every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
 the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
