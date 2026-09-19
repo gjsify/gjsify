@@ -50,6 +50,8 @@ interface VocabularyModule {
         readonly namespace: string;
         readonly version: string;
         readonly libraryVersion: string | null;
+        /** Siblings a join in this vocabulary may reach into; `@girs` 5.3.0 and later. */
+        readonly requiredVocabularies: readonly string[];
     };
 }
 
@@ -140,6 +142,66 @@ function computeOmissions(declarations: ReadonlyMap<string, Declaration>): Map<s
         }
     }
     return omissions;
+}
+
+/**
+ * The vocabularies one package declares its rows reach into, read from the package itself.
+ *
+ * `@girs` 5.3.0 carries `PROVENANCE.requiredVocabularies` (ts-for-gir #476) and every namespace
+ * a UI file can name publishes a vocabulary, so this needs no list and no fallback: the pin in
+ * `package.json` is exact, and a `@girs` without the field cannot be installed beside one with it.
+ */
+async function requiredOf(root: string, pkg: string): Promise<readonly string[]> {
+    const runtime = (await import(`file://${root}/${pkg}/${pkg}-vocabulary.js`)) as VocabularyModule;
+    return runtime.PROVENANCE.requiredVocabularies;
+}
+
+/**
+ * One declaration for a base class a REQUIRED SIBLING describes rather than the widget
+ * vocabularies — the same shape the owned loop builds, from the same three maps.
+ *
+ * Its `bases` come from the sibling's own `DECLS`, so `GApplication extends GObject` survives the
+ * move; without that the restored interface would be flat and the chain would end one link early.
+ */
+function foreignDeclaration(
+    gtype: string,
+    ref: { namespace: string; name: string },
+    key: string,
+    runtime: VocabularyModule,
+    rendered: DeclaredInterface | undefined,
+): Declaration {
+    const props: PropMember[] = (runtime.OWN_PROPS[gtype] ?? []).flatMap((kebab) => {
+        const d = rendered?.props.get(kebab);
+        if (!d) return [];
+        return [
+            {
+                kebab,
+                camel: camelOf(kebab),
+                ts: d.ts,
+                doc: d.doc,
+                deprecated: d.deprecated,
+                since: d.since ?? runtime.SINCE[`${gtype}.${kebab}`],
+            },
+        ];
+    });
+    const signals: SignalMember[] = (runtime.OWN_SIGNALS[gtype] ?? []).map((signal) => ({
+        signal,
+        prop: eventPropOf(signal),
+        ts: `${ref.namespace}.${ref.name}.SignalSignatures['${signal}']`,
+        deprecated: false,
+        since: runtime.SINCE[`${gtype}::${signal}`],
+    }));
+    return {
+        key,
+        gtype,
+        since: runtime.SINCE[gtype],
+        kind: 'class',
+        iface: `${gtype}Props`,
+        bases: [],
+        props,
+        signals,
+        doc: rendered?.doc,
+    };
 }
 
 export interface VocabularySource {
@@ -362,6 +424,46 @@ export async function buildFromVocabulary(
         }
     }
 
+    // A BASE THAT LEFT THIS PACKAGE, AND THE MEASUREMENT THAT SAYS SO.
+    //
+    // `GtkApplication` extends `GApplication` and `GtkMountOperation` extends
+    // `GMountOperation`. Through `@girs` 5.2.0 both arrived free, because `gtk-4.0`'s
+    // vocabulary INLINED them — `PROVENANCE.inlinedBases` named `Gio.Application` and
+    // `Gio.MountOperation` for exactly that reason. ts-for-gir #476 gave every namespace a
+    // UI file can name its own vocabulary, so 5.3.0 stops inlining and the two classes are
+    // Gio's to describe. Regenerating across that bump without this pass emptied
+    // `GApplicationProps` (23 members) and `GMountOperationProps` (27), silently, in a
+    // 400 KB artefact where nothing else moved — a base that is still in the `extends`
+    // clause and carries nothing is the shape that compiles and means less.
+    //
+    // ASKED, NOT LISTED: `PROVENANCE.requiredVocabularies` is the vocabulary's own
+    // statement of which siblings its rows reach into, so the packages read here are the
+    // transitive closure of it and no second namespace list appears in this file. They are
+    // read for LOOKUP only — they declare no widget, contribute no GType prefix and add
+    // nothing to the model that the widget surface does not already REFERENCE — which is
+    // what keeps the artefact from growing by the whole of Gio.
+    const foreignOwned = new Map<string, { runtime: VocabularyModule; rendered?: DeclaredInterface }>();
+    const foreignNicks = new Map<string, readonly string[]>();
+    const seenRequired = new Set(sources.map((s) => `@girs/${s.pkg}/vocabulary`));
+    const pending: string[] = [];
+    for (const source of sources) pending.push(...(await requiredOf(root, source.pkg)));
+    while (pending.length > 0) {
+        const specifier = pending.shift() as string;
+        if (seenRequired.has(specifier)) continue;
+        seenRequired.add(specifier);
+        const pkg = specifier.replace(/^@girs\//, '').replace(/\/vocabulary$/, '');
+        const base = `${root}/${pkg}/${pkg}-vocabulary`;
+        const runtime = (await import(`file://${base}.js`)) as VocabularyModule;
+        const dts = read(`${base}.d.ts`);
+        const declared = readDeclaredInterfaces(dts);
+        for (const [ns, from] of readNamespaceImports(dts, pkg)) if (!importable.has(ns)) importable.set(ns, from);
+        for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) foreignNicks.set(gtype, nicks);
+        for (const gtype of new Set([...Object.keys(runtime.OWN_PROPS), ...Object.keys(runtime.OWN_SIGNALS)])) {
+            if (!foreignOwned.has(gtype)) foreignOwned.set(gtype, { runtime, rendered: declared.get(gtype) });
+        }
+        pending.push(...runtime.PROVENANCE.requiredVocabularies);
+    }
+
     // Report every mismatch together. The first one on its own never distinguishes
     // "one class was missed" from "a whole shape of declaration is unparsed", and that
     // is the only question worth asking here.
@@ -378,6 +480,11 @@ export async function buildFromVocabulary(
         const ref = splitGType(gtype, prefixes, byGType);
         const key = `${ref.namespace}.${ref.name}`;
         if (declarations.has(key)) continue;
+        const foreign = foreignOwned.get(gtype);
+        if (foreign) {
+            declarations.set(key, foreignDeclaration(gtype, ref, key, foreign.runtime, foreign.rendered));
+            continue;
+        }
         declarations.set(key, {
             key,
             gtype,
@@ -414,6 +521,22 @@ export async function buildFromVocabulary(
     // qualified name is a namespace, so `(?<![\w.])` is what makes the refusal safe. The
     // typelib lookup in `splitGType` is why nothing trips this today; this is what says so
     // the next time a vocabulary widens.
+    // A restored base's rendered type names `<GType>Nick`, and that union is emitted from
+    // `enumNicks` — so `GMountOperation.password-save` is `GPasswordSaveNick | Gio.PasswordSave`
+    // and compiles only where `GPasswordSave` reached the table. Taken one enum at a time,
+    // by name, rather than by merging a sibling's whole nick list: Gio alone would add a
+    // hundred unions nothing in this surface references.
+    for (const declaration of declarations.values()) {
+        for (const member of declaration.props) {
+            for (const m of member.ts.matchAll(/(?<![\w.])([A-Z][A-Za-z0-9]*)Nick\b/g)) {
+                const enumType = m[1] as string;
+                if (enumNicks.has(enumType)) continue;
+                const nicks = foreignNicks.get(enumType);
+                if (nicks) enumNicks.set(enumType, nicks);
+            }
+        }
+    }
+
     const packages: Record<string, string> = Object.fromEntries(sources.map((s) => [s.prefix, `@girs/${s.pkg}`]));
     const unimportable = new Map<string, string>();
     for (const declaration of declarations.values()) {
