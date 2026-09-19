@@ -24,12 +24,23 @@
 //               a count when the entry was written, so a line added to a dated document — which
 //               is not itself dated — has to be re-justified. A whole-file skip made exactly
 //               that invisible.
-//   DATED     — `DATED_LINES`: one line inside a LIVE file whose number is an incident, a delta
-//               or a quotation rather than a claim about this tree.
+//   DATED     — `DATED_LINES`: one line inside a LIVE file whose number is an incident or a
+//               quotation rather than a claim about any tree.
+//   HISTORY   — `HISTORICAL_LINES`: one line recording what an EVENT made true — "#1694 took the
+//               corpus to 47". Not live and not a dated measurement: its anchor is a merged PR,
+//               not a revision someone measured at. The entry is written by hand AND the line
+//               must NAME the event, so it cannot wave through an unanchored number. Counted
+//               apart in the summary for the same reason reports are.
 //   ELSEWHERE — `OTHER_SUBJECT`: one line that matches the nouns while counting something else.
 //   OWNED     — `OWNED_ELSEWHERE`: a file another gate holds to a stricter contract. The entry
 //               names that script, fails when it leaves the tree, and is counted SEPARATELY in
 //               the summary rather than inside the scanned total.
+//   REPORT    — a file under `docs/reports/` whose PREAMBLE anchors it to a base commit. Its
+//               numbers were true of the tree it measured and keeping them current would
+//               falsify it. The anchor is the condition, not the directory: a report with no
+//               base commit is undated prose and is gated like anything else. Counted apart,
+//               with the number of counts it leaves unread, because coverage this gate does
+//               not have is a fact about the gate.
 //
 // Both ledgers hold the line's exact text, so editing or deleting the line retires the entry
 // instead of silently widening it, and an entry that matches nothing is itself a failure.
@@ -56,9 +67,10 @@
 // is decided by a NUL byte in the bytes, with nothing in front of it. Gitlinks are dropped by
 // mode: the five reference pools under `refs/` are other people's repositories. Two kinds of
 // file are then NOT scanned here, and the summary names each rather than folding it into the
-// total — files that are not text, and the one handed to `check-blueprint-census.mjs`, which
-// reads it through the same vocabulary this file does. A "swept" number that includes files
-// nothing was looked for in is the same lie as a green that checked nothing.
+// total — files that are not text, dated reports (with the count of what goes unread in them),
+// and the one handed to `check-blueprint-census.mjs`, which reads it through the same
+// vocabulary this file does. A "swept" number that includes files nothing was looked for in is
+// the same lie as a green that checked nothing.
 //
 // WHERE A CLAIM IS FOUND, and in which spellings, is `blueprint-count-claims.mjs` — shared with
 // `check-blueprint-census.mjs`, because the seam between two gates with two vocabularies over
@@ -119,6 +131,22 @@ const MEASURE = {
     goldens: (tree) => tree.lsFiles(`${CORPUS}/*/*.ui`).length,
     refusals: (tree) => tree.lsFiles(`${CORPUS}/refused/*.blp`).length,
 };
+
+/**
+ * A REPORT is a measurement, and keeping its numbers current would falsify it: an event date
+ * must be right, a measurement date must not move. But the directory does not make it one — a
+ * file under `docs/reports/` that states no base commit is undated prose wearing a
+ * measurement's clothes, and it is gated like anything else. The ANCHOR is the condition, and
+ * it has to be in the preamble where a reader meets it, not buried on line four hundred.
+ *
+ * Accepted: "Measured at `<sha>`", "read at `<sha>`", "re-measured against `<sha>`", seven to
+ * forty hex digits, within the first twenty lines. `docs/reports/2026-09-16-blueprint-subset-
+ * gap.md` opens with exactly that and states the corpus size six times; without this rule its
+ * arrival turns the gate red on a document that is right about the tree it measured.
+ */
+const REPORT = /^docs\/reports\//;
+const REPORT_ANCHOR = /\b(?:measured|read|re-measured)\s+(?:at|against)\s+`?[0-9a-f]{7,40}`?/i;
+const isDatedReport = (file, text) => REPORT.test(file) && REPORT_ANCHOR.test(text.split('\n').slice(0, 20).join('\n'));
 
 /** This script. Its ledger quotations are skipped line by line — see the header for why. */
 const SELF = 'scripts/check-blueprint-corpus-counts.mjs';
@@ -205,6 +233,28 @@ const DATED_LINES = [
         file: '.github/workflows/main.yml',
         text: '# were stale one rule file later. Stage A (complete corpus, valid expectations, no',
         why: 'the incident again, in the job comment that explains why `tree-checks` runs these at all',
+    },
+];
+
+/**
+ * A HISTORICAL RECORD: what an EVENT made true, not what the tree holds. "#1694 took the corpus
+ * to 47" is neither a live claim nor a dated measurement — re-deriving it from today's tree
+ * would turn a record into a fiction, and anchoring it to a base commit would be wrong too,
+ * because its anchor is a merged PR and not a revision anyone measured at.
+ *
+ * Two conditions, and it needs both. A human writes the entry, so nothing is excused by
+ * accident; AND the line must NAME its event — a `#NNNN` or a commit sha — so the entry cannot
+ * be used to wave through a number with no anchor at all. A tense test was considered and
+ * refused: "took" against "holds" is right until somebody writes "the corpus holds 47 since
+ * #1694", and a rule that fails on the first sentence that mixes the two is not a rule.
+ */
+const EVENT_REF = /#\d{2,5}\b|\b[0-9a-f]{7,40}\b/;
+
+const HISTORICAL_LINES = [
+    {
+        file: 'status/open-todos.md',
+        text: '#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did',
+        why: 'what #1694 took the corpus to, named on the line; the totals now are measured a paragraph above',
     },
 ];
 
@@ -309,6 +359,8 @@ async function main() {
     const snapshotClaims = new Map();
     const scanned = [];
     const notText = [];
+    const reports = [];
+    let historical = 0;
 
     // Quotations of OTHER files' lines, blanked out of this file before it is scanned. Not
     // `line.includes(quoted)`: that skipped the whole line, so a live count appended to a
@@ -317,7 +369,7 @@ async function main() {
     // count APPENDED to a declaration line is read like any other, and only the quoted bytes
     // are silent. This file therefore states no count of its own — its header writes the
     // incident without digits rather than earning an exemption for it.
-    const quotations = [...DATED_LINES, ...OTHER_SUBJECT].map((entry) => entry.text);
+    const quotations = [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT].map((entry) => entry.text);
     const mask = (text) => quotations.reduce((out, quoted) => out.split(quoted).join(' '.repeat(quoted.length)), text);
 
     for (const file of tree.files) {
@@ -335,6 +387,13 @@ async function main() {
         }
 
         const claims = findClaims(file === SELF ? mask(text) : text, looseRegions(file, text));
+        // Counted apart from `scanned`, and with the number of counts it leaves unread, because
+        // coverage this gate does not have is a fact about the gate. Folding it into the scanned
+        // total would repeat the mistake the header made once already.
+        if (isDatedReport(file, text)) {
+            reports.push({ file, unread: claims.length });
+            continue;
+        }
         scanned.push(file);
         const lines = text.split('\n');
         const snapshot = SNAPSHOTS.find((entry) => entry.file === file);
@@ -347,11 +406,12 @@ async function main() {
         const site = SITES.find((entry) => entry.file === file);
         for (const claim of claims) {
             const trimmed = lines[claim.line].trim();
-            const ledgered = [...DATED_LINES, ...OTHER_SUBJECT].find(
+            const ledgered = [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT].find(
                 (entry) => entry.file === file && entry.text === trimmed,
             );
             if (ledgered) {
                 usedLedger.add(`line\u0000${file}\u0000${ledgered.text}`);
+                if (HISTORICAL_LINES.includes(ledgered)) historical += 1;
                 continue;
             }
             if (!site) {
@@ -400,7 +460,16 @@ async function main() {
         }
     }
 
-    for (const entry of [...DATED_LINES, ...OTHER_SUBJECT]) {
+    for (const entry of HISTORICAL_LINES) {
+        if (!EVENT_REF.test(entry.text)) {
+            problems.push(
+                `a HISTORICAL entry for ${entry.file} names no event on the line it records — a record of\n` +
+                    '    what a PR made true has to say which PR, or it is an ungated number with a ledger\n' +
+                    `    entry in front of it:\n      ${entry.text}`,
+            );
+        }
+    }
+    for (const entry of [...DATED_LINES, ...HISTORICAL_LINES, ...OTHER_SUBJECT]) {
         if (!usedLedger.has(`line\u0000${entry.file}\u0000${entry.text}`)) {
             problems.push(
                 `a ledger entry for ${entry.file} matches no line any more — re-justify it or remove it:\n` +
@@ -462,8 +531,11 @@ async function main() {
     // Every number here is what it says: `scanned` counts files a claim was actually looked for
     // in, and the two others are named rather than folded into it. A "swept" total that counts
     // files nothing was looked for in is the same lie as a green that checked nothing.
+    const unread = reports.reduce((n, report) => n + report.unread, 0);
     console.log(
         `check-blueprint-corpus-counts: ${scanned.length} file(s) scanned, ${notText.length} not text, ` +
+            `${reports.length} dated report(s) holding ${unread} unread count(s), ` +
+            `${historical} historical count(s), ` +
             `${OWNED_ELSEWHERE.length} handed to ${OWNED_ELSEWHERE.map((entry) => entry.by).join(', ')}; ` +
             `every stated count is the tree's — ${summary}.`,
     );

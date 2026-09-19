@@ -6241,8 +6241,10 @@ the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
-and a template parent — and the corpus grew rule files 32-35 for it. What the corpus holds now
-is measured above rather than restated here. Two things it does NOT do: it converts no
+and a template parent — and the corpus grew rule files 32-35 for it:
+#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did
+and is not a claim about this tree — what the corpus holds NOW is measured a paragraph above
+and held to the tree there. Two things `$extern` does NOT do: it converts no
 consumer, and it does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
