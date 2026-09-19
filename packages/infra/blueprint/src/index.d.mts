@@ -10,6 +10,12 @@
  * `ast.d.mts` carries the AST and nothing about what it MEANS. The seams below are the other
  * half: what a bare identifier means, which element an ARIA entry becomes, what GType name a
  * type spells. That split is deliberate and stated there — do not move the seams into it.
+ *
+ * EVERY type the AST can hold is re-exported, including the nine expression nodes, and that is
+ * not tidiness. A consumer narrowing a `Value` or an `Expression` has to be able to NAME the
+ * arm it handles; one missing re-export and it writes the arm as a structural literal that
+ * stops matching the day the node grows a field. When a node is added to `ast.d.mts` it is
+ * added here in the same change.
  */
 
 import type { BlueprintFile, TypeRef } from './ast.mjs';
@@ -19,11 +25,18 @@ export type {
     BlueprintFile,
     BlueprintImport,
     BoolValue,
+    CastExpression,
     Child,
+    ClosureExpression,
+    Expression,
     Extension,
     ExtensionEntry,
+    IdentExpression,
     IdentValue,
+    ItemExpression,
     ListValue,
+    LiteralExpression,
+    LookupExpression,
     MenuAttribute,
     MenuItem,
     MenuNode,
@@ -31,12 +44,16 @@ export type {
     ObjectBody,
     ObjectNode,
     ObjectValue,
+    ParenExpression,
     Property,
     Signal,
     StringValue,
     TemplateNode,
     TopLevel,
+    TryExpression,
+    TypeExpression,
     TypeRef,
+    TypeValue,
     Value,
 } from './ast.mjs';
 
