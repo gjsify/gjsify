@@ -23,10 +23,17 @@
 //      and assertion 1 passed for some other reason.
 //
 // ONE SKIP condition, and it is no longer the toolchain. Until ADR 0053 clause 5's flip this
-// suite also skipped where `blueprint-compiler` was absent, which is every macOS and Windows
-// runner — so the OS legs reported nothing about the one feature this file exists for. The build
-// parses in process now, so the only thing left that can make this suite unable to run is a
-// missing CLI to run it with.
+// suite also skipped where `blueprint-compiler` was absent — which on CI was nowhere: the `e2e`
+// job was the only place it ran and the ci-fedora image bakes the compiler in, so that arm only
+// ever fired for a developer without it locally. What DID leave macOS and Windows unmeasured is
+// simpler and was easy to mistake for the guard: neither workflow ran this suite at all.
+//
+// Both do now (`macos-suites.yml`, `windows-suites.yml`), and that is the coverage the flip makes
+// possible rather than a tidy-up: the transform stopped being a spawned process, so the two
+// runners that could never host `blueprint-compiler` can host the transform — and win32 is where
+// path handling moved out of another process and into ours.
+//
+// The only skip left is a missing CLI to run it with.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';

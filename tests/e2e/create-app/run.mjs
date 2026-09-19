@@ -84,11 +84,16 @@ function packageNameOf(registerPath) {
 }
 
 // The three `.blp` templates used to be skipped where `blueprint-compiler` was
-// absent, which is every macOS and Windows runner — so the OS legs scaffolded,
-// type-checked and launched six templates and said nothing about the three that
-// carry a widget tree. ADR 0053 clause 5's flip parses in process, so there is
-// nothing left to be absent and the skip is gone rather than re-pointed. If one
-// of them stops building on an OS, that OS now says so.
+// absent. On CI that arm never fired — this suite runs in the `e2e` job alone,
+// on the ci-fedora image that bakes the compiler in — so what it guarded was a
+// developer without it locally, who then checked six of the nine templates and
+// was told nothing. ADR 0053 clause 5's flip parses in process, so there is
+// nothing left to be absent and the skip is gone rather than re-pointed.
+//
+// This suite is STILL Fedora-only and the deletion does not change that:
+// scaffolding nine templates and npm-installing each is a budget the macOS and
+// Windows workflows do not have. `tests/e2e/library-blueprint` is the one that
+// went to those legs, and it drives the same transform.
 
 /**
  * How each template is STARTED and what proves it came up.
