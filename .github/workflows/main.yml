@@ -483,6 +483,16 @@ jobs:
       - name: Check ADR 0053's census against the tree
         run: su testuser -c 'node scripts/check-blueprint-census.mjs'
 
+      # The same class one file over. The corpus sizes are restated in prose in several
+      # places — `status/open-todos.md`, the package README, the manifest's own header —
+      # and nothing held them to the tree, so #1698 corrected them and #1700 made every one
+      # of them wrong again within hours. This sweeps the tree for a stated count and holds
+      # each to the listing it describes; a dated measurement keeps its number and says so in
+      # a ledger. Here for the census gate's reason: no classifier gate, so the docs-only PR
+      # that edits these sentences runs it. As `testuser`, because it reads `git ls-files`.
+      - name: Check every stated Blueprint corpus count
+        run: su testuser -c 'node scripts/check-blueprint-corpus-counts.mjs'
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

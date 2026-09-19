@@ -37,11 +37,17 @@ const HEADING = /^### What the [\w-]+ `\.blp` files actually use$/;
 const TABLE_HEADER = '| Blueprint | count | `SharedNode` | GIR-derived? |';
 
 /**
- * A count of real `.blp` files asserted in prose. Outside the emitted block such a claim is
- * ungated and free to rot — which is exactly how this ADR failed before: the table was
- * fixed and the paragraph under it went on asserting "twelve real" where nothing looked.
+ * A corpus count asserted in prose. Outside the emitted block such a claim is ungated and free
+ * to rot — which is exactly how this ADR failed before: the table was fixed and the paragraph
+ * under it went on asserting "twelve real" where nothing looked.
+ *
+ * The goldens, rule files and refusals joined the `.blp` counts here after one of each was
+ * found still sitting outside the block ("38 goldens, 37 byte-equal"), untouched by a gate
+ * whose header claimed it refused counts stated elsewhere in this ADR. A claim narrower than
+ * its own description is the shape of a check that reports success without checking.
  */
-const COUNT_CLAIM = /\b(?:eleven|twelve|thirteen|fourteen|\d+)\s+(?:real\s+)?(?:`?\.blp`?|real files)/i;
+const COUNT_CLAIM =
+    /\b(?:eleven|twelve|thirteen|fourteen|\d+)\s+(?:real\s+)?(?:`?\.blp`?|real files|goldens?|rule files?|refusals?|corpus files?|reality probes?)/i;
 
 /**
  * The census section as the ADR carries it, located by its heading and taken to the length
@@ -111,7 +117,7 @@ function main() {
 
     if (ungated.length > 0) {
         console.error(
-            `check-blueprint-census: ${ungated.length} \`.blp\` count(s) stated outside the emitted block,\n` +
+            `check-blueprint-census: ${ungated.length} corpus count(s) stated outside the emitted block,\n` +
                 '  where nothing checks them — the failure this gate exists to end, one paragraph down.\n' +
                 '  Say it without the number and point at the census, or move the sentence into the block.\n',
         );
