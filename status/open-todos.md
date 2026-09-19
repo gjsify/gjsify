@@ -4,6 +4,35 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A red that is a superseded state reads exactly like a real red, and it cost two diagnoses
+
+`commitlint.yml` triggers on `edited` so that the PR title and body are checked at all, and the
+price is that every edit of a description starts another run ON THE SAME COMMIT. A check run does
+not age out — it is attached to the SHA — and the rollup takes the WORST entry per context rather
+than the latest: measured on fc14d85a99, `Lint commit messages` carries two SUCCESS and one
+FAILURE and `statusCheckRollup.state` is FAILURE. That context is one of the three that block a
+merge, so the PR stays BLOCKED on a verdict about a string nobody can read any more.
+
+On 2026-09-19 that happened twice inside an hour. #1704 ended with four runs on 4db0edf92e, all
+created inside fifteen seconds: three red from superseded body states, one green from the current
+one, and the only exit was re-running the three by hand. #1703 had the same shape an hour earlier
+and an agent was nearly dispatched to debug a failure that no longer existed. Nothing in the
+rollup distinguishes the two cases — a superseded red and a live red are the same red — so the
+cost is paid by whoever reads it, every time, and it is paid in diagnosis rather than in CI
+minutes.
+
+Now closed at the source: a superseded run ends GREEN naming its successor
+(`scripts/decide-commitlint-verdict.mjs`), and a run that had already concluded when the text
+moved is restarted (`scripts/rerun-superseded-commitlint.mjs`). Cancelling was measured and
+rejected — on 934319ead0 a commit whose only `Lint commit messages` entries are CANCELLED rolls
+up FAILURE just the same, so a `concurrency` group renames the red instead of removing it.
+
+WHAT IS STILL OPEN is the shape rather than this instance: `commitlint.yml` is the only workflow
+whose verdict depends on something OTHER than the commit, so it is the only one where a stale
+conclusion cannot be pushed off the head SHA. Any future check that reads the PR description, a
+label or a review will inherit the same defect, and nothing enumerates that class — the rule
+lives in one workflow's comments, not in a gate.
+
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 
 The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
