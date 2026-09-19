@@ -195,9 +195,13 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
       heading: _("Delete Project?");
       body: _("This will permanently remove the project and all of its files. This action cannot be undone.");
 
+      // `delete` is the destructive one. A response FLAG (`destructive`, `suggested`,
+      // `disabled`) is outside the subset `@gjsify/blueprint` holds, so gjsify refuses
+      // this file rather than build it — set the appearance from code instead, the way
+      // the GJS tab does with `set_response_appearance`.
       responses [
         cancel: _("Cancel"),
-        delete: _("Delete") destructive,
+        delete: _("Delete"),
       ]
 
       default-response: "cancel";

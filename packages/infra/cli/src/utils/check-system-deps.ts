@@ -16,9 +16,6 @@ import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-// The zero-dependency subpath, deliberately: importing the plugin root would
-// pull vite/execa/minify-xml into a system CHECK.
-import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { findSystemTypelib } from './gi-typelib.js';
 
@@ -464,7 +461,7 @@ function computeNeededOptionalDeps(cwd: string): Set<string> | null {
  * Run all dependency checks. Used by `gjsify check` to show full system status.
  *
  * Required deps (gjs, gtk4, libsoup3, libadwaita, gobject-introspection,
- * blueprint-compiler, pkg-config, meson) are always checked.
+ * pkg-config, meson) are always checked.
  *
  * Optional deps are checked conditionally based on which @gjsify/* packages
  * the project (resolved from cwd) actually consumes. If no project context
@@ -540,33 +537,6 @@ export function runMinimalChecks(): DepCheck[] {
     return results;
 }
 
-/**
- * Is a blueprint-compiler reachable, by the SAME rule the build uses?
- *
- * Delegates to `@gjsify/vite-plugin-blueprint/resolve` rather than probing PATH
- * here, because the two answers must not be able to disagree: on win32 the
- * compiler is normally an MSYS2 script that is deliberately NOT on PATH, so a
- * PATH-only check would report "missing" on a host where every `.blp` builds
- * fine — a check failing for the wrong reason, which is the failure mode this
- * file's own history is made of.
- *
- * `--version` is not run. MSYS2 ships blueprint-compiler as a shebang script
- * with no `.exe`, so `checkBinary` cannot execute it on Windows; presence of the
- * resolved pair is the honest answer, and the `source` is worth reporting
- * because "found via msys2" explains an install PATH does not show.
- */
-export function checkBlueprintCompiler(requiredBy?: string[]): DepCheck {
-    const resolved = resolveBlueprintCompiler();
-    return {
-        id: 'blueprint-compiler',
-        name: 'blueprint-compiler (.blp templates)',
-        found: resolved !== null,
-        version: resolved ? `found via ${resolved.source}` : undefined,
-        severity: 'optional',
-        requiredBy,
-    };
-}
-
 /** Check gwebgl npm package (project first, CLI fallback). Optional — only needed by @gjsify/webgl users. */
 export function checkGwebgl(cwd: string): DepCheck {
     return checkNpmPackage('gwebgl', 'gwebgl (@gjsify/webgl)', '@gjsify/webgl', cwd, 'optional', ['@gjsify/webgl']);
@@ -574,22 +544,14 @@ export function checkGwebgl(cwd: string): DepCheck {
 
 /**
  * Required system dependencies — always checked, missing → exit 1.
- * Includes the core build toolchain (pkg-config, meson, blueprint-compiler)
- * and the foundational libraries (gtk4, libadwaita, libsoup3,
- * gobject-introspection) that nearly every gjsify app needs.
+ * Includes the core build toolchain (pkg-config, meson) and the foundational
+ * libraries (gtk4, libadwaita, libsoup3, gobject-introspection) that nearly
+ * every gjsify app needs.
  */
 function runRequiredChecks(_cwd: string): DepCheck[] {
     const results: DepCheck[] = [];
 
-    // Build toolchain. NO blueprint-compiler here: it is checked by
-    // `checkBlueprintCompiler()` among the build toolchain below, through the
-    // SAME resolver the build uses. A second `checkBinary` probe lived here and
-    // was wrong twice over — it reported a PATH miss on win32, where the
-    // compiler is normally an MSYS2 script deliberately off PATH (the exact case
-    // that function's comment exists to explain), and it made `system-check`
-    // exit 1 on any host without it, `.blp` files in the project or not. It also
-    // printed a second entry under a second display name and put
-    // `blueprint-compiler` into the install hint twice.
+    // Build toolchain.
     results.push(checkBinary('pkg-config', 'pkg-config', 'pkg-config', ['--version'], 'required'));
     results.push(checkBinary('meson', 'Meson', 'meson', ['--version'], 'required'));
 
@@ -644,14 +606,13 @@ function runNativeBuildToolchainChecks(): DepCheck[] {
     // crate by Cargo path-dependency need a Rust toolchain.
     const rustBridges = ['@gjsify/lightningcss-native', '@gjsify/oxfmt-native', '@gjsify/rolldown-native'];
 
-    // Every showcase/app whose window comes from a `.blp` template. NOT a Vala
-    // bridge and nothing to do with meson — it is a BUILD-time toolchain in the
-    // same sense, and it belongs here so `gjsify system-check` names it before a
-    // build does.
-    const blueprintConsumers = ['@gjsify/vite-plugin-blueprint'];
+    // NO blueprint-compiler row, and it is a deletion rather than an omission: ADR 0053 clause 5
+    // moved the `.blp` transform into `@gjsify/blueprint`, so a `.blp` template asks nothing of
+    // this host any more. A row for it would be this command asking for a toolchain the build
+    // cannot use — the exact "check failing for the wrong reason" its own history is made of.
+    // ADR 0063 is the deletion and what the compiler is still FOR.
 
     return [
-        checkBlueprintCompiler(blueprintConsumers),
         checkBinary('ninja', 'Ninja', 'ninja', ['--version'], 'optional', undefined, valaBridges),
         checkBinary(
             'vala',
@@ -714,7 +675,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     apt: {
         nodejs: 'nodejs',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
         meson: 'meson',
         ninja: 'ninja-build',
@@ -740,7 +700,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     dnf: {
         nodejs: 'nodejs',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf-pkg-config',
         meson: 'meson',
         ninja: 'ninja-build',
@@ -766,7 +725,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     pacman: {
         nodejs: 'nodejs',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
         meson: 'meson',
         ninja: 'ninja',
@@ -792,7 +750,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     zypper: {
         nodejs: 'nodejs',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
         meson: 'meson',
         ninja: 'ninja',
@@ -818,7 +775,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     apk: {
         nodejs: 'nodejs',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
         meson: 'meson',
         ninja: 'ninja',
@@ -866,7 +822,6 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     brew: {
         nodejs: 'node',
         gjs: 'gjs',
-        'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
         meson: 'meson',
         ninja: 'ninja',
@@ -924,25 +879,10 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
     const pkgMap = PM_PACKAGES[pm];
     const pkgs: string[] = [];
     const npmDeps: string[] = [];
-    const standalone: string[] = [];
 
     for (const dep of missing) {
         if (dep.id === 'gwebgl') {
             npmDeps.push('@gjsify/webgl');
-            continue;
-        }
-        // blueprint-compiler on Windows is the one dep whose install command is
-        // not this host's package manager. winget has no package for it, and it
-        // cannot get one that works: the tool needs PyGObject, which publishes
-        // no Windows wheel, so MSYS2 — which ships Python, PyGObject and the
-        // typelibs already fitted together — is the only source. Its command is
-        // not `winget install`-shaped, so it cannot live in PM_PACKAGES without
-        // producing a line that looks right and fails.
-        if (dep.id === 'blueprint-compiler' && process.platform === 'win32') {
-            standalone.push(
-                'pacman -S mingw-w64-ucrt-x86_64-blueprint-compiler mingw-w64-ucrt-x86_64-gtk4 ' +
-                    'mingw-w64-ucrt-x86_64-libadwaita   # inside MSYS2; found automatically afterwards',
-            );
             continue;
         }
         // No `continue` for `nodejs`. It USED to be unmissable — the row was the
@@ -965,7 +905,6 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
     if (npmDeps.length > 0) {
         lines.push(`npm install ${npmDeps.join(' ')}`);
     }
-    lines.push(...standalone);
 
     return lines.length > 0 ? lines.join('\n  ') : null;
 }

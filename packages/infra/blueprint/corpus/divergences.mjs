@@ -8,11 +8,11 @@
 // divergence, and it becomes authoritative when it reports none. As of `@girs` 5.2.0 it
 // reports none: this list is empty and every corpus file stage C reads is byte-equal. How many
 // that is the harness prints; the copy that used to sit in this sentence went stale. That is
-// the condition
-// clause 5 names and not the change it calls for — clause 5 still reads SHADOW, clause 7's
-// demotion of `blueprint-compiler` to oracle-only is still a plan, and both are edits of
-// their own rather than a consequence of this file emptying. What an empty list is worth is
-// the subject of the third section below, and it is worth reading before acting on it.
+// the condition clause 5 names and not the change it calls for: both edits have since been made,
+// each on its own — #1712 took the build off `blueprint-compiler` (ADR 0053 Amendment 3), and ADR
+// 0063 deleted what was left looking for it. Neither followed from this file emptying; the empty
+// list was the precondition both were allowed to wait for. What an empty list is worth is the
+// subject of the third section below, and it is worth reading before acting on it.
 //
 // WHAT USED TO BE HERE
 //

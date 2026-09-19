@@ -10,10 +10,8 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import type { DepCheck } from './check-system-deps.js';
-import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
 import {
     buildInstallCommand,
-    checkBlueprintCompiler,
     checkTypeSkew,
     missingSystemDepsFor,
     OPTIONAL_DEPS,
@@ -102,67 +100,27 @@ export default async () => {
             expect(undeclared.join(', ')).toBe('');
         });
 
-        await it('every package manager can spell blueprint-compiler', async () => {
-            // A `.blp` build that could not find the compiler rethrew execa's error,
-            // which names the failed command and nothing to install; on the
-            // win11-gjsify VM that was read as "blueprint-compiler is a GNOME Python
-            // tool, unavailable on Windows" — wrong, and it reached a docs file. It is
-            // pure Python and MSYS2 ships it prebuilt; only PyGObject (no Windows
-            // wheel) makes plain pip impossible.
-            const missing: DepCheck[] = [
-                { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
-            ];
-            const silent: string[] = [];
-            for (const pm of ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'] as const) {
-                if (!buildInstallCommand(pm, missing)) silent.push(pm);
-            }
-            expect(silent.join(', ')).toBe('');
-        });
-
-        await it('the win32 blueprint hint is MSYS2, never a winget package', async () => {
-            // winget has no blueprint-compiler, so the hint must not be `winget
-            // install`-shaped: putting it in the PM_PACKAGES table would print a line
-            // that looks right and installs nothing.
-            if (process.platform !== 'win32') return;
-            const missing: DepCheck[] = [
-                { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
-            ];
-            const hint = buildInstallCommand('winget', missing) ?? '';
-            expect(hint.includes('mingw-w64-ucrt-x86_64-blueprint-compiler')).toBe(true);
-            expect(hint.includes('winget install')).toBe(false);
-        });
-
         await it('never names one system package twice', async () => {
             // The command is copy-pasted, so a repeat is a defect in the thing the
             // user runs. Measured on postmarketOS: `sudo apk add blueprint-compiler
             // libadwaita-dev nodejs blueprint-compiler …`, because blueprint was
-            // checked twice under one id. The duplicate check is gone; the dedup
-            // stays, so the next pair of checks mapping to one package cannot
-            // reintroduce it.
+            // checked twice under one id. Both blueprint checks are gone (ADR 0063);
+            // the dedup stays, so the next pair of checks mapping to one package
+            // cannot reintroduce it, and the case is driven by ids that still exist.
             //
-            // Off win32: there blueprint takes the MSYS2 `standalone` branch, which
-            // is a different code path with its own test above.
-            if (process.platform === 'win32') return;
+            // No platform guard any more: the dep that used to take a win32-only
+            // `standalone` branch out of this function was the blueprint one, so the
+            // table is now the whole answer on every host and this runs on all of them.
             const missing: DepCheck[] = [
                 { id: 'libadwaita', name: 'libadwaita', found: false, severity: 'required' },
-                { id: 'blueprint-compiler', name: 'a', found: false, severity: 'optional' },
-                { id: 'blueprint-compiler', name: 'b', found: false, severity: 'optional' },
+                { id: 'ninja', name: 'a', found: false, severity: 'optional' },
+                { id: 'ninja', name: 'b', found: false, severity: 'optional' },
             ];
             for (const pm of ['apk', 'apt', 'dnf', 'pacman', 'zypper', 'brew'] as const) {
                 const hint = buildInstallCommand(pm, missing) ?? '';
                 const words = hint.split(/\s+/).filter(Boolean);
                 expect(words.length).toBe(new Set(words).size);
             }
-        });
-
-        await it('the blueprint check agrees with the resolver the BUILD uses', async () => {
-            // On win32 the compiler is normally an MSYS2 script deliberately kept OFF
-            // PATH, so a PATH-only check would report "missing" on a host where every
-            // `.blp` builds.
-            const check = checkBlueprintCompiler(['@gjsify/vite-plugin-blueprint']);
-            expect(check.id).toBe('blueprint-compiler');
-            expect(check.severity).toBe('optional');
-            expect(check.found).toBe(resolveBlueprintCompiler() !== null);
         });
     });
 

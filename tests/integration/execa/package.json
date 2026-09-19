@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-execa",
-    "description": "Integration tests: execa on GJS and Node. Validates @gjsify/child_process (spawn/exec), @gjsify/stream (stdout/stderr pipes), @gjsify/events (EventEmitter) — the same code paths used by @gjsify/vite-plugin-blueprint and @gjsify/vite-plugin-gettext to invoke blueprint-compiler / xgettext / msgfmt.",
+    "description": "Integration tests: execa on GJS and Node. Validates @gjsify/child_process (spawn/exec), @gjsify/stream (stdout/stderr pipes), @gjsify/events (EventEmitter) — the same code paths used by @gjsify/vite-plugin-gettext to invoke xgettext / msgfmt.",
     "type": "module",
     "private": true,
     "engines": {

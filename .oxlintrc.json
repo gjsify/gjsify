@@ -180,12 +180,11 @@
                 "packages/framework/webgl/src/ts/conformance/**",
                 // `@gjsify/adwaita-app`'s nav shell is the shell a consumer app is handed, so it
                 // is exempt by nature like a renderer. Its sibling `src/loading-stack.ts` is NOT
-                // listed: that one is blocked by the TOOLCHAIN (blueprint-compiler absent on the
-                // macOS and Windows runners, library-mode Blueprint only from 0.43.0, after the
-                // ADR 0002 cold bootstrap has already parsed the file), it keeps its line-level
-                // disable next to the measurement, and ADR 0053 § 7 names that disable's deletion
-                // as a signal the in-repo parser is done. Scoping the package would have retired
-                // that signal for an unrelated reason.
+                // listed: it keeps its line-level disable next to its own measurement, and ADR
+                // 0053 § 7 names that disable's deletion as a signal the in-repo parser is done.
+                // Scoping the package would retire that signal for an unrelated reason. Half of
+                // what blocked it is now gone — ADR 0063 removed the toolchain requirement — and
+                // the disable stays until the CONVERSION lands; ADR 0062 owns that frontier.
                 "packages/framework/adwaita-app/src/nav-shell.ts"
             ],
             "rules": {
