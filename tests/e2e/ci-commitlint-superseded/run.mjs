@@ -318,18 +318,30 @@ describe('rerun-superseded-commitlint: which concluded runs a live green verdict
 });
 
 describe('rerun-superseded-commitlint: counting what restarted, not what was posted', () => {
-    /** @param {Record<string, {status: number, attempt?: number}>} plan */
-    const apiFrom = (plan) => async (method, path) => {
-        const id = path.split('/')[2];
-        if (method === 'POST') return { status: plan[id].status, body: undefined };
-        return { status: 200, body: { run_attempt: plan[id].attempt ?? 1 } };
+    /** @param {Record<string, {status: number, attempt?: number|number[]}>} plan */
+    const apiFrom = (plan) => {
+        const reads = new Map();
+        return async (method, path) => {
+            const id = path.split('/')[2];
+            if (method === 'POST') return { status: plan[id].status, body: undefined };
+            // An `attempt` array is what successive reads return, so a test can hold the
+            // difference between "not restarted" and "not restarted YET".
+            const seq = plan[id].attempt ?? 1;
+            const n = reads.get(id) ?? 0;
+            reads.set(id, n + 1);
+            const attempt = Array.isArray(seq) ? (seq[n] ?? seq.at(-1)) : seq;
+            return { status: 200, body: { run_attempt: attempt } };
+        };
     };
+    /** The settle is real time in CI and nothing here should spend it. */
+    const instantly = { settleMs: 0, pollMs: 0, sleep: async () => {} };
 
     it('counts a run only once it has been read back on a later attempt', async () => {
         const result = await rerunSupersededCommitlint({
             ids: [1, 2],
             api: apiFrom({ 1: { status: 201, attempt: 2 }, 2: { status: 201, attempt: 1 } }),
             log: () => {},
+            ...instantly,
         });
         // #1548 is the incident where a job counted its own accepted POSTs as outcomes. Two
         // were accepted here and one of them moved nothing.
@@ -354,6 +366,23 @@ describe('rerun-superseded-commitlint: counting what restarted, not what was pos
         );
     });
 
+    it('waits out a restart that has not registered yet', async () => {
+        // MEASURED on probe #1708: the POST was accepted at 08:52:22.566, the read-back 312 ms
+        // later still said attempt 1, and the job annotated `0 of 1 … restarted` — while the run
+        // was on attempt 2 moments afterwards. A warning that cries wolf is a warning nobody
+        // reads, which is the same failure the count itself was written to avoid.
+        const result = await rerunSupersededCommitlint({
+            ids: [1],
+            api: apiFrom({ 1: { status: 201, attempt: [1, 1, 2] } }),
+            log: () => {},
+            settleMs: 8,
+            pollMs: 4,
+            sleep: async () => {},
+        });
+        assert.equal(result.restarted, 1);
+        assert.deepEqual(result.stuck, []);
+    });
+
     it('survives a transport error instead of putting a red X on a green PR', async () => {
         const result = await rerunSupersededCommitlint({
             ids: [1],
@@ -361,6 +390,7 @@ describe('rerun-superseded-commitlint: counting what restarted, not what was pos
                 throw new Error('getaddrinfo EAI_AGAIN api.github.com');
             },
             log: () => {},
+            ...instantly,
         });
         assert.equal(result.restarted, 0);
     });

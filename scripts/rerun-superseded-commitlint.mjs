@@ -3,23 +3,25 @@
 // `scripts/decide-commitlint-verdict.mjs` carries, and the half that reaches a run which has
 // already concluded.
 //
-// WHY A SECOND MECHANISM IS NEEDED. The verdict step voids a run that is still IN FLIGHT when
-// the text moves under it. That covers the burst — #1704's four runs were created inside
-// fifteen seconds — but not the ordinary repair loop, where the check reports a real red, a
-// human reads it and edits the body two minutes later. Measured over the last 300 commitlint
-// runs (2026-09-19): 20 of 208 commits carried both a non-success and a success commitlint
-// run, and of the 22 stale non-successes, 7 overlapped their successor and 15 did not. The
-// in-flight void alone would leave two thirds of them on the commit.
+// WHY A SECOND MECHANISM IS NEEDED. The verdict step governs a run that is still EXECUTING: it
+// re-reads the description before concluding. A run that has already concluded cannot re-read
+// anything, and the rollup keeps the LATEST check run per context — so a stale conclusion that
+// happens to be the newest entry owns that context until something moves it.
 //
-// WHAT CLEARS A CONCLUDED RUN. Not a cancel: measured on 934319ead0, a commit whose only
-// `Lint commit messages` entries are CANCELLED rolls up FAILURE exactly as a failure does, and
-// that context blocks a merge here. A re-run does clear it — a new attempt REPLACES the run's
-// entry in the rollup rather than adding one, which is why re-running the three stale runs by
-// hand is what unblocked #1704. This automates that hand repair, and nothing more.
+// THAT IS WHERE #1704 SITS, and the part worth keeping is what did NOT fix it. Its
+// `Lint commit messages` entries are SUCCESS at 06:49 and then FAILURE at 07:13, 07:14 and
+// 07:22: three hand re-runs, each replaying the same superseded payload under the OLD workflow
+// and therefore failing again. Re-running by hand is what put that PR where it is.
 //
-// THE RE-RUN COSTS NOTHING TWICE. A re-run replays the same event payload, so the replayed run
-// re-reads the PR, finds the text has moved, and ends green as superseded — by the rule in
-// `decide-commitlint-verdict.mjs`, not by being told to pass.
+// WHICH IS THE WHOLE POINT OF THE PAIRING. A re-run replays the same event payload, so under
+// `decide-commitlint-verdict.mjs` the replayed run re-reads the PR, finds the text has moved,
+// and ends green as SUPERSEDED — green because it says why, not because it was told to pass.
+// Without that step this script reproduces #1704; with it, it is the repair. Proven end to end
+// on the probe PR #1708, whose red run was restarted by this job and came back green.
+//
+// SIZING, measured over the last 300 commitlint runs (2026-09-19): 20 of 208 commits carried
+// both a non-success and a success commitlint run, and of the 22 stale non-successes 7
+// overlapped their successor and 15 did not. The 15 are the ones no in-flight rule can reach.
 //
 // THE BOUNDS, each one a way this could go wrong:
 //
@@ -39,12 +41,26 @@
 // AND THE COUNT IS OF RUNS THAT ACTUALLY RESTARTED, not of POSTs that were accepted — #1548 is
 // the incident where a job counted its own requests and called them outcomes.
 //
+// A RESTART IS NOT INSTANT, AND THE FIRST VERSION OF THIS FILE DID NOT KNOW THAT. Measured on
+// the probe PR #1708, 2026-09-19 08:52:22: the POST was accepted, the read-back 312 ms later
+// still said `run_attempt: 1`, and this script annotated `0 of 1 … restarted; 1 did not
+// restart` — while the run was on attempt 2 moments afterwards. A false negative on a warning
+// that exists to be rare is how the warning stops meaning anything, so the read-back settles
+// for a bounded moment first, the same shape `cancel-superseded-runs.mjs` needed for the
+// mirror-image case.
+//
+// NOTHING HERE MAY REDDEN A PR. This job repairs a commit whose own checks are green and is not
+// a required context, so a malformed listing, a missing field or a refused POST is reported and
+// the job exits 0. The exported selection still THROWS on those — that is where a defect should
+// be visible — and the entry point below is the one place that turns a throw into a notice.
+//
 // Usage (the workflow's shape, and the way to reproduce a run by hand):
 //   GH_TOKEN=… REPO=owner/repo HEAD_SHA=… GITHUB_RUN_ID=… \
 //     node scripts/rerun-superseded-commitlint.mjs < runs.json
 // Reads a `GET /actions/workflows/commitlint.yml/runs` response (or a bare array) from stdin.
 
 import { readFileSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 
 /** Conclusions that keep a required context from being satisfied and that a re-run can move. */
@@ -57,6 +73,15 @@ const STALE_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out']);
  * that matched everything would otherwise spend a runner per row of the listing.
  */
 const MAX_RERUNS = 10;
+
+/**
+ * How long a posted re-run is given to show up as a new attempt before it is called stuck.
+ *
+ * Bounded because this job holds a runner while it waits, and short because what is being
+ * waited for is a field flip, not work. See A RESTART IS NOT INSTANT in the header.
+ */
+const SETTLE_MS = 20_000;
+const POLL_MS = 4_000;
 
 function instant(value, what) {
     const ms = Date.parse(String(value ?? ''));
@@ -109,10 +134,20 @@ export function supersededCommitlintRuns({ runs, headSha, selfRunId }) {
  *   ids: (string|number)[],
  *   api: (method: string, path: string) => Promise<{ status: number, body: unknown }>,
  *   log?: (line: string) => void,
+ *   settleMs?: number,
+ *   pollMs?: number,
+ *   sleep?: (ms: number) => Promise<unknown>,
  * }} input
  * @returns {Promise<{ selected: number, posted: number, refused: number, restarted: number, stuck: string[] }>}
  */
-export async function rerunSupersededCommitlint({ ids, api, log = console.log }) {
+export async function rerunSupersededCommitlint({
+    ids,
+    api,
+    log = console.log,
+    settleMs = SETTLE_MS,
+    pollMs = POLL_MS,
+    sleep = delay,
+}) {
     const selected = ids.map((id) => String(id));
     let posted = 0;
     let refused = 0;
@@ -143,17 +178,37 @@ export async function rerunSupersededCommitlint({ ids, api, log = console.log })
         }
     }
 
+    /** id → the highest attempt number this script has read back for it. */
+    const attempts = new Map(accepted.map((id) => [id, 0]));
+    const restartedYet = (id) => (attempts.get(id) ?? 0) > 1;
+
+    for (let waited = 0; ; waited += pollMs) {
+        for (const id of accepted) {
+            if (restartedYet(id)) continue;
+            const { status, body } = await call('GET', `actions/runs/${id}`);
+            // An unreadable run is not a restarted run, and leaving its attempt where it is
+            // keeps it out of the count rather than inventing one.
+            if (status < 200 || status >= 300) continue;
+            const attempt = Number(/** @type {{ run_attempt?: unknown }} */ (body)?.run_attempt);
+            if (Number.isFinite(attempt)) attempts.set(id, attempt);
+        }
+        if (accepted.every(restartedYet)) break;
+        if (waited >= settleMs) break;
+        await sleep(pollMs);
+    }
+
     let restarted = 0;
     const stuck = [];
     for (const id of accepted) {
-        const { status, body } = await call('GET', `actions/runs/${id}`);
-        const attempt = Number(/** @type {{ run_attempt?: unknown }} */ (body)?.run_attempt);
-        if (status >= 200 && status < 300 && attempt > 1) {
+        if (restartedYet(id)) {
             restarted += 1;
-            log(`run ${id}: now on attempt ${attempt} — its stale conclusion is off this commit`);
+            log(`run ${id}: now on attempt ${attempts.get(id)} — its stale conclusion is off this commit`);
         } else {
             stuck.push(id);
-            log(`run ${id}: the re-run was accepted and the run is still on attempt ${attempt || '?'}`);
+            log(
+                `run ${id}: the re-run was accepted and the run is still on attempt ` +
+                    `${attempts.get(id) || '?'} ${settleMs / 1000}s later`,
+            );
         }
     }
 
