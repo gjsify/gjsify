@@ -8,6 +8,7 @@
         "skipLibCheck": false,
         "types": []
     },
+    "files": ["src/surface.conformance.mts"],
     "include": ["src/**/*.d.mts"],
     "comment": [
         "`check` was `echo 'no TypeScript sources to check'`, which stopped being true the",
