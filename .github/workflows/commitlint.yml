@@ -20,10 +20,30 @@ on:
   push:
     branches: [main]
 
+# DELIBERATELY NO `concurrency:` BLOCK, and that is the opposite of what this workflow's
+# defect looks like it needs. `edited` starts another run ON THE SAME COMMIT, so the stale
+# runs are not on a ref a successor can supersede — and a cancelled check run does not help:
+# measured on 934319ead0, a commit whose only `Lint commit messages` entries are CANCELLED
+# rolls up FAILURE exactly as a failure does, and that context is one of the three that block
+# a merge here. A group would trade a red for a red. What removes it is the last step of the
+# job below, which ends a superseded run GREEN and says which run decides instead.
+
 jobs:
   commitlint:
     name: Lint commit messages
     runs-on: ubuntu-latest
+
+    # READ-ONLY, and that is a tightening rather than a formality: this job materialises HEAD
+    # code, the repository's default workflow token is `write`, and AGENTS.md forbids pairing
+    # the two. The repair job below is where the write token lives, and it checks out no head
+    # code at all.
+    permissions:
+      contents: read
+      pull-requests: read
+
+    # `clear-superseded` acts only on a verdict that is known to describe the PR as it is now.
+    outputs:
+      state: ${{ steps.verdict.outputs.state }}
 
     steps:
       - name: Checkout repository
@@ -38,6 +58,8 @@ jobs:
       # `npm install` in this Yarn `workspace:`-protocol repo (which npm rejects
       # with EUNSUPPORTEDPROTOCOL).
       - name: Lint PR commits
+        id: commits
+        continue-on-error: true
         uses: wagoid/commitlint-github-action@v6
 
       # The step above lints the PR's COMMITS. With squash merges what actually
@@ -53,6 +75,8 @@ jobs:
       # holds that assumption: the moment the two diverge it fails and tells you
       # to make the list explicit here.
       - name: Lint the PR title (it becomes the squash subject)
+        id: title-form
+        continue-on-error: true
         # There is no PR title on a `push`, and the action errors rather than
         # no-ops without one. The step above is the part that carries over.
         if: github.event_name == 'pull_request'
@@ -69,6 +93,8 @@ jobs:
       # title did not. That is why this checks the composed SUBJECT rather than the
       # title, and why neither could be an input on the step above.
       - name: Check the squash subject the PR title becomes
+        id: title-subject
+        continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -84,6 +110,8 @@ jobs:
       # that cannot be fixed without rewriting history, and the release cut then walks
       # a commit that failed the lint that gates it.
       - name: Check the squash body the PR body becomes
+        id: body-lines
+        continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -99,9 +127,125 @@ jobs:
       # those: that is the surface which rescued #1568, whose own body carried the
       # same broken list.
       - name: Check that every closing keyword closes what it names
+        id: closing-keywords
+        continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/check-closing-keywords.mjs
+
+      # EVERY STEP ABOVE RUNS UNDER `continue-on-error`, AND THIS ONE DECIDES THE JOB — because
+      # the five above check the PR text as the EVENT delivered it, and by the time they finish
+      # that text may be two edits old. `edited` is in the trigger list on purpose (the title
+      # and body checks would be worthless without it), so every edit starts another run on the
+      # SAME commit, and a check run does not age out: measured on fc14d85a99, where
+      # `Lint commit messages` carries two SUCCESS and one FAILURE and the rollup state is
+      # FAILURE. #1704 ended with four runs on 4db0edf92e — three red from body states nobody
+      # could read any more — and clearing it took three re-runs by hand. #1703 cost a diagnosis
+      # of a failure that no longer existed.
+      #
+      # So the verdict is re-read against the PR AS IT IS NOW. If the text has moved, this run
+      # examined a state that no longer exists and ends green naming its successor; if it has
+      # not, the findings stand and this step fails the job. That is also what settles a race
+      # without a cancel: the run that reports is the one whose examined text still equals the
+      # current text, not merely the newest to start.
+      #
+      # The PR-controlled strings reach this through `env:` only, never through the `run:`
+      # text — the same rule `cancel-pr-runs.yml` follows for the head branch name.
+      - name: Decide whether this run's verdict still describes the PR
+        id: verdict
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMITLINT_EVENT: ${{ github.event_name }}
+          COMMITLINT_EXAMINED_TITLE: ${{ github.event.pull_request.title }}
+          COMMITLINT_EXAMINED_BODY: ${{ github.event.pull_request.body }}
+          COMMITLINT_OUTCOMES: >-
+            {"commits": "${{ steps.commits.outcome }}",
+            "title-form": "${{ steps.title-form.outcome }}",
+            "title-subject": "${{ steps.title-subject.outcome }}",
+            "body-lines": "${{ steps.body-lines.outcome }}",
+            "closing-keywords": "${{ steps.closing-keywords.outcome }}"}
+        run: |
+          set -euo pipefail
+
+          # FAIL CLOSED. `set -e` on the read is the point: a run that cannot see the current
+          # title and body cannot tell a stale verdict from a live one, and the failure this
+          # workflow must never produce is a green check that read nothing.
+          if [ "${COMMITLINT_EVENT}" = 'pull_request' ]; then
+              gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
+                  --jq '{title: .title, body: .body}' > "${RUNNER_TEMP}/pr-now.json"
+              export COMMITLINT_CURRENT_PR="${RUNNER_TEMP}/pr-now.json"
+          fi
+
+          node scripts/decide-commitlint-verdict.mjs
+
+  # THE STEP ABOVE REACHES A RUN THAT IS STILL IN FLIGHT; THIS JOB REACHES ONE THAT ALREADY
+  # CONCLUDED. Both halves are needed, and the split is measured: over the last 300 commitlint
+  # runs, 20 of 208 commits carried both a non-success and a success commitlint run, and of the
+  # 22 stale non-successes only 7 overlapped their successor. The other 15 are the ordinary
+  # repair loop — the check reports a real red, a human reads it, edits the body minutes later —
+  # and nothing in flight is left to void. What clears those is a re-run: a new attempt REPLACES
+  # the run's entry in the rollup, which is exactly the hand repair that unblocked #1704.
+  #
+  # NOT A CANCEL, for the reason the `concurrency` note at the top of this file gives.
+  #
+  # ITS TOKEN IS WHY IT IS A SEPARATE JOB. Restarting a run needs `actions: write`, AGENTS.md
+  # forbids pairing a write token with head code, and permissions are per-job — so this one
+  # materialises no head code at all: the selection comes from `base.sha`, sparse, exactly as
+  # `cancel-pr-runs.yml` argues for its own. A fork PR's read-only token refuses the POSTs and
+  # the job reports that rather than failing, which is the same trade that file records.
+  clear-superseded:
+    name: Clear superseded commitlint runs
+    needs: commitlint
+    # Only a verdict known to describe the PR as it is NOW may clear anything. A superseded run
+    # has no standing to, and a red one has nothing to gain by it — the commit is red either way.
+    if: github.event_name == 'pull_request' && needs.commitlint.outputs.state == 'current-pass'
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Check out the selection
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/rerun-superseded-commitlint.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Re-run the commitlint runs this verdict supersedes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # THE SCRIPT COMES FROM `base.sha`, THE YAML FROM THE MERGE REF — #1340's asymmetry.
+          # A branch cut before this file landed has no such script, and an unguarded `node`
+          # under `set -e` would put a permanent red X on every PR stacked on that base.
+          if [ ! -f scripts/rerun-superseded-commitlint.mjs ]; then
+              echo "::notice::this PR's base predates scripts/rerun-superseded-commitlint.mjs; nothing cleared. Rebase on main to re-enable it."
+              exit 0
+          fi
+
+          # Scoped to this workflow AND this commit server-side: an unscoped page of runs is a
+          # page of the whole repository, and the rows this job is for are the OLDEST on the
+          # commit — precisely the ones that fall off the end of a page sorted newest-first.
+          if ! gh api -X GET "repos/${REPO}/actions/workflows/commitlint.yml/runs" \
+                  -f head_sha="${HEAD_SHA}" \
+                  -f per_page=100 \
+                  > "${RUNNER_TEMP}/runs.json"; then
+              echo "::notice::could not list this commit's commitlint runs. Nothing cleared."
+              exit 0
+          fi
+
+          node scripts/rerun-superseded-commitlint.mjs < "${RUNNER_TEMP}/runs.json"
