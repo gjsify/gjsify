@@ -6452,6 +6452,26 @@ So the damage was a file that loads and misbehaves, which is why the namespace h
 instead: a `Gdk.Cursor` nobody can name a GType for is an error and not a spelling to pass
 through.
 
+### A Shumate rule file needs a CI image that has libshumate, and a PR cannot push one
+
+`packages/infra/blueprint` depends on `@girs/shumate-1.0` — it is what takes Workbench's Map demo
+to byte-equal — and it is the one of the five namespaces with NO corpus golden. A golden needs the
+oracle, the oracle needs the typelib, and `.docker/ci-fedora.Dockerfile` installs `gtk4-devel`,
+`libadwaita-devel`, `gtksourceview5-devel` and `webkitgtk6.0-devel` and no libshumate. So a rule
+file naming Shumate reds stage B of `check-blueprint-corpus.mjs` until the image is rebuilt, and
+`build-ci-image.yml` only PUSHES on `main` — its pull-request leg builds and never pushes, by
+design, because a fork PR's token cannot write to GHCR. One PR therefore cannot carry both halves.
+
+Measured on this workstation, where every typelib is installed: a Shumate golden is byte-equal, so
+nothing about the code is in question. The gap is that a dependency of a gated package has no
+coverage in the gate — it is exercised only by module load (`merged()` and `NAMESPACES` read every
+vocabulary on import, so a broken or conflicting one fails every corpus run) and by the wild sweep,
+which is not a gate and needs a workstation.
+
+Two commits, in order: add `libshumate-devel` to `.docker/ci-fedora.Dockerfile`, land it, and once
+the weekly or on-push rebuild has pushed `ghcr.io/gjsify/ci-fedora:<major>`, add the rule file and
+its golden. Doing it the other way round is a red PR that looks like a defect in the resolver.
+
 ### Inverting the Blueprint projection needs the GIR, and one loss needs a field
 
 Writing the hand-written expectations ADR 0053 clause 2 asks for turned up the losses; ADR
