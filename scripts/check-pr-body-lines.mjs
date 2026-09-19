@@ -28,6 +28,14 @@
 // limits differ, this script refuses rather than checking the wrong one — the same
 // arrangement `check-pr-title-subject.mjs` uses for `subject-case`.
 //
+// ALSO CHECKS two lines the length rule cannot see, because they are short enough to
+// pass it and permanent for the same reason as the lines above: a `claude.ai/code/
+// session_…` URL, and a `Co-Authored-By: Claude …` trailer. Both are the same class of
+// bug as everything above — a body GitHub accepts becomes a commit body nobody can
+// edit — and #1699 is the proof: it merged GREEN (every line under 100 characters) and
+// commit b3590e8fec still carries the session URL on `main` forever. See the comment
+// at the checks themselves for what is and is not allowed.
+//
 // Usage (in a pull_request job):
 //   PR_BODY=… node scripts/check-pr-body-lines.mjs
 
@@ -82,20 +90,63 @@ const over = lines
     .map((text, index) => ({ number: index + 1, length: text.length, text }))
     .filter((line) => line.length > bodyLimit);
 
-if (over.length === 0) {
+if (over.length > 0) {
+    console.error(`::error::The PR body will not survive commitlint: ${over.length} line(s) over ${bodyLimit} characters.`);
+    for (const line of over) {
+        const preview = line.text.length > 80 ? `${line.text.slice(0, 77)}…` : line.text;
+        console.error(`::error::  line ${line.number}: ${line.length} characters — ${preview}`);
+    }
+    console.error(
+        '::error::Wrap the prose. A markdown table is the usual cause and the usual fix is to move it into a PR ' +
+            'COMMENT, which is not part of the commit. This is the string that becomes history: a merge with a ' +
+            'body commitlint rejects turns `main` red and cannot be fixed without rewriting history.',
+    );
+}
+
+// SECOND CLASS OF THE SAME BUG, found 2026-09-19: a line can be under the length limit
+// and still be a permanent liability once it is the squash body. #1699 merged GREEN —
+// every line fit 100 characters — and commit b3590e8fec carries
+// `https://claude.ai/code/session_01EsCgGTiQa1JB2rxg25zxHH` at line 150 of `main`'s
+// history forever, because nothing checked for it. The repo's own rule (see
+// `AGENTS.md` / commit convention) is narrower than "no AI attribution": the line
+// `🤖 Generated with [Claude Code](https://claude.com/claude-code)` is fine and stays
+// fine — it is the one PER-SESSION link and the `Co-Authored-By: Claude …` trailer
+// that must not become part of `main`, because a session link is only useful to the
+// person who had that session open and a co-author trailer misattributes authorship
+// of a squash commit nobody but the PR author wrote.
+const sessionLinkLines = lines
+    .map((text, index) => ({ number: index + 1, text }))
+    .filter((line) => /claude\.ai\/code\/session_/.test(line.text));
+const coAuthorLines = lines
+    .map((text, index) => ({ number: index + 1, text }))
+    .filter((line) => /^Co-Authored-By:\s*Claude\b/i.test(line.text.trim()));
+
+if (sessionLinkLines.length > 0) {
+    console.error(
+        `::error::The PR body carries a claude.ai/code/session_… URL on ${sessionLinkLines.length} line(s). ` +
+            'That URL becomes part of the squash commit body and is permanent on `main` — it is only useful to ' +
+            'whoever had that session open, so it does not belong in history. Remove the line; keep ' +
+            '`🤖 Generated with [Claude Code](https://claude.com/claude-code)`, which is allowed.',
+    );
+    for (const line of sessionLinkLines) {
+        console.error(`::error::  line ${line.number}: ${line.text}`);
+    }
+}
+
+if (coAuthorLines.length > 0) {
+    console.error(
+        `::error::The PR body carries a \`Co-Authored-By: Claude …\` trailer on ${coAuthorLines.length} line(s). ` +
+            'That trailer becomes part of the permanent squash commit body and misattributes authorship — remove it.',
+    );
+    for (const line of coAuthorLines) {
+        console.error(`::error::  line ${line.number}: ${line.text}`);
+    }
+}
+
+if (over.length === 0 && sessionLinkLines.length === 0 && coAuthorLines.length === 0) {
     const longest = Math.max(...lines.map((l) => l.length));
     console.log(`pr-body-lines: ${lines.length} line(s), longest ${longest}/${bodyLimit} — fits the squash body.`);
     process.exit(0);
 }
 
-console.error(`::error::The PR body will not survive commitlint: ${over.length} line(s) over ${bodyLimit} characters.`);
-for (const line of over) {
-    const preview = line.text.length > 80 ? `${line.text.slice(0, 77)}…` : line.text;
-    console.error(`::error::  line ${line.number}: ${line.length} characters — ${preview}`);
-}
-console.error(
-    '::error::Wrap the prose. A markdown table is the usual cause and the usual fix is to move it into a PR ' +
-        'COMMENT, which is not part of the commit. This is the string that becomes history: a merge with a ' +
-        'body commitlint rejects turns `main` red and cannot be fixed without rewriting history.',
-);
 process.exit(1);

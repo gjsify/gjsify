@@ -83,6 +83,12 @@ jobs:
       # cost is the title's cost exactly — green on the PR, red on `main`, on a message
       # that cannot be fixed without rewriting history, and the release cut then walks
       # a commit that failed the lint that gates it.
+      #
+      # Also refuses a `claude.ai/code/session_…` URL and a `Co-Authored-By: Claude …`
+      # trailer, a rule this repo already had and nothing enforced: #1699 merged GREEN
+      # (no line over 100 characters) and commit b3590e8fec still carries the session
+      # URL on `main` forever. The permitted attribution line, `🤖 Generated with
+      # [Claude Code](https://claude.com/claude-code)`, stays allowed.
       - name: Check the squash body the PR body becomes
         if: github.event_name == 'pull_request'
         env:
