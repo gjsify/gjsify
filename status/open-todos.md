@@ -550,10 +550,14 @@ nobody has made rather than on work nobody has done:
   green, deletes `continue-on-error`, the `id` and the note.
 - `rn-probe` (darwin) — condition: *the first published `@gjsify/node-gi` carrying #1438's
   engine fix*, then *the first run where the only failures left are this operating system's
-  own*. The fix merged 2026-09-02 and **0.46.0 published 2026-09-03**; `latest` is 0.51.1,
-  so the release half is MET too. Missing: the second half is unrecorded — no run's
-  darwin probe row has been read back since, which is the whole point of a condition
-  naming a release rather than an issue and is why it is written here instead of assumed.
+  own*. The fix is #1488, merged **2026-09-03 01:34 UTC**, and its merge commit
+  `d7da6c3b91` is an ANCESTOR of `v0.46.0`, cut 08:55 UTC the same day — the ancestry is
+  what proves the release carries it, and a date beside a version number is not, which is
+  why this reads `git merge-base --is-ancestor` rather than two timestamps compared by
+  eye. `latest` is 0.51.1, so the release half is MET too. Missing: the second half is
+  unrecorded — no run's darwin probe row has been read back since, which is the whole
+  point of a condition naming a release rather than an issue and is why it is written
+  here instead of assumed.
 - `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
   Windows host*. Blocked on the entry above (#1446); unchanged.
 - `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
