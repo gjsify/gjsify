@@ -18,12 +18,15 @@
 // Asserts:
 //   1. the emitted module carries the COMPILED GTK Builder XML, with `translatable="yes"`
 //      surviving into it — the point of using Blueprint at all;
-//   2. a malformed `.blp` fails LOUDLY with a blueprint-compiler diagnostic, not with a
-//      JavaScript parse error. That is the discriminator: a JS-parser message would mean the
-//      transform never ran and assertion 1 passed for some other reason.
+//   2. a malformed `.blp` fails LOUDLY with a Blueprint diagnostic, not with a JavaScript parse
+//      error. That is the discriminator: a JS-parser message would mean the transform never ran
+//      and assertion 1 passed for some other reason.
 //
-// SKIP conditions, so a host without the toolchain reports nothing rather than a false failure:
-// no `blueprint-compiler` on PATH, or no built CLI to run.
+// ONE SKIP condition, and it is no longer the toolchain. Until ADR 0053 clause 5's flip this
+// suite also skipped where `blueprint-compiler` was absent, which is every macOS and Windows
+// runner — so the OS legs reported nothing about the one feature this file exists for. The build
+// parses in process now, so the only thing left that can make this suite unable to run is a
+// missing CLI to run it with.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,19 +36,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The zero-dependency subpath, and the resolver rather than a PATH probe: on win32 MSYS2 does not
-// put its bin dirs on PATH, so `blueprint-compiler --version` answers "missing" on a host where
-// every build works. The resolver is what the plugin actually spawns, so it is the only answer
-// that predicts the build — the same reasoning `tests/e2e/create-app` records.
-import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI = join(REPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
-const SKIP =
-    (!existsSync(CLI) && 'no built CLI at packages/infra/cli/lib/index.js') ||
-    (!resolveBlueprintCompiler() && 'no blueprint-compiler the build could find');
+const SKIP = !existsSync(CLI) && 'no built CLI at packages/infra/cli/lib/index.js';
 
 const GOOD_BLP = `using Gtk 4.0;
 
@@ -60,8 +55,8 @@ template $E2eBlueprintWidget: Gtk.Box {
 }
 `;
 
-// `template` without a type is a blueprint-compiler error, and deliberately NOT a JavaScript one:
-// the whole point is to see WHOSE parser rejected the file.
+// `template` without a type is a Blueprint error, and deliberately NOT a JavaScript one: the
+// whole point is to see WHOSE parser rejected the file.
 const BAD_BLP = `using Gtk 4.0;
 
 template {
@@ -131,7 +126,7 @@ describe('gjsify build --library compiles Blueprint', { skip: SKIP, timeout: 5 *
         assert.equal((out.match(/translatable="yes"/g) ?? []).length, 1);
     });
 
-    it('fails through blueprint-compiler, not through the JavaScript parser', () => {
+    it('fails through the Blueprint parser, not through the JavaScript parser', () => {
         const r = build(bad);
         assert.notEqual(r.status, 0, 'a malformed .blp must fail the build');
         const log = `${r.stdout}\n${r.stderr}`;

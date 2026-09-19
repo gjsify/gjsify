@@ -11,10 +11,6 @@ import { writeFileSync, readFileSync, existsSync, mkdtempSync, mkdirSync } from 
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-// The zero-dependency subpath, deliberately: the plugin root would pull vite,
-// execa and minify-xml into an e2e suite that only wants the answer.
-import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
-
 import {
     MONOREPO_ROOT,
     createTestEnvironment,
@@ -87,17 +83,12 @@ function packageNameOf(registerPath) {
     return registerPath.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
 }
 
-// Templates that compile `.blp` files — require a blueprint-compiler the BUILD
-// can find. Asking the resolver rather than probing PATH ourselves is the whole
-// point: on win32 MSYS2 does not put its bin dirs on PATH, so a `--version`
-// probe answers "missing" and skips three templates on a host where every one of
-// them builds. The resolver is what the plugin actually spawns, so it is the
-// only answer that predicts the build.
-const BLUEPRINT_TEMPLATES = new Set(['adw-canvas2d', 'adw-webgl', 'adw-game']);
-
-function hasBlueprintCompiler() {
-    return resolveBlueprintCompiler() !== null;
-}
+// The three `.blp` templates used to be skipped where `blueprint-compiler` was
+// absent, which is every macOS and Windows runner — so the OS legs scaffolded,
+// type-checked and launched six templates and said nothing about the three that
+// carry a widget tree. ADR 0053 clause 5's flip parses in process, so there is
+// nothing left to be absent and the skip is gone rather than re-pointed. If one
+// of them stops building on an OS, that OS now says so.
 
 /**
  * How each template is STARTED and what proves it came up.
@@ -574,14 +565,8 @@ describe(
                 () => {
                     const projectName = `test-${template}`;
                     let projectDir;
-                    let skipReason;
 
                     before(() => {
-                        if (BLUEPRINT_TEMPLATES.has(template) && !hasBlueprintCompiler()) {
-                            skipReason = 'blueprint-compiler not installed';
-                            return;
-                        }
-
                         console.log(`  [${template}] scaffolding…`);
                         projectDir = scaffold(tmpDir, projectName, template).dir;
 
@@ -592,22 +577,19 @@ describe(
                         npmInstallWithRetry(projectDir, { label: template });
                     });
 
-                    it('scaffolded project has expected files', (t) => {
-                        if (skipReason) return t.skip(skipReason);
+                    it('scaffolded project has expected files', () => {
                         assert.ok(existsSync(join(projectDir, 'package.json')), 'package.json missing');
                         assert.ok(existsSync(join(projectDir, 'tsconfig.json')), 'tsconfig.json missing');
                         assert.ok(existsSync(join(projectDir, 'src', 'index.ts')), 'src/index.ts missing');
                     });
 
-                    it('package.json was scaffolded with the expected name', (t) => {
-                        if (skipReason) return t.skip(skipReason);
+                    it('package.json was scaffolded with the expected name', () => {
                         const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
                         assert.equal(pkg.name, projectName, 'project name not rewritten');
                         assert.notEqual(pkg.name, 'new-gjsify-app', 'sentinel name leaked through');
                     });
 
-                    it('npm install created node_modules', (t) => {
-                        if (skipReason) return t.skip(skipReason);
+                    it('npm install created node_modules', () => {
                         assert.ok(existsSync(join(projectDir, 'node_modules')), 'node_modules missing');
                         assert.ok(
                             existsSync(join(projectDir, 'node_modules', '.package-lock.json')),
@@ -615,8 +597,7 @@ describe(
                         );
                     });
 
-                    it('npm run build produces every declared artifact', (t) => {
-                        if (skipReason) return t.skip(skipReason);
+                    it('npm run build produces every declared artifact', () => {
                         console.log(`  [${template}] npm run build…`);
                         execSync('npm run build', {
                             cwd: projectDir,
@@ -630,8 +611,7 @@ describe(
                         }
                     });
 
-                    it('every declared runtime has a bundle behind it', (t) => {
-                        if (skipReason) return t.skip(skipReason);
+                    it('every declared runtime has a bundle behind it', () => {
                         const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
                         const runtimes = pkg.gjsify?.example?.runtimes;
                         assert.ok(
@@ -652,7 +632,6 @@ describe(
                     });
 
                     it('build output is valid JavaScript', (t) => {
-                        if (skipReason) return t.skip(skipReason);
                         let checked = 0;
                         for (const rel of declaredArtifacts(projectDir)) {
                             const outFile = join(projectDir, rel);
@@ -668,7 +647,6 @@ describe(
                     // for want of a `$0` default command, and every GTK one announced the
                     // same hardcoded application id.
                     it('the scaffolded app starts', async (t) => {
-                        if (skipReason) return t.skip(skipReason);
                         const recipe = launchRecipe(template);
                         if (recipe.kind === 'gtk' && GUI_SKIP_REASON) {
                             // On CI the tooling is BAKED INTO THE IMAGE — `.docker/ci-fedora.Dockerfile`
