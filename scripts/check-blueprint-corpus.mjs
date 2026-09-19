@@ -204,7 +204,7 @@ const goldenObjects = (xml) => (xml.match(/<object /g) ?? []).length + (xml.matc
 
 /**
  * The loss kinds that drop a whole OBJECT rather than an attribute of one. Measured
- * against all 36 goldens, not assumed: `breakpoint` (an `Adw.Breakpoint` is an
+ * against every golden in the corpus, not assumed: `breakpoint` (an `Adw.Breakpoint` is an
  * `<object>` that `SharedNode` has no tag for) and `sibling-object` (a second top-level
  * object the one-tree projection has to leave behind). Every other kind drops something
  * inside an object that still projects.

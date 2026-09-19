@@ -6,7 +6,9 @@
 // ADR 0053 clause 5 runs the parser in SHADOW until it is silent: `blueprint-compiler` stays
 // authoritative for the build, the in-repo parser runs beside it and reports every
 // divergence, and it becomes authoritative when it reports none. As of `@girs` 5.2.0 it
-// reports none: this list is empty and stage C is 42 of 42 byte-equal. That is the condition
+// reports none: this list is empty and every corpus file stage C reads is byte-equal. How many
+// that is the harness prints; the copy that used to sit in this sentence went stale. That is
+// the condition
 // clause 5 names and not the change it calls for — clause 5 still reads SHADOW, clause 7's
 // demotion of `blueprint-compiler` to oracle-only is still a plan, and both are edits of
 // their own rather than a consequence of this file emptying. What an empty list is worth is
