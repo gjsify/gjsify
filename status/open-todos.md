@@ -4,6 +4,50 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `statusCheckRollup.state` answers twice, and nothing here knows which answer merges
+
+Measured 2026-09-19 on acca841ff1…0830 and c0629ff751…b5b1, deterministically and in the same
+minute:
+
+    statusCheckRollup { state }                       -> SUCCESS
+    statusCheckRollup { state contexts(first:1){...} } -> FAILURE
+
+Selecting `contexts` at all — even `first:1 { totalCount }` — flips it. The bare shape reads like
+latest-per-context, the other like worst-over-all-entries. Both commits have a newest
+`Lint commit messages` entry of SUCCESS with older FAILUREs; acca841ff1 has no other non-success
+context at all. Two people measuring the same commit that day got opposite answers, each reading
+the field correctly, and a claim built on one of them propagated into six files twice before
+anyone re-derived it.
+
+WHY IT MATTERS: `Lint commit messages` is one of the three required contexts on `main`, so
+"is a superseded red still blocking?" has no answer from this field. The ruleset is different
+machinery and cannot be read from history here — #1667 merged on c0629ff7 whose entries are
+FAILURE then SUCCESS, but the ruleset carries `bypass_actors` (`OrganizationAdmin` and
+RepositoryRole 5, both `bypass_mode: always`) and every merge in this repository is by the owner,
+so it cannot tell a satisfied rule from a bypassed one. The rule-suite API records
+`required_status_checks` per push and would settle it, but retains about a day, so #1667 has aged
+out.
+
+THE MEASUREMENT THAT CLOSES IT, and it is cheap: on any PR targeting `main` whose other two
+required contexts are green, produce an older commitlint FAILURE followed by a newer SUCCESS and
+read `mergeStateStatus`. BLOCKED means the ruleset weighs every entry; anything else means a PR
+can be mergeable while the checks list reads red — which is its own trap and worth writing down.
+Do not run it on a PR somebody is waiting to merge: it deliberately reddens it, and
+`clear-superseded` then repairs it out from under the reading.
+
+The commitlint fix does not depend on the answer — a verdict that is a function of the current
+text leaves no stale entry for either aggregation to weigh — but two things downstream do: how
+loudly a superseded red should be treated, and whether `clear-superseded` unblocks merges or only
+restores legibility.
+
+ALSO OPEN is the shape rather than the instance. `commitlint.yml` is the only workflow whose
+verdict depends on something OTHER than the commit, so it is the only one where a conclusion can
+be stale while the commit is not. Any future check that reads the PR description, a label or a
+review inherits it, and nothing enumerates that class. Adjacent and untested: the void needs a
+later run to exist, which an edit authored with `GITHUB_TOKEN` would not produce; no workflow
+here holds `pull-requests: write` today, so the refusal path is reasoned and fixtured but has
+never fired.
+
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 
 The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
