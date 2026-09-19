@@ -10,7 +10,10 @@
             "types": "./src/index.d.mts",
             "default": "./src/index.mjs"
         },
-        "./corpus": "./corpus/manifest.mjs",
+        "./corpus": {
+            "types": "./corpus/manifest.d.mts",
+            "default": "./corpus/manifest.mjs"
+        },
         "./corpus/expectations": "./corpus/expectations.mjs",
         "./corpus/real-expectations": "./corpus/real-expectations.mjs",
         "./package.json": "./package.json"

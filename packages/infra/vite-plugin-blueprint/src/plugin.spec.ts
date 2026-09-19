@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { BlueprintEmitError, BlueprintSyntaxError } from '@gjsify/blueprint';
+import { CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 import type { Plugin } from 'vite';
 import blueprintPlugin from './index.js';
@@ -27,6 +28,21 @@ import blueprintPlugin from './index.js';
  * outfile and not from here. */
 const blueprintDir = dirname(createRequire(import.meta.url).resolve('@gjsify/blueprint/package.json'));
 const repoRoot = join(blueprintDir, '..', '..', '..');
+
+/**
+ * Which line a refusal file reaches its construct on, asked of the corpus rather than written here.
+ *
+ * Two copies of a line number is one too many, and the second one was already wrong: the `@girs`
+ * 5.3.0 bump moved `refused/namespace-without-vocabulary.blp` from `Gio.ListStore` — a namespace
+ * that has a vocabulary now — to `GdkPixbuf.Pixbuf`, four lines shorter, and the corpus gate stayed
+ * green while this file failed on a number nothing had told it about. The manifest is the table;
+ * this reads it.
+ */
+const refusalLine = (file: string): number => {
+    const entry = CORPUS_REFUSALS.find((refusal) => refusal.file === file);
+    if (!entry) throw new Error(`corpus/refused/${file} is in no CORPUS_REFUSALS entry`);
+    return entry.line;
+};
 
 /** The plugin's `load` hook, as a plain callable. Nothing in it reads the Rollup context. */
 const loadOf = (plugin: Plugin) => {
@@ -54,10 +70,12 @@ export default async () => {
         });
 
         await it('refuses a construct outside the subset, naming the file and the line', async () => {
-            // ADR 0053 clause 3, through the exit a build actually takes. `Gio.ListStore` is a
-            // file the reference compiler COMPILES, so this is the behaviour change the flip
-            // makes user-visible, and the error has to be one a reader can act on.
-            const source = join(blueprintDir, 'corpus/refused/namespace-without-vocabulary.blp');
+            // ADR 0053 clause 3, through the exit a build actually takes. The file is one the
+            // reference compiler COMPILES, so this is the behaviour change the flip makes
+            // user-visible, and the error has to be one a reader can act on.
+            const file = 'namespace-without-vocabulary.blp';
+            const line = refusalLine(file);
+            const source = join(blueprintDir, `corpus/refused/${file}`);
             let thrown: unknown;
             try {
                 await loadOf(blueprintPlugin())(source);
@@ -68,11 +86,12 @@ export default async () => {
             expect(thrown instanceof BlueprintEmitError).toBe(true);
             const refusal = thrown as BlueprintEmitError;
             expect(refusal.file).toBe(source);
-            expect(refusal.line).toBe(6);
+            expect(refusal.line).toBe(line);
             expect(refusal.message.includes('no vocabulary for')).toBe(true);
             // The FILE, not just the line: this plugin is the first thing to put these messages
-            // in front of someone with twelve `.blp` open, and `line 6` alone names none of them.
-            expect(refusal.message.startsWith(`${source}:6: `)).toBe(true);
+            // in front of someone with twelve `.blp` open, and a bare line number names none of
+            // them.
+            expect(refusal.message.startsWith(`${source}:${line}: `)).toBe(true);
         });
 
         await it('refuses a syntax error the same way, before an AST exists', async () => {
@@ -87,8 +106,8 @@ export default async () => {
             expect(thrown instanceof BlueprintSyntaxError).toBe(true);
             const refusal = thrown as BlueprintSyntaxError;
             expect(refusal.file).toBe(source);
-            expect(refusal.line).toBe(4);
-            expect(refusal.message.startsWith(`${source}:4:13: `)).toBe(true);
+            expect(refusal.line).toBe(refusalLine('bad-escape.blp'));
+            expect(refusal.message.startsWith(`${source}:${refusalLine('bad-escape.blp')}:13: `)).toBe(true);
         });
     });
 };
