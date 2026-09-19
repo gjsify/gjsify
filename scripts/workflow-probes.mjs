@@ -123,30 +123,6 @@ export function stepBlockContaining(lines, needle) {
 }
 
 /**
- * The job a line belongs to: `{ key, name }`, where `name` is the declared `name:` or the
- * job key when it declares none.
- *
- * A job key sits at two spaces and its keys at four, which is the whole grammar needed.
- * Without this, a step lookup by NAME spans every job in a run — and `gtk-os-suites.yml`
- * has one step name appearing in two jobs, one of them a gate, which made a gating step's
- * green legs count as a probe's.
- */
-export function jobAround(lines, index) {
-    for (let i = index; i >= 0; i -= 1) {
-        const match = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(lines[i]);
-        if (!match) continue;
-        const key = match[1];
-        for (let j = i + 1; j < lines.length; j += 1) {
-            if (/^ {2}[A-Za-z0-9_-]+:\s*$/.test(lines[j])) break;
-            const named = /^ {4}name:\s*(.+?)\s*$/.exec(lines[j]);
-            if (named) return { key, name: named[1].replace(/^['"]|['"]$/g, '') };
-        }
-        return { key, name: key };
-    }
-    return null;
-}
-
-/**
  * The run of comment lines immediately above the step, which is where this repository has
  * always written a probe's reasoning — and therefore where its condition has to live if it
  * is to sit NEXT TO the probe rather than in a registry that drifts away from it.
@@ -208,7 +184,6 @@ export function listProbes(root) {
                 id: valueOf(block, 'id'),
                 line: i + 1,
                 comment: commentAbove(rawLines, start),
-                job: jobAround(lines, start),
             });
         }
     }

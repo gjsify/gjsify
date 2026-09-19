@@ -72,7 +72,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { envValueOf, listProbes, stepBlockContaining } from './workflow-probes.mjs';
+import { envValueOf, listProbes, stepBlockContaining, valueOf } from './workflow-probes.mjs';
 
 /**
  * The clause line, as it is written in the comment above a step.
@@ -344,7 +344,23 @@ function createIo(root, { online }) {
                         'step. `check-probe-outcomes-read.mjs` refuses this too.',
                 );
             }
-            if (probe.job === null) throw new ClauseError('could not tell which job owns this step');
+            // THE JOB IS IDENTIFIED BY THE STEP PAIR, not by its name. Scoping is still
+            // required — one step name appears in two jobs of this workflow and the other
+            // one GATES, which is how a gating step's green legs were once counted as this
+            // probe's — but keying it on the job NAME broke the moment a job was renamed:
+            // #1701 renamed both jobs here, and every recorded outcome in history carries
+            // the OLD name, so the window silently fell to ZERO runs and the clause drifted
+            // to UNKNOWN while the check still exited 0. A measurement that quietly stops
+            // measuring is this file's whole subject.
+            //
+            // So a job is this probe's when it contains BOTH the probe step and the reader
+            // step that reports it. A gating step sharing the probe's name does not have
+            // that reader beside it, which is exactly the case the job scoping was added
+            // for — and the pair survives any rename of the job.
+            const readerName = valueOf(reader, 'name');
+            if (readerName === undefined) {
+                throw new ClauseError(`the step reading \`steps.${probe.id}.outcome\` has no \`name\``);
+            }
 
             const workflow = probe.rel.split('/').pop();
             const gh = (args) => {
@@ -358,15 +374,6 @@ function createIo(root, { online }) {
                     throw new Unknown(`${workflow}: ${error.message.split('\n')[0]}`);
                 }
             };
-
-            // A matrix job's API name is its declared name with the expressions filled in,
-            // so the declaration becomes a pattern. SCOPING MATTERS: one step name appears
-            // in two jobs of `gtk-os-suites.yml` and the other one GATES — unscoped, that
-            // gating step's green legs counted as this probe's, three legs per run.
-            const pattern = probe.job.name
-                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                .replace(/\\\$\\\{\\\{.*?\\\}\\\}/g, '.+');
-            const jobPattern = new RegExp(`^${pattern}$`);
 
             const list = JSON.parse(
                 gh([
@@ -394,7 +401,11 @@ function createIo(root, { online }) {
                 if (measured >= runs) break;
                 const jobs = JSON.parse(
                     gh(['api', `/repos/{owner}/{repo}/actions/runs/${run.databaseId}/jobs?per_page=100`]),
-                ).jobs.filter((job) => jobPattern.test(job.name));
+                ).jobs.filter(
+                    (job) =>
+                        job.steps?.some((step) => step.name === probe.label) &&
+                        job.steps?.some((step) => step.name === readerName),
+                );
                 let legs = 0;
                 let red = false;
                 for (const job of jobs) {
@@ -427,6 +438,17 @@ function createIo(root, { online }) {
                 if (red) reds.push(run.createdAt?.slice(0, 10) ?? String(run.databaseId));
             }
 
+            // NOTHING AT ALL is a broken join, not weather: a renamed step, a deleted
+            // reader, a probe that never ran. None of those heals by waiting, so it
+            // refuses rather than sitting UNKNOWN for as long as nobody looks. FEWER than
+            // asked for IS transient — a young window fills up — so that stays unknown.
+            if (measured === 0) {
+                throw new ClauseError(
+                    `no run in the last ${list.length} on \`main\` recorded an outcome for the step ` +
+                        `"${probe.label}" beside its reader "${readerName}". Renamed, removed, or never run — ` +
+                        'whichever it is, nothing is being measured.',
+                );
+            }
             if (measured < runs) {
                 throw new Unknown(
                     `${workflow}: only ${measured} run(s) recorded an outcome for "${probe.label}", wanted ${runs}`,
