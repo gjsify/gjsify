@@ -6,17 +6,26 @@
 // one — each carries a written retirement condition in prose above the step, and prose is
 // a TODO with extra steps: it only fires if somebody re-reads the row.
 //
-// MEASURED, 2026-09-19. Nobody had. Two of the four conditions in `gtk-os-suites.yml` had
-// been satisfied for over a week:
+// MEASURED, 2026-09-19, over the 71 push-to-`main` runs from 2026-09-10. Nobody had. Two of
+// the four conditions in `gtk-os-suites.yml` had been satisfied for over a week:
 //
 //   · `conformance-win32` retired on a published `gtk-runtime-win32-x64` carrying
-//     `gstvorbis.dll`. That shipped in 0.49.0 on 2026-09-11 — and the probe had then been
-//     GREEN on 25 consecutive `main` runs while still declared advisory.
+//     `gstvorbis.dll`. That shipped in 0.49.0 on 2026-09-11 — and the probe was then GREEN
+//     in all 48 measured runs after it, while still declared advisory.
 //   · the darwin `rn-probe` retired on the first published node-gi carrying #1438's engine
-//     fix. That shipped in 0.46.0 on 2026-09-03 — and the probe was RED on all 42 job legs
-//     measured since. The condition was a PROXY for "this can gate now", and the proxy was
-//     wrong for the THIRD time on that one step (it was `#1438 closes` before, and an issue
-//     number before that).
+//     fix. That shipped in 0.46.0 on 2026-09-03 — and the probe was RED in 70 of those 71
+//     runs, green in none. The condition was a PROXY for "this can gate now", and the proxy
+//     was wrong for the THIRD time on that one step (`#1438 closes` before, an issue number
+//     before that).
+//
+// THE FIRST VERSION OF THIS CHECK GOT THAT SECOND READING RIGHT BY LUCK AND THE FIRST ONE
+// WRONG. It joined an annotation to a step on the step's `name`, while the annotation
+// carries `PROBE_LABEL` — a separate string nothing coupled to the name, and for
+// `conformance-win32` a different sentence entirely. So its reds were invisible and
+// `probe-green 185` came back MET across a window holding five of them: a check built to
+// stop a false promotion, recommending one. `check-probe-outcomes-read.mjs` now holds
+// `PROBE_LABEL` to the step `name`, and `probeGreen` refuses rather than guessing when the
+// two disagree. A measurement joined on a proxy is still a proxy.
 //
 // So both outcomes need a mouth, and both are this check's failure — the point is not that
 // a probe went green, it is that A ROW NEEDS RE-READING and no human will notice:
@@ -39,13 +48,31 @@
 //   probe's own recorded outcomes — which is required for the check to do its job at all,
 //   since both conditions above are facts about published artifacts that no checkout holds.
 //
+// WHAT THIS DOES NOT CATCH, stated because a gate's blind spots belong next to its claims:
+//
+//   · SCOPE IS A PROSE MATCH. A probe is in scope when its step name or its comment says it
+//     is blocked (`DECLARES_A_CONDITION`). A genuinely blocked probe whose comment avoids
+//     those words is filed as carrying no condition and is never asked for a clause. The
+//     honest alternative — every `continue-on-error` step must carry clauses or an explicit
+//     `advisory-by-design:` — is a change to ~15 steps across 6 workflows and a judgement
+//     about each; the opt-out marker exists so that change is a one-line edit per step when
+//     somebody makes it. Until then this is a real hole and not a silent one.
+//   · A CLAUSE IS ONLY READ WHERE A CONDITION IS WRITTEN. The comment run starts at the
+//     step's dash and stops at a blank line, so a clause below a blank line or inside the
+//     step block belongs to no probe — `unattachedClauses` refuses those rather than
+//     dropping them, but the placement rule itself is a convention.
+//   · A CLAUSE CAN NAME SOMETHING THAT DOES NOT EXIST. A 404 packument, an absent dist-tag
+//     and a label that cannot be joined are REFUSALS (`ClauseError`), not unknowns, for the
+//     reason a clause that never resolves is worse than one that fails. What stays unknown
+//     is weather: a timeout, a 5xx, an unauthenticated `gh`.
+//
 // Exit 0 when nothing is ripe, 1 on a ripe probe or a malformed clause, 2 on a usage error.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { listProbes } from './workflow-probes.mjs';
+import { envValueOf, listProbes, stepBlockContaining } from './workflow-probes.mjs';
 
 /**
  * The clause line, as it is written in the comment above a step.
@@ -55,6 +82,41 @@ import { listProbes } from './workflow-probes.mjs';
  * accident to be tolerated.
  */
 const CLAUSE = /^\s*retire-when:\s*(.+?)\s*$/;
+
+/** The deliberate opt-out: a probe that is advisory on purpose, with the reason printed. */
+const ADVISORY = /^\s*advisory-by-design:\s*(.+?)\s*$/;
+
+/** Any `key:` at the head of a comment line — the candidate set the near-miss check reads. */
+const ANY_KEY = /^\s*([A-Za-z][A-Za-z -]{0,24}?)\s*:\s*\S/;
+
+/** Levenshtein distance, bounded by the two short strings this is ever asked about. */
+function distance(a, b) {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 0; j <= b.length; j += 1) d[0][j] = j;
+    for (let i = 1; i <= a.length; i += 1) {
+        for (let j = 1; j <= b.length; j += 1) {
+            d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+    }
+    return d[a.length][b.length];
+}
+
+/**
+ * Is this comment line TRYING to be a clause and failing?
+ *
+ * A typo'd VERB already errors; a typo'd KEY used to be discarded in silence, because a
+ * line that does not match `CLAUSE` is simply prose. Measured: a probe carrying one good
+ * clause beside `retire-whn:`, `retire-when :`, `Retire-When:` and `retirewhen:` printed
+ * "1 of 1 clause(s) met" and reported the probe RIPE — four conditions dropped, with the
+ * verdict computed from the one that survived. That is the same silently-measured-nothing
+ * shape this whole check exists to end, one level in.
+ */
+function looksLikeAClauseKey(text) {
+    const match = ANY_KEY.exec(text);
+    if (!match) return false;
+    const normalised = match[1].toLowerCase().replace(/[^a-z]/g, '');
+    return normalised === 'retirewhen' || distance(normalised, 'retirewhen') <= 2;
+}
 
 /**
  * A probe this check is ABOUT.
@@ -135,20 +197,39 @@ function atLeast(version, minimum) {
  */
 class Unknown extends Error {}
 
+/**
+ * The clause itself is wrong — a package that does not exist, a label that cannot be
+ * joined, a count that is not a count. Distinct from `Unknown` because the remedies are
+ * opposite: an outage is waited out, and a malformed clause never resolves on its own.
+ * Measured: `npm-version-min @gjsify/does-not-exist-xyzzy latest 1.0.0` sat UNKNOWN on
+ * every run, so the probe could never be ripe and nothing ever said why.
+ */
+class ClauseError extends Error {}
+
 function createIo(root, { online }) {
     const nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     const packuments = new Map();
-    const stats = { evaluated: 0, unknown: 0 };
+    const stats = { evaluated: 0, unknown: 0, onlineClauses: 0, onlineEvaluated: 0 };
 
-    const curl = (url, extra = []) => {
+    // The STATUS is read rather than left to `-f`, because 404 and "the registry is down"
+    // are different answers: the first is a fact about the clause and must be fixed, the
+    // second is weather and must be waited out. `-f` collapses both into exit 22.
+    const curl = (url) => {
+        let out;
         try {
-            return execFileSync('curl', ['-sSfL', '--max-time', '60', ...extra, url], {
+            out = execFileSync('curl', ['-sSL', '--max-time', '60', '-w', '\n%{http_code}', url], {
                 encoding: 'utf8',
                 maxBuffer: 1 << 28,
             });
         } catch (error) {
-            throw new Unknown(`could not read ${url.split('?')[0]}: ${error.message.split('\n')[0]}`);
+            throw new Unknown(`could not reach ${url.split('?')[0]}: ${error.message.split('\n')[0]}`);
         }
+        const cut = out.lastIndexOf('\n');
+        const status = Number(out.slice(cut + 1).trim());
+        const body = out.slice(0, cut);
+        if (status === 404) throw new ClauseError(`${url.split('?')[0]} does not exist (404)`);
+        if (status < 200 || status >= 300) throw new Unknown(`${url.split('?')[0]} answered ${status}`);
+        return body;
     };
 
     const packument = (pkg) => {
@@ -157,7 +238,10 @@ function createIo(root, { online }) {
             try {
                 parsed = JSON.parse(curl(packumentUrl(pkg, nonce)));
             } catch (error) {
-                if (error instanceof Unknown) throw error;
+                // A ClauseError must survive this: a 404 is the answer, and re-wrapping it
+                // as an outage is how a clause naming a package that does not exist sat
+                // UNKNOWN forever while the probe could never be ripe.
+                if (error instanceof Unknown || error instanceof ClauseError) throw error;
                 throw new Unknown(`${pkg}: the registry answered something that is not a packument`);
             }
             packuments.set(pkg, parsed);
@@ -169,7 +253,7 @@ function createIo(root, { online }) {
         const version = packument(pkg)['dist-tags']?.[tag];
         // A MISSING dist-tag is a fact, not an outage: the clause names a tag that does not
         // exist, and answering "unmet" would hide a typo forever.
-        if (typeof version !== 'string') throw new Unknown(`${pkg}: no dist-tag \`${tag}\``);
+        if (typeof version !== 'string') throw new ClauseError(`${pkg}: no dist-tag \`${tag}\``);
         return version;
     };
 
@@ -197,7 +281,7 @@ function createIo(root, { online }) {
         tarballHas(pkg, tag, entry) {
             const version = publishedVersion(pkg, tag);
             const url = packument(pkg).versions?.[version]?.dist?.tarball;
-            if (typeof url !== 'string') throw new Unknown(`${pkg}@${version}: the packument names no tarball`);
+            if (typeof url !== 'string') throw new ClauseError(`${pkg}@${version}: the packument names no tarball`);
             const listing = (() => {
                 try {
                     // `tar -tz` from a pipe, so a 50 MB GTK bundle never lands on disk.
@@ -234,8 +318,34 @@ function createIo(root, { online }) {
         },
 
         probeGreen(probe, runs) {
-            if (!Number.isInteger(runs) || runs < 1) throw new Unknown(`probe-green needs a positive count`);
-            if (probe.id === undefined) throw new Unknown('the step has no `id`, so its outcome is not addressable');
+            if (!Number.isInteger(runs) || runs < 1) throw new ClauseError('probe-green needs a positive count');
+            if (probe.id === undefined)
+                throw new ClauseError('the step has no `id`, so its outcome is not addressable');
+
+            // THE JOIN, and getting it wrong is what this fix is about. The annotation
+            // carries `PROBE_LABEL`; the API calls the step by its `name`. Nothing coupled
+            // the two until `check-probe-outcomes-read.mjs` began asserting they are equal,
+            // so this REFUSES rather than guessing when they are not: a probe whose reds
+            // cannot be recognised reads as green, which is a false PROMOTE on a step that
+            // has never passed. Measured on `conformance-win32`, whose label was a
+            // different sentence — `probe-green 185` came back MET across a window holding
+            // five annotated reds.
+            const reader = stepBlockContaining(probe.lines, `steps.${probe.id}.outcome`);
+            const label = reader === null ? undefined : envValueOf(reader, 'PROBE_LABEL');
+            if (label === undefined) {
+                throw new ClauseError(
+                    `\`steps.${probe.id}.outcome\` is read by a step that passes no \`PROBE_LABEL\`, so no ` +
+                        'annotation names this probe and `probe-green` has nothing to read.',
+                );
+            }
+            if (label !== probe.label) {
+                throw new ClauseError(
+                    "`PROBE_LABEL` is not this step's `name`, so an annotation cannot be joined back to the " +
+                        'step. `check-probe-outcomes-read.mjs` refuses this too.',
+                );
+            }
+            if (probe.job === null) throw new ClauseError('could not tell which job owns this step');
+
             const workflow = probe.rel.split('/').pop();
             const gh = (args) => {
                 try {
@@ -248,6 +358,16 @@ function createIo(root, { online }) {
                     throw new Unknown(`${workflow}: ${error.message.split('\n')[0]}`);
                 }
             };
+
+            // A matrix job's API name is its declared name with the expressions filled in,
+            // so the declaration becomes a pattern. SCOPING MATTERS: one step name appears
+            // in two jobs of `gtk-os-suites.yml` and the other one GATES — unscoped, that
+            // gating step's green legs counted as this probe's, three legs per run.
+            const pattern = probe.job.name
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\\\$\\\{\\\{.*?\\\}\\\}/g, '.+');
+            const jobPattern = new RegExp(`^${pattern}$`);
+
             const list = JSON.parse(
                 gh([
                     'run',
@@ -259,25 +379,30 @@ function createIo(root, { online }) {
                     '--event',
                     'push',
                     '--limit',
-                    String(runs * 3),
+                    String(runs * 6),
                     '--json',
-                    'databaseId,conclusion',
+                    'databaseId,conclusion,createdAt',
                 ]),
-            ).filter((r) => r.conclusion && r.conclusion !== 'cancelled');
+            ).filter((run) => run.conclusion && run.conclusion !== 'cancelled');
             if (list.length === 0) throw new Unknown(`${workflow}: no completed \`main\` runs to read`);
 
-            // The step's NAME is what the reporter puts in the annotation, and it is what
-            // ties the two together — the id never reaches the log.
-            const label = probe.label;
-            let seen = 0;
+            // A RUN is the unit, not a leg: the question is "did this probe pass", and on a
+            // matrix job that is only true when every leg which measured anything passed.
+            let measured = 0;
+            const reds = [];
             for (const run of list) {
-                if (seen >= runs) break;
+                if (measured >= runs) break;
                 const jobs = JSON.parse(
                     gh(['api', `/repos/{owner}/{repo}/actions/runs/${run.databaseId}/jobs?per_page=100`]),
-                ).jobs;
+                ).jobs.filter((job) => jobPattern.test(job.name));
+                let legs = 0;
+                let red = false;
                 for (const job of jobs) {
-                    const step = job.steps?.find((s) => s.name === label);
-                    if (!step || step.conclusion !== 'success') continue; // absent or skipped: this leg did not measure
+                    const step = job.steps?.find((candidate) => candidate.name === probe.label);
+                    // Absent, skipped or cancelled: this leg measured NOTHING. Counting a
+                    // skip as a pass is how "0 green" would have read as "2 green".
+                    if (!step || step.conclusion !== 'success') continue;
+                    legs += 1;
                     const annotations = JSON.parse(
                         gh([
                             'api',
@@ -286,30 +411,58 @@ function createIo(root, { online }) {
                             '--slurp',
                         ]),
                     ).flat();
-                    const red = annotations.some(
+                    // ANCHORED rather than `includes`: the reporter's message is exactly
+                    // `<label> exited non-zero; …`, so a label that is a substring of
+                    // another probe's cannot answer for it.
+                    const failed = annotations.some(
                         (a) =>
                             a.annotation_level === 'warning' &&
                             /Probe failed/.test(a.title ?? '') &&
-                            String(a.message).includes(label),
+                            String(a.message).startsWith(`${label} exited non-zero`),
                     );
-                    seen += 1;
-                    if (red) return false;
+                    if (failed) red = true;
                 }
+                if (legs === 0) continue; // the run never reached this step
+                measured += 1;
+                if (red) reds.push(run.createdAt?.slice(0, 10) ?? String(run.databaseId));
             }
-            if (seen < runs)
-                throw new Unknown(`${workflow}: only ${seen} recorded outcome(s) for "${label}", wanted ${runs}`);
+
+            if (measured < runs) {
+                throw new Unknown(
+                    `${workflow}: only ${measured} run(s) recorded an outcome for "${probe.label}", wanted ${runs}`,
+                );
+            }
+            if (reds.length > 0) {
+                console.log(`    note: RED in ${reds.length} of the last ${measured} measured run(s)`);
+                return false;
+            }
             return true;
         },
     };
 }
 
-/** Parse a probe's clause lines. Returns `{ clauses, errors }`. */
+/** Parse a probe's clause lines. Returns `{ clauses, errors, advisory }`. */
 export function parseClauses(probe) {
     const clauses = [];
     const errors = [];
+    let advisory;
     for (const { text, line } of probe.comment) {
+        const optOut = ADVISORY.exec(text);
+        if (optOut) {
+            advisory = { reason: optOut[1], line };
+            continue;
+        }
         const match = CLAUSE.exec(text);
-        if (!match) continue;
+        if (!match) {
+            if (looksLikeAClauseKey(text)) {
+                errors.push(
+                    `${probe.rel}:${line}: \`${text.trim()}\` is nearly a clause and is therefore not one. ` +
+                        'The key is spelled exactly `retire-when:` — a near miss is DISCARDED, and a discarded ' +
+                        'clause is a condition that silently stops being part of the conjunction.',
+                );
+            }
+            continue;
+        }
         const [verb, ...args] = match[1].split(/\s+/);
         const spec = VERBS[verb];
         if (spec === undefined) {
@@ -325,7 +478,39 @@ export function parseClauses(probe) {
         }
         clauses.push({ verb, args, spec, line, source: match[1] });
     }
-    return { clauses, errors };
+    return { clauses, errors, advisory };
+}
+
+/**
+ * Every clause line in a workflow that no probe claimed.
+ *
+ * The comment walk stops at a blank line and starts at the step's dash, so a clause below a
+ * blank line, or inside the step block, belongs to nothing — and used to vanish without a
+ * word. Counting the file's clause lines against the attributed ones turns that into a
+ * refusal: a clause that exists and is read by nobody is the defect this file is about.
+ */
+export function unattachedClauses(probes) {
+    const byFile = new Map();
+    for (const probe of probes) {
+        if (!byFile.has(probe.rel)) byFile.set(probe.rel, { rawLines: probe.rawLines, attributed: new Set() });
+        for (const { text, line } of probe.comment) {
+            if (CLAUSE.test(text) || ADVISORY.test(text)) byFile.get(probe.rel).attributed.add(line);
+        }
+    }
+    const stray = [];
+    for (const [rel, { rawLines, attributed }] of byFile) {
+        rawLines.forEach((raw, i) => {
+            const text = raw.trim().replace(/^#\s?/, '');
+            if (!raw.trim().startsWith('#')) return;
+            if (!CLAUSE.test(text) && !ADVISORY.test(text)) return;
+            if (attributed.has(i + 1)) return;
+            stray.push(
+                `${rel}:${i + 1}: \`${text.trim()}\` is attached to no probe — a blank line between the comment ` +
+                    'and the step, or a clause inside the step block, detaches it. Nothing would ever evaluate it.',
+            );
+        });
+    }
+    return stray;
 }
 
 function main() {
@@ -359,11 +544,18 @@ function main() {
     const errors = [];
     const ripe = [];
     const rows = [];
+    const optedOut = [];
+
+    errors.push(...unattachedClauses(probes));
 
     for (const probe of inScope) {
-        const { clauses, errors: parseErrors } = parseClauses(probe);
+        const { clauses, errors: parseErrors, advisory } = parseClauses(probe);
         errors.push(...parseErrors);
         if (parseErrors.length > 0) continue;
+        if (advisory !== undefined) {
+            optedOut.push({ probe, advisory });
+            continue;
+        }
         if (clauses.length === 0) {
             errors.push(
                 `${probe.rel}:${probe.line}: the probe "${probe.label}" states a retirement condition in prose and ` +
@@ -375,12 +567,21 @@ function main() {
         }
 
         const verdicts = clauses.map((clause) => {
+            if (clause.spec.online) io.stats.onlineClauses += 1;
             if (clause.spec.online && !online) return { clause, state: 'unknown', why: 'needs --online' };
             try {
                 const met = clause.spec.run(clause.args, io, probe);
                 io.stats.evaluated += 1;
+                if (clause.spec.online) io.stats.onlineEvaluated += 1;
                 return { clause, state: met ? 'met' : 'unmet' };
             } catch (error) {
+                // A malformed clause is a REFUSAL, not an unknown: it never resolves on its
+                // own, so leaving it unknown means the probe can never be ripe and nobody is
+                // told why. Only weather is tolerated.
+                if (error instanceof ClauseError) {
+                    errors.push(`${probe.rel}:${clause.line}: \`${clause.source}\` — ${error.message}`);
+                    return { clause, state: 'error', why: error.message };
+                }
                 if (!(error instanceof Unknown)) throw error;
                 io.stats.unknown += 1;
                 return { clause, state: 'unknown', why: error.message };
@@ -394,8 +595,12 @@ function main() {
     // The ledger, every run — the sibling checks print theirs for the same reason: a
     // deferral that is not printed is one that outlives its cause.
     console.log(
-        `check-probe-retirement: ${inScope.length} probe(s) with a stated condition, ${outOfScope} advisory by design.`,
+        `check-probe-retirement: ${inScope.length} probe(s) with a stated condition, ` +
+            `${outOfScope} carrying none, ${optedOut.length} advisory by declaration.`,
     );
+    for (const { probe, advisory } of optedOut) {
+        console.log(`\n  ${probe.rel}:${probe.line}  ${probe.label}\n    advisory by design — ${advisory.reason}`);
+    }
     for (const { probe, verdicts } of rows) {
         const met = verdicts.filter((v) => v.state === 'met').length;
         console.log(`\n  ${probe.rel}:${probe.line}  ${probe.label}`);
@@ -403,7 +608,7 @@ function main() {
             `    ${met} of ${verdicts.length} clause(s) met${online ? '' : ' (offline: network clauses unevaluated)'}`,
         );
         for (const v of verdicts) {
-            const mark = { met: '●', unmet: '○', unknown: '?' }[v.state];
+            const mark = { met: '●', unmet: '○', unknown: '?', error: '!' }[v.state];
             console.log(`    ${mark} ${v.clause.source}${v.why ? `  — ${v.why}` : ''}`);
         }
     }
@@ -416,11 +621,16 @@ function main() {
 
     // A run in which every online clause came back unknown proved nothing and must not
     // read as a pass — the green-that-checked-nothing shape, in this check's own words.
-    if (online && io.stats.evaluated === 0 && io.stats.unknown > 0) {
+    // SCOPED TO THE ONLINE CLAUSES, which is the whole point of the guard. Keyed on the
+    // total it fired only when NOTHING at all evaluated, so a single tree-local clause
+    // masked a complete registry and `gh` outage: measured, a probe with one `tree-lacks`
+    // beside one registry clause exited 0 having read the network zero times.
+    if (online && io.stats.onlineClauses > 0 && io.stats.onlineEvaluated === 0) {
         console.error(
-            `\ncheck-probe-retirement: --online was asked for and ${io.stats.unknown} clause(s) came back UNKNOWN ` +
-                'with none evaluated.\n  Nothing was measured, so this run is not a pass. Re-run, or fix the access ' +
-                'above (npm registry, `gh` auth).',
+            `\ncheck-probe-retirement: --online was asked for and NONE of the ${io.stats.onlineClauses} online ` +
+                `clause(s) could be evaluated (${io.stats.unknown} unknown).\n  The published half of every ` +
+                'condition went unread, so this run is not a pass. Re-run, or fix the access above (npm registry, ' +
+                '`gh` auth).',
         );
         return process.exit(1);
     }
@@ -442,7 +652,8 @@ function main() {
     }
 
     console.log(
-        `\ncheck-probe-retirement: nothing ripe — ${io.stats.evaluated} clause(s) evaluated, ${io.stats.unknown} unknown.`,
+        `\ncheck-probe-retirement: nothing ripe — ${io.stats.evaluated} clause(s) evaluated ` +
+            `(${io.stats.onlineEvaluated} of ${io.stats.onlineClauses} online), ${io.stats.unknown} unknown.`,
     );
     return process.exit(0);
 }

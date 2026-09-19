@@ -37,7 +37,7 @@ import { fileURLToPath } from 'node:url';
 // `check-probe-retirement.mjs`. Two hand-rolled copies of "what a probe is" would come to
 // know two different sets of steps, and the one that fell out of a copy would be invisible
 // in exactly the way both checks exist to end.
-import { listProbes } from './workflow-probes.mjs';
+import { envValueOf, listProbes, stepBlockContaining } from './workflow-probes.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
@@ -47,7 +47,7 @@ const failures = [];
 const probeList = listProbes(ROOT);
 
 for (const probe of probeList) {
-    const { rel, label, id, line, text } = probe;
+    const { rel, label, id, line, text, lines } = probe;
     if (id === undefined) {
         failures.push(
             `${rel}: the continue-on-error step "${label}" has no \`id\`, so its OUTCOME is not addressable ` +
@@ -60,6 +60,38 @@ for (const probe of probeList) {
             `${rel}:${line}: nothing reads \`steps.${id}.outcome\` ("${label}"). GitHub forces this step's ` +
                 'CONCLUSION to success, so the PR reads green whatever it did. Report it with ' +
                 '`scripts/report-probe-outcome.mjs`.',
+        );
+        continue;
+    }
+
+    // THE LABEL IS AN IDENTITY, NOT A CAPTION — and this is the half that was missing.
+    //
+    // `PROBE_LABEL` is what the reporter prints and what survives on the check run as an
+    // annotation; the step `name` is what the API calls the step. Nothing coupled the two,
+    // so they were free to be different sentences about the same step — and one pair WAS:
+    // `conformance-win32` was named "Conformance audit (os-axis + the staged bundle's media
+    // claim)" and labelled "Conformance audit — win32 media claim vs the PUBLISHED payload
+    // (red until the release carrying gstvorbis.dll, #1626)". Any reader joining the two
+    // records on the name then finds no annotation for a step that HAS them, and reads a
+    // permanently red probe as green. `check-probe-retirement.mjs`'s `probe-green` did
+    // exactly that, and reported a promotion for a step that has never passed.
+    //
+    // So the label is held to the name. The caption a reader wants still exists — it is the
+    // step name, which is what the log, the PR page and the summary already show.
+    //
+    // Only when a `PROBE_LABEL` is declared at all: `cli-cross-platform.yml`'s ten-step
+    // sweep reports its outcomes through a summary TABLE and passes no label, which is a
+    // different reporting shape rather than a defect. What that costs is stated where it
+    // lands — `check-probe-retirement.mjs`'s `probe-green` refuses a probe with no label,
+    // because there is then no annotation it could join to the step.
+    const reader = stepBlockContaining(lines, `steps.${id}.outcome`);
+    const declared = reader === null ? undefined : envValueOf(reader, 'PROBE_LABEL');
+    if (declared !== undefined && declared !== label) {
+        failures.push(
+            `${rel}:${line}: \`PROBE_LABEL\` is not this step's \`name\`, so the annotation it writes cannot ` +
+                'be joined back to the step it is about — which is how a never-green probe was read as green.\n' +
+                `      name:        ${label}\n` +
+                `      PROBE_LABEL: ${declared}`,
         );
     }
 }

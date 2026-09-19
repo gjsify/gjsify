@@ -311,8 +311,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # RETIREMENT CONDITION: when the thing stops being true.
-${clauses.map((c) => `      #   retire-when: ${c}`).join('\n')}
-      - name: 'The probe (gating blocked on the thing)'
+${clauses.map((c) => `      #   retire-when: ${c}\n`).join('')}      - name: 'The probe (gating blocked on the thing)'
         id: the-probe
         continue-on-error: true
         run: node run-the-suite.mjs
@@ -425,7 +424,7 @@ jobs:
         try {
             const { code, out } = retirement(root);
             assert.equal(code, 0);
-            assert.match(out, /0 probe\(s\) with a stated condition, 1 advisory by design/);
+            assert.match(out, /0 probe\(s\) with a stated condition, 1 carrying none/);
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
@@ -467,6 +466,121 @@ jobs:
             // no clause and is refused for having none. Both verdicts name their own step.
             assert.equal(code, 1);
             assert.match(out, /"Second \(gating blocked on B\)" states a retirement condition in prose/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a PROBE_LABEL that is not the step name', () => {
+        // The real pair, verbatim from `gtk-os-suites.yml` before this landed. Nothing
+        // coupled the annotation to the step, so a reader joining the two records on the
+        // name found no annotation for a step that had them — and read a never-green probe
+        // as green. This is the assertion that makes the join sound.
+        const mismatched = `name: probe
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conformance audit (os-axis + the staged bundle's media claim)
+        id: conformance-win32
+        continue-on-error: true
+        run: node audit.mjs
+      - name: 'Probe outcome: conformance audit'
+        if: always()
+        env:
+          PROBE_LABEL: 'Conformance audit — win32 media claim vs the PUBLISHED payload'
+          PROBE_OUTCOME: \${{ steps.conformance-win32.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+        const root = withWorkflows({ 'probe.yml': mismatched });
+        try {
+            const { code, out } = check(root);
+            assert.equal(code, 1);
+            assert.match(out, /`PROBE_LABEL` is not this step's `name`/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('leaves a probe that reports its outcome without a label alone', () => {
+        // `cli-cross-platform.yml`'s sweep reports through a summary TABLE and passes no
+        // `PROBE_LABEL`. That is a different reporting shape, not a defect — and what it
+        // costs is charged where it lands: `probe-green` refuses such a probe outright.
+        const unlabelled = `name: sweep
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Diagnostic'
+        id: diag
+        continue-on-error: true
+        run: node load.mjs
+      - name: Summary
+        if: always()
+        run: echo "\${{ steps.diag.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+`;
+        const root = withWorkflows({ 'sweep.yml': unlabelled });
+        try {
+            const { code } = check(root);
+            assert.equal(code, 0);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses a clause KEY that is nearly right', () => {
+        // A typo'd VERB already errored; a typo'd KEY was prose, and prose is discarded in
+        // silence. Measured: one good clause beside four near misses printed "1 of 1
+        // clause(s) met" and reported the probe RIPE — four conditions dropped, the verdict
+        // computed from the survivor. The same silently-measured-nothing shape, one level in.
+        for (const typo of ['retire-whn:', 'retire-when :', 'Retire-When:', 'retirewhen:']) {
+            const root = withTree(
+                BLOCKED([`tree-lacks src/table.ts Printer`]).replace(
+                    '      #   retire-when: tree-lacks src/table.ts Printer',
+                    `      #   retire-when: tree-lacks src/table.ts Printer\n      #   ${typo} issue-closed 1446`,
+                ),
+                { 'src/table.ts': 'export const rows = [];\n' },
+            );
+            try {
+                const { code, out } = retirement(root);
+                assert.equal(code, 1, `${typo} was accepted silently`);
+                assert.match(out, /is nearly a clause and is therefore not one/);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        }
+    });
+
+    it('refuses a clause that is attached to no probe', () => {
+        // The comment walk starts at the step's dash and stops at a blank line, so a clause
+        // below a blank line — or inside the step block — belongs to nothing and used to
+        // vanish without a word.
+        const detached = BLOCKED(['tree-lacks src/table.ts Printer']).replace('      - name:', '\n      - name:');
+        const root = withTree(detached, { 'src/table.ts': 'export const rows = ["Printer"];\n' });
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 1);
+            assert.match(out, /is attached to no probe/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('takes an explicit advisory-by-design opt-out, and prints the reason', () => {
+        const root = withTree(
+            BLOCKED([]).replace(
+                '      # RETIREMENT CONDITION: when the thing stops being true.',
+                '      # RETIREMENT CONDITION: when the thing stops being true.\n' +
+                    '      #   advisory-by-design: the ten-step sweep reports through a summary table',
+            ),
+        );
+        try {
+            const { code, out } = retirement(root);
+            assert.equal(code, 0);
+            assert.match(out, /1 advisory by declaration/);
+            assert.match(out, /reports through a summary table/);
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
