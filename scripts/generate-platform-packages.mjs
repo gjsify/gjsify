@@ -537,8 +537,9 @@ export function planPlatformPackages(ctx) {
             //    first-publish bootstrap as the split's main cost; paying it once
             //    per declaration, in the `gjsify onboard` sweep that has to
             //    happen anyway, is strictly cheaper than a second sweep later —
-            //    and a forgotten one stalls the publish loop for every
-            //    alphabetically-later package (the v0.4.20 incident).
+            //    and a forgotten one is TOLERATED by the publish loop, which
+            //    then ships the bridge that pins it (#1713; the v0.4.20 stall is
+            //    what `--tolerate-untrusted-new` was added to end).
             //
             // The tarball is README + package.json until the artifact arrives,
             // which costs a consumer ~2 KB and behaves exactly like the package

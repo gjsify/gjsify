@@ -108,9 +108,9 @@ Here: the rule and what enforces it.
 
 Shared utils: `@gjsify/utils` — check before duplicating; extract only when a 2nd package needs it; `/core` vs barrel split in § Runtime & platform model. `@gjsify/stream` direct imports allowed in internal modules/tests needing non-standard exports; all public code uses `node:stream`.
 
-Adding a NEW `@gjsify/*` name requires a manual npm first-publish + Trusted Publisher bootstrap
-BEFORE the release that ships it — skipping it stalls the release train for every alphabetically
-later package. Procedure: [docs/publishing.md](docs/publishing.md).
+A NEW `@gjsify/*` name needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE
+the release that ships it — skipping it never stalls the train, it SHIPS: the sweep skips it and
+ships its dependents (#1713). [publishing](docs/publishing.md).
 
 ## Testing
 

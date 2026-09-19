@@ -4386,8 +4386,9 @@ Why the artifact is a separate change rather than one line more here, and what i
   filter from the existing platform package (the CLI already prefers `prebuilds/<os>-<arch>-musl/`
   over `<os>-<arch>/`, see `prebuildDirCandidates`), or by a new `…-linux-x64-musl` sibling. The
   second needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE the release that
-  ships it (`docs/publishing.md`); skipping that stalls the release train for every
-  alphabetically later package, which is why it is not smuggled into a CI fix.
+  ships it (`docs/publishing.md`); skipping that does not stall the train — the sweep tolerates
+  the absent name and publishes whatever pins it (#1713) — which is why it is not smuggled into a
+  CI fix.
 - **`PLATFORM_RE`/`canonicalPlatform` in `packages/infra/manifest-conformance/lib/platforms.mjs`
   are still libc-blind** — `PLATFORM_RE` rejects `linux-x64-musl` and `canonicalPlatform` folds it
   down to `linux-x64`. That fold is not hypothetical: it silently swallowed the whole libc axis on
