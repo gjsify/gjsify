@@ -502,11 +502,15 @@ jobs:
       # retirement condition naming a RELEASE. It reports rather than silences: the audit
       # still prints the finding, and the reporter puts a `::warning::` on the PR saying the
       # job is green ONLY because of the flag. THIS step, on darwin, keeps gating — its
-      # declaration and the published payload agree — and the win32 copy carries the probe
-      # with the reason written beside it. Little is given up there either way: only the
-      # `--media-payload` comparison goes advisory, because `audit-runtimes.yml` runs
-      # `--check --strict` on every pull request with no paths filter, so the os-axis half
-      # is already held.
+      # declaration and the published payload agree. Little is given up in the window
+      # either: only the `--media-payload` comparison goes advisory, because
+      # `audit-runtimes.yml` runs `--check --strict` on every pull request with no paths
+      # filter, so the os-axis half is already held.
+      #
+      # THE WIN32 COPY IS NO LONGER IN A WINDOW. #1626's widening closed with 0.49.0 on
+      # 2026-09-11 and that step gates again — see it for what the retirement cost in
+      # attention, and for the clause vocabulary a future widening states its window in
+      # instead of leaving a sentence for somebody to re-read.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: |
           node scripts/audit-runtimes.mjs --check \
@@ -664,36 +668,30 @@ jobs:
       # the win32 payload is the one whose declared audio contract this closes, since it is
       # the bundle that carries no MP3 decoder while both darwin ones do.
       #
-      # A PROBE, for the widening window the darwin comment describes and only while it
-      # lasts. This tree claims Ogg/Vorbis and the PUBLISHED payload has no `gstvorbis.dll`
-      # until the next release carries it — and THIS WORKFLOW HAS NO `paths:` FILTER, so
-      # gating that disagreement reds this job on `main`, on the nightly and on every
-      # unrelated contributor's PR for the whole window. A check knowingly red for weeks is
-      # one people learn to skip, and the next real win32 media finding then lands on a job
-      # nobody opens. That is the same currency as a guard that cannot fail.
+      # A GATE since 2026-09-19, and WHAT IT NOW GUARANTEES: the audio contract this tree
+      # DECLARES for `@gjsify/gtk-runtime-win32-x64` is one the bundle a stranger downloads
+      # actually keeps. `--media-payload` opens the tarball this job staged from npm, so a
+      # declaration that outruns the payload — or a release that drops a plugin the
+      # declaration still promises — fails the leg instead of printing a warning.
       #
-      # NOT SILENCED, which is the only thing that makes this better than the red: the audit
-      # still runs and still prints the finding, and the reporter puts a `::warning::` on the
-      # PR plus a summary line saying the job is green ONLY because of this flag.
-      # `check-probe-outcomes-read.mjs` refuses a probe whose outcome nothing reads.
+      # IT WAS A PROBE, and the window is worth keeping because it is the shape that will
+      # recur. This tree began claiming Ogg/Vorbis in c11ce0c3c (#1626) at 04:24Z on
+      # 2026-09-11 while the published payload had no `gstvorbis.dll`; gating that
+      # disagreement would have redded this job — which has NO `paths:` filter — on `main`
+      # and on every unrelated contributor's PR until the release caught up. A check
+      # knowingly red for weeks is one people learn to skip, and the next real win32 media
+      # finding then lands on a job nobody opens.
       #
-      # AND ALMOST NOTHING STOPS GATING. `audit-runtimes.yml` runs `--check --strict` on
-      # every pull request with no paths filter of its own, so the os-axis half is already
-      # held there; what becomes advisory here is the `--media-payload` comparison alone —
-      # the one half that legitimately disagrees during a widening. The darwin leg keeps
-      # gating, because its declaration and the published payload agree.
+      # WHAT CLOSED IT, measured rather than assumed: 0.49.0 published `gstvorbis.dll` at
+      # 08:08:06Z the same day (0.48.0's tarball has `gstogg.dll` and no vorbis; 0.49.0's
+      # and 0.51.1's have both — read cache-busted from the tarballs, not from `npm view`).
+      # The probe's recorded outcome then went green and STAYED green for 25 consecutive
+      # `main` runs before anybody re-read the row. That eight-day gap is why
+      # `scripts/check-probe-retirement.mjs` exists: the same widening will happen again
+      # the next time a payload claim outruns a release, and a person will not be watching.
       #
-      # RETIREMENT CONDITION, a RELEASE and not an issue number — the mistake the
-      # react-native probe above records paying for: delete `continue-on-error`, both ids
-      # and this note on the first run after a published `@gjsify/gtk-runtime-win32-x64`
-      # carries `gstvorbis.dll` (#1626).
+      # So when this leg goes red during a future widening, the answer is not to restore
+      # `continue-on-error` — it is to state the condition as a `retire-when:` clause the
+      # way the two probes above do, so the flag removes itself when the release lands.
       - name: Conformance audit (os-axis + the staged bundle's media claim)
-        id: conformance-win32
-        continue-on-error: true
         run: node scripts\audit-runtimes.mjs --check "--media-payload=@gjsify/gtk-runtime-%TARGET%=packages\node-gi\node-gi\prebuilds\%TARGET%"
-      - name: 'Probe outcome: conformance audit'
-        if: always()
-        env:
-          PROBE_LABEL: 'Conformance audit — win32 media claim vs the PUBLISHED payload (red until the release carrying gstvorbis.dll, #1626)'
-          PROBE_OUTCOME: ${{ steps.conformance-win32.outcome }}
-        run: node scripts/report-probe-outcome.mjs
