@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "noEmit": true,
+        "target": "ESNext",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "strict": true,
+        "skipLibCheck": false,
+        "types": []
+    },
+    "include": ["src/**/*.d.mts"],
+    "comment": [
+        "`check` was `echo 'no TypeScript sources to check'`, which stopped being true the",
+        "day this package got a `types` field: `src/index.d.mts` is what every consumer of",
+        "the surface reads, and nothing compiled it. This does.",
+        "",
+        "It holds the DECLARATIONS to themselves — that they parse, resolve each other and",
+        "are coherent under `strict`. It does NOT hold them to the implementation: the",
+        "`.mjs` files carry their types in JSDoc, and `checkJs` over them reports on the",
+        "order counters the parser stamps in a second pass, which it cannot see. Deriving",
+        "declarations from that JSDoc and diffing them against these is the mechanism that",
+        "would close the drift class; it is a separate change, not a compiler flag.",
+        "",
+        "`types: []` because nothing here touches Node's globals, and `skipLibCheck: false`",
+        "because these three files ARE the lib."
+    ]
+}

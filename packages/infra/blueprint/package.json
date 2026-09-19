@@ -25,7 +25,7 @@
     },
     "scripts": {
         "clear": "echo 'nothing to do'",
-        "check": "echo 'no TypeScript sources to check'",
+        "check": "gjsify tsc --noEmit",
         "test": "node ../../../scripts/check-blueprint-corpus.mjs"
     },
     "repository": {
