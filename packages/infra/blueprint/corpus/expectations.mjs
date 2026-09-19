@@ -727,4 +727,16 @@ export const RULE_EXPECTATIONS = [
         lost: [],
         note: "The XML for the same two properties is `2` and `1`. The projection keeps the member NAME, per `03-property-enum.blp` — and it does so without consulting any vocabulary at all, which is why this file cannot tell a namespace the resolver knows from one it does not. Only the XML exit can, and only its golden pins that these two numbers came out of GtkSource's tables.",
     },
+    {
+        file: '41-template-parent-abstract.blp',
+        node: { tag: 'GtkWidget', props: { halign: 'center' } },
+        lost: [
+            {
+                kind: 'template',
+                line: 3,
+                detail: 'the template class `$CorpusAbstractParent`, whose parent is what the tag spells',
+            },
+        ],
+        note: 'The tag is the PARENT, as in `08-template.blp`, and the parent here is abstract — so the projection takes the reference position of the same seam the XML exit does, and a check meant for an instantiated type cannot reach either exit without failing this file and `refused/abstract-instantiation.blp` together.',
+    },
 ];

@@ -335,6 +335,12 @@ export const CORPUS_RULES = [
         surprise:
             "`smart-home-end: after` is `2` and `background-pattern: grid` is `1`, and neither number is in Gtk's tables: the property-to-enum join is keyed by the type that DECLARES the property, so this one is answered entirely inside GtkSource's own `PROP_ENUMS` and `ENUM_VALUES`. `28-property-enum-foreign.blp` pins the opposite direction — an enum PANGO declares, reached through a Gtk property, with no `using Pango` anywhere — and the two together say the join follows the declaring type in both directions and the `using` list in neither",
     },
+    {
+        file: '41-template-parent-abstract.blp',
+        isolates: 'an ABSTRACT class as a template parent, `template $Name: Gtk.Widget`',
+        surprise:
+            "the oracle compiles it — `parent=\"GtkWidget\"` — and refuses the same class one line over as an object (`Gtk.Widget can't be instantiated because it's abstract`, `refused/abstract-instantiation.blp`). So a type reference is TWO questions and not one, and the `@girs` table that answers the first answers the second wrong by construction: `DECLS` holds instantiable GTypes, which leaves out all 17 of Gtk's abstract classes and both of Adw's. This file exists because a check written for the object position was applied to both and refused 19 legal parents, and neither the wild corpus (no file there subclasses an abstract class) nor the reference implementation's `tests/samples` (its abstract-class case lives in `sample_errors/`, which is measured nowhere here) could see it",
+    },
 ];
 
 /**
@@ -379,7 +385,19 @@ export const CORPUS_REFUSALS = [
         oracle: 'refuses',
         projection: 'refuses',
         line: 3,
-        names: 'declares no type called',
+        names: 'declares no instantiable type called',
+    },
+    {
+        // The same check, on a name that DOES exist. It is here rather than beside the rule files
+        // because the oracle refuses it too, and it is the other half of
+        // `rules/41-template-parent-abstract.blp`: one file per position, so applying the object
+        // position's check to a template parent — which refused 19 legal files — fails a stage.
+        file: 'abstract-instantiation.blp',
+        construct: 'an abstract class instantiated as an object (`Gtk.Widget { }`)',
+        oracle: 'refuses',
+        projection: 'refuses',
+        line: 3,
+        names: 'declares no instantiable type called',
     },
     {
         file: 'closure-value.blp',

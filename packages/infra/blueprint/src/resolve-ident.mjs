@@ -91,15 +91,58 @@
 // `{GObject, GBinding, GParamSpec, …}` gives `G`, which is the answer `GObject.Object` needs and
 // the one no concatenation reaches. The back-off is what keeps a namespace with ONE declared type
 // honest: `{FooBar}` has itself as its common prefix, the remainder is empty rather than a fresh
-// CamelCase word, and the derivation walks back to `Foo` instead of writing `FooBarBar`.
+// CamelCase word, and the derivation walks back to `Foo`.
 //
-// AND THE NAME IS CHECKED AGAINST THE SAME TABLE
+// IT IS A DERIVATION OVER THE FIVE NAMESPACES LOADED HERE, NOT A LAW ABOUT GIR
 //
-// `<prefix><Name>` is only emitted where `DECLS` declares it. A prefix derived wrong would
-// otherwise write a class name GtkBuilder resolves to nothing — the plausible wrong output clause 3
-// exists to prevent, one level below the namespace check. The oracle refuses the same shape by name
-// (`Namespace Gtk does not contain a type called FooApplicationWindow`), so this is agreement and
-// not extra strictness. An EXTERN type (`$MyWidget`) is not in any GIR and takes neither rule.
+// Say what was measured. On the five vocabularies this module loads it reproduces
+// `c:identifier-prefixes` verbatim. Swept over the 135 GIRs installed on one workstation, of the
+// 104 that declare a concrete class it gets 28 WRONG (27%): `GdkX11` and `GdkWayland` answer
+// themselves where the GIR says `Gdk`, eight `Gst*` namespaces answer `GstAudio`/`GstGL`/`GstVa`
+// where it says `Gst`, `GstCheck`'s one class `GstTestClock` answers `GstTest`, `Colorhug`'s one
+// class answers `ChDevice` where it says `Ch`, `GnomeBG` stops mid-word at `GnomeB`, `Nice`
+// backs off to nothing at all, and four namespaces declare a MULTI-VALUED prefix (`Camel,camel`,
+// `ECal,E`, `GUnix,G`) that a single string cannot express. None of the 28 is reachable today —
+// not one publishes a `./vocabulary`, because none declares a `GtkWidget` descendant — and the
+// day one does, this derivation is what has to be replaced by the prefix itself, emitted upstream.
+// The one-type back-off is the same kind of claim: it answers `Foo` for `{FooBar}` and `GstTest`
+// for `{GstTestClock}`, so it bounds the damage rather than removing it.
+//
+// AND IN OBJECT POSITION THE NAME IS CHECKED AGAINST THE SAME TABLE
+//
+// `<prefix><Name>` is checked against `DECLS` where the type is INSTANTIATED. A prefix derived
+// wrong would otherwise write a class name GtkBuilder resolves to nothing — the plausible wrong
+// output clause 3 exists to prevent, one level below the namespace check. The oracle refuses the
+// same shape by name (`Namespace Gtk does not contain a type called FooApplicationWindow`), and it
+// refuses an abstract class there too (`Gtk.Widget can't be instantiated because it's abstract`),
+// which is exactly what `DECLS` leaves out. So this is agreement, not extra strictness.
+//
+// The check turns a wrong prefix into a refusal rather than a wrong class, and that is EMPIRICAL
+// and not a theorem: swept over every concrete class in all 135 installed GIRs — 2182 of them —
+// there is no case where a wrongly derived prefix still lands on a name the namespace declares.
+// It is constructible, though, and the counterexample belongs beside the claim:
+// `{FooBarOne, FooBarBarOne}` derives `FooBar`, so `Foo.BarOne` emits `FooBarBarOne`, a real and
+// different class, silently. No installed GIR has that shape; nothing guarantees the next one does not.
+//
+// NOT IN REFERENCE POSITION, AND GETTING THAT WRONG COST A REAL FILE
+//
+// A template PARENT names a class without instantiating it, and `template $Foo: Gtk.Widget { }` is
+// a file the oracle compiles — `<template class="Foo" parent="GtkWidget">`. `DECLS` holds
+// instantiable GTypes, so `GtkWidget` is not in it, and checking membership in that position
+// refused the 19 abstract classes Gtk and Adw declare, every one of them legal as a parent. The
+// reference implementation draws the SAME line: its `tests/sample_errors/abstract_class.blp` writes
+// both `template $MyWidget: Gtk.Widget { }` and `Gtk.Widget { }`, and pins the error on the
+// instantiation alone. Neither sweep could see it — no wild file subclasses an abstract class and
+// the oracle's `sample_errors/` are in no corpus here — so `rules/41-template-parent-abstract.blp`
+// is what holds it.
+//
+// Nothing in the shipped vocabulary answers "does this class EXIST", abstract ones included:
+// `OWN_PROPS` and `OWN_SIGNALS` carry `GtkWidget` but would miss a class declaring neither. So a
+// reference position gets the prefix and no membership check — which is what every position did
+// before, so the check is a strengthening of one and never a weakening of the other. The seam
+// therefore takes the POSITION, and silence buys the weaker answer rather than the stronger one.
+//
+// An EXTERN type (`$MyWidget`) is in no GIR and takes none of these rules.
 //
 // A `using` FOR A NAMESPACE WITH NO VOCABULARY IS STILL REFUSED
 //
@@ -156,6 +199,17 @@ import * as WEBKIT from '@girs/webkit-6.0/vocabulary';
  * `./vocabulary` today. That sweep also reaches `Gdk`, and the reference implementation's own
  * samples reach `Gio` and `GObject`; those three publish none, so they are refused by name
  * rather than guessed at — see the header.
+ *
+ * FOUR OF THE FIVE HAVE A GOLDEN AND SHUMATE DOES NOT, which is worth saying here rather than
+ * only in the ledger. A golden needs the oracle, the oracle needs the typelib, and the
+ * `ci-fedora` image carries `gtk4-devel`, `libadwaita-devel`, `gtksourceview5-devel` and
+ * `webkitgtk6.0-devel` and no libshumate. A rule file naming Shumate would red stage B until
+ * that image is rebuilt, and an image is only pushed from `main`, so a PR cannot carry both
+ * halves. Measured locally, a Shumate golden IS byte-equal; what holds it out is the image and
+ * nothing about the code. `status/open-todos.md` carries the follow-up. Until then Shumate is
+ * covered here only by load — `merged()` and `NAMESPACES` read every entry of this array on
+ * import, so a broken or conflicting Shumate vocabulary fails every corpus run — and by the wild
+ * sweep, which is not a gate.
  */
 const VOCABULARIES = [GTK, ADW, GTK_SOURCE, SHUMATE, WEBKIT];
 
@@ -386,9 +440,19 @@ const NAMESPACES = new Map(
  * The signature the emitter's `EmitOptions.gtypeName` declares. An unqualified name is a Gtk type
  * — `24-unqualified-type.blp` pins that `using Adw 1;` does not make a bare `Bin` legal.
  *
+ * `position` is which question is being asked, and the two have different answers in the data:
+ * `'object'` is a type being INSTANTIATED, where `DECLS` is exactly the right table and an
+ * abstract class is an error in both compilers; anything else is a type merely NAMED — a template
+ * parent — where no shipped table can say whether the class exists, so only the prefix applies.
+ * An omitted position is read as a reference, because a caller that does not say where it is
+ * cannot be given the stronger check. `refused/unknown-type-name.blp` and
+ * `rules/41-template-parent-abstract.blp` hold the two sides, so dropping the argument at either
+ * call site fails a stage rather than going quiet.
+ *
  * Two failures, and they are different questions with different repairs: a namespace with no
  * vocabulary at all (`Gdk`, `Gio`, `GObject` today — upstream's gate, see the header) and a name
- * the namespace does not declare (a typo, which the oracle refuses by name too).
+ * the namespace does not declare as instantiable (a typo, or an abstract class where one cannot
+ * go; the oracle refuses both by name).
  *
  * An EXTERN type takes neither rule. `$MyWidget` is a class the application registers, so there
  * is no namespace to default, no C prefix to look up and no GIR to have declared it: its GType
@@ -398,9 +462,10 @@ const NAMESPACES = new Map(
  *
  * @param {{ namespace?: string, name: string, extern?: true }} type
  * @param {string} where  `line N`, for an error message that can be acted on
+ * @param {'object' | 'reference'} [position]  where the type is written; see above
  * @returns {string}
  */
-export function gtypeName(type, where) {
+export function gtypeName(type, where, position) {
     if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
     const namespace = type.namespace ?? 'Gtk';
     const known = NAMESPACES.get(namespace);
@@ -414,11 +479,12 @@ export function gtypeName(type, where) {
         );
     }
     const gtype = `${known.prefix}${type.name}`;
-    if (!known.declares(gtype)) {
+    if (position === 'object' && !known.declares(gtype)) {
         throw new Error(
-            `blueprint: ${where}: namespace ${namespace} declares no type called \`${type.name}\` ` +
-                `(its GType name would be \`${gtype}\`), so there is nothing to emit — @girs ` +
-                `${namespace} vocabulary is what was asked`,
+            `blueprint: ${where}: namespace ${namespace} declares no instantiable type called ` +
+                `\`${type.name}\` (its GType name would be \`${gtype}\`), so there is nothing to ` +
+                `instantiate — @girs ${namespace} vocabulary is what was asked, and it lists the ` +
+                'abstract classes nowhere, which is why one is legal as a template parent and not here',
         );
     }
     return gtype;

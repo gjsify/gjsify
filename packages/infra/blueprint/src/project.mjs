@@ -50,13 +50,16 @@ import { numberLiteral } from './number-literal.mjs';
  * @param {ProjectOptions | undefined} options
  * @returns {(type: TypeRef) => string}
  */
-const tagReader = (options) => (type) => {
-    if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`);
-    // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
-    // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
-    if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
-    return `${type.namespace ?? 'Gtk'}${type.name}`;
-};
+const tagReader =
+    (options) =>
+    /** @param {TypeRef} type @param {'object' | 'reference'} [position] */
+    (type, position = 'object') => {
+        if (options?.gtypeName !== undefined) return options.gtypeName(type, `line ${type.line}`, position);
+        // An extern type has no namespace to default: `$MyWidget` is `MyWidget`, never
+        // `GtkMyWidget`. The same correction the emitter's fallback takes, for the same reason.
+        if (type.extern === true) return `${type.namespace ?? ''}${type.name}`;
+        return `${type.namespace ?? 'Gtk'}${type.name}`;
+    };
 
 /** `Adw.Breakpoint` is dropped whole rather than projected — it is not a widget. */
 const isBreakpoint = (node) =>
@@ -245,7 +248,10 @@ export function projectToSharedNode(file, options) {
         // and projects to an `AdwBin`, because `AdwHeaderBar` is final and cannot be a
         // template parent.
         const template = /** @type {TemplateNode} */ (root);
-        return { node: { tag: tag(template.parent), ...projectBody(template.body, tag) }, lost: lossesOf(file) };
+        return {
+            node: { tag: tag(template.parent, 'reference'), ...projectBody(template.body, tag) },
+            lost: lossesOf(file),
+        };
     }
     return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file) };
 }
