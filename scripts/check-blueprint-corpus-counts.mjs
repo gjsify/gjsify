@@ -306,6 +306,14 @@ const OTHER_SUBJECT = [
         why: "a `@gjsify/manifest-conformance` rule file — the registry's unit of work, not the corpus's",
     },
     {
+        // The narrow form, because the whole line is 844 characters of prose and a ledger entry
+        // nobody re-reads is not a record. One phrase, and the gate refuses it the moment this
+        // file holds a second claim reading the same two words.
+        file: 'packages/infra/blueprint/corpus/manifest.mjs',
+        claim: 'two rules',
+        why: 'the two rules of the LANGUAGE that golden tells apart — a namespace whose C identifier prefix IS its name, and one whose is not — the same subject as the `emit-xml.mjs` entry below and never a count of corpus files',
+    },
+    {
         file: 'packages/infra/blueprint/src/emit-xml.mjs',
         text: '* point at are load-bearing) are three files that would otherwise collapse into one rule.',
         why: 'a rule of the LANGUAGE, which is what a corpus file isolates rather than how many exist',

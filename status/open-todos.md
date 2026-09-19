@@ -6340,8 +6340,8 @@ calls `installBundledIconTheme()`.
 neither the macOS nor the Windows runner. ADR 0053 carries the census and the reasoning and
 decides the shape — an in-repo TypeScript parser whose output is `SharedNode`, run in shadow
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
-2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 50 corpus files
-(38 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 19
+2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 53 corpus files
+(41 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 21
 refused `.blp` files each name their construct and line. Those four numbers are held to the
 tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
 every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
@@ -6508,23 +6508,36 @@ is the other consumer and it reads the artifact, not the generator, so it is una
 way. `packages/infra/blueprint/src/resolve-ident.mjs` already reads the vocabulary directly and
 is the shape the swap would generalise.
 
-### A non-widget's enum property has no join in `@girs`, so `Gtk.SizeGroup.mode` emits its member name
+### The `@girs` vocabulary gate is per NAMESPACE, so `Gdk.Cursor` and `GObject.Object` have no GType name
 
-Measured on `blueprint-compiler` 0.20.4: `Gtk.SizeGroup { mode: horizontal; }` emits
-`<property name="mode">1</property>` and the in-repo emitter writes `horizontal`
-(`packages/infra/blueprint/corpus/rules/29-enum-non-widget.ui:10`, the second entry in
-`corpus/divergences.mjs`, kind `prop-enums-widgets-only`). The number is in the vocabulary —
-`ENUM_VALUES['GtkSizeGroupMode.horizontal']` is `1` on `@girs` 5.0.0 — and the join is not:
-`PROP_ENUMS`, the declaration-keyed "which enum is this property" table ADR 0053 § Amendment 1
-was waiting for, has 71 owners and every one of them is in the widget tree, and `DECLS` has no
-`GtkSizeGroup` at all. `src/resolve-ident.mjs` therefore answers `null` — the "not ours" an object
-id needs, and the wrong answer here — and the source spelling stands.
+**The half of this entry about non-widget DECLARATIONS has closed.** ts-for-gir widened
+`PROP_ENUMS` and `DECLS` past the widget surface in `@girs` 5.2.0, so
+`Gtk.SizeGroup { mode: horizontal; }` is `1` from both compilers and the
+`prop-enums-widgets-only` entry retired from `corpus/divergences.mjs` on the version bump alone,
+with no line of `src/resolve-ident.mjs` changed. That file's header records what made the
+retirement free, and it is the cheapest kind of fix to mistake for luck.
 
-This is the same shape as the ARIA entry below: a corpus divergence that only a ts-for-gir change
-can retire, never a change in this repository. Resolving it here would mean searching the nick
-lists for an enum with a member `horizontal`, which finds several, and guessing is the silent
-wrong output ADR 0053 clause 3 exists to refuse. Both entries self-retire the same way: the day
-the join exists, stage C fails with "byte-equal and still listed, delete the entry".
+**The half about NAMESPACES has not, and it is the one a `.blp` in the wild hits.** A namespace
+emits a `./vocabulary` subpath only if it declares a concrete `GtkWidget` descendant — 142 of the
+705 GIRs, unchanged by the widening. `GtkSource`, `Shumate` and `WebKit` qualify and
+`packages/infra/blueprint` now depends on all three, which took the wild sweep from 216 to 221
+byte-equal foreign files. `Gdk`, `Gio`, `GObject` and `GLib` do not qualify, although
+`Gdk.Cursor` (Muzika), `Gio.Application` and `GObject.Object` (the reference implementation's own
+`tests/samples`) are ordinary `.blp` and the oracle compiles all three. Nothing in this repository
+can close it: the answer is the GIR's `glib:type-name` — `Gio.ListStore` is `GListStore` and
+`GObject.Object` is `GObject`, neither reachable by concatenation — and no artefact those
+namespaces publish carries it. `gtypeName` in `src/resolve-ident.mjs` therefore refuses by name,
+per ADR 0053 clause 3, and `corpus/refused/namespace-without-vocabulary.blp` holds the case.
+
+**What it would take, and it is a decision and not a patch.** Either the gate widens to any
+namespace declaring instantiable GTypes, or the vocabulary keeps its widget scope and a second,
+smaller surface carries what a `.blp` needs from every namespace: the GType name, the ancestry,
+and the property-to-enum join. The consumer side needs no change to take either — a namespace
+arrives in `resolve-ident.mjs` as one import and one dependency line, and everything else, its C
+identifier prefix included, is read out of the module. The measurement that argues for it is the
+wild sweep over 273 wild `.blp` — 235 of them foreign — that `scripts/blueprint-wild-sweep.mjs`
+runs and `docs/reports/2026-09-16-blueprint-subset-gap.md` tables, and those four
+namespaces are its whole remaining namespace bill.
 
 **The scope question, stated rather than assumed.** The `@girs` vocabulary is a WIDGET vocabulary
 by decision: ADR 0029 emits a surface "only for namespaces that actually declare `GtkWidget`
@@ -6536,22 +6549,41 @@ ordinary ones. So closing this is one of two different things: a small WIDENING 
 `PROP_ENUMS` and `DECLS` for the non-widget classes of a namespace that already emits a surface,
 which is all the `.blp` files in this repo could need) or a SCOPE CHANGE (a vocabulary for GObject
 classes generally, which ADR 0029 did not decide). Which one, and what each costs in emitted
-data, is a measurement being made in ts-for-gir and not here. Whichever it is, the consumer side
-needs no change to take it — `resolve-ident.mjs` already walks `DECLS` and reads `PROP_ENUMS` —
-and the retirement is the ledger failure above, not an edit.
+data, was a measurement to be made in ts-for-gir and not here. **The WIDENING is what landed**, in
+5.2.0; the SCOPE CHANGE is what the paragraphs above still ask for, and the wild corpus is what
+turned it from a hypothetical into a bill of four namespaces.
 
-**What it costs while it stands.** Any `.blp` that sets an enum- or flags-typed property on an
-object outside the widget tree gets its member name where the compiler writes a number. Measured
-on 0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; }` is `1`, its
+**What it cost while the widening stood open, kept because it is the failure mode the scope
+change still has.** Any `.blp` that set an enum- or flags-typed property on an object the
+vocabulary did not describe got its member name where the compiler writes a number. Measured on
+0.20.4 beside the corpus file: `Gtk.EventControllerScroll { flags: vertical; }` is `1`, its
 `propagation-phase: capture` is `1`, `Gtk.StringFilter { match-mode: prefix; }` is `2`, and the
-in-repo emitter writes all three as written. A single-word member happens to load anyway, because
+in-repo emitter wrote all three as written. A single-word member happens to load anyway, because
 GtkBuilder resolves an enum nick as well as a number; a member Blueprint spells with an
 underscore (`word_char`, `both_axes`) is neither a nick nor a number to GtkBuilder and does not.
-None of the twelve real files does this today, which is why the gap was invisible until
-`03-property-enum` was asked for its other case. The corpus now HOLDS it rather than hiding it:
-`29-enum-non-widget.blp` diverges on one named line and every other line of it is held to the
-golden, so a `.blp` in this repo that reaches the same shape surfaces as an unledgered
-divergence in stage C, not as a build that loads and misbehaves.
+So the damage was a file that loads and misbehaves, which is why the namespace half refuses
+instead: a `Gdk.Cursor` nobody can name a GType for is an error and not a spelling to pass
+through.
+
+### A Shumate rule file needs a CI image that has libshumate, and a PR cannot push one
+
+`packages/infra/blueprint` depends on `@girs/shumate-1.0` — it is what takes Workbench's Map demo
+to byte-equal — and it is the one of the five namespaces with NO corpus golden. A golden needs the
+oracle, the oracle needs the typelib, and `.docker/ci-fedora.Dockerfile` installs `gtk4-devel`,
+`libadwaita-devel`, `gtksourceview5-devel` and `webkitgtk6.0-devel` and no libshumate. So a rule
+file naming Shumate reds stage B of `check-blueprint-corpus.mjs` until the image is rebuilt, and
+`build-ci-image.yml` only PUSHES on `main` — its pull-request leg builds and never pushes, by
+design, because a fork PR's token cannot write to GHCR. One PR therefore cannot carry both halves.
+
+Measured on this workstation, where every typelib is installed: a Shumate golden is byte-equal, so
+nothing about the code is in question. The gap is that a dependency of a gated package has no
+coverage in the gate — it is exercised only by module load (`merged()` and `NAMESPACES` read every
+vocabulary on import, so a broken or conflicting one fails every corpus run) and by the wild sweep,
+which is not a gate and needs a workstation.
+
+Two commits, in order: add `libshumate-devel` to `.docker/ci-fedora.Dockerfile`, land it, and once
+the weekly or on-push rebuild has pushed `ghcr.io/gjsify/ci-fedora:<major>`, add the rule file and
+its golden. Doing it the other way round is a red PR that looks like a defect in the resolver.
 
 ### Inverting the Blueprint projection needs the GIR, and one loss needs a field
 

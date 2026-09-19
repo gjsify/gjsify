@@ -1,0 +1,17 @@
+using Gtk 4.0;
+using GtkSource 5;
+using WebKit 6.0;
+
+Box {
+  orientation: vertical;
+
+  GtkSource.View {
+    buffer: GtkSource.Buffer {
+      highlight-syntax: true;
+    };
+  }
+
+  WebKit.WebView {
+    zoom-level: 1.5;
+  }
+}
