@@ -81,11 +81,23 @@ export const readNumber = (text) => {
 const TICK = String.raw`\x60?`;
 
 /**
- * Between a number and its noun may stand whitespace at any indent, one blank line, ONE
- * markdown table pipe, emphasis marks, a backtick — never a word. One pipe and not two, because
- * `line < 1 || refusal.line` is code and a table cell is not.
+ * The punctuation a count is written with: whitespace at any indent, a hard wrap, a blank line,
+ * emphasis marks, a backtick, and the connectors this repo actually reaches for — an em dash
+ * above all, a colon, a comma, a bracket. Never a letter, so no gap can swallow "N of the M
+ * real files" into a claim.
  */
-const GAP = String.raw`[\s\x60*_]{0,8}\|?[\s\x60*_]{0,8}`;
+const PAD = String.raw`[\s\x60*_.,:;()\[\]—–-]{0,6}`;
+
+/**
+ * Between a number and its noun: that punctuation, and a table cell boundary — one pipe within
+ * a row, or a pipe-newline-pipe between two. The gap was whitespace and a single pipe once,
+ * which is the same asymmetry this module's own header denies: a noun with a colon before its
+ * count was a claim and a count with a colon before its noun was not, while the header called
+ * the two orders one sentence. An em dash, a bracket, a colon and a one-column table all walked
+ * through the difference. The second pipe must have a LINE BREAK before it, because a row
+ * boundary does and `refusal.line < 1 || refusal.line` does not.
+ */
+const GAP = String.raw`(?:${PAD}\|[^\S\n]*\n[^\S\n]*\|${PAD}|${PAD}\|?${PAD})`;
 
 /**
  * Between a noun and a number that FOLLOWS it there must be an explicit CONNECTOR — a colon, a
@@ -94,7 +106,6 @@ const GAP = String.raw`[\s\x60*_]{0,8}\|?[\s\x60*_]{0,8}`;
  * one` are English, not claims, and allowing whitespace alone reported both.
  */
 const LINK_WORD = String.raw`(?:\b(?:now|today|currently|already|still|altogether)\b\s+)?\b(?:number|numbers|numbered|total|totals|totalling|count|counts|counted|stands?|sits?|comes?|amounts?|reach(?:es)?|runs?)\b(?:\s+(?:at|to))?`;
-const PAD = String.raw`[\s\x60*_.,—-]{0,6}`;
 const LINK = String.raw`${PAD}(?::|\||=|${LINK_WORD})${PAD}`;
 
 /**
@@ -161,6 +172,69 @@ export function looseRegions(file, text) {
     return regions;
 }
 
+/** A cell, stripped of the emphasis and backticks markdown wraps it in. */
+const bareCell = (cell) => cell.replace(/[\x60*_]/g, '').trim();
+
+/** Alignment rows carry no content, and their dashes must not read as a column's value. */
+const isRuleRow = (cells) => cells.every((cell) => /^:?-{2,}:?$/.test(bareCell(cell)));
+
+/**
+ * Claims a markdown TABLE states down a column: the header cell names the thing and a body cell
+ * holds the number. No gap class reaches that — between `| rule files |` and the `| 40 |` two
+ * rows below sits an alignment row, and widening a regex far enough to cross it would let it
+ * cross anything. A header row of nouns over a body row of numbers is how a count actually gets
+ * tabulated, so it is read structurally instead: split the run of `|` rows into cells, drop the
+ * alignment rows, and pair each column's nouns with that column's numbers.
+ */
+function tableClaims(text, nouns) {
+    const lines = text.split('\n');
+    const offsets = [];
+    let at = 0;
+    for (const line of lines) {
+        offsets.push(at);
+        at += line.length + 1;
+    }
+
+    const claims = [];
+    for (let start = 0; start < lines.length; start += 1) {
+        if (!lines[start].trim().startsWith('|')) continue;
+        let end = start;
+        while (end < lines.length && lines[end].trim().startsWith('|')) end += 1;
+        if (end - start >= 2) {
+            const rows = [];
+            for (let row = start; row < end; row += 1) {
+                const cells = lines[row]
+                    .trim()
+                    .replace(/^\||\|$/g, '')
+                    .split('|');
+                if (!isRuleRow(cells)) rows.push({ row, cells });
+            }
+            const width = Math.max(0, ...rows.map(({ cells }) => cells.length));
+            for (let column = 0; column < width; column += 1) {
+                const column_ = rows
+                    .map(({ row, cells }) => ({ row, cell: bareCell(cells[column] ?? '') }))
+                    .filter(({ cell }) => cell.length > 0);
+                for (const [key, noun] of nouns) {
+                    if (!column_.some(({ cell }) => noun.test(cell))) continue;
+                    for (const { row, cell } of column_) {
+                        if (!new RegExp(String.raw`^${NUMBER}$`, 'i').test(cell)) continue;
+                        claims.push({
+                            key,
+                            tier: 'table',
+                            stated: readNumber(cell),
+                            text: cell,
+                            index: offsets[row],
+                            line: row,
+                        });
+                    }
+                }
+            }
+        }
+        start = end;
+    }
+    return claims;
+}
+
 /**
  * Every claim in a text, in both orders, scanned ACROSS line ends and reported against the line
  * the NUMBER falls on. This repo hard-wraps at about ninety columns, which splits a claim as
@@ -184,6 +258,19 @@ export function findClaims(text, regions = []) {
     const inRegion = (index) => regions.some(([from, to]) => index >= from && index < to);
 
     const found = [];
+    // A table column is read structurally, with the same two tiers deciding which nouns a cell
+    // may carry.
+    const cellNouns = Object.entries(CATEGORIES).map(([key, category]) => [
+        key,
+        new RegExp(String.raw`^(?:${category.plain})$`, 'i'),
+    ]);
+    const looseCellNouns = Object.entries(CATEGORIES).map(([key, category]) => [
+        key,
+        new RegExp(String.raw`^(?:${category.plain}|${category.loose})$`, 'i'),
+    ]);
+    for (const claim of tableClaims(text, cellNouns)) found.push(claim);
+    for (const claim of tableClaims(text, looseCellNouns)) if (inRegion(claim.index)) found.push(claim);
+
     for (const [key, category] of Object.entries(CATEGORIES)) {
         for (const tier of ['plain', 'loose']) {
             const noun = category[tier];
