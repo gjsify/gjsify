@@ -79,6 +79,8 @@
     "bit-twiddle@^1.0.2",
     "glsl-tokenizer@^2.1.5",
     "@types/bit-twiddle@^1.0.3",
+    "@girs/gtksource-5@5.2.0",
+    "@girs/shumate-1.0@5.2.0",
     "acorn@^8.17.0",
     "cosmiconfig@^9.0.2",
     "get-tsconfig@^4.14.0",
@@ -2035,6 +2037,28 @@
         "@girs/pangocairo-1.0": "^5.2.0"
       }
     },
+    "node_modules/@girs/gtksource-5": {
+      "version": "5.2.0",
+      "resolved": "https://registry.npmjs.org/@girs/gtksource-5/-/gtksource-5-5.2.0.tgz",
+      "integrity": "sha512-5daJQ/9djGZm5IW+rcEwGVwGIjT78wrE/JxVxqdAe/AhMZWXmeYGwcTbBOLelFNsGobVFnnf9eYW+LCV26Oz/g==",
+      "dependencies": {
+        "@girs/gjs": "^5.2.0",
+        "@girs/gdk-4.0": "^5.2.0",
+        "@girs/gio-2.0": "^5.2.0",
+        "@girs/gsk-4.0": "^5.2.0",
+        "@girs/gtk-4.0": "^5.2.0",
+        "@girs/glib-2.0": "^5.2.0",
+        "@girs/cairo-1.0": "^5.2.0",
+        "@girs/pango-1.0": "^5.2.0",
+        "@girs/gmodule-2.0": "^5.2.0",
+        "@girs/gobject-2.0": "^5.2.0",
+        "@girs/graphene-1.0": "^5.2.0",
+        "@girs/harfbuzz-0.0": "^5.2.0",
+        "@girs/freetype2-2.0": "^5.2.0",
+        "@girs/gdkpixbuf-2.0": "^5.2.0",
+        "@girs/pangocairo-1.0": "^5.2.0"
+      }
+    },
     "node_modules/@girs/gudev-1.0": {
       "version": "5.2.0",
       "resolved": "https://registry.npmjs.org/@girs/gudev-1.0/-/gudev-1.0-5.2.0.tgz",
@@ -2187,6 +2211,28 @@
         "@girs/freetype2-2.0": "^5.2.0",
         "@girs/gio-2.0": "^5.2.0",
         "@girs/gmodule-2.0": "^5.2.0"
+      }
+    },
+    "node_modules/@girs/shumate-1.0": {
+      "version": "5.2.0",
+      "resolved": "https://registry.npmjs.org/@girs/shumate-1.0/-/shumate-1.0-5.2.0.tgz",
+      "integrity": "sha512-A3vTCulDYYt8UQeKMD7xe8oxY9bsORa8yzhdEBC21DH/i9nJEJgCJfiBtSGDPcygpzna68kMJHKavnljy7UbiA==",
+      "dependencies": {
+        "@girs/gjs": "^5.2.0",
+        "@girs/gdk-4.0": "^5.2.0",
+        "@girs/gio-2.0": "^5.2.0",
+        "@girs/gsk-4.0": "^5.2.0",
+        "@girs/gtk-4.0": "^5.2.0",
+        "@girs/glib-2.0": "^5.2.0",
+        "@girs/cairo-1.0": "^5.2.0",
+        "@girs/pango-1.0": "^5.2.0",
+        "@girs/gmodule-2.0": "^5.2.0",
+        "@girs/gobject-2.0": "^5.2.0",
+        "@girs/graphene-1.0": "^5.2.0",
+        "@girs/harfbuzz-0.0": "^5.2.0",
+        "@girs/freetype2-2.0": "^5.2.0",
+        "@girs/gdkpixbuf-2.0": "^5.2.0",
+        "@girs/pangocairo-1.0": "^5.2.0"
       }
     },
     "node_modules/@girs/soup-3.0": {
