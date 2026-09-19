@@ -495,12 +495,58 @@ Two things to fix, and they are separable:
 1. **The table.** Either the generator marks a row's platform availability, or the
    table stops offering a class the running GTK does not have. This is the one that
    makes the win32 leg gating again — the step is `continue-on-error` with that as its
-   printed retirement condition.
+   retirement condition, now spelled as `retire-when:` clauses over
+   `src/generated/widgets.ts` and #1446 rather than as a sentence. The day both rows
+   leave the table and the issue closes, `scripts/check-probe-retirement.mjs` fails and
+   names the step; nobody has to re-read this paragraph for that to happen.
 2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
    properties of undefined (reading '$gtype')`, which does not say WHICH row. A
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
+
+### Two CI probes were ripe for over a week and nobody re-read the row
+
+Both `continue-on-error` steps in `gtk-os-suites.yml` carried a written retirement
+condition, both conditions came true, and neither step changed — because prose above a step
+only fires when a person re-reads it. Measured 2026-09-19 over the 21 `push`-to-`main` runs
+since 2026-09-14, plus spot checks back to 2026-09-10, reading the `::warning title=Probe
+failed::` annotations `report-probe-outcome.mjs` emits:
+
+| probe | condition met | recorded outcome | verdict |
+|---|---|---|---|
+| `conformance-win32` | 2026-09-11, 0.49.0 | **25 green, 0 red** | PROMOTED to a gate |
+| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0 green, 42 red** | condition was WRONG |
+| `gtk-host-probe` (win32) | not met (#1446) | 0 green, 21 red | left a probe |
+| `rn-probe-win32` | 1 of 2 clauses met | 0 green, 21 red | left a probe |
+
+Both conditions were verified off the artifacts rather than off the dates, cache-busted
+(`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`): the published
+`@gjsify/gtk-runtime-win32-x64` tarball carries `gstvorbis.dll` at 0.49.0 and 0.51.1 and not
+at 0.48.0, and `d7da6c3b91` (#1488, closing #1438) is an ancestor of `v0.46.0` and not of
+`v0.45.0`. So both conditions genuinely held. **A held condition still told us nothing about
+whether the step passes** — which is the finding, and the reason the check added for this
+(`scripts/check-probe-retirement.mjs`) fails on a ripe probe in BOTH directions rather than
+only on a green one.
+
+**What the darwin `rn-probe` is actually failing on**, none of it #1438, measured on run
+35423439012 against a published 0.51.1:
+
+- **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
+  bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
+  `a real tree, through a real reconciler` case that walks up from a child dies on it. One
+  is a natural-size read — `Expected 0 to be greater than 0` on the content box that should
+  stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`, on the
+  `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+- **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
+  `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
+  chrome`. That is a different and worse shape than arm64's seven, and it is not attributed.
+
+Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
+x64 death needs a local reproduction before it can be counted as anything. The probe's
+condition is now `retire-when: probe-green 5` — three proxies have been wrong on this one
+step (an issue number, then "#1438 closes", then "the release carrying it"), and the one
+thing none of them could be wrong about is what the probe itself reported.
 
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
