@@ -8,10 +8,10 @@
 # schedule and therefore structurally cannot gate this repository's code; and
 # `node-gi.yml`'s Windows jobs cover the GI bridge, not the Node pillar.
 #
-# The size of that hole was measured on the win11-gjsify VM, on a `main` that
-# every existing check called green: 144 failing assertions across five
-# packages — `child_process` 86 of 145, `path` 23 of 402, `fs` 19 of 589, `os`
-# 10 of 178, `process` 6 of 167. Not one was a defect in the implementation.
+# The size of that hole was measured on the win11-gjsify VM and recorded in
+# #1021 (2026-08-06), on a `main` that every existing check called green: 144
+# failing assertions across five packages — `child_process` 86 of 145, `path`
+# 23 of 402, `fs` 19 of 589, `os` 10 of 178, `process` 6 of 167. Not one was a defect in the implementation.
 # All of them were specs that spelled a POSIX answer as though it were THE
 # answer, which is exactly the failure mode a Linux-only pipeline cannot see:
 # on Linux the POSIX literal CANNOT fail.

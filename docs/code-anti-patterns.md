@@ -347,6 +347,36 @@ ordered first because adopting the vocabulary clauses on
 published at 0.44.0, and the row is left as written because deleting the premise
 deletes the ordering argument. Two instances make it a class, not a one-off.
 
+**The third instance adds the part the first two could not: a premise that dies on
+somebody ELSE's schedule needs a PROBE, and the note has to NAME it.** Both cases above
+were caught by a person noticing. `macos-suites.yml`'s SIP note was caught by a machine —
+and the note never mentioned that the machine existed. It read *SIP strips every `DYLD_*`
+variable when a protected binary is exec'd, SO a workflow-level export is a no-op, SO the
+repair is a symlink*, and gave its evidence as "Measured on the darwin-x64 VM" — no date,
+no image, no run. The premise is conditional on SIP being ON, hosted macOS runners are VMs
+with it OFF, and on 2026-09-19 (`macos-15-intel`, image `macos-15/20260824.0482`, run
+35426493474) `csrutil status` read `disabled` and the variable survived `/bin/sh`. The
+conclusion held anyway, on a ground the note had never stated: the symlink is correct
+whether or not SIP is on, while the variable is correct in at most one of the two worlds.
+
+What makes this one instructive is the ORDER. The premise had already died, silently, on an
+image nobody in this repository controls; the step beside it re-measured it on every run
+and emitted a warning; and the prose went on asserting the dead premise regardless, because
+nothing connected the two. **So: when a recorded reason rests on a fact a vendor can change
+under you — a runner image, a hosted-VM setting, a default — give it a probe that
+re-measures it, say in the note that the probe exists, and say in the probe that it gates
+nothing.** Then a warning reads as "your premise died", which is actionable, instead of as
+noise beside an unrelated flake, which is where this one sat.
+
+Deliberately NOT mechanised into a check. The obvious gate is "a measurement verb in a
+workflow comment must carry an anchor"; enumerated over `macos-suites.yml` and
+`windows-suites.yml` it flagged 14 paragraphs of which **12 were false positives** — claims
+the stating step re-proves every run, claims citing an anchored record elsewhere, and prose
+that is not a measurement at all. A gate wrong 12 times in 14 is how a check teaches people
+to skip it. The set is small BECAUSE this convention is already the habit here; it is worth
+stating once, not enforcing forever. `docs/governance.md` § *Keeping CI simple* carries the
+declined gate with the arithmetic.
+
 ## A signal name the object's static type does not declare
 
 **Rule: `connect`/`connect_after`/`emit` take the names the object's own class
