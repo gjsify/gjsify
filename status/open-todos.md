@@ -6707,3 +6707,19 @@ here: it refuses the file, and we do not.
 
 Measured on `blueprint-compiler-0.20.4-1.fc44.noarch` against the parser at `@girs` 5.2.0. The
 sweep names both by path when they are in a pool, so a `refused/` file for each closes it.
+
+
+### A PR-body rule with nothing enforcing it landed a session URL on `main`
+
+The convention was already real: a PR body may carry `🤖 Generated with [Claude
+Code](https://claude.com/claude-code)` but not the `claude.ai/code/session_…` URL beside it,
+because the body becomes the squash commit BODY and that URL is then permanent — useful only to
+whoever had the session open. `commitlint.yml`'s `Check the squash body the PR body becomes`
+step already read the body for line length; it never checked for this. #1699 merged GREEN and
+`b3590e8fec` carries the URL at line 150 of `main`'s history, unfixable without a rewrite this
+repo does not do.
+
+A same-day sweep of `main`'s first-parent history found the convention was already loose well
+before #1699: 380 of 2408 commits carry a session URL. None of the 7 PRs open at the time did.
+`scripts/check-pr-body-lines.mjs` now refuses both the URL and a `Co-Authored-By: Claude …`
+trailer, and keeps the permitted attribution line allowed.
