@@ -412,7 +412,18 @@ runs:
       env:
         MATCHED: ${{ steps.build-cache.outputs.cache-matched-key }}
         PRIMARY: ${{ steps.build-cache.outputs.cache-primary-key }}
+        EXACT: ${{ steps.build-cache.outputs.cache-hit }}
       run: |
+        # SELF-TEST, because this step's whole behaviour rests on an output name that
+        # cannot be verified anywhere but here: an empty `cache-matched-key` is
+        # indistinguishable from "no cache restored", so a typo would turn this guard into
+        # a silent no-op and the failure it prevents would come back looking new. On an
+        # exact hit the two keys are equal BY DEFINITION, so that case proves the wiring.
+        if [ "$EXACT" = "true" ] && [ "$MATCHED" != "$PRIMARY" ]; then
+          echo "::error::cache-hit=true but cache-matched-key ('$MATCHED') is not cache-primary-key."
+          echo "The restore action's outputs are not what this step reads. Fix the names before trusting it."
+          exit 1
+        fi
         if [ -z "$MATCHED" ]; then
           echo "No build-output cache was restored — nothing to drop."
           exit 0
