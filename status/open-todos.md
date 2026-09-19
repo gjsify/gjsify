@@ -6928,3 +6928,34 @@ here: it refuses the file, and we do not.
 
 Measured on `blueprint-compiler-0.20.4-1.fc44.noarch` against the parser at `@girs` 5.2.0. The
 sweep names both by path when they are in a pool, so a `refused/` file for each closes it.
+
+### A `readdirSync` walk feeding `assert.deepEqual` can swap two correct findings (#1707)
+
+`bundle-search-paths.mjs`'s `auditPayloadSearchPaths` built its `findings` array from
+`filesUnder`, a recursive `readdirSync` walk with no sort anywhere, and the e2e leg that diffs a
+GJS run against a Node run compared the two `findings` arrays with `assert.deepEqual` from
+`node:assert/strict` — `deepStrictEqual`, index-wise for arrays. Node's `readdirSync` and GJS's
+`Gio.File.enumerate_children` are two independent unsorted enumerators: the same SET of files
+can arrive in a different ORDER from each, so a correct result could fail on whichever finding
+landed first. It happened once, on #1707 — two findings simply swapped, and
+`findings.length === 2` passed on both sides, so a count-only glance called it clean. Estimated
+rate roughly 1 in several hundred to a thousand runs; it does not reproduce on a `tmpfs` host,
+which preserves insertion order, so two separate machines came back clean on repeated local runs
+before the swap was diagnosed from the CI log.
+
+Fixed by sorting `findings` by `(file, kind)` inside `auditPayloadSearchPaths`, before it
+returns. That key is total: the escape check and the unresolvable check run independently over
+the same image, so one file can carry both findings, but never the same `kind` twice for one
+file. The sort is the guard — every consumer now sees one canonical order regardless of which
+enumerator walked the tree — and a reversed-walk fixture built to reproduce the swap fails the
+pre-fix function and passes the sorted one.
+
+A repo-wide sweep for the same shape (`deepEqual`/`toEqual` against a walk, a glob, an
+`Object.keys`, a `Map` or a `Set`) found it already guarded everywhere else it currently occurs
+— both sides sorted before comparison, e.g. `tests/e2e/homepage-run-variations/run.mjs`,
+`tests/e2e/ship/fixture.mjs`, `tests/integration/fast-glob/src/*.spec.ts`. One LATENT case
+remains unguarded: `scripts/clear-committed-platform-exemptions.mjs`'s `packageManifests()`
+walks `packages/<pillar>/<name>` with a plain unsorted `readdirSync` and builds its
+`cleared`/`paths` result from that order. `tests/e2e/platform-exemption-clearing/run.mjs` only
+ever asserts against `[]` or a single element today, so nothing flakes yet — but a fixture with
+two simultaneous clears would hit exactly this class, and nothing there sorts.

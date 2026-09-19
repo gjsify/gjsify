@@ -197,6 +197,33 @@ export function auditPayloadSearchPaths(root) {
             findings.push({ file: rel, kind: 'unresolvable', detail: rpathDeps });
         }
     }
+
+    // `files` came from `filesUnder`, a bare `readdirSync` walk with no sort
+    // anywhere — under GJS that is `Gio.File.enumerate_children`, under Node it
+    // is libuv/glibc `readdir`, and POSIX guarantees neither an order NOR that
+    // the two agree. The same SET of findings can therefore arrive in a
+    // different ORDER depending on which runtime walked the tree (#1707: the
+    // e2e leg that diffs a GJS run against a Node run swapped two findings and
+    // failed `assert.deepEqual`, index-wise for arrays, on a correct result).
+    // Sort here, once, before any consumer sees the list, rather than in every
+    // comparison downstream.
+    //
+    // Key: `(file, kind)`. `file` alone is not total — the escape check and the
+    // unresolvable check run independently over the SAME image, so one file can
+    // carry both an `escape` and an `unresolvable` finding, two entries with an
+    // equal `file`. `kind` breaks that tie: for a single file this loop pushes
+    // at most one `escape` and at most one `unresolvable` (each behind its own
+    // `if`), and an `unreadable` finding `continue`s before either can also be
+    // pushed, so a given `(file, kind)` pair is pushed at most once. Plain `<`
+    // rather than `localeCompare`: GJS and Node need not ship the same ICU, and
+    // a locale-aware order is exactly one more thing the two runtimes could
+    // disagree on.
+    findings.sort((a, b) => {
+        if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+        if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1;
+        return 0;
+    });
+
     return { images, foreign, findings };
 }
 
