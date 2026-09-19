@@ -209,9 +209,9 @@
 # win32's react-native probe read 7 of 848 against 2 of 857 on darwin (measured
 # 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 are the
 # cross-OS #1438 baseline and 1 a knock-on of one of those (the same `popped` seam) —
-# fixed in the ENGINE on 2026-09-02 and still counted here, because the fix is in the
-# addon's C++ and these legs install the PUBLISHED addon (see the table above): the
-# first release carrying it is what removes them, not the merge. 2 are inherited from
+# fixed in the ENGINE by #1488, merged 2026-09-03, and still counted here, because the
+# fix is in the addon's C++ and these legs install the PUBLISHED addon (see the table
+# above): the first release carrying it is what removes them, not the merge. 2 are inherited from
 # the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
