@@ -820,7 +820,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
     });
 
     for (const [os, gap] of [
-        ['darwin', /Pango on macOS is CoreText-backed/],
+        ['darwin', /Pango on macOS resolves CoreText by default/],
         ['windows', /pangowin32, whose font map is populated from DirectWrite/],
     ]) {
         it(`${os}: names what the stage cannot settle about the face it just staged`, async () => {
