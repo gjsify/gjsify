@@ -84,8 +84,9 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -593,14 +594,78 @@ for (const [what, path] of [
 
 const haveParser = existsSync(PARSER) && existsSync(EMITTER) && existsSync(RESOLVER);
 
+// THROUGH THE PACKAGE BOUNDARY, NOT AROUND IT
+//
+// The files above are checked BY PATH, because a deletion is the thing to name and a path is
+// the only address a deleted file still has. They are IMPORTED by specifier, because that is
+// the surface ADR 0053 clause 5 hands `@gjsify/vite-plugin-blueprint`, and a gate that reaches
+// past `exports` proves nothing about it: this script read `src/parser.mjs` directly for as
+// long as `package.json` exported nothing but the corpus, so every green run was compatible
+// with a package that no consumer could import at all.
+//
+// The two diagnoses stay different sentences, which is the whole reason the path check above
+// was not replaced by this one. A missing FILE is named up there. A missing EXPORT is named
+// below, by name. A package that resolves to neither — no `exports` entry for it, or a
+// workspace that was never installed — is named here as the boundary it is.
+//
+// Resolved from `--root` rather than from this file, because `--root` means "the tree to
+// measure" and a bare specifier would resolve against the tree this SCRIPT sits in: another
+// tree's goldens held against this one's parser, silently, which is the shape of every defect
+// in this file's header.
+const SURFACE = '@gjsify/blueprint';
+// The WHOLE surface and not the six names this file happens to call: an export nothing here
+// reads is still a promise the flip's consumer will hold the package to, and a gate that only
+// asserts its own diet is how `BlueprintSyntaxError` disappears with every stage still green.
+// A class is a function, so one test holds all eight.
+const SURFACE_NAMES = [
+    'BlueprintSyntaxError',
+    'accessibilityElement',
+    'accessibilityValue',
+    'emitGtkBuilderXml',
+    'enumOrFlagsTypeOf',
+    'gtypeName',
+    'parseBlueprint',
+    'resolveIdent',
+];
+
+/** @type {Record<string, Function> | undefined} */
+let surface;
+if (haveParser) {
+    try {
+        surface = await import(pathToFileURL(createRequire(join(root, 'package.json')).resolve(SURFACE)).href);
+    } catch (error) {
+        problems.push(
+            `${SURFACE} does not resolve from ${root}, so stages C, D and E ran nothing — ${error.message}. ` +
+                'The files are all there (the check above passed), so this is the package boundary and not a ' +
+                'deletion: either `exports` has no entry for the surface, or this tree was never installed.',
+        );
+    }
+    // Every missing name, not the first: a rename that moved four of the five resolver seams
+    // should print four lines and not one, or the next run finds the second one.
+    const absent = surface === undefined ? [] : SURFACE_NAMES.filter((n) => typeof surface[n] !== 'function');
+    if (absent.length > 0) {
+        problems.push(
+            `${SURFACE} resolves, but exports no ${absent.map((n) => `\`${n}\``).join(', ')}. The file that ` +
+                'implements each is present, so this is the surface and not the implementation — an `export` was ' +
+                'dropped, or `src/index.mjs` stopped re-exporting it. The flip of ADR 0053 clause 5 consumes ' +
+                'exactly these names, so the stages below ran nothing rather than measure a surface it cannot use.',
+        );
+        surface = undefined;
+    }
+}
+
 let byteEqual = 0;
 let ledgered = 0;
-if (haveParser) {
-    const { parseBlueprint } = await import(`file://${PARSER}`);
-    const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
-    const { accessibilityElement, accessibilityValue, enumOrFlagsTypeOf, gtypeName, resolveIdent } = await import(
-        `file://${RESOLVER}`
-    );
+if (surface !== undefined) {
+    const {
+        accessibilityElement,
+        accessibilityValue,
+        emitGtkBuilderXml,
+        enumOrFlagsTypeOf,
+        gtypeName,
+        parseBlueprint,
+        resolveIdent,
+    } = surface;
 
     const known = new Map(SHADOW_DIVERGENCES.map((entry) => [entry.file, entry]));
     for (const entry of SHADOW_DIVERGENCES) {
@@ -776,10 +841,12 @@ if (haveParser) {
 // `PROJECTOR` is declared beside the parser above and is REQUIRED there — deleting it used to
 // print "stage D SKIPPED — no projection in this tree yet" and exit 0.
 let projected = 0;
-if (haveParser && existsSync(PROJECTOR)) {
-    const { parseBlueprint } = await import(`file://${PARSER}`);
+if (surface !== undefined && existsSync(PROJECTOR)) {
+    const { gtypeName, parseBlueprint } = surface;
+    // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
+    // DELIBERATELY NOT HERE says why — so this stage keeps a path for it, and keeps the
+    // ability to say which of the two went missing.
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
-    const { gtypeName } = await import(`file://${RESOLVER}`);
 
     const jobs = [
         ...RULE_EXPECTATIONS.map((e) => ({ key: `rules/${e.file}`, source: join(RULES_DIR, e.file), expectation: e })),
@@ -839,13 +906,17 @@ if (haveParser && existsSync(PROJECTOR)) {
 // in the manifest, held in both directions: a tag is the one thing that exit must spell right,
 // and it spelled `GioListStore` exactly as the emitter did until this half existed.
 let refused = 0;
-if (haveParser) {
-    const { parseBlueprint } = await import(`file://${PARSER}`);
-    const { emitGtkBuilderXml } = await import(`file://${EMITTER}`);
+if (surface !== undefined) {
+    const {
+        accessibilityElement,
+        accessibilityValue,
+        emitGtkBuilderXml,
+        enumOrFlagsTypeOf,
+        gtypeName,
+        parseBlueprint,
+        resolveIdent,
+    } = surface;
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
-    const { accessibilityElement, accessibilityValue, enumOrFlagsTypeOf, gtypeName, resolveIdent } = await import(
-        `file://${RESOLVER}`
-    );
 
     // A parser error is `refused/<file>:<line>:<column>:`, an emitter or resolver error
     // `line N:`, and both are matched WITH their delimiters. Measured: `:3:` alone was
