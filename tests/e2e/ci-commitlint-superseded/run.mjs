@@ -1,28 +1,33 @@
 // E2E test for the two halves of `commitlint.yml`'s superseded-state fix —
-// `scripts/decide-commitlint-verdict.mjs` (a run whose text moved under it ends green) and
-// `scripts/rerun-superseded-commitlint.mjs` (a run that already concluded gets restarted).
+// `scripts/decide-commitlint-verdict.mjs` (a run whose description moved under it ends green)
+// and `scripts/rerun-superseded-commitlint.mjs` (a run that already concluded gets restarted).
 //
-// THE FIXTURES ARE THE INCIDENT, measured 2026-09-19. `commitlint.yml` triggers on `edited`,
-// so every edit of a PR description starts another run ON THE SAME COMMIT. #1704 ended with
-// four runs on 4db0edf92e, all created inside fifteen seconds: three FAILURE from body states
-// that no longer existed and one SUCCESS from the current one. A check run is attached to the
-// SHA and the rollup takes the WORST entry per context, not the latest — measured on
-// fc14d85a99, two SUCCESS and one FAILURE under `Lint commit messages`, rollup FAILURE — and
-// that context is one of the three that block a merge here. The PR stayed BLOCKED until three
-// runs were re-run by hand, and the same shape on #1703 an hour earlier cost a diagnosis of a
-// failure that was already gone.
+// THE MECHANISM IS UNDER FIXTURES BECAUSE THE OBVIOUS READING OF IT IS WRONG. The rollup keeps
+// the LATEST check run per context, not the worst: acca841ff1 carries `Lint commit messages` =
+// FAILURE, FAILURE, SUCCESS, SUCCESS with no other context non-success and rolls up SUCCESS,
+// and #1667 MERGED on c0629ff7 over an older failure of that same required context. So the
+// defect is not a red that lingers — it is that WHICH run reports last is decided by the runner
+// queue. On fc14d85a99 three runs were created 06:02:32 / :38 / :46 and their check runs
+// STARTED 06:05:19, 06:06:54, 06:06:56: the run created second started last, so a superseded
+// body state owns the context.
 //
-// THE CURE THAT IS NOT ONE is under fixtures too, because it is the obvious one: cancelling.
-// Measured on 934319ead0, a commit whose only `Lint commit messages` entries are CANCELLED
-// rolls up FAILURE just the same, so a `concurrency` group — or an `edited` window in
-// `cancel-pr-runs.yml` — renames the red instead of removing it. The wiring describe asserts
-// the absence of that block, because re-adding it would look like an improvement.
+// #1704 IS THE WORKED CASE, and the part that matters most is what did NOT fix it. Its entries
+// are SUCCESS at 06:49 and then FAILURE at 07:13, 07:14 and 07:22 — three hand re-runs, each
+// replaying the same superseded payload under the old workflow and failing again. Re-running by
+// hand is what put that PR in the state it is in. The re-run half of this fix works only
+// BECAUSE the verdict half turns a replayed stale payload green.
 //
-// THE DIRECTION THAT MUST NOT BE CHEAP TO GET WRONG. This check now has a path on which it
-// reports GREEN without having judged anything. A voiding rule that fires too readily is a
+// CANCELLING IS THE CURE THAT IS NOT ONE, which is why the wiring describe asserts the absence
+// of a `concurrency:` block: it leaves a CANCELLED conclusion (b0ee2c0068 carries one as the
+// newest entry for that context), it keeps the verdict a function of report order rather than
+// of the description, and it cannot reach a run that has already concluded.
+//
+// THE DIRECTION THAT MUST NOT BE CHEAP TO GET WRONG. This check now has paths on which it
+// reports GREEN without judging the current text. A voiding rule that fires too readily is a
 // dead required check that nobody notices, which is worse than the red it replaces — so the
 // cases below spend more assertions on refusing to void (CRLF, an absent body, an unreadable
-// current state, an outcome word nobody has seen) than on voiding.
+// current state, an outcome word nobody has seen, a step that did not run, and an edit with no
+// successor run to judge what it changed to) than on voiding.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,7 +42,7 @@ const DECIDE = join(MONOREPO_ROOT, 'scripts', 'decide-commitlint-verdict.mjs');
 const RERUN = join(MONOREPO_ROOT, 'scripts', 'rerun-superseded-commitlint.mjs');
 const WORKFLOW = join(MONOREPO_ROOT, '.github', 'workflows', 'commitlint.yml');
 
-const { decideCommitlintVerdict, whatMoved } = await import(`file://${DECIDE}`);
+const { decideCommitlintVerdict, whatMoved, successorExists, findingsFrom } = await import(`file://${DECIDE}`);
 const { supersededCommitlintRuns, rerunSupersededCommitlint } = await import(`file://${RERUN}`);
 
 /** #1704's title, and a body long enough that an edit to it is a real edit. */
@@ -57,6 +62,9 @@ const decide = (over = {}) =>
         examined: { title: TITLE, body: BODY },
         current: { title: TITLE, body: BODY },
         outcomes: ALL_GREEN,
+        // A later run on the commit exists unless a case says otherwise — every edit through
+        // the web UI or a user token starts one.
+        successor: true,
         ...over,
     });
 
@@ -128,10 +136,63 @@ describe('decide-commitlint-verdict: whose text this run judged', () => {
     });
 
     it('treats an outcome word it does not know as a finding', () => {
-        // `PASSING_OUTCOMES` is enumerated rather than `!== 'failure'`, so a status GitHub adds
-        // later fails loudly instead of being read as a pass by default.
+        // Enumerated rather than `!== 'failure'`, so a status GitHub adds later fails loudly
+        // instead of being read as a pass by default.
         assert.equal(decide({ outcomes: { ...ALL_GREEN, commits: 'neutral' } }).state, 'current-fail');
         assert.equal(decide({ outcomes: { ...ALL_GREEN, commits: 'cancelled' } }).state, 'current-fail');
+    });
+
+    it('treats a check that did NOT run as a gap, not as a pass', () => {
+        // The hole this pins: a failed checkout skips every check under it, and every step here
+        // carries `continue-on-error`, so the job would reach this decision with four `skipped`
+        // outcomes and nothing failed. Green over nothing is the one verdict this file exists to
+        // make impossible.
+        const verdict = decide({
+            outcomes: {
+                commits: 'skipped',
+                'title-form': 'skipped',
+                'title-subject': 'skipped',
+                'body-lines': 'skipped',
+                'closing-keywords': 'skipped',
+            },
+        });
+        assert.equal(verdict.state, 'current-fail');
+        assert.deepEqual(verdict.failed, [
+            'body-lines (did not run)',
+            'closing-keywords (did not run)',
+            'commits (did not run)',
+            'title-form (did not run)',
+            'title-subject (did not run)',
+        ]);
+    });
+
+    it('accepts the four PR-only steps as skipped on a push, and not the commit lint', () => {
+        const onPush = (outcomes) => findingsFrom({ event: 'push', outcomes });
+        assert.deepEqual(
+            onPush({
+                commits: 'success',
+                'title-form': 'skipped',
+                'title-subject': 'skipped',
+                'body-lines': 'skipped',
+                'closing-keywords': 'skipped',
+            }),
+            [],
+        );
+        assert.deepEqual(onPush({ commits: 'skipped' }), ['commits (did not run)']);
+    });
+
+    it('REFUSES to void when no later run exists to judge what the edit changed to', () => {
+        // Reachable only by an edit that starts no run — one authored with `GITHUB_TOKEN`. No
+        // workflow here holds `pull-requests: write` today, so this is latent; it is also the
+        // one branch where voiding would be SILENT, taking the commit green with the current
+        // description judged by nobody.
+        const moved = { current: { title: TITLE, body: `${BODY}\nan edit no run witnessed` } };
+        assert.equal(decide({ ...moved, successor: false }).state, 'moved-no-successor');
+        assert.equal(decide({ ...moved, successor: null }).state, 'moved-no-successor');
+        // ...and the findings it did make are kept rather than discarded.
+        const verdict = decide({ ...moved, successor: false, outcomes: { ...ALL_GREEN, 'body-lines': 'failure' } });
+        assert.deepEqual(verdict.failed, ['body-lines']);
+        assert.equal(verdict.moved, 'body');
     });
 
     it('skips the supersede question entirely on a push, where there is no PR', () => {
@@ -142,6 +203,48 @@ describe('decide-commitlint-verdict: whose text this run judged', () => {
             outcomes: { commits: 'failure' },
         });
         assert.equal(verdict.state, 'current-fail');
+    });
+});
+
+describe('decide-commitlint-verdict: the witness a void needs', () => {
+    const SHA = '4db0edf92eca3896925c8bb61b95facefb3685cd';
+    const at = (id, created, sha = SHA) => ({ id, head_sha: sha, created_at: created });
+    // #1704's four runs, two of which share a clock second.
+    const FOUR = [
+        at(35426493454, '2026-09-19T06:24:00Z'),
+        at(35426493503, '2026-09-19T06:24:00Z'),
+        at(35426501626, '2026-09-19T06:24:11Z'),
+        at(35426505343, '2026-09-19T06:24:15Z'),
+    ];
+    const witness = (selfRunId, runs = FOUR) => successorExists({ runs, headSha: SHA, selfRunId });
+
+    it('sees the later runs of a burst', () => {
+        assert.equal(witness(35426493454), true);
+        assert.equal(witness(35426501626), true);
+    });
+
+    it('breaks a same-second tie on the run id, which rises with creation', () => {
+        // Without this, the earlier of the pair created at 06:24:00 sees no successor, refuses
+        // to void, and the class comes back for exactly the burst the fix is for.
+        assert.equal(witness(35426493454, FOUR.slice(0, 2)), true);
+        assert.equal(witness(35426493503, FOUR.slice(0, 2)), false);
+    });
+
+    it('answers false for the newest run, which is the one that must decide', () => {
+        assert.equal(witness(35426505343), false);
+    });
+
+    it('does not count a run on another commit', () => {
+        const elsewhere = [at(1, '2026-09-19T06:24:00Z'), at(2, '2026-09-19T09:00:00Z', 'ca61cbf8ce')];
+        assert.equal(successorExists({ runs: elsewhere, headSha: SHA, selfRunId: 1 }), false);
+    });
+
+    it('answers null rather than guessing when it cannot place itself', () => {
+        // `null` is not `false`: the caller must refuse to void on either, and the log has to be
+        // able to tell "nothing came after me" from "I could not tell".
+        assert.equal(witness(99999), null);
+        assert.equal(successorExists({ runs: FOUR, headSha: SHA, selfRunId: 'not-a-number' }), null);
+        assert.equal(successorExists({ runs: [{ id: 7, head_sha: SHA }], headSha: SHA, selfRunId: 7 }), null);
     });
 });
 
@@ -274,11 +377,25 @@ describe('commitlint.yml: the wiring', () => {
             .filter((line) => !/^\s*#/.test(line))
             .join('\n');
 
-    it('adds no concurrency group, because cancelling only renames the red', () => {
-        // Measured on 934319ead0. A group here reads like the fix and is not one: the stale
-        // runs sit on the SAME commit, and `cancelled` fails a required context as surely as
-        // `failure`. If this assertion is ever in the way, re-measure before deleting it.
+    it('adds no concurrency group, because cancelling does not make the verdict right', () => {
+        // A group reads like the fix and is not one: it leaves a CANCELLED conclusion
+        // (b0ee2c0068 carries one as the newest entry for this required context), it keeps the
+        // verdict a function of which run reports LAST rather than of the description, and it
+        // cannot reach a run that has already concluded — which is the state #1704 is in. If
+        // this assertion is ever in the way, re-measure before deleting it.
         assert.doesNotMatch(yaml, /^\s*concurrency:/m);
+    });
+
+    it('gives the verdict step the run listing its void depends on', () => {
+        // A void without a witness is an assumption, and the wiring is the half a unit test
+        // cannot see: the script reads `COMMITLINT_RUNS`, so a workflow that stops writing it
+        // would make every run fail closed — loudly, but only because this is here to say why.
+        assert.match(lintJob, /actions: read/);
+        assert.match(lintJob, /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+        assert.match(lintJob, /actions\/workflows\/commitlint\.yml\/runs/);
+        assert.match(lintJob, /export COMMITLINT_RUNS=/);
+        const decide = readFileSync(DECIDE, 'utf8');
+        assert.match(decide, /required\(process\.env\.COMMITLINT_RUNS/);
     });
 
     it('lets every check step report rather than abort the job', () => {

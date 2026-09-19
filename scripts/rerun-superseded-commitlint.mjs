@@ -184,14 +184,25 @@ function required(value, what) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-    const listed = JSON.parse(readFileSync(0, 'utf8'));
-    const runs = Array.isArray(listed) ? listed : (listed.workflow_runs ?? []);
-    const headSha = required(process.env.HEAD_SHA, 'head sha');
-    const ids = supersededCommitlintRuns({
-        runs,
-        headSha,
-        selfRunId: required(process.env.GITHUB_RUN_ID, 'own run id'),
-    });
+    // See NOTHING HERE MAY REDDEN A PR. Every throw under this point is a real path —
+    // `required`, `instant` and the run-id check each throw on input this script does not
+    // understand — and the right answer to input it does not understand is to clear nothing,
+    // not to put a red X on a pull request whose own checks passed.
+    let headSha = String(process.env.HEAD_SHA ?? '');
+    let ids;
+    try {
+        const listed = JSON.parse(readFileSync(0, 'utf8'));
+        const runs = Array.isArray(listed) ? listed : (listed.workflow_runs ?? []);
+        headSha = required(process.env.HEAD_SHA, 'head sha');
+        ids = supersededCommitlintRuns({
+            runs,
+            headSha,
+            selfRunId: required(process.env.GITHUB_RUN_ID, 'own run id'),
+        });
+    } catch (error) {
+        console.log(`::warning::Nothing cleared: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(0);
+    }
 
     if (ids === null) {
         console.log(

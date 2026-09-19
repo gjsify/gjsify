@@ -4,34 +4,41 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### A red that is a superseded state reads exactly like a real red, and it cost two diagnoses
+### A superseded description state can own a required context, and it cost two diagnoses
 
 `commitlint.yml` triggers on `edited` so that the PR title and body are checked at all, and the
-price is that every edit of a description starts another run ON THE SAME COMMIT. A check run does
-not age out — it is attached to the SHA — and the rollup takes the WORST entry per context rather
-than the latest: measured on fc14d85a99, `Lint commit messages` carries two SUCCESS and one
-FAILURE and `statusCheckRollup.state` is FAILURE. That context is one of the three that block a
-merge, so the PR stays BLOCKED on a verdict about a string nobody can read any more.
+price is that every edit of a description starts another run ON THE SAME COMMIT, each judging the
+description its own event delivered. The rollup keeps the LATEST check run per context — measured
+on acca841ff1, where `Lint commit messages` is FAILURE, FAILURE, SUCCESS, SUCCESS with no other
+context non-success and the rollup is SUCCESS, and on c0629ff7, where #1667 MERGED over an older
+failure of that same required context. So a stale red does not linger by itself.
 
-On 2026-09-19 that happened twice inside an hour. #1704 ended with four runs on 4db0edf92e, all
-created inside fifteen seconds: three red from superseded body states, one green from the current
-one, and the only exit was re-running the three by hand. #1703 had the same shape an hour earlier
-and an agent was nearly dispatched to debug a failure that no longer existed. Nothing in the
-rollup distinguishes the two cases — a superseded red and a live red are the same red — so the
-cost is paid by whoever reads it, every time, and it is paid in diagnosis rather than in CI
-minutes.
+What bites is that WHICH run reports last is decided by when a runner picked the job up, not by
+which edit is current. On fc14d85a99 three runs were created 06:02:32 / :38 / :46 and their check
+runs started 06:05:19, 06:06:54, 06:06:56 — the run created second started last, so a superseded
+body state owns the context and the commit is red.
 
-Now closed at the source: a superseded run ends GREEN naming its successor
-(`scripts/decide-commitlint-verdict.mjs`), and a run that had already concluded when the text
-moved is restarted (`scripts/rerun-superseded-commitlint.mjs`). Cancelling was measured and
-rejected — on 934319ead0 a commit whose only `Lint commit messages` entries are CANCELLED rolls
-up FAILURE just the same, so a `concurrency` group renames the red instead of removing it.
+On 2026-09-19 that cost two diagnoses inside an hour. #1703 nearly had an agent dispatched to
+debug a failure that no longer existed. #1704 is still BLOCKED as this is written, and the way it
+got there is the part worth keeping: its three newest entries are HAND RE-RUNS from 07:13, 07:14
+and 07:22, each replaying the same superseded payload and failing again. The obvious repair
+reproduced the defect. Nothing in a rollup distinguishes a superseded red from a live one, so the
+cost is paid in diagnosis by whoever reads it, every time.
 
-WHAT IS STILL OPEN is the shape rather than this instance: `commitlint.yml` is the only workflow
-whose verdict depends on something OTHER than the commit, so it is the only one where a stale
-conclusion cannot be pushed off the head SHA. Any future check that reads the PR description, a
-label or a review will inherit the same defect, and nothing enumerates that class — the rule
-lives in one workflow's comments, not in a gate.
+Now closed at the source: a run whose description moved under it ends GREEN naming the run that
+will decide (`scripts/decide-commitlint-verdict.mjs`), and a run that had already concluded is
+restarted so that rule applies to it (`scripts/rerun-superseded-commitlint.mjs`). Cancelling was
+measured and rejected — it leaves a CANCELLED conclusion (b0ee2c0068 carries one as the newest
+entry for that context), it keeps the verdict a function of report order rather than of the
+description, and it cannot reach a run that has already concluded.
+
+WHAT IS STILL OPEN is the shape rather than this instance. `commitlint.yml` is the only workflow
+whose verdict depends on something OTHER than the commit, so it is the only one where a
+conclusion can be stale while the commit is not. Any future check that reads the PR description,
+a label or a review inherits the same defect, and nothing enumerates that class — the rule lives
+in one workflow's comments, not in a gate. Adjacent and untested: the void needs a later run to
+exist, which an edit authored with `GITHUB_TOKEN` would not produce; no workflow here holds
+`pull-requests: write` today, so the refusal path is reasoned and fixtured but has never fired.
 
 ### The darwin bundle ships the GNOME typeface and cannot put it on the font map
 

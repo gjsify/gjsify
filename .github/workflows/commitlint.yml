@@ -20,13 +20,25 @@ on:
   push:
     branches: [main]
 
-# DELIBERATELY NO `concurrency:` BLOCK, and that is the opposite of what this workflow's
-# defect looks like it needs. `edited` starts another run ON THE SAME COMMIT, so the stale
-# runs are not on a ref a successor can supersede — and a cancelled check run does not help:
-# measured on 934319ead0, a commit whose only `Lint commit messages` entries are CANCELLED
-# rolls up FAILURE exactly as a failure does, and that context is one of the three that block
-# a merge here. A group would trade a red for a red. What removes it is the last step of the
-# job below, which ends a superseded run GREEN and says which run decides instead.
+# DELIBERATELY NO `concurrency:` BLOCK, and the reason is not the one it looks like.
+#
+# The rollup keeps the LATEST check run per context, not the worst — measured on acca841ff1
+# (`Lint commit messages` = FAILURE, FAILURE, SUCCESS, SUCCESS, no other context non-success,
+# rollup SUCCESS) and on c0629ff7, where #1667 MERGED over an older failure of that same
+# required context. So a stale red does not linger by itself. What bites is that WHICH run
+# reports last is decided by when a runner picked the job up: on fc14d85a99 three runs were
+# created 06:02:32 / :38 / :46 and their check runs STARTED 06:05:19, 06:06:54, 06:06:56 — the
+# run created SECOND started LAST, so a superseded body state owns the context.
+#
+# A group would narrow that window and would not close it. It leaves a CANCELLED conclusion,
+# which is not a pass (b0ee2c0068 carries one as the newest `Lint commit messages` entry), it
+# keeps the verdict a function of run ORDER rather than of the description, and it has no view
+# at all of the case #1704 is in RIGHT NOW: its three newest entries are hand re-runs from
+# 07:13, 07:14 and 07:22 that replayed the same superseded payload and failed again. Nothing
+# about cancelling reaches a run that has already concluded.
+#
+# What does close it is the last step of the job below: every run judges the description AS IT
+# IS NOW, so it no longer matters which one reports last.
 
 jobs:
   commitlint:
@@ -40,6 +52,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      # For the run listing the verdict step needs: a void is only safe once a LATER run on
+      # this commit is known to exist. Read-only, so it may share a runner with head code.
+      actions: read
 
     # `clear-superseded` acts only on a verdict that is known to describe the PR as it is now.
     outputs:
@@ -140,17 +155,18 @@ jobs:
       # the five above check the PR text as the EVENT delivered it, and by the time they finish
       # that text may be two edits old. `edited` is in the trigger list on purpose (the title
       # and body checks would be worthless without it), so every edit starts another run on the
-      # SAME commit, and a check run does not age out: measured on fc14d85a99, where
-      # `Lint commit messages` carries two SUCCESS and one FAILURE and the rollup state is
-      # FAILURE. #1704 ended with four runs on 4db0edf92e — three red from body states nobody
-      # could read any more — and clearing it took three re-runs by hand. #1703 cost a diagnosis
-      # of a failure that no longer existed.
+      # SAME commit, and which of them reports LAST — and therefore owns the required context —
+      # is decided by the runner queue. See the note above the jobs for the measurements.
       #
-      # So the verdict is re-read against the PR AS IT IS NOW. If the text has moved, this run
-      # examined a state that no longer exists and ends green naming its successor; if it has
-      # not, the findings stand and this step fails the job. That is also what settles a race
-      # without a cancel: the run that reports is the one whose examined text still equals the
-      # current text, not merely the newest to start.
+      # So the verdict is re-read against the PR AS IT IS NOW. If the text has moved AND a later
+      # run exists to judge what it moved to, this run ends green naming that successor; if the
+      # text has not moved, its findings stand and this step fails the job. Report order stops
+      # mattering, which is what no cancel can buy.
+      #
+      # `continue-on-error` is also why the outcomes below name every step: a step that stops
+      # running must reach the decision as a GAP. `skipped` counts as a pass only where the
+      # event explains it, so a failed checkout — which skips every check under it — fails here
+      # instead of passing.
       #
       # The PR-controlled strings reach this through `env:` only, never through the `run:`
       # text — the same rule `cancel-pr-runs.yml` follows for the head branch name.
@@ -162,6 +178,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           COMMITLINT_EVENT: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           COMMITLINT_EXAMINED_TITLE: ${{ github.event.pull_request.title }}
           COMMITLINT_EXAMINED_BODY: ${{ github.event.pull_request.body }}
           COMMITLINT_OUTCOMES: >-
@@ -180,17 +197,27 @@ jobs:
               gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
                   --jq '{title: .title, body: .body}' > "${RUNNER_TEMP}/pr-now.json"
               export COMMITLINT_CURRENT_PR="${RUNNER_TEMP}/pr-now.json"
+
+              # THE WITNESS FOR THE VOID. Ending a run green on "a later run decides this"
+              # is an assumption until something checks it, and an edit authored with
+              # `GITHUB_TOKEN` starts no run at all — which would take the commit green with
+              # the current description judged by nobody, and say nothing.
+              gh api -X GET "repos/${REPO}/actions/workflows/commitlint.yml/runs" \
+                  -f head_sha="${HEAD_SHA}" \
+                  -f per_page=100 \
+                  > "${RUNNER_TEMP}/commitlint-runs.json"
+              export COMMITLINT_RUNS="${RUNNER_TEMP}/commitlint-runs.json"
           fi
 
           node scripts/decide-commitlint-verdict.mjs
 
-  # THE STEP ABOVE REACHES A RUN THAT IS STILL IN FLIGHT; THIS JOB REACHES ONE THAT ALREADY
-  # CONCLUDED. Both halves are needed, and the split is measured: over the last 300 commitlint
-  # runs, 20 of 208 commits carried both a non-success and a success commitlint run, and of the
-  # 22 stale non-successes only 7 overlapped their successor. The other 15 are the ordinary
-  # repair loop — the check reports a real red, a human reads it, edits the body minutes later —
-  # and nothing in flight is left to void. What clears those is a re-run: a new attempt REPLACES
-  # the run's entry in the rollup, which is exactly the hand repair that unblocked #1704.
+  # THE STEP ABOVE REACHES A RUN THAT IS STILL IN FLIGHT; THIS JOB REACHES ONE THAT HAS ALREADY
+  # CONCLUDED, because nothing can make a finished run re-read anything. That is the state
+  # #1704 is in: its three newest `Lint commit messages` entries are hand re-runs that replayed
+  # a superseded payload and failed again, so the commit is red over a description nobody can
+  # read any more. A re-run repairs that ONLY together with the step above — the replayed run
+  # re-reads the PR, finds the text has moved, and ends green — which is precisely why
+  # re-running by hand did not work and this is not just automating a click.
   #
   # NOT A CANCEL, for the reason the `concurrency` note at the top of this file gives.
   #
