@@ -6429,8 +6429,23 @@ them wrong again within hours — and the gate is bidirectional, so deleting the
 `verify-published-closure.mjs` refuses a release-pinned edge from a PUBLISHED package to a private
 target by name, so the parser is on the release train and its first publish is queued in
 `status/pending-npm-bootstrap.json` — a manual maintainer step with a credential and an OTP, which
-OIDC cannot do, and which the next release is red on until it happens. **Alphabetically first
-among the `@gjsify` names, so leaving it unbootstrapped stalls the whole train.**
+OIDC cannot do.
+
+**And the failure mode is not a stalled train, which is what makes it easy to miss.** An earlier
+draft of that ledger entry said this name was alphabetically first and would stall everything;
+measured, it is 12th of the 215 non-private `@gjsify/*` names — the same 215
+`verify-published-closure` counts as publishable — behind `abort-controller`, `adwaita-app` and
+`adwaita-core` among others, and the release does not walk them alphabetically anyway.
+`npm:publish:prebuilt` runs `gjsify foreach --topological … gjsify publish
+--tolerate-untrusted-new`, and `--tolerate-untrusted-new` returns `skipped-untrusted-new` with
+exit 0 for a name OIDC cannot create — the flag exists so one un-bootstrapped package does not
+break the serialized loop. Measured, that loop emits `@gjsify/blueprint` before
+`@gjsify/vite-plugin-blueprint`. So an un-bootstrapped parser is SKIPPED and the plugin is
+PUBLISHED behind it, pinning a name npm does not have, on a required `dependencies` edge: every
+consumer install of the plugin fails, on every package manager. The release goes red afterwards,
+in `verify-published-closure`'s post-release phase, which ignores the ledger by design — after
+the tarball is on the registry. The bootstrap is a BEFORE for that reason and not for an
+alphabetical one.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
