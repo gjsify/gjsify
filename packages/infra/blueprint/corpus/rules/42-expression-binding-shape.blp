@@ -1,0 +1,34 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Label labelOne {
+  }
+
+  Gtk.Label {
+    label: bind labelOne.label;
+  }
+
+  Gtk.Label {
+    label: bind labelOne.label as <string>;
+  }
+
+  Gtk.Label {
+    label: bind labelOne.label as <string> bidirectional;
+  }
+
+  Gtk.Label {
+    label: bind (labelOne.label);
+  }
+
+  Gtk.Label {
+    label: bind ((labelOne).label);
+  }
+
+  Gtk.Label {
+    label: bind labelOne as <Gtk.Widget>.name;
+  }
+
+  Gtk.Label {
+    label: bind labelOne.label as <string> as <string>;
+  }
+}

@@ -1,0 +1,14 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.EnumListModel {
+  enum-type: typeof<Gtk.Orientation>;
+}
+
+Adw.EnumListModel {
+  enum-type: typeof<$CorpusTypeofEnum>;
+}
+
+Gtk.Label {
+  label: bind $corpus_typed(typeof<Gtk.Label>, typeof<$CorpusTypeofOther>) as <string>;
+}

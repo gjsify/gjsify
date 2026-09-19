@@ -33,9 +33,10 @@
 // `src/resolve-ident.mjs` is the resolver that answers from the `@girs` vocabulary.
 
 /**
- * @import { BlueprintFile, BlueprintImport, Child, Extension, MenuItem, MenuNode, ObjectBody,
- *   ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
+ * @import { BlueprintFile, BlueprintImport, Child, Expression, Extension, MenuItem, MenuNode,
+ *   ObjectBody, ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
  */
+import { BUILTIN_GTYPES, BUILTIN_INTEGERS, BUILTIN_LITERAL_CLASS } from './builtin-types.mjs';
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -101,6 +102,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {EmitOptions['gtypeName']} gtypeName
  * @property {EmitOptions['enumOrFlagsTypeOf']} enumOrFlagsTypeOf
  * @property {Map<string, string | null>} idTypes  object id -> GType name, `null` where the object is extern, for `setters { }`
+ * @property {Map<string, string>} idClasses  object id -> GType name, extern ones INCLUDED, for `<lookup type=…>`
  * @property {string | undefined} templateClass  what the id `template` refers to
  */
 
@@ -128,8 +130,14 @@ export function emitGtkBuilderXml(file, options) {
         gtypeName: options?.gtypeName,
         enumOrFlagsTypeOf: options?.enumOrFlagsTypeOf,
     };
+    const ids = indexObjectIds(file, seams);
     /** @type {EmitContext} */
-    const context = { ...seams, idTypes: indexObjectIds(file, seams), templateClass: findTemplateClass(file) };
+    const context = {
+        ...seams,
+        idTypes: ids.byId,
+        idClasses: ids.classes,
+        templateClass: findTemplateClass(file),
+    };
 
     const xml = new XmlWriter();
     xml.startTag('interface', {});
@@ -336,16 +344,35 @@ function emitProperty(xml, property, ownerType, context) {
     const value = property.value;
 
     if (value.kind === 'binding') {
-        // 13-binding.ui: a simple binding is a SELF-CLOSING property, and the compiler adds
-        // a `sync-create` the source never wrote.
-        xml.selfClosing('property', {
-            name: property.name,
-            // A binding SOURCE is a reference too, and takes the same check: the oracle
-            // answers `bind doesNotExist.label` with "Could not find object with ID".
-            'bind-source': objectRef(value.source, value.line, 'the source of a binding', context),
-            'bind-property': value.property,
-            'bind-flags': bindFlags(value.flags),
-        });
+        const simple = value.form === 'bind' ? simpleLookup(value.expression) : null;
+        if (simple !== null) {
+            // 13-binding.ui: a simple binding is a SELF-CLOSING property, and the compiler
+            // adds a `sync-create` the source never wrote.
+            xml.selfClosing('property', {
+                name: property.name,
+                // A binding SOURCE is a reference too, and takes the same check: the oracle
+                // answers `bind doesNotExist.label` with "Could not find object with ID".
+                'bind-source': objectRef(simple.source, value.line, 'the source of a binding', context),
+                'bind-property': simple.property,
+                'bind-flags': bindFlags(value.flags),
+            });
+            return;
+        }
+        if (value.flags.length > 0) {
+            throw new Error(
+                `blueprint: line ${value.line}: \`${value.flags.join(' ')}\` is a binding flag on an ` +
+                    'expression that is not a single lookup — the reference compiler refuses the same ' +
+                    'file with "Only bindings with a single lookup can have flags"',
+            );
+        }
+        checkItemPlacement(value.expression, value.form, false);
+        // `bind` makes the property TRACK the expression and `expr` makes the expression BE
+        // the value, and the difference is the element name and nothing else — measured:
+        // `label: bind true` is `<binding name="label">` and `expression: expr true` is
+        // `<property name="expression">`, with the same `<constant>` inside.
+        xml.startTag(value.form === 'bind' ? 'binding' : 'property', { name: property.name });
+        emitExpression(xml, value.expression, undefined, context);
+        xml.endTag();
         return;
     }
 
@@ -383,6 +410,311 @@ function bindFlags(flags) {
     if (flags.includes('inverted')) emitted.push('invert-boolean');
     if (flags.includes('bidirectional')) emitted.push('bidirectional');
     return emitted.length === 0 ? null : emitted.join('|');
+}
+
+// ------------------------------------------------------------------ expressions
+
+/**
+ * Whether a `bind` collapses into `bind-source`/`bind-property` attributes, and on what.
+ *
+ * The rule is measured and is finer than it looks. The collapse happens for a lookup on a
+ * BARE identifier, and for such a lookup under EXACTLY ONE cast — `bind l.name as <string>
+ * bidirectional` is `<property … bind-source="l" …/>` and `bind l.name as <string> as
+ * <string>` is a `<binding>` element, on 0.20.4. Anything else — a parenthesis anywhere, a
+ * cast between the identifier and the dot, a second lookup, a closure — is the general
+ * shape, and the oracle refuses flags on all of it ("Only bindings with a single lookup can
+ * have flags"), which is how the two halves of this function are known to be one predicate.
+ *
+ * @param {Expression} expression
+ * @returns {{ source: string, property: string } | null}
+ */
+function simpleLookup(expression) {
+    const unwrapped = expression.kind === 'cast' ? expression.of : expression;
+    if (unwrapped.kind !== 'lookup' || unwrapped.of.kind !== 'ident') return null;
+    return { source: unwrapped.of.name, property: unwrapped.name };
+}
+
+/** An expression with its parentheses and casts peeled off — neither emits anything of its own. */
+function coreOf(/** @type {Expression} */ expression) {
+    let node = expression;
+    while (node.kind === 'paren' || node.kind === 'cast') node = node.of;
+    return node;
+}
+
+/**
+ * Where the keyword `item` is allowed, checked BEFORE anything is emitted.
+ *
+ * This is the only constraint in the expression grammar whose absence produced OUTPUT rather
+ * than a refusal, which is why it is a pass of its own rather than a line inside the emitter.
+ * `item` contributes no element — it is the implicit subject a `<lookup>` is evaluated
+ * against, so an emitter that just skipped it wrote a perfectly well-formed
+ * `<binding><lookup name="name" type="GtkLabel"></lookup></binding>` for
+ * `label: bind (item as <Label>).name`, a file 0.20.4 refuses outright (`"item" can only be
+ * used in an expression literal`). Accepting what the language does not have is the bucket
+ * the wild sweep calls `accepted-past-oracle`, and it had never been seen before this.
+ *
+ * Both constraints below are the oracle's own, and each is quoted in the message it raises:
+ *   - `item` belongs to `expr` and not to `bind`;
+ *   - `item` is only ever what a lookup reads FROM, never a value on its own.
+ *
+ * @param {Expression} node @param {'bind' | 'expr'} form
+ * @param {boolean} asLookupBase  whether this position is the thing a `.property` reads from
+ */
+function checkItemPlacement(node, form, asLookupBase) {
+    if (node.kind === 'item') {
+        if (!asLookupBase) {
+            throw new Error(
+                `blueprint: line ${node.line}: \`item\` is used as a value — the reference compiler ` +
+                    `refuses the same file with '"item" can only be used for looking up properties'`,
+            );
+        }
+        if (form !== 'expr') {
+            throw new Error(
+                `blueprint: line ${node.line}: \`item\` is used inside a \`bind\` — the reference compiler ` +
+                    `refuses the same file with '"item" can only be used in an expression literal'`,
+            );
+        }
+        return;
+    }
+    if (node.kind === 'paren' || node.kind === 'cast') {
+        checkItemPlacement(node.of, form, asLookupBase);
+        return;
+    }
+    if (node.kind === 'lookup') {
+        checkItemPlacement(node.of, form, true);
+        return;
+    }
+    if (node.kind === 'closure') {
+        for (const argument of node.args) checkItemPlacement(argument, form, false);
+        return;
+    }
+    if (node.kind === 'try') {
+        for (const arm of node.arms) checkItemPlacement(arm, form, false);
+    }
+}
+
+/**
+ * The GType name a cast imposes, from Blueprint's own keyword table or from the resolver.
+ *
+ * @param {Extract<Expression, { kind: 'cast' }>} cast @param {EmitContext} context
+ * @returns {{ gtype: string, builtin: string | undefined, line: number }}
+ */
+function castType(cast, context) {
+    if (cast.builtin !== undefined) {
+        return {
+            gtype: /** @type {string} */ (BUILTIN_GTYPES.get(cast.builtin)),
+            builtin: cast.builtin,
+            line: cast.line,
+        };
+    }
+    return {
+        gtype: gtypeName(/** @type {TypeRef} */ (cast.type), context, 'reference'),
+        builtin: undefined,
+        line: cast.line,
+    };
+}
+
+/**
+ * What TYPE an expression has, which is what the `<lookup>` around it writes.
+ *
+ * `<lookup name="x" type="T">` names the type the property `x` is read ON, never the type
+ * `x` has — `bind label.parent as <Overlay>.child` is `<lookup name="child"
+ * type="GtkOverlay">` around `<lookup name="parent" type="GtkLabel">label</lookup>`. So
+ * only four things answer: a declared id, the template, an explicit cast, and a
+ * parenthesis around one of those.
+ *
+ * EVERYTHING ELSE IS REFUSED, AND THE REASON IS ONE MISSING TABLE. The oracle answers
+ * `bind l.parent.name` with `<lookup name="name" type="GtkWidget">` — it read the TYPE of
+ * `GtkLabel.parent` out of the typelib. `@girs`'s vocabulary carries no property-to-GType
+ * table: `OWN_PROPS` is a list of property NAMES, and `PROP_ENUMS` joins a property to an
+ * enum only where the property is one. So the answer cannot be derived, and ADR 0053
+ * clause 6 forbids writing it out by hand — it is exactly the table that COULD come from
+ * `@girs` if ts-for-gir emitted it, which is where it belongs. Until it does, the file is
+ * refused by name and by line, per clause 3.
+ *
+ * @param {Expression} expression @param {EmitContext} context
+ * @returns {string}
+ */
+function expressionType(expression, context) {
+    if (expression.kind === 'paren') return expressionType(expression.of, context);
+    if (expression.kind === 'cast') return castType(expression, context).gtype;
+    if (expression.kind === 'ident') {
+        if (expression.name === 'template' && context.templateClass !== undefined) return context.templateClass;
+        objectRef(expression.name, expression.line, 'the object a lookup reads a property on', context);
+        const declared = context.idClasses.get(expression.name);
+        if (declared !== undefined) return declared;
+    }
+    throw new Error(
+        `blueprint: line ${expression.line}: ${describeExpression(expression)} is read for a property and its ` +
+            'own type is not written in this file — deriving it needs the GType of a property, a table ' +
+            '`@girs` does not ship (`OWN_PROPS` holds property NAMES, `PROP_ENUMS` only the enum-typed ' +
+            'ones), so the `type` of the lookup around it cannot be spelled. Write the cast the oracle ' +
+            'infers: `a.b as <Type>.c` rather than `a.b.c`',
+    );
+}
+
+/** What to call an expression in an error message. @param {Expression} expression */
+function describeExpression(expression) {
+    if (expression.kind === 'lookup') return `\`.${expression.name}\` is a multi-step lookup, which`;
+    if (expression.kind === 'closure') return `the closure \`$${expression.name}(…)\``;
+    if (expression.kind === 'item') return 'the keyword `item`';
+    if (expression.kind === 'try') return 'a `try { … }`';
+    if (expression.kind === 'type') return 'a `typeof<…>`';
+    if (expression.kind === 'ident') return `\`${expression.name}\``;
+    return 'a constant';
+}
+
+/**
+ * One expression node as XML, given the type an enclosing cast imposes on it.
+ *
+ * `imposed` travels DOWN because a cast writes nothing of its own: it sets the `type` of the
+ * closure inside it (`bind $f() as <string>` is `<closure function="f" type="gchararray">`)
+ * or of the constant (`null as <string>`), and is otherwise read upwards by the lookup that
+ * encloses it. A parenthesis passes it through — `bind ($f(x)) as <string>` types the
+ * closure, measured.
+ *
+ * @param {XmlWriter} xml @param {Expression} node
+ * @param {{ gtype: string, builtin: string | undefined, line: number } | undefined} imposed
+ * @param {EmitContext} context
+ */
+function emitExpression(xml, node, imposed, context) {
+    if (node.kind === 'paren') {
+        emitExpression(xml, node.of, imposed, context);
+        return;
+    }
+    if (node.kind === 'cast') {
+        emitExpression(xml, node.of, castType(node, context), context);
+        return;
+    }
+    if (node.kind === 'item') {
+        // Unreachable: `checkItemPlacement` ran first and the lookup branch below consumes
+        // the one position `item` is legal in. Stated rather than left to fall through into
+        // `emitConstant`, where an unhandled kind would become a confusing message about a
+        // constant it is not.
+        throw new Error(`blueprint: line ${node.line}: \`item\` reached the emitter outside a lookup base`);
+    }
+
+    if (node.kind === 'lookup') {
+        const type = expressionType(node.of, context);
+        xml.startTag('lookup', { name: node.name, type });
+        // Three shapes for the base, and the source decides which. A BARE identifier is the
+        // lookup's TEXT; `item` is NOTHING, because it is the implicit subject and the cast
+        // beside it already carried the type; anything else is a nested element — which
+        // includes an identifier under a parenthesis or a cast. Measured: `bind (l.name)` is
+        // `<lookup …>l</lookup>` and `bind ((l).name)` is
+        // `<lookup …><constant>l</constant></lookup>`. Same id, same lookup, two shapes.
+        if (node.of.kind === 'ident') xml.text(identConstantText(node.of, context));
+        else if (coreOf(node.of).kind !== 'item') emitExpression(xml, node.of, undefined, context);
+        xml.endTag();
+        return;
+    }
+
+    if (node.kind === 'closure') {
+        if (imposed === undefined) {
+            throw new Error(
+                `blueprint: line ${node.line}: the closure \`$${node.name}(…)\` has no \`as <Type>\` and its ` +
+                    'return type would have to be inferred from the GType of the property it is assigned to — ' +
+                    'a table `@girs` does not ship. Write the cast: `bind $' +
+                    `${node.name}(…) as <Type>\`. The oracle asks for it too wherever it cannot infer one ` +
+                    '("Closure expression must be cast to the closure\'s return type")',
+            );
+        }
+        xml.startTag('closure', { function: node.name, type: imposed.gtype });
+        for (const argument of node.args) emitExpression(xml, argument, undefined, context);
+        xml.endTag();
+        return;
+    }
+
+    if (node.kind === 'try') {
+        if (node.arms.length === 0) {
+            throw new Error(
+                `blueprint: line ${node.line}: \`try { }\` has no branches — the reference compiler ` +
+                    'refuses the same file with "A try expression must have at least one branch"',
+            );
+        }
+        xml.startTag('try', {});
+        for (const arm of node.arms) emitExpression(xml, arm, undefined, context);
+        xml.endTag();
+        return;
+    }
+
+    if (node.kind === 'type') {
+        // `typeof<Gtk.Label>` inside an expression is a GType-valued constant; as a plain
+        // property value it is bare text. Two positions, two shapes, measured.
+        xml.startTag('constant', { type: 'GType' });
+        xml.text(gtypeName(node.type, context, 'reference'));
+        xml.endTag();
+        return;
+    }
+
+    if (node.kind === 'ident') {
+        if (isNullLiteral({ kind: 'ident', name: node.name, line: node.line }, context)) {
+            // `<constant initial="True" type="…"/>`, self-closing, `initial` first, and the
+            // `type` present only where a cast supplied one: `$f(null)` is
+            // `<constant initial="True"/>` and `$f(null as <string>)` adds `type="gchararray"`.
+            xml.selfClosing('constant', { initial: 'True', type: imposed?.gtype });
+            return;
+        }
+        xml.startTag('constant', {});
+        xml.text(identConstantText(node, context));
+        xml.endTag();
+        return;
+    }
+
+    emitConstant(xml, node, imposed, context);
+}
+
+/**
+ * The id an identifier expression writes, checked against the file the way every other
+ * reference is. `template` becomes the template's class — measured in `bind-source`, and
+ * the same rewrite reaches a `<lookup>`'s text and its `type`.
+ *
+ * @param {Extract<Expression, { kind: 'ident' }>} node @param {EmitContext} context
+ */
+function identConstantText(node, context) {
+    return objectRef(node.name, node.line, 'an object referred to by an expression', context);
+}
+
+/**
+ * A literal inside an expression: `<constant type="…">text</constant>`.
+ *
+ * The TYPE comes from the literal's own spelling and never from the cast — `bind 5 as
+ * <uint>` is still `<constant type="gint">5</constant>` on 0.20.4, and `bind 1.0 as
+ * <double>` is `<constant type="gfloat">1</constant>`. So a cast here is only ever a
+ * validity question, and the oracle refuses the mismatches (`Cannot convert string to
+ * number`, `Cannot convert number to bool`, `Cannot convert 1.0 to integer`); refusing them
+ * here keeps this emitter from accepting a file the language does not have.
+ *
+ * @param {XmlWriter} xml @param {Extract<Expression, { kind: 'literal' }>} node
+ * @param {{ gtype: string, builtin: string | undefined, line: number } | undefined} imposed
+ * @param {EmitContext} context
+ */
+function emitConstant(xml, node, imposed, context) {
+    const value = node.value;
+    const fractional = value.kind === 'number' && numberLiteral(value.raw).digits.includes('.');
+    const literalClass = value.kind === 'number' ? 'number' : value.kind === 'bool' ? 'bool' : 'string';
+
+    if (imposed !== undefined) {
+        if (imposed.builtin === undefined || BUILTIN_LITERAL_CLASS.get(imposed.builtin) !== literalClass) {
+            throw new Error(
+                `blueprint: line ${node.line}: a ${literalClass} constant is cast to \`${imposed.gtype}\`, ` +
+                    'and the reference compiler refuses that conversion',
+            );
+        }
+        if (fractional && BUILTIN_INTEGERS.has(imposed.builtin)) {
+            throw new Error(
+                `blueprint: line ${node.line}: \`${/** @type {{ raw: string }} */ (value).raw}\` is cast to ` +
+                    `\`${imposed.builtin}\`, and the reference compiler refuses it — ` +
+                    `"Cannot convert ${/** @type {{ raw: string }} */ (value).raw} to integer"`,
+            );
+        }
+    }
+
+    const type =
+        value.kind === 'string' ? 'gchararray' : value.kind === 'bool' ? 'gboolean' : fractional ? 'gfloat' : 'gint';
+    xml.startTag('constant', { type, ...translatedAttributes(value) });
+    xml.text(scalarText(value, null, null, context));
+    xml.endTag();
 }
 
 /**
@@ -480,6 +812,10 @@ function scalarText(value, ownerType, propertyName, context) {
     if (value.kind === 'bool') return value.value ? 'true' : 'false';
     if (value.kind === 'number') return numberText(value.raw);
     if (value.kind === 'ident') return identText(value, ownerType, propertyName, context);
+    // `item-type: typeof<Gtk.Label>;` is `<property name="item-type">GtkLabel</property>` —
+    // the GType name as plain text, with none of the `<constant type="GType">` wrapper the
+    // same syntax takes inside an expression.
+    if (value.kind === 'type') return gtypeName(value.type, context, 'reference');
     throw new Error(`blueprint: line ${value.line}: a ${value.kind} value where a scalar was expected`);
 }
 
@@ -926,14 +1262,25 @@ function findTemplateClass(file) {
  * Every object id in the file with the GType it was declared as, so a `<setter>` can resolve
  * an enum against the object it targets rather than against the breakpoint it is written in.
  *
+ * TWO maps, because two callers want two different answers about the same id. `byId` is the
+ * OWNER — `null` for an extern object, so no identifier inside it is resolved against a GIR
+ * that does not describe it (`ownerOf`). `classes` is the GType NAME, extern included,
+ * because that is what `<lookup type=…>` writes: measured on 0.20.4, `$MyThing t { }` and
+ * `bind (t.prop)` is `<lookup name="prop" type="MyThing">t</lookup>`. One map cannot be both
+ * without losing the case that needed the distinction.
+ *
  * @param {BlueprintFile} file @param {Pick<EmitContext, 'gtypeName'>} seams
+ * @returns {{ byId: Map<string, string | null>, classes: Map<string, string> }}
  */
 function indexObjectIds(file, seams) {
     /** @type {Map<string, string | null>} */
     const byId = new Map();
+    /** @type {Map<string, string>} */
+    const classes = new Map();
+    const index = { byId, classes };
     for (const root of file.roots) {
-        if (root.kind === 'object') indexObject(root, byId, seams);
-        else if (root.kind === 'template') indexBody(root.body, byId, seams);
+        if (root.kind === 'object') indexObject(root, index, seams);
+        else if (root.kind === 'template') indexBody(root.body, index, seams);
         // A top-level `menu` is a reference target like any object — 12-menu.blp points at one
         // with `menu-model: mainMenu` — and it is indexed as `null` for the reason an extern
         // target is: there is no GType whose ParamSpecs an enum could resolve against.
@@ -947,32 +1294,40 @@ function indexObjectIds(file, seams) {
         // file the oracle compiles.
         else if (root.id !== undefined) byId.set(root.id, null);
     }
-    return byId;
+    return index;
 }
 
-/** @param {ObjectNode} object @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
-function indexObject(object, byId, seams) {
+/**
+ * @typedef {{ byId: Map<string, string | null>, classes: Map<string, string> }} IdIndex
+ */
+
+/** @param {ObjectNode} object @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexObject(object, index, seams) {
     // An extern target is indexed as `null` and not left out: absent and extern are the same
     // to `Map.get`, and they must be, because `lookalike.orientation: vertical` on an extern
     // target keeps its spelling while the same setter on a `Gtk.Box` is `1`. The setter path
     // is a SECOND call site of the resolver, so an implementation that fixes only the object
     // body above is byte-equal on every golden that has no `setters { }` in it.
-    if (object.id !== undefined) byId.set(object.id, ownerOf(object.type, gtypeName(object.type, seams, 'object')));
-    indexBody(object.body, byId, seams);
+    if (object.id !== undefined) {
+        const gtype = gtypeName(object.type, seams, 'object');
+        index.byId.set(object.id, ownerOf(object.type, gtype));
+        index.classes.set(object.id, gtype);
+    }
+    indexBody(object.body, index, seams);
 }
 
-/** @param {ObjectBody} body @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
-function indexBody(body, byId, seams) {
-    for (const property of body.properties) indexValue(property.value, byId, seams);
+/** @param {ObjectBody} body @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexBody(body, index, seams) {
+    for (const property of body.properties) indexValue(property.value, index, seams);
     for (const child of body.children) {
-        if (child.object.kind === 'object') indexObject(child.object, byId, seams);
+        if (child.object.kind === 'object') indexObject(child.object, index, seams);
     }
 }
 
-/** @param {Value} value @param {Map<string, string | null>} byId @param {Pick<EmitContext, 'gtypeName'>} seams */
-function indexValue(value, byId, seams) {
-    if (value.kind === 'object') indexObject(value.object, byId, seams);
+/** @param {Value} value @param {IdIndex} index @param {Pick<EmitContext, 'gtypeName'>} seams */
+function indexValue(value, index, seams) {
+    if (value.kind === 'object') indexObject(value.object, index, seams);
     else if (value.kind === 'list') {
-        for (const item of value.items) indexValue(item, byId, seams);
+        for (const item of value.items) indexValue(item, index, seams);
     }
 }

@@ -1,0 +1,24 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Label labelOne {
+  }
+
+  Gtk.Label {
+    label: bind $corpus_plain() as <string>;
+    tooltip-text: bind $corpus-with-args(true, 10, 2.5, "text") as <string>;
+    name: bind $corpus_nested($corpus_inner() as <int>) as <string>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_ref(labelOne) as <string>;
+    tooltip-text: bind $corpus_cast_ref(labelOne as <Gtk.Widget>) as <string>;
+    name: bind $corpus_null(null, null as <string>) as <string>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_translated(_("plain"), C_("corpus", "with context")) as <string>;
+    tooltip-text: bind $corpus_lookup(labelOne.label) as <string>;
+    name: bind $corpus_extern() as <$CorpusClosureResult>.title;
+  }
+}

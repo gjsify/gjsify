@@ -43,8 +43,9 @@
 /**
  * @import { BlueprintFile, BlueprintImport, TopLevel, TypeRef, ObjectNode, ObjectBody, TemplateNode } from './ast.d.mts'
  * @import { Property, Signal, Child, Extension, MenuNode, MenuItem } from './ast.d.mts'
- * @import { Value, StringValue, ListValue, BindingValue } from './ast.d.mts'
+ * @import { Value, StringValue, ListValue, BindingValue, Expression } from './ast.d.mts'
  */
+import { BUILTIN_GTYPES } from './builtin-types.mjs';
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -983,13 +984,13 @@ class Parser {
         if (token.text === '$') {
             const name = this.peek(1);
             // `$name(…)` is a CLOSURE, not a type. The oracle refuses one here too — it admits
-            // closures only inside `bind` — and without this the object branch would refuse it
-            // by complaining about a missing `{`, which names a brace where the construct is
-            // the thing a reader has to remove.
+            // closures only inside `bind` and `expr` — and without this the object branch would
+            // refuse it by complaining about a missing `{`, which names a brace where the
+            // construct is the thing a reader has to remove.
             if (name.type === 'ident' && this.at('(', 2)) {
                 throw this.fail(
                     token,
-                    `found the closure \`$${name.text}(…)\`; a closure expression is not in this subset — \`Value\` in ast.d.mts has no closure member, and the oracle admits one only inside \`bind\``,
+                    `found the closure \`$${name.text}(…)\` as a plain value; \`Value\` in ast.d.mts has no closure member, and the oracle admits one only inside \`bind\` or \`expr\` ("Expected property value")`,
                 );
             }
             if (!options.allowObject) {
@@ -1013,23 +1014,15 @@ class Parser {
             this.advance();
             return { kind: 'bool', value: token.text === 'true', line: token.line };
         }
-        if (token.text === 'bind') {
+        if (token.text === 'bind' || token.text === 'expr') {
             return this.parseBinding();
         }
         if (token.text === 'bind-property') {
             throw this.fail(token, 'found `bind-property`, expected `bind` — the old spelling is not in this subset');
         }
-        if (token.text === 'expr') {
-            throw this.fail(
-                token,
-                'found `expr`; a property expression is not in this subset — `Value` in ast.d.mts has no expression member',
-            );
-        }
-        if (token.text === 'typeof') {
-            throw this.fail(
-                token,
-                'found `typeof`; a type literal is not in this subset — `Value` in ast.d.mts has no type member',
-            );
+        if (token.text === 'typeof' && this.at('<', 1)) {
+            const keyword = this.advance();
+            return { kind: 'type', type: this.parseAngleType(), line: keyword.line };
         }
         if (token.text === 'menu' && (this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2)))) {
             // Legal in the oracle (`menu-model: menu { … };` compiles to a nested `<menu>`),
@@ -1087,42 +1080,178 @@ class Parser {
     }
 
     /**
-     * `bind <source>.<property> [flags…]`.
+     * `bind <expression> [flags…]` and `expr <expression>`.
      *
-     * The oracle parses an `Expression` after `bind`, which admits lookups any number of
-     * levels deep, casts (`as <Gtk.Widget>`) and closures (`$fn(a, b)`). `BindingValue` holds
-     * one source and one property, so exactly that shape is accepted and everything longer is
-     * refused by name.
+     * One function for both keywords: the grammar after them is identical, and only `bind`
+     * takes flags — measured, `expr f1.expression bidirectional` is `Expected \`;\`` on
+     * 0.20.4, so the flag loop runs for `bind` alone and a flag word after `expr` falls
+     * through to the property's own `;`.
      *
      * @returns {BindingValue}
      */
     parseBinding() {
         const keyword = this.advance();
-        const source = this.expectIdentifier('the id of the object to bind to');
-        this.expect('.', '`.` — a binding is written `bind <object>.<property>`');
-        const property = this.expectIdentifier('a property name');
-        if (this.at('.')) {
-            throw this.fail(
-                this.peek(),
-                'found `.`; a multi-step lookup is not in this subset — `BindingValue` in ast.d.mts holds one source and one property',
-            );
-        }
-        if (this.at('as') || this.at('(')) {
-            throw this.fail(
-                this.peek(),
-                `found ${describe(this.peek())}; a cast or closure expression is not in this subset — \`BindingValue\` in ast.d.mts holds one source and one property`,
-            );
-        }
+        const form = /** @type {'bind' | 'expr'} */ (keyword.text);
+        const expression = this.parseExpression();
+
         /** @type {string[]} */
         const flags = [];
-        while (this.peek().type === 'ident' && BINDING_FLAGS.has(this.peek().text)) {
-            flags.push(this.advance().text);
+        if (form === 'bind') {
+            while (this.peek().type === 'ident' && BINDING_FLAGS.has(this.peek().text)) {
+                flags.push(this.advance().text);
+            }
         }
         // In SOURCE ORDER, and only what the source wrote. The compiler adds
         // `bind-flags="sync-create"` of its own — but not unconditionally, as the note on
         // `13-binding.blp` in `corpus/manifest.mjs` records, so the default belongs to the
         // emitter and never to the parse.
-        return { kind: 'binding', source: source.text, property: property.text, flags, line: keyword.line };
+        return { kind: 'binding', form, expression, flags, line: keyword.line };
+    }
+
+    /**
+     * An expression: a chain of `.property` lookups and `as <Type>` casts over one operand.
+     *
+     * The two postfix operators are read in ONE loop because the source may alternate them
+     * freely — `label.parent as <Overlay>.child as <Label>.label` is lookup, cast, lookup,
+     * cast, lookup — and each one wraps what came before it. Nothing here binds tighter than
+     * anything else; there is no precedence to get wrong, only order.
+     *
+     * @returns {Expression}
+     */
+    parseExpression() {
+        let expression = this.parseOperand();
+        for (;;) {
+            if (this.at('.')) {
+                const dot = this.advance();
+                const name = this.expectIdentifier('a property name after `.`');
+                expression = { kind: 'lookup', name: name.text, of: expression, line: dot.line };
+                continue;
+            }
+            if (this.peek().type === 'ident' && this.peek().text === 'as') {
+                const as = this.advance();
+                const type = this.parseAngleType();
+                // A Blueprint BUILT-IN is an unqualified, sigil-free name in a closed list —
+                // `src/builtin-types.mjs` argues why that list is checked in rather than
+                // derived. The order matters and is the oracle's: `as <string>` is
+                // `gchararray` and never a search for a type called `Gtk.string`.
+                const builtin =
+                    type.extern !== true && type.namespace === undefined && BUILTIN_GTYPES.has(type.name)
+                        ? type.name
+                        : undefined;
+                expression =
+                    builtin === undefined
+                        ? { kind: 'cast', of: expression, type, line: as.line }
+                        : { kind: 'cast', of: expression, builtin, line: as.line };
+                continue;
+            }
+            return expression;
+        }
+    }
+
+    /** `< Type >` — the argument of a cast or of `typeof`. @returns {TypeRef} */
+    parseAngleType() {
+        this.expect('<', '`<` — a type argument is written `<Type>`');
+        const type = this.parseTypeRef();
+        this.expect('>', '`>` — a type argument is written `<Type>`');
+        return type;
+    }
+
+    /**
+     * What an expression is built on: an identifier, `item`, a closure call, a literal, a
+     * parenthesised expression, `typeof<…>` or `try { … }`.
+     *
+     * @returns {Expression}
+     */
+    parseOperand() {
+        const token = this.peek();
+
+        if (token.text === '(') {
+            this.advance();
+            const inner = this.parseExpression();
+            this.expect(')', '`)` — a parenthesised expression');
+            // The brackets are KEPT. `bind l.name` and `bind (l.name)` are two different
+            // outputs on 0.20.4 — see the note on `Expression` in ast.d.mts — so dropping
+            // them here would be the silent wrong answer clause 3 refuses.
+            return { kind: 'paren', of: inner, line: token.line };
+        }
+
+        if (token.text === '$') {
+            this.advance();
+            const name = this.expectIdentifier('a closure name after `$`');
+            this.expect('(', '`(` — a closure is written `$name(…)`');
+            /** @type {Expression[]} */
+            const args = [];
+            while (!this.at(')')) {
+                args.push(this.parseExpression());
+                if (!this.at(',')) break;
+                this.advance();
+            }
+            this.expect(')', '`)` — the end of a closure argument list');
+            return { kind: 'closure', name: name.text, args, line: token.line };
+        }
+
+        if (token.type === 'string') {
+            this.advance();
+            return {
+                kind: 'literal',
+                value: { kind: 'string', value: token.value, line: token.line },
+                line: token.line,
+            };
+        }
+        if (token.type === 'number') {
+            this.advance();
+            return { kind: 'literal', value: this.numberValue(token.text, token), line: token.line };
+        }
+        if (token.text === '-' || token.text === '+') {
+            const number = this.peek(1);
+            if (number.type !== 'number') {
+                throw this.fail(number, `found ${describe(number)}, expected a number after \`${token.text}\``);
+            }
+            this.advance();
+            this.advance();
+            return { kind: 'literal', value: this.numberValue(token.text + number.text, token), line: token.line };
+        }
+
+        if (token.type !== 'ident') {
+            throw this.fail(token, `found ${describe(token)}, expected an expression`);
+        }
+
+        if ((token.text === '_' || token.text === 'C_') && this.at('(', 1)) {
+            const string = this.parseTranslatedValue();
+            return { kind: 'literal', value: string, line: string.line };
+        }
+        if (token.text === 'true' || token.text === 'false') {
+            this.advance();
+            return {
+                kind: 'literal',
+                value: { kind: 'bool', value: token.text === 'true', line: token.line },
+                line: token.line,
+            };
+        }
+        if (token.text === 'item') {
+            this.advance();
+            return { kind: 'item', line: token.line };
+        }
+        if (token.text === 'typeof' && this.at('<', 1)) {
+            this.advance();
+            return { kind: 'type', type: this.parseAngleType(), line: token.line };
+        }
+        if (token.text === 'try' && this.at('{', 1)) {
+            this.advance();
+            this.advance();
+            /** @type {Expression[]} */
+            const arms = [];
+            while (!this.at('}')) {
+                arms.push(this.parseExpression());
+                if (!this.at(',')) break;
+                this.advance();
+            }
+            this.expect('}', '`}` — the end of a `try { … }`');
+            return { kind: 'try', arms, line: token.line };
+        }
+
+        this.advance();
+        return { kind: 'ident', name: token.text, line: token.line };
     }
 
     /**

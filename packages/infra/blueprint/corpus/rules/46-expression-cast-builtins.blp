@@ -1,0 +1,39 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Label {
+    label: bind $corpus_string() as <string>;
+    tooltip-text: bind $corpus_bool() as <bool>;
+    name: bind $corpus_int() as <int>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_uint() as <uint>;
+    tooltip-text: bind $corpus_long() as <long>;
+    name: bind $corpus_ulong() as <ulong>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_int64() as <int64>;
+    tooltip-text: bind $corpus_uint64() as <uint64>;
+    name: bind $corpus_float() as <float>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_double() as <double>;
+    tooltip-text: bind $corpus_char() as <char>;
+    name: bind $corpus_uchar() as <uchar>;
+  }
+
+  Gtk.Label {
+    label: bind $corpus_gir() as <Gtk.Widget>;
+    tooltip-text: bind $corpus_unqualified() as <Overlay>;
+    name: bind $corpus_extern() as <$CorpusCastResult>;
+  }
+
+  Gtk.Label {
+    label: bind "text" as <string>;
+    tooltip-text: bind 1.0 as <double>;
+    name: bind 5 as <uint>;
+  }
+}

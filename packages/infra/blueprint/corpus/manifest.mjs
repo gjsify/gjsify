@@ -341,6 +341,49 @@ export const CORPUS_RULES = [
         surprise:
             "the oracle compiles it — `parent=\"GtkWidget\"` — and refuses the same class one line over as an object (`Gtk.Widget can't be instantiated because it's abstract`, `refused/abstract-instantiation.blp`). So a type reference is TWO questions and not one, and the `@girs` table that answers the first answers the second wrong by construction: `DECLS` holds instantiable GTypes, which leaves out all 17 of Gtk's abstract classes and both of Adw's. This file exists because a check written for the object position was applied to both and refused 19 legal parents, and neither the wild corpus (no file there subclasses an abstract class) nor the reference implementation's `tests/samples` (its abstract-class case lives in `sample_errors/`, which is measured nowhere here) could see it",
     },
+    {
+        file: '42-expression-binding-shape.blp',
+        isolates: 'the SAME lookup written seven ways, so the shape a `bind` emits is pinned rather than assumed',
+        surprise:
+            "a `bind` collapses into `bind-source`/`bind-property` attributes for a lookup on a BARE identifier, and for one under EXACTLY ONE cast — `bind labelOne.label as <string> bidirectional` is a self-closing `<property>`, and `bind labelOne.label as <string> as <string>` is a `<binding>` element with a `<lookup>` inside it. A parenthesis anywhere turns it into the element form too, so `bind (labelOne.label)` and `bind labelOne.label` are two different outputs from the same lookup, and the oracle refuses flags on everything but the collapsed form (`Only bindings with a single lookup can have flags`). Both halves are the same predicate, which is how they are known to be a single condition rather than a pair. The last two rows are the sharpest: a cast BETWEEN the identifier and the dot (`labelOne as <Gtk.Widget>.name`) puts the id in a nested `<constant>` where the bare form puts it in the lookup's text",
+    },
+    {
+        file: '43-expression-lookup.blp',
+        isolates: 'a lookup CHAIN, on a declared id, on `template`, and on an extern-typed object',
+        surprise:
+            "`<lookup name=… type=…>` names the type the property is read ON and never the type it has, so a chain reads inside-out: `labelOne.parent as <Gtk.Overlay>.child as <Gtk.Label>.label` is three nested `<lookup>` elements whose types are `GtkLabel`, `GtkOverlay`, `GtkLabel` — the declared class first, then each cast. `template` answers with the TEMPLATE's class, not its parent's, in the `type` and in the text alike. An extern-typed object answers with its own sigil-free name (`CorpusLookupTarget`), which is why `EmitContext` keeps a second id index: `idTypes` is `null` for an extern object, and this position needs the NAME",
+    },
+    {
+        file: '44-expression-closure.blp',
+        isolates: 'a closure call and every kind of argument one can take',
+        surprise:
+            'an argument is the expression grammar again, not a literal grammar: a nested closure, a lookup, a translated string and a `typeof<>` are all legal there. Three of them emit shapes nothing else in the corpus has — an object id becomes `<constant>labelOne</constant>` with NO type attribute, `null` becomes a self-closing `<constant initial="True"/>` whose `type` appears only where a cast supplied one, and a cast on an object-id argument is DROPPED (`labelOne as <Gtk.Widget>` is still `<constant>labelOne</constant>`). The closure\'s own `type` is the cast and nothing else, which is why `refused/expression-closure-untyped.blp` exists',
+    },
+    {
+        file: '45-expression-property.blp',
+        isolates: 'the `expr` keyword, and the `item` it exists for',
+        surprise:
+            '`expr` and `bind` are one grammar with two exits — `expr` writes the expression INTO a `<property>` and `bind` into a `<binding>`, and `expression: bind filterOne.expression` still collapses to `bind-source` like any other single lookup. `item` emits NOTHING: it is the implicit subject, so `expr item as <Gtk.Entry>.visible` is `<lookup name="visible" type="GtkEntry"></lookup>` with an empty body, and the parenthesised spelling of the same thing is byte-identical. That emptiness is why `item` needs a check of its own rather than a branch in the emitter — see `refused/expression-item-in-bind.blp`',
+    },
+    {
+        file: '46-expression-cast-builtins.blp',
+        isolates:
+            "every one of Blueprint's twelve built-in type keywords, plus a GIR type, an unqualified one and an extern one",
+        surprise:
+            '`double` is `gfloat`. Not a typo and not an approximation — 0.20.4 writes `<closure … type="gfloat">` for `as <double>`, exactly as it does for `as <float>` — which is the single measurement that decides `src/builtin-types.mjs` may be hand-written under ADR 0053 clause 6: a table DERIVED from GObject\'s fundamentals would have said `gdouble` and been wrong here. The last three rows pin the other half: a cast on a LITERAL never changes the emitted type, so `5 as <uint>` is still `<constant type="gint">5</constant>` and `1.0 as <double>` is `<constant type="gfloat">1</constant>` — the cast is a validity question there and nothing else',
+    },
+    {
+        file: '47-expression-typeof.blp',
+        isolates: 'a `typeof<Type>` in the two positions the language gives it',
+        surprise:
+            'the same syntax emits two different things. As a property VALUE it is bare text — `<property name="enum-type">GtkOrientation</property>` — and inside an expression it is `<constant type="GType">GtkLabel</constant>`. So `typeof` is a `Value` AND an `Expression` in `ast.d.mts`, two nodes rather than one used twice. `Gtk.Orientation` also shows that a type REFERENCE is not a class reference: an enum resolves here, in the same position an abstract class resolves in `41-template-parent-abstract.blp`',
+    },
+    {
+        file: '48-expression-try.blp',
+        isolates: 'a `try { … }` and its trailing comma',
+        surprise:
+            "the arms are ordinary expressions and the element is a plain `<try>` with no attributes, but the arms do NOT inherit a type from anywhere: each closure among them needs its own cast. That is why the reference implementation's own `expr_try.blp` is still refused here — its first closure has none, and the type the oracle infers for it comes from the property's GType",
+    },
 ];
 
 /**
@@ -408,10 +451,17 @@ export const CORPUS_REFUSALS = [
         names: 'closure',
     },
     {
+        // The one expression shape `rules/42`–`47` do NOT close, and its reason has an owner
+        // outside this repository. `<lookup name="name" type="GtkWidget">` for `a.parent.name`
+        // is the oracle reading `GtkLabel.parent`'s TYPE out of the typelib; `@girs`'s
+        // vocabulary has no property-to-GType table, so the middle type cannot be derived and
+        // ADR 0053 clause 6 forbids writing one by hand. Cast it —
+        // `a.parent as <Widget>.name` — and `rules/42-expression-lookup-chain.blp` is that
+        // same file, compiled.
         file: 'binding-lookup-chain.blp',
-        construct: 'a binding with more than one lookup, `bind a.b.c`',
+        construct: 'a lookup chain with no cast to name the middle type, `bind a.b.c`',
         oracle: 'compiles',
-        projection: 'refuses',
+        projection: 'projects',
         line: 8,
         names: 'multi-step lookup',
     },
@@ -548,6 +598,52 @@ export const CORPUS_REFUSALS = [
         projection: 'projects',
         line: 13,
         names: 'is not a member of GtkAlign',
+    },
+    {
+        // The expression shape that is out of subset for the same reason `binding-lookup-chain`
+        // is, one construct over: the oracle infers a closure's return type from the GType of
+        // the property it is assigned to, and `@girs` ships no property-to-GType table. Eight
+        // files in the reference implementation's `tests/samples` stop here and no wild file
+        // does — every closure in the wild corpus writes its cast.
+        file: 'expression-closure-untyped.blp',
+        construct: 'a closure with no `as <Type>`, whose return type the oracle infers from the property',
+        oracle: 'compiles',
+        projection: 'projects',
+        line: 4,
+        names: 'has no `as <Type>`',
+    },
+    {
+        // NOT a subset gap — a file both compilers refuse, and the one in this directory that
+        // pins an `accepted-past-oracle`. `item` contributes no element, so an emitter that
+        // simply skipped it wrote a well-formed `<binding><lookup …></lookup></binding>` for a
+        // file 0.20.4 rejects outright. Nothing else in the corpus could have caught that:
+        // a golden exists only for a file both compile.
+        file: 'expression-item-in-bind.blp',
+        construct: 'the keyword `item` inside a `bind` rather than an `expr`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'item',
+    },
+    {
+        file: 'expression-try-empty.blp',
+        construct: 'a `try { }` with no branches',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'try',
+    },
+    {
+        // `46-expression-cast-builtins.blp` pins that a cast on a literal never changes the
+        // emitted type; this pins that it is still checked. The oracle answers `Cannot convert
+        // string to number`, and accepting it here would emit a `<constant type="gchararray">`
+        // for a file the language does not have.
+        file: 'expression-cast-literal.blp',
+        construct: 'a cast on a literal to a type of another kind, `bind "text" as <int>`',
+        oracle: 'refuses',
+        projection: 'projects',
+        line: 4,
+        names: 'cast',
     },
 ];
 

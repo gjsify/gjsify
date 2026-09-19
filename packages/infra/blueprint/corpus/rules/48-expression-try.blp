@@ -1,0 +1,14 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Label labelOne {
+  }
+
+  Gtk.Label {
+    label: bind try { labelOne.label, $corpus_backup(labelOne) as <string>, "fallback" };
+  }
+
+  Gtk.Label {
+    label: bind try { $corpus_only() as <string>, };
+  }
+}

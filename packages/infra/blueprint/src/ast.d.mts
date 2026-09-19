@@ -119,13 +119,41 @@ export interface ObjectValue {
     readonly line: number;
 }
 
-/** `bind <source>.<property> [flags…]`. */
+/**
+ * `bind <expression> [flags…]` and `expr <expression>`.
+ *
+ * ONE node for two keywords, because they are one construct with two exits. `bind` makes the
+ * property track the expression, `expr` makes the expression BE the value — measured on
+ * 0.20.4, `expression: expr true` is `<property name="expression"><constant …>` while
+ * `label: bind true` is `<binding name="label"><constant …>`. Nothing else about them
+ * differs, so `form` carries the keyword and the emitter reads it.
+ *
+ * `flags` is what the SOURCE wrote, in source order. The compiler emits its own order and
+ * its own default, and 0.20.4 refuses flags on anything but a single lookup ("Only bindings
+ * with a single lookup can have flags") — the same predicate that decides the collapsed
+ * shape, which is why the emitter and not the parser holds it.
+ */
 export interface BindingValue {
     readonly kind: 'binding';
-    readonly source: string;
-    readonly property: string;
+    readonly form: 'bind' | 'expr';
+    readonly expression: Expression;
     /** As written, in source order. The compiler emits its own order and its own default. */
     readonly flags: readonly string[];
+    readonly line: number;
+}
+
+/**
+ * `typeof<Type>` as a property value: `item-type: typeof<Gtk.Label>;`.
+ *
+ * A Value and not an Expression, because it is legal where no `bind` or `expr` is —
+ * `<property name="item-type">GtkLabel</property>`, plain text. Inside an expression it is
+ * an operand too, which `TypeExpression` carries; the two positions emit differently
+ * (`<constant type="GType">GtkLabel</constant>` there) and that is why they are two nodes
+ * rather than one used twice.
+ */
+export interface TypeValue {
+    readonly kind: 'type';
+    readonly type: TypeRef;
     readonly line: number;
 }
 
@@ -136,7 +164,137 @@ export interface ListValue {
     readonly line: number;
 }
 
-export type Value = StringValue | NumberValue | BoolValue | IdentValue | ObjectValue | BindingValue | ListValue;
+export type Value =
+    | StringValue
+    | NumberValue
+    | BoolValue
+    | IdentValue
+    | ObjectValue
+    | BindingValue
+    | TypeValue
+    | ListValue;
+
+// ------------------------------------------------------------------ expressions
+
+/**
+ * What `bind` and `expr` take: a tree of lookups, closure calls, casts and constants.
+ *
+ * WHY EVERY WRAPPER IS ITS OWN NODE, INCLUDING THE PARENTHESES
+ *
+ * A parenthesis is not punctuation here, it is a fact the output depends on. Measured on
+ * 0.20.4: `bind l.name` is `<property … bind-source="l" bind-property="name"/>` and
+ * `bind (l.name)` is `<binding><lookup name="name" type="GtkLabel">l</lookup></binding>` —
+ * the same lookup, two shapes, told apart by nothing but the brackets. And
+ * `bind (l.name) bidirectional` is refused where `bind l.name bidirectional` compiles. A
+ * parser that dropped the parens as noise would emit the first shape for the second file
+ * and be silently wrong, which is the one outcome ADR 0053 clause 3 exists to prevent. The
+ * same holds for a cast around an identifier: `(l).name` and `l as <Widget>.name` both put
+ * the id in a `<constant>` element where the bare `l.name` puts it in the lookup's text.
+ *
+ * So the tree records the SOURCE, wrapper for wrapper, and the emitter reads the shape.
+ */
+export type Expression =
+    | IdentExpression
+    | ItemExpression
+    | LookupExpression
+    | ClosureExpression
+    | CastExpression
+    | ParenExpression
+    | TryExpression
+    | LiteralExpression
+    | TypeExpression;
+
+/**
+ * A bare identifier: an object id, the keyword `template`, or the null literal.
+ *
+ * The three are not told apart here, for the reason `IdentValue` gives one screen up and
+ * `emit-xml.mjs`'s `isNullLiteral` states exactly: blueprint has no `null` keyword, so
+ * `null` is a reference wherever an object answers to the name and the literal only where
+ * nothing does. That is a question about the FILE, which the parser does not have.
+ */
+export interface IdentExpression {
+    readonly kind: 'ident';
+    readonly name: string;
+    readonly line: number;
+}
+
+/**
+ * The keyword `item` — the object a list-item expression is evaluated against.
+ *
+ * It has no id and no type of its own: the oracle refuses it uncast (`"item" must be cast
+ * to its object type`) and emits NOTHING for it, so `expr item as <Entry>.visible` is
+ * `<lookup name="visible" type="GtkEntry"></lookup>` with an empty body.
+ */
+export interface ItemExpression {
+    readonly kind: 'item';
+    readonly line: number;
+}
+
+/** `<of>.<name>` — a property read on the expression to its left. */
+export interface LookupExpression {
+    readonly kind: 'lookup';
+    readonly name: string;
+    readonly of: Expression;
+    readonly line: number;
+}
+
+/** `$name(arg, …)` — a call into the application's own code. */
+export interface ClosureExpression {
+    readonly kind: 'closure';
+    readonly name: string;
+    readonly args: readonly Expression[];
+    readonly line: number;
+}
+
+/**
+ * `<of> as <type>`.
+ *
+ * `builtin` is set for Blueprint's own type keywords (`string`, `bool`, `int`, …), which
+ * name no GIR type and are listed in `src/builtin-types.mjs`; `type` is set for everything
+ * else. Exactly one of the two.
+ */
+export interface CastExpression {
+    readonly kind: 'cast';
+    readonly of: Expression;
+    readonly builtin?: string;
+    readonly type?: TypeRef;
+    readonly line: number;
+}
+
+/** `( <of> )` — see the note on `Expression` for why this survives the parse. */
+export interface ParenExpression {
+    readonly kind: 'paren';
+    readonly of: Expression;
+    readonly line: number;
+}
+
+/** `try { a, b, c }` — the first arm that does not fail. */
+export interface TryExpression {
+    readonly kind: 'try';
+    readonly arms: readonly Expression[];
+    readonly line: number;
+}
+
+/**
+ * A constant: a string (translated or not), a number, or `true`/`false`.
+ *
+ * `value` is the ordinary `Value` the rest of the AST already uses, so a translated string
+ * inside a closure argument is the same node as one on a property and takes the same
+ * `translatable="yes"` — one spelling of `_()`, read once. `null` is NOT here; it is an
+ * `IdentExpression`, for the reason stated there.
+ */
+export interface LiteralExpression {
+    readonly kind: 'literal';
+    readonly value: StringValue | NumberValue | BoolValue;
+    readonly line: number;
+}
+
+/** `typeof<Type>` as an operand inside an expression. */
+export interface TypeExpression {
+    readonly kind: 'type';
+    readonly type: TypeRef;
+    readonly line: number;
+}
 
 export interface Property {
     readonly name: string;

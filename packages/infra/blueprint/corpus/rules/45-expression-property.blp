@@ -1,0 +1,21 @@
+using Gtk 4.0;
+
+Gtk.BoolFilter filterOne {
+  expression: expr true;
+}
+
+Gtk.BoolFilter {
+  expression: expr (item as <Gtk.Entry>).visible;
+}
+
+Gtk.BoolFilter {
+  expression: expr item as <Gtk.Entry>.visible;
+}
+
+Gtk.BoolFilter {
+  expression: expr $corpus_predicate(item as <Gtk.Entry>.text) as <bool>;
+}
+
+Gtk.BoolFilter {
+  expression: bind filterOne.expression;
+}
