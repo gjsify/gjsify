@@ -29,6 +29,8 @@ refused by name, held by a corpus of its own.
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
 | `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
+| `src/index.mjs` | the package's whole surface: one compile, and the five seams it needs |
+| `src/index.d.mts` | the types for those, hand-written — there is no build step |
 | `src/ast.d.mts` | the shape a `.blp` parses into — the contract between the three below |
 | `src/parser.mjs` | `.blp` text → AST, or a hard error naming its line |
 | `src/emit-xml.mjs` | AST → GtkBuilder XML |
@@ -40,6 +42,26 @@ refused by name, held by a corpus of its own.
 The real files are listed **by path** and read from where they live. A copy would be a second
 transcript that drifts from the file the build actually compiles, and it would keep passing
 while it drifted.
+
+## Using it
+
+```js
+import { emitGtkBuilderXml, gtypeName, parseBlueprint, resolveIdent } from '@gjsify/blueprint';
+```
+
+One compile is `parseBlueprint` then `emitGtkBuilderXml`, and the emitter reaches introspection
+through five optional seams (`EmitOptions`) that `resolve-ident.mjs` answers from the `@girs`
+vocabulary. Those seven names plus `BlueprintSyntaxError` are the whole surface, and
+`scripts/check-blueprint-corpus.mjs` imports the package by this specifier — so a dropped export
+is a red gate and not a discovery made later by a consumer.
+
+`src/project.mjs` is deliberately NOT on it. The `SharedNode` projection is ADR 0053 clause 1's
+second, declared-lossy exit; its only caller is stage D of that same gate, one directory over, and
+nothing outside this repository has asked for a shape whose whole point is what it drops.
+
+The package is `private` and is not published. The first publish is a human step — OIDC cannot
+create a package name — and it belongs to the change that makes the parser authoritative, not to
+the one that gave it a door.
 
 ## Running it
 

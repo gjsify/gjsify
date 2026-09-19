@@ -33,8 +33,9 @@
 // `src/resolve-ident.mjs` is the resolver that answers from the `@girs` vocabulary.
 
 /**
- * @import { BlueprintFile, BlueprintImport, Child, Expression, Extension, MenuItem, MenuNode,
- *   ObjectBody, ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
+ * @import { BlueprintFile, BlueprintImport, Child, Expression, Extension, ExtensionEntry,
+ *   MenuAttribute, MenuItem, MenuNode, ObjectBody, ObjectNode, Property, Signal, TemplateNode,
+ *   TypeRef, Value } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES, BUILTIN_INTEGERS, BUILTIN_LITERAL_CLASS } from './builtin-types.mjs';
 import { numberLiteral } from './number-literal.mjs';
@@ -87,7 +88,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {(typeName: string, propertyName: string, member: string, where: string) => string | null} [resolveIdent]
  * @property {(name: string, where: string) => 'property' | 'relation' | 'state'} [accessibilityElement]
  * @property {(name: string, member: string, where: string) => string | null} [accessibilityValue]
- * @property {(type: TypeRef, where: string) => string} [gtypeName]
+ * @property {(type: TypeRef, where: string, position?: 'object' | 'reference') => string} [gtypeName]
  * @property {(typeName: string | null, propertyName: string) => string | null} [enumOrFlagsTypeOf]
  */
 
@@ -332,8 +333,7 @@ function emitChild(xml, child, context) {
     // and 25-bracket-breakpoint.ui says `[breakpoint]` is nothing more than another one of
     // those. An object-valued PROPERTY is a different construct and lives in emitProperty.
     xml.startTag('child', { type: child.slot });
-    if (child.object.kind === 'menu') emitMenu(xml, child.object, context);
-    else emitObject(xml, child.object, context);
+    emitObject(xml, child.object, context);
     xml.endTag();
 }
 
@@ -1035,7 +1035,7 @@ function extensionText(value, name, ariaValue, context) {
     return scalarText(value, null, null, context);
 }
 
-/** @param {XmlWriter} xml @param {Property} setter @param {EmitContext} context */
+/** @param {XmlWriter} xml @param {ExtensionEntry} setter @param {EmitContext} context */
 function emitSetter(xml, setter, context) {
     const dot = setter.name.indexOf('.');
     if (dot < 1) {

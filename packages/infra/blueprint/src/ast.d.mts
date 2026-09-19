@@ -7,13 +7,15 @@
 //
 // WHY A DECLARATION FILE AND NOT A `.ts`
 //
-// The shadow arm of `scripts/check-blueprint-corpus.mjs` imports the parser directly, as
-// plain Node, in `tree-checks` — a job that installs the workspace and does NOT build it. A
-// parser behind a build step is a parser that gate cannot run, which is the one shape ADR
-// 0053 spends its whole § Implementation avoiding. So the implementation is `.mjs` and the
-// types live beside it, the arrangement `@gjsify/manifest-conformance` already ships. When
-// the parser becomes authoritative and `@gjsify/vite-plugin-blueprint` consumes it, that is
-// the moment to revisit — not before.
+// The shadow arm of `scripts/check-blueprint-corpus.mjs` imports the parser through
+// `src/index.mjs`, as plain Node, in `tree-checks` — a job that installs the workspace and
+// does NOT build it. A parser behind a build step is a parser that gate cannot run, which is
+// the one shape ADR 0053 spends its whole § Implementation avoiding. So the implementation is
+// `.mjs` and the types live beside it, the arrangement `@gjsify/manifest-conformance` already
+// ships. `src/index.d.mts` does the same for the surface: it is what `package.json` points
+// `types` at, and this file is reachable through it. When the parser becomes authoritative
+// and `@gjsify/vite-plugin-blueprint` consumes it, that is the moment to revisit — not
+// before.
 //
 // WHY EVERY NODE CARRIES A LINE
 //
@@ -101,10 +103,19 @@ export interface BoolValue {
 /**
  * A bare identifier on the right of a property.
  *
- * Three different things wear this shape and the syntax cannot tell them apart: an enum
- * member (`orientation: vertical`), a reference to an object id (`menu-model: mainMenu`) and
- * a flag set (`state-flags: active|focused`). Naming it `ident` rather than guessing is the
- * point — clause 3's "never a silent pass-through" applies to interpretation too.
+ * FOUR different things wear this shape and the syntax cannot tell them apart: an enum member
+ * (`orientation: vertical`), a reference to an object id (`menu-model: mainMenu`), a flag set
+ * (`state-flags: active|focused`) and the `null` literal (`extra-menu: null`). Naming it
+ * `ident` rather than guessing is the point — clause 3's "never a silent pass-through"
+ * applies to interpretation too.
+ *
+ * There is deliberately no `NullValue` kind, and the fourth reading is why: `null` is a legal
+ * object id, so `label: null` in a file holding `Gtk.Label null { }` is a REFERENCE that
+ * resolves — measured on the oracle, which answers with a type error and not an unknown id.
+ * The literal is only what is left when no object in the file claims the name, which is a
+ * question about the whole file that the token cannot answer where it is read. The emitter
+ * asks it against the ids it has collected (`emit-xml.mjs` § `objectRef`); a parser that
+ * decided it at the token would have to un-decide it one object later.
  */
 export interface IdentValue {
     readonly kind: 'ident';
@@ -160,7 +171,18 @@ export interface TypeValue {
 /** A bracketed list of values: `styles [...]`, `strings [...]`, `widgets [...]`. */
 export interface ListValue {
     readonly kind: 'list';
-    readonly items: readonly Value[];
+    /**
+     * Scalars only. A list member is parsed with `allowObject: false, allowList: false` and
+     * each refusal names itself, so neither an `ObjectValue` nor a nested `ListValue` can
+     * land here — declaring the full `Value` promised two arms no file can reach.
+     *
+     * Those two and no others. This file describes what the PARSER builds, and the emitter
+     * refuses more than the parser does: `styles [typeof<Gtk.Label>]` parses to a `TypeValue`
+     * in here and is then refused at emit ("a list item that is neither a string nor an
+     * identifier"). Excluding it here would make the AST unable to hold a file the parser
+     * accepts, and would move an emitter's rule into the syntax.
+     */
+    readonly items: readonly Exclude<Value, ObjectValue | ListValue>[];
     readonly line: number;
 }
 
@@ -251,15 +273,23 @@ export interface ClosureExpression {
  *
  * `builtin` is set for Blueprint's own type keywords (`string`, `bool`, `int`, …), which
  * name no GIR type and are listed in `src/builtin-types.mjs`; `type` is set for everything
- * else. Exactly one of the two.
+ * else. Exactly one of the two — and the TYPE says so rather than only this sentence.
+ *
+ * Two independent optionals would admit two shapes the parser cannot build: neither set, and
+ * both. It builds the node in one ternary, so exactly one is present in every cast in the
+ * tree. The cost of the looser spelling is paid by every reader: `emit-xml.mjs` § `castGType`
+ * branches on `builtin !== undefined` and reads `type` in the else, which under two optionals
+ * is a `TypeRef | undefined` and a branch for an absence that cannot happen. Declared as a
+ * pair, that branch narrows.
  */
-export interface CastExpression {
+export type CastExpression = {
     readonly kind: 'cast';
     readonly of: Expression;
-    readonly builtin?: string;
-    readonly type?: TypeRef;
     readonly line: number;
-}
+} & (
+    | { readonly builtin: string; readonly type?: undefined }
+    | { readonly builtin?: undefined; readonly type: TypeRef }
+);
 
 /** `( <of> )` — see the note on `Expression` for why this survives the parse. */
 export interface ParenExpression {
@@ -334,10 +364,16 @@ export interface Signal {
  * `Property` with an `ObjectValue`, because that is what the file says and what the XML
  * distinguishes — `<child type="start">` against `<property name="content">`. The
  * projection is where the two are conflated, declared, in one place.
+ *
+ * An object and never a `MenuNode`, which this once also admitted. The oracle compiles
+ * `menu-model: menu { … }` to a nested `<menu>` and the parser refuses it by name, so no menu
+ * can reach a child: `parseMenu` has one call site and it pushes into `roots`. The arm cost
+ * three readers a branch that cannot be taken — the emitter, the projection, and the first
+ * consumer written against this file.
  */
 export interface Child {
     readonly slot?: string;
-    readonly object: ObjectNode | MenuNode;
+    readonly object: ObjectNode;
     readonly line: number;
     readonly order: number;
 }
@@ -355,9 +391,30 @@ export interface Extension {
     readonly name: string;
     /** For `condition ("max-width: 400px")`: the parenthesised text, undecoded. */
     readonly argument?: string;
-    readonly entries: readonly Property[];
+    readonly entries: readonly ExtensionEntry[];
     readonly line: number;
     readonly order: number;
+}
+
+/**
+ * One `name: value;` inside such a block — a `Property` in every respect but two.
+ *
+ * It carries no `order`. That counter exists to interleave the four sibling arrays of an
+ * `ObjectBody`; a block keeps ONE array, so there is nothing to interleave and the parser
+ * stamps none. Measured over every `.blp` this repository tracks: not one entry carries one,
+ * while every object-body and menu-body member does. Declaring these as `Property` promised a
+ * field none of them has.
+ */
+export interface ExtensionEntry {
+    readonly name: string;
+    /**
+     * Never an object: every block entry is parsed with `allowObject: false`, and the refusal
+     * names itself. Everything else is reachable — a list only inside `accessibility { }`, and
+     * a `TypeValue` anywhere: `accessibility { label: typeof<Gtk.Label>; }` we emit and the
+     * oracle refuses, a divergence `corpus/divergences.mjs` is the place to record.
+     */
+    readonly value: Exclude<Value, ObjectValue>;
+    readonly line: number;
 }
 
 export interface ObjectBody {
@@ -385,9 +442,23 @@ export interface TemplateNode {
     readonly line: number;
 }
 
+/**
+ * One `name: "value";` line inside a menu item.
+ *
+ * A `Property` whose value is always a `StringValue`: a menu attribute is parsed with
+ * `allowObject: false, allowList: false` AND refused by name if it is not a string, in both
+ * the long form and the `item ("Label", "app.act")` shorthand. GMenu attributes are text.
+ */
+export interface MenuAttribute {
+    readonly name: string;
+    readonly value: StringValue;
+    readonly line: number;
+    readonly order: number;
+}
+
 export interface MenuItem {
     readonly kind: 'item' | 'section' | 'submenu';
-    readonly attributes: readonly Property[];
+    readonly attributes: readonly MenuAttribute[];
     readonly items: readonly MenuItem[];
     readonly line: number;
     /** Position among the members of ONE menu body, as `Property.order` is for an object body. */
