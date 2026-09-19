@@ -1,5 +1,17 @@
 # The Blueprint subset against real `.blp` — 2026-09-16
 
+**Measured at `3b796bf95e78e9384ba2d5c58175e44a6a43966c`** (`fix(blueprint): an object reference
+must resolve` — #1700), the tip of `main` as of 2026-09-19. This report was first written on top
+of `db9b112e44` (#1694); four PRs landed on `main` since. Only one of them moved a number this
+report states — **#1700**, which took the corpus from 35 rules / 47 corpus files / 15 refusals to
+38 rules / 12 reality probes / 50 goldens / 19 refusals and, on the way, fixed the defect § 3
+describes. #1698 added `scripts/check-blueprint-census.mjs` and a census gate over ADR 0053 (a
+different document); it touched no corpus file this report counts. #1696 and #1697 touched neither.
+**#1700 closes this report's own top-priority gap: `null` (§ 3, § 5, plan item 0) is now fixed,
+and with it the wild- and language-corpus "1 silently wrong" files both became byte-equal.** Every
+number below is re-measured at the new commit; every place a number moved says so inline rather
+than being silently edited.
+
 ADR 0053 clause 5 runs the in-repo parser in SHADOW until it is silent, and clause 3 makes
 anything outside its subset a hard error naming the construct and its line. `corpus/divergences.mjs`
 is empty, so the flip to authoritative (ADR 0063, reserved) is unblocked — and an empty ledger is a
@@ -37,7 +49,7 @@ compiled by the oracle, and the two outputs compared byte for byte.
 ### Every source, pinned — and the script that redoes all of it
 
 `scripts/blueprint-wild-sweep.mjs` is in this commit, and every number below is what it prints —
-with one exception named where it stands: § 1's six-and-nine split over `corpus/refused/` is a
+with one exception named where it stands: § 1's six-and-thirteen split over `corpus/refused/` is a
 hand re-run against the manifest, which `check-blueprint-corpus.mjs` stage B is the gate for.
 It carries the list of sources itself, one commit each: the five that are submodules of this
 repository are verified against the gitlink and cloned if the tree does not have them, and the
@@ -59,8 +71,9 @@ the files are not here and the sweep is.
 
 The five `refs/` commits are the gitlinks this repository pinned at
 `db9b112e44bc6b6a42e9bebd6d206630189afbfc` (`feat(blueprint): accept an extern type` — #1694),
-the commit this report was written on top of. The sweep re-reads them and stops rather than
-reprinting this table from a moved pin.
+the commit this report was first written on top of; none of the five moved through #1700, the
+commit this report is now measured at. The sweep re-reads them and stops rather than reprinting
+this table from a moved pin.
 
 **Decibels is the GNOME Incubator project and not the author's GitHub mirror**, which carries no
 `.blp` at all — an easy hour to lose. **The language corpus is the reference implementation's own
@@ -72,14 +85,21 @@ neither. An earlier draft of this report used a 2023 checkout of the same reposi
 
 ## The headline
 
-**Of 273 wild files, 253 are byte-equal with the oracle today (92.7%), 19 are refused (7.0%), and
-one is silently wrong.** Counting only the 235 files this studio did not write: 215 byte-equal
-(91.5%), 19 refused, 1 wrong.
+**Of 273 wild files, 254 are byte-equal with the oracle today (93.0%), 19 are refused (7.0%), and
+none are silently wrong.** Counting only the 235 files this studio did not write: 216 byte-equal
+(91.9%), 19 refused, 0 wrong.
+
+**This moved since the report was first written**, and it is #1700's doing, not noise: byte-equal
+rose by exactly one file in each count and "wrong" dropped from 1 to 0, because the file that was
+wrong — Muzika's `window.blp`, § 3 — is now byte-equal. The refused count (19) did not move; it is
+unrelated to, and coincidentally equal to, the corpus `refused/` directory's own count after
+#1700 (§ 1) — two different measurements that happened to both read 19 here, and read 19 vs. 15
+before #1700.
 
 | pool | files | byte-equal | refused | wrong |
 |---|---:|---:|---:|---:|
 | Workbench demos | 103 | 98 | 5 | 0 |
-| Muzika | 58 | 56 | 1 | 1 |
+| Muzika | 58 | 57 | 1 | 0 |
 | `refs/map-editor` (own) | 38 | 38 | 0 | 0 |
 | `refs/epiphany` | 37 | 32 | 5 | 0 |
 | `refs/Gradia` | 21 | 19 | 2 | 0 |
@@ -87,10 +107,13 @@ one is silently wrong.** Counting only the 235 files this studio did not write: 
 | `refs/troll` | 4 | 3 | 1 | 0 |
 | `refs/showtime` | 4 | 1 | 3 | 0 |
 
+Only the Muzika row moved (56/1 wrong → 57/0 wrong); every other pool is byte-for-byte what it was
+when this report was first measured.
+
 **Eighteen of the nineteen refusals are files the oracle compiles.** The nineteenth is
 `refs/troll/gjspack/test/fixtures/invalid-blueprint.blp`, a fixture that exists to be invalid, and
 both compilers refuse it. So clause 3 is behaving exactly as designed — a foreign file either builds
-or names its construct — and the subset is the only thing standing between 92.7% and the rest.
+or names its construct — and the subset is the only thing standing between 93.0% and the rest.
 
 **"Both refuse it" is not the same as agreeing, and this file is the example.** The sweep prints
 the two reasons side by side rather than calling the bucket agreement, because nothing compares
@@ -101,18 +124,27 @@ unrelated reasons. One file here, and 50 in the language corpus, sit in a bucket
 subset gap behind an oracle error on the same file; printing both reasons is the cheapest thing
 that keeps that visible.
 
-The language corpus is harsher and should be: 44 of 95 byte-equal, 50 refused, 1 wrong. A test suite
+The language corpus is harsher and should be: 45 of 95 byte-equal, 50 refused, 0 wrong. A test suite
 is written to reach corners, which is what makes it useful here — it names five constructs no
-application in the wild corpus happens to use. Its one wrong file is
-`tests/samples/adw_breakpoint.blp`, and it is wrong for the SAME reason Muzika's window is
-(§ 3): `label.extra-menu: null;` in a setter, the string `null` written into a live property.
-The reference implementation ships the file that would have caught this, and the corpus here
-never had it.
+application in the wild corpus happens to use. `tests/samples/adw_breakpoint.blp` was its one wrong
+file at first measurement, wrong for the SAME reason Muzika's window was (§ 3): `label.extra-menu:
+null;` in a setter, the string `null` written into a live property. #1700 fixed the defect at its
+source in `emit-xml.mjs`, and both files are byte-equal now — the reference implementation shipped
+the file that caught this, and the corpus here did not have an equivalent until #1700 added one
+(`36-setter-null.blp`).
 
-## 1. The fifteen refusals: six are Blueprint, nine are not
+## 1. The nineteen refusals: six are Blueprint, thirteen are not
 
 Re-run against the oracle rather than trusted from the manifest. The manifest's `oracle` column is
-correct in all fifteen rows.
+correct in all nineteen rows.
+
+**This section's count moved since the report was first written: 15 refusals → 19.** #1700 added
+four new files to `corpus/refused/` while fixing the unresolved-reference defect —
+`null-value.blp`, `unresolved-reference.blp`, `signal-object-unresolved.blp`,
+`setter-null-enum.blp` — and every one of them is refused by the oracle too (`oracle: 'refuses'`
+in `corpus/manifest.mjs`), so all four join the "not Blueprint" group below, which goes from nine
+to thirteen. The "our gap" six is untouched — none of the four is a construct the oracle compiles
+and we refuse.
 
 **The oracle COMPILES these six — they are our gap:**
 
@@ -125,12 +157,17 @@ correct in all fifteen rows.
 | `binding-lookup-chain.blp` | `bind a.b.c`, more than one lookup | 0 files (but see § 2) |
 | `translation-domain.blp` | the file-level `translation-domain "…";` | 0 files |
 
-**The oracle REFUSES these nine — they are not Blueprint and belong in `refused/` forever:**
+**The oracle REFUSES these thirteen — they are not Blueprint and belong in `refused/` forever:**
 `unknown-enum-member`, `flags-on-enum`, `unknown-accessibility-name`,
 `unknown-accessibility-member` (four validation errors), `styles-with-semicolon`, `bad-escape`,
-`bad-hex-digit`, `adw-before-gtk` (four grammar and lexical errors), and `closure-value`
+`bad-hex-digit`, `adw-before-gtk` (four grammar and lexical errors), `closure-value`
 (`label: $format("a")` — "Expected property value" on 0.20.4; a closure is legal in a binding and
-not as a bare value).
+not as a bare value) — the original nine — plus four added by #1700 for the unresolved-reference
+defect (§ 3): `null-value.blp` (`label: null;` with no object named `null` declared — "null is not
+permitted here"), `unresolved-reference.blp` (`extra-menu: doesNotExist;` — "Could not find object
+with ID"), `signal-object-unresolved.blp` (the same, as a signal handler's object argument), and
+`setter-null-enum.blp` (`null` in a `setters { }` value on an enum-typed property — "null is not a
+member of GtkAlign").
 
 `namespace-without-vocabulary` is the one with an owner outside this repository. ADR 0062's blocker 2
 re-measured it at `@girs` 5.2.0: `@girs/gio-2.0` still declares no `./vocabulary` subpath, because
@@ -138,9 +175,11 @@ ts-for-gir gates vocabulary emission per namespace. Nothing in the parser closes
 
 **The count moved since ADR 0062 said "seven compile, eight refuse", and the move is real.**
 `extern-type.blp` left the list when #1694 landed `$Foo { }`, and `closure-value` and
-`unknown-accessibility-member` joined it. 0062's blocker 1 was the most frequent out-of-subset
-construct in this repository's own census, and closing it first was right: `$Foo { }` appears in 58
-of the 273 wild files (21%), more than every remaining gap combined.
+`unknown-accessibility-member` joined it, taking the "nine" to its first count. #1700 then added
+four more — all "oracle refuses too" — taking it to thirteen, as above; neither move touched the
+six. 0062's blocker 1 was the most frequent out-of-subset construct in this repository's own
+census, and closing it first was right: `$Foo { }` appears in 58 of the 273 wild files (21%), more
+than every remaining gap combined.
 
 ## 2. What the wild actually uses, ordered
 
@@ -150,14 +189,18 @@ than a parse, for the reason a parse cannot: our parser stops at the construct i
 is unable to count what it has not read. The matchers are in the script, named and readable, so
 the next reader can disagree with a regex instead of with a number.
 
-| # | construct | wild (273) | language (95) | in the 15? |
+Wild and language counts are unchanged by #1700 — it added a reference check, not a parse rule, so
+what the wild corpus is seen to USE did not move. Only the "in the 15?" column, now "in the 19?",
+needed a new answer for row 6.
+
+| # | construct | wild (273) | language (95) | in the 19? |
 |---:|---|---:|---:|---|
 | 1 | expressions: `expr`, `bind $closure(…)`, `as <Type>`, `typeof<Type>`, `a.b.c` | 7 (2.6%) | 25 (26.3%) | only `a.b.c` |
 | 2 | a type from a namespace with no vocabulary | 7 (2.6%) | 4 (4.2%) | yes |
 | 3 | inline `template Type { }` (a `Gtk.BuilderListItemFactory` subscope) | 2 (0.7%) | 7 (7.4%) | **no** |
 | 4 | `marks [ ]` on `Gtk.Scale` | 2 (0.7%) | 1 (1.1%) | **no** |
 | 5 | response flags | 1 (0.4%) | 2 (2.1%) | yes |
-| 6 | `null` as a value | 1 (0.4%) | 1 (1.1%) | **no** — and it is not refused, see § 3 |
+| 6 | `null` as a value | 1 (0.4%) | 1 (1.1%) | **closed by #1700** — see § 3 |
 | 7 | `[internal-child …]` | 1 (0.4%) | 1 (1.1%) | yes |
 | 8 | `mime-types [ ]` on `Gtk.FileFilter` | 1 (0.4%) | 1 (1.1%) | **no** |
 | 9 | inline `menu { }` as a value | 1 (0.4%) | 0 | yes |
@@ -178,7 +221,10 @@ is what a retired syntax looks like from the outside.
 `refused/` at all.** The refusal list is a record of what someone thought to write a file for, and it
 was written by the same people who wrote the parser — ADR 0053 clause 6's own warning about a corpus
 that proves its author self-consistent, arriving one directory over from where it was expected. The
-wild corpus found them in an afternoon.
+wild corpus found them in an afternoon. (This "nine" is the table's own `**no**` count at first
+measurement, a different count from § 1's — row 6, `null`, was one of the nine and is the one
+#1700 closed; the table above now shows eight, and this sentence stays in the past tense on
+purpose.)
 
 **Expressions tie namespace vocabulary for most frequent in the wild, lead the language corpus
 six to one, and the corpus barely touches them.** `binding-lookup-chain`
@@ -188,33 +234,45 @@ holds `bind a.b.c` alone, which is the smallest member of a family that also con
 Epiphany's five refusals and two of Showtime's three are this one family, and a list-view `expression:`
 property is how every modern `Gtk.ColumnView` is written.
 
-## 3. The one file that is worse than a refusal
+## 3. The one file that was worse than a refusal — closed by #1700
 
-`Muzika/data/ui/window.blp` line 20 writes `now_playing_details.header-title: null;` in a breakpoint
+**This whole section describes a defect that no longer exists.** `#1700` (`fix(blueprint): an
+object reference must resolve`) fixed it at the source — `objectRef` in `emit-xml.mjs` now refuses
+any object reference no object in the file declares — and the wild sweep confirms it: Muzika's file
+is byte-equal now (headline table, above), and the language corpus's twin case,
+`tests/samples/adw_breakpoint.blp`, is byte-equal too. The section stays, past tense, because it is
+the record of how this was found and it still frames why the two encoding gaps below remain open.
+
+`Muzika/data/ui/window.blp` line 20 wrote `now_playing_details.header-title: null;` in a breakpoint
 setter. The oracle writes `<setter object="now_playing_details" property="header-title"></setter>`.
-The in-repo emitter writes `…>null</setter>` — the string `null`, into a live property. Every stage
-of the corpus harness is green on it, because no corpus file contains the word.
+The in-repo emitter wrote `…>null</setter>` — the string `null`, into a live property. Every stage
+of the corpus harness was green on it, because no corpus file contained the word.
 
-It is worse than that. Measured on the oracle: `null` is permitted ONLY in a setter — a plain
-`extra-menu: null;` is "null is not permitted here". The in-repo parser accepts that too and emits
-`<property name="extra-menu">null</property>`. So one token produces both failure modes at once:
-wrong output where the construct is legal, and silent acceptance where the oracle refuses.
+It was worse than that. Measured on the oracle: `null` is permitted ONLY in a setter — a plain
+`extra-menu: null;` is "null is not permitted here". The in-repo parser accepted that too and
+emitted `<property name="extra-menu">null</property>`. So one token produced both failure modes at
+once: wrong output where the construct is legal, and silent acceptance where the oracle refuses.
+`#1700` closes both: `refused/setter-null-enum.blp` and `refused/unresolved-reference.blp` (§ 1)
+hold the refusal halves, and rule `36-setter-null.blp` holds the legal one.
 
-This is the `Gio.ListStore` story again, and the harness already names it: "the parser took the
+This was the `Gio.ListStore` story again, and the harness already named it: "the parser took the
 `using`, the emitter wrote `GioListStore`, a class GtkBuilder cannot find, and every stage stayed
-green." Stage E exists because of that case. `null` is the second instance, found by the only method
-that finds them — running the parser over files it has not seen. It is the reason this report puts a
-one-file construct near the top of the plan.
+green." Stage E exists because of that case. `null` was the second instance, found by the only
+method that finds them — running the parser over files it has not seen. It is why this report put
+a one-file construct at the top of the plan, and why closing it was worth doing before anything
+else in the plan.
 
-**And two more that are not constructs at all.** Probing the classifier turned up a third and
-fourth thing we accept that 0.20.4 refuses, both about bytes rather than grammar. A file beginning
-with a UTF-8 **BOM** compiles here and the oracle answers `Could not determine what kind of syntax
-is meant here` at line 1 column 1; a file containing an **invalid UTF-8 byte sequence** compiles
-here — the emitter writes U+FFFD into the property — and the oracle does not even reach an error
-message, it crashes with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 34:
-invalid start byte`. Neither is in `refused/` and neither has a rule file, so nothing in this
-repository would have noticed either. They are recorded in `status/open-todos.md` with the oracle's
-exact words; they need a `refused/` file each, not parser features.
+**And two more that are not constructs at all, and remain open.** Probing the classifier turned up
+a third and fourth thing we accept that 0.20.4 refuses, both about bytes rather than grammar, and
+`#1700` did not touch either — it fixed a reference-resolution gap in the emitter, not the file
+reader. A file beginning with a UTF-8 **BOM** compiles here and the oracle answers `Could not
+determine what kind of syntax is meant here` at line 1 column 1; a file containing an **invalid
+UTF-8 byte sequence** compiles here — the emitter writes U+FFFD into the property — and the oracle
+does not even reach an error message, it crashes with `UnicodeDecodeError: 'utf-8' codec can't
+decode byte 0xff in position 34: invalid start byte`. Neither is in `refused/` and neither has a
+rule file, so nothing in this repository would notice either today. They are recorded in
+`status/open-todos.md` with the oracle's exact words; they need a `refused/` file each, not parser
+features (§ 5).
 
 ## 4. Cost per construct
 
@@ -225,11 +283,18 @@ exact words; they need a `refused/` file each, not parser features.
 | inline `template Type { }` | none | `TemplateNode` becomes a `Value`; `parent` optional, `className` admits a real type | large: the subscope is a **complete nested `<interface>` document, CDATA-escaped inside `<property name="bytes">`**, and ids inside it are ALSO emitted at top level | new loss kind | no |
 | `marks` / `mime-types` / `items` / `offsets` / action widgets | none | none — `Extension` already carries `{name, entries}` | one emission shape each | `value-list`-shaped | no |
 | response flags | none | `Extension.entries` must carry flags beside the value | `appearance="…"`, `enabled="false"` | existing `responses` kind | no |
-| `null` | `null` keyword | a `NullValue`, or `IdentValue` with a guard | empty element text; refuse outside a setter | keeps its `null` | no |
+| `null` | **done — #1700** | **done, differently than projected: no new node** | **done: `objectRef` refuses any unresolved id at 4 sites, not just `null`** | **done: keeps its spelling, per the existing `IdentValue`** | no |
 | `[internal-child …]` | none | `Child.internalChild`, because `Child.slot` is bracket text alone and cannot tell the two apart | `<child internal-child="…">` | existing `object-id`-ish | no |
 | inline `menu { }` | none | a `menu` member on `Value` | the menu inline rather than as a sibling | existing `menu` kind | no |
 | `translation-domain` | none | a field on `BlueprintFile` | `<interface domain="…">` | new loss kind | no |
 | `template` with no parent | none | `TemplateNode.parent` optional | `<template class="…">` with no `parent=` | existing `template` kind | no |
+
+**The `null` row's plan was wrong in one respect, and measuring it is what #1700 found:** the first
+cut of that PR made `null` a keyword with a dedicated AST node, exactly as projected below. That
+was the wrong design — `null` is an ordinary identifier in Blueprint, not a literal, and the real
+defect was that NO unresolved object reference was checked, of which `null` was one instance. The
+fix that shipped touches no token and no AST node; it adds a resolution check at the XML-emitting
+exit. The row is marked done as shipped, not as projected.
 
 Only one row has an owner outside this repository, and it is tied for the most frequent. ADR 0062 left
 the case for changing ts-for-gir's namespace gate at "nine files"; this report adds seven more, from
@@ -246,6 +311,12 @@ deprecation someone else already retired.
 
 Every closed gap needs a rule file and an oracle-derived golden, and three of them need more.
 
+**This table's base moved: at the commit this report is now measured at, the corpus already holds
+38 rule files + 12 reality probes, 50 goldens, and 19 refusals** — `node
+scripts/check-blueprint-corpus.mjs --require-oracle` says so directly. The `null` row is why: it
+is done, closed by #1700, and is kept below struck through rather than deleted, because the table
+is otherwise unchanged — #1700 did not touch any other row.
+
 | gap | rule files | goldens | refusal files |
 |---|---:|---:|---|
 | expressions | 6 (lookup chain, closure, closure with args, cast, `typeof`, `expr` in an `expression:` property) | 6 | `binding-lookup-chain.blp` retires |
@@ -253,7 +324,7 @@ Every closed gap needs a rule file and an oracle-derived golden, and three of th
 | inline `template Type { }` | 2 (a plain subscope; one whose ids also appear at top level) | 2 | — |
 | typed extensions (`marks`, `mime-types`, `items`, `offsets`, action widgets) | 5 | 5 | — |
 | response flags | widen `31-responses.blp` | 1 | `response-flags.blp` retires |
-| `null` | 1 (a setter) | 1 | **+1 new** (`null` on a plain property) |
+| ~~`null`~~ | ~~1 (a setter)~~ **done — #1700** | ~~1~~ **done** (`36-setter-null.blp`) | **done** — 4 files landed: `null-value.blp`, `unresolved-reference.blp`, `signal-object-unresolved.blp`, `setter-null-enum.blp` (§ 1), plus rules `37-layout-untyped-ident.blp` and `38-null-object-id.blp` for the pass-throughs the fix had to prove it left alone |
 | `[internal-child …]` | 1 | 1 | `internal-child.blp` retires |
 | inline `menu { }` | 1 | 1 | `inline-menu.blp` retires |
 | `translation-domain` | 1 | 1 | `translation-domain.blp` retires |
@@ -261,33 +332,41 @@ Every closed gap needs a rule file and an oracle-derived golden, and three of th
 | `bind-property` | — | — | **+1 new**, kept forever |
 | a UTF-8 BOM, and invalid UTF-8 (§ 3) | — | — | **+2 new**, kept forever |
 
-About **20 new rule files with 21 goldens** — response flags widen `31-responses.blp` rather than
-adding a file, which is why the two columns differ by one — plus four new refusal files and five
-refusals retiring: 15 refusals become 14, and 35 rule files become roughly 55. Two of those four
-are the encoding divergences in § 3, which need a refusal and no feature.
+With `null` done, the remaining rows total **19 new rule files with 20 goldens** — response flags
+widen `31-responses.blp` rather than adding a file, which is why the two columns differ by one —
+plus **3 new refusal files** (bind-property, BOM, invalid UTF-8 — the encoding pair is still open,
+§ 3) and the same **five refusals retiring** (`binding-lookup-chain`, `response-flags`,
+`internal-child`, `inline-menu`, `translation-domain`; #1700 closed none of these). Applied to the
+new base: **19 refusals become 17, and 38 rule files become roughly 57.** (Before #1700 the same
+projection read "15 refusals become 14, and 35 rule files become roughly 55" — both sides of it
+moved, by +4/-1 and +3/+2 respectively, and the arithmetic below is redone from the tree rather
+than patched.)
 
-**One construct cannot be covered by a golden, and it is the one that caused the damage.** A golden
-exists only for a file the parser ACCEPTS and the oracle COMPILES. `null` on a plain property is
-compiled by neither — the oracle calls it an error and the correct in-repo behaviour is to call it an
-error too — so nothing in stages C or D can ever see it. It needs a `refused/` file and stage E,
-exactly as `Gio.ListStore` did. The legal half (`null` in a setter) does get a golden, and that
-golden fails today, which is the cheapest possible proof that the rest of this section is worth
-doing.
+**One construct could not be covered by a golden, and it was the one that caused the damage — until
+#1700 closed it.** A golden exists only for a file the parser ACCEPTS and the oracle COMPILES.
+`null` on a plain property is compiled by neither — the oracle calls it an error and the correct
+in-repo behaviour is to call it an error too — so nothing in stages C or D could ever see it. It
+needed a `refused/` file and stage E, exactly as `Gio.ListStore` did, and now has one
+(`null-value.blp`, and the general case, `unresolved-reference.blp`). The legal half (`null` in a
+setter) gets a golden too (`36-setter-null.blp`), and it is byte-equal today — the previous draft
+of this paragraph predicted it would fail; #1700 is why it now passes.
 
 ## 6. The honest bottom line
 
 Ordered by files unblocked, over the 234 valid foreign files — the 235 foreign ones (273 less this
-studio's own 38 in `refs/map-editor`) less Troll's invalid fixture:
+studio's own 38 in `refs/map-editor`) less Troll's invalid fixture. **The `+ null` row is gone**:
+#1700 closed it, so its file is now part of "today" rather than a step — every other row's absolute
+count shifts down by exactly one file, the same file, and the row order and percentages past it are
+otherwise unchanged:
 
 | after closing | cumulative | of the 234 |
 |---|---:|---:|
-| today | 215 | 91.9% |
-| + namespace vocabulary | 221 | 94.4% |
-| + expressions | 225 | 96.2% |
-| + inline `template Type { }` | 227 | 97.0% |
-| + `marks` | 229 | 97.9% |
-| + response flags | 230 | 98.3% |
-| + `null` | 231 | 98.7% |
+| today | 216 | 92.3% |
+| + namespace vocabulary | 222 | 94.9% |
+| + expressions | 226 | 96.6% |
+| + inline `template Type { }` | 228 | 97.4% |
+| + `marks` | 230 | 98.3% |
+| + response flags | 231 | 98.7% |
 | + `[internal-child …]` | 232 | 99.1% |
 | + `mime-types` | 233 | 99.6% |
 | + inline `menu { }` | 234 | 100% |
@@ -310,7 +389,7 @@ happened not to sample.
 No file in it used a GTK 3 spelling, a `Gtk.ColumnView` with a sorter expression, or libpanel. The
 true statement is: **after the top three — namespace vocabulary, expressions, inline `template` —
 a foreign `.blp` from a GNOME-adjacent application is unlikely to be refused, and "unlikely" is
-97.0% over this sample, not a property of the language.**
+97.4% over this sample, not a property of the language.**
 
 **How to get a corpus that answers it better.** ADR 0053 clause 6 forbids the obvious move: third-party
 `.blp` must never become the part of the corpus CI lacks. But it explicitly allows a LOCAL sweep, and
@@ -331,31 +410,35 @@ there to close. So it stays a local tool, run deliberately, and the repository h
 
 ## The plan, in order
 
-1. **`null`** — one file in the wild, and the only construct in this report that produces wrong
-   output instead of an error. Small: a keyword, a value kind, an empty element, a refusal outside
-   the setter. It is first because clause 3 is a property and it is currently false.
-2. **Expressions** — the largest construct family, the most frequent real blocker, and the one whose
+0. **`null` — DONE, #1700.** Was: one file in the wild, and the only construct in this report that
+   produced wrong output instead of an error. It shipped smaller than planned and differently (§ 4):
+   no keyword, no new value kind — a reference-resolution check at the XML exit, refusing any
+   unresolved id rather than only `null`. It was first because clause 3 is a property and it was
+   false; it no longer is.
+1. **Expressions** — the largest construct family, the most frequent real blocker, and the one whose
    absence rules out list views. Six rule files; it will take longer than the rest together.
-3. **Namespace vocabulary** — the second most frequent, zero parser work, and an owner in ts-for-gir.
-   Start the upstream conversation now so it lands in parallel with 2 rather than after it.
-4. **Inline `template Type { }`** — two wild files, and the cost is a surprise worth knowing early:
+2. **Namespace vocabulary** — the second most frequent, zero parser work, and an owner in ts-for-gir.
+   Start the upstream conversation now so it lands in parallel with 1 rather than after it.
+3. **Inline `template Type { }`** — two wild files, and the cost is a surprise worth knowing early:
    a nested CDATA-escaped document with ids that appear twice.
-5. **The typed-extension family** — `marks`, `mime-types`, `items`, action widgets, response flags.
+4. **The typed-extension family** — `marks`, `mime-types`, `items`, action widgets, response flags.
    Cheap, mechanical, one emission shape each, and it retires a refusal.
-6. **`[internal-child …]`, inline `menu { }`, `translation-domain`, parentless `template`** — four
+5. **`[internal-child …]`, inline `menu { }`, `translation-domain`, parentless `template`** — four
    small items that together move the last percent.
-7. **`bind-property`** — a refusal file quoting the oracle's own upgrade text. Never implemented.
+6. **`bind-property`** — a refusal file quoting the oracle's own upgrade text. Never implemented.
 
 **The flip (ADR 0063) does not have to wait for all of it.** Clause 5's condition is silence over the
-corpus, and that holds today. What this report changes is the expectation after the flip: with
-`null` fixed (item 1) the promise "either it builds or it names its construct" is true over every
-file measured here, and that promise — not the percentage — is what makes a hard-error subset safe to
-turn on. Items 2 to 7 then move the percentage in public.
+corpus, and that holds today. `null` is fixed (item 0, #1700), so the promise "either it builds or it
+names its construct" is now true over every file measured here — not a plan for after item 0, a fact
+as of the commit this report is measured at — and that promise, not the percentage, is what makes a
+hard-error subset safe to turn on. Items 1 to 6 then move the percentage in public.
 
 ## What this report did not do
 
-- **No parser code.** Every gap is described by what it needs, not by a patch.
-- **No corpus edits.** The 20 rule files and 2 refusal files are counted, not written.
+- **No parser code beyond what #1700 already shipped.** Every remaining gap is described by what it
+  needs, not by a patch.
+- **No corpus edits beyond what #1700 already made.** The 19 remaining rule files and 3 remaining
+  refusal files are counted, not written.
 - **No claim about the `SharedNode` projection.** ADR 0053 clause 4 keeps the byte-equal diff a
   statement about the parser and the AST. The projection was not measured over foreign files at all,
   and the loss kinds in § 4 are proposals for whoever closes each gap.
