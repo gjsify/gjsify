@@ -350,10 +350,16 @@ export interface Signal {
  * `Property` with an `ObjectValue`, because that is what the file says and what the XML
  * distinguishes — `<child type="start">` against `<property name="content">`. The
  * projection is where the two are conflated, declared, in one place.
+ *
+ * An object and never a `MenuNode`, which this once also admitted. The oracle compiles
+ * `menu-model: menu { … }` to a nested `<menu>` and the parser refuses it by name, so no menu
+ * can reach a child: `parseMenu` has one call site and it pushes into `roots`. The arm cost
+ * three readers a branch that cannot be taken — the emitter, the projection, and the first
+ * consumer written against this file.
  */
 export interface Child {
     readonly slot?: string;
-    readonly object: ObjectNode | MenuNode;
+    readonly object: ObjectNode;
     readonly line: number;
     readonly order: number;
 }
@@ -377,14 +383,23 @@ export interface Extension {
 }
 
 /**
- * One `name: value;` inside such a block — a `Property` without the `order`.
+ * One `name: value;` inside such a block — a `Property` in every respect but two.
  *
- * `order` exists to interleave the four sibling arrays of an `ObjectBody`; a block keeps ONE
- * array, so there is nothing to interleave and the parser stamps no counter. Measured over
- * every `.blp` this repository tracks: not one entry carries one, while every object-body and
- * menu-body member does. Declaring these as `Property` promised a field none of them has.
+ * It carries no `order`. That counter exists to interleave the four sibling arrays of an
+ * `ObjectBody`; a block keeps ONE array, so there is nothing to interleave and the parser
+ * stamps none. Measured over every `.blp` this repository tracks: not one entry carries one,
+ * while every object-body and menu-body member does. Declaring these as `Property` promised a
+ * field none of them has.
  */
-export type ExtensionEntry = Omit<Property, 'order'>;
+export interface ExtensionEntry {
+    readonly name: string;
+    /**
+     * Never an object: every block entry is parsed with `allowObject: false`, and the refusal
+     * names itself. A list is reachable, but only inside `accessibility { }`.
+     */
+    readonly value: Exclude<Value, ObjectValue>;
+    readonly line: number;
+}
 
 export interface ObjectBody {
     readonly properties: readonly Property[];
@@ -411,9 +426,23 @@ export interface TemplateNode {
     readonly line: number;
 }
 
+/**
+ * One `name: "value";` line inside a menu item.
+ *
+ * A `Property` whose value is always a `StringValue`: a menu attribute is parsed with
+ * `allowObject: false, allowList: false` AND refused by name if it is not a string, in both
+ * the long form and the `item ("Label", "app.act")` shorthand. GMenu attributes are text.
+ */
+export interface MenuAttribute {
+    readonly name: string;
+    readonly value: StringValue;
+    readonly line: number;
+    readonly order: number;
+}
+
 export interface MenuItem {
     readonly kind: 'item' | 'section' | 'submenu';
-    readonly attributes: readonly Property[];
+    readonly attributes: readonly MenuAttribute[];
     readonly items: readonly MenuItem[];
     readonly line: number;
     /** Position among the members of ONE menu body, as `Property.order` is for an object body. */

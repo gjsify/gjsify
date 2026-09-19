@@ -33,8 +33,8 @@
 //
 // Every export is a promise, and a subpath promises the FILE LAYOUT on top of the names:
 // `./parser`, `./emit-xml` and `./resolve-ident` would make merging or splitting a module a
-// breaking change for a consumer that only ever wanted seven names. One door promises the
-// seven.
+// breaking change for a consumer that only ever wanted eight names. One door promises the
+// eight.
 //
 // There is no build step, and that is load-bearing: `tree-checks` installs the workspace and
 // does NOT build it, so a surface behind a build is a surface the gate cannot run. The types

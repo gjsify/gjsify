@@ -201,7 +201,7 @@ const lossesOf = (file) => {
                 lost.push({ kind: 'breakpoint', line: child.object.line });
                 continue;
             }
-            walkObject(/** @type {ObjectNode} */ (child.object));
+            walkObject(child.object);
         }
     };
 

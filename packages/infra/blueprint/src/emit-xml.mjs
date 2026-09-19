@@ -33,8 +33,9 @@
 // `src/resolve-ident.mjs` is the resolver that answers from the `@girs` vocabulary.
 
 /**
- * @import { BlueprintFile, BlueprintImport, Child, Expression, Extension, ExtensionEntry, MenuItem,
- *   MenuNode, ObjectBody, ObjectNode, Property, Signal, TemplateNode, TypeRef, Value } from './ast.d.mts'
+ * @import { BlueprintFile, BlueprintImport, Child, Expression, Extension, ExtensionEntry,
+ *   MenuAttribute, MenuItem, MenuNode, ObjectBody, ObjectNode, Property, Signal, TemplateNode,
+ *   TypeRef, Value } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES, BUILTIN_INTEGERS, BUILTIN_LITERAL_CLASS } from './builtin-types.mjs';
 import { numberLiteral } from './number-literal.mjs';
@@ -332,8 +333,7 @@ function emitChild(xml, child, context) {
     // and 25-bracket-breakpoint.ui says `[breakpoint]` is nothing more than another one of
     // those. An object-valued PROPERTY is a different construct and lives in emitProperty.
     xml.startTag('child', { type: child.slot });
-    if (child.object.kind === 'menu') emitMenu(xml, child.object, context);
-    else emitObject(xml, child.object, context);
+    emitObject(xml, child.object, context);
     xml.endTag();
 }
 

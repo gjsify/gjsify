@@ -42,7 +42,7 @@
 
 /**
  * @import { BlueprintFile, BlueprintImport, TopLevel, TypeRef, ObjectNode, ObjectBody, TemplateNode } from './ast.d.mts'
- * @import { Property, Signal, Child, Extension, MenuNode, MenuItem } from './ast.d.mts'
+ * @import { Property, Signal, Child, Extension, ExtensionEntry, MenuAttribute, MenuNode, MenuItem } from './ast.d.mts'
  * @import { Value, StringValue, ListValue, BindingValue, Expression } from './ast.d.mts'
  */
 import { BUILTIN_GTYPES } from './builtin-types.mjs';
@@ -688,7 +688,7 @@ class Parser {
     parseBlockExtension() {
         const keyword = this.advance();
         const opening = this.expect('{', '`{`');
-        /** @type {Property[]} */
+        /** @type {ExtensionEntry[]} */
         const entries = [];
         while (!this.at('}')) {
             if (this.peek().type === 'eof') {
@@ -713,7 +713,7 @@ class Parser {
      * is the only thing the pair means.
      *
      * @param {string} block
-     * @returns {Property}
+     * @returns {ExtensionEntry}
      */
     parseExtensionEntry(block) {
         const first = this.expectIdentifier('a property name');
@@ -771,7 +771,7 @@ class Parser {
     parseResponsesExtension() {
         const keyword = this.advance();
         this.expect('[', '`[`');
-        /** @type {Property[]} */
+        /** @type {ExtensionEntry[]} */
         const entries = [];
         while (!this.at(']')) {
             const id = this.expectIdentifier('a response id');
@@ -786,7 +786,7 @@ class Parser {
             if (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
                 throw this.fail(
                     this.peek(),
-                    `found the response flag \`${this.peek().text}\`; \`Extension.entries\` in ast.d.mts is a list of \`Property\` and has no field for it`,
+                    `found the response flag \`${this.peek().text}\`; \`ExtensionEntry\` in ast.d.mts carries a name, a value and a line, and has no field for it`,
                 );
             }
             entries.push({ name: id.text, value, line: id.line });
@@ -849,7 +849,7 @@ class Parser {
         }
 
         const opening = this.expect('{', '`{`');
-        /** @type {Property[]} */
+        /** @type {MenuAttribute[]} */
         const attributes = [];
         /** @type {MenuItem[]} */
         const items = [];
@@ -890,7 +890,7 @@ class Parser {
      */
     parseMenuItemShorthand(keyword) {
         this.expect('(', '`(`');
-        /** @type {Property[]} */
+        /** @type {MenuAttribute[]} */
         const attributes = [];
         for (const name of ['label', 'action', 'icon']) {
             if (this.at(')')) {
@@ -911,7 +911,7 @@ class Parser {
         return { kind: 'item', attributes, items: [], line: keyword.line };
     }
 
-    /** One `name: "value";` line inside a menu item. @returns {Property} */
+    /** One `name: "value";` line inside a menu item. @returns {MenuAttribute} */
     parseMenuAttribute() {
         const name = this.expectIdentifier('an attribute name');
         this.expect(':', '`:`');
@@ -1027,9 +1027,9 @@ class Parser {
         if (token.text === 'menu' && (this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2)))) {
             // Legal in the oracle (`menu-model: menu { … };` compiles to a nested `<menu>`),
             // and refused here: `Property.value` is a `Value`, and `Value` has no menu member.
-            // `Child.object` admits a `MenuNode`, but a menu written as a property value is
-            // not a child — `ast.d.mts` § `Child` is explicit that conflating the two is the
-            // projection's job and not the parser's.
+            // This refusal is the whole reason `Child.object` is an `ObjectNode` and not a
+            // union with `MenuNode` — no menu can reach a child, so the arm was a branch three
+            // readers had to write and none could take. `ast.d.mts` § `Child` records that.
             throw this.fail(
                 token,
                 'found an inline `menu`; `Value` in ast.d.mts has no menu member, so a menu is supported only as a top-level root',

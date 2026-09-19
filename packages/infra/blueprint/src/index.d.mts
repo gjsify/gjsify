@@ -24,6 +24,7 @@ export type {
     ExtensionEntry,
     IdentValue,
     ListValue,
+    MenuAttribute,
     MenuItem,
     MenuNode,
     NumberValue,
