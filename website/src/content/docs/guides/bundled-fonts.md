@@ -195,8 +195,8 @@ operating system answers it differently, and all three answers are correct:
 | Where it runs | What reaches the font map | What `initFonts()` reports |
 |---|---|---|
 | **Linux** (`.deb`, `.rpm`, Flatpak, a `--prefix` tree) | fontconfig finds the staged directory on its own, through the stock `fonts.conf` | the faces in `registered` |
-| **macOS** (`.app`) | `ATSApplicationFontsPath` in `Info.plist`: macOS activates the directory for your app before your code runs | the faces in `declined`. **Expected, not a failure** |
-| **Windows** (program directory, `.msi`) | **nothing.** This call is the mechanism | the faces in `registered` |
+| **macOS** (`.app`) | this call, on a bundled GTK runtime — the loader asks for the fontconfig backend there. On a CoreText map instead: `ATSApplicationFontsPath` in `Info.plist`, which macOS honours before your code runs | the faces in `registered`; `declined` on a CoreText map. **Neither is a failure** |
+| **Windows** (program directory, `.msi`) | this call. On a bundled GTK runtime the loader also selects the fontconfig backend; on the DirectWrite map this call is the only mechanism there is | the faces in `registered` |
 
 Windows is the row that matters. GTK4 there is pangowin32, and that font map is populated
 from DirectWrite and from nothing else: no filesystem search path, no fontconfig. A
@@ -205,14 +205,30 @@ staged directory moves the default font map by zero families *even when it is th
 configuration loaded*. What puts the family there is `add_font_file` on that same map, the
 one a `Gtk.Label` renders through.
 
-macOS goes the other way. Pango's CoreText font map implements no runtime registration at
-all, so the call answers `G_IO_ERROR_NOT_SUPPORTED` and `initFonts()` files the face under
-`declined` rather than `failed`. **Nothing is lost**: the bundle's `Info.plist` already had
-the OS activate the same directory at launch, earlier than any code of yours could have
-run. So `declined` on macOS is the correct outcome and needs no branch in your app, which
-is why there is no `process.platform` check anywhere in this API. The decision is made from
-the error the font map returns, so it stays right whichever backend a host actually
-compiled in.
+macOS is the row that MOVED, and the reason is worth knowing because it is the same
+reason Windows has always been special. Pango does not have one font map per platform: `pangocairo`
+builds the first backend compiled in — CoreText, then pangowin32, then fontconfig — and
+`PANGOCAIRO_BACKEND` overrides that. The default maps do not reach every face the system
+installs: non-Latin text, Tamil among it, rendered as empty boxes in every shipped app,
+with the system's own Tamil face installed the whole time. So the bundled GTK runtime now
+SELECTS the fontconfig backend on macOS and Windows both, and gets it on both — on
+that map `add_font_file` works, so your faces land in `registered` like everywhere else.
+
+**Windows is the same story with one extra step.** That pango can build a fontconfig map too,
+but a Windows process carries two environments — the Win32 block that `g_getenv()` reads, and
+the C runtime copy that `getenv()` reads — and Node writes only the first while pango reads the
+second. The loader mirrors its writes across, so the choice takes effect there as well.
+`add_font_file` stays wired on both platforms regardless: it is what a process on the DirectWrite
+map still needs, and you get that map by pinning `PANGOCAIRO_BACKEND=win32`.
+
+If a process does resolve a CoreText map — a system GTK, or `PANGOCAIRO_BACKEND=coretext`
+set by hand — the call answers `G_IO_ERROR_NOT_SUPPORTED` and `initFonts()` files the face
+under `declined` rather than `failed`. **Nothing is lost there either**: the bundle's
+`Info.plist` had the OS activate the same directory at launch, earlier than any code of
+yours could have run. So both outcomes are correct on macOS, and neither needs a branch in
+your app — which is why there is no `process.platform` check anywhere in this API. The
+decision is made from the error the font map returns, so it stays right whichever backend
+a host actually compiled in, and stayed right through this change.
 
 ### The family NAME can differ per platform too
 
@@ -346,14 +362,14 @@ Two variables and not one, deliberately: an app that ships a brand face must nev
 choose between its face and the platform's. On Linux neither is usually set and the call stays
 the no-op it always was.
 
-:::caution[macOS cannot register them yet]
-The darwin bundles ship the faces, and nothing can put them on the font map. `add_font_file` is
-a vfunc the CoreText map does not implement, so every face comes back in `declined` with
-`G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner. `adwaitaUiFontAvailability()`
-therefore answers `absent` there, so don't offer the `adwaita` policy on macOS; `system` and
-`size` are unaffected, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
-The two routes out — `ATSApplicationFontsPath` at ship time, or `PANGOCAIRO_BACKEND=fc` — are in
-`status/open-todos.md`.
+:::note[On a CoreText map they cannot be registered, and that is not an error]
+`add_font_file` is a vfunc the CoreText map does not implement, so on such a map every face comes
+back in `declined` with `G_IO_ERROR_NOT_SUPPORTED` — measured on a darwin-arm64 runner — and
+`adwaitaUiFontAvailability()` answers `absent`. A process on the bundled GTK runtime does not get
+that map: the loader selects the fontconfig backend, `initFonts()` registers the faces, and the
+`adwaita` policy is available. Branch on what `initFonts()` reports, never on `process.platform`
+— the same process can get either map depending on which GTK it found. `system` and `size` are
+unaffected either way, and macOS needs no size correction anyway (18.8 px against GNOME's 19.0).
 :::
 
 ### …and the size, which the faces do not fix
@@ -418,14 +434,17 @@ if (!adwaita.available) {
 }
 ```
 
-It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state — and on
-Windows it is the NORMAL one for this very font. `Adwaita Sans` is a variable font with an `opsz`
-axis whose value at 14 is named `Text`, so fontconfig puts **`Adwaita Sans`** on the map and
-gvsbuild's DirectWrite reader puts **`Adwaita Sans Text`**. Byte-identical file, two family names.
+It answers a `FontFamilyMatch`, not a boolean, because `optical` is a real third state — and the
+name it answers depends on WHICH reader put the face on the map, not on the OS. `Adwaita Sans` is
+a variable font with an `opsz` axis whose value at 14 is named `Text`: fontconfig puts
+**`Adwaita Sans`** on the map and a DirectWrite reader puts **`Adwaita Sans Text`**. Byte-identical
+file, two family names. Which one you get follows the MAP, not the OS: the bundled runtime reads
+the face through fontconfig on macOS and Windows both and gets the first, while a process on a
+platform map — a system GTK, or `PANGOCAIRO_BACKEND` pinned by hand — gets the second on Windows.
 
 `applyUiFontPolicy('adwaita')` handles that for you: it asks the map which name it holds and
-writes that one. If you set `gtk-font-name` yourself, do the same — writing the declared name on
-Windows asks for a family that host does not have, and Pango substitutes Tahoma without a word.
+writes that one. If you set `gtk-font-name` yourself, do the same — asking for the declared name
+on a host that spells it the other way gets you a substitution without a word.
 
 Call it after `initFonts()`, which is what puts the bundled faces there.
 
@@ -438,7 +457,7 @@ Call it after `initFonts()`, which is what puts the bundled faces there.
 | `initFonts()` from `@gjsify/gtk-host/fonts` | reads the variable and registers what it finds |
 | `applyUiFontPolicy()` from the same module | applies one of the three UI-font states, and undoes it |
 | `@gjsify/gtk-runtime-<target>` | carries the GNOME UI typeface in `gtk/share/fonts` |
-| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory |
+| `@gjsify/node-gi`'s loader | exports `GJSIFY_GTK_RUNTIME_FONT_DIR` at that directory, and on macOS/Windows selects the Pango backend that reads any of it (`PANGOCAIRO_BACKEND=fc`, only if you have not set it) |
 
 `gjsify ship` deliberately does not make the call for you. A packaging command that injected
 a startup step would be deciding your app's initialisation order, invisibly, and the
@@ -449,8 +468,9 @@ ordering above is exactly the thing that has to stay yours.
 | What you see | What it means |
 |---|---|
 | `dir` is `undefined` in a shipped app | the payload staged no face. Check `gjsify.ship.fonts` and re-run `gjsify ship` |
-| `declined` holds your faces, on macOS | correct. `ATSApplicationFontsPath` already did the work |
+| `declined` holds your faces, on macOS | this process resolved a CoreText map — a system GTK, or `PANGOCAIRO_BACKEND` set by hand. Correct: `ATSApplicationFontsPath` already did the work |
 | `declined` holds your faces, anywhere else | this process resolved a font map that does no runtime registration; check `PANGOCAIRO_BACKEND` |
+| non-Latin text is empty boxes | a platform font map is drawing — CoreText or DirectWrite — and its script fallback does not reach the faces the system installs. `PANGOCAIRO_BACKEND=fc` is what the bundled runtime selects; a value you set yourself wins over it, and `PANGOCAIRO_BACKEND=bogus` prints which backends your pango has |
 | `initFonts: … could not be read as an application font` | FreeType would not open that file: truncated, corrupt, or something wearing a face extension |
 | the family is listed but text is unchanged | something laid out text before `initFonts()`. Move the call earlier |
 | `initFonts: X: on the font map as "X 18pt"` | this font stack keeps the optical-size axis in the family name. Ask for the name on the right — `match.family` |

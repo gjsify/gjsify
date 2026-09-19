@@ -58,7 +58,9 @@ packages/infra/tsc/lib/** -text
 # Windows clone every golden would differ for files nobody touched. ADR 0053
 # makes that diff the oracle the in-repo parser is measured against, so it has to
 # survive the checkout. The pattern is repo-wide and not scoped to the corpus:
-# the 11 `.blp` files under `showcases/` and `templates/` are compiled by the
-# build and are goldened here, so a converted checkout would break them too.
+# the `.blp` files under `showcases/` and `templates/` are compiled by the build
+# and are goldened here, so a converted checkout would break them too. How many
+# that is, `check-blueprint-corpus.mjs` prints; this comment used to say eleven
+# and the tree had moved to twelve.
 *.blp -text
 *.ui -text

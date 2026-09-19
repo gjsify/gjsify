@@ -44,7 +44,7 @@
 // The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
 // `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
-// one to read carefully: four real files DO carry comments, and the convention in
+// one to read carefully: four of them DO carry comments, and the convention in
 // `expectations.mjs` is that comments are never listed per entry.) And twelve files are
 // about seven distinct SHAPES: the three `templates/adw-*/src/main-window.blp` differ in one
 // title string, and fireworks and pixel differ only in the template class name, the
@@ -259,7 +259,7 @@ export const CORPUS_RULES = [
         file: '29-enum-non-widget.blp',
         isolates: 'an enum on an object that is not a widget',
         surprise:
-            'the oracle numbers it like any other (`mode: horizontal` is `1`) and the in-repo resolver could not, because `PROP_ENUMS` in the `@girs` vocabulary was keyed by WIDGET types and a `GtkSizeGroup` property had no join to its enum. It was the second ledger entry in `corpus/divergences.mjs` and it retired on the `@girs` 5.2.0 bump alone, with no line of `src/resolve-ident.mjs` changed — the header of that file tells the whole story, including what made the retirement free',
+            'the oracle numbers it like any other (`mode: horizontal` is `1`) and the in-repo resolver cannot: `PROP_ENUMS` in the `@girs` vocabulary is keyed by WIDGET types, so a `GtkSizeGroup` property had no join to its enum until `@girs` 5.2.0 — the last entry `corpus/divergences.mjs` ever held',
     },
     {
         file: '30-template-self-reference.blp',

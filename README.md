@@ -270,9 +270,11 @@ Per-package: `cd packages/node/fs && gjsify test` builds and runs `src/test.mts`
 on both runtimes and aggregates the result (`--runtime gjs|node` to scope,
 `--rebuild` / `--no-build` to control the build).
 
-**Testing philosophy:** every test runs on both Node.js and GJS — Node validates
+**Testing philosophy:** a polyfill's suite runs on both Node.js and GJS — Node validates
 that the *test* is correct, GJS validates that the *implementation* is. Node is
-therefore needed to develop the polyfills, but never to consume them. The full
+therefore needed to develop the polyfills, but never to consume them. Both legs need
+a host for each: on Linux and macOS there is one, on Windows there is no GJS at all,
+so a Windows run is the Node leg alone and proves only the first half. The full
 contributor guide starts at [AGENTS.md](AGENTS.md), which holds the repo-wide rules
 and routes to a per-subtree `AGENTS.md` (`packages/*/`, `tests/`) plus reference
 material under [docs/](docs/) — read the root, then the one for what you are

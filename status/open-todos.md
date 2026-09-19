@@ -31,9 +31,16 @@ Two routes, neither taken here:
   mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
   change, in the layer that owns the `.app` layout, not in the runtime.
 - **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. It changes text
-  rendering for the whole application, which is not a decision a runtime bundle may take for its
-  consumer.
+  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. TAKEN, 2026-09-14
+  (ADR 0038 § Amendment 3): `maybeWireGtkWindowingEnv()` sets it for a windowing bundle, and the
+  objection recorded here — that it changes text rendering for the whole application, which is
+  not a decision a runtime bundle may take for its consumer — is overruled there, on the ground
+  that the bundle was already making that choice by compiled-in ordering. What is NOT measured is
+  the result on a real Mac, as opposed to a macOS CI runner: the `macos-gtk-windowing` leg runs
+  the script-coverage proof, but every runner has Homebrew, so a green leg says nothing about the
+  machine a stranger downloads the `.app` to. The simulated no-Homebrew case in
+  `font-script-coverage.test.mjs` is what stands in for it; until someone runs a shipped `.app` on
+  a clean Mac, this line stays.
 
 The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
 future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
@@ -428,13 +435,36 @@ carries a name and a duration and no cause. An assertion failure would print a d
 this prints `'test failed'`.
 
 **And the baseline WAS unknown, which is worse than the flake.** node-gi.yml's `scope`
-job narrows the OS matrix, so the Windows legs run only when `packages/node-gi/**` is
-touched. Measured while chasing this: the leg is `skipped` on every recent `main`
-push, so a green tick on `main` says nothing about it, and the last run that actually
-EXECUTED it was two PRs earlier. Reading `main` as the baseline would have blamed the
-wrong change — it nearly did. `ci-summary` now names, per job GitHub resolved to
-`skipped`, the SHA at which that job last actually executed, so this half costs a
-glance at the step summary.
+job narrows the OS matrix, so on a `pull_request` or a `main` push the Windows legs run
+only when `packages/node-gi/**`, `scripts/node-gi-consumer-harness.mjs`, `node-gi.yml`
+itself or `.github/scripts/**` changed. Measured while chasing this: the leg is `skipped`
+on every recent `main` push, so a green tick on `main` says nothing about it, and the last
+run that actually EXECUTED it was two PRs earlier. Reading `main` as the baseline would
+have blamed the wrong change — it nearly did. `ci-summary` now names, per job GitHub
+resolved to `skipped`, the SHA at which that job last actually executed, so this half
+costs a glance at the step summary.
+
+**What a reader may and may not conclude, spelled out — because "unknown" is not "never
+measured", and the loose version of this sentence sends the next person to the wrong
+instrument.** `scope`'s `case "$EVENT"` answers `true` for every event that is neither
+`pull_request` nor `push`, so the 03:17 UTC nightly and any `workflow_dispatch` run the
+FULL matrix. Three separate readings, and only the third is a baseline for a commit:
+
+- a green `main` tick at commit X says **nothing** about node-gi's Windows legs at X —
+  `skipped` and `success` are the same colour in the checks UI;
+- the last nightly says something about the `main` of that morning, so the newest Windows
+  measurement is normally under a day old — but it is not this commit's, and a consumer-only
+  merge lands between the two with no Windows leg of its own;
+- `ci-summary`'s gate-history table is the only thing that tells those two apart, by naming
+  the SHA at which each skipped leg last actually executed.
+
+**What it would take, and what it costs today.** Closing it per-commit means dropping the
+`scope` narrowing for `push` to `main` — the full macOS x10 / Windows x6 / arm64 matrix on
+every merge, which is the cost `scope` exists to avoid, so this is a decision and not an
+oversight. The cheaper half is already paid: the gate-history table. What is left unpriced
+is that reading it is a convention rather than a mechanism — nothing fails, warns or blocks
+when a Windows regression is attributed to a commit whose Windows legs never ran, which is
+exactly the afternoon this entry cost.
 
 What would make the next occurrence cost minutes instead of an afternoon, in order:
 
@@ -494,6 +524,60 @@ Two things to fix, and they are separable:
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
+
+### Four `gtk-os-suites.yml` steps cannot fail the build, and two of them look retirable
+
+`gtk-os-suites.yml` carries four `continue-on-error: true` steps: `rn-probe` on darwin,
+and `gtk-host-probe`, `rn-probe-win32` and `conformance-win32` on win32. Each is a
+deliberate probe with a written retirement condition beside it, and the arrangement is the
+one [ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for — a
+knowingly-red gate teaches people to skip the job, and the next real finding then lands
+where nobody looks.
+
+**What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
+`success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
+read green while the step exited 1. Only `steps.<id>.outcome` records what happened, and
+only `scripts/report-probe-outcome.mjs` puts it where a person looks — a job-summary row
+plus a `::warning::` annotation on the run and the PR.
+`scripts/check-probe-outcomes-read.mjs` holds every such step to having an `id` that the
+workflow reads, so a probe cannot go dark; it deliberately does NOT demand that the outcome
+fail anything. The measured price of the gap it was born from (#1552): on #1541's first
+push, run 33851595137 reported green on every gate while three probes were red — 6 of 2042
+on both darwin legs and 8 of 2038 on win32 — and TWO of the win32 eight were not the PR's
+at all and had been failing with nobody counting them (#1556). They were found by someone
+reading a log they had no reason to open.
+
+**What is still missing to retire each one** — and two of the four are waiting on a check
+nobody has made rather than on work nobody has done:
+
+- `conformance-win32` — condition: *the first run after a published
+  `@gjsify/gtk-runtime-win32-x64` carries `gstvorbis.dll`* (#1626/#1633, ADR 0056).
+  #1633 landed in **0.49.0 (2026-09-11)** and the registry's `latest` is **0.51.1**, so the
+  release half is MET. Missing: someone reads the probe row on the next run and, if it is
+  green, deletes `continue-on-error`, the `id` and the note.
+- `rn-probe` (darwin) — condition: *the first published `@gjsify/node-gi` carrying #1438's
+  engine fix*, then *the first run where the only failures left are this operating system's
+  own*. The fix is #1488, merged **2026-09-03 01:34 UTC**, and its merge commit
+  `d7da6c3b91` is an ANCESTOR of `v0.46.0`, cut 08:55 UTC the same day — the ancestry is
+  what proves the release carries it, and a date beside a version number is not, which is
+  why this reads `git merge-base --is-ancestor` rather than two timestamps compared by
+  eye. `latest` is 0.51.1, so the release half is MET too. Missing: the second half is
+  unrecorded — no run's darwin probe row has been read back since, which is the whole
+  point of a condition naming a release rather than an issue and is why it is written
+  here instead of assumed.
+- `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
+  Windows host*. Blocked on the entry above (#1446); unchanged.
+- `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
+  assertions attributed in the workflow header (`get_path()` answering the NATIVE path),
+  which are the suite's expectation and not a win32 defect.
+
+**What it would take to close the class rather than the four instances.** Either the probe
+reporter grows a mode that FAILS when a probe's retirement condition is already satisfied
+(it would have to be machine-readable — a `PROBE_RETIRES_AT` naming a published version,
+which `check-probe-outcomes-read.mjs` could resolve against the registry), or the periodic
+read becomes somebody's listed job. Today it is neither, and a probe outlives its condition
+in silence for as long as nobody looks — which is the same currency as the green-that-
+checked-nothing this file records elsewhere.
 
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
@@ -1795,13 +1879,13 @@ consumed as a DIRECTORY in a different run.
 macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
 ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
 
-### The win32 GTK bundle ships fontconfig config that nothing reads
+### The win32 GTK bundle's fontconfig config — proposed for deletion, then reversed
 
 `gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
 bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
 and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
-compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
-/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
+compiled and not selected by default on Windows; that is now MEASURED (ADR 0038 § W1-W2,
+Windows 11 / GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
 `PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
 when that directory is the ONLY configured one, which is the row that distinguishes "read
 and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
@@ -1810,9 +1894,11 @@ process does see the face. So none of this affects text rendering. The bundle al
 it on the target, which is a second reason the arrangement cannot be made to work rather
 than merely being unused.
 
-Two things make it worth removing rather than leaving as harmless: the code comment beside
-it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
-claim that made ADR 0038's first draft wrong in the same direction; and the builder's
+Two things made it look worth removing rather than leaving as harmless: the code comment
+beside it says gvsbuild's pango "can be fontconfig-backed … so either path works", read at
+the time as the claim that made ADR 0038's first draft wrong in the same direction — and that
+half of it turns out to be CORRECT, which is the first thing this entry got backwards; and the
+builder's
 `else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
 meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
 default `sysconfdir` — so the "when present" test always passes and the log line implying a
@@ -1824,6 +1910,28 @@ different finding.
 shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
 is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
 still not evidence for it.
+
+**REVERSED 2026-09-14 — this payload is load-bearing after all, and the reason it looked dead
+is worth more than the entry was.** ADR 0038 § Amendment 3 has the loader select the backend
+that reads this configuration (`PANGOCAIRO_BACKEND=fc`), so `etc/fonts` becomes the configuration
+a win32 process actually loads. It does NOT contradict § W1-W2 above: those measured a
+*pangowin32* map, which is filled exclusively from the DirectWrite system collection and would
+ignore a fully-read `fonts.conf`; what changes is which map exists.
+
+The intermediate reading — that gvsbuild's pango has no fontconfig backend to select, so the
+variable is inert on win32 — was WRONG and is kept here because it was well-evidenced.
+`pangocairo-1.0-0.dll` in `GTK4_Gvsbuild_2026.6.0_x64.zip` registers `PangoCairoFcFontMap`,
+imports `fontconfig-1.dll`, and lists ` win32 fontconfig`. What CI run 34873488108 actually
+measured is that a `process.env` write does not reach `getenv()` on Windows: Node writes the
+Win32 environment block, pango reads the C runtime's copy. `mirrorWindowingEnvIntoCrt()` in
+`gi.js` closes that with `g_setenv()`. The same defect applies to `FONTCONFIG_FILE` itself, which
+fontconfig also reads with `getenv()` — so this payload had two reasons to look unread and now
+has none.
+
+What remains of this entry: the bundle still ships no `fc-cache.exe`, so the cache stays baked at
+build time with no supported way to rebuild it on the target; and the builder's `else` branch
+("no etc/fonts … skipping") is still probably unreachable. Neither is a reason to delete the
+payload any more.
 
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
@@ -6234,14 +6342,18 @@ decides the shape — an in-repo TypeScript parser whose output is `SharedNode`,
 beside the compiler until it reports no divergence. **The shadow run is silent.** Measured
 2026-09-19 with `--require-oracle` against `blueprint-compiler` 0.20.4: all 53 corpus files
 (41 rule files + 12 real `.blp`) are byte-equal, `SHADOW_DIVERGENCES` is empty, and the 21
-refusals each name their construct and line. Clause 5's condition is met; after it come the
-flip and the deletions.
+refused `.blp` files each name their construct and line. Those four numbers are held to the
+tree by `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made
+every one of them wrong again within hours. Clause 5's condition is met; after it come the flip and
+the deletions.
 
 **`$extern` landed, which is ADR 0062 Decision 3 and not the flip.** The parser accepts an
 extern type wherever an object is legal — a child, a `[slot]` child, a property value, a root
-and a template parent — and the corpus grew four rule files for it (32-35), taking the
-rules to 35 and the corpus to 47. Two things it does NOT do: it converts no consumer, and it
-does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
+and a template parent — and the corpus grew rule files 32-35 for it:
+#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did
+and is not a claim about this tree — what the corpus holds NOW is measured a paragraph above
+and held to the tree there. Two things `$extern` does NOT do: it converts no
+consumer, and it does not make `SharedNode` able to RENDER one. An extern tag is spelled right and resolves to
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
@@ -6423,7 +6535,8 @@ smaller surface carries what a `.blp` needs from every namespace: the GType name
 and the property-to-enum join. The consumer side needs no change to take either — a namespace
 arrives in `resolve-ident.mjs` as one import and one dependency line, and everything else, its C
 identifier prefix included, is read out of the module. The measurement that argues for it is the
-wild sweep over 273 wild `.blp` — 235 of them foreign — reported in #1699, and those four
+wild sweep over 273 wild `.blp` — 235 of them foreign — that `scripts/blueprint-wild-sweep.mjs`
+runs and `docs/reports/2026-09-16-blueprint-subset-gap.md` tables, and those four
 namespaces are its whole remaining namespace bill.
 
 **The scope question, stated rather than assumed.** The `@girs` vocabulary is a WIDGET vocabulary
@@ -6485,13 +6598,13 @@ kinds are unreachable from the eleven shipped files** — `menu`, `signal`, `acc
 `layout`, `sibling-object`, `value-list` — which is ADR 0053 clause 6's written corpus
 earning its keep, and a standing warning that a construct no real file uses is one whose
 SECOND case nobody has seen. The same figures are already held per line by stage D of
-`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted is the
-one in `src/project.mjs`'s header, which still says 36 trees and 119 losses where the tree
-holds 38 and 120 (#1644 added a rule file after #1635 wrote the sentence). Read those two
-numbers as a date: #1681 takes the corpus to 31 rules and 42 files, #1690 adds a twelfth real
-`.blp` and #1694 four more rule files, so the tree holds 35 rules and 47 files as of
-2026-09-16. Every figure in this paragraph moves with them and none of the conclusions below
-does — those rest on the real files, which #1694 does not touch and #1690 only adds to.
+`check-blueprint-corpus.mjs`, which prints them every run; the copy that had drifted was the
+one in `src/project.mjs`'s header, which said 36 trees and 119 losses after #1644 added a rule
+file to what #1635 had counted, and which states no count at all any more. Read every figure
+in this paragraph as a date: #1681, #1690, #1694 and #1700 each grew the corpus after this
+census was taken, and what the tree holds now is what the harness prints rather than what a
+paragraph says. None of the conclusions below moves with them — those rest on the real files,
+which #1694 does not touch and #1690 only adds to.
 
 `slot` conflates two GtkBuilder constructs — `[start]` is `<child type="start">`, a
 placement on the child wrapper; `content:` is `<property name="content">`, an object as a
@@ -6709,3 +6822,32 @@ lists, not just `styles`. In `widgets [ ]` that is right (the items are ids); in
 refused there. That is a parser rule rather than a reference one, and it is the reason the list
 gap cannot be closed by adding `objectRef` to `listItemText` alone: the three lists want three
 different answers.
+
+
+### The Blueprint parser reads bytes the reference compiler refuses to read at all
+
+`scripts/blueprint-wild-sweep.mjs` classifies each file by what BOTH compilers do with it, and
+one of its five buckets is `accepted-past-oracle` — we emit XML for a file `blueprint-compiler`
+rejects. No file in the 273 wild or 95 language samples lands there. Two hand-written probes do,
+and both are about encoding rather than grammar:
+
+- **A UTF-8 BOM.** `﻿using Gtk 4.0;` parses and emits here. The oracle 0.20.4 exits 1 with
+  `error: Could not determine what kind of syntax is meant here` at line 1 column 1 — it treats
+  U+FEFF as an ordinary character and finds no production that starts with it.
+- **An invalid UTF-8 byte sequence.** A `0xff` inside a string literal emits here as U+FFFD,
+  silently, into a live property. The oracle does not reach an error message at all: it exits 1
+  with a Python traceback, `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position
+  34: invalid start byte`, and prints "The blueprint-compiler program has crashed".
+
+Both are the ADR 0053 clause 3 shape — wrong output where the language has none — and neither is
+visible to anything in this repository: `corpus/refused/` holds no file for either, so stage E
+cannot ask, and stages C and D only see files the parser accepts. `readFileSync(path, 'utf8')`
+is where both enter: Node replaces undecodable bytes rather than throwing, and strips nothing.
+
+The fix is two `refused/` files and a check in the reader, not a parser feature — the subset does
+not gain anything by accepting either. The oracle's own handling of the second one is a bug on its
+side (a traceback is not a diagnostic), which is worth reporting upstream but changes nothing
+here: it refuses the file, and we do not.
+
+Measured on `blueprint-compiler-0.20.4-1.fc44.noarch` against the parser at `@girs` 5.2.0. The
+sweep names both by path when they are in a pool, so a `refused/` file for each closes it.

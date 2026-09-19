@@ -217,8 +217,9 @@ import * as WEBKIT from '@girs/webkit-6.0/vocabulary';
  * table anywhere.
  *
  * Why these five: Gtk and Adw are what the corpus wrote; GtkSource, Shumate and WebKit are the
- * three namespaces the wild sweep reaches (#1699 § 2) that publish a `./vocabulary` today — 273
- * `.blp`, 235 of them foreign. That sweep also reaches `Gdk`, and the reference implementation's
+ * three namespaces the wild sweep reaches that publish a `./vocabulary` today — 273 `.blp`, 235
+ * of them foreign (`scripts/blueprint-wild-sweep.mjs`, tabled in
+ * `docs/reports/2026-09-16-blueprint-subset-gap.md` § 2). That sweep also reaches `Gdk`, and the reference implementation's
  * own samples reach `Gio` and `GObject`; those three publish none, so they are refused by name
  * rather than guessed at — see the header.
  *

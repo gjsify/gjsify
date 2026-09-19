@@ -418,7 +418,7 @@ How the audit arrives at those marks, what it checks structurally on every artif
 
 ## How the cross-runtime claims are checked
 
-The same programs run on `gjs`, `node`, `bun` and `deno`, and their output has to match byte for byte. The conformance harness behind that claim, the Fedora CI baseline and the named macOS and Windows jobs are in [Architecture](/gjsify/contributing/architecture/#how-the-cross-runtime-claims-are-checked).
+The same programs run on `gjs`, `node`, `bun` and `deno`, and their output has to match byte for byte. That four-runtime comparison is a Fedora one — it needs all four hosts on the same machine, and only Linux has them. The other two operating systems are covered by named jobs that run fewer runtimes: macOS runs `gjs` and Node, Windows runs Node alone, there being no GJS host there. The conformance harness, the Fedora baseline and those jobs are in [Architecture](/gjsify/contributing/architecture/#how-the-cross-runtime-claims-are-checked).
 
 ## Windows traps that look like defects
 
