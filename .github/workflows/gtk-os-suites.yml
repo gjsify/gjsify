@@ -440,10 +440,30 @@ jobs:
       # the artifact a stranger downloads run this layer" (ADR 0024 § 4), and the
       # honest answer for an unreleased fix is "not yet".
       #
-      # RETIREMENT CONDITION, corrected: not an issue number but a RELEASE — the first
-      # published `@gjsify/node-gi` carrying #1438's engine fix. Delete
-      # `continue-on-error` and this comment on the first run where the only failures
-      # left are this operating system's own.
+      # RETIREMENT CONDITION, CORRECTED A SECOND TIME — and the correction is the finding.
+      # It used to read "the first published `@gjsify/node-gi` carrying #1438's engine fix".
+      # That shipped in 0.46.0 on 2026-09-03 and nobody re-read this row: MEASURED on
+      # 2026-09-19 against a published 0.51.1, this probe was RED on all 42 job legs of the
+      # 21 `main` runs since 2026-09-14 — not once green. The release was a PROXY for "this
+      # can gate now", and the proxy was wrong for the THIRD time on this one step (`#1438
+      # closes` before it, a bare issue number before that).
+      #
+      # WHAT IS ACTUALLY RED, measured on run 35423439012 and none of it #1438:
+      #   · darwin-arm64 — 7 of 655. Five are `t.get_ancestor is not a function`: the
+      #     published bridge does not put `Gtk.Widget.get_ancestor` on the instance at all.
+      #     One is a natural-size read of 0 on the content box, one a GTK diagnostic under
+      #     `tabs`. Recorded in `status/open-todos.md`.
+      #   · darwin-x64 — the runner exits 1 with NO summary line, dying after "publishes the
+      #     window chrome" (#1546/#1549). That is worse than a count, and it is not the same
+      #     defect as arm64's.
+      #
+      # So the condition stops being a proxy for the outcome and becomes the outcome: this
+      # step retires on five consecutive recorded `main` outcomes that pass. Three proxies
+      # have now been wrong, and the one thing none of them could be wrong about is what the
+      # probe itself reported. `scripts/check-probe-retirement.mjs` evaluates the clause
+      # below on every run and fails the day it comes true, so this row cannot go unread for
+      # sixteen days again.
+      #   retire-when: probe-green 5
       - name: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
         id: rn-probe
         continue-on-error: true
@@ -628,6 +648,14 @@ jobs:
       # stay gating, so the win32 leg still fails loudly if the published bundle
       # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
       # on and the reason this leg exists.
+      #
+      # The clauses below are that sentence as DATA, evaluated every run by
+      # `scripts/check-probe-retirement.mjs`. The generated table is the subject rather
+      # than #1446 alone, because an issue can be closed by a decision while the rows
+      # stay — and the rows are what the suite dereferences.
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
+      #   retire-when: issue-closed 1446
       - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
         id: gtk-host-probe
         continue-on-error: true
@@ -648,6 +676,16 @@ jobs:
       # unreleased engine fix is invisible here. On top of that, win32 has its own
       # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
       # assertions in the header's attribution.
+      #
+      # RETIREMENT CONDITION, as data. The first clause is ALREADY MET — node-gi 0.46.0
+      # carried #1438's engine fix on 2026-09-03 — and is kept rather than dropped because
+      # a met clause is how a conjunction shows which half is left. The table rows are the
+      # half that is not, and the darwin leg above records what a met release clause is and
+      # is not worth on its own.
+      #   retire-when: npm-version-min @gjsify/node-gi latest 0.46.0
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
+      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
+      #   retire-when: probe-green 5
       - name: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
         id: rn-probe-win32
         continue-on-error: true
