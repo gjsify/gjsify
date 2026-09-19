@@ -175,6 +175,12 @@ export interface ListValue {
      * Scalars only. A list member is parsed with `allowObject: false, allowList: false` and
      * each refusal names itself, so neither an `ObjectValue` nor a nested `ListValue` can
      * land here — declaring the full `Value` promised two arms no file can reach.
+     *
+     * Those two and no others. This file describes what the PARSER builds, and the emitter
+     * refuses more than the parser does: `styles [typeof<Gtk.Label>]` parses to a `TypeValue`
+     * in here and is then refused at emit ("a list item that is neither a string nor an
+     * identifier"). Excluding it here would make the AST unable to hold a file the parser
+     * accepts, and would move an emitter's rule into the syntax.
      */
     readonly items: readonly Exclude<Value, ObjectValue | ListValue>[];
     readonly line: number;
@@ -267,15 +273,23 @@ export interface ClosureExpression {
  *
  * `builtin` is set for Blueprint's own type keywords (`string`, `bool`, `int`, …), which
  * name no GIR type and are listed in `src/builtin-types.mjs`; `type` is set for everything
- * else. Exactly one of the two.
+ * else. Exactly one of the two — and the TYPE says so rather than only this sentence.
+ *
+ * Two independent optionals would admit two shapes the parser cannot build: neither set, and
+ * both. It builds the node in one ternary, so exactly one is present in every cast in the
+ * tree. The cost of the looser spelling is paid by every reader: `emit-xml.mjs` § `castGType`
+ * branches on `builtin !== undefined` and reads `type` in the else, which under two optionals
+ * is a `TypeRef | undefined` and a branch for an absence that cannot happen. Declared as a
+ * pair, that branch narrows.
  */
-export interface CastExpression {
+export type CastExpression = {
     readonly kind: 'cast';
     readonly of: Expression;
-    readonly builtin?: string;
-    readonly type?: TypeRef;
     readonly line: number;
-}
+} & (
+    | { readonly builtin: string; readonly type?: undefined }
+    | { readonly builtin?: undefined; readonly type: TypeRef }
+);
 
 /** `( <of> )` — see the note on `Expression` for why this survives the parse. */
 export interface ParenExpression {
@@ -395,7 +409,9 @@ export interface ExtensionEntry {
     readonly name: string;
     /**
      * Never an object: every block entry is parsed with `allowObject: false`, and the refusal
-     * names itself. A list is reachable, but only inside `accessibility { }`.
+     * names itself. Everything else is reachable — a list only inside `accessibility { }`, and
+     * a `TypeValue` anywhere: `accessibility { label: typeof<Gtk.Label>; }` we emit and the
+     * oracle refuses, a divergence `corpus/divergences.mjs` is the place to record.
      */
     readonly value: Exclude<Value, ObjectValue>;
     readonly line: number;
