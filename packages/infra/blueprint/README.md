@@ -152,16 +152,28 @@ would drift.
    out too, but by no numbered line: on this GTK the ARIA enums sort first in `ENUM_VALUES` and
    win every collision (20 of 20 rows), so it is `refused/unknown-accessibility-member.blp` that
    catches it, by accepting `sideways`.
-8. **A GType name is not namespace plus name.** `Gio.ListStore` is `<object
-   class="GListStore">`, and the emitter concatenated — right for `Gtk` and `Adw`, whose C
-   prefix is the namespace, and silently wrong for any third `using`. The name is now a
-   resolver seam that refuses a namespace it has no vocabulary for
-   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which
-   concatenated the same way, takes the same seam, because a tag is the one thing that exit
-   must spell right.
-9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
-   `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
-   for a class outside the widget tree — the one ledger entry left (`rules/29-enum-non-widget.ui`).
+8. **A GType name is not namespace plus name, and the prefix is not ours to keep.**
+   `Gio.ListStore` is `<object class="GListStore">`, and the emitter concatenated — right for
+   `Gtk` and `Adw`, whose C prefix is the namespace, and silently wrong for any third `using`.
+   The name became a resolver seam that refuses a namespace it has no vocabulary for
+   (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which concatenated
+   the same way, takes the same seam, because a tag is the one thing that exit must spell right.
+   The prefix itself was then a two-entry `Map` in `resolve-ident.mjs`, which is the hand-written
+   table ADR 0053 clause 6 forbids, short enough not to look like one: it is now read off the
+   GTypes each vocabulary declares (their longest common prefix, backed off to a CamelCase
+   boundary, so a namespace declaring one type answers `Foo` and not `FooBar`). The derived name
+   is only emitted where that same table declares it, so a prefix derived wrong is a refusal and
+   never a class GtkBuilder resolves to nothing — the oracle refuses the same shape by name.
+   `rules/39-namespace-vocabulary.blp` holds two namespaces the corpus was not written against.
+9. **The vocabulary is a WIDGET vocabulary, and that is a gate and not a shortage of data.**
+   ts-for-gir emits the `./vocabulary` subpath only for a namespace declaring a concrete
+   `GtkWidget` descendant. `GtkSource`, `Shumate` and `WebKit` qualify; `Gdk`, `Gio` and
+   `GObject` do not, although `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` are all legal
+   in a `.blp` and all three appear in files the reference implementation compiles. Nothing in
+   this package can close that — the GType name lives in the GIR's `glib:type-name` and in no
+   `@girs` artefact those three publish — so they stay a hard error naming the namespace, and the
+   fix is upstream in that gate. When it lands, a namespace arrives here as one import and one
+   dependency line: everything else is read out of the module.
 10. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
     "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
