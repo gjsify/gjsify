@@ -1204,8 +1204,16 @@ jobs:
         run: cd packages/infra/cli && node dist/test.node.mjs
       - name: Test CLI on Bun
         run: cd packages/infra/cli && bun dist/test.node.mjs
+      # `--min-dep-age=0` for the reason the `@girs` 5.3.0 bump found: Deno 2.x
+      # refuses an npm version published in the last 24 h (`minimumDependencyAge`,
+      # supply-chain policy) and reports it as `Could not find npm package
+      # '@girs/adw-1' matching '5.3.0'` — a message that reads like a missing
+      # publish. Every `@girs` bump lands the day the release is cut, so without
+      # this flag this leg is red for a day on every one of them, saying the
+      # registry is missing something it is serving. The same flag is already
+      # what `gjsify showcase`'s published-CLI hint carries, for the same rule.
       - name: Test CLI on Deno
-        run: cd packages/infra/cli && deno run -A --no-lock --node-modules-dir=none dist/test.node.mjs
+        run: cd packages/infra/cli && deno run -A --no-lock --node-modules-dir=none --min-dep-age=0 dist/test.node.mjs
 
       # ── The package set ─────────────────────────────────────────────────
       # Build as testuser (matching every other build step's ownership model);
@@ -1250,7 +1258,7 @@ jobs:
           set -e
           for d in $CROSS_RUNTIME_PACKAGES; do
             echo "::group::deno — $d"
-            (cd "$d" && deno run -A --no-lock --node-modules-dir=none test.node.mjs)
+            (cd "$d" && deno run -A --no-lock --node-modules-dir=none --min-dep-age=0 test.node.mjs)
             echo "::endgroup::"
           done
 

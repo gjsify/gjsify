@@ -234,6 +234,16 @@ Measured at 5.1.0: `@girs/gtk-4.0/vocabulary` and `@girs/adw-1/vocabulary` resol
 vocabulary file — the same answer 5.1.0 gives. **So `Gio.ListStore` in a `model:` stays refused
 after 5.2.0**, and it is refused for the namespace, not for the class.
 
+**Blocker 2 is closed at 5.3.0, and the measurement is the same one, re-run.** ts-for-gir #476
+removed the namespace-level gate: a vocabulary is emitted for every namespace a UI file can name,
+not only for one declaring a concrete `GtkWidget` descendant. `@girs/gio-2.0@5.3.0` declares
+`./vocabulary` in its `exports`, and so do `gdk-4.0`, `gobject-2.0` and every namespace this ADR
+measured as missing one. `src/resolve-ident.mjs` loads them, `Gio.ListStore` in a `model:` emits
+`<object class="GListStore">`, and `rules/49-namespace-core-vocabulary.blp` is the golden. What
+still refuses a namespace is this package's own dependency set, which is finite by construction
+and whose completeness `PROVENANCE.requiredVocabularies` now makes checkable — see the blueprint
+package README § What the goldens settled, item 11.
+
 **@girs 5.2.0 is publishing as this lands, and it is half-published.** `gio-2.0` is already at
 5.2.0 while `gtk-4.0` and `adw-1` — the two this package pins — still end at 5.1.0. That is the
 ordinary shape of a `@girs` release, alphabetical and so roughly reverse-topological, and it is

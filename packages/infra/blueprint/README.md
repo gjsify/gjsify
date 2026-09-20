@@ -28,6 +28,7 @@ refused by name, held by a corpus of its own.
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
 | `corpus/real/*.ui` | the same, for the 12 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
+| `corpus/manifest.d.mts` | its types, hand-written like `src/index.d.mts` — what lets a TypeScript consumer read a refusal's line rather than copy it |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
 | `corpus/real-expectations.mjs` | the same for the 12 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
@@ -201,13 +202,19 @@ would drift.
    (`corpus/refused/namespace-without-vocabulary.blp`) — and the projection, which concatenated
    the same way, takes the same seam, because a tag is the one thing that exit must spell right.
    The prefix itself was then a two-entry `Map` in `resolve-ident.mjs`, which is the hand-written
-   table ADR 0053 clause 6 forbids, short enough not to look like one: it is now read off the
-   GTypes each vocabulary declares (their longest common prefix, backed off to a CamelCase
-   boundary). **That is a derivation over the five namespaces loaded, not a law about GIR** —
-   swept over the 135 GIRs installed on one workstation it gets 28 of the 104 that declare a
-   concrete class WRONG, `GdkX11` and eight `Gst*` among them, and four namespaces carry a
-   multi-valued prefix a single string cannot express. None of the 28 publishes a vocabulary, so
-   none is reachable; the day one does, the prefix has to come from upstream instead.
+   table ADR 0053 clause 6 forbids, short enough not to look like one; it became a DERIVATION off
+   the GTypes each vocabulary declares (their longest common prefix, backed off to a CamelCase
+   boundary), and that derivation said of itself that it was a reading of the five namespaces then
+   loaded and not a law about GIR: swept over the 135 GIRs installed on one workstation it gets 28
+   of the 104 that declare a concrete class WRONG — `GdkX11` and eight `Gst*` among them — and it
+   named the condition for its own deletion, *"none of the 28 publishes a vocabulary, so none is
+   reachable; the day one does, the prefix has to come from upstream instead"*.
+   **That day is the `@girs` 5.3.0 bump.** ts-for-gir #476 emits a vocabulary for every namespace a
+   UI file can name, so all eight of those publish one now, and 5.3.0 ships the prefix itself as
+   `PROVENANCE.identifierPrefixes`. The derivation is gone: measured on the 5.3.0 tarballs it
+   answers `GdkX11`/`GdkWayland` where the GIR says `Gdk`, `GstAudio`/`GstGL`/`GstTest` where it
+   says `Gst`, `GnomeB` where it says `Gnome` and the empty string for `Nice`, and reading the
+   field gets all eight right and the nine loaded here unchanged.
    `rules/39-namespace-vocabulary.blp` holds two namespaces the corpus was not written against.
 9. **The vocabulary is a widget vocabulary.** `Gtk.SizeGroup { mode: horizontal; }` emits
    `1` from the oracle and `horizontal` from the resolver, because `PROP_ENUMS` has no join
@@ -226,15 +233,24 @@ would drift.
     sides, and neither sweep could have found it — which is what a written rule file is for. The
     object half is a strengthening the merge-base did not have: `Gtk.Widget { }` used to emit
     `<object class="GtkWidget">` for a file the oracle rejects.
-11. **The vocabulary gate is per NAMESPACE, and that is a gate and not a shortage of data.**
-    ts-for-gir emits the `./vocabulary` subpath only for a namespace declaring a concrete
-    `GtkWidget` descendant. `GtkSource`, `Shumate` and `WebKit` qualify; `Gdk`, `Gio` and
-    `GObject` do not, although `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` are all legal
-    in a `.blp` and all three appear in files the reference implementation compiles. Nothing in
-    this package can close that — the GType name lives in the GIR's `glib:type-name` and in no
-    `@girs` artefact those three publish — so they stay a hard error naming the namespace, and the
-    fix is upstream in that gate. When it lands, a namespace arrives here as one import and one
-    dependency line: everything else is read out of the module.
+11. **The vocabulary gate was per NAMESPACE, it was upstream's, and it is closed.** ts-for-gir
+    used to emit the `./vocabulary` subpath only for a namespace declaring a concrete `GtkWidget`
+    descendant. `GtkSource`, `Shumate` and `WebKit` qualified; `Gdk`, `Gio` and `GObject` did not,
+    although `Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` are all legal in a `.blp` and all
+    three appear in files the reference implementation compiles. Nothing in this package could
+    close it, and this entry said the fix was upstream and that a namespace would then arrive as
+    one import and one dependency line. ts-for-gir #476 landed it in `@girs` 5.3.0 — a vocabulary
+    for every namespace a UI file can name — and that is exactly what the arrival cost:
+    `rules/49-namespace-core-vocabulary.blp` is the three of them in one file, with
+    `GListStore` and `GObject` as the two GType names no concatenation reaches. Measured over the
+    wild sweep, closing it took the language corpus from 58 byte-equal to 62 and Muzika from 57 of
+    58 to 58 of 58. **What is left refusing is not upstream's gate but this package's dependency
+    set**, which is finite by construction and always was underneath — and 5.3.0 makes that set's
+    COMPLETENESS checkable for the first time, because every vocabulary now names the siblings a
+    join may reach into (`PROVENANCE.requiredVocabularies`) and `resolve-ident.mjs` refuses at
+    import a list that is missing one. `refused/namespace-without-vocabulary.blp` holds the
+    remainder with `GdkPixbuf`, whose C prefix is `Gdk`: the oracle writes `GdkPixbuf` where
+    concatenation writes `GdkPixbufPixbuf`.
 12. **Members on one line keep source order inside a menu too.** `submenu { item (…) label:
     "…"; }` emits the item first; the menu body had no `order` counter and the emitter's own
     comment called it a known gap that no file reached (`rules/26-one-line-members.ui`).
@@ -259,12 +275,15 @@ would drift.
     target, which is why that file writes both.
 
     It is also the one spelling that reaches a namespace the resolver has no vocabulary for,
-    and `rules/35-extern-real-class.blp` pins how far that goes. `Gio.ListStore` is refused
-    (`refused/namespace-without-vocabulary.blp`) and `$Gio.ListStore` does NOT reach it —
-    concatenation makes that `GioListStore`, a different class. `$GListStore` does, because
-    the C name is written out, and GtkBuilder resolves the result. So the gate holds on the
-    dotted form, the extern form asks for the GType by name, and the `extern` loss says the
-    projection read nothing inside the object — never that the tag is unknown.
+    and `rules/35-extern-real-class.blp` pins how far that goes. It was written when `Gio` was
+    such a namespace: `$Gio.ListStore` does NOT reach `GListStore` — concatenation makes that
+    `GioListStore`, a different class — while `$GListStore` does, because the C name is written
+    out and GtkBuilder resolves the result. The `@girs` 5.3.0 bump loads `Gio`, so the dotted
+    form now resolves too and `rules/49-namespace-core-vocabulary.blp` holds it; the extern rule
+    is unchanged, and its file keeps measuring the same thing against a namespace one import
+    further out. So the gate holds on the dotted form, the extern form asks for the GType by
+    name, and the `extern` loss says the projection read nothing inside the object — never that
+    the tag is unknown.
 
 15. **A `bind` has two output shapes and the source decides which — including by its
     brackets.** `bind labelOne.label` is `<property … bind-source="labelOne"
@@ -296,7 +315,8 @@ would drift.
     only the enum-typed ones — so neither can be derived, and clause 6 forbids writing one out
     by hand. Both are refused by name and by line
     (`refused/binding-lookup-chain.blp`, `refused/expression-closure-untyped.blp`), and the fix
-    is upstream in ts-for-gir beside item 11's. Every closure in the 273-file wild corpus writes
+    is upstream in ts-for-gir where item 11's was — which is now the only one of the two still
+    open, item 11's having shipped in `@girs` 5.3.0. Every closure in the 273-file wild corpus writes
     its cast; eight files in the reference implementation's `tests/samples` do not.
 
 18. **`item` emits nothing, which is exactly why it needs a check of its own.** It is the

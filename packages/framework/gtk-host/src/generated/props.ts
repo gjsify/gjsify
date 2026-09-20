@@ -5,7 +5,7 @@
 // The type surface: one interface per GIR declaration, mirroring GIR's own
 // inheritance, plus the four tag maps the dialect adapters build on.
 //
-// 392 interfaces for 169 widgets — the widgets have 7850 writable
+// 399 interfaces for 169 widgets — the widgets have 7850 writable
 // property slots between them and 920 distinct property names, which is the whole
 // reason this is a hierarchy and not one flat interface per tag.
 
@@ -568,6 +568,8 @@ export interface AdwAboutDialogProps
     extends
         AdwDialogProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -660,6 +662,8 @@ export interface AdwAboutWindowProps
         AdwWindowProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -806,6 +810,8 @@ export interface AdwActionRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -844,6 +850,8 @@ export interface AdwAlertDialogProps
     extends
         AdwDialogProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -900,7 +908,8 @@ export interface AdwAnimationProps {
 export interface AdwAnimationTargetProps {}
 
 /** A base class for Adwaita applications. */
-export interface AdwApplicationProps extends GtkApplicationProps, GApplicationProps {}
+export interface AdwApplicationProps
+    extends GtkApplicationProps, GApplicationProps, GObjectProps, GActionGroupProps, GActionMapProps {}
 
 /** A freeform application window. */
 export interface AdwApplicationWindowProps
@@ -908,6 +917,10 @@ export interface AdwApplicationWindowProps
         GtkApplicationWindowProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GActionGroupProps,
+        GActionMapProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -925,7 +938,13 @@ export interface AdwApplicationWindowProps
 
 /** A widget displaying an image, with a generated fallback. */
 export interface AdwAvatarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** A custom image paintable. */
     customImage?: Gdk.Paintable | null;
     'custom-image'?: Gdk.Paintable | null;
@@ -948,7 +967,14 @@ export interface AdwAvatarProps
 
 /** A bar with contextual information. */
 export interface AdwBannerProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The label to show on the button. */
     buttonLabel?: string | null;
     'button-label'?: string | null;
@@ -971,7 +997,14 @@ export interface AdwBannerProps
 }
 
 /** A widget with one child. */
-export interface AdwBinProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+export interface AdwBinProps
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget of the `AdwBin`. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
@@ -979,7 +1012,14 @@ export interface AdwBinProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuil
 
 /** A bottom sheet with an optional bottom bar. */
 export interface AdwBottomSheetProps
-    extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        AdwSwipeableProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Horizontal alignment of the bottom sheet. */
     align?: number;
     /** The bottom bar widget. */
@@ -1024,14 +1064,20 @@ export interface AdwBottomSheetProps
 
 /** A widget that changes layout based on available size. */
 export interface AdwBreakpointBinProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
 }
 
 /** Describes a breakpoint for [class@Window] or [class@Dialog]. */
-export interface AdwBreakpointProps extends GtkBuildableProps {
+export interface AdwBreakpointProps extends GObjectProps, GtkBuildableProps {
     /** The breakpoint's condition. */
     condition?: Adw.BreakpointCondition | null;
     onApply?: Adw.Breakpoint.SignalSignatures['apply'];
@@ -1041,7 +1087,13 @@ export interface AdwBreakpointProps extends GtkBuildableProps {
 
 /** A helper widget for creating buttons. */
 export interface AdwButtonContentProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the button can be smaller than the natural size of its contents. */
     canShrink?: boolean;
     'can-shrink'?: boolean;
@@ -1065,6 +1117,8 @@ export interface AdwButtonRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -1081,11 +1135,18 @@ export interface AdwButtonRowProps
 }
 
 /** An [class@AnimationTarget] that calls a given callback during the animation. */
-export interface AdwCallbackAnimationTargetProps extends AdwAnimationTargetProps {}
+export interface AdwCallbackAnimationTargetProps extends AdwAnimationTargetProps, GObjectProps {}
 
 /** A dots indicator for [class@Carousel]. */
 export interface AdwCarouselIndicatorDotsProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The displayed carousel. */
     carousel?: Adw.Carousel | null;
     onNotifyCarousel?: NotifyHandler;
@@ -1093,7 +1154,14 @@ export interface AdwCarouselIndicatorDotsProps
 
 /** A lines indicator for [class@Carousel]. */
 export interface AdwCarouselIndicatorLinesProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The displayed carousel. */
     carousel?: Adw.Carousel | null;
     onNotifyCarousel?: NotifyHandler;
@@ -1103,6 +1171,8 @@ export interface AdwCarouselIndicatorLinesProps
 export interface AdwCarouselProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         AdwSwipeableProps,
         GtkAccessibleProps,
         GtkBuildableProps,
@@ -1138,7 +1208,7 @@ export interface AdwCarouselProps
 }
 
 /** A layout manager constraining its children to a given size. */
-export interface AdwClampLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+export interface AdwClampLayoutProps extends GtkLayoutManagerProps, GObjectProps, GtkOrientableProps {
     /** The maximum size to allocate to the children. */
     maximumSize?: number;
     'maximum-size'?: number;
@@ -1154,7 +1224,14 @@ export interface AdwClampLayoutProps extends GtkLayoutManagerProps, GtkOrientabl
 
 /** A widget constraining its child to a given size. */
 export interface AdwClampProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The child widget of the `AdwClamp`. */
     child?: Gtk.Widget | null;
     /** The maximum size allocated to the child. */
@@ -1175,6 +1252,8 @@ export interface AdwClampProps
 export interface AdwClampScrollableProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -1203,6 +1282,8 @@ export interface AdwComboRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -1242,7 +1323,7 @@ export interface AdwComboRowProps
 }
 
 /** A binding between a [class@GObject.Object] property and a CSS class on a [class@Gtk.Widget]. */
-export interface AdwCssClassBindingProps {
+export interface AdwCssClassBindingProps extends GObjectProps {
     /** Flags to be used to control the binding. */
     flags?: number;
     /** The object to use as the source of the CSS class binding. */
@@ -1264,7 +1345,14 @@ export interface AdwCssClassBindingProps {
 
 /** An adaptive dialog container. */
 export interface AdwDialogProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkShortcutManagerProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkShortcutManagerProps {
     /** Whether the dialog can be closed. */
     canClose?: boolean;
     'can-close'?: boolean;
@@ -1309,6 +1397,8 @@ export interface AdwEntryRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -1346,10 +1436,10 @@ export interface AdwEntryRowProps
 }
 
 /** `AdwEnumListItem` is the type of items in a [class@EnumListModel]. */
-export interface AdwEnumListItemProps {}
+export interface AdwEnumListItemProps extends GObjectProps {}
 
 /** A [iface@Gio.ListModel] representing values of a given enum. */
-export interface AdwEnumListModelProps {
+export interface AdwEnumListModelProps extends GObjectProps, GListModelProps {
     /**
      * The type of the enum represented by the model.
      * @deprecated
@@ -1365,6 +1455,8 @@ export interface AdwExpanderRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -1404,6 +1496,8 @@ export interface AdwExpanderRowProps
 export interface AdwFlapProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         AdwSwipeableProps,
         GtkAccessibleProps,
         GtkBuildableProps,
@@ -1506,7 +1600,13 @@ export interface AdwFlapProps
 
 /** A title bar widget. */
 export interface AdwHeaderBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The policy for aligning the center widget. */
     centeringPolicy?: AdwCenteringPolicyNick | Adw.CenteringPolicy;
     'centering-policy'?: AdwCenteringPolicyNick | Adw.CenteringPolicy;
@@ -1539,7 +1639,14 @@ export interface AdwHeaderBarProps
 
 /** A view switcher that uses a toggle group. */
 export interface AdwInlineViewSwitcherProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** Whether the toggles can be smaller than the natural size of their contents. */
     canShrink?: boolean;
     'can-shrink'?: boolean;
@@ -1557,7 +1664,7 @@ export interface AdwInlineViewSwitcherProps
 }
 
 /** An individual layout in [class@MultiLayoutView]. */
-export interface AdwLayoutProps extends GtkBuildableProps {
+export interface AdwLayoutProps extends GObjectProps, GtkBuildableProps {
     /** The content widget. */
     content?: Gtk.Widget;
     /** The name of the layout. */
@@ -1568,14 +1675,20 @@ export interface AdwLayoutProps extends GtkBuildableProps {
 
 /** A child slot within [class@Layout]. */
 export interface AdwLayoutSlotProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The slot ID. */
     id?: string;
     onNotifyId?: NotifyHandler;
 }
 
 /** An auxiliary class used by [class@Leaflet]. */
-export interface AdwLeafletPageProps {
+export interface AdwLeafletPageProps extends GObjectProps {
     /**
      * The leaflet child to which the page belongs.
      * @deprecated
@@ -1600,6 +1713,8 @@ export interface AdwLeafletPageProps {
 export interface AdwLeafletProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         AdwSwipeableProps,
         GtkAccessibleProps,
         GtkBuildableProps,
@@ -1681,6 +1796,8 @@ export interface AdwMessageDialogProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -1739,7 +1856,13 @@ export interface AdwMessageDialogProps
 
 /** A widget for switching between different layouts. */
 export interface AdwMultiLayoutViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The currently used layout. */
     layout?: Adw.Layout | null;
     /** The name of the currently used layout. */
@@ -1751,7 +1874,13 @@ export interface AdwMultiLayoutViewProps
 
 /** A page within [class@NavigationView] or [class@NavigationSplitView]. */
 export interface AdwNavigationPageProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the page can be popped from navigation stack. */
     canPop?: boolean;
     'can-pop'?: boolean;
@@ -1773,7 +1902,13 @@ export interface AdwNavigationPageProps
 
 /** A widget presenting sidebar and content side by side or as a navigation view. */
 export interface AdwNavigationSplitViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the split view is collapsed. */
     collapsed?: boolean;
     /** The content widget. */
@@ -1811,7 +1946,14 @@ export interface AdwNavigationSplitViewProps
 
 /** A page-based navigation container. */
 export interface AdwNavigationViewProps
-    extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        AdwSwipeableProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether to animate page transitions. */
     animateTransitions?: boolean;
     'animate-transitions'?: boolean;
@@ -1833,11 +1975,18 @@ export interface AdwNavigationViewProps
 }
 
 /** An [class@AnimationTarget] that doesn't do anything. */
-export interface AdwNoneAnimationTargetProps extends AdwAnimationTargetProps {}
+export interface AdwNoneAnimationTargetProps extends AdwAnimationTargetProps, GObjectProps {}
 
 /** A widget presenting sidebar and content side by side or as an overlay. */
 export interface AdwOverlaySplitViewProps
-    extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        AdwSwipeableProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the split view is collapsed. */
     collapsed?: boolean;
     /** The content widget. */
@@ -1892,6 +2041,8 @@ export interface AdwPasswordEntryRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -1903,6 +2054,8 @@ export interface AdwPreferencesDialogProps
     extends
         AdwDialogProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -1923,7 +2076,13 @@ export interface AdwPreferencesDialogProps
 
 /** A group of preference rows. */
 export interface AdwPreferencesGroupProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The description for this group of preferences. */
     description?: string | null;
     /** The header suffix widget. */
@@ -1942,7 +2101,13 @@ export interface AdwPreferencesGroupProps
 
 /** A page from [class@PreferencesDialog]. */
 export interface AdwPreferencesPageProps
-    extends Omit<GtkWidgetProps, 'name'>, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        Omit<GtkWidgetProps, 'name'>,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** A [class@Banner] displayed at the top of the page. */
     banner?: Adw.Banner | null;
     /** The description to be displayed at the top of the page. */
@@ -1974,6 +2139,8 @@ export interface AdwPreferencesRowProps
     extends
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -2001,6 +2168,8 @@ export interface AdwPreferencesWindowProps
         AdwWindowProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -2038,7 +2207,7 @@ export interface AdwPreferencesWindowProps
 }
 
 /** An [class@AnimationTarget] changing the value of a property of a [class@GObject.Object] instance. */
-export interface AdwPropertyAnimationTargetProps extends AdwAnimationTargetProps {
+export interface AdwPropertyAnimationTargetProps extends AdwAnimationTargetProps, GObjectProps {
     /** The object whose property will be animated. */
     object?: GObject.Object;
     /** The `GParamSpec` of the property to be animated. */
@@ -2049,7 +2218,13 @@ export interface AdwPropertyAnimationTargetProps extends AdwAnimationTargetProps
 
 /** A widget that displays a keyboard shortcut. */
 export interface AdwShortcutLabelProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The displayed accelerator. */
     accelerator?: string;
     /** The text displayed when no accelerator is set. */
@@ -2064,13 +2239,15 @@ export interface AdwShortcutsDialogProps
     extends
         AdwDialogProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
         GtkShortcutManagerProps {}
 
 /** An object representing an individual shortcut in [class@ShortcutsSection]. */
-export interface AdwShortcutsItemProps {
+export interface AdwShortcutsItemProps extends GObjectProps {
     /** The shortcut accelerator. */
     accelerator?: string;
     /** Fully qualified action name to get the accelerator from. */
@@ -2090,14 +2267,14 @@ export interface AdwShortcutsItemProps {
 }
 
 /** An object representing a section in [class@ShortcutsDialog]. */
-export interface AdwShortcutsSectionProps extends GtkBuildableProps {
+export interface AdwShortcutsSectionProps extends GObjectProps, GListModelProps, GtkBuildableProps {
     /** The title of the section, can be `NULL`. */
     title?: string | null;
     onNotifyTitle?: NotifyHandler;
 }
 
 /** An item within [class@SidebarSection]. */
-export interface AdwSidebarItemProps {
+export interface AdwSidebarItemProps extends GObjectProps {
     /** Whether to activate the item on pointer motion during Drag-and-Drop. */
     dragMotionActivate?: boolean;
     'drag-motion-activate'?: boolean;
@@ -2139,7 +2316,13 @@ export interface AdwSidebarItemProps {
 
 /** Adaptive sidebar widget. */
 export interface AdwSidebarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the drop data should be preloaded on hover. */
     dropPreload?: boolean;
     'drop-preload'?: boolean;
@@ -2174,7 +2357,7 @@ export interface AdwSidebarProps
 }
 
 /** A section within [class@Sidebar]. */
-export interface AdwSidebarSectionProps extends GtkBuildableProps {
+export interface AdwSidebarSectionProps extends GObjectProps, GtkBuildableProps {
     /** Context menu model for the section items. */
     menuModel?: Gio.MenuModel | null;
     'menu-model'?: Gio.MenuModel | null;
@@ -2194,6 +2377,8 @@ export interface AdwSpinRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -2232,7 +2417,7 @@ export interface AdwSpinRowProps
 }
 
 /** A paintable showing a loading spinner. */
-export interface AdwSpinnerPaintableProps extends GtkSymbolicPaintableProps {
+export interface AdwSpinnerPaintableProps extends GObjectProps, GdkPaintableProps, GtkSymbolicPaintableProps {
     /** The widget the spinner uses for frame clock. */
     widget?: Gtk.Widget | null;
     onNotifyWidget?: NotifyHandler;
@@ -2240,11 +2425,24 @@ export interface AdwSpinnerPaintableProps extends GtkSymbolicPaintableProps {
 
 /** A widget showing a loading spinner. */
 export interface AdwSpinnerProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {}
 
 /** A combined button and dropdown widget. */
 export interface AdwSplitButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the button can be smaller than the natural size of its contents. */
     canShrink?: boolean;
     'can-shrink'?: boolean;
@@ -2282,7 +2480,7 @@ export interface AdwSplitButtonProps
 }
 
 /** A spring-based [class@Animation]. */
-export interface AdwSpringAnimationProps extends AdwAnimationProps {
+export interface AdwSpringAnimationProps extends AdwAnimationProps, GObjectProps {
     /** Whether the animation should be clamped. */
     clamp?: boolean;
     /** Precision of the spring. */
@@ -2308,7 +2506,7 @@ export interface AdwSpringAnimationProps extends AdwAnimationProps {
 }
 
 /** An auxiliary class used by [class@Squeezer]. */
-export interface AdwSqueezerPageProps {
+export interface AdwSqueezerPageProps extends GObjectProps {
     /**
      * The the squeezer child to which the page belongs.
      * @deprecated
@@ -2325,7 +2523,14 @@ export interface AdwSqueezerPageProps {
 
 /** A best fit container. */
 export interface AdwSqueezerProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /**
      * Whether to allow squeezing beyond the last child's minimum size.
      * @deprecated
@@ -2383,7 +2588,13 @@ export interface AdwSqueezerProps
 
 /** A page used for empty/error states and similar use-cases. */
 export interface AdwStatusPageProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** The description markup to be displayed below the title. */
@@ -2403,7 +2614,7 @@ export interface AdwStatusPageProps
 }
 
 /** A class for managing application-wide styling. */
-export interface AdwStyleManagerProps {
+export interface AdwStyleManagerProps extends GObjectProps {
     /** The requested application color scheme. */
     colorScheme?: AdwColorSchemeNick | Adw.ColorScheme;
     'color-scheme'?: AdwColorSchemeNick | Adw.ColorScheme;
@@ -2414,7 +2625,7 @@ export interface AdwStyleManagerProps {
 }
 
 /** A swipe tracker used in [class@Carousel], [class@NavigationView] and [class@OverlaySplitView]. */
-export interface AdwSwipeTrackerProps extends GtkOrientableProps {
+export interface AdwSwipeTrackerProps extends GObjectProps, GtkOrientableProps {
     /** Whether to allow swiping for more than one snap point at a time. */
     allowLongSwipes?: boolean;
     'allow-long-swipes'?: boolean;
@@ -2460,6 +2671,8 @@ export interface AdwSwitchRowProps
         AdwPreferencesRowProps,
         GtkListBoxRowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -2471,7 +2684,13 @@ export interface AdwSwitchRowProps
 
 /** A tab bar for [class@TabView]. */
 export interface AdwTabBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the tabs automatically hide. */
     autohide?: boolean;
     /** The widget shown after the tabs. */
@@ -2503,7 +2722,14 @@ export interface AdwTabBarProps
 
 /** A button that displays the number of [class@TabView] pages. */
 export interface AdwTabButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The view the tab button displays. */
     view?: Adw.TabView | null;
     onActivate?: Adw.TabButton.SignalSignatures['activate'];
@@ -2513,7 +2739,13 @@ export interface AdwTabButtonProps
 
 /** A tab overview for [class@TabView]. */
 export interface AdwTabOverviewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Whether to enable new tab button. */
@@ -2556,7 +2788,7 @@ export interface AdwTabOverviewProps
 }
 
 /** An auxiliary class used by [class@TabView]. */
-export interface AdwTabPageProps extends GtkAccessibleProps {
+export interface AdwTabPageProps extends GObjectProps, GtkAccessibleProps {
     /** The child of the page. */
     child?: Gtk.Widget;
     /** The icon of the page. */
@@ -2610,7 +2842,13 @@ export interface AdwTabPageProps extends GtkAccessibleProps {
 
 /** A dynamic tabbed container. */
 export interface AdwTabViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Default page icon. */
     defaultIcon?: Gio.Icon;
     'default-icon'?: Gio.Icon;
@@ -2636,7 +2874,7 @@ export interface AdwTabViewProps
 }
 
 /** A time-based [class@Animation]. */
-export interface AdwTimedAnimationProps extends AdwAnimationProps {
+export interface AdwTimedAnimationProps extends AdwAnimationProps, GObjectProps {
     /** Whether the animation changes direction on every iteration. */
     alternate?: boolean;
     /** Duration of the animation, in milliseconds. */
@@ -2665,14 +2903,20 @@ export interface AdwTimedAnimationProps extends AdwAnimationProps {
 
 /** A widget showing toasts above its content. */
 export interface AdwToastOverlayProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
 }
 
 /** A helper object for [class@ToastOverlay]. */
-export interface AdwToastProps {
+export interface AdwToastProps extends GObjectProps {
     /** The name of the associated action. */
     actionName?: string | null;
     'action-name'?: string | null;
@@ -2708,7 +2952,14 @@ export interface AdwToastProps {
 
 /** A group of exclusive toggles. */
 export interface AdwToggleGroupProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The index of the active toggle. */
     active?: number;
     /** The name of the active toggle. */
@@ -2726,7 +2977,7 @@ export interface AdwToggleGroupProps
 }
 
 /** A toggle within [class@ToggleGroup]. */
-export interface AdwToggleProps {
+export interface AdwToggleProps extends GObjectProps {
     /** The toggle child. */
     child?: Gtk.Widget | null;
     /** The description of the toggle. */
@@ -2757,7 +3008,13 @@ export interface AdwToggleProps {
 
 /** A widget containing a page, as well as top and/or bottom bars. */
 export interface AdwToolbarViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Appearance of the bottom bars. */
     bottomBarStyle?: AdwToolbarStyleNick | Adw.ToolbarStyle;
     'bottom-bar-style'?: AdwToolbarStyleNick | Adw.ToolbarStyle;
@@ -2788,7 +3045,7 @@ export interface AdwToolbarViewProps
 }
 
 /** An auxiliary class used by [class@ViewStack]. */
-export interface AdwViewStackPageProps extends GtkAccessibleProps {
+export interface AdwViewStackPageProps extends GObjectProps, GtkAccessibleProps {
     /** The badge number for this page. */
     badgeNumber?: number;
     'badge-number'?: number;
@@ -2828,7 +3085,8 @@ export interface AdwViewStackPageProps extends GtkAccessibleProps {
 }
 
 /** An auxiliary class used by [class@ViewStack]. */
-export interface AdwViewStackPagesProps extends GtkSectionModelProps, GtkSelectionModelProps {
+export interface AdwViewStackPagesProps
+    extends GObjectProps, GListModelProps, GtkSectionModelProps, GtkSelectionModelProps {
     /** The selected [class@ViewStackPage] within the [class@ViewStackPages]. */
     selectedPage?: Adw.ViewStackPage | null;
     'selected-page'?: Adw.ViewStackPage | null;
@@ -2837,7 +3095,13 @@ export interface AdwViewStackPagesProps extends GtkSectionModelProps, GtkSelecti
 
 /** A view container for [class@ViewSwitcher]. */
 export interface AdwViewStackProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the stack uses a crossfade transition between pages. */
     enableTransitions?: boolean;
     'enable-transitions'?: boolean;
@@ -2864,7 +3128,13 @@ export interface AdwViewStackProps
 
 /** A view switcher action bar. */
 export interface AdwViewSwitcherBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the bar should be revealed or hidden. */
     reveal?: boolean;
     /** The stack the view switcher controls. */
@@ -2875,7 +3145,13 @@ export interface AdwViewSwitcherBarProps
 
 /** An adaptive view switcher. */
 export interface AdwViewSwitcherProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The policy to determine which mode to use. */
     policy?: AdwViewSwitcherPolicyNick | Adw.ViewSwitcherPolicy;
     /** The stack the view switcher controls. */
@@ -2886,7 +3162,13 @@ export interface AdwViewSwitcherProps
 
 /** An adaptive sidebar that controls an [class@ViewStack]. */
 export interface AdwViewSwitcherSidebarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The item filter. */
     filter?: Gtk.Filter | null;
     /** Determines the sidebar's look and behavior. */
@@ -2910,7 +3192,13 @@ export interface AdwViewSwitcherSidebarProps
 
 /** A view switcher title. */
 export interface AdwViewSwitcherTitleProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /**
      * The stack the view switcher controls.
      * @deprecated
@@ -2943,6 +3231,8 @@ export interface AdwWindowProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -2960,7 +3250,13 @@ export interface AdwWindowProps
 
 /** A helper widget for setting a window's title and subtitle. */
 export interface AdwWindowTitleProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The subtitle to display. */
     subtitle?: string;
     /** The title to display. */
@@ -2971,7 +3267,14 @@ export interface AdwWindowTitleProps
 
 /** A box-like widget that can wrap into multiple lines. */
 export interface AdwWrapBoxProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The alignment of the children within each line. */
     align?: number;
     /** The spacing between widgets on the same line. */
@@ -3025,7 +3328,7 @@ export interface AdwWrapBoxProps
 }
 
 /** A box-like layout that can wrap into multiple lines. */
-export interface AdwWrapLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+export interface AdwWrapLayoutProps extends GtkLayoutManagerProps, GObjectProps, GtkOrientableProps {
     /** The alignment of the children within each line. */
     align?: number;
     /** The spacing between widgets on the same line. */
@@ -3078,6 +3381,16 @@ export interface AdwWrapLayoutProps extends GtkLayoutManagerProps, GtkOrientable
     onNotifyWrapReverse?: NotifyHandler;
 }
 
+/** `GActionGroup` represents a group of actions. */
+export interface GActionGroupProps {
+    onActionAdded?: Gio.ActionGroup.SignalSignatures['action-added'];
+    onActionEnabledChanged?: Gio.ActionGroup.SignalSignatures['action-enabled-changed'];
+    onActionRemoved?: Gio.ActionGroup.SignalSignatures['action-removed'];
+    onActionStateChanged?: Gio.ActionGroup.SignalSignatures['action-state-changed'];
+}
+
+export interface GActionMapProps {}
+
 /** `GApplication` is the core class for application support. */
 export interface GApplicationProps {
     /**
@@ -3112,6 +3425,13 @@ export interface GApplicationProps {
     onNotifyInactivityTimeout?: NotifyHandler;
     onNotifyResourceBasePath?: NotifyHandler;
     onNotifyVersion?: NotifyHandler;
+}
+
+export interface GInitiallyUnownedProps {}
+
+/** `GListModel` is an interface that represents a mutable list of [class@GObject.Object]. */
+export interface GListModelProps {
+    onItemsChanged?: Gio.ListModel.SignalSignatures['items-changed'];
 }
 
 /** `GMountOperation` provides a mechanism for interacting with the user. */
@@ -3154,11 +3474,26 @@ export interface GMountOperationProps {
     onNotifyUsername?: NotifyHandler;
 }
 
+/** The base object type. */
+export interface GObjectProps {
+    onNotify?: GObject.Object.SignalSignatures['notify'];
+}
+
+export interface GParamProps {}
+
+/** An interface for content that can be painted. */
+export interface GdkPaintableProps {
+    onInvalidateContents?: Gdk.Paintable.SignalSignatures['invalidate-contents'];
+    onInvalidateSize?: Gdk.Paintable.SignalSignatures['invalidate-size'];
+}
+
 /** Displays information about a program. */
 export interface GtkAboutDialogProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -3224,7 +3559,7 @@ export interface GtkAboutDialogProps
 }
 
 /** Represents a link (i.e. */
-export interface GtkAccessibleHyperlinkProps extends GtkAccessibleProps {}
+export interface GtkAccessibleHyperlinkProps extends GObjectProps, GtkAccessibleProps {}
 
 /** An interface for accessible objects containing links. */
 export interface GtkAccessibleHypertextProps {}
@@ -3245,7 +3580,13 @@ export interface GtkAccessibleTextProps {}
 
 /** Presents contextual actions. */
 export interface GtkActionBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Controls whether the action bar shows its contents. */
     revealed?: boolean;
     onNotifyRevealed?: NotifyHandler;
@@ -3264,10 +3605,10 @@ export interface GtkActionableProps {
 }
 
 /** Activates a widget. */
-export interface GtkActivateActionProps extends GtkShortcutActionProps {}
+export interface GtkActivateActionProps extends GtkShortcutActionProps, GObjectProps {}
 
 /** A model for a numeric value. */
-export interface GtkAdjustmentProps {
+export interface GtkAdjustmentProps extends GInitiallyUnownedProps, GObjectProps {
     /** The minimum value of the adjustment. */
     lower?: number;
     /** The page increment of the adjustment. */
@@ -3294,7 +3635,7 @@ export interface GtkAdjustmentProps {
 }
 
 /** Collects the arguments that are needed to present a message to the user. */
-export interface GtkAlertDialogProps {
+export interface GtkAlertDialogProps extends GObjectProps {
     /** Labels for buttons to show in the alert. */
     buttons?: string[] | null;
     /** Determines what happens when the <kbd>Escape</kbd> key is pressed while the alert is shown. */
@@ -3318,7 +3659,7 @@ export interface GtkAlertDialogProps {
 }
 
 /** Combines two shortcut triggers. */
-export interface GtkAlternativeTriggerProps extends GtkShortcutTriggerProps {
+export interface GtkAlternativeTriggerProps extends GtkShortcutTriggerProps, GObjectProps, GListModelProps {
     /** The first `GtkShortcutTrigger` to check. */
     first?: Gtk.ShortcutTrigger;
     /** The second `GtkShortcutTrigger` to check. */
@@ -3328,11 +3669,19 @@ export interface GtkAlternativeTriggerProps extends GtkShortcutTriggerProps {
 }
 
 /** Matches an item when at least one of its filters matches. */
-export interface GtkAnyFilterProps extends GtkMultiFilterProps, GtkFilterProps, GtkBuildableProps {}
+export interface GtkAnyFilterProps
+    extends GtkMultiFilterProps, GtkFilterProps, GObjectProps, GListModelProps, GtkBuildableProps {}
 
 /** The `GtkAppChooserButton` lets the user select an application. */
 export interface GtkAppChooserButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkAppChooserProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkAppChooserProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The text to show at the top of the dialog that can be opened from the button. */
     heading?: string | null;
     /** Whether the app chooser dialog should be modal. */
@@ -3358,6 +3707,8 @@ export interface GtkAppChooserDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAppChooserProps,
         GtkBuildableProps,
@@ -3383,7 +3734,14 @@ export interface GtkAppChooserProps {
 
 /** `GtkAppChooserWidget` is a widget for selecting applications. */
 export interface GtkAppChooserWidgetProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkAppChooserProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkAppChooserProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The text that appears in the widget when there are no applications for the given content type. */
     defaultText?: string | null;
     'default-text'?: string | null;
@@ -3413,7 +3771,7 @@ export interface GtkAppChooserWidgetProps
 }
 
 /** A high-level API for writing applications. */
-export interface GtkApplicationProps extends GApplicationProps {
+export interface GtkApplicationProps extends GApplicationProps, GObjectProps, GActionGroupProps, GActionMapProps {
     /** The menu model to be used for the application's menu bar. */
     menubar?: Gio.MenuModel | null;
     /**
@@ -3434,6 +3792,10 @@ export interface GtkApplicationWindowProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GActionGroupProps,
+        GActionMapProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -3448,7 +3810,13 @@ export interface GtkApplicationWindowProps
 
 /** Preserves the aspect ratio of its child. */
 export interface GtkAspectFrameProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Whether the `GtkAspectFrame` should use the aspect ratio of its child. */
@@ -3468,7 +3836,7 @@ export interface GtkAspectFrameProps
 }
 
 /** `GtkAssistantPage` is an auxiliary object used by `GtkAssistant`. */
-export interface GtkAssistantPageProps {
+export interface GtkAssistantPageProps extends GObjectProps {
     /**
      * The child widget.
      * @deprecated
@@ -3501,6 +3869,8 @@ export interface GtkAssistantProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -3522,10 +3892,10 @@ export interface GtkAssistantProps
 }
 
 /** A layout manager for widgets with a single child. */
-export interface GtkBinLayoutProps extends GtkLayoutManagerProps {}
+export interface GtkBinLayoutProps extends GtkLayoutManagerProps, GObjectProps {}
 
 /** A list model that wraps `GBookmarkFile`. */
-export interface GtkBookmarkListProps {
+export interface GtkBookmarkListProps extends GObjectProps, GListModelProps {
     /** The attributes to query. */
     attributes?: string | null;
     /** The bookmark file to load. */
@@ -3539,7 +3909,7 @@ export interface GtkBookmarkListProps {
 }
 
 /** Evaluates a boolean expression to determine whether to include items. */
-export interface GtkBoolFilterProps extends GtkFilterProps {
+export interface GtkBoolFilterProps extends GtkFilterProps, GObjectProps {
     /** The boolean expression to evaluate on each item. */
     expression?: Gtk.Expression | null;
     /** If the expression result should be inverted. */
@@ -3549,7 +3919,7 @@ export interface GtkBoolFilterProps extends GtkFilterProps {
 }
 
 /** Arranges children in a single row or column. */
-export interface GtkBoxLayoutProps extends GtkLayoutManagerProps, GtkOrientableProps {
+export interface GtkBoxLayoutProps extends GtkLayoutManagerProps, GObjectProps, GtkOrientableProps {
     /** The child that determines the baseline of the box in vertical layout. */
     baselineChild?: number;
     'baseline-child'?: number;
@@ -3568,7 +3938,14 @@ export interface GtkBoxLayoutProps extends GtkLayoutManagerProps, GtkOrientableP
 
 /** Arranges child widgets into a single row or column. */
 export interface GtkBoxProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The position of the child that determines the baseline. */
     baselineChild?: number;
     'baseline-child'?: number;
@@ -3589,10 +3966,10 @@ export interface GtkBoxProps
 export interface GtkBuildableProps {}
 
 /** A `GtkBuilderScope` implementation for the C language. */
-export interface GtkBuilderCScopeProps extends GtkBuilderScopeProps {}
+export interface GtkBuilderCScopeProps extends GObjectProps, GtkBuilderScopeProps {}
 
 /** Creates widgets by instantiating `GtkBuilder` UI templates. */
-export interface GtkBuilderListItemFactoryProps extends GtkListItemFactoryProps {
+export interface GtkBuilderListItemFactoryProps extends GtkListItemFactoryProps, GObjectProps {
     /** `GBytes` containing the UI definition. */
     bytes?: GLib.Bytes;
     /** Path of the resource containing the UI definition. */
@@ -3605,7 +3982,7 @@ export interface GtkBuilderListItemFactoryProps extends GtkListItemFactoryProps 
 }
 
 /** Reads XML descriptions of a user interface and instantiates the described objects. */
-export interface GtkBuilderProps {
+export interface GtkBuilderProps extends GObjectProps {
     /** The object the builder is evaluating for. */
     currentObject?: GObject.Object | null;
     'current-object'?: GObject.Object | null;
@@ -3624,7 +4001,14 @@ export interface GtkBuilderScopeProps {}
 
 /** Calls a callback function when the button is clicked. */
 export interface GtkButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the size of the button can be made smaller than the natural size of its contents. */
     canShrink?: boolean;
     'can-shrink'?: boolean;
@@ -3656,7 +4040,13 @@ export interface GtkCClosureExpressionProps extends GtkExpressionProps {}
 
 /** Displays a Gregorian calendar, one month at a time. */
 export interface GtkCalendarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The selected date. */
     date?: GLib.DateTime;
     /**
@@ -3698,18 +4088,24 @@ export interface GtkCalendarProps
 }
 
 /** Invokes a callback. */
-export interface GtkCallbackActionProps extends GtkShortcutActionProps {}
+export interface GtkCallbackActionProps extends GtkShortcutActionProps, GObjectProps {}
 
 /** A cell area that renders GtkCellRenderers into a row or a column The `GtkCellAreaBox` renders cell renderers into a row or a column depending on its `GtkOrientation`. */
 export interface GtkCellAreaBoxProps
-    extends GtkCellAreaProps, GtkBuildableProps, GtkCellLayoutProps, GtkOrientableProps {
+    extends
+        GtkCellAreaProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkBuildableProps,
+        GtkCellLayoutProps,
+        GtkOrientableProps {
     /** The amount of space to reserve between cells. */
     spacing?: number;
     onNotifySpacing?: NotifyHandler;
 }
 
 /** Stores geometrical information for a series of rows in a GtkCellArea The `GtkCellAreaContext` object is created by a given `GtkCellArea` implementation via its `GtkCellAreaClass.create_context()` vir… */
-export interface GtkCellAreaContextProps {
+export interface GtkCellAreaContextProps extends GObjectProps {
     /**
      * The `GtkCellArea` this context was created by
      * @deprecated
@@ -3744,7 +4140,8 @@ export interface GtkCellEditableProps {
 export interface GtkCellLayoutProps {}
 
 /** Renders a keyboard accelerator in a cell `GtkCellRendererAccel` displays a keyboard accelerator (i.e. */
-export interface GtkCellRendererAccelProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+export interface GtkCellRendererAccelProps
+    extends GtkCellRendererTextProps, GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     /** The keyval of the accelerator. */
     accelKey?: number;
     'accel-key'?: number;
@@ -3765,7 +4162,8 @@ export interface GtkCellRendererAccelProps extends GtkCellRendererTextProps, Gtk
 }
 
 /** Renders a combobox in a cell `GtkCellRendererCombo` renders text in a cell like `GtkCellRendererText` from which it is derived. */
-export interface GtkCellRendererComboProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+export interface GtkCellRendererComboProps
+    extends GtkCellRendererTextProps, GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     /** If %TRUE, the cell renderer will include an entry and allow to enter values other than the ones in the popup list. */
     hasEntry?: boolean;
     'has-entry'?: boolean;
@@ -3781,7 +4179,7 @@ export interface GtkCellRendererComboProps extends GtkCellRendererTextProps, Gtk
 }
 
 /** Renders a pixbuf in a cell A `GtkCellRendererPixbuf` can be used to render an image in a cell. */
-export interface GtkCellRendererPixbufProps extends GtkCellRendererProps {
+export interface GtkCellRendererPixbufProps extends GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     /** The GIcon representing the icon to display. */
     gicon?: Gio.Icon;
     /** The name of the themed icon to display. */
@@ -3806,7 +4204,8 @@ export interface GtkCellRendererPixbufProps extends GtkCellRendererProps {
 }
 
 /** Renders numbers as progress bars `GtkCellRendererProgress` renders a numeric value as a progress par in a cell. */
-export interface GtkCellRendererProgressProps extends GtkCellRendererProps, GtkOrientableProps {
+export interface GtkCellRendererProgressProps
+    extends GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps, GtkOrientableProps {
     /** Whether progess is inverted. */
     inverted?: boolean;
     /** Setting this to a non-negative value causes the cell renderer to enter "activity mode", where a block bounces back and forth to indicate that some progress is made, without specifying exactly how muc… */
@@ -3870,7 +4269,8 @@ export interface GtkCellRendererProps {
 }
 
 /** Renders a spin button in a cell `GtkCellRendererSpin` renders text in a cell like `GtkCellRendererText` from which it is derived. */
-export interface GtkCellRendererSpinProps extends GtkCellRendererTextProps, GtkCellRendererProps {
+export interface GtkCellRendererSpinProps
+    extends GtkCellRendererTextProps, GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     /** The adjustment that holds the value of the spinbutton. */
     adjustment?: Gtk.Adjustment;
     /** The acceleration rate when you hold down a button. */
@@ -3884,7 +4284,7 @@ export interface GtkCellRendererSpinProps extends GtkCellRendererTextProps, GtkC
 }
 
 /** Renders a spinning animation in a cell `GtkCellRendererSpinner` renders a spinning animation in a cell, very similar to `GtkSpinner`. */
-export interface GtkCellRendererSpinnerProps extends GtkCellRendererProps {
+export interface GtkCellRendererSpinnerProps extends GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     /** Whether the spinner is active (ie. */
     active?: boolean;
     /** Pulse of the spinner. */
@@ -3897,7 +4297,7 @@ export interface GtkCellRendererSpinnerProps extends GtkCellRendererProps {
 }
 
 /** Renders text in a cell A `GtkCellRendererText` renders a given text in its cell, using the font, color and style information provided by its properties. */
-export interface GtkCellRendererTextProps extends GtkCellRendererProps {
+export interface GtkCellRendererTextProps extends GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     alignSet?: boolean;
     'align-set'?: boolean;
     /** Specifies how to align the lines of text with respect to each other. */
@@ -4029,7 +4429,7 @@ export interface GtkCellRendererTextProps extends GtkCellRendererProps {
 }
 
 /** Renders a toggle button in a cell `GtkCellRendererToggle` renders a toggle button in a cell. */
-export interface GtkCellRendererToggleProps extends GtkCellRendererProps {
+export interface GtkCellRendererToggleProps extends GtkCellRendererProps, GInitiallyUnownedProps, GObjectProps {
     activatable?: boolean;
     active?: boolean;
     inconsistent?: boolean;
@@ -4045,6 +4445,8 @@ export interface GtkCellRendererToggleProps extends GtkCellRendererProps {
 export interface GtkCellViewProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkCellLayoutProps,
@@ -4073,7 +4475,14 @@ export interface GtkCellViewProps
 
 /** Arranges three children in a row, keeping the middle child centered as well as possible. */
 export interface GtkCenterBoxProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The position of the baseline aligned widget if extra space is available. */
     baselinePosition?: GtkBaselinePositionNick | Gtk.BaselinePosition;
     'baseline-position'?: GtkBaselinePositionNick | Gtk.BaselinePosition;
@@ -4097,7 +4506,7 @@ export interface GtkCenterBoxProps
 }
 
 /** Manages up to three children. */
-export interface GtkCenterLayoutProps extends GtkLayoutManagerProps {
+export interface GtkCenterLayoutProps extends GtkLayoutManagerProps, GObjectProps {
     /** Whether to shrink the center widget after other children. */
     shrinkCenterLast?: boolean;
     'shrink-center-last'?: boolean;
@@ -4106,7 +4515,14 @@ export interface GtkCenterLayoutProps extends GtkLayoutManagerProps {
 
 /** Places a label next to an indicator. */
 export interface GtkCheckButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** If the check button is active. */
     active?: boolean;
     /** The child widget. */
@@ -4135,7 +4551,14 @@ export interface GtkClosureExpressionProps extends GtkExpressionProps {}
 
 /** The `GtkColorButton` allows to open a color chooser dialog to change the color. */
 export interface GtkColorButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkColorChooserProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkColorChooserProps,
+        GtkConstraintTargetProps {
     /** Whether the color chooser dialog should be modal. */
     modal?: boolean;
     /** Whether the color chooser should open in editor mode. */
@@ -4156,6 +4579,8 @@ export interface GtkColorChooserDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkColorChooserProps,
@@ -4189,7 +4614,14 @@ export interface GtkColorChooserProps {
 
 /** The `GtkColorChooserWidget` widget lets the user select a color. */
 export interface GtkColorChooserWidgetProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkColorChooserProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkColorChooserProps,
+        GtkConstraintTargetProps {
     /** %TRUE when the color chooser is showing the single-color editor. */
     showEditor?: boolean;
     'show-editor'?: boolean;
@@ -4198,7 +4630,13 @@ export interface GtkColorChooserWidgetProps
 
 /** Opens a color chooser dialog to select a color. */
 export interface GtkColorDialogButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The `GtkColorDialog` that contains parameters for the color chooser dialog. */
     dialog?: Gtk.ColorDialog | null;
     /** The selected color. */
@@ -4209,7 +4647,7 @@ export interface GtkColorDialogButtonProps
 }
 
 /** Asynchronous API to present a color chooser dialog. */
-export interface GtkColorDialogProps {
+export interface GtkColorDialogProps extends GObjectProps {
     /** Whether the color chooser dialog is modal. */
     modal?: boolean;
     /** A title that may be shown on the color chooser dialog. */
@@ -4223,7 +4661,7 @@ export interface GtkColorDialogProps {
 }
 
 /** Represents items in a cell in [class@Gtk.ColumnView]. */
-export interface GtkColumnViewCellProps extends GtkListItemProps {
+export interface GtkColumnViewCellProps extends GtkListItemProps, GObjectProps {
     /** Widget used for display. */
     child?: Gtk.Widget | null;
     /** If the item can be focused with the keyboard. */
@@ -4233,7 +4671,7 @@ export interface GtkColumnViewCellProps extends GtkListItemProps {
 }
 
 /** Represents the columns in a `GtkColumnView`. */
-export interface GtkColumnViewColumnProps {
+export interface GtkColumnViewColumnProps extends GObjectProps {
     /** Column gets share of extra width allocated to the view. */
     expand?: boolean;
     /** Factory for populating list items. */
@@ -4267,7 +4705,14 @@ export interface GtkColumnViewColumnProps {
 
 /** Presents a large dynamic list of items using multiple columns with headers. */
 export interface GtkColumnViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkScrollableProps {
     /** Allow rubberband selection. */
     enableRubberband?: boolean;
     'enable-rubberband'?: boolean;
@@ -4306,7 +4751,7 @@ export interface GtkColumnViewProps
 }
 
 /** Configures how rows are displayed in a [class@Gtk.ColumnView]. */
-export interface GtkColumnViewRowProps {
+export interface GtkColumnViewRowProps extends GObjectProps {
     /** The accessible description to set on the row. */
     accessibleDescription?: string;
     'accessible-description'?: string;
@@ -4327,12 +4772,14 @@ export interface GtkColumnViewRowProps {
 }
 
 /** Sorts [class@Gtk.ColumnView] columns. */
-export interface GtkColumnViewSorterProps extends GtkSorterProps {}
+export interface GtkColumnViewSorterProps extends GtkSorterProps, GObjectProps {}
 
 /** A `GtkComboBox` is a widget that allows the user to choose from a list of valid choices. */
 export interface GtkComboBoxProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkCellEditableProps,
@@ -4388,6 +4835,8 @@ export interface GtkComboBoxTextProps
     extends
         GtkComboBoxProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkCellEditableProps,
@@ -4398,7 +4847,7 @@ export interface GtkComboBoxTextProps
 export interface GtkConstantExpressionProps extends GtkExpressionProps {}
 
 /** An invisible layout element in a `GtkConstraintLayout`. */
-export interface GtkConstraintGuideProps extends GtkConstraintTargetProps {
+export interface GtkConstraintGuideProps extends GObjectProps, GtkConstraintTargetProps {
     /** The maximum height of the guide. */
     maxHeight?: number;
     'max-height'?: number;
@@ -4432,13 +4881,13 @@ export interface GtkConstraintGuideProps extends GtkConstraintTargetProps {
 }
 
 /** `GtkLayoutChild` subclass for children in a `GtkConstraintLayout`. */
-export interface GtkConstraintLayoutChildProps extends GtkLayoutChildProps {}
+export interface GtkConstraintLayoutChildProps extends GtkLayoutChildProps, GObjectProps {}
 
 /** Uses constraints to describe relations between widgets. */
-export interface GtkConstraintLayoutProps extends GtkLayoutManagerProps, GtkBuildableProps {}
+export interface GtkConstraintLayoutProps extends GtkLayoutManagerProps, GObjectProps, GtkBuildableProps {}
 
 /** Describes a constraint between attributes of two widgets, expressed as a linear equation. */
-export interface GtkConstraintProps {
+export interface GtkConstraintProps extends GObjectProps {
     /** The constant value to be added to the [property@Gtk.Constraint:source-attribute]. */
     constant?: number;
     /** The multiplication factor to be applied to the [property@Gtk.Constraint:source-attribute]. */
@@ -4471,7 +4920,7 @@ export interface GtkConstraintProps {
 export interface GtkConstraintTargetProps {}
 
 /** A style provider for CSS. */
-export interface GtkCssProviderProps extends GtkStyleProviderProps {
+export interface GtkCssProviderProps extends GObjectProps, GtkStyleProviderProps {
     /** Define the color scheme used for rendering the user interface. */
     prefersColorScheme?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
     'prefers-color-scheme'?: GtkInterfaceColorSchemeNick | Gtk.InterfaceColorScheme;
@@ -4488,19 +4937,21 @@ export interface GtkCssProviderProps extends GtkStyleProviderProps {
 }
 
 /** Determines whether to include items with a callback. */
-export interface GtkCustomFilterProps extends GtkFilterProps {}
+export interface GtkCustomFilterProps extends GtkFilterProps, GObjectProps {}
 
 /** Uses closures for size negotiation. */
-export interface GtkCustomLayoutProps extends GtkLayoutManagerProps {}
+export interface GtkCustomLayoutProps extends GtkLayoutManagerProps, GObjectProps {}
 
 /** Sorts items via a callback function. */
-export interface GtkCustomSorterProps extends GtkSorterProps {}
+export interface GtkCustomSorterProps extends GtkSorterProps, GObjectProps {}
 
 /** Dialogs are a convenient way to prompt the user for a small amount of input. */
 export interface GtkDialogProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -4519,7 +4970,7 @@ export interface GtkDialogProps
 }
 
 /** A list model that wraps [method@Gio.File.enumerate_children_async]. */
-export interface GtkDirectoryListProps {
+export interface GtkDirectoryListProps extends GObjectProps, GListModelProps {
     /** The attributes to query. */
     attributes?: string | null;
     /** File to query. */
@@ -4539,6 +4990,8 @@ export interface GtkDirectoryListProps {
 export interface GtkDragIconProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -4550,7 +5003,8 @@ export interface GtkDragIconProps
 }
 
 /** An event controller to initiate Drag-And-Drop operations. */
-export interface GtkDragSourceProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkDragSourceProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** The actions that are supported by drag operations from the source. */
     actions?: number;
     /** The data that is offered by drag operations from this source. */
@@ -4565,7 +5019,13 @@ export interface GtkDragSourceProps extends GtkGestureSingleProps, GtkGesturePro
 
 /** Allows drawing with cairo. */
 export interface GtkDrawingAreaProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The content height. */
     contentHeight?: number;
     'content-height'?: number;
@@ -4578,7 +5038,7 @@ export interface GtkDrawingAreaProps
 }
 
 /** An event controller tracking the pointer during Drag-and-Drop operations. */
-export interface GtkDropControllerMotionProps extends GtkEventControllerProps {
+export interface GtkDropControllerMotionProps extends GtkEventControllerProps, GObjectProps {
     onEnter?: Gtk.DropControllerMotion.SignalSignatures['enter'];
     onLeave?: Gtk.DropControllerMotion.SignalSignatures['leave'];
     onMotion?: Gtk.DropControllerMotion.SignalSignatures['motion'];
@@ -4586,7 +5046,13 @@ export interface GtkDropControllerMotionProps extends GtkEventControllerProps {
 
 /** Allows the user to choose an item from a list of options. */
 export interface GtkDropDownProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether to show a search entry in the popup. */
     enableSearch?: boolean;
     'enable-search'?: boolean;
@@ -4623,7 +5089,7 @@ export interface GtkDropDownProps
 }
 
 /** An event controller to receive Drag-and-Drop operations, asynchronously. */
-export interface GtkDropTargetAsyncProps extends GtkEventControllerProps {
+export interface GtkDropTargetAsyncProps extends GtkEventControllerProps, GObjectProps {
     /** The `GdkDragActions` that this drop target supports. */
     actions?: number;
     /** The `GdkContentFormats` that determines the supported data formats. */
@@ -4638,7 +5104,7 @@ export interface GtkDropTargetAsyncProps extends GtkEventControllerProps {
 }
 
 /** An event controller to receive Drag-and-Drop operations. */
-export interface GtkDropTargetProps extends GtkEventControllerProps {
+export interface GtkDropTargetProps extends GtkEventControllerProps, GObjectProps {
     /** The `GdkDragActions` that this drop target supports. */
     actions?: number;
     /** The `GdkContentFormats` that determine the supported data formats. */
@@ -4657,7 +5123,14 @@ export interface GtkDropTargetProps extends GtkEventControllerProps {
 
 /** Allows users to edit the displayed text by switching to an “edit mode”. */
 export interface GtkEditableLabelProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkEditableProps {
     /** This property is %TRUE while the widget is in edit mode. */
     editing?: boolean;
     onNotifyEditing?: NotifyHandler;
@@ -4701,6 +5174,8 @@ export interface GtkEmojiChooserProps
     extends
         GtkPopoverProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -4710,7 +5185,7 @@ export interface GtkEmojiChooserProps
 }
 
 /** Holds the text that is displayed in a single-line text entry widget. */
-export interface GtkEntryBufferProps {
+export interface GtkEntryBufferProps extends GObjectProps {
     /** The maximum length (in characters) of the text in the buffer. */
     maxLength?: number;
     'max-length'?: number;
@@ -4723,7 +5198,7 @@ export interface GtkEntryBufferProps {
 }
 
 /** `GtkEntryCompletion` is an auxiliary object to provide completion functionality for `GtkEntry`. */
-export interface GtkEntryCompletionProps extends GtkBuildableProps, GtkCellLayoutProps {
+export interface GtkEntryCompletionProps extends GObjectProps, GtkBuildableProps, GtkCellLayoutProps {
     /** The `GtkCellArea` used to layout cell renderers in the treeview column. */
     cellArea?: Gtk.CellArea;
     'cell-area'?: Gtk.CellArea;
@@ -4769,6 +5244,8 @@ export interface GtkEntryCompletionProps extends GtkBuildableProps, GtkCellLayou
 export interface GtkEntryProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkCellEditableProps,
@@ -4926,10 +5403,10 @@ export interface GtkEntryProps
 }
 
 /** `GtkEnumListItem` is the type of items in a [class@Gtk.EnumList]. */
-export interface GtkEnumListItemProps {}
+export interface GtkEnumListItemProps extends GObjectProps {}
 
 /** A [iface@Gio.ListModel] representing values of a given enum. */
-export interface GtkEnumListProps {
+export interface GtkEnumListProps extends GObjectProps, GListModelProps {
     /** The type of the enum represented by the model. */
     enumType?: GObject.GType;
     'enum-type'?: GObject.GType;
@@ -4937,13 +5414,13 @@ export interface GtkEnumListProps {
 }
 
 /** Tracks keyboard focus. */
-export interface GtkEventControllerFocusProps extends GtkEventControllerProps {
+export interface GtkEventControllerFocusProps extends GtkEventControllerProps, GObjectProps {
     onEnter?: Gtk.EventControllerFocus.SignalSignatures['enter'];
     onLeave?: Gtk.EventControllerFocus.SignalSignatures['leave'];
 }
 
 /** Provides access to key events. */
-export interface GtkEventControllerKeyProps extends GtkEventControllerProps {
+export interface GtkEventControllerKeyProps extends GtkEventControllerProps, GObjectProps {
     onImUpdate?: Gtk.EventControllerKey.SignalSignatures['im-update'];
     onKeyPressed?: Gtk.EventControllerKey.SignalSignatures['key-pressed'];
     onKeyReleased?: Gtk.EventControllerKey.SignalSignatures['key-released'];
@@ -4951,12 +5428,12 @@ export interface GtkEventControllerKeyProps extends GtkEventControllerProps {
 }
 
 /** Provides raw access to the event stream. */
-export interface GtkEventControllerLegacyProps extends GtkEventControllerProps {
+export interface GtkEventControllerLegacyProps extends GtkEventControllerProps, GObjectProps {
     onEvent?: Gtk.EventControllerLegacy.SignalSignatures['event'];
 }
 
 /** Tracks the pointer position. */
-export interface GtkEventControllerMotionProps extends GtkEventControllerProps {
+export interface GtkEventControllerMotionProps extends GtkEventControllerProps, GObjectProps {
     onEnter?: Gtk.EventControllerMotion.SignalSignatures['enter'];
     onLeave?: Gtk.EventControllerMotion.SignalSignatures['leave'];
     onMotion?: Gtk.EventControllerMotion.SignalSignatures['motion'];
@@ -4978,7 +5455,7 @@ export interface GtkEventControllerProps {
 }
 
 /** Handles scroll events. */
-export interface GtkEventControllerScrollProps extends GtkEventControllerProps {
+export interface GtkEventControllerScrollProps extends GtkEventControllerProps, GObjectProps {
     /** The flags affecting event controller behavior. */
     flags?: number;
     onDecelerate?: Gtk.EventControllerScroll.SignalSignatures['decelerate'];
@@ -4989,11 +5466,18 @@ export interface GtkEventControllerScrollProps extends GtkEventControllerProps {
 }
 
 /** Matches an item when each of its filters matches. */
-export interface GtkEveryFilterProps extends GtkMultiFilterProps, GtkFilterProps, GtkBuildableProps {}
+export interface GtkEveryFilterProps
+    extends GtkMultiFilterProps, GtkFilterProps, GObjectProps, GListModelProps, GtkBuildableProps {}
 
 /** Allows the user to reveal or conceal a child widget. */
 export interface GtkExpanderProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Whether the expander has been opened to reveal the child. */
@@ -5031,6 +5515,8 @@ export interface GtkFileChooserDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -5040,7 +5526,7 @@ export interface GtkFileChooserDialogProps
         GtkShortcutManagerProps {}
 
 /** `GtkFileChooserNative` is an abstraction of a dialog suitable for use with “File Open” or “File Save as” commands. */
-export interface GtkFileChooserNativeProps extends GtkNativeDialogProps, GtkFileChooserProps {
+export interface GtkFileChooserNativeProps extends GtkNativeDialogProps, GObjectProps, GtkFileChooserProps {
     /** The text used for the label on the accept button in the dialog, or %NULL to use the default text. */
     acceptLabel?: string | null;
     'accept-label'?: string | null;
@@ -5083,7 +5569,14 @@ export interface GtkFileChooserProps {
 
 /** `GtkFileChooserWidget` is a widget for choosing files. */
 export interface GtkFileChooserWidgetProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFileChooserProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkFileChooserProps {
     /** Whether search mode is enabled. */
     searchMode?: boolean;
     'search-mode'?: boolean;
@@ -5103,7 +5596,7 @@ export interface GtkFileChooserWidgetProps
 }
 
 /** Asynchronous API to present a file chooser dialog. */
-export interface GtkFileDialogProps {
+export interface GtkFileDialogProps extends GObjectProps {
     /** Label for the file chooser's accept button. */
     acceptLabel?: string | null;
     'accept-label'?: string | null;
@@ -5136,7 +5629,7 @@ export interface GtkFileDialogProps {
 }
 
 /** Filters files by name or mime type. */
-export interface GtkFileFilterProps extends GtkFilterProps, GtkBuildableProps {
+export interface GtkFileFilterProps extends GtkFilterProps, GObjectProps, GtkBuildableProps {
     /** The MIME types that this filter matches. */
     mimeTypes?: string[];
     'mime-types'?: string[];
@@ -5153,7 +5646,7 @@ export interface GtkFileFilterProps extends GtkFilterProps, GtkBuildableProps {
 }
 
 /** Asynchronous API to open a file with an application. */
-export interface GtkFileLauncherProps {
+export interface GtkFileLauncherProps extends GObjectProps {
     /** Whether to ask the user to choose an app for opening the file. */
     alwaysAsk?: boolean;
     'always-ask'?: boolean;
@@ -5167,7 +5660,7 @@ export interface GtkFileLauncherProps {
 }
 
 /** A list model that filters the elements of another model. */
-export interface GtkFilterListModelProps extends GtkSectionModelProps {
+export interface GtkFilterListModelProps extends GObjectProps, GListModelProps, GtkSectionModelProps {
     /** The filter for this model. */
     filter?: Gtk.Filter | null;
     /** If the model should filter items incrementally. */
@@ -5184,26 +5677,32 @@ export interface GtkFilterListModelProps extends GtkSectionModelProps {
 }
 
 /** Describes the filtering to be performed by a [class@Gtk.FilterListModel]. */
-export interface GtkFilterProps {
+export interface GtkFilterProps extends GObjectProps {
     onChanged?: Gtk.Filter.SignalSignatures['changed'];
 }
 
 /** `GtkLayoutChild` subclass for children in a `GtkFixedLayout`. */
-export interface GtkFixedLayoutChildProps extends GtkLayoutChildProps {
+export interface GtkFixedLayoutChildProps extends GtkLayoutChildProps, GObjectProps {
     /** The transform of the child. */
     transform?: Gsk.Transform | null;
     onNotifyTransform?: NotifyHandler;
 }
 
 /** Places child widgets at fixed positions. */
-export interface GtkFixedLayoutProps extends GtkLayoutManagerProps {}
+export interface GtkFixedLayoutProps extends GtkLayoutManagerProps, GObjectProps {}
 
 /** Places its child widgets at fixed positions and with fixed sizes. */
 export interface GtkFixedProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {}
 
 /** A list model that concatenates other list models. */
-export interface GtkFlattenListModelProps extends GtkSectionModelProps {
+export interface GtkFlattenListModelProps extends GObjectProps, GListModelProps, GtkSectionModelProps {
     /** The model being flattened. */
     model?: Gio.ListModel | null;
     onNotifyModel?: NotifyHandler;
@@ -5211,7 +5710,13 @@ export interface GtkFlattenListModelProps extends GtkSectionModelProps {
 
 /** The kind of widget that can be added to a `GtkFlowBox`. */
 export interface GtkFlowBoxChildProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     onActivate?: Gtk.FlowBoxChild.SignalSignatures['activate'];
@@ -5220,7 +5725,14 @@ export interface GtkFlowBoxChildProps
 
 /** Puts child widgets in a reflowing grid. */
 export interface GtkFlowBoxProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** Whether to accept unpaired release events. */
     acceptUnpairedRelease?: boolean;
     'accept-unpaired-release'?: boolean;
@@ -5263,7 +5775,14 @@ export interface GtkFlowBoxProps
 
 /** The `GtkFontButton` allows to open a font chooser dialog to change the font. */
 export interface GtkFontButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFontChooserProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkFontChooserProps {
     /** Whether the font chooser dialog should be modal. */
     modal?: boolean;
     /** The title of the font chooser dialog. */
@@ -5288,6 +5807,8 @@ export interface GtkFontChooserDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -5342,11 +5863,24 @@ export interface GtkFontChooserProps {
 
 /** The `GtkFontChooserWidget` widget lets the user select a font. */
 export interface GtkFontChooserWidgetProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFontChooserProps {}
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkFontChooserProps {}
 
 /** Opens a font chooser dialog to select a font. */
 export interface GtkFontDialogButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The `GtkFontDialog` that contains parameters for the font chooser dialog. */
     dialog?: Gtk.FontDialog | null;
     /** The selected font. */
@@ -5376,7 +5910,7 @@ export interface GtkFontDialogButtonProps
 }
 
 /** Asynchronous API to present a font chooser dialog. */
-export interface GtkFontDialogProps {
+export interface GtkFontDialogProps extends GObjectProps {
     /** A filter to restrict what fonts are shown in the font chooser dialog. */
     filter?: Gtk.Filter | null;
     /** A custom font map to select fonts from. */
@@ -5396,7 +5930,14 @@ export interface GtkFontDialogProps {
 }
 
 /** Surrounds its child with a decorative frame and an optional label. */
-export interface GtkFrameProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+export interface GtkFrameProps
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Text of the frame's label. */
@@ -5415,7 +5956,13 @@ export interface GtkFrameProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
 
 /** Allows drawing with OpenGL. */
 export interface GtkGLAreaProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The allowed APIs. */
     allowedApis?: number;
     'allowed-apis'?: number;
@@ -5445,7 +5992,8 @@ export interface GtkGLAreaProps
 }
 
 /** Recognizes click gestures. */
-export interface GtkGestureClickProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureClickProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     onPressed?: Gtk.GestureClick.SignalSignatures['pressed'];
     onReleased?: Gtk.GestureClick.SignalSignatures['released'];
     onStopped?: Gtk.GestureClick.SignalSignatures['stopped'];
@@ -5453,14 +6001,16 @@ export interface GtkGestureClickProps extends GtkGestureSingleProps, GtkGestureP
 }
 
 /** Recognizes drag gestures. */
-export interface GtkGestureDragProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureDragProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     onDragBegin?: Gtk.GestureDrag.SignalSignatures['drag-begin'];
     onDragEnd?: Gtk.GestureDrag.SignalSignatures['drag-end'];
     onDragUpdate?: Gtk.GestureDrag.SignalSignatures['drag-update'];
 }
 
 /** Recognizes long press gestures. */
-export interface GtkGestureLongPressProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureLongPressProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** Factor by which to modify the default timeout. */
     delayFactor?: number;
     'delay-factor'?: number;
@@ -5471,7 +6021,7 @@ export interface GtkGestureLongPressProps extends GtkGestureSingleProps, GtkGest
 
 /** Recognizes pan gestures. */
 export interface GtkGesturePanProps
-    extends GtkGestureDragProps, GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+    extends GtkGestureDragProps, GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** The expected orientation of pan gestures. */
     orientation?: GtkOrientationNick | Gtk.Orientation;
     onPan?: Gtk.GesturePan.SignalSignatures['pan'];
@@ -5492,12 +6042,12 @@ export interface GtkGestureProps {
 }
 
 /** Recognizes 2-finger rotation gestures. */
-export interface GtkGestureRotateProps extends GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureRotateProps extends GtkGestureProps, GtkEventControllerProps, GObjectProps {
     onAngleChanged?: Gtk.GestureRotate.SignalSignatures['angle-changed'];
 }
 
 /** A `GtkGesture` subclass optimized for singe-touch and mouse gestures. */
-export interface GtkGestureSingleProps extends GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureSingleProps extends GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** Mouse button number to listen to, or 0 to listen for any button. */
     button?: number;
     /** Whether the gesture is exclusive. */
@@ -5511,7 +6061,8 @@ export interface GtkGestureSingleProps extends GtkGestureProps, GtkEventControll
 }
 
 /** Recognizes tablet stylus input. */
-export interface GtkGestureStylusProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureStylusProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** If this gesture should exclusively react to stylus input devices. */
     stylusOnly?: boolean;
     'stylus-only'?: boolean;
@@ -5523,18 +6074,25 @@ export interface GtkGestureStylusProps extends GtkGestureSingleProps, GtkGesture
 }
 
 /** Recognizes swipe gestures. */
-export interface GtkGestureSwipeProps extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureSwipeProps
+    extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     onSwipe?: Gtk.GestureSwipe.SignalSignatures['swipe'];
 }
 
 /** Recognizes 2-finger pinch/zoom gestures. */
-export interface GtkGestureZoomProps extends GtkGestureProps, GtkEventControllerProps {
+export interface GtkGestureZoomProps extends GtkGestureProps, GtkEventControllerProps, GObjectProps {
     onScaleChanged?: Gtk.GestureZoom.SignalSignatures['scale-changed'];
 }
 
 /** Bypasses gsk rendering by passing the content of its child directly to the compositor. */
 export interface GtkGraphicsOffloadProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether to draw a black background. */
     blackBackground?: boolean;
     'black-background'?: boolean;
@@ -5548,7 +6106,7 @@ export interface GtkGraphicsOffloadProps
 }
 
 /** `GtkLayoutChild` subclass for children in a `GtkGridLayout`. */
-export interface GtkGridLayoutChildProps extends GtkLayoutChildProps {
+export interface GtkGridLayoutChildProps extends GtkLayoutChildProps, GObjectProps {
     /** The column to place the child in. */
     column?: number;
     /** The number of columns the child spans to. */
@@ -5566,7 +6124,7 @@ export interface GtkGridLayoutChildProps extends GtkLayoutChildProps {
 }
 
 /** Arranges child widgets in rows and columns. */
-export interface GtkGridLayoutProps extends GtkLayoutManagerProps {
+export interface GtkGridLayoutProps extends GtkLayoutManagerProps, GObjectProps {
     /** The row to align to the baseline, when `GtkWidget:valign` is set to %GTK_ALIGN_BASELINE. */
     baselineRow?: number;
     'baseline-row'?: number;
@@ -5591,7 +6149,14 @@ export interface GtkGridLayoutProps extends GtkLayoutManagerProps {
 
 /** Arranges its child widgets in rows and columns. */
 export interface GtkGridProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The row to align to the baseline when valign is using baseline alignment. */
     baselineRow?: number;
     'baseline-row'?: number;
@@ -5619,6 +6184,8 @@ export interface GtkGridViewProps
     extends
         GtkListBaseProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -5655,7 +6222,13 @@ export interface GtkGridViewProps
 
 /** Creates a custom titlebar for a window. */
 export interface GtkHeaderBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The decoration layout for buttons. */
     decorationLayout?: string | null;
     'decoration-layout'?: string | null;
@@ -5694,13 +6267,13 @@ export interface GtkIMContextProps {
 }
 
 /** Supports compose sequences, dead keys and numeric Unicode input. */
-export interface GtkIMContextSimpleProps extends GtkIMContextProps {}
+export interface GtkIMContextSimpleProps extends GtkIMContextProps, GObjectProps {}
 
 /** Supports switching between multiple input methods. */
-export interface GtkIMMulticontextProps extends GtkIMContextProps {}
+export interface GtkIMMulticontextProps extends GtkIMContextProps, GObjectProps {}
 
 /** Contains information found when looking up an icon in `GtkIconTheme` or loading it from a file. */
-export interface GtkIconPaintableProps extends GtkSymbolicPaintableProps {
+export interface GtkIconPaintableProps extends GObjectProps, GdkPaintableProps, GtkSymbolicPaintableProps {
     /** The file representing the icon, if any. */
     file?: Gio.File | null;
     /**
@@ -5725,7 +6298,7 @@ export interface GtkIconPaintableProps extends GtkSymbolicPaintableProps {
 }
 
 /** Loads themed icons. */
-export interface GtkIconThemeProps {
+export interface GtkIconThemeProps extends GObjectProps {
     /** The display that this icon theme object is attached to. */
     display?: Gdk.Display | null;
     /** Resource paths that will be looked at when looking for icons, similar to search paths. */
@@ -5748,6 +6321,8 @@ export interface GtkIconThemeProps {
 export interface GtkIconViewProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkCellLayoutProps,
@@ -5827,7 +6402,14 @@ export interface GtkIconViewProps
 }
 
 /** Displays an image. */
-export interface GtkImageProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+export interface GtkImageProps
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** A path to the file to display. */
     file?: string;
     /** The `GIcon` displayed in the GtkImage. */
@@ -5860,7 +6442,13 @@ export interface GtkImageProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
 
 /** `GtkInfoBar` can be used to show messages to the user without a dialog. */
 export interface GtkInfoBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The type of the message. */
     messageType?: GtkMessageTypeNick | Gtk.MessageType;
     'message-type'?: GtkMessageTypeNick | Gtk.MessageType;
@@ -5878,7 +6466,14 @@ export interface GtkInfoBarProps
 
 /** Shows text in a predefined area. */
 export interface GtkInscriptionProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkAccessibleTextProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkAccessibleTextProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** A list of style attributes to apply to the text of the inscription. */
     attributes?: Pango.AttrList | null;
     /** Utility property that sets both the [property@Gtk.Inscription:text] and [property@Gtk.Inscription:attributes] properties, mainly intended for use in GtkBuilder ui files to ease translation support an… */
@@ -5921,7 +6516,7 @@ export interface GtkInscriptionProps
 }
 
 /** Triggers when a specific keyval and modifiers are pressed. */
-export interface GtkKeyvalTriggerProps extends GtkShortcutTriggerProps {
+export interface GtkKeyvalTriggerProps extends GtkShortcutTriggerProps, GObjectProps {
     /** The key value for the trigger. */
     keyval?: number;
     /** The key modifiers for the trigger. */
@@ -5934,6 +6529,8 @@ export interface GtkKeyvalTriggerProps extends GtkShortcutTriggerProps {
 export interface GtkLabelProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleHypertextProps,
         GtkAccessibleTextProps,
@@ -6030,6 +6627,8 @@ export interface GtkLayoutManagerProps {}
 export interface GtkLevelBarProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -6060,6 +6659,8 @@ export interface GtkLinkButtonProps
     extends
         GtkButtonProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -6082,7 +6683,13 @@ export interface GtkListBaseProps {
 
 /** Shows a vertical list. */
 export interface GtkListBoxProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether to accept unpaired release events. */
     acceptUnpairedRelease?: boolean;
     'accept-unpaired-release'?: boolean;
@@ -6115,7 +6722,14 @@ export interface GtkListBoxProps
 
 /** The kind of widget that can be added to a `GtkListBox`. */
 export interface GtkListBoxRowProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Determines whether the ::row-activated signal will be emitted for this row. */
     activatable?: boolean;
     /** The child widget. */
@@ -6129,17 +6743,17 @@ export interface GtkListBoxRowProps
 }
 
 /** Used by list widgets to represent the headers they display. */
-export interface GtkListHeaderProps {
+export interface GtkListHeaderProps extends GObjectProps {
     /** Widget used for display. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
 }
 
 /** Creates widgets for the items taken from a `GListModel`. */
-export interface GtkListItemFactoryProps {}
+export interface GtkListItemFactoryProps extends GObjectProps {}
 
 /** Used by list widgets to represent items in a [iface@Gio.ListModel]. */
-export interface GtkListItemProps {
+export interface GtkListItemProps extends GObjectProps {
     /** The accessible description to set on the listitem. */
     accessibleDescription?: string;
     'accessible-description'?: string;
@@ -6164,13 +6778,21 @@ export interface GtkListItemProps {
 
 /** A list-like data structure that can be used with the [class@Gtk.TreeView]. */
 export interface GtkListStoreProps
-    extends GtkBuildableProps, GtkTreeDragDestProps, GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {}
+    extends
+        GObjectProps,
+        GtkBuildableProps,
+        GtkTreeDragDestProps,
+        GtkTreeDragSourceProps,
+        GtkTreeModelProps,
+        GtkTreeSortableProps {}
 
 /** Presents a large dynamic list of items. */
 export interface GtkListViewProps
     extends
         GtkListBaseProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6210,6 +6832,8 @@ export interface GtkLockButtonProps
     extends
         GtkButtonProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -6258,7 +6882,7 @@ export interface GtkLockButtonProps
 }
 
 /** A list model that maps the items in another model to different items. */
-export interface GtkMapListModelProps extends GtkSectionModelProps {
+export interface GtkMapListModelProps extends GObjectProps, GListModelProps, GtkSectionModelProps {
     /** The model being mapped. */
     model?: Gio.ListModel | null;
     onNotifyModel?: NotifyHandler;
@@ -6266,7 +6890,13 @@ export interface GtkMapListModelProps extends GtkSectionModelProps {
 
 /** Shows controls for video playback. */
 export interface GtkMediaControlsProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The media-stream managed by this object or %NULL if none. */
     mediaStream?: Gtk.MediaStream | null;
     'media-stream'?: Gtk.MediaStream | null;
@@ -6275,7 +6905,13 @@ export interface GtkMediaControlsProps
 
 /** Displays a popup when clicked. */
 export interface GtkMenuButtonProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the menu button is active. */
     active?: boolean;
     /** Whether to show a dropdown arrow even when using an icon or a custom child. */
@@ -6327,6 +6963,8 @@ export interface GtkMessageDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6358,17 +6996,17 @@ export interface GtkMessageDialogProps
 }
 
 /** Activates a widget with a mnemonic. */
-export interface GtkMnemonicActionProps extends GtkShortcutActionProps {}
+export interface GtkMnemonicActionProps extends GtkShortcutActionProps, GObjectProps {}
 
 /** Triggers when a specific mnemonic is pressed. */
-export interface GtkMnemonicTriggerProps extends GtkShortcutTriggerProps {
+export interface GtkMnemonicTriggerProps extends GtkShortcutTriggerProps, GObjectProps {
     /** The key value for the trigger. */
     keyval?: number;
     onNotifyKeyval?: NotifyHandler;
 }
 
 /** Asks the user for passwords and other information required to mount a volume. */
-export interface GtkMountOperationProps extends GMountOperationProps {
+export interface GtkMountOperationProps extends GMountOperationProps, GObjectProps {
     /** The display where dialogs will be shown. */
     display?: Gdk.Display;
     /** The parent window. */
@@ -6381,17 +7019,18 @@ export interface GtkMountOperationProps extends GMountOperationProps {
 export interface GtkMultiFilterProps {}
 
 /** A selection model that allows selecting multiple elements. */
-export interface GtkMultiSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+export interface GtkMultiSelectionProps
+    extends GObjectProps, GListModelProps, GtkSectionModelProps, GtkSelectionModelProps {
     /** The list managed by this selection. */
     model?: Gio.ListModel | null;
     onNotifyModel?: NotifyHandler;
 }
 
 /** Combines multiple sorters by trying them in turn. */
-export interface GtkMultiSorterProps extends GtkSorterProps, GtkBuildableProps {}
+export interface GtkMultiSorterProps extends GtkSorterProps, GObjectProps, GListModelProps, GtkBuildableProps {}
 
 /** Activates a named action. */
-export interface GtkNamedActionProps extends GtkShortcutActionProps {
+export interface GtkNamedActionProps extends GtkShortcutActionProps, GObjectProps {
     /** The name of the action to activate. */
     actionName?: string;
     'action-name'?: string;
@@ -6420,17 +7059,18 @@ export interface GtkNativeDialogProps {
 export interface GtkNativeProps {}
 
 /** A `GtkShortcutTrigger` that never triggers. */
-export interface GtkNeverTriggerProps extends GtkShortcutTriggerProps {}
+export interface GtkNeverTriggerProps extends GtkShortcutTriggerProps, GObjectProps {}
 
 /** A selection model that does not allow selecting anything. */
-export interface GtkNoSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+export interface GtkNoSelectionProps
+    extends GObjectProps, GListModelProps, GtkSectionModelProps, GtkSelectionModelProps {
     /** The model being managed. */
     model?: Gio.ListModel | null;
     onNotifyModel?: NotifyHandler;
 }
 
 /** An auxiliary object used by `GtkNotebook`. */
-export interface GtkNotebookPageProps {
+export interface GtkNotebookPageProps extends GObjectProps {
     /** The child for this page. */
     child?: Gtk.Widget;
     /** Whether the tab is detachable. */
@@ -6469,7 +7109,13 @@ export interface GtkNotebookPageProps {
 
 /** Switches between children using tabs. */
 export interface GtkNotebookProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** If %TRUE, pressing the right mouse button on the notebook shows a page switching menu. */
     enablePopup?: boolean;
     'enable-popup'?: boolean;
@@ -6509,10 +7155,10 @@ export interface GtkNotebookProps
 }
 
 /** Does nothing. */
-export interface GtkNothingActionProps extends GtkShortcutActionProps {}
+export interface GtkNothingActionProps extends GtkShortcutActionProps, GObjectProps {}
 
 /** Sorts items numerically. */
-export interface GtkNumericSorterProps extends GtkSorterProps {
+export interface GtkNumericSorterProps extends GtkSorterProps, GObjectProps {
     /** The expression to evaluate on items to get a number to compare with. */
     expression?: Gtk.Expression | null;
     /** Whether the sorter will sort smaller numbers first. */
@@ -6533,7 +7179,7 @@ export interface GtkOrientableProps {
 }
 
 /** `GtkLayoutChild` subclass for children in a `GtkOverlayLayout`. */
-export interface GtkOverlayLayoutChildProps extends GtkLayoutChildProps {
+export interface GtkOverlayLayoutChildProps extends GtkLayoutChildProps, GObjectProps {
     /** Whether the child should be clipped to fit the parent's size. */
     clipOverlay?: boolean;
     'clip-overlay'?: boolean;
@@ -6544,11 +7190,17 @@ export interface GtkOverlayLayoutChildProps extends GtkLayoutChildProps {
 }
 
 /** The layout manager used by [class@Gtk.Overlay]. */
-export interface GtkOverlayLayoutProps extends GtkLayoutManagerProps {}
+export interface GtkOverlayLayoutProps extends GtkLayoutManagerProps, GObjectProps {}
 
 /** Places “overlay” widgets on top of a single main child. */
 export interface GtkOverlayProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The main child widget. */
     child?: Gtk.Widget | null;
     onGetChildPosition?: Gtk.Overlay.SignalSignatures['get-child-position'];
@@ -6556,7 +7208,7 @@ export interface GtkOverlayProps
 }
 
 /** Handles input from the pads found in drawing tablets. */
-export interface GtkPadControllerProps extends GtkEventControllerProps {
+export interface GtkPadControllerProps extends GtkEventControllerProps, GObjectProps {
     /** The action group of the controller. */
     actionGroup?: Gio.ActionGroup;
     'action-group'?: Gio.ActionGroup;
@@ -6567,7 +7219,7 @@ export interface GtkPadControllerProps extends GtkEventControllerProps {
 }
 
 /** Stores page size, orientation and margins for printing. */
-export interface GtkPageSetupProps {}
+export interface GtkPageSetupProps extends GObjectProps {}
 
 /** Presents a page setup dialog for platforms which don’t provide a native page setup dialog, like Unix. */
 export interface GtkPageSetupUnixDialogProps
@@ -6575,6 +7227,8 @@ export interface GtkPageSetupUnixDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6586,6 +7240,8 @@ export interface GtkPageSetupUnixDialogProps
 export interface GtkPanedProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -6635,14 +7291,21 @@ export interface GtkPanedProps
 }
 
 /** A `GParamSpec` for properties holding a `GtkExpression`. */
-export interface GtkParamSpecExpressionProps {}
+export interface GtkParamSpecExpressionProps extends GParamProps {}
 
 /** A `GtkEntryBuffer` that locks the underlying memory to prevent it from being swapped to disk. */
-export interface GtkPasswordEntryBufferProps extends GtkEntryBufferProps {}
+export interface GtkPasswordEntryBufferProps extends GtkEntryBufferProps, GObjectProps {}
 
 /** A single-line text entry widget for entering passwords and other secrets. */
 export interface GtkPasswordEntryProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkEditableProps {
     /** Whether to activate the default widget when Enter is pressed. */
     activatesDefault?: boolean;
     'activates-default'?: boolean;
@@ -6664,7 +7327,13 @@ export interface GtkPasswordEntryProps
 
 /** Displays a `GdkPaintable`. */
 export interface GtkPictureProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The alternative textual description for the picture. */
     alternativeText?: string | null;
     'alternative-text'?: string | null;
@@ -6698,7 +7367,13 @@ export interface GtkPictureProps
 
 /** A single child container with a popover. */
 export interface GtkPopoverBinProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget of the popover bin. */
     child?: Gtk.Widget | null;
     /** Whether the popover bin will handle input to trigger the popup. */
@@ -6717,7 +7392,13 @@ export interface GtkPopoverBinProps
 
 /** Presents a horizontal bar of items that pop up menus when clicked. */
 export interface GtkPopoverMenuBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The `GMenuModel` from which the menu bar is created. */
     menuModel?: Gio.MenuModel | null;
     'menu-model'?: Gio.MenuModel | null;
@@ -6729,6 +7410,8 @@ export interface GtkPopoverMenuProps
     extends
         GtkPopoverProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6751,6 +7434,8 @@ export interface GtkPopoverMenuProps
 export interface GtkPopoverProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6790,10 +7475,10 @@ export interface GtkPopoverProps
 }
 
 /** Encapsulates context information that is required when drawing pages for printing. */
-export interface GtkPrintContextProps {}
+export interface GtkPrintContextProps extends GObjectProps {}
 
 /** Asynchronous API to present a print dialog to the user. */
-export interface GtkPrintDialogProps {
+export interface GtkPrintDialogProps extends GObjectProps {
     /** A label that may be shown on the accept button of a print dialog that is presented by [method@Gtk.PrintDialog.setup]. */
     acceptLabel?: string;
     'accept-label'?: string;
@@ -6815,7 +7500,7 @@ export interface GtkPrintDialogProps {
 }
 
 /** Represents a job that is sent to a printer. */
-export interface GtkPrintJobProps {
+export interface GtkPrintJobProps extends GObjectProps {
     /** Page setup. */
     pageSetup?: Gtk.PageSetup;
     'page-setup'?: Gtk.PageSetup;
@@ -6843,7 +7528,7 @@ export interface GtkPrintOperationPreviewProps {
 }
 
 /** High-level, portable printing API. */
-export interface GtkPrintOperationProps extends GtkPrintOperationPreviewProps {
+export interface GtkPrintOperationProps extends GObjectProps, GtkPrintOperationPreviewProps {
     /** Determines whether the print operation may run asynchronously or not. */
     allowAsync?: boolean;
     'allow-async'?: boolean;
@@ -6917,7 +7602,7 @@ export interface GtkPrintOperationProps extends GtkPrintOperationPreviewProps {
 }
 
 /** Collects the settings of a print dialog in a system-independent way. */
-export interface GtkPrintSettingsProps {}
+export interface GtkPrintSettingsProps extends GObjectProps {}
 
 /** A print dialog for platforms which don’t provide a native print dialog, like Unix. */
 export interface GtkPrintUnixDialogProps
@@ -6925,6 +7610,8 @@ export interface GtkPrintUnixDialogProps
         GtkDialogProps,
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -6962,7 +7649,7 @@ export interface GtkPrintUnixDialogProps
 }
 
 /** Represents a printer. */
-export interface GtkPrinterProps {
+export interface GtkPrinterProps extends GObjectProps {
     /** %TRUE if this printer can accept PDF. */
     acceptsPdf?: boolean;
     'accepts-pdf'?: boolean;
@@ -6985,6 +7672,8 @@ export interface GtkPrinterProps {
 export interface GtkProgressBarProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7019,6 +7708,8 @@ export interface GtkPropertyExpressionProps extends GtkExpressionProps {}
 export interface GtkRangeProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7053,7 +7744,7 @@ export interface GtkRangeProps
 }
 
 /** Manages and looks up recently used files. */
-export interface GtkRecentManagerProps {
+export interface GtkRecentManagerProps extends GObjectProps {
     /** The full path to the file to be used to store and read the recently used resources list */
     filename?: string;
     onChanged?: Gtk.RecentManager.SignalSignatures['changed'];
@@ -7062,7 +7753,13 @@ export interface GtkRecentManagerProps {
 
 /** Animates the transition of its child from invisible to visible. */
 export interface GtkRevealerProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Whether the revealer should reveal the child. */
@@ -7087,6 +7784,8 @@ export interface GtkRootProps {}
 export interface GtkScaleButtonProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7115,6 +7814,8 @@ export interface GtkScaleProps
     extends
         GtkRangeProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7159,6 +7860,8 @@ export interface GtkScrollableProps {
 export interface GtkScrollbarProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7171,7 +7874,13 @@ export interface GtkScrollbarProps
 
 /** Makes its child scrollable. */
 export interface GtkScrolledWindowProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** The `GtkAdjustment` for the horizontal position. */
@@ -7237,7 +7946,13 @@ export interface GtkScrolledWindowProps
 
 /** Reveals a search entry when search is started. */
 export interface GtkSearchBarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** The key capture widget. */
@@ -7257,7 +7972,14 @@ export interface GtkSearchBarProps
 
 /** A single-line text entry widget for use as a search entry. */
 export interface GtkSearchEntryProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkEditableProps {
     /** Whether to activate the default widget when Enter is pressed. */
     activatesDefault?: boolean;
     'activates-default'?: boolean;
@@ -7296,7 +8018,7 @@ export interface GtkSectionModelProps {
 }
 
 /** A list model that presents the selection from a `GtkSelectionModel`. */
-export interface GtkSelectionFilterModelProps {
+export interface GtkSelectionFilterModelProps extends GObjectProps, GListModelProps {
     /** The model being filtered. */
     model?: Gtk.SelectionModel | null;
     onNotifyModel?: NotifyHandler;
@@ -7309,10 +8031,17 @@ export interface GtkSelectionModelProps {
 
 /** Draws a horizontal or vertical line to separate other widgets. */
 export interface GtkSeparatorProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {}
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {}
 
 /** Provides a mechanism to share global settings between applications. */
-export interface GtkSettingsProps extends GtkStyleProviderProps {
+export interface GtkSettingsProps extends GObjectProps, GtkStyleProviderProps {
     /** Whether buttons in dialogs should use the alternative button order. */
     gtkAlternativeButtonOrder?: boolean;
     'gtk-alternative-button-order'?: boolean;
@@ -7555,7 +8284,8 @@ export interface GtkSettingsProps extends GtkStyleProviderProps {
 export interface GtkShortcutActionProps {}
 
 /** Manages keyboard shortcuts and their activation. */
-export interface GtkShortcutControllerProps extends GtkEventControllerProps, GtkBuildableProps {
+export interface GtkShortcutControllerProps
+    extends GtkEventControllerProps, GObjectProps, GListModelProps, GtkBuildableProps {
     /** The modifiers that need to be pressed to allow mnemonics activation. */
     mnemonicModifiers?: number;
     'mnemonic-modifiers'?: number;
@@ -7570,7 +8300,13 @@ export interface GtkShortcutControllerProps extends GtkEventControllerProps, Gtk
 
 /** `GtkShortcutLabel` displays a single keyboard shortcut or gesture. */
 export interface GtkShortcutLabelProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /**
      * The accelerator that @self displays.
      * @deprecated
@@ -7590,7 +8326,7 @@ export interface GtkShortcutLabelProps
 export interface GtkShortcutManagerProps {}
 
 /** Describes a keyboard shortcut. */
-export interface GtkShortcutProps {
+export interface GtkShortcutProps extends GObjectProps {
     /** The action that gets activated by this shortcut. */
     action?: Gtk.ShortcutAction | null;
     /** Arguments passed to activation. */
@@ -7610,6 +8346,8 @@ export interface GtkShortcutsGroupProps
     extends
         GtkBoxProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -7647,6 +8385,8 @@ export interface GtkShortcutsSectionProps
     extends
         GtkBoxProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -7683,7 +8423,13 @@ export interface GtkShortcutsSectionProps
 
 /** A `GtkShortcutsShortcut` represents a single keyboard shortcut or gesture with a short text. */
 export interface GtkShortcutsShortcutProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /**
      * The size group for the accelerator portion of this shortcut.
      * @deprecated
@@ -7763,6 +8509,8 @@ export interface GtkShortcutsWindowProps
     extends
         GtkWindowProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,
@@ -7788,7 +8536,7 @@ export interface GtkShortcutsWindowProps
 }
 
 /** Emits a signal on a widget. */
-export interface GtkSignalActionProps extends GtkShortcutActionProps {
+export interface GtkSignalActionProps extends GtkShortcutActionProps, GObjectProps {
     /** The name of the signal to emit. */
     signalName?: string;
     'signal-name'?: string;
@@ -7796,7 +8544,7 @@ export interface GtkSignalActionProps extends GtkShortcutActionProps {
 }
 
 /** Emits signals to manage listitems. */
-export interface GtkSignalListItemFactoryProps extends GtkListItemFactoryProps {
+export interface GtkSignalListItemFactoryProps extends GtkListItemFactoryProps, GObjectProps {
     onBind?: Gtk.SignalListItemFactory.SignalSignatures['bind'];
     onSetup?: Gtk.SignalListItemFactory.SignalSignatures['setup'];
     onTeardown?: Gtk.SignalListItemFactory.SignalSignatures['teardown'];
@@ -7804,7 +8552,8 @@ export interface GtkSignalListItemFactoryProps extends GtkListItemFactoryProps {
 }
 
 /** A selection model that allows selecting a single item. */
-export interface GtkSingleSelectionProps extends GtkSectionModelProps, GtkSelectionModelProps {
+export interface GtkSingleSelectionProps
+    extends GObjectProps, GListModelProps, GtkSectionModelProps, GtkSelectionModelProps {
     /** If the selection will always select an item. */
     autoselect?: boolean;
     /** If unselecting the selected item is allowed. */
@@ -7821,14 +8570,14 @@ export interface GtkSingleSelectionProps extends GtkSectionModelProps, GtkSelect
 }
 
 /** Groups widgets together so they all request the same size. */
-export interface GtkSizeGroupProps extends GtkBuildableProps {
+export interface GtkSizeGroupProps extends GObjectProps, GtkBuildableProps {
     /** The direction in which the size group affects requested sizes. */
     mode?: GtkSizeGroupModeNick | Gtk.SizeGroupMode;
     onNotifyMode?: NotifyHandler;
 }
 
 /** A list model that presents a slice of another model. */
-export interface GtkSliceListModelProps extends GtkSectionModelProps {
+export interface GtkSliceListModelProps extends GObjectProps, GListModelProps, GtkSectionModelProps {
     /** Child model to take slice from. */
     model?: Gio.ListModel | null;
     /** Offset of slice. */
@@ -7841,10 +8590,10 @@ export interface GtkSliceListModelProps extends GtkSectionModelProps {
 }
 
 /** Assists in creating [class@Gsk.RenderNode]s for widgets. */
-export interface GtkSnapshotProps {}
+export interface GtkSnapshotProps extends GObjectProps {}
 
 /** A list model that sorts the elements of another model. */
-export interface GtkSortListModelProps extends GtkSectionModelProps {
+export interface GtkSortListModelProps extends GObjectProps, GListModelProps, GtkSectionModelProps {
     /** If the model should sort items incrementally. */
     incremental?: boolean;
     /** The model being sorted. */
@@ -7861,7 +8610,7 @@ export interface GtkSortListModelProps extends GtkSectionModelProps {
 }
 
 /** Describes sorting criteria for a [class@Gtk.SortListModel]. */
-export interface GtkSorterProps {
+export interface GtkSorterProps extends GObjectProps {
     onChanged?: Gtk.Sorter.SignalSignatures['changed'];
 }
 
@@ -7869,6 +8618,8 @@ export interface GtkSorterProps {
 export interface GtkSpinButtonProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -7917,14 +8668,20 @@ export interface GtkSpinButtonProps
 
 /** Displays an icon-size spinning animation. */
 export interface GtkSpinnerProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the spinner is spinning */
     spinning?: boolean;
     onNotifySpinning?: NotifyHandler;
 }
 
 /** An auxiliary class used by `GtkStack`. */
-export interface GtkStackPageProps extends GtkAccessibleProps {
+export interface GtkStackPageProps extends GObjectProps, GtkAccessibleProps {
     /** The child that this page is for. */
     child?: Gtk.Widget;
     /** The icon name of the child page. */
@@ -7952,7 +8709,14 @@ export interface GtkStackPageProps extends GtkAccessibleProps {
 }
 
 /** Shows one of its children at a time. */
-export interface GtkStackProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+export interface GtkStackProps
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** %TRUE if the stack allocates the same width for all children. */
     hhomogeneous?: boolean;
     /** Whether or not the size should smoothly change during the transition. */
@@ -7983,7 +8747,13 @@ export interface GtkStackProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
 
 /** Uses a sidebar to switch between `GtkStack` pages. */
 export interface GtkStackSidebarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The stack. */
     stack?: Gtk.Stack | null;
     onNotifyStack?: NotifyHandler;
@@ -7991,7 +8761,14 @@ export interface GtkStackSidebarProps
 
 /** Shows a row of buttons to switch between `GtkStack` pages. */
 export interface GtkStackSwitcherProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkOrientableProps {
     /** The stack. */
     stack?: Gtk.Stack | null;
     onNotifyStack?: NotifyHandler;
@@ -7999,13 +8776,19 @@ export interface GtkStackSwitcherProps
 
 /** A `GtkStatusbar` widget is usually placed along the bottom of an application's main [class@Gtk.Window]. */
 export interface GtkStatusbarProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     onTextPopped?: Gtk.Statusbar.SignalSignatures['text-popped'];
     onTextPushed?: Gtk.Statusbar.SignalSignatures['text-pushed'];
 }
 
 /** Determines whether to include items by comparing strings to a fixed search term. */
-export interface GtkStringFilterProps extends GtkFilterProps {
+export interface GtkStringFilterProps extends GtkFilterProps, GObjectProps {
     /** The expression to evaluate on each item to get a string to compare with. */
     expression?: Gtk.Expression | null;
     /** If matching is case sensitive. */
@@ -8023,17 +8806,17 @@ export interface GtkStringFilterProps extends GtkFilterProps {
 }
 
 /** A list model that wraps an array of strings. */
-export interface GtkStringListProps extends GtkBuildableProps {
+export interface GtkStringListProps extends GObjectProps, GListModelProps, GtkBuildableProps {
     /** The strings in the model. */
     strings?: string[];
     onNotifyStrings?: NotifyHandler;
 }
 
 /** The type of items in a `GtkStringList`. */
-export interface GtkStringObjectProps {}
+export interface GtkStringObjectProps extends GObjectProps {}
 
 /** Sorts items by comparing strings. */
-export interface GtkStringSorterProps extends GtkSorterProps {
+export interface GtkStringSorterProps extends GtkSorterProps, GObjectProps {
     /** The collation method to use for sorting. */
     collation?: GtkCollationNick | Gtk.Collation;
     /** The expression to evaluate on item to get a string to compare with. */
@@ -8047,7 +8830,7 @@ export interface GtkStringSorterProps extends GtkSorterProps {
 }
 
 /** `GtkStyleContext` stores styling information affecting a widget. */
-export interface GtkStyleContextProps {
+export interface GtkStyleContextProps extends GObjectProps {
     /** The display of the style context. */
     display?: Gdk.Display;
     onNotifyDisplay?: NotifyHandler;
@@ -8059,7 +8842,7 @@ export interface GtkStyleProviderProps {
 }
 
 /** A paintable implementation that renders SVG, with animations. */
-export interface GtkSvgProps extends GtkSymbolicPaintableProps {
+export interface GtkSvgProps extends GObjectProps, GdkPaintableProps, GtkSymbolicPaintableProps {
     /** Enabled features for this paintable. */
     features?: number;
     /** Whether the rendering will be clipped to the bounds. */
@@ -8086,7 +8869,13 @@ export interface GtkSvgProps extends GtkSymbolicPaintableProps {
 
 /** A widget that renders SVG, with animations and event handling. */
 export interface GtkSvgWidgetProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Resource to load SVG data from. */
     resource?: string;
     /** The current state of the renderer. */
@@ -8102,7 +8891,14 @@ export interface GtkSvgWidgetProps
 
 /** Shows a "light switch" that has two states: on or off. */
 export interface GtkSwitchProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkActionableProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** Whether the `GtkSwitch` widget is in its on or off state. */
     active?: boolean;
     /** The backend state that is controlled by the switch. */
@@ -8117,7 +8913,7 @@ export interface GtkSwitchProps
 export interface GtkSymbolicPaintableProps {}
 
 /** Stores text and attributes for display in a `GtkTextView`. */
-export interface GtkTextBufferProps {
+export interface GtkTextBufferProps extends GObjectProps {
     /** Denotes if support for undoing and redoing changes to the buffer is allowed. */
     enableUndo?: boolean;
     'enable-undo'?: boolean;
@@ -8147,10 +8943,10 @@ export interface GtkTextBufferProps {
 }
 
 /** Marks a spot in a `GtkTextBuffer` where child widgets can be “anchored”. */
-export interface GtkTextChildAnchorProps {}
+export interface GtkTextChildAnchorProps extends GObjectProps {}
 
 /** Marks a position in a `GtkTextbuffer` that is preserved across modifications. */
-export interface GtkTextMarkProps {
+export interface GtkTextMarkProps extends GObjectProps {
     /** Whether the mark has left gravity. */
     leftGravity?: boolean;
     'left-gravity'?: boolean;
@@ -8164,6 +8960,8 @@ export interface GtkTextMarkProps {
 export interface GtkTextProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleTextProps,
         GtkBuildableProps,
@@ -8247,7 +9045,7 @@ export interface GtkTextProps
 }
 
 /** Can be applied to text contained in a `GtkTextBuffer`. */
-export interface GtkTextTagProps {
+export interface GtkTextTagProps extends GObjectProps {
     /** Whether the margins accumulate or override each other. */
     accumulativeMargin?: boolean;
     'accumulative-margin'?: boolean;
@@ -8582,7 +9380,7 @@ export interface GtkTextTagProps {
 }
 
 /** Collects the tags in a `GtkTextBuffer`. */
-export interface GtkTextTagTableProps extends GtkBuildableProps {
+export interface GtkTextTagTableProps extends GObjectProps, GtkBuildableProps {
     onTagAdded?: Gtk.TextTagTable.SignalSignatures['tag-added'];
     onTagChanged?: Gtk.TextTagTable.SignalSignatures['tag-changed'];
     onTagRemoved?: Gtk.TextTagTable.SignalSignatures['tag-removed'];
@@ -8592,6 +9390,8 @@ export interface GtkTextTagTableProps extends GtkBuildableProps {
 export interface GtkTextViewProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleTextProps,
         GtkBuildableProps,
@@ -8696,6 +9496,8 @@ export interface GtkToggleButtonProps
     extends
         GtkButtonProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkActionableProps,
         GtkBuildableProps,
@@ -8710,7 +9512,7 @@ export interface GtkToggleButtonProps
 }
 
 /** Represents a widget tooltip. */
-export interface GtkTooltipProps {}
+export interface GtkTooltipProps extends GObjectProps {}
 
 /** Interface for Drag-and-Drop destinations in `GtkTreeView`. */
 export interface GtkTreeDragDestProps {}
@@ -8720,7 +9522,13 @@ export interface GtkTreeDragSourceProps {}
 
 /** Provides an expander for a tree-like list. */
 export interface GtkTreeExpanderProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget with the actual contents. */
     child?: Gtk.Widget | null;
     /** Whether the expander icon should be hidden in a GtkTreeListRow. */
@@ -8743,7 +9551,7 @@ export interface GtkTreeExpanderProps
 }
 
 /** A list model that can create child models on demand. */
-export interface GtkTreeListModelProps {
+export interface GtkTreeListModelProps extends GObjectProps, GListModelProps {
     /** If all rows should be expanded by default. */
     autoexpand?: boolean;
     /** Gets whether the model is in passthrough mode. */
@@ -8753,21 +9561,21 @@ export interface GtkTreeListModelProps {
 }
 
 /** The type of item used by `GtkTreeListModel`. */
-export interface GtkTreeListRowProps {
+export interface GtkTreeListRowProps extends GObjectProps {
     /** If this row is currently expanded. */
     expanded?: boolean;
     onNotifyExpanded?: NotifyHandler;
 }
 
 /** Applies a gives sorter to the levels in a tree. */
-export interface GtkTreeListRowSorterProps extends GtkSorterProps {
+export interface GtkTreeListRowSorterProps extends GtkSorterProps, GObjectProps {
     /** The underlying sorter */
     sorter?: Gtk.Sorter | null;
     onNotifySorter?: NotifyHandler;
 }
 
 /** A `GtkTreeModel` which hides parts of an underlying tree model A `GtkTreeModelFilter` is a tree model which wraps another tree model, and can do the following things: - Filter specific rows, based on… */
-export interface GtkTreeModelFilterProps extends GtkTreeDragSourceProps, GtkTreeModelProps {
+export interface GtkTreeModelFilterProps extends GObjectProps, GtkTreeDragSourceProps, GtkTreeModelProps {
     /** The child model of the tree model filter. */
     childModel?: Gtk.TreeModel;
     'child-model'?: Gtk.TreeModel;
@@ -8788,14 +9596,15 @@ export interface GtkTreeModelProps {
 }
 
 /** A GtkTreeModel which makes an underlying tree model sortable The `GtkTreeModelSort` is a model which implements the `GtkTreeSortable` interface. */
-export interface GtkTreeModelSortProps extends GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {
+export interface GtkTreeModelSortProps
+    extends GObjectProps, GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {
     /** The model of the tree model sort. */
     model?: Gtk.TreeModel;
     onNotifyModel?: NotifyHandler;
 }
 
 /** The selection object for GtkTreeView The `GtkTreeSelection` object is a helper object to manage the selection for a `GtkTreeView` widget. */
-export interface GtkTreeSelectionProps {
+export interface GtkTreeSelectionProps extends GObjectProps {
     /** Selection mode. */
     mode?: GtkSelectionModeNick | Gtk.SelectionMode;
     onChanged?: Gtk.TreeSelection.SignalSignatures['changed'];
@@ -8809,10 +9618,17 @@ export interface GtkTreeSortableProps {
 
 /** A tree-like data structure that can be used with the [class@Gtk.TreeView]. */
 export interface GtkTreeStoreProps
-    extends GtkBuildableProps, GtkTreeDragDestProps, GtkTreeDragSourceProps, GtkTreeModelProps, GtkTreeSortableProps {}
+    extends
+        GObjectProps,
+        GtkBuildableProps,
+        GtkTreeDragDestProps,
+        GtkTreeDragSourceProps,
+        GtkTreeModelProps,
+        GtkTreeSortableProps {}
 
 /** A visible column in a [class@Gtk.TreeView] widget The `GtkTreeViewColumn` object represents a visible column in a `GtkTreeView` widget. */
-export interface GtkTreeViewColumnProps extends GtkBuildableProps, GtkCellLayoutProps {
+export interface GtkTreeViewColumnProps
+    extends GInitiallyUnownedProps, GObjectProps, GtkBuildableProps, GtkCellLayoutProps {
     alignment?: number;
     /** The `GtkCellArea` used to layout cell renderers for this column. */
     cellArea?: Gtk.CellArea;
@@ -8861,7 +9677,14 @@ export interface GtkTreeViewColumnProps extends GtkBuildableProps, GtkCellLayout
 
 /** A widget for displaying both trees and lists <picture> <source srcset="list-and-tree-dark.png" media="(prefers-color-scheme: dark)"> <img alt="An example GtkTreeView" src="list-and-tree.png"> </pictu… */
 export interface GtkTreeViewProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkScrollableProps {
     /** The activate-on-single-click property specifies whether the "row-activated" signal will be emitted after a single click. */
     activateOnSingleClick?: boolean;
     'activate-on-single-click'?: boolean;
@@ -8938,14 +9761,21 @@ export interface GtkTreeViewProps
 export interface GtkTryExpressionProps extends GtkExpressionProps {}
 
 /** Asynchronous API to open a uri with an application. */
-export interface GtkUriLauncherProps {
+export interface GtkUriLauncherProps extends GObjectProps {
     /** The uri to launch. */
     uri?: string | null;
     onNotifyUri?: NotifyHandler;
 }
 
 /** Shows a `GtkMediaStream` with media controls. */
-export interface GtkVideoProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+export interface GtkVideoProps
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** If the video should automatically begin playing. */
     autoplay?: boolean;
     /** The file played by this video if the video is playing a file. */
@@ -8967,7 +9797,14 @@ export interface GtkVideoProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
 
 /** Implements scrollability for widgets that don't support scrolling on their own. */
 export interface GtkViewportProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps,
+        GtkScrollableProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     /** Whether to scroll when the focus changes. */
@@ -8982,6 +9819,8 @@ export interface GtkVolumeButtonProps
     extends
         GtkScaleButtonProps,
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkAccessibleRangeProps,
         GtkBuildableProps,
@@ -8997,7 +9836,7 @@ export interface GtkVolumeButtonProps
 }
 
 /** A `GdkPaintable` that displays the contents of a widget. */
-export interface GtkWidgetPaintableProps {
+export interface GtkWidgetPaintableProps extends GObjectProps, GdkPaintableProps {
     /** The observed widget or %NULL if none. */
     widget?: Gtk.Widget | null;
     onNotifyWidget?: NotifyHandler;
@@ -9131,7 +9970,13 @@ export interface GtkWidgetProps {
 
 /** Shows window frame controls. */
 export interface GtkWindowControlsProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The decoration layout for window buttons. */
     decorationLayout?: string | null;
     'decoration-layout'?: string | null;
@@ -9146,11 +9991,17 @@ export interface GtkWindowControlsProps
 }
 
 /** Creates groups of windows that behave like separate applications. */
-export interface GtkWindowGroupProps {}
+export interface GtkWindowGroupProps extends GObjectProps {}
 
 /** Implements titlebar functionality for a window. */
 export interface GtkWindowHandleProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends
+        GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
+        GtkAccessibleProps,
+        GtkBuildableProps,
+        GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
@@ -9160,6 +10011,8 @@ export interface GtkWindowHandleProps
 export interface GtkWindowProps
     extends
         GtkWidgetProps,
+        GInitiallyUnownedProps,
+        GObjectProps,
         GtkAccessibleProps,
         GtkBuildableProps,
         GtkConstraintTargetProps,

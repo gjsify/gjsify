@@ -1,0 +1,18 @@
+using Gtk 4.0;
+using Gdk 4.0;
+using Gio 2.0;
+using GObject 2.0;
+
+Gtk.ListView {
+  cursor: Gdk.Cursor {
+    name: "pointer";
+  };
+
+  model: Gtk.NoSelection {
+    model: Gio.ListStore {
+    };
+  };
+}
+
+GObject.Object objectOne {
+}

@@ -56,6 +56,15 @@ import {
     SINCE as VOCABULARY_SINCE,
 } from '@girs/gtk-4.0/vocabulary';
 
+// The REQUIRED SIBLINGS, statically for the same reason. `@girs` 5.3.0 stopped inlining a base
+// that leaves the namespace — `PROVENANCE.inlinedBases` named `Gio.Application` and
+// `Gio.MountOperation` at 5.2.0 and is empty now — so `GApplicationProps` and
+// `GMountOperationProps` are Gio's to describe, and the generator reads them through
+// `PROVENANCE.requiredVocabularies`. Imported here to hold that reading, because the comparison
+// above is against `gtk-4.0` alone and therefore cannot see a class that left it.
+import { OWN_PROPS as GIO_OWN_PROPS, OWN_SIGNALS as GIO_OWN_SIGNALS } from '@girs/gio-2.0/vocabulary';
+import { OWN_PROPS as GOBJECT_OWN_PROPS, OWN_SIGNALS as GOBJECT_OWN_SIGNALS } from '@girs/gobject-2.0/vocabulary';
+
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import type { AdwPreferencesPageProps, GtkEntryProps, GtkWidgetProps } from './generated/props.js';
 import { assertInjective, tagOf } from './tags.js';
@@ -372,6 +381,40 @@ export default async () => {
             // is `@girs/gtk-4.0` alone, so holding the tag map against it fails on every
             // Adw tag — which is how this line first went in and what the run said.
             expect(Object.keys(TAGS).filter((gtype) => !(gtype in DECLS))).toStrictEqual([]);
+        });
+
+        await it('carries a base that left the namespace, from the sibling that has it', async () => {
+            // THE GAP THE COMPARISON ABOVE CANNOT SEE, and it went unseen once. `GtkApplication`
+            // extends `GApplication` and `GtkMountOperation` extends `GMountOperation`. Through
+            // `@girs` 5.2.0 `gtk-4.0` INLINED both, so the verbatim check covered them; 5.3.0
+            // gives every namespace a UI file can name its own vocabulary and stops inlining, and
+            // regenerating across that bump emptied the two interfaces — 23 members and 27 — in a
+            // 400 KB artefact where nothing else moved. An `extends` clause pointing at an
+            // interface that carries nothing still compiles, which is why only a check finds it.
+            //
+            // Held for every chain link the artefact names, not for those two: the rule is that a
+            // GType the surface REFERENCES and a required sibling DESCRIBES must arrive described.
+            const linked = new Set<string>();
+            for (const chain of Object.values(DECLS)) for (const link of chain) linked.add(link);
+            const missing: string[] = [];
+            for (const [table, own, there] of [
+                ['OWN_PROPS', GIO_OWN_PROPS, OWN_PROPS],
+                ['OWN_PROPS', GOBJECT_OWN_PROPS, OWN_PROPS],
+                ['OWN_SIGNALS', GIO_OWN_SIGNALS, OWN_SIGNALS],
+                ['OWN_SIGNALS', GOBJECT_OWN_SIGNALS, OWN_SIGNALS],
+            ] as const) {
+                for (const [gtype, members] of Object.entries(own)) {
+                    if (!linked.has(gtype)) continue;
+                    const carried = there[gtype];
+                    if (!carried) missing.push(`${table} ${gtype}: absent from the artefact`);
+                    else if (carried.join(',') !== members.join(',')) missing.push(`${table} ${gtype}: ${carried}`);
+                }
+            }
+            expect(missing).toStrictEqual([]);
+            // Not vacuous: the two classes the bump moved are in reach and are the reason.
+            expect(linked.has('GApplication') && linked.has('GMountOperation')).toBe(true);
+            expect((OWN_PROPS.GApplication ?? []).length > 0).toBe(true);
+            expect((OWN_PROPS.GMountOperation ?? []).length > 0).toBe(true);
         });
 
         await it('records the release each member arrived in', async () => {

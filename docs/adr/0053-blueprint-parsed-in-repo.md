@@ -478,3 +478,40 @@ Clause 6 keeps third-party `.blp` out of the corpus, so the wild sweep
 (`scripts/blueprint-wild-sweep.mjs`) stays a local extra and is not what gates a merge. A
 published plugin meets files nobody here wrote, and the constructs listed above are what that
 meeting looks like when it goes wrong.
+
+## Amendment 4, 2026-09-20 — the vocabulary set is no longer widget-shaped, and its completeness is data
+
+**Amendment 1 § item 11 named a refusal whose owner was upstream.** ts-for-gir emitted the
+`./vocabulary` subpath only for a namespace declaring a concrete `GtkWidget` descendant, so
+`Gdk.Cursor`, `Gio.ListStore` and `GObject.Object` — every one of them legal in a `.blp`, every
+one written by a file the reference implementation compiles — were refused by name for a reason
+no line in this repository could close. ts-for-gir #476 closed it in `@girs` 5.3.0: a vocabulary
+is emitted for every namespace a UI file can name. `src/resolve-ident.mjs` loads Gdk, Gio,
+GObject and Pango beside the five it had, `rules/49-namespace-core-vocabulary.blp` is the golden
+that holds all three names, and `refused/namespace-without-vocabulary.blp` keeps the refusal
+branch alive against `GdkPixbuf` — a namespace outside this package's dependency set, and one
+whose C prefix is `Gdk`, so concatenation writes `GdkPixbufPixbuf` where the oracle writes
+`GdkPixbuf`. Measured over the wild sweep, the language corpus went from 58 byte-equal of 95 to
+62, and the 273 foreign-and-own files from 263 to 264.
+
+**What replaced the upstream gate is this package's dependency set, and 5.3.0 is also what makes
+that set answerable.** A static `import` cannot take a computed specifier and a dynamic one
+cannot be bundled, so the LIST stays written out; what stopped being a matter of judgement is
+whether it is COMPLETE. Every vocabulary now names the siblings a join may reach into
+(`PROVENANCE.requiredVocabularies`), and the resolver refuses at import a list missing one.
+Before it, a missing sibling was silent in the worst way clause 3 describes: the join found
+nothing, `resolveIdent` returned `null`, and the emitter wrote the source spelling out as if it
+were an object id.
+
+**And clause 6's reading of a derivable table took its second deletion.** The C identifier prefix
+was a two-entry `Map`, then a derivation off `DECLS` that stated its own expiry — *"none of the
+28 [namespaces it gets wrong] publishes a vocabulary, so none is reachable; the day one does, the
+prefix has to come from upstream instead"*. All eight it named by hand publish one at 5.3.0, and
+5.3.0 ships `PROVENANCE.identifierPrefixes`. The derivation is gone rather than kept beside the
+data it guessed at, and the same rule retired a hand-kept namespace list in
+`scripts/blueprint-wild-sweep.mjs`'s census, which had been counting `GtkSource`, `Shumate` and
+`WebKit` as unresolvable long after the resolver loaded them: it asks the resolver now.
+
+**What this does NOT close.** Amendment 1 § item 17 is the other upstream-owned refusal — the
+oracle infers a type from a PROPERTY in an uncast lookup chain and in an uncast closure's return,
+and no `@girs` table is a property-to-GType map. It is now the only one of the two still open.

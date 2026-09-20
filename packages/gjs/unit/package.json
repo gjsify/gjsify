@@ -27,7 +27,7 @@
         "test:gjs": "gjsify run test.gjs.mjs",
         "test:node": "node test.node.mjs",
         "test:bun": "bun test.node.mjs",
-        "test:deno": "deno run -A --no-lock --node-modules-dir=none test.node.mjs",
+        "test:deno": "deno run -A --no-lock --node-modules-dir=none --min-dep-age=0 test.node.mjs",
         "test:cross-runtime": "gjsify run build:test:node && gjsify run test:node && gjsify run test:bun && gjsify run test:deno"
     },
     "repository": {
@@ -48,8 +48,8 @@
     },
     "homepage": "https://github.com/gjsify/unit#readme",
     "devDependencies": {
-        "@girs/gjs": "5.2.0",
-        "@girs/glib-2.0": "5.2.0",
+        "@girs/gjs": "5.3.0",
+        "@girs/glib-2.0": "5.3.0",
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

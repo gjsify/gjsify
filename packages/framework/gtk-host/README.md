@@ -711,6 +711,32 @@ host's own `coerce()` path. A member the installed library lacks is accepted onl
 if the GIR says it arrived in a newer release — `GtkApplicationWindow::save-state`
 is GTK 4.24 and the check runs on 4.22.4.
 
+### A base that leaves the namespace
+
+The generator reads `@girs/<ns>/vocabulary` (ADR 0029) for Gtk and Adw — the only two that
+declare widgets — and it also reads the siblings those two say their rows reach into,
+`PROVENANCE.requiredVocabularies`. Those are read for LOOKUP only: they declare no widget,
+contribute no GType prefix, and reach the artefact only for a GType the widget surface already
+REFERENCES, which is what keeps it from growing by the whole of Gio.
+
+**The incident is why that pass exists.** `GtkApplication` extends `GApplication` and
+`GtkMountOperation` extends `GMountOperation`, both Gio, both reached only as ancestors. Through
+`@girs` 5.2.0 they arrived free, because `gtk-4.0`'s vocabulary INLINED them — its
+`PROVENANCE.inlinedBases` named `Gio.Application` and `Gio.MountOperation` for exactly that
+reason. ts-for-gir #476 gave every namespace a UI file can name its own vocabulary, so 5.3.0
+stops inlining and the two classes are Gio's to describe. Regenerating across that bump without
+the pass emptied `GApplicationProps` (23 members) and `GMountOperationProps` (27) in a 400 KB
+artefact where nothing else moved, and **an `extends` clause pointing at an interface that
+carries nothing still compiles**. The verbatim check one section up could not see it either: it
+compares the artefact against `gtk-4.0` alone, and the classes had left that package. What holds
+it now is `generator.spec.ts` § "carries a base that left the namespace" — over every chain link
+the artefact names, not over those two — and it goes red when the pass is removed.
+
+The nicks come one at a time and by name: a restored prop's rendered type reads
+`GPasswordSaveNick | Gio.PasswordSave`, and that union compiles only where `GPasswordSave`
+reached the table. Merging a sibling's whole nick list instead would add a hundred unions
+nothing in this surface references.
+
 ### Solid / JSX
 
 ```jsonc
