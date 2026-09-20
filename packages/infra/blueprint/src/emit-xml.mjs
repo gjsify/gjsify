@@ -277,9 +277,14 @@ function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
     // type after the colon. The owner type for value resolution is the PARENT — the
     // template class is the one being defined and has no ParamSpecs of its own yet.
-    const parent = gtypeName(template.parent, context, 'reference');
-    xml.startTag('template', { class: template.className, parent });
-    emitBody(xml, template.body, ownerOf(template.parent, parent), context);
+    //
+    // 50-template-orphan.ui: with no parent the attribute is OMITTED, not defaulted — the
+    // oracle passes `parent=None` and its writer drops null-valued attributes. The owner is
+    // `null` for the same reason an extern parent gives `null`: the type is unknown, so
+    // nothing inside resolves against a vocabulary.
+    const parent = template.parent === undefined ? undefined : gtypeName(template.parent, context, 'reference');
+    xml.startTag('template', { class: template.className, ...(parent === undefined ? {} : { parent }) });
+    emitBody(xml, template.body, template.parent === undefined ? null : ownerOf(template.parent, parent), context);
     xml.endTag();
 }
 

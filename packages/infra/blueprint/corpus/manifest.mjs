@@ -391,6 +391,13 @@ export const CORPUS_RULES = [
         surprise:
             'two of the three GType names are not the namespace plus the type, and the one file that used to hold this shape had to hold it as a REFUSAL. `Gio.ListStore` is `GListStore` and `GObject.Object` is `GObject`, because the C identifier prefix of both namespaces is `G` — concatenating writes `GioListStore` and `GObjectObject`, classes GtkBuilder resolves to nothing, with no error anywhere. `Gdk.Cursor` is the third one and the only one where concatenation happens to be right, which is exactly why it is here beside the other two rather than standing for them. What made the file writable is not this package: ts-for-gir #476 stopped gating the `./vocabulary` subpath on "declares a concrete GtkWidget descendant", so these three publish one and `src/resolve-ident.mjs` loads them. The prefix is read from `PROVENANCE.identifierPrefixes` and derived from nothing',
     },
+    {
+        file: '50-template-orphan.blp',
+        isolates:
+            "a `template $Name { }` with NO parent — the branch of the oracle grammar where `( ':' TypeName )?` is absent",
+        surprise:
+            '`visible: true` stays the string `true` here, where `08-template.blp` turns `halign: center` into `3`. Both are the same emitter taking the same path; what differs is that a parentless template has no parent to own the property, so there is no vocabulary to resolve a value through and the source spelling is all there is. The oracle agrees by construction rather than by choice — a parentless template is an `ExternType`, which it marks `incomplete`, so it validates no property or signal name written inside either. The `parent` attribute is OMITTED and not defaulted: `class="CorpusOrphan"` stands alone, because the oracle passes `parent=None` and its writer drops null-valued attributes',
+    },
 ];
 
 /**

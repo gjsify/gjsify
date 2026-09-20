@@ -6421,8 +6421,9 @@ run in shadow beside the compiler until it reports no divergence. **The shadow r
 ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBlueprint` +
 `emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
 the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4, re-measured again on
-the `@girs` 5.3.0 bump: 49 rule files and 12
-reality probes, all 61 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
+the `@girs` 5.3.0 bump, and again on the parentless
+`template`: 50 rule files and 12
+reality probes, all 62 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
 naming their construct, their file and their line. Those four are held to the tree by
 `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every one of
 them wrong again within hours — and the gate is bidirectional, so deleting the sentence fails too.
@@ -6473,6 +6474,31 @@ uncast closure's return type — and `@girs`'s vocabulary ships no property-to-G
 (`OWN_PROPS` is names, `PROP_ENUMS` only the enum-typed ones). That is the same gate as the
 namespace vocabulary one below, one table over; 8 files in `tests/samples` stop there and 0
 wild files do, because every closure in the wild corpus writes its cast.
+
+**A `template` may now have no parent, which is the Optional branch of the oracle's own grammar**
+(`Template = 'template' TypeName ( ':' TypeName )? ObjectContent`). Measured with
+`scripts/blueprint-wild-sweep.mjs` over the same nine pinned pools: the reference
+implementation's `tests/samples` go from **62 to 68 byte-equal** (refusals 33 → 27), and the wild
+corpus does not move — **264 of 273, 0 silently wrong** — because all eight files that write the
+form are in `tests/samples` and none is in the wild. That asymmetry is the finding, not a
+disappointment: the form is a language feature the wild does not reach for.
+
+What the absence COSTS is the reason it was refused rather than defaulted. A parentless template
+is the oracle's `ExternType`, marked `incomplete`, so no property or signal name written inside
+it is validated against any vocabulary — and no value is resolved through one either.
+`50-template-orphan.blp` holds exactly that: `visible: true` stays the string `true`, where
+`08-template.blp` turns `halign: center` into `3` through `Adw.Bin`. Same emitter, same path; the
+difference is that there is no owner. The `<template>` carries NO `parent` attribute — the oracle
+passes `parent=None` and its writer drops null-valued attributes, so a default would have been an
+invention. In the SharedNode projection the class being defined becomes the root tag and is a
+SECOND declared loss (`extern`), because a parentless template is the extern case by
+construction.
+
+Still refused in the same family: the inline `template Type { }` extension of
+`Gtk.BuilderListItemFactory`, which nine files reach — one of them wild (epiphany's
+`location-entry.blp`). It is a different shape entirely: the oracle emits a complete nested
+`<interface>` document, with its own `<?xml?>` header and its own id scope, CDATA-escaped into
+`<property name="bytes">`.
 
 **The flip landed, and what it answered is the question this paragraph used to hold open.**
 `@gjsify/vite-plugin-blueprint` kept its public interface and changed what it calls. Byte-equality
