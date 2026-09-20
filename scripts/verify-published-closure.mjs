@@ -802,14 +802,40 @@ if (absentDeclared.length > 0) {
     );
 }
 const pinnedByDeclared = pinnedEdges.filter((e) => isLive(e.from) && expectedAbsent(e.to));
-if (pinnedByDeclared.length > 0) {
+// The ledger buys time for a QUEUED action; it does not get to queue a broken
+// install. Measured, npm 11.17.0, against the live registry, on an edge to a
+// name that did not exist: `optionalDependencies` is `up to date`, exit 0;
+// `dependencies` is `npm error 404`, exit 1, for every consumer on every package
+// manager. So the two arms are split on that measurement and not on the shape of
+// the manifest: an optional edge stays the documented "queued as the next
+// maintainer action" branch, a required one is a defect a declaration cannot
+// excuse. #1713 is why — until this split, this exact shape
+// (`@gjsify/vite-plugin-blueprint` → `@gjsify/blueprint`) warned and exited 0,
+// and the only thing between it and a release was a human remembering.
+const requiredByDeclared = pinnedByDeclared.filter((e) => e.block === 'dependencies');
+const optionalByDeclared = pinnedByDeclared.filter((e) => e.block !== 'dependencies');
+if (requiredByDeclared.length > 0) {
+    problems.push(
+        `${requiredByDeclared.length} REQUIRED release-pinned edge(s) point at a name declared pending bootstrap in ` +
+            `${LEDGER_REL_PATH}. A declaration queues a maintainer action; it cannot queue an install. Measured on ` +
+            'npm 11.17.0 against the live registry, an unresolvable `dependencies` edge is `npm error 404`, exit 1, ' +
+            'for every consumer on every package manager — an optional edge is not, which is why only this arm is ' +
+            'red. Bootstrap the target now (docs/publishing.md § New `@gjsify/*` package: `gjsify onboard --include ' +
+            '<name>`, or `gjsify publish <dir> --access public --otp <code>` then `gjsify trust <name>`), TARGET ' +
+            `before BRIDGE. ${requiredByDeclared
+                .slice(0, 5)
+                .map((e) => `${e.from} → ${e.block}.${e.to}`)
+                .join('; ')}.`,
+    );
+}
+if (optionalByDeclared.length > 0) {
     notes.push(
-        `${pinnedByDeclared.length} release-pinned edge(s) point at a name declared pending bootstrap, and the cost ` +
+        `${optionalByDeclared.length} release-pinned edge(s) point at a name declared pending bootstrap, and the cost ` +
             'of the queued action is NOT the same on every package manager. npm and pnpm skip an unresolvable ' +
             'optionalDependency without an error, so the consumer installs the bridge with nothing behind it; ' +
             'Yarn resolves the whole graph before it links any of it and stops at `YN0035: Package not found`, ' +
             'so the bridge is uninstallable for every Yarn consumer on every platform until the name exists. ' +
-            `Bootstrap these BEFORE the release that ships the bridge. ${pinnedByDeclared
+            `Bootstrap these BEFORE the release that ships the bridge. ${optionalByDeclared
                 .slice(0, 5)
                 .map((e) => `${e.from} → ${e.block}.${e.to}`)
                 .join('; ')}.`,
