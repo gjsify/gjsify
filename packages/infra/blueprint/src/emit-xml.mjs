@@ -1164,11 +1164,22 @@ function emitExtension(xml, extension, context) {
 
     if (extension.name === 'responses') {
         // 31-responses.ui: `<responses>` of `<response id="…">`, translatable attributes after
-        // the id. The response FLAGS would add `enabled="false"` and `appearance="…"`, and the
-        // parser refuses them by name, so neither attribute is ever owed here.
+        // the id, then the FLAGS.
+        //
+        // The flag order here is FIXED and is not the source order: the oracle writes `enabled`
+        // before `appearance` whatever the file says, so `suggested disabled` and
+        // `disabled suggested` are one XML. An absent flag omits its attribute entirely rather
+        // than writing a default — there is no `enabled="true"` and no empty `appearance`.
         xml.startTag('responses', {});
         for (const response of extension.entries) {
-            xml.startTag('response', { id: response.name, ...translatedAttributes(response.value) });
+            const flags = response.flags ?? [];
+            const appearance = flags.find((flag) => flag === 'destructive' || flag === 'suggested');
+            xml.startTag('response', {
+                id: response.name,
+                ...translatedAttributes(response.value),
+                ...(flags.includes('disabled') ? { enabled: 'false' } : {}),
+                ...(appearance === undefined ? {} : { appearance }),
+            });
             xml.text(scalarText(response.value, null, null, context));
             xml.endTag();
         }

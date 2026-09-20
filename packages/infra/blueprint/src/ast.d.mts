@@ -414,6 +414,16 @@ export interface ExtensionEntry {
      * oracle refuses, a divergence `corpus/divergences.mjs` is the place to record.
      */
     readonly value: Exclude<Value, ObjectValue>;
+    /**
+     * Bare keywords after the value, in SOURCE order — today only a `responses [ ]` entry has
+     * any: `destructive`, `suggested`, `disabled`.
+     *
+     * Source order is kept and is not the emitted order: the oracle writes `enabled` before
+     * `appearance` whatever the file says, so `save: "Save" suggested disabled` and
+     * `save: "Save" disabled suggested` are one XML. Keeping the order the file wrote is what
+     * lets a future decompiler write it back, and the emitter is where the fixed order lives.
+     */
+    readonly flags?: readonly string[];
     readonly line: number;
 }
 

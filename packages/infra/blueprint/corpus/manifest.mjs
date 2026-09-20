@@ -405,6 +405,12 @@ export const CORPUS_RULES = [
         surprise:
             'the sub-document is not nested XML, it is TEXT: its own `<?xml?>` declaration, its own `<interface>`, indentation restarting at column 0, CDATA-escaped into `<property name="bytes">` — and no `<requires>`, which every other document in this corpus carries. It also has its OWN ID SCOPE, which is why `corpusLabel` is declared twice in one file and neither is a duplicate: the two documents may not reference each other at all, so `indexBody` never descends into the block and the outer index cannot see inside. The block is NESTED here on purpose — a sub-document inside a sub-document writes `]]>` into the outer CDATA, and the only escape a CDATA section has is to split across two, so `]]]]><![CDATA[>` is in the golden and that branch of the writer is held by a file rather than by an argument',
     },
+    {
+        file: '52-response-flags.blp',
+        isolates: 'the three flags a `responses [ ]` entry may carry — `destructive`, `suggested` and `disabled`',
+        surprise:
+            'the emitted order is FIXED and is not the source order: `save: … suggested disabled` writes `enabled="false"` BEFORE `appearance="suggested"`, and so would `disabled suggested` — one XML for two spellings. An absent flag omits its attribute rather than writing a default, so there is no `enabled="true"` anywhere and `plain` carries neither. `destructive` and `suggested` are mutually exclusive and the parser says so on the SECOND one, because two appearances are a contradiction in the file and the reader needs the line of the one that broke it',
+    },
 ];
 
 /**
@@ -502,14 +508,6 @@ export const CORPUS_REFUSALS = [
         projection: 'refuses',
         line: 4,
         names: 'inline `menu`',
-    },
-    {
-        file: 'response-flags.blp',
-        construct: 'a response flag, `destructive` / `suggested` / `disabled`',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 6,
-        names: 'response flag',
     },
     {
         file: 'translation-domain.blp',

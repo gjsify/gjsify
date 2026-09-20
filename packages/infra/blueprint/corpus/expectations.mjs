@@ -927,4 +927,10 @@ export const RULE_EXPECTATIONS = [
         ],
         note: "The factory survives as a node and its CONTENT does not: the block is declared lost rather than flattened, and ONE loss covers the whole sub-document however deep it goes — this file nests a second block inside the first. Flattening would be worse than dropping it — the ids inside a sub-document are allowed to repeat the outer file's, and this file repeats one on purpose, so a merged tree would carry two different objects under `corpusLabel` and no consumer could tell which it had.",
     },
+    {
+        file: '52-response-flags.blp',
+        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
+        lost: [{ kind: 'responses', line: 7, detail: 'all four responses, flags and all' }],
+        note: 'The flags share the fate of the block they sit in: `SharedNode` has no form for a dialog response, so `appearance` and `enabled` are lost with it rather than beside it. One loss for the block, which is what `31-responses.blp` already records — this file adds no new exit, only new attributes on the XML side of the same one.',
+    },
 ];

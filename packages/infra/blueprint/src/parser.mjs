@@ -811,16 +811,22 @@ class Parser {
                     `found a ${value.kind} value for \`${id.text}\`, expected a string or a translated string`,
                 );
             }
-            if (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
-                // `ExtensionEntry` carries a name, a value and a line, and has no field for a flag.
-                throw this.fail(
-                    this.peek(),
-                    `a response flag (\`${this.peek().text}\`) is outside the subset this parser holds. ` +
-                        'Declare the response without the flag and set its appearance or enabled state ' +
-                        `from code on the dialog. ${SUBSET_NOTE}`,
-                );
+            /** @type {string[]} */
+            const flags = [];
+            while (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
+                const flag = this.advance();
+                if (flags.includes(flag.text)) {
+                    throw this.fail(flag, `Duplicate \`${flag.text}\` flag on the response \`${id.text}\``);
+                }
+                // The oracle's own rule, and the reason it is here rather than in the emitter:
+                // two appearances are a contradiction in the FILE, and the line of the second
+                // one is what a reader needs. `'suggested' and 'destructive' are exclusive`.
+                if ((flag.text === 'suggested' || flag.text === 'destructive') && flags.some((f) => f !== 'disabled')) {
+                    throw this.fail(flag, '`suggested` and `destructive` are exclusive');
+                }
+                flags.push(flag.text);
             }
-            entries.push({ name: id.text, value, line: id.line });
+            entries.push({ name: id.text, value, ...(flags.length === 0 ? {} : { flags }), line: id.line });
             if (!this.at(',')) {
                 break;
             }
