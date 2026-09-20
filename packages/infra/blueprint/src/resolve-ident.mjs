@@ -327,6 +327,11 @@ const ARIA_VALUE_TYPES = merged('ARIA_VALUE_TYPES');
 const ARIA_VALUE_ENUMS = merged('ARIA_VALUE_ENUMS');
 const DECLS = merged('DECLS');
 const PROP_ENUMS = merged('PROP_ENUMS');
+// ts-for-gir #478. `PROP_ENUMS` answers only where the property's type is an enum or bitfield;
+// this answers for any type, which is what an uncast closure's return type needs. An `@girs`
+// older than the release that added it simply has no such table and this is `{}` — the two
+// refusals below then read exactly as they did before.
+const PROP_TYPES = merged('PROP_TYPES');
 const ENUM_NICKS = merged('ENUM_NICKS');
 const ENUM_VALUES = merged('ENUM_VALUES');
 const FLAG_VALUES = merged('FLAG_VALUES');
@@ -351,6 +356,28 @@ const UNREADABLE = { ...merged('ENUM_VALUES_UNREADABLE'), ...merged('FLAG_VALUES
 function typeOfProperty(typeName, propertyName) {
     for (const declaration of DECLS[typeName] ?? [typeName]) {
         const found = PROP_ENUMS[`${declaration}.${propertyName}`];
+        if (found !== undefined) return found;
+    }
+    return null;
+}
+
+/**
+ * The GType of a property's own type, whatever that type is, or `null` when the vocabulary
+ * states none.
+ *
+ * The same DECLS walk {@link typeOfProperty} makes, over the wider table: a property is keyed by
+ * the type that DECLARES it, so `GtkBox.orientation` is not there and `GtkOrientable.orientation`
+ * is. `null` means the artefact carries no answer — an `@girs` predating the table, a property
+ * whose GIR type the generator could not map, or a type nobody described. It never means
+ * "scalar": `gchararray` is carried like any other, which is the whole reason the table is
+ * separate from `PROP_ENUMS`.
+ *
+ * @param {string} typeName @param {string} propertyName
+ * @returns {string | null}
+ */
+export function propertyGType(typeName, propertyName) {
+    for (const declaration of DECLS[typeName] ?? [typeName]) {
+        const found = PROP_TYPES[`${declaration}.${propertyName}`];
         if (found !== undefined) return found;
     }
     return null;

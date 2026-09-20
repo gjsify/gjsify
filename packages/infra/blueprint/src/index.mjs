@@ -52,5 +52,6 @@ export {
     accessibilityValue,
     enumOrFlagsTypeOf,
     gtypeName,
+    propertyGType,
     resolveIdent,
 } from './resolve-ident.mjs';
