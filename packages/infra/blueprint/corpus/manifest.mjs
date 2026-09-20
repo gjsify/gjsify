@@ -411,6 +411,13 @@ export const CORPUS_RULES = [
         surprise:
             'the emitted order is FIXED and is not the source order: `save: … suggested disabled` writes `enabled="false"` BEFORE `appearance="suggested"`, and so would `disabled suggested` — one XML for two spellings. An absent flag omits its attribute rather than writing a default, so there is no `enabled="true"` anywhere and `plain` carries neither. `destructive` and `suggested` are mutually exclusive and the parser says so on the SECOND one, because two appearances are a contradiction in the file and the reader needs the line of the one that broke it',
     },
+    {
+        file: '53-extension-lists.blp',
+        isolates:
+            'all six bracketed extension lists in one file — `marks`, `mime-types`, `patterns`, `suffixes`, `items`, `offsets`',
+        surprise:
+            'six names, ONE construct, and four payloads: a bare string (`mime-types`, `patterns`, `suffixes`), a string with an optional `id:` prefix (`items`), a `mark (value[, position[, label]])` triple and an `offset ("name", value)` pair. The oracle\'s own file-filter trio is already one implementation parameterised by wrapper tag and child tag, and that same parameterisation carries all six. What is NOT shared: `offset` is the one self-closing child, `mark` is never self-closing even with no label (`<mark value="2"></mark>`), and only `marks` and `items` may be translated — a MIME type and a CSS class name are `UseQuoted` in the grammar, so `_("text/plain")` is refused rather than emitted with an attribute GtkBuilder ignores',
+    },
 ];
 
 /**

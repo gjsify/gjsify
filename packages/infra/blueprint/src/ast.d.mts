@@ -427,11 +427,55 @@ export interface ExtensionEntry {
     readonly line: number;
 }
 
+/**
+ * One entry of a bracketed extension list. Four payload shapes, because the six lists carry
+ * four different things and flattening them would lose which.
+ */
+export type ExtensionListItem =
+    /** `mime-types`, `patterns`, `suffixes` — a bare quoted string, never translatable. */
+    | { readonly kind: 'string'; readonly value: StringValue; readonly line: number }
+    /** `items` — a string with an optional id, and translatable. */
+    | { readonly kind: 'item'; readonly id?: string; readonly value: StringValue; readonly line: number }
+    /**
+     * `marks` — `mark (value[, position[, label]])`. The label may only appear WITH a position,
+     * which is the oracle's rule and not a convenience: the second argument is a position and
+     * there is nowhere for a label to sit without one.
+     */
+    | {
+          readonly kind: 'mark';
+          readonly value: NumberValue;
+          readonly position?: string;
+          readonly label?: StringValue;
+          readonly line: number;
+      }
+    /** `offsets` — `offset ("name", value)`, and the value may not be negative. */
+    | { readonly kind: 'offset'; readonly name: StringValue; readonly value: NumberValue; readonly line: number };
+
+/** The six bracketed lists, which are one construct with six names and four payloads. */
+export type ExtensionListName = 'marks' | 'items' | 'offsets' | 'mime-types' | 'patterns' | 'suffixes';
+
+/**
+ * `marks [ … ]` and its five siblings.
+ *
+ * Its own node and not an `Extension`, because an `Extension` holds `name: value;` entries and
+ * none of these do: a mark is a triple, an offset is a pair, a mime type is a bare string. The
+ * oracle keeps them apart for the same reason — its file-filter trio is already one
+ * implementation parameterised by wrapper tag and child tag, and that same parameterisation is
+ * what makes these six one arm here rather than six.
+ */
+export interface ExtensionList {
+    readonly name: ExtensionListName;
+    readonly items: readonly ExtensionListItem[];
+    readonly line: number;
+    readonly order: number;
+}
+
 export interface ObjectBody {
     readonly properties: readonly Property[];
     readonly children: readonly Child[];
     readonly signals: readonly Signal[];
     readonly extensions: readonly Extension[];
+    readonly extensionLists: readonly ExtensionList[];
     /**
      * The `template Type { … }` block of a `Gtk.BuilderListItemFactory`, at most one.
      *

@@ -194,6 +194,11 @@ const lossesOf = (file) => {
         }
         for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
         for (const extension of body.extensions) lost.push({ kind: extension.name, line: extension.line });
+        // Each list by its own NAME, the way a block extension is, because that is the name a
+        // reader of the loss goes looking for. Six kinds for one mechanism is the honest count:
+        // a consumer told `marks` was dropped learns something a consumer told `extension-list`
+        // was dropped does not.
+        for (const list of body.extensionLists) lost.push({ kind: list.name, line: list.line });
         // A whole SECOND document, and `SharedNode` is one tree: there is no nesting form for
         // a sub-document with its own id scope, so the block is declared lost rather than
         // flattened into the parent. Flattening would be worse than dropping it — the ids

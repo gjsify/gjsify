@@ -140,6 +140,13 @@ const LOSS_KINDS = new Set([
     'responses',
     'extern',
     'inline-template',
+    // The six bracketed lists, each by its own name — see `project.mjs`.
+    'marks',
+    'items',
+    'offsets',
+    'mime-types',
+    'patterns',
+    'suffixes',
 ]);
 
 const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);

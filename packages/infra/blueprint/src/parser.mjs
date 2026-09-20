@@ -268,6 +268,23 @@ const BINDING_FLAGS = new Set(['inverted', 'bidirectional', 'no-sync-create', 's
 
 const RESPONSE_FLAGS = new Set(['destructive', 'suggested', 'disabled']);
 
+/**
+ * The six bracketed lists, mapped to the shape of ONE of their items.
+ *
+ * `string` is a bare quoted string (`mime-types`, `patterns`, `suffixes`), `item` a string with
+ * an optional `id:` prefix, `mark` a `mark (…)` call and `offset` an `offset (…)` call. Six
+ * names, four shapes — which is why this is a table and not six parsers. The oracle's own
+ * file-filter trio is already one implementation parameterised the same way.
+ */
+const EXTENSION_LISTS = new Map([
+    ['marks', 'mark'],
+    ['items', 'item'],
+    ['offsets', 'offset'],
+    ['mime-types', 'string'],
+    ['patterns', 'string'],
+    ['suffixes', 'string'],
+]);
+
 const MENU_ITEM_KEYWORDS = new Set(['section', 'submenu', 'item']);
 
 /**
@@ -276,14 +293,6 @@ const MENU_ITEM_KEYWORDS = new Set(['section', 'submenu', 'item']);
  * the object-child branch, where `items [` would fail as "expected `{`" and read like a
  * broken file rather than like scope.
  */
-const REFUSED_EXTENSIONS = new Map([
-    ['items', 'the `items [ … ]` extension of Gtk.ComboBoxText'],
-    ['marks', 'the `marks [ … ]` extension of Gtk.Scale'],
-    ['offsets', 'the `offsets [ … ]` extension of Gtk.LevelBar'],
-    ['mime-types', 'the `mime-types [ … ]` extension of Gtk.FileFilter'],
-    ['patterns', 'the `patterns [ … ]` extension of Gtk.FileFilter'],
-    ['suffixes', 'the `suffixes [ … ]` extension of Gtk.FileFilter'],
-]);
 
 /** How a token reads inside "found …". */
 function describe(/** @type {Token} */ token) {
@@ -504,6 +513,9 @@ class Parser {
         /** @type {Extension[]} */
         const extensions = [];
 
+        /** @type {ExtensionList[]} */
+        const extensionLists = [];
+
         /**
          * At most one, which is the oracle's rule and not a convenience: two `template { … }`
          * blocks would be two documents in one `bytes` property.
@@ -562,6 +574,8 @@ class Parser {
                 extensions.push({ ...this.parseResponsesExtension(), order: order++ });
             } else if (LIST_PROPERTIES.has(token.text) && next.text === '[') {
                 properties.push({ ...this.parseListProperty(), order: order++ });
+            } else if (EXTENSION_LISTS.has(token.text) && next.text === '[') {
+                extensionLists.push({ ...this.parseExtensionList(), order: order++ });
             } else if (token.text === 'template') {
                 if (inlineTemplate !== undefined) {
                     // The oracle's own words: "Duplicate template block". Two would be two
@@ -572,10 +586,14 @@ class Parser {
                     );
                 }
                 inlineTemplate = { ...this.parseInlineTemplate(), order: order++ };
-            } else if (REFUSED_EXTENSIONS.has(token.text) && next.text === '[') {
+            } else if (next.text === '[') {
+                // A bracketed list no table above knows. This used to be a hardcoded roster of
+                // six names, all six of which are now read — and a roster that empties itself
+                // is a mechanism that has to become general or go. Falling through to
+                // `parseObject` instead would report `expected \`{\`` and name nothing.
                 throw this.fail(
                     token,
-                    `found ${REFUSED_EXTENSIONS.get(token.text)}, which is not in this subset — no corpus file reaches it, and \`Extension\` in ast.d.mts would record its name and drop its own vocabulary`,
+                    `found the \`${token.text} [ … ]\` list, which is not in this subset — the lists this parser reads are ${[...EXTENSION_LISTS.keys(), ...LIST_PROPERTIES].sort().join(', ')}. ${SUBSET_NOTE}`,
                 );
             } else {
                 children.push({ object: this.parseObject(), line: token.line, order: order++ });
@@ -587,8 +605,130 @@ class Parser {
             children,
             signals,
             extensions,
+            extensionLists,
             ...(inlineTemplate === undefined ? {} : { inlineTemplate }),
         };
+    }
+
+    /**
+     * `marks [ … ]` and its five siblings — one reader, four item shapes.
+     *
+     * WHICH CLASS each list belongs to is not checked here. The parser sees a name and a
+     * bracket; whether the enclosing object is a `Gtk.Scale` is a fact about the object, and the
+     * emitter is where the object's type is known. Refusing here would mean refusing on the
+     * spelling rather than on the thing.
+     *
+     * @returns {Omit<ExtensionList, 'order'>}
+     */
+    parseExtensionList() {
+        const keyword = this.advance();
+        const shape = /** @type {string} */ (EXTENSION_LISTS.get(keyword.text));
+        this.expect('[', '`[`');
+        /** @type {ExtensionListItem[]} */
+        const items = [];
+        while (!this.at(']')) {
+            items.push(this.parseExtensionListItem(shape, keyword.text));
+            if (!this.at(',')) break;
+            this.advance();
+        }
+        this.expect(']', '`]`');
+        return { name: /** @type {ExtensionListName} */ (keyword.text), items, line: keyword.line };
+    }
+
+    /**
+     * One item of a bracketed list.
+     *
+     * @param {string} shape @param {string} listName
+     * @returns {ExtensionListItem}
+     */
+    parseExtensionListItem(shape, listName) {
+        const at = this.peek();
+        if (shape === 'mark' || shape === 'offset') {
+            this.expect(shape, `\`${shape} (…)\``);
+            this.expect('(', '`(`');
+            if (shape === 'offset') {
+                const name = this.parseStringItem(`a quoted name for \`offset\``, false);
+                this.expect(',', '`,`');
+                const value = this.parseNumberItem('offset');
+                // About the VALUE and not the syntax: a level bar offset is a fraction of the
+                // bar, so a negative one has no position on it. The oracle refuses it too.
+                if (value.raw.startsWith('-')) {
+                    throw this.fail(at, 'an `offset` value may not be negative — it is a fraction of the level bar');
+                }
+                this.expect(')', '`)`');
+                return { kind: 'offset', name, value, line: at.line };
+            }
+            const value = this.parseNumberItem('mark');
+            /** @type {string | undefined} */
+            let position;
+            /** @type {StringValue | undefined} */
+            let label;
+            if (this.at(',')) {
+                this.advance();
+                position = this.expectIdentifier('a `Gtk.PositionType` member').text;
+                // A label may only appear WITH a position, which is the oracle's rule and not a
+                // convenience: the second argument IS the position, so there is nowhere for a
+                // label to sit without one.
+                if (this.at(',')) {
+                    this.advance();
+                    label = this.parseStringItem('a label for `mark`', true);
+                }
+            }
+            this.expect(')', '`)`');
+            return {
+                kind: 'mark',
+                value,
+                ...(position === undefined ? {} : { position }),
+                ...(label === undefined ? {} : { label }),
+                line: at.line,
+            };
+        }
+        if (shape === 'item') {
+            // `item_id: "item"` — the id is an optional PREFIX, so the colon one token ahead is
+            // what tells the two spellings apart.
+            let id;
+            if (at.type === 'ident' && this.at(':', 1)) {
+                id = this.advance().text;
+                this.advance();
+            }
+            const value = this.parseStringItem(`a string for \`${listName}\``, true);
+            return { kind: 'item', ...(id === undefined ? {} : { id }), value, line: at.line };
+        }
+        const value = this.parseStringItem(`a quoted string for \`${listName}\``, false);
+        return { kind: 'string', value, line: at.line };
+    }
+
+    /**
+     * A string item of a bracketed list.
+     *
+     * @param {string} expected @param {boolean} translatable  whether `_("…")` is allowed here
+     * @returns {StringValue}
+     */
+    parseStringItem(expected, translatable) {
+        const at = this.peek();
+        const value = this.parseValue({ allowObject: false, allowList: false });
+        if (value.kind !== 'string') throw this.fail(at, `found a ${value.kind} value, expected ${expected}`);
+        // A file-filter string and an offset name are `UseQuoted` in the oracle's grammar, not
+        // `StringValue`: there is no translation to do on a MIME type or a CSS class name, and
+        // accepting `_("text/plain")` would emit a `translatable` attribute GtkBuilder ignores.
+        if (!translatable && value.translatable) {
+            throw this.fail(at, `a translated string is not accepted here — ${expected} is not translated`);
+        }
+        return value;
+    }
+
+    /**
+     * A number item of a bracketed list.
+     *
+     * @param {string} construct
+     * @returns {NumberValue}
+     */
+    parseNumberItem(construct) {
+        const at = this.peek();
+        const value = this.parseValue({ allowObject: false, allowList: false });
+        if (value.kind !== 'number')
+            throw this.fail(at, `found a ${value.kind} value, expected a number for \`${construct}\``);
+        return value;
     }
 
     /**

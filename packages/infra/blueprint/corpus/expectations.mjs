@@ -933,4 +933,25 @@ export const RULE_EXPECTATIONS = [
         lost: [{ kind: 'responses', line: 7, detail: 'all four responses, flags and all' }],
         note: 'The flags share the fate of the block they sit in: `SharedNode` has no form for a dialog response, so `appearance` and `enabled` are lost with it rather than beside it. One loss for the block, which is what `31-responses.blp` already records — this file adds no new exit, only new attributes on the XML side of the same one.',
     },
+    {
+        file: '53-extension-lists.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkScale' },
+                { tag: 'GtkFileFilter' },
+                { tag: 'GtkComboBoxText' },
+                { tag: 'GtkLevelBar' },
+            ],
+        },
+        lost: [
+            { kind: 'marks', line: 5, detail: 'four marks, one of them translated and one with a context' },
+            { kind: 'mime-types', line: 14, detail: 'one MIME type' },
+            { kind: 'patterns', line: 18, detail: 'one glob' },
+            { kind: 'suffixes', line: 22, detail: 'one suffix' },
+            { kind: 'items', line: 28, detail: 'three items, one translated and one with an id' },
+            { kind: 'offsets', line: 36, detail: 'two offsets' },
+        ],
+        note: 'Six losses for six lists, each by its own NAME rather than one shared kind. A consumer told `marks` was dropped learns something a consumer told `extension-list` was dropped does not — and the four widgets survive as bare tags, because everything each of them says is in the list that was dropped.',
+    },
 ];

@@ -362,6 +362,73 @@ function emitInlineTemplate(xml, node, ownerType, context) {
     xml.endTag();
 }
 
+/**
+ * The six bracketed lists: wrapper tag, child tag, and the GType that may hold them.
+ *
+ * One table because they are one construct with six names — the oracle's own file-filter trio
+ * is already a single implementation parameterised exactly this way, and `marks`, `items` and
+ * `offsets` differ from it only in what one item carries.
+ */
+const EXTENSION_LIST_TAGS = new Map([
+    ['marks', { child: 'mark', owner: 'GtkScale' }],
+    ['items', { child: 'item', owner: 'GtkComboBoxText' }],
+    ['offsets', { child: 'offset', owner: 'GtkLevelBar' }],
+    ['mime-types', { child: 'mime-type', owner: 'GtkFileFilter' }],
+    ['patterns', { child: 'pattern', owner: 'GtkFileFilter' }],
+    ['suffixes', { child: 'suffix', owner: 'GtkFileFilter' }],
+]);
+
+/**
+ * `marks [ … ]` and its five siblings.
+ *
+ * The OWNER check is here and not in the parser because the enclosing object's type is known
+ * here and nowhere there. It compares the GType by NAME, so a subclass of `Gtk.Scale` carrying
+ * marks is refused where the oracle would accept it — a refusal that names itself, not wrong
+ * output, and the direction to be wrong in. A `null` owner is an extern type and validates
+ * nothing, by the same rule an extern parent carries any property name.
+ *
+ * @param {XmlWriter} xml @param {ExtensionList} list @param {string | null} ownerType
+ * @param {EmitContext} context
+ */
+function emitExtensionList(xml, list, ownerType, context) {
+    const spec = /** @type {{ child: string, owner: string }} */ (EXTENSION_LIST_TAGS.get(list.name));
+    if (ownerType !== null && ownerType !== spec.owner) {
+        throw new BlueprintEmitError(
+            `a \`${list.name} [ … ]\` block belongs to a ${spec.owner} and this one is inside \`${ownerType}\`, where the oracle refuses it`,
+            at(context, list.line),
+        );
+    }
+    xml.startTag(list.name, {});
+    for (const item of list.items) {
+        if (item.kind === 'offset') {
+            // The one self-closing child of the six.
+            xml.selfClosing(spec.child, {
+                name: scalarText(item.name, null, null, context),
+                value: numberText(item.value.raw),
+            });
+            continue;
+        }
+        if (item.kind === 'mark') {
+            // Never self-closing, even with no label: the oracle writes `<mark value="2"></mark>`.
+            xml.startTag(spec.child, {
+                value: numberText(item.value.raw),
+                ...(item.position === undefined ? {} : { position: item.position }),
+                ...(item.label === undefined ? {} : translatedAttributes(item.label)),
+            });
+            if (item.label !== undefined) xml.text(scalarText(item.label, null, null, context));
+            xml.endTag();
+            continue;
+        }
+        xml.startTag(spec.child, {
+            ...(item.kind === 'item' && item.id !== undefined ? { id: item.id } : {}),
+            ...translatedAttributes(item.value),
+        });
+        xml.text(scalarText(item.value, null, null, context));
+        xml.endTag();
+    }
+    xml.endTag();
+}
+
 /** @param {XmlWriter} xml @param {TemplateNode} template @param {EmitContext} context */
 function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
@@ -400,6 +467,7 @@ function emitBody(xml, body, ownerType, context) {
         ['signal', body.signals],
         ['extension', body.extensions],
         ['inline-template', body.inlineTemplate === undefined ? [] : [body.inlineTemplate]],
+        ['extension-list', body.extensionLists],
     ]);
 
     for (const [kind, member] of members) {
@@ -408,6 +476,8 @@ function emitBody(xml, body, ownerType, context) {
         else if (kind === 'signal') emitSignal(xml, /** @type {Signal} */ (member), context);
         else if (kind === 'inline-template') {
             emitInlineTemplate(xml, /** @type {InlineTemplateNode} */ (member), ownerType, context);
+        } else if (kind === 'extension-list') {
+            emitExtensionList(xml, /** @type {ExtensionList} */ (member), ownerType, context);
         } else emitExtension(xml, /** @type {Extension} */ (member), context);
     }
 }
