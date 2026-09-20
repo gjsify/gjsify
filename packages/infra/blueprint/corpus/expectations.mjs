@@ -907,4 +907,24 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'Where `08-template.blp` loses the class and keeps the PARENT as the root tag, this file has no parent to keep, so the class name it declares is the tag — and it is extern, which is the second loss. `visible` reaches this exit as `true` rather than resolved, for the same reason it reaches the XML as the string `true`: there is no owner type to resolve it through.',
     },
+    {
+        file: '51-inline-template.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkListView', children: [{ tag: 'GtkBuilderListItemFactory', slot: 'factory' }] },
+                { tag: 'GtkLabel', props: { label: 'the same id, outside the sub-document' } },
+            ],
+        },
+        lost: [
+            { kind: 'object-id', line: 5, detail: 'the id `corpusFactory` on the factory' },
+            {
+                kind: 'inline-template',
+                line: 6,
+                detail: 'the whole sub-document — `SharedNode` is one tree and has no nesting form for a second one with its own id scope',
+            },
+            { kind: 'object-id', line: 20, detail: 'the id `corpusLabel` on the OUTER label' },
+        ],
+        note: "The factory survives as a node and its CONTENT does not: the block is declared lost rather than flattened, and ONE loss covers the whole sub-document however deep it goes — this file nests a second block inside the first. Flattening would be worse than dropping it — the ids inside a sub-document are allowed to repeat the outer file's, and this file repeats one on purpose, so a merged tree would carry two different objects under `corpusLabel` and no consumer could tell which it had.",
+    },
 ];

@@ -139,6 +139,7 @@ const LOSS_KINDS = new Set([
     'sibling-object',
     'responses',
     'extern',
+    'inline-template',
 ]);
 
 const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);
@@ -201,7 +202,21 @@ const countNodes = (node) => 1 + (node.children ?? []).reduce((n, c) => n + coun
  * the root object of a composite template and counts as one; `<menu>` is a `GMenuModel`
  * and not an object at all, which is why a `menu` loss does not appear below.
  */
-const goldenObjects = (xml) => (xml.match(/<object /g) ?? []).length + (xml.match(/<template /g) ?? []).length;
+/**
+ * The objects of ONE document.
+ *
+ * A CDATA section is stripped first, and that is a statement about what is being counted
+ * rather than a convenience: the `template Type { … }` block of a `Gtk.BuilderListItemFactory`
+ * embeds a SECOND, complete GtkBuilder document — its own `<?xml?>` declaration, its own
+ * `<interface>`, its own id scope, which the reference implementation says may not reference
+ * the outer one or be referenced by it. Counting its objects here would hold the projection of
+ * one document against the object count of two, and the only way to satisfy that would be to
+ * declare losses for objects the projection was never asked about.
+ */
+const goldenObjects = (xml) => {
+    const single = xml.replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    return (single.match(/<object /g) ?? []).length + (single.match(/<template /g) ?? []).length;
+};
 
 /**
  * The loss kinds that drop a whole OBJECT rather than an attribute of one. Measured

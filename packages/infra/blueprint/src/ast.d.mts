@@ -422,6 +422,36 @@ export interface ObjectBody {
     readonly children: readonly Child[];
     readonly signals: readonly Signal[];
     readonly extensions: readonly Extension[];
+    /**
+     * The `template Type { … }` block of a `Gtk.BuilderListItemFactory`, at most one.
+     *
+     * Its own field rather than an `Extension`, because an `Extension` holds a flat list of
+     * `name: value;` entries and this holds a whole `ObjectBody` — children, signals and
+     * extensions included. It is also not a `TemplateNode`: that is a root with a class being
+     * DEFINED, and this names an existing one.
+     */
+    readonly inlineTemplate?: InlineTemplateNode;
+}
+
+/**
+ * `template Gtk.ListItem { … }` inside a `Gtk.BuilderListItemFactory`.
+ *
+ * It becomes a SECOND, complete GtkBuilder document — its own `<?xml?>` header, its own
+ * `<interface>`, its own id scope — CDATA-escaped into `<property name="bytes">`. That is why
+ * ids inside it may repeat ids of the outer file without either being wrong: the two documents
+ * never see each other, which the oracle states outright ("may not reference objects in the
+ * main blueprint or vice versa").
+ */
+export interface InlineTemplateNode {
+    /**
+     * Absent where the file writes `template { … }`, which the oracle accepts with an upgrade
+     * warning and compiles as `Gtk.ListItem`. The default is applied at emit, not at parse, so
+     * the tree keeps saying what the file said.
+     */
+    readonly type?: TypeRef;
+    readonly body: ObjectBody;
+    readonly line: number;
+    readonly order: number;
 }
 
 export interface ObjectNode {

@@ -283,7 +283,6 @@ const REFUSED_EXTENSIONS = new Map([
     ['mime-types', 'the `mime-types [ … ]` extension of Gtk.FileFilter'],
     ['patterns', 'the `patterns [ … ]` extension of Gtk.FileFilter'],
     ['suffixes', 'the `suffixes [ … ]` extension of Gtk.FileFilter'],
-    ['template', 'the `template … { }` extension of Gtk.BuilderListItemFactory'],
 ]);
 
 /** How a token reads inside "found …". */
@@ -505,6 +504,14 @@ class Parser {
         /** @type {Extension[]} */
         const extensions = [];
 
+        /**
+         * At most one, which is the oracle's rule and not a convenience: two `template { … }`
+         * blocks would be two documents in one `bytes` property.
+         *
+         * @type {InlineTemplateNode | undefined}
+         */
+        let inlineTemplate;
+
         // Stamped on every member as it is parsed. These four arrays are the only place
         // source order is destroyed, and this is the only place it can be recorded — a tie
         // broken by `line` is broken wrongly the moment two members share one.
@@ -555,7 +562,17 @@ class Parser {
                 extensions.push({ ...this.parseResponsesExtension(), order: order++ });
             } else if (LIST_PROPERTIES.has(token.text) && next.text === '[') {
                 properties.push({ ...this.parseListProperty(), order: order++ });
-            } else if (REFUSED_EXTENSIONS.has(token.text) && (token.text === 'template' || next.text === '[')) {
+            } else if (token.text === 'template') {
+                if (inlineTemplate !== undefined) {
+                    // The oracle's own words: "Duplicate template block". Two would be two
+                    // documents in one `bytes` property, and the second would silently win.
+                    throw this.fail(
+                        token,
+                        'a second `template { … }` block in one object — the oracle refuses it as a duplicate',
+                    );
+                }
+                inlineTemplate = { ...this.parseInlineTemplate(), order: order++ };
+            } else if (REFUSED_EXTENSIONS.has(token.text) && next.text === '[') {
                 throw this.fail(
                     token,
                     `found ${REFUSED_EXTENSIONS.get(token.text)}, which is not in this subset — no corpus file reaches it, and \`Extension\` in ast.d.mts would record its name and drop its own vocabulary`,
@@ -565,7 +582,30 @@ class Parser {
             }
         }
         this.expect('}', '`}`');
-        return { properties, children, signals, extensions };
+        return {
+            properties,
+            children,
+            signals,
+            extensions,
+            ...(inlineTemplate === undefined ? {} : { inlineTemplate }),
+        };
+    }
+
+    /**
+     * `template Gtk.ListItem { … }` — the sub-document of a `Gtk.BuilderListItemFactory`.
+     *
+     * The type is Optional in the oracle's grammar and stays Optional here: `template { … }`
+     * compiles there with an upgrade warning, and this package has no warning channel, so the
+     * absence is carried to the emitter and defaulted where the XML is written. Which types are
+     * legal is not decided here either — that is a fact about `Gtk.BuilderListItemFactory`, and
+     * the emitter is where the enclosing object's type is known.
+     *
+     * @returns {Omit<InlineTemplateNode, 'order'>}
+     */
+    parseInlineTemplate() {
+        const keyword = this.expect('template', '`template`');
+        const type = this.at('{') ? undefined : this.parseTypeRef();
+        return { ...(type === undefined ? {} : { type }), body: this.parseObjectBody(), line: keyword.line };
     }
 
     /**

@@ -6422,8 +6422,9 @@ ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBluepri
 `emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
 the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4, re-measured again on
 the `@girs` 5.3.0 bump, and again on the parentless
-`template`: 50 rule files and 12
-reality probes, all 62 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
+`template`, and again on the inline one:
+51 rule files and 12
+reality probes, all 63 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
 naming their construct, their file and their line. Those four are held to the tree by
 `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every one of
 them wrong again within hours — and the gate is bidirectional, so deleting the sentence fails too.
@@ -6494,11 +6495,29 @@ invention. In the SharedNode projection the class being defined becomes the root
 SECOND declared loss (`extern`), because a parentless template is the extern case by
 construction.
 
-Still refused in the same family: the inline `template Type { }` extension of
-`Gtk.BuilderListItemFactory`, which nine files reach — one of them wild (epiphany's
-`location-entry.blp`). It is a different shape entirely: the oracle emits a complete nested
-`<interface>` document, with its own `<?xml?>` header and its own id scope, CDATA-escaped into
-`<property name="bytes">`.
+**The inline `template Type { }` of a `Gtk.BuilderListItemFactory` closes the family.** Measured
+over the same nine pools: the reference implementation's `tests/samples` go from **68 to 75
+byte-equal** (refusals 27 → 20) and the wild corpus moves for the first time in this family,
+**264 to 265 of 273** (97.1%), 0 silently wrong — the one file is epiphany's
+`location-entry.blp`. Together with the parentless form above, the language corpus went 62 → 75.
+
+It is not nested XML, it is TEXT: a SECOND, complete document with its own `<?xml?>` declaration,
+its own `<interface>` and no `<requires>`, indentation restarting at column 0, CDATA-escaped into
+`<property name="bytes">` on the factory. Three consequences fall out of that and none of them is
+a style choice. The sub-document cannot be written into the enclosing writer, so it gets one of
+its own. Its ids are a SEPARATE SCOPE — `indexBody` never descends into the block, so
+`51-inline-template.blp` declares `corpusLabel` twice on purpose and neither is a duplicate,
+which is what the reference implementation means by "may not reference objects in the main
+blueprint or vice versa". And the only escape a CDATA section still needs is its own terminator,
+so `]]>` inside the text is split across two sections — not hypothetical, since an inline
+template nested inside another produces exactly that sequence.
+
+The projection declares the whole block lost rather than flattening it, and flattening would be
+worse than dropping: the ids inside may repeat the outer file's, so a merged tree could carry two
+different objects under one name with no way for a consumer to tell. `goldenObjects` in
+`check-blueprint-corpus.mjs` now strips CDATA before counting, which is a statement about what it
+measures — a projection of one document held against the object count of two could only be
+satisfied by declaring losses for objects the projection was never asked about.
 
 **The flip landed, and what it answered is the question this paragraph used to hold open.**
 `@gjsify/vite-plugin-blueprint` kept its public interface and changed what it calls. Byte-equality

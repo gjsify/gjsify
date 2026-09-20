@@ -194,6 +194,14 @@ const lossesOf = (file) => {
         }
         for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
         for (const extension of body.extensions) lost.push({ kind: extension.name, line: extension.line });
+        // A whole SECOND document, and `SharedNode` is one tree: there is no nesting form for
+        // a sub-document with its own id scope, so the block is declared lost rather than
+        // flattened into the parent. Flattening would be worse than dropping it — the ids
+        // inside are allowed to collide with the outer file's, so a merged tree could carry
+        // two different objects under one name and no consumer could tell.
+        if (body.inlineTemplate !== undefined) {
+            lost.push({ kind: 'inline-template', line: body.inlineTemplate.line });
+        }
         for (const child of body.children) {
             if (isBreakpoint(child.object)) {
                 // Named on the OBJECT line, never on the bracket above it — the convention
