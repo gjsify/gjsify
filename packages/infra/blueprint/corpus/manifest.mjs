@@ -431,6 +431,13 @@ export const CORPUS_RULES = [
         surprise:
             '`template ListItem` is not the pre-0.8.0 legacy spelling and raises no upgrade warning anywhere: `ListItem` is a real Gtk type, so the oracle resolves it like any type reference and the class attribute is its GTYPE — `class="GtkListItem"`, not the spelling. That is the whole difference from the sigil form, where the name is the class being DEFINED and reaches the XML verbatim. It follows into the projection: the root tag is `GtkListItem` and there is NO `extern` loss, because the type is a real one — where `template $TestTemplate { }` has both. The binding through `template` is in the file because the class name is read TWICE, once for the tag and once for every identifier inside it, and reading the spelling in the second place while the GType is written in the first is what made this exact shape silently different',
     },
+    {
+        file: '56-action-widgets-menu-ids.blp',
+        isolates:
+            'the `[action response=…]` annotation and the id a `section` or `submenu` may carry — the two constructs that reach somewhere other than the element they are written on',
+        surprise:
+            'an action widget is the only annotation whose content is emitted somewhere ELSE: the child gets `type="action"` and the response goes into an `<action-widgets>` block the PARENT writes after all its children, in source order and whatever order the children came in. The widget is named by the element\'s TEXT, not an attribute, so a child without an id cannot be written at all — the oracle refuses it and so does this. `default` is `default="True"`, capital T, because the oracle writes a Python bool straight out. The menu ids are here for a different reason: they are REFERENCE TARGETS, so accepting them without indexing them would have turned `menu-model: namedSub` into a refusal on a file the oracle compiles — the obligation `indexObjectIds` wrote down for whoever lifted the limit',
+    },
 ];
 
 /**

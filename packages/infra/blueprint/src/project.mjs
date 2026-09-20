@@ -218,6 +218,10 @@ const lossesOf = (file) => {
             // `SharedNode.slot` carries the second. A renderer handed the first as a slot would
             // put the object in the wrong place, so the annotation is dropped and declared.
             if (child.internalChild !== undefined) lost.push({ kind: 'internal-child', line: child.line });
+            // The widget survives and its ROLE does not: `SharedNode` has no dialog-response
+            // form, and a renderer handed the button without it would show a dialog whose
+            // buttons answer nothing.
+            if (child.response !== undefined) lost.push({ kind: 'action-widget', line: child.line });
             if (isBreakpoint(child.object)) {
                 // Named on the OBJECT line, never on the bracket above it — the convention
                 // stated once in the header of `corpus/expectations.mjs`.

@@ -1,0 +1,28 @@
+using Gtk 4.0;
+
+menu topMenu {
+  section namedSection {
+    item ("A", "app.a")
+  }
+
+  submenu namedSub {
+    item ("B", "app.b")
+  }
+}
+
+Gtk.Dialog {
+  [action response=cancel]
+  Gtk.Button cancelButton {
+    label: "Cancel";
+  }
+
+  [action response=9]
+  Gtk.Button numericButton {
+    label: "Nine";
+  }
+
+  [action response=ok default]
+  Gtk.Button okButton {
+    label: "OK";
+  }
+}

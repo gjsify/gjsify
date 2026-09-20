@@ -149,6 +149,7 @@ const LOSS_KINDS = new Set([
     'suffixes',
     'internal-child',
     'translation-domain',
+    'action-widget',
 ]);
 
 const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);

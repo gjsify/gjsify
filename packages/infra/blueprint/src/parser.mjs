@@ -793,10 +793,31 @@ class Parser {
             return { internalChild: name.text, object: this.parseObject(), line: bracket.line };
         }
         if (slot.text === 'action' && this.at('response')) {
-            throw this.fail(
-                slot,
-                'found `[action response=…]`; `Child` in ast.d.mts has no field for a response id, so the action-widget annotation is out of scope',
-            );
+            this.advance();
+            this.expect('=', '`=`');
+            // An id (`ok`, `cancel` — a `Gtk.ResponseType` member) or a number. Which of the two
+            // is not decided here: the oracle checks the member against the GIR and the number
+            // for being non-negative, and neither fact is in this file.
+            const at = this.peek();
+            let value;
+            if (at.type === 'ident') {
+                value = this.advance().text;
+            } else {
+                const number = this.parseValue({ allowObject: false, allowList: false });
+                if (number.kind !== 'number') {
+                    throw this.fail(at, 'a `response` is a `Gtk.ResponseType` member or a non-negative integer');
+                }
+                const { negative, digits } = numberLiteral(number.raw);
+                // A fact about the FILE, so it is refused here: a response id indexes into a
+                // dialog's responses and there is no negative position in that list.
+                if (negative) throw this.fail(at, 'a numeric `response` may not be negative');
+                if (digits.includes('.')) throw this.fail(at, 'a numeric `response` is an integer');
+                value = digits;
+            }
+            const isDefault = this.at('default');
+            if (isDefault) this.advance();
+            this.expect(']', '`]`');
+            return { response: { id: value, isDefault }, object: this.parseObject(), line: bracket.line };
         }
         this.expect(']', '`]`');
         return { slot: slot.text, object: this.parseObject(), line: bracket.line };
@@ -1035,14 +1056,19 @@ class Parser {
         if (kind === 'item' && this.at('(')) {
             return this.parseMenuItemShorthand(keyword);
         }
-        // `section`/`submenu` take an optional id in the oracle and it is refused here:
-        // `MenuItem` in ast.d.mts has a kind, attributes, items and a line, and dropping an
-        // id the source wrote is the pass-through clause 3 forbids.
+        // `section`/`submenu` take an optional id. An `item` does not: the oracle's grammar
+        // gives one to the two container kinds only, and accepting it on an item would emit an
+        // attribute GtkBuilder has nowhere to put.
+        /** @type {string | undefined} */
+        let id;
         if (this.peek().type === 'ident') {
-            throw this.fail(
-                this.peek(),
-                `found the id \`${this.peek().text}\`; \`MenuItem\` in ast.d.mts has no \`id\` field, so a named \`${kind}\` is out of scope`,
-            );
+            if (kind === 'item') {
+                throw this.fail(
+                    this.peek(),
+                    `found the id \`${this.peek().text}\`; only a \`section\` or a \`submenu\` takes one`,
+                );
+            }
+            id = this.advance().text;
         }
 
         const opening = this.expect('{', '`{`');
@@ -1072,7 +1098,7 @@ class Parser {
             attributes.push({ ...this.parseMenuAttribute(), order: order++ });
         }
         this.expect('}', '`}`');
-        return { kind, attributes, items, line: keyword.line };
+        return { kind, ...(id === undefined ? {} : { id }), attributes, items, line: keyword.line };
     }
 
     /**

@@ -394,6 +394,15 @@ export interface Child {
      * `<child internal-child="…">` differently, so one field could not carry both.
      */
     readonly internalChild?: string;
+    /**
+     * `[action response=ok default]` — the child is a dialog's action widget.
+     *
+     * Unlike {@link Child.slot} and {@link Child.internalChild}, this one does NOT stay on the
+     * child: the child gets `type="action"` and the RESPONSE is written into an
+     * `<action-widgets>` block the parent emits after all its children. So the annotation is
+     * recorded here and read one level up, which is the only place the whole list exists.
+     */
+    readonly response?: { readonly id: string; readonly isDefault: boolean };
     readonly object: ObjectNode;
     readonly line: number;
     readonly order: number;
@@ -581,6 +590,12 @@ export interface MenuAttribute {
 
 export interface MenuItem {
     readonly kind: 'item' | 'section' | 'submenu';
+    /**
+     * `section named_section { … }` — only a `section` or a `submenu` may carry one, and it is a
+     * REFERENCE TARGET: `menu-model: named_sub` resolves to it, so it has to be indexed beside
+     * the object ids or a file the oracle compiles is refused here.
+     */
+    readonly id?: string;
     readonly attributes: readonly MenuAttribute[];
     readonly items: readonly MenuItem[];
     readonly line: number;

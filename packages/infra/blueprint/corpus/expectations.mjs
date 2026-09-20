@@ -981,4 +981,25 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'ONE template loss, where `50-template-orphan.blp` has two. Both are parentless; this one names a real type, so the root tag is its GType and nothing is extern. The pair is the assertion — a single file could not show that the second loss depends on which spelling the file used. The BINDING is here for a different reason: `template` inside resolves to the class, and reading the spelling there while the `<template>` tag reads the GType is what made this exact file silently different — `<template class="GtkListItem">` beside `<lookup … type="ListItem">`, a class GtkBuilder cannot find.',
     },
+    {
+        file: '56-action-widgets-menu-ids.blp',
+        node: {
+            tag: 'GtkDialog',
+            children: [
+                { tag: 'GtkButton', props: { label: 'Cancel' } },
+                { tag: 'GtkButton', props: { label: 'Nine' } },
+                { tag: 'GtkButton', props: { label: 'OK' } },
+            ],
+        },
+        lost: [
+            { kind: 'menu', line: 3, detail: 'the whole menu, its named section and submenu with it' },
+            { kind: 'action-widget', line: 14, detail: 'the `cancel` response' },
+            { kind: 'object-id', line: 15, detail: 'the id `cancelButton`' },
+            { kind: 'action-widget', line: 19, detail: 'the numeric response `9`' },
+            { kind: 'object-id', line: 20, detail: 'the id `numericButton`' },
+            { kind: 'action-widget', line: 24, detail: 'the `ok` response, and that it is the default' },
+            { kind: 'object-id', line: 25, detail: 'the id `okButton`' },
+        ],
+        note: 'The three buttons survive and their ROLE does not: a renderer handed them without the responses would show a dialog whose buttons answer nothing. The ids are lost beside them and that pairing is the point — the XML names each widget by its id, so the two facts travel together there and are dropped together here. The menu ids take no loss of their own: the menu is one loss and everything inside it goes with it.',
+    },
 ];
