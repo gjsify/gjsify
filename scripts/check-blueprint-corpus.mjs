@@ -85,7 +85,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
@@ -1030,6 +1030,55 @@ if (surface !== undefined) {
     }
 }
 
+// ---------------------------------------------------------------- stage F
+
+// A corpus file named in prose and not present on disk. Measured, not hypothetical: the
+// `binding-lookup-chain.blp` refusal pointed at a rules/ file named for a lookup chain, for the
+// cast form of the same shape, and no such file has ever existed — the shape is in
+// `rules/43-expression-lookup.blp`. Every other stage reads the manifest TABLES, so a name that
+// appears only in a comment is read by nothing, and a reader who goes looking for it finds an
+// absence and no way to tell a renamed file from an invented one.
+//
+// Scope is this package plus the scripts that check it. Paths from the wild corpus live in
+// `status/` and `docs/reports/` and are deliberately out of scope: they name other people's
+// repositories, which this tree cannot resolve.
+const PROSE_FILES = [
+    ...readdirSync(join(root, 'packages/infra/blueprint/src')).map((f) =>
+        join(root, 'packages/infra/blueprint/src', f),
+    ),
+    join(root, 'packages/infra/blueprint/README.md'),
+    MANIFEST,
+    join(CORPUS, 'expectations.mjs'),
+    join(CORPUS, 'divergences.mjs'),
+    join(CORPUS, 'real-expectations.mjs'),
+    join(root, 'scripts/check-blueprint-corpus.mjs'),
+].filter((f) => existsSync(f));
+
+let namedFiles = 0;
+for (const path of PROSE_FILES) {
+    const text = readFileSync(path, 'utf8');
+    // TWO spellings are resolvable and the limit is deliberate. A `rules/…`, `refused/…` or
+    // `real/…` path names a file of this corpus and must be there. A bare `NN-name.blp` is the
+    // rule-file convention and must be in `rules/`. Everything else a comment may name is out of
+    // scope and is NOT resolved: `toolbar-view.blp` is the showcase source a `real/` probe was
+    // flattened from, and `expr_try.blp` is the reference implementation's own sample — both are
+    // real files this tree cannot see, and flagging them would teach a reader to ignore the stage.
+    for (const match of text.matchAll(
+        /`(?:(rules|refused|real)\/([\w.-]+\.(?:blp|ui))|(\d\d-[\w.-]+\.(?:blp|ui)))`/g,
+    )) {
+        const [, dir, dirName, bare] = match;
+        namedFiles++;
+        const name = dir === undefined ? bare : dirName;
+        const found = dir === undefined ? existsSync(join(RULES_DIR, name)) : existsSync(join(CORPUS, dir, name));
+        if (!found) {
+            problems.push(
+                `${relative(root, path)} names \`${dir === undefined ? '' : `${dir}/`}${name}\`, which is not in the corpus.`,
+            );
+        }
+    }
+}
+const stageF = `stage F resolved ${namedFiles} corpus file name(s) written in prose, every one of them present`;
+
 if (problems.length > 0) fail();
 
 // Neither stage has a skip branch to print: a missing parser, emitter or projection is a
@@ -1070,5 +1119,5 @@ const losses = everyExpectation.reduce((n, e) => n + (e.lost ?? []).length, 0);
 console.log(
     `check-blueprint-corpus: stage A verified ${CORPUS_RULES.length} rule(s) and ` +
         `${CORPUS_REAL_FILES.length} reality probe(s), each with a hand-written expectation ` +
-        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}; ${stageE}.`,
+        `(${nodes} node(s), ${losses} declared loss(es)); ${stageB}; ${stageC}; ${stageD}; ${stageE}; ${stageF}.`,
 );

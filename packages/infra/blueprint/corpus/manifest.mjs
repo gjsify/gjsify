@@ -486,8 +486,8 @@ export const CORPUS_REFUSALS = [
         // is the oracle reading `GtkLabel.parent`'s TYPE out of the typelib; `@girs`'s
         // vocabulary has no property-to-GType table, so the middle type cannot be derived and
         // ADR 0053 clause 6 forbids writing one by hand. Cast it —
-        // `a.parent as <Widget>.name` — and `rules/42-expression-lookup-chain.blp` is that
-        // same file, compiled.
+        // `a.parent as <Widget>.name` — and `rules/43-expression-lookup.blp` line 13 is that
+        // same shape, compiled.
         file: 'binding-lookup-chain.blp',
         construct: 'a lookup chain with no cast to name the middle type, `bind a.b.c`',
         oracle: 'compiles',
