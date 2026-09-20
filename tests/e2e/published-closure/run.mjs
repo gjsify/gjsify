@@ -723,10 +723,7 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             // which a required gate with no escape hatch would delete.
             const root = fixture(
                 'declared-optional',
-                [
-                    { name: '@fix/pending' },
-                    { name: '@fix/wants-it', optionalDeps: { '@fix/pending': 'workspace:*' } },
-                ],
+                [{ name: '@fix/pending' }, { name: '@fix/wants-it', optionalDeps: { '@fix/pending': 'workspace:*' } }],
                 declaredTarget,
             );
             published = new Map([['@fix/wants-it', [VERSION]]]);
