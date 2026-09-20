@@ -105,6 +105,20 @@ function packumentStore() {
             res.statusCode = 200;
             res.end(JSON.stringify(doc));
         },
+        /**
+         * Make a NAME exist without a publish — what the pin guard asks about.
+         *
+         * The guard asks presence of the NAME, never a version, so one version
+         * is enough and which one does not matter.
+         */
+        seed(name, version = '0.0.1') {
+            const route = `/${name.replace('/', '%2f')}`;
+            docs.set(route, {
+                name,
+                'dist-tags': { latest: version },
+                versions: { [version]: { dist: { tarball: `http://seeded.invalid/${version}.tgz` } } },
+            });
+        },
         /** GETs received, so a row can assert the read-back actually polled. */
         gets: [],
     };
@@ -130,6 +144,11 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-publish-'));
         capturedPuts = [];
         packuments = packumentStore();
+        // The workspace fixtures pin `@gjsify/cli` with `workspace:^`, and the
+        // pin guard now asks the registry whether that name exists. It does, on
+        // npm; it must here too, or every workspace row would measure the guard
+        // instead of what it was written for.
+        packuments.seed('@gjsify/cli', '0.4.27');
 
         // Stand up the in-process mock npm registry.
         // Accepts PUT /<escaped-name> and records the request for assertions.
@@ -286,6 +305,49 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
             'utf-8',
         );
         writeFileSync(join(pkgDir, 'index.js'), 'export const name = "fixture";\n', 'utf-8');
+        return pkgDir;
+    }
+
+    /**
+     * A workspace package pinning ONE sibling, from the block the case names.
+     *
+     * The sibling exists as a workspace (so `workspace:^` resolves at pack time)
+     * and is NOT seeded into the registry unless the case seeds it — which is
+     * exactly the shape #1713 describes: a pin the tarball carries to a name npm
+     * does not have.
+     */
+    function scaffoldPinFixture(dirName, pkgName, version, { sibling, siblingVersion = '2.0.0', block }) {
+        const wsRoot = join(tmpDir, `ws-${dirName}`);
+        mkdirSync(join(wsRoot, 'packages', 'sibling'), { recursive: true });
+        writeFileSync(
+            join(wsRoot, 'package.json'),
+            `${JSON.stringify({ name: `e2e-ws-${dirName}`, version: '0.0.0', private: true, workspaces: ['packages/*'] }, null, 2)}\n`,
+            'utf-8',
+        );
+        writeFileSync(
+            join(wsRoot, 'packages', 'sibling', 'package.json'),
+            `${JSON.stringify({ name: sibling, version: siblingVersion }, null, 2)}\n`,
+            'utf-8',
+        );
+        const pkgDir = join(wsRoot, 'packages', dirName);
+        mkdirSync(pkgDir, { recursive: true });
+        writeFileSync(
+            join(pkgDir, 'package.json'),
+            `${JSON.stringify(
+                {
+                    name: pkgName,
+                    version,
+                    type: 'module',
+                    main: 'index.js',
+                    files: ['index.js'],
+                    [block]: { [sibling]: 'workspace:^' },
+                },
+                null,
+                2,
+            )}\n`,
+            'utf-8',
+        );
+        writeFileSync(join(pkgDir, 'index.js'), 'export const name = "pin-fixture";\n', 'utf-8');
         return pkgDir;
     }
 
@@ -1194,5 +1256,61 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
         } finally {
             server.close();
         }
+    });
+
+    // #1713. The sweep is topological, so a name skipped for want of a Trusted
+    // Publisher is skipped BEFORE its dependent — and the dependent then shipped
+    // a pin npm could not resolve, exit 0, one `~` line in a 200-package log.
+    // These three rows are the guard that ends that, and the line it draws.
+    it('a required pin to a name the registry does not have is NOT published', async () => {
+        const fixtureDir = scaffoldPinFixture('pin-required', '@gjsify/e2e-pin-required', '1.0.0', {
+            sibling: '@gjsify/e2e-pin-absent',
+            block: 'dependencies',
+        });
+        const before = capturedPuts.length;
+
+        const res = await runPublishRaw([fixtureDir], registryUrl);
+
+        assert.notEqual(res.code, 0, 'a blocked publish must exit non-zero without --tolerate-untrusted-new');
+        assert.equal(capturedPuts.length, before, 'the tarball must NOT reach the registry');
+        assert.doesNotMatch(res.stdout, /^\+ /m, 'stdout must NOT carry the `+ name@version` success line');
+        assert.match(res.stdout, /NOT published — 1 required pin\(s\)/);
+        assert.match(res.stdout, /dependencies\.@gjsify\/e2e-pin-absent@\^2\.0\.0/);
+        assert.match(res.stderr, /every consumer install of @gjsify\/e2e-pin-required would fail/);
+    });
+
+    it('--tolerate-untrusted-new keeps the sweep going and still sends nothing', async () => {
+        const fixtureDir = scaffoldPinFixture('pin-tolerated', '@gjsify/e2e-pin-tolerated', '1.0.0', {
+            sibling: '@gjsify/e2e-pin-absent-2',
+            block: 'dependencies',
+        });
+        const before = capturedPuts.length;
+
+        // Exit 0 is the point: `foreach --exec` THROWS on a non-zero child, so a
+        // fatal guard would stop the sweep mid-roster and leave a PARTIAL
+        // publish — the state docs/publishing.md calls worse than no publish.
+        const res = await runPublishRaw([fixtureDir, '--tolerate-untrusted-new'], registryUrl);
+
+        assert.equal(res.code, 0, 'the tolerated form must not stop the sweep');
+        assert.equal(capturedPuts.length, before, 'tolerating the skip must not tolerate shipping the pin');
+        assert.match(res.stdout, /NOT published/);
+    });
+
+    it('an OPTIONAL pin to an absent name is reported and still published', async () => {
+        const fixtureDir = scaffoldPinFixture('pin-optional', '@gjsify/e2e-pin-optional', '1.0.0', {
+            sibling: '@gjsify/e2e-pin-absent-3',
+            block: 'optionalDependencies',
+        });
+        const before = capturedPuts.length;
+
+        const res = await runPublishRaw([fixtureDir, '--verify-timeout', '10'], registryUrl);
+
+        // Measured, npm 11.17.0: an unresolvable optional edge installs clean,
+        // a required one is `npm error 404`, exit 1. The guard draws its line on
+        // that measurement rather than on the shape of the manifest.
+        assert.equal(res.code, 0, 'an optional edge must not block the publish');
+        assert.equal(capturedPuts.length, before + 1, 'the tarball must reach the registry');
+        assert.match(res.stderr, /optionalDependencies\.@gjsify\/e2e-pin-absent-3@\^2\.0\.0 names a package/);
+        assert.match(res.stderr, /YN0035/);
     });
 });

@@ -688,6 +688,60 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
                 ['@fix/bridge-darwin-arm64', ['0.0.1']],
             ]);
 
+        // #1713. A ledger entry queues a MAINTAINER ACTION; it cannot queue an
+        // install. Measured, npm 11.17.0, against the live registry: an
+        // unresolvable `optionalDependencies` edge installs clean, exit 0, and a
+        // `dependencies` edge is `npm error 404`, exit 1, for every consumer.
+        // Until that split, the shape that shipped `@gjsify/vite-plugin-blueprint`
+        // against an unpublished `@gjsify/blueprint` warned and exited 0.
+        const declaredTarget = { '@fix/pending': 'queued: manual first publish. OWNER: a maintainer with an OTP.' };
+
+        it('a REQUIRED edge to a declared-pending name is RED, not a warning', async () => {
+            const root = fixture(
+                'declared-required',
+                [{ name: '@fix/pending' }, { name: '@fix/needs-it', deps: { '@fix/pending': 'workspace:^' } }],
+                declaredTarget,
+            );
+            published = new Map([['@fix/needs-it', [VERSION]]]);
+            const res = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(res.status, 0, `a declaration must not excuse an unresolvable required edge:\n${res.out}`);
+            assert.match(res.out, /1 REQUIRED release-pinned edge\(s\) point at a name declared pending bootstrap/);
+            assert.match(res.out, /@fix\/needs-it → dependencies\.@fix\/pending/);
+        });
+
+        it('an OPTIONAL edge to a declared-pending name stays the queued branch', async () => {
+            // The "or queued as the next maintainer action" branch of the policy,
+            // which a required gate with no escape hatch would delete.
+            const root = fixture(
+                'declared-optional',
+                [{ name: '@fix/pending' }, { name: '@fix/wants-it', optionalDeps: { '@fix/pending': 'workspace:*' } }],
+                declaredTarget,
+            );
+            published = new Map([['@fix/wants-it', [VERSION]]]);
+            const res = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.equal(res.status, 0, `an optional edge must stay a warning:\n${res.out}`);
+            assert.match(res.out, /release-pinned edge\(s\) point at a name declared pending bootstrap/);
+            assert.match(res.out, /@fix\/wants-it → optionalDependencies\.@fix\/pending/);
+        });
+
         it('the PHASE selects the assertions: one tree, two verdicts', async () => {
             // The discriminator, and #1500's disqualifying consequence proven fixed.
             // Every name exists but NONE is at the tree's version — which is the
