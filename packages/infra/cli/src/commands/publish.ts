@@ -53,9 +53,11 @@ import { diagnose404, is404DiagnosticCandidate, type Diagnose404Result } from '.
 import {
     DEFAULT_VERIFY_BUDGET_MS,
     formatUnconfirmedPublish,
+    probePackageName,
     verifyPublishedVersion,
     type ReadbackResult,
 } from '../utils/publish-readback.js';
+import { collectWorkspacePins, REQUIRED_BLOCK, type WorkspacePin } from '../utils/publish-pins.js';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider, withOtpRetry, isOtpChallenge } from '../utils/npm-otp.js';
 import { promptLine } from '../utils/prompt.js';
@@ -303,6 +305,18 @@ export interface PublishWorkspaceInput {
     tolerate: boolean;
     /** Skip an un-bootstrapped new package on the OIDC path. */
     tolerateUntrustedNew: boolean;
+    /**
+     * Names this CALLER has published in this same process, which the pin guard
+     * therefore does not ask the registry about.
+     *
+     * A brand-new name is not served the instant its PUT is accepted — the same
+     * eventual consistency that makes a version gate unsafe — so a sweep that
+     * bootstraps a target and its dependent in one run would otherwise block the
+     * dependent on a name it had just created itself. `gjsify onboard` is that
+     * sweep. The release sweep is `foreach --exec`, one process per package, so
+     * its children pass nothing and every edge is a real registry question.
+     */
+    assumePresent?: readonly string[];
     /** `--trusted` (force OIDC) / `undefined` | `'auto'` (auto-detect). */
     trustedFlag: boolean | 'auto' | undefined;
     /** Registry override. Default: `$npm_config_registry` → scope-aware npmrc → npmjs. */
@@ -376,6 +390,26 @@ export type PublishOutcome =
           readback?: ReadbackResult;
       }
     | { ok: true; action: 'skipped-untrusted-new'; name: string; version: string }
+    /**
+     * The tarball was NOT sent, because a required intra-repo pin in it names a
+     * package the registry does not have (#1713).
+     *
+     * `ok` is the TOLERANCE, not the health: under `--tolerate-untrusted-new`
+     * this is a skip the sweep continues past, because a fatal child stops
+     * `foreach --exec` mid-roster and leaves a PARTIAL publish. Either way the
+     * broken tarball stays off the registry, which is the difference from the
+     * shape this outcome exists to end — where the dependency was skipped, exit
+     * 0, and its dependent shipped a pin npm could not resolve.
+     */
+    | {
+          ok: boolean;
+          action: 'blocked-missing-dependency';
+          name: string;
+          version: string;
+          registry: string;
+          tolerated: boolean;
+          missing: WorkspacePin[];
+      }
     | { ok: false; action: 'otp-required'; name: string; version: string; status: number }
     | { ok: false; action: 'oidc-failed'; name: string; version: string; error: unknown }
     | { ok: false; action: 'oidc-no-token'; name: string; version: string; error: unknown }
@@ -441,6 +475,61 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
     // Base headers (npm-command: publish routing header etc.). The OTP is added
     // per-PUT by `doPut` so `withOtpRetry` can retry with different codes.
     const headers = buildPublishHeaders(url, { npmrc });
+
+    // 5. Do not PUT a tarball whose required intra-repo pins point at a name
+    //    this registry does not have (#1713).
+    //
+    //    The question is PRESENCE OF THE NAME, never a version, and that is what
+    //    makes it safe to gate on: a version is eventually consistent for
+    //    minutes after its own 2xx, so a version gate would manufacture a red on
+    //    a publish that worked. A name does not move once its first version
+    //    lands. `unknown` — a 5xx, a timeout, an auth wall — is not `absent` and
+    //    never blocks.
+    const assumePresent = new Set(input.assumePresent ?? []);
+    const pins = collectWorkspacePins(pkg, rewrittenPkg).filter((pin) => !assumePresent.has(pin.name));
+    if (pins.length > 0) {
+        const probed = await Promise.all(
+            pins.map(async (pin) => ({
+                pin,
+                presence: await probePackageName({
+                    registry,
+                    name: pin.name,
+                    authorization: headers['authorization'],
+                }),
+            })),
+        );
+        const missing: WorkspacePin[] = [];
+        for (const { pin, presence } of probed) {
+            if (presence.state === 'present') continue;
+            const where = `${pin.block}.${pin.name}@${pin.spec}`;
+            if (presence.state === 'unknown') {
+                console.error(
+                    `gjsify publish: could not establish whether ${pin.name} exists (${presence.detail}) — not blocking on ${where}`,
+                );
+                continue;
+            }
+            if (pin.block !== REQUIRED_BLOCK) {
+                // npm and pnpm skip an unresolvable optional edge in silence;
+                // Yarn refuses the whole install. Loud, not fatal.
+                console.error(
+                    `gjsify publish: ${where} names a package ${registry} does not have — npm installs around it, Yarn (\`YN0035\`) does not`,
+                );
+                continue;
+            }
+            missing.push(pin);
+        }
+        if (missing.length > 0) {
+            return {
+                ok: tolerateUntrustedNew,
+                action: 'blocked-missing-dependency',
+                name: packed.name,
+                version: packed.version,
+                registry,
+                tolerated: tolerateUntrustedNew,
+                missing,
+            };
+        }
+    }
 
     // Trusted Publishing (OIDC) path — `--trusted` forces it, `undefined`
     // auto-detects from the GitHub OIDC env. Unused by `gjsify onboard` (local
@@ -888,6 +977,35 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                     `~ ${outcome.name}@${outcome.version} (skipped — no Trusted Publisher on npm, see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap")\n`,
                 );
             }
+            return;
+        }
+        case 'blocked-missing-dependency': {
+            const edges = outcome.missing.map((m) => `${m.block}.${m.name}@${m.spec}`).join(', ');
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        {
+                            ok: outcome.ok,
+                            action: 'blocked-missing-dependency',
+                            name: outcome.name,
+                            version: outcome.version,
+                            registry: outcome.registry,
+                            tolerated: outcome.tolerated,
+                            missing: outcome.missing,
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            } else {
+                process.stdout.write(
+                    `~ ${outcome.name}@${outcome.version} (NOT published — ${outcome.missing.length} required pin(s) name a package ${outcome.registry} does not have: ${edges})\n`,
+                );
+            }
+            console.error(
+                `gjsify publish: every consumer install of ${outcome.name} would fail with \`npm error 404\`, on every package manager — a required edge is not skippable. Bootstrap the target first (docs/publishing.md § New \`@gjsify/*\` package), then re-run. See #1713.`,
+            );
+            if (!outcome.tolerated) return process.exit(1);
             return;
         }
         case 'otp-required': {

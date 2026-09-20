@@ -449,9 +449,12 @@ async function probeRegistryRecord(input: ProbeOnceInput): Promise<RecordProbe> 
     };
 }
 
-interface ProbeOnceInput {
-    url: string;
+interface ProbeOnceInput extends PackumentRequestInput {
     version: string;
+}
+
+interface PackumentRequestInput {
+    url: string;
     doFetch: typeof fetch;
     probeTimeoutMs: number;
     authorization?: string;
@@ -459,8 +462,15 @@ interface ProbeOnceInput {
     nonce: string;
 }
 
-async function probeOnce(input: ProbeOnceInput): Promise<ReadbackProbe> {
-    const { url, version, doFetch, probeTimeoutMs } = input;
+/**
+ * One abbreviated-packument GET: cache-busted, with the non-404 4xx fallback.
+ *
+ * Extracted so the version read-back and {@link probePackageName} cannot drift
+ * into asking the registry two different questions — the same reason the
+ * read-back and `verify-published-closure.mjs` read the same document.
+ */
+async function sendPackumentRequest(input: PackumentRequestInput): Promise<Response | { error: string }> {
+    const { url, doFetch, probeTimeoutMs } = input;
     const headers = {
         // Abbreviated packument: version keys + `dist`, a fraction of the bytes
         // of the full document, and the document npm itself installs from.
@@ -496,8 +506,18 @@ async function probeOnce(input: ProbeOnceInput): Promise<ReadbackProbe> {
     } catch (err) {
         // A real throw path: network failure, DNS, or our own abort above.
         const msg = err instanceof Error ? err.message : String(err);
-        return { state: 'error', detail: `request failed (${msg})` };
+        return { error: `request failed (${msg})` };
     }
+    return res;
+}
+
+async function probeOnce(input: ProbeOnceInput): Promise<ReadbackProbe> {
+    const { version } = input;
+    const sent = await sendPackumentRequest(input);
+    if ('error' in sent) {
+        return { state: 'error', detail: sent.error };
+    }
+    const res = sent;
 
     if (res.status === 404) {
         return { state: 'absent', status: 404, detail: '404 — the registry serves no packument for this name' };
@@ -621,4 +641,75 @@ export function formatUnconfirmedPublish(opts: {
         `  verdict   ${readback.verdict} — ${readback.verdictDetail}`,
         ...remedy,
     ].join('\n');
+}
+
+/** Whether the registry serves a packument for a NAME at all. */
+export type NamePresence =
+    | { state: 'present'; status: number; versions: number }
+    | { state: 'absent'; status: number; detail: string }
+    /**
+     * We do not KNOW — a 5xx, a timeout, an auth wall. A caller that blocks a
+     * publish on this must treat it as "not established", never as "absent":
+     * the whole point of the guard is that it cannot manufacture a red.
+     */
+    | { state: 'unknown'; status?: number; detail: string };
+
+export interface ProbePackageNameInput {
+    registry: string;
+    name: string;
+    probeTimeoutMs?: number;
+    authorization?: string;
+    fetchImpl?: typeof fetch;
+}
+
+let nameProbeSeq = 0;
+
+/**
+ * Ask ONE question: does this NAME exist on the registry at all.
+ *
+ * Deliberately not a version question, and that is what makes it safe to gate a
+ * publish on. A version is eventually consistent — measured on v0.46.0, 19 of
+ * 199 packages were recorded 56-252 s AFTER their own 2xx — so "is name@version
+ * there" answers "not yet" for minutes and a gate built on it would manufacture
+ * a red on a publish that worked. Presence of the NAME does not move once the
+ * first version lands, which is the same reason
+ * `verify-published-closure.mjs --phase pre-release` asks it rather than the
+ * version: an answer that does not move when the train moves.
+ */
+export async function probePackageName(input: ProbePackageNameInput): Promise<NamePresence> {
+    const doFetch = input.fetchImpl ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
+    const registryClean = input.registry.endsWith('/') ? input.registry.slice(0, -1) : input.registry;
+    const sent = await sendPackumentRequest({
+        url: `${registryClean}/${escapePackageName(input.name)}`,
+        doFetch,
+        probeTimeoutMs: input.probeTimeoutMs ?? 30_000,
+        authorization: input.authorization,
+        nonce: `name-${Date.now()}-${++nameProbeSeq}`,
+    });
+    if ('error' in sent) {
+        return { state: 'unknown', detail: sent.error };
+    }
+    if (sent.status === 404) {
+        return { state: 'absent', status: 404, detail: '404 — the registry serves no packument for this name' };
+    }
+    if (!sent.ok) {
+        return { state: 'unknown', status: sent.status, detail: `${sent.status} ${sent.statusText}` };
+    }
+    let doc: unknown;
+    try {
+        doc = await sent.json();
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { state: 'unknown', status: sent.status, detail: `packument is not JSON (${msg})` };
+    }
+    const versions = (doc as { versions?: Record<string, unknown> } | null)?.versions;
+    const count = versions && typeof versions === 'object' ? Object.keys(versions).length : 0;
+    if (count === 0) {
+        // A 200 that carries no version is not a name that exists: every
+        // published name has at least one, and an unpublished-then-emptied
+        // packument is precisely the state npm serves for a name whose only
+        // version was unpublished.
+        return { state: 'unknown', status: sent.status, detail: 'a 200 carrying no versions establishes nothing' };
+    }
+    return { state: 'present', status: sent.status, versions: count };
 }

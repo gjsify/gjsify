@@ -523,6 +523,11 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
 
         // 4a. Bookkeeping-only rows, and the serial publish path.
         const trustOnly: { p: PkgPlan; i: number }[] = [];
+        // What THIS sweep has already put on the registry. A name is not served
+        // the instant its PUT is accepted, so the pin guard in `publishWorkspace`
+        // must not ask the registry about a package this loop created moments
+        // ago — target before dependent is the order, and the order is kept here.
+        const publishedHere = new Set<string>();
         for (let i = 0; i < plans.length; i++) {
             const p = plans[i];
             if (p.action === 'skip') {
@@ -552,6 +557,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 continue;
             }
             const pub = await publishWorkspace({
+                assumePresent: [...publishedHere],
                 wsDir: p.ws.location,
                 tag: 'latest',
                 access: args.access,
@@ -580,6 +586,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                           ? ''
                           : ' (UNVERIFIED)'),
             );
+            publishedHere.add(pub.name);
             await configureTrust(p, i, pub.action !== 'skipped-untrusted-new');
         }
 
@@ -771,6 +778,12 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
                 `(HTTP ${pub.putStatus}) but ${pub.name}@${pub.version} did not ` +
                 `resolve on ${pub.registry} after ${pub.readback.attempts} probe(s) over ` +
                 `${(pub.readback.elapsedMs / 1000).toFixed(1)}s [${pub.readback.verdict}: ${pub.readback.verdictDetail}]`
+            );
+        case 'blocked-missing-dependency':
+            return (
+                `not published — ${pub.missing.length} required pin(s) name a package ${pub.registry} does not ` +
+                `have: ${pub.missing.map((m) => `${m.block}.${m.name}@${m.spec}`).join(', ')}. Bootstrap the ` +
+                `target BEFORE its dependent; that order is a correctness property`
             );
         case 'error':
             return `HTTP ${pub.status} ${pub.statusText}`;
