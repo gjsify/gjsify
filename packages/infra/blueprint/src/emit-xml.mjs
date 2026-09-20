@@ -159,11 +159,11 @@ export function emitGtkBuilderXml(file, options) {
         ...seams,
         idTypes: ids.byId,
         idClasses: ids.classes,
-        templateClass: findTemplateClass(file),
+        templateClass: findTemplateClass(file, seams),
     };
 
     const xml = new XmlWriter();
-    xml.startTag('interface', {});
+    xml.startTag('interface', file.translationDomain === undefined ? {} : { domain: file.translationDomain });
     // One `<requires>` and only ever `gtk`, in every golden — 18-multiple-imports.ui pins
     // that: `using Adw 1;` is used by the file and reaches the XML nowhere.
     xml.selfClosing('requires', { lib: 'gtk', version: gtkVersion(file.imports) });
@@ -439,8 +439,12 @@ function emitTemplate(xml, template, context) {
     // oracle passes `parent=None` and its writer drops null-valued attributes. The owner is
     // `null` for the same reason an extern parent gives `null`: the type is unknown, so
     // nothing inside resolves against a vocabulary.
+    // A `$Name` reaches the XML verbatim; a TYPE reaches it as its GType, so `template ListItem`
+    // is `class="GtkListItem"`. Same attribute, two sources, and only the file says which.
+    const className =
+        template.classType === undefined ? template.className : gtypeName(template.classType, context, 'reference');
     const parent = template.parent === undefined ? undefined : gtypeName(template.parent, context, 'reference');
-    xml.startTag('template', { class: template.className, ...(parent === undefined ? {} : { parent }) });
+    xml.startTag('template', { class: className, ...(parent === undefined ? {} : { parent }) });
     emitBody(xml, template.body, template.parent === undefined ? null : ownerOf(template.parent, parent), context);
     xml.endTag();
 }
@@ -513,7 +517,11 @@ function emitChild(xml, child, context) {
     // 05-child-slot-named.ui: the `[start]` bracket is an attribute on the CHILD WRAPPER,
     // and 25-bracket-breakpoint.ui says `[breakpoint]` is nothing more than another one of
     // those. An object-valued PROPERTY is a different construct and lives in emitProperty.
-    xml.startTag('child', { type: child.slot });
+    // Two attributes GtkBuilder reads differently, and the bracket held exactly one of them.
+    xml.startTag(
+        'child',
+        child.internalChild === undefined ? { type: child.slot } : { 'internal-child': child.internalChild },
+    );
     emitObject(xml, child.object, context);
     xml.endTag();
 }
@@ -569,6 +577,16 @@ function emitProperty(xml, property, ownerType, context) {
         // 06-property-object-valued.ui, and 08/18 for the `child:` spelling of it.
         xml.startTag('property', { name: property.name });
         emitObject(xml, value.object, context);
+        xml.endTag();
+        return;
+    }
+
+    if (value.kind === 'menu') {
+        // `<property><menu id="…">…</menu></property>` — a `<menu>`, NOT an
+        // `<object class="GMenu">`, which is the difference that makes this a value kind of its
+        // own rather than an object-valued property.
+        xml.startTag('property', { name: property.name });
+        emitMenu(xml, value.menu, context);
         xml.endTag();
         return;
     }
@@ -1500,9 +1518,18 @@ function gtkVersion(imports) {
 }
 
 /** @param {BlueprintFile} file */
-function findTemplateClass(file) {
+function findTemplateClass(file, seams) {
     for (const root of file.roots) {
-        if (root.kind === 'template') return root.className;
+        if (root.kind !== 'template') continue;
+        // The same two sources `emitTemplate` reads, and they must agree: a `$Name` is the class
+        // being defined and reaches the XML verbatim, a TYPE reaches it as its GType. Reading
+        // the spelling here while the `<template>` tag reads the GType is how one file came out
+        // with `<template class="GtkListItem">` and `<lookup … type="ListItem">` in it —
+        // `issue_187_dec.blp`, silently different and compiling to a class GtkBuilder cannot
+        // find.
+        return root.classType === undefined
+            ? root.className
+            : gtypeName(root.classType, /** @type {EmitContext} */ (seams), 'reference');
     }
     return undefined;
 }

@@ -418,6 +418,19 @@ export const CORPUS_RULES = [
         surprise:
             'six names, ONE construct, and four payloads: a bare string (`mime-types`, `patterns`, `suffixes`), a string with an optional `id:` prefix (`items`), a `mark (value[, position[, label]])` triple and an `offset ("name", value)` pair. The oracle\'s own file-filter trio is already one implementation parameterised by wrapper tag and child tag, and that same parameterisation carries all six. What is NOT shared: `offset` is the one self-closing child, `mark` is never self-closing even with no label (`<mark value="2"></mark>`), and only `marks` and `items` may be translated — a MIME type and a CSS class name are `UseQuoted` in the grammar, so `_("text/plain")` is refused rather than emitted with an attribute GtkBuilder ignores',
     },
+    {
+        file: '54-internal-child-menu-domain.blp',
+        isolates:
+            'three constructs that share only their position in the file — `translation-domain`, an `[internal-child …]` bracket, and a `menu { }` written as a property value',
+        surprise:
+            'each one goes somewhere the construct beside it does not. The domain becomes an ATTRIBUTE on `<interface>` and reaches nothing else. `[internal-child content_area]` becomes `<child internal-child="…">`, a different attribute from the `<child type="…">` every other bracket writes — the oracle\'s grammar is one `AnyOf`, so the two can never both appear on one child. And an inline menu emits `<menu id="…">` inside the `<property>`, NOT an `<object class="GMenu">`, which is why it is a value kind of its own and not an object-valued property',
+    },
+    {
+        file: '55-template-type-name.blp',
+        isolates: 'a `template` named by a TYPE rather than by a `$`-sigil name',
+        surprise:
+            '`template ListItem` is not the pre-0.8.0 legacy spelling and raises no upgrade warning anywhere: `ListItem` is a real Gtk type, so the oracle resolves it like any type reference and the class attribute is its GTYPE — `class="GtkListItem"`, not the spelling. That is the whole difference from the sigil form, where the name is the class being DEFINED and reaches the XML verbatim. It follows into the projection: the root tag is `GtkListItem` and there is NO `extern` loss, because the type is a real one — where `template $TestTemplate { }` has both. The binding through `template` is in the file because the class name is read TWICE, once for the tag and once for every identifier inside it, and reading the spelling in the second place while the GType is written in the first is what made this exact shape silently different',
+    },
 ];
 
 /**
@@ -507,30 +520,6 @@ export const CORPUS_REFUSALS = [
         projection: 'projects',
         line: 8,
         names: 'multi-step lookup',
-    },
-    {
-        file: 'inline-menu.blp',
-        construct: 'a `menu { }` written as a property value',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 4,
-        names: 'inline `menu`',
-    },
-    {
-        file: 'translation-domain.blp',
-        construct: 'the file-level `translation-domain "…";`',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 3,
-        names: 'translation-domain',
-    },
-    {
-        file: 'internal-child.blp',
-        construct: 'an `[internal-child …]` bracket',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 4,
-        names: 'internal-child',
     },
     {
         file: 'unknown-enum-member.blp',

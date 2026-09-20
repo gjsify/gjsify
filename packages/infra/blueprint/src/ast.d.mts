@@ -186,12 +186,27 @@ export interface ListValue {
     readonly line: number;
 }
 
+/**
+ * `menu-model: menu primary_menu { … }` — a menu written where the property is set.
+ *
+ * A menu VALUE and not an `ObjectValue`, because a menu is not an object: it emits `<menu>`
+ * and not `<object class="GMenu">`, it has an id and no type, and `MenuNode` already exists for
+ * the top-level form. The oracle allows it in exactly one position — a direct property value,
+ * never in a list, a setter or an extension entry.
+ */
+export interface MenuValue {
+    readonly kind: 'menu';
+    readonly menu: MenuNode;
+    readonly line: number;
+}
+
 export type Value =
     | StringValue
     | NumberValue
     | BoolValue
     | IdentValue
     | ObjectValue
+    | MenuValue
     | BindingValue
     | TypeValue
     | ListValue;
@@ -373,6 +388,12 @@ export interface Signal {
  */
 export interface Child {
     readonly slot?: string;
+    /**
+     * `[internal-child content_area]` — a DIFFERENT attribute from {@link Child.slot}, and the
+     * bracket holds exactly one of the two. GtkBuilder reads `<child type="…">` and
+     * `<child internal-child="…">` differently, so one field could not carry both.
+     */
+    readonly internalChild?: string;
     readonly object: ObjectNode;
     readonly line: number;
     readonly order: number;
@@ -522,6 +543,14 @@ export interface TemplateNode {
     /** Without the `$`. */
     readonly className: string;
     /**
+     * Set where the file named a TYPE rather than a `$`-sigil name: `template ListItem { }`.
+     *
+     * `ListItem` is a real Gtk type, so the class attribute is its GTYPE (`GtkListItem`) and not
+     * the spelling — which is the whole difference from the sigil form, where the name is the
+     * class being defined and reaches the XML verbatim.
+     */
+    readonly classType?: TypeRef;
+    /**
      * Absent for `template $Name { … }`, which the oracle's grammar makes Optional
      * (`Template = 'template' TypeName ( ':' TypeName )? ObjectContent`).
      *
@@ -570,6 +599,14 @@ export interface MenuNode {
 export type TopLevel = ObjectNode | TemplateNode | MenuNode;
 
 export interface BlueprintFile {
+    /**
+     * `translation-domain "…";` — the file's gettext domain, where it declares one.
+     *
+     * At most one, and only between the imports and the first root: the oracle's grammar makes
+     * it `Optional`, in that one position. It becomes `domain="…"` on `<interface>` and reaches
+     * nothing else.
+     */
+    readonly translationDomain?: string;
     /**
      * The path `parseBlueprint` was given, carried rather than re-supplied.
      *

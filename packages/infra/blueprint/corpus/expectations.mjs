@@ -954,4 +954,31 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'Six losses for six lists, each by its own NAME rather than one shared kind. A consumer told `marks` was dropped learns something a consumer told `extension-list` was dropped does not — and the four widgets survive as bare tags, because everything each of them says is in the list that was dropped.',
     },
+    {
+        file: '54-internal-child-menu-domain.blp',
+        node: { tag: 'GtkDialog', children: [{ tag: 'GtkBox', children: [{ tag: 'GtkMenuButton' }] }] },
+        lost: [
+            {
+                kind: 'translation-domain',
+                line: 1,
+                detail: 'the gettext domain, a fact about the FILE and not about any node',
+            },
+            {
+                kind: 'internal-child',
+                line: 6,
+                detail: 'the `content_area` annotation; the box survives, its placement does not',
+            },
+            { kind: 'menu', line: 9, detail: 'the inline menu, the same loss a top-level one takes' },
+        ],
+        note: 'All three widgets survive and all three ANNOTATIONS are lost, which is the shape of this file: nothing here changes a tag, and everything here changes where or how the tag is used. The internal-child loss is on the BRACKET line and the menu loss on the property line, each where a reader would go looking.',
+    },
+    {
+        file: '55-template-type-name.blp',
+        node: { tag: 'GtkListItem', children: [{ tag: 'GtkLabel', slot: 'child' }] },
+        lost: [
+            { kind: 'template', line: 3, detail: 'that the root is a template at all' },
+            { kind: 'binding', line: 5, detail: 'the lookup through `template`' },
+        ],
+        note: 'ONE template loss, where `50-template-orphan.blp` has two. Both are parentless; this one names a real type, so the root tag is its GType and nothing is extern. The pair is the assertion — a single file could not show that the second loss depends on which spelling the file used. The BINDING is here for a different reason: `template` inside resolves to the class, and reading the spelling there while the `<template>` tag reads the GType is what made this exact file silently different — `<template class="GtkListItem">` beside `<lookup … type="ListItem">`, a class GtkBuilder cannot find.',
+    },
 ];

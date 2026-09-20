@@ -147,6 +147,8 @@ const LOSS_KINDS = new Set([
     'mime-types',
     'patterns',
     'suffixes',
+    'internal-child',
+    'translation-domain',
 ]);
 
 const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);

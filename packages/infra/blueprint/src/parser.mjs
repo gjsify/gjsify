@@ -384,16 +384,19 @@ class Parser {
             );
         }
 
+        /** @type {string | undefined} */
+        let translationDomain;
         if (this.at('translation-domain')) {
-            // Out of scope because `BlueprintFile` holds imports and roots and nothing else. That
-            // is the reason and it belongs here: the MESSAGE is read by someone who installed a
-            // build plugin and has never seen this file.
-            throw this.fail(
-                this.peek(),
-                'a file-level `translation-domain` is outside the subset this parser holds. The ' +
-                    '`_("…")` markers still reach the XML as `translatable="yes"`; set the domain on the ' +
-                    `builder instead of in the \`.blp\`, or drop the line where the app has one. ${SUBSET_NOTE}`,
-            );
+            // One position only, and the oracle's grammar says which: after the `using`
+            // directives and before the first root. A second one is not "another domain", it is
+            // a file that cannot say which domain it means.
+            this.advance();
+            const value = this.parseValue({ allowObject: false, allowList: false });
+            if (value.kind !== 'string' || value.translatable) {
+                throw this.fail(this.peek(), 'a `translation-domain` is a plain quoted string');
+            }
+            translationDomain = value.value;
+            this.expect(';', '`;`');
         }
 
         /** @type {TopLevel[]} */
@@ -413,7 +416,12 @@ class Parser {
             }
         }
 
-        return { file: this.file, imports, roots };
+        return {
+            file: this.file,
+            imports,
+            ...(translationDomain === undefined ? {} : { translationDomain }),
+            roots,
+        };
     }
 
     /** @returns {BlueprintImport} */
@@ -465,11 +473,26 @@ class Parser {
     /** @returns {TemplateNode} */
     parseTemplate() {
         const keyword = this.expect('template', '`template`');
+        // `template ListItem { }` is NOT the pre-0.8.0 legacy spelling: `ListItem` is a real Gtk
+        // type, so the oracle resolves it like any type reference and warns about nothing. The
+        // legacy case is a bare name that resolves to NO type, and the oracle accepts that too
+        // with an upgrade warning — this package has no warning channel, so both read the same
+        // here and the emitted XML is identical either way.
         if (!this.at('$')) {
-            throw this.fail(
-                this.peek(),
-                `found ${describe(this.peek())}, expected \`$\` — a template class is written \`template $Name: Parent\` since blueprint 0.8.0`,
-            );
+            const type = this.parseTypeRef();
+            let parent;
+            if (this.at(':')) {
+                this.advance();
+                parent = this.parseTypeRef();
+            }
+            return {
+                kind: 'template',
+                className: `${type.namespace ?? ''}${type.name}`,
+                classType: type,
+                ...(parent === undefined ? {} : { parent }),
+                body: this.parseObjectBody(),
+                line: keyword.line,
+            };
         }
         this.advance();
         const className = this.expectIdentifier('a template class name');
@@ -762,15 +785,12 @@ class Parser {
         const bracket = this.expect('[', '`[`');
         const slot = this.expectIdentifier('a child slot name');
         if (slot.text === 'internal-child') {
-            // `Child.slot` is the bracket TEXT alone, so it cannot tell `<child internal-child=…>`
-            // from `<child type=…>` — which is why this is refused rather than emitted as the
-            // wrong one of the two.
-            throw this.fail(
-                slot,
-                'an `[internal-child …]` bracket is outside the subset this parser holds. A bracket ' +
-                    'here becomes `<child type="…">`, a different element that GtkBuilder reads ' +
-                    `differently, so it is refused rather than spelled as the wrong one. ${SUBSET_NOTE}`,
-            );
+            // Its own field, because `<child internal-child=…>` and `<child type=…>` are two
+            // attributes GtkBuilder reads differently. The bracket holds exactly one of them —
+            // the oracle's grammar is one `AnyOf`, so the two can never both appear.
+            const name = this.expectIdentifier('an internal child name');
+            this.expect(']', '`]`');
+            return { internalChild: name.text, object: this.parseObject(), line: bracket.line };
         }
         if (slot.text === 'action' && this.at('response')) {
             throw this.fail(
@@ -1202,17 +1222,14 @@ class Parser {
             return { kind: 'type', type: this.parseAngleType(), line: keyword.line };
         }
         if (token.text === 'menu' && (this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2)))) {
-            // Legal in the oracle (`menu-model: menu { … };` compiles to a nested `<menu>`),
-            // and refused here: `Property.value` is a `Value`, and `Value` has no menu member.
-            // This refusal is the whole reason `Child.object` is an `ObjectNode` and not a
-            // union with `MenuNode` — no menu can reach a child, so the arm was a branch three
-            // readers had to write and none could take. `ast.d.mts` § `Child` records that.
-            throw this.fail(
-                token,
-                'an inline `menu` as a property value is outside the subset this parser holds. Declare ' +
-                    'the menu at the top level, give it an id, and point the property at it: ' +
-                    `\`menu myMenu { … }\` beside the object, then \`menu-model: myMenu\`. ${SUBSET_NOTE}`,
-            );
+            // ONE position: a direct property value. `allowObject` is the flag that says so —
+            // a list item, a setter and an extension entry all parse with it false, and the
+            // oracle allows a menu in none of them either. `Child.object` stays an `ObjectNode`
+            // for the same reason it always was: no menu can reach a child.
+            if (!options.allowObject) {
+                throw this.fail(token, 'an inline `menu` is a property value and this position is not one');
+            }
+            return { kind: 'menu', menu: this.parseMenu(), line: token.line };
         }
 
         const isObjectStart = this.at('.', 1) || this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2));
