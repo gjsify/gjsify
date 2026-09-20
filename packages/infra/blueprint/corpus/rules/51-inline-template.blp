@@ -1,0 +1,23 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.ListView {
+    factory: Gtk.BuilderListItemFactory corpusFactory {
+      template ListItem {
+        child: Gtk.ListView {
+          factory: Gtk.BuilderListItemFactory corpusFactory {
+            template ColumnViewCell {
+              child: Gtk.Label corpusLabel {
+                label: bind template.item as <$CorpusRow>.title;
+              };
+            }
+          };
+        };
+      }
+    };
+  }
+
+  Gtk.Label corpusLabel {
+    label: "the same id, outside the sub-document";
+  }
+}

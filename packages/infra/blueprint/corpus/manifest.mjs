@@ -398,6 +398,13 @@ export const CORPUS_RULES = [
         surprise:
             '`visible: true` stays the string `true` here, where `08-template.blp` turns `halign: center` into `3`. Both are the same emitter taking the same path; what differs is that a parentless template has no parent to own the property, so there is no vocabulary to resolve a value through and the source spelling is all there is. The oracle agrees by construction rather than by choice — a parentless template is an `ExternType`, which it marks `incomplete`, so it validates no property or signal name written inside either. The `parent` attribute is OMITTED and not defaulted: `class="CorpusOrphan"` stands alone, because the oracle passes `parent=None` and its writer drops null-valued attributes',
     },
+    {
+        file: '51-inline-template.blp',
+        isolates:
+            'the `template Type { … }` block of a `Gtk.BuilderListItemFactory` — a SECOND, complete GtkBuilder document embedded in the first',
+        surprise:
+            'the sub-document is not nested XML, it is TEXT: its own `<?xml?>` declaration, its own `<interface>`, indentation restarting at column 0, CDATA-escaped into `<property name="bytes">` — and no `<requires>`, which every other document in this corpus carries. It also has its OWN ID SCOPE, which is why `corpusLabel` is declared twice in one file and neither is a duplicate: the two documents may not reference each other at all, so `indexBody` never descends into the block and the outer index cannot see inside. The block is NESTED here on purpose — a sub-document inside a sub-document writes `]]>` into the outer CDATA, and the only escape a CDATA section has is to split across two, so `]]]]><![CDATA[>` is in the golden and that branch of the writer is held by a file rather than by an argument',
+    },
 ];
 
 /**
@@ -479,8 +486,8 @@ export const CORPUS_REFUSALS = [
         // is the oracle reading `GtkLabel.parent`'s TYPE out of the typelib; `@girs`'s
         // vocabulary has no property-to-GType table, so the middle type cannot be derived and
         // ADR 0053 clause 6 forbids writing one by hand. Cast it —
-        // `a.parent as <Widget>.name` — and `rules/42-expression-lookup-chain.blp` is that
-        // same file, compiled.
+        // `a.parent as <Widget>.name` — and `rules/43-expression-lookup.blp` line 13 is that
+        // same shape, compiled.
         file: 'binding-lookup-chain.blp',
         construct: 'a lookup chain with no cast to name the middle type, `bind a.b.c`',
         oracle: 'compiles',
