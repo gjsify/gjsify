@@ -456,7 +456,7 @@ for (const [name, want] of Object.entries(declaredDeps)) {
 const BLUEPRINT_SRC = join(root, 'packages/infra/blueprint/src');
 const { parseBlueprint } = await import(`file://${join(BLUEPRINT_SRC, 'parser.mjs')}`);
 const { emitGtkBuilderXml } = await import(`file://${join(BLUEPRINT_SRC, 'emit-xml.mjs')}`);
-const { accessibilityElement, accessibilityValue, gtypeName, resolveIdent } = await import(
+const { accessibilityElement, accessibilityValue, gtypeName, propertyGType, resolveIdent } = await import(
     `file://${join(BLUEPRINT_SRC, 'resolve-ident.mjs')}`
 );
 
@@ -480,7 +480,15 @@ const runOracle = (path) => {
 const runInRepo = (path, key) => {
     try {
         const ast = parseBlueprint(readFileSync(path, 'utf8'), key);
-        return { xml: emitGtkBuilderXml(ast, { accessibilityElement, accessibilityValue, gtypeName, resolveIdent }) };
+        return {
+            xml: emitGtkBuilderXml(ast, {
+                accessibilityElement,
+                accessibilityValue,
+                gtypeName,
+                propertyGType,
+                resolveIdent,
+            }),
+        };
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) };
     }

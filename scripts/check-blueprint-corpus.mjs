@@ -626,6 +626,7 @@ const SURFACE_NAMES = [
     'enumOrFlagsTypeOf',
     'gtypeName',
     'parseBlueprint',
+    'propertyGType',
     'resolveIdent',
 ];
 

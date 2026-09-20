@@ -91,6 +91,10 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {(name: string, member: string, where: string) => string | null} [accessibilityValue]
  * @property {(type: TypeRef, where: string, position?: 'object' | 'reference') => string} [gtypeName]
  * @property {(typeName: string | null, propertyName: string) => string | null} [enumOrFlagsTypeOf]
+ * @property {(typeName: string, propertyName: string) => string | null} [propertyGType]
+ *   The GType of a property's own type, whatever that type is (`PROP_TYPES`, ts-for-gir #478).
+ *   Absent, or answering `null`, leaves an uncast closure refused exactly as before — this seam
+ *   turns a refusal into an answer and never the other way round.
  */
 
 /**
@@ -104,6 +108,7 @@ import { numberLiteral } from './number-literal.mjs';
  * @property {EmitOptions['accessibilityValue']} accessibilityValue
  * @property {EmitOptions['gtypeName']} gtypeName
  * @property {EmitOptions['enumOrFlagsTypeOf']} enumOrFlagsTypeOf
+ * @property {EmitOptions['propertyGType']} propertyGType
  * @property {Map<string, string | null>} idTypes  object id -> GType name, `null` where the object is extern, for `setters { }`
  * @property {Map<string, string>} idClasses  object id -> GType name, extern ones INCLUDED, for `<lookup type=…>`
  * @property {string | undefined} templateClass  what the id `template` refers to
@@ -143,6 +148,7 @@ export function emitGtkBuilderXml(file, options) {
         accessibilityValue: options?.accessibilityValue,
         gtypeName: options?.gtypeName,
         enumOrFlagsTypeOf: options?.enumOrFlagsTypeOf,
+        propertyGType: options?.propertyGType,
     };
     const ids = indexObjectIds(file, seams);
     /** @type {EmitContext} */
@@ -390,7 +396,14 @@ function emitProperty(xml, property, ownerType, context) {
         // `label: bind true` is `<binding name="label">` and `expression: expr true` is
         // `<property name="expression">`, with the same `<constant>` inside.
         xml.startTag(value.form === 'bind' ? 'binding' : 'property', { name: property.name });
-        emitExpression(xml, value.expression, undefined, context);
+        // An uncast closure's return type is the TARGET PROPERTY's — the oracle infers it the
+        // same way, from the ParamSpec. Supplied only to a closure with no cast of its own:
+        // handing it to every expression would also reach `emitConstant`, where the literal's
+        // own spelling decides the type and an imposed one would change what a `bind "x"`
+        // emits. The narrow shape is what keeps this a refusal-to-answer change and not a
+        // rewrite of the value rules.
+        const inferred = inferredClosureType(value.expression, ownerType, property.name, context);
+        emitExpression(xml, value.expression, inferred, context);
         xml.endTag();
         return;
     }
@@ -601,6 +614,30 @@ function describeExpression(expression) {
  * @param {{ gtype: string, builtin: string | undefined, line: number } | undefined} imposed
  * @param {EmitContext} context
  */
+/**
+ * The type to impose on a bare `bind $closure(…)`, from the property it is assigned to.
+ *
+ * `null` for everything else, deliberately. A cast already carries its own type, a lookup gets
+ * its type from its left-hand side, and a literal's type is its spelling — only the closure has
+ * nowhere else to read one, which is why the oracle infers for it and refuses when it cannot.
+ *
+ * @param {Expression} node @param {string | null} ownerType @param {string} propertyName
+ * @param {EmitContext} context
+ * @returns {{ gtype: string, builtin: string | undefined, line: number } | undefined}
+ */
+function inferredClosureType(node, ownerType, propertyName, context) {
+    // A `try` is transparent here: it carries the type to whichever of its arms is a bare
+    // closure and to none of the others. Anything else that is not itself a closure keeps its
+    // own type and must not be handed one.
+    const reaches =
+        node.kind === 'closure' ||
+        (node.kind === 'try' && node.arms.some((a) => a.kind === 'closure' || isNullLiteral(a, context)));
+    if (!reaches || ownerType === null) return undefined;
+    const gtype = context.propertyGType?.(ownerType, propertyName) ?? null;
+    if (gtype === null) return undefined;
+    return { gtype, builtin: BUILTIN_LITERAL_CLASS.has(gtype) ? gtype : undefined, line: node.line };
+}
+
 function emitExpression(xml, node, imposed, context) {
     if (node.kind === 'paren') {
         emitExpression(xml, node.of, imposed, context);
@@ -660,7 +697,18 @@ function emitExpression(xml, node, imposed, context) {
             );
         }
         xml.startTag('try', {});
-        for (const arm of node.arms) emitExpression(xml, arm, undefined, context);
+        // An imposed type reaches an arm only where the arm has NO TYPE OF ITS OWN: a bare
+        // closure, and `null`. A `try` is a fallback chain of independent expressions — a
+        // lookup reads its type from its left-hand side and a literal from its spelling, so
+        // handing either a type from outside would change what it emits. `expr_try.blp` shows
+        // the limit, with `button.label` and `"Hello, world!"` in the same `try` and neither
+        // taking it; `expr_null_infer_type.blp` shows why `null` is not like them — measured,
+        // the oracle writes `<constant initial="True" type="gchararray"/>` there, and leaving
+        // `null` out of this list produced the corpus's first silently-wrong file.
+        for (const arm of node.arms) {
+            const takesType = arm.kind === 'closure' || isNullLiteral(arm, context);
+            emitExpression(xml, arm, takesType ? imposed : undefined, context);
+        }
         xml.endTag();
         return;
     }
