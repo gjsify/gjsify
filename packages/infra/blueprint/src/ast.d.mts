@@ -437,7 +437,17 @@ export interface TemplateNode {
     readonly kind: 'template';
     /** Without the `$`. */
     readonly className: string;
-    readonly parent: TypeRef;
+    /**
+     * Absent for `template $Name { … }`, which the oracle's grammar makes Optional
+     * (`Template = 'template' TypeName ( ':' TypeName )? ObjectContent`).
+     *
+     * Absence is not a default: the emitted `<template>` carries NO `parent` attribute, and
+     * the template type is then EXTERN — the oracle's `ExternType` is `incomplete`, so the
+     * property and signal names written inside it are not validated against any vocabulary.
+     * That is why the owner passed to `emitBody` is `null` here and not some stand-in class:
+     * a stand-in would resolve an enum against a type nobody named.
+     */
+    readonly parent?: TypeRef;
     readonly body: ObjectBody;
     readonly line: number;
 }

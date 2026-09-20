@@ -890,4 +890,21 @@ export const RULE_EXPECTATIONS = [
         lost: [{ kind: 'sibling-object', line: 17, detail: 'the top-level `GObject.Object`, whose tag is `GObject`' }],
         note: 'The tags are the whole assertion, and two of the three are the reason this file exists: `GListStore` and `GObject` are what the prefix `G` produces, and nothing in the spelling `Gio.ListStore` or `GObject.Object` carries either. The third, `GdkCursor`, is the case concatenation would also get right — it is here so the file cannot be read as being about a rule that only ever fires on `G`. The `GObject` one reaches this exit only as a declared loss, because the projection is one tree and the file writes two objects at top level.',
     },
+    {
+        file: '50-template-orphan.blp',
+        node: {
+            tag: 'CorpusOrphan',
+            props: { visible: true },
+            children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'no parent, so no vocabulary' } }],
+        },
+        lost: [
+            { kind: 'template', line: 3, detail: 'the template class `$CorpusOrphan`' },
+            {
+                kind: 'extern',
+                line: 3,
+                detail: 'the root tag is the template class itself, which no GIR describes — a parentless template IS the extern case',
+            },
+        ],
+        note: 'Where `08-template.blp` loses the class and keeps the PARENT as the root tag, this file has no parent to keep, so the class name it declares is the tag — and it is extern, which is the second loss. `visible` reaches this exit as `true` rather than resolved, for the same reason it reaches the XML as the string `true`: there is no owner type to resolve it through.',
+    },
 ];

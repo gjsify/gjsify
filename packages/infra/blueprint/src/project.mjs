@@ -236,7 +236,12 @@ const lossesOf = (file) => {
             lost.push({ kind: 'template', line: root.line });
             // The template's own class is the `template` loss above; an extern PARENT is a
             // second one, because the parent is what becomes the root tag.
-            if (root.parent.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
+            //
+            // With NO parent the template type is itself extern — the oracle's `ExternType`,
+            // `incomplete`, validating nothing — and it is the class name that becomes the
+            // root tag. So the second loss is recorded at the template's own line.
+            if (root.parent === undefined) lost.push({ kind: 'extern', line: root.line });
+            else if (root.parent.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
             walkBody(root.body);
         } else walkObject(root);
     }
@@ -263,8 +268,17 @@ export function projectToSharedNode(file, options) {
         // and projects to an `AdwBin`, because `AdwHeaderBar` is final and cannot be a
         // template parent.
         const template = /** @type {TemplateNode} */ (root);
+        // Parentless: there is no parent to become the tag, and the class being DEFINED is
+        // the only name the file states. It is extern by construction, which is exactly the
+        // shape `tag` already spells without a namespace default — `$MyWidget` is
+        // `MyWidget`, never `GtkMyWidget`.
+        const rootType = template.parent ?? /** @type {TypeRef} */ ({
+            extern: true,
+            name: template.className,
+            line: template.line,
+        });
         return {
-            node: { tag: tag(template.parent, 'reference'), ...projectBody(template.body, tag) },
+            node: { tag: tag(rootType, 'reference'), ...projectBody(template.body, tag) },
             lost: lossesOf(file),
         };
     }

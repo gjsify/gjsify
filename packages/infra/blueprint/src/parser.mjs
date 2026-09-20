@@ -465,20 +465,19 @@ class Parser {
         }
         this.advance();
         const className = this.expectIdentifier('a template class name');
-        // The oracle makes the parent Optional; `TemplateNode.parent` is not, so a parentless
-        // `template $Name { }` has nowhere to go and is refused rather than given a default.
-        if (!this.at(':')) {
-            throw this.fail(
-                this.peek(),
-                `found ${describe(this.peek())}, expected \`:\` and a parent class — \`TemplateNode.parent\` in ast.d.mts has no absent form`,
-            );
+        // The parent is Optional in the oracle's grammar, and its absence is a fact the tree
+        // carries rather than one it repairs: `parent` is simply not set. What the absence
+        // COSTS is in `TemplateNode.parent` — an extern template type validates nothing
+        // written inside it.
+        let parent;
+        if (this.at(':')) {
+            this.advance();
+            parent = this.parseTypeRef();
         }
-        this.advance();
-        const parent = this.parseTypeRef();
         return {
             kind: 'template',
             className: className.text,
-            parent,
+            ...(parent === undefined ? {} : { parent }),
             body: this.parseObjectBody(),
             line: keyword.line,
         };
