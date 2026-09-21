@@ -140,7 +140,9 @@ const FAMILY = [
         name: 'VectorElement',
         verdict: 'apart',
         delta: [
+            '- id?: string',
             '- slot?: string',
+            '- template?: string',
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -161,6 +163,8 @@ const FAMILY = [
         verdict: 'apart',
         delta: [
             '+ gtype: string',
+            '- id?: string',
+            '- template?: string',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -177,8 +181,10 @@ const FAMILY = [
             '+ attrs: Record<string, string>',
             '+ parent: Self | null',
             '+ text: string',
+            '- id?: string',
             '- props?: Record<string, string | number | boolean>',
             '- slot?: string',
+            '- template?: string',
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -399,6 +405,8 @@ const CANON_SOURCE = `
 export interface SharedTreeNode {
     /** A GIR class name. */
     tag: string;
+    id?: string;
+    template?: string;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     children?: readonly SharedTreeNode[];
@@ -410,6 +418,8 @@ const VECTORS = [
         'readonly, Readonly<> and the self-name are three spellings of one shape',
         `export interface SharedNode {
     tag: string;
+    id?: string;
+    template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     children?: SharedNode[];
@@ -421,6 +431,8 @@ const VECTORS = [
         'a field that lost its optionality is named',
         `interface SharedNode {
     tag: string;
+    id?: string;
+    template?: string;
     slot: string;
     props?: Record<string, string | number | boolean>;
     children?: SharedNode[];
@@ -440,6 +452,8 @@ const VECTORS = [
         'Expect',
         [
             '+ gtype: string',
+            '- id?: string',
+            '- template?: string',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -447,6 +461,8 @@ const VECTORS = [
         'a dropped field is reported even though everything else matches',
         `interface Lossy {
     tag: string;
+    id?: string;
+    template?: string;
     props?: Record<string, string | number | boolean>;
     children?: Lossy[];
 }`,
@@ -457,6 +473,8 @@ const VECTORS = [
         'an arrow type does not swallow the members after it',
         `interface Callbacky {
     tag: string;
+    id?: string;
+    template?: string;
     slot?: string;
     render: (into: Callbacky) => void;
     props?: Record<string, string | number | boolean>;
@@ -469,6 +487,8 @@ const VECTORS = [
         'the element type of children is compared, not just its name',
         `interface Widened {
     tag: string;
+    id?: string;
+    template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     children?: (Widened | string)[];

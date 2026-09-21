@@ -63,6 +63,27 @@ import { SWITCH_ROW_NOTIFY_VECTORS } from './action-row.js';
 export interface SharedTreeNode {
     /** A GIR class name, e.g. `AdwPreferencesGroup`. */
     tag: string;
+    /**
+     * The name this node is addressed by from OUTSIDE the tree.
+     *
+     * Renderer-neutral because every surface already has one — a GtkBuilder object id, a DOM
+     * `id`, a NativeScript `id` — and worth carrying although `bind` stays a refusal: measured
+     * in ADR 0066, EVERY id in this repository's shipped `.blp` is named by the sibling
+     * TypeScript through `InternalChildren` and NONE by a `bind` inside the file. A name read
+     * from outside is the component's addressing surface, not an input to a binding language.
+     */
+    id?: string;
+    /**
+     * On the ROOT node: the composite class this tree DEFINES, where `tag` is the type it
+     * extends.
+     *
+     * `template $GalleryHeaderBar : Adw.Bin` is `{ tag: 'AdwBin', template: 'GalleryHeaderBar' }`
+     * — two facts that a single tag cannot carry, which is why the root of every shipped `.blp`
+     * projected to its PARENT type and said nothing about the class the file is about. The value
+     * is what GtkBuilder writes as `<template class="…">`, so `emitGtkBuilderXml` and the
+     * projection can be held against each other on it — and are, by stage D's addressing arm.
+     */
+    template?: string;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     children?: readonly SharedTreeNode[];

@@ -4,6 +4,13 @@
 // named at the seam rather than discovered downstream". This is that seam. Every loss it
 // takes is returned beside the tree, so nothing downstream has to discover one.
 //
+// TWO OF THEM STOPPED BEING LOSSES, AND THAT IS WHAT MADE THE EXIT USABLE. ADR 0066 gave
+// `template` and `object-id` a field each on the node. They are GtkBuilder's two ADDRESSING
+// constructs — the class a tree DEFINES and the name a node is addressed BY — and dropping
+// them is why no shipped `.blp` in this repository projected without loss: a file could
+// declare a widget and not place one. `_()`, `bind` and `breakpoint` stay losses and stay
+// declared; ADR 0066 § 3 says why each.
+//
 // WHAT THIS MAKES CHECKABLE, WHICH NOTHING WAS BEFORE
 //
 // `corpus/expectations.mjs` and `corpus/real-expectations.mjs` hold the hand-written
@@ -166,6 +173,14 @@ const projectObject = (object, slot, tag) => {
     const body = projectBody(object.body, tag);
     return {
         tag: tag(object.type),
+        // The id is the node's NAME and not a property of it, which is why it is a field and
+        // not a prop: `Gtk.Box canvasContainer { }` emits `<object class="GtkBox"
+        // id="canvasContainer">`, an attribute beside the class rather than a value inside it.
+        // And it is worth carrying although `bind` stays a loss: measured in ADR 0066, EVERY id
+        // in this repository's shipped `.blp` is read from the sibling TypeScript through
+        // `InternalChildren` and NONE by a `bind` inside the file, so the name is the
+        // component's public addressing surface rather than an input to the binding language.
+        ...(object.id === undefined ? {} : { id: object.id }),
         ...(slot === undefined ? {} : { slot }),
         ...body,
     };
@@ -242,7 +257,6 @@ const lossesOf = (file) => {
         // the tag is spelled right and is not resolvable, and a consumer told nothing would
         // discover that as a missing widget rather than as a declared limit.
         if (object.type.extern === true) lost.push({ kind: 'extern', line: object.line });
-        if (object.id !== undefined) lost.push({ kind: 'object-id', line: object.line });
         walkBody(object.body);
     };
 
@@ -267,13 +281,14 @@ const lossesOf = (file) => {
         }
         keptWidget = true;
         if (root.kind === 'template') {
-            lost.push({ kind: 'template', line: root.line });
-            // The template's own class is the `template` loss above; an extern PARENT is a
-            // second one, because the parent is what becomes the root tag.
+            // The class the template DEFINES is `SharedNode.template` since ADR 0066 and is no
+            // longer a loss. An extern PARENT still is — the parent is what becomes the root tag,
+            // and a tag no GIR describes is the one loss where the text survives and the meaning
+            // does not.
             //
             // With no parent and a `$Name`, the template type is itself extern — the oracle's
             // `ExternType`, `incomplete`, validating nothing — and it is that name which becomes
-            // the root tag. So the second loss is recorded at the template's own line.
+            // the root tag. So the `extern` loss is recorded at the template's own line.
             //
             // With no parent and a TYPE (`template ListItem`), it is not extern at all: the
             // type is a real one and the tag is its GType. Declaring a loss there would name a
@@ -302,10 +317,10 @@ export function projectToSharedNode(file, options) {
         throw new Error('this file declares no widget root, so it has no SharedNode projection');
     }
     if (root.kind === 'template') {
-        // The template's own class name is the loss; its PARENT type survives as the root
-        // tag. `header-bar.blp` shows what that costs: the file is about an `AdwHeaderBar`
-        // and projects to an `AdwBin`, because `AdwHeaderBar` is final and cannot be a
-        // template parent.
+        // The PARENT type becomes the root tag and the class being defined goes beside it in
+        // `template`. `header-bar.blp` is why both are needed: the file is about an
+        // `AdwHeaderBar` and its root tag is `AdwBin`, because `AdwHeaderBar` is final and
+        // cannot be a template parent — so the tag alone never named the subject.
         const template = /** @type {TemplateNode} */ (root);
         // Parentless: there is no parent to become the tag, and the class being DEFINED is
         // the only name the file states. It is extern by construction, which is exactly the
@@ -322,8 +337,20 @@ export function projectToSharedNode(file, options) {
                 name: template.className,
                 line: template.line,
             });
+        // The class being defined, spelled exactly as `<template class="…">` writes it —
+        // `findTemplateClass` in `emit-xml.mjs` is the same two lines, and they must stay the
+        // same two: `template ListItem` is `<template class="GtkListItem">`, so reading the
+        // SPELLING here while the XML reads the GType is how one file came out saying two
+        // different things about one class. Stage D's addressing arm holds the two exits
+        // together on this value rather than trusting the comment.
+        const templateClass =
+            template.classType === undefined ? template.className : tag(template.classType, 'reference');
         return {
-            node: { tag: tag(rootType, 'reference'), ...projectBody(template.body, tag) },
+            node: {
+                tag: tag(rootType, 'reference'),
+                template: templateClass,
+                ...projectBody(template.body, tag),
+            },
             lost: lossesOf(file),
         };
     }

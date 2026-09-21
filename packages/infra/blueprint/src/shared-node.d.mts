@@ -41,6 +41,13 @@
 export interface SharedNode {
     /** A GIR class name, e.g. `AdwPreferencesGroup` — what a renderer looks up. */
     tag: string;
+    /** The object id the `.blp` declared: `Gtk.Box canvasContainer { }` is `id: 'canvasContainer'`. */
+    id?: string;
+    /**
+     * Root only: the class a `template` defines, spelled as `<template class="…">` writes it —
+     * the `$Name` verbatim, or the GType where the file named a type (`template ListItem`).
+     */
+    template?: string;
     /** The parent property this child was written at, or the bracket it was written under. */
     slot?: string;
     props?: Record<string, string | number | boolean>;

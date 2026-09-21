@@ -17,6 +17,10 @@ import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 export interface ExpectNode {
     /** The XML element name as the template writes it, e.g. `adw:Clamp` or `Label`. */
     tag: string;
+    /** The `id=` the template writes, which is what `getViewById` answers to. */
+    id?: string;
+    /** Root only: the component class the tree defines. No gallery block declares one. */
+    template?: string;
     /** The parent property this child asked for, when it asked for one. */
     slot?: string;
     /** Attribute name -> the value the widget must READ BACK, typed. */
