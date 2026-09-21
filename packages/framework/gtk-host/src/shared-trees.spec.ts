@@ -40,35 +40,19 @@ import {
     sharedTreeExpectations,
     subjectIndexOf,
     type SharedTreeExpectation,
-    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 
 import { ADWAITA_GALLERY_SHARED_TREES, gtkHostTree } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
-import { descendants, findDescendant, installDiagnosticsGate } from './conformance/index.js';
+// `buildSharedTree` is SHIPPED code, not this driver's own — it is the renderer-specific
+// half of ADR 0051 that any consumer of this package may need, so it lives in
+// `./conformance/shared-tree-builder.ts` rather than here. Its header carries the
+// `registerBuiltinWidgets()` precondition this suite already satisfies two lines down.
+import { buildSharedTree, descendants, findDescendant, installDiagnosticsGate } from './conformance/index.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
-import { createElement, insert, materialize } from './host.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import type { HostElement } from './types.js';
 
-/**
- * The whole renderer-specific half of this driver: a tag, its authored properties, its
- * children, in that order.
- *
- * Recursive and total — no tag list, no property list, no per-block case. The authored
- * property NAMES go to `setProp` verbatim (through `createElement`), which is the point:
- * `buttonLabel` reaching `button-label` is the host's own coercion, and a driver spelling
- * the GObject name itself would be testing its own translation table.
- */
-function build(node: SharedTreeNode): HostElement {
-    const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
-    // Before the children: `insert` parents a REALISED widget, and a construct-only
-    // property that never arrives reaches `g_error()` rather than failing a test.
-    materialize(el);
-    for (const child of node.children ?? []) insert(build(child), el);
-    return el;
-}
-
-/** `build` has materialised every node on the way down, so the widget is already there. */
+/** `buildSharedTree` has materialised every node on the way down, so the widget is already there. */
 const widgetOf = (el: HostElement) => el.widget as unknown as Gtk.Widget;
 const typeName = (widget: Gtk.Widget) =>
     GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ?? '';
@@ -138,7 +122,7 @@ export default async () => {
         await gated(diagnostics, 'the shared corpus builds through gtk-host', async () => {
             for (const block of blocks) {
                 await it(`${block.widget} builds, and the REAL tree carries the authored nodes in order`, () => {
-                    const root = widgetOf(build(block.host));
+                    const root = widgetOf(buildSharedTree(block.host));
                     const wanted = authoredTags(block.authored);
 
                     expect(realised(root, wanted).map(typeName)).toStrictEqual(wanted);
@@ -150,7 +134,7 @@ export default async () => {
             for (const block of blocks) {
                 for (const expectation of sharedTreeExpectations(block.authored)) {
                     await it(`${block.widget} — ${expectation.path}: ${expectation.table} — ${expectation.rule}`, () => {
-                        const root = widgetOf(build(block.host));
+                        const root = widgetOf(buildSharedTree(block.host));
                         // The SAME filtered walk the shape test asserts, so the widget an
                         // expectation is read off is the one at the authored ADDRESS rather
                         // than the first of its class the tree happens to contain.
