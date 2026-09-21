@@ -1,0 +1,68 @@
+// What `project.mjs` hands back — the node shape of ADR 0051, RESTATED here, and held to
+// the original by a gate.
+//
+// WHERE THE ORIGINAL IS. `SharedTreeNode` in
+// `packages/web/adwaita-core/src/conformance/shared-trees.ts` is the one authored-tree node
+// shape this repository has: renderer-free, published, and read by all three ADR 0051 tree
+// drivers. Everything below is a second spelling of it, never a second decision about it. A
+// question about what the shape MEANS — why `slot` carries both `[start]` and `content:`,
+// what `props` may hold — is answered there and in `corpus/expectations.mjs`, not here.
+//
+// WHY THIS FILE IS NOT AN IMPORT OF THAT ONE. Two reasons, and neither is a preference:
+//
+//   · TIER. `@gjsify/blueprint` is tier 1 and `@gjsify/adwaita-core` is tier 2, so a
+//     `dependencies` edge from here to there is refused by ADR 0003's tier rule —
+//     `scripts/manifest-conformance/rules/tier.mjs`, through `audit-runtimes --check`. The
+//     direction is the point: a parser may not acquire a dependency on a widget package.
+//   · NO BUILD STEP. A `devDependencies` edge would pass that rule and still not resolve.
+//     `src/index.mjs` § There is no build step records why this package has none:
+//     `tree-checks` installs the workspace and does NOT build it, and that is the job the
+//     corpus gate runs in. `@gjsify/adwaita-core` publishes its types from `lib/types/**`,
+//     which is build OUTPUT — absent in exactly that job, so the specifier would resolve to
+//     nothing where it has to work.
+//
+// `scripts/adwaita-gallery-shared-trees.d.mts` restates the same shape for a third reason of
+// its own (its consumers are plain-Node generators with no `node_modules`), written in its
+// own header.
+//
+// SO THE COPY IS DECLARED AND MACHINE-HELD. `scripts/check-shared-tree-shape.mjs` compares
+// every restatement against the original field by field — comments stripped, `readonly` and
+// `Readonly<>` normalised away, members sorted — and fails naming the field that moved. It
+// also SWEEPS the tree for an undeclared fourth spelling, because the failure this whole
+// arrangement exists to prevent is not a drifted copy, it is a copy nobody knew was one.
+
+/**
+ * One node of an authored tree, spelled in GIR class names.
+ *
+ * Mutable where the original is `readonly`, because the projection BUILDS one of these:
+ * `projectBody` accumulates `props` and `children` before it returns. The gate normalises
+ * the modifier away, so the two spellings are one shape and a real field change still fails.
+ */
+export interface SharedNode {
+    /** A GIR class name, e.g. `AdwPreferencesGroup` — what a renderer looks up. */
+    tag: string;
+    /** The parent property this child was written at, or the bracket it was written under. */
+    slot?: string;
+    props?: Record<string, string | number | boolean>;
+    children?: SharedNode[];
+}
+
+/**
+ * One thing the projection dropped, by kind and by the line it was dropped from.
+ *
+ * `kind` is a plain `string` and not the closed `LossKind` of `corpus/expectations.mjs`,
+ * because the projection emits a block extension and an extension LIST under their own
+ * names — `layout`, `accessibility`, `marks` — and that set is open by construction. The
+ * corpus narrows it for the files it declares; this exit cannot.
+ */
+export interface ProjectedLoss {
+    kind: string;
+    /** 1-based line in the `.blp`, so a divergence names a place a reader can open. */
+    line: number;
+}
+
+/** What `projectToSharedNode` returns: the tree, and every loss named beside it. */
+export interface SharedNodeProjection {
+    node: SharedNode;
+    lost: ProjectedLoss[];
+}

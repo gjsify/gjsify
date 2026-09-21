@@ -42,6 +42,7 @@ refused by name, held by a corpus of its own.
 | `src/builtin-types.mjs` | Blueprint's own type keywords (`string`, `bool`, `int`, …) and the GType each means — the one table here that is NOT `@girs`-derived, with the argument for why in its header |
 | `src/number-literal.mjs` | one reading of a number's spelling: the parser refuses through it, both exits read through it |
 | `src/project.mjs` | AST → `SharedNode`, with every loss named at the seam |
+| `src/shared-node.d.mts` | that exit's node shape and loss record — a RESTATEMENT of `SharedTreeNode` in `@gjsify/adwaita-core`, with the two reasons it cannot import it, held to the original by `scripts/check-shared-tree-shape.mjs` |
 
 The real files are listed **by path** and read from where they live. A copy would be a second
 transcript that drifts from the file the build actually compiles, and it would keep passing

@@ -646,6 +646,25 @@ jobs:
       - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
+      # The node shape those trees are AUTHORED in, which nothing held. `SharedTreeNode` in
+      # `@gjsify/adwaita-core` is the original; `scripts/adwaita-gallery-shared-trees.d.mts`
+      # and `packages/infra/blueprint/src/shared-node.d.mts` restate it because neither can
+      # import it — no `node_modules` in the generator jobs, and ADR 0003 refuses a tier-1 ->
+      # tier-2 edge while the types themselves are build output absent in `tree-checks`. A
+      # third pair is PRINTED into a showcase by a generator. Nothing compared any of them, so
+      # a field added to one spelling surfaced as a renderer disagreeing with the corpus, one
+      # layer away from the edit that caused it.
+      #
+      # The SWEEP is the half that matters. A registry only catches drift in the copies
+      # somebody already thought about, and the measurement that started this found several more
+      # declarations of the shape than anyone had in mind — including one the NativeScript
+      # generator prints into a template literal. So it walks every tracked source
+      # for the SHAPE rather than for the name, and an undeclared one is red with its file and
+      # line. Pure Node over `git ls-files`, which is why it rides here rather than in
+      # `tree-checks`: this workflow installs nothing and the gate needs nothing.
+      - name: Check every authored-tree node shape says the same thing (self-testing)
+        run: node scripts/check-shared-tree-shape.mjs
+
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to
       # actions/checkout, so the gate exited 0 having compared nothing on every pull
@@ -1322,6 +1341,12 @@ jobs:
       # executes nowhere (#1365).
       - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
+
+      # Here too, and not only for symmetry: the gate walks `git ls-files` and keys its ledger
+      # on repo-relative paths, which is exactly the shape that reads back with backslashes on
+      # Windows and would then match no entry. The Linux job's copy carries the reasoning.
+      - name: Check every authored-tree node shape says the same thing (self-testing)
+        run: node scripts/check-shared-tree-shape.mjs
 
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to

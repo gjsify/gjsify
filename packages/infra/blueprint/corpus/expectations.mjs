@@ -71,7 +71,7 @@
 //   so source order and emitted order need not agree, and this file states the source
 //   one because it is the one a reader of the `.blp` can check.
 //
-// @import {SharedNode} from '../../../../scripts/adwaita-gallery-shared-trees.mjs'
+// @import {SharedNode} from '../src/shared-node.d.mts'
 
 /**
  * The constructs that fall outside `SharedNode`. Five of these are the ones ADR 0053
