@@ -37,6 +37,7 @@ import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import scrollingTestSuite from './scrolling.spec.js';
 import swipeTestSuite from './swipe.spec.js';
+import tagsTestSuite from './tags.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -76,4 +77,5 @@ run({
     spinnerTestSuite,
     shortcutLabelTestSuite,
     scrollingTestSuite,
+    tagsTestSuite,
 });

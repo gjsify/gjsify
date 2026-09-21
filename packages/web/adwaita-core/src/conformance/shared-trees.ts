@@ -201,10 +201,11 @@ export function authoredNodes(root: SharedTreeNode): { node: SharedTreeNode; pat
 /**
  * The authored classes a realised tree must carry, in authored order.
  *
- * `tagOf` is the renderer's own spelling of a GIR class name — `hostTagOf` on the web, the
- * GIR name itself in GTK. Both drivers filter their real tree down to this list and compare
- * against it, so it lives here rather than in each of them: a driver deriving it privately
- * is a second walk, free to disagree with the one {@link subjectIndexOf} addresses into.
+ * `tagOf` is the renderer's own spelling of a GIR class name — `hostTagOf` from the sibling
+ * `@gjsify/adwaita-core/tags` on the web, the GIR name itself in GTK. Both drivers filter
+ * their real tree down to this list and compare against it, so it lives here rather than in
+ * each of them: a driver deriving it privately is a second walk, free to disagree with the
+ * one {@link subjectIndexOf} addresses into.
  */
 export function authoredTags(root: SharedTreeNode, tagOf: (gtype: string) => string = (gtype) => gtype): string[] {
     return authoredNodes(root).map(({ node }) => tagOf(node.tag));

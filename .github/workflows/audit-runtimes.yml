@@ -665,6 +665,15 @@ jobs:
       - name: Check every authored-tree node shape says the same thing (self-testing)
         run: node scripts/check-shared-tree-shape.mjs
 
+      # `hostTagOf`/`attributeOf` are the same shape one level down: authored once in the
+      # published `@gjsify/adwaita-core/tags`, restated in `scripts/adwaita-gallery-shared-
+      # trees.mjs` because that file's own readers run in THIS job, which installs nothing.
+      # Holds the two function bodies identical rather than trusting the restatement's
+      # header comment — see the script for what it compares and what it deliberately does
+      # not (self-testing, same as the step above).
+      - name: Check the tag/attribute case rules match their published original (self-testing)
+        run: node scripts/check-tag-case-rules.mjs
+
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to
       # actions/checkout, so the gate exited 0 having compared nothing on every pull
@@ -1347,6 +1356,15 @@ jobs:
       # Windows and would then match no entry. The Linux job's copy carries the reasoning.
       - name: Check every authored-tree node shape says the same thing (self-testing)
         run: node scripts/check-shared-tree-shape.mjs
+
+      # `hostTagOf`/`attributeOf` are the same shape one level down: authored once in the
+      # published `@gjsify/adwaita-core/tags`, restated in `scripts/adwaita-gallery-shared-
+      # trees.mjs` because that file's own readers run in THIS job, which installs nothing.
+      # Holds the two function bodies identical rather than trusting the restatement's
+      # header comment — see the script for what it compares and what it deliberately does
+      # not (self-testing, same as the step above).
+      - name: Check the tag/attribute case rules match their published original (self-testing)
+        run: node scripts/check-tag-case-rules.mjs
 
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to

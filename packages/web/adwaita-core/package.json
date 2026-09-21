@@ -17,6 +17,10 @@
         "./tokens": {
             "types": "./lib/types/tokens.d.ts",
             "default": "./lib/esm/tokens.js"
+        },
+        "./tags": {
+            "types": "./lib/types/tags.d.ts",
+            "default": "./lib/esm/tags.js"
         }
     },
     "files": [
