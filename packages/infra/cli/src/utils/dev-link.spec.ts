@@ -43,8 +43,10 @@ import {
     readDevLinkOverride,
     removeDevLinks,
     resolveCheckoutWorkspaces,
+    scanDevLinks,
     writeDevLinkOverride,
 } from './dev-link.js';
+import { linkCommand } from '../commands/link.js';
 
 /** `realpathSync` because macOS `tmpdir()` is `/var/…` → `/private/var/…`. */
 function scratch(): string {
@@ -66,6 +68,33 @@ function makeCheckout(root: string): string {
 }
 
 const workspacesOf = (checkout: string) => resolveCheckoutWorkspaces(checkout, join(checkout, 'irrelevant.json'));
+
+/**
+ * Run `gjsify link` the way a terminal does — real handler, real cwd — with the
+ * output swallowed.
+ *
+ * Through the COMMAND on purpose. The two rules below are about what a SECOND
+ * `link` does to what the first one left, and no unit of `dev-link.ts` owns that
+ * sequence; testing the pieces would have passed while the sequence stayed broken,
+ * which is exactly how it shipped.
+ */
+function runLink(consumerRoot: string, args: { checkout: string; packages?: string[] }): void {
+    const previousCwd = process.cwd();
+    const quiet = (): void => {};
+    const saved = { log: console.log, warn: console.warn, error: console.error };
+    try {
+        process.chdir(consumerRoot);
+        console.log = quiet;
+        console.warn = quiet;
+        console.error = quiet;
+        linkCommand.handler({ ...args, 'dry-run': false } as never);
+    } finally {
+        console.log = saved.log;
+        console.warn = saved.warn;
+        console.error = saved.error;
+        process.chdir(previousCwd);
+    }
+}
 
 /** A consumer that declares `names` as dependencies and has a `node_modules`. */
 function makeConsumer(root: string, names: readonly string[]): string {
@@ -273,6 +302,41 @@ export default async () => {
         await it('passes when there is no override', async () => {
             const root = scratch();
             assertNoDevLinkUnderImmutable(root);
+            rmSync(root, { recursive: true, force: true });
+        });
+    });
+
+    await describe('re-linking with a narrower --packages', async () => {
+        await it('retires the link the new selection drops', async () => {
+            // REGRESSION, blocker 2 of the #1730 review. MEASURED before the fix:
+            // link everything, relink with `--packages 'is-odd'`, and
+            // `node_modules/is-number` stayed a symlink into the checkout while
+            // nothing named it any more. From there `assertNodeModulesDest` aborted
+            // EVERY later `gjsify install` with exit 1, blaming "a workspace source
+            // tree"; `gjsify unlink` removed the override first and then hit the
+            // same abort, so the escape route was gone too. Only a hand-written
+            // `rm` recovered the project.
+            const root = scratch();
+            const checkout = makeCheckout(join(root, 'checkout'));
+            const consumer = makeConsumer(join(root, 'consumer'), ['@gjsify/utils', '@gjsify/gtk-host']);
+
+            runLink(consumer, { checkout });
+            expect(lstatSync(join(consumer, 'node_modules', '@gjsify/utils')).isSymbolicLink()).toBe(true);
+            expect(lstatSync(join(consumer, 'node_modules', '@gjsify/gtk-host')).isSymbolicLink()).toBe(true);
+
+            runLink(consumer, { checkout, packages: ['@gjsify/gtk-*'] });
+            // The kept one is still linked...
+            expect(lstatSync(join(consumer, 'node_modules', '@gjsify/gtk-host')).isSymbolicLink()).toBe(true);
+            // ...and the dropped one is GONE, not an orphan pointing out of the
+            // tree. A hole is fine: the reinstall fills it from the registry.
+            expect(existsSync(join(consumer, 'node_modules', '@gjsify/utils'))).toBe(false);
+            // The census that the plan alone could not give: nothing the new
+            // override does not name still points into the checkout.
+            expect(
+                scanDevLinks(consumer, [checkout])
+                    .map((l) => l.name)
+                    .join(','),
+            ).toBe('@gjsify/gtk-host');
             rmSync(root, { recursive: true, force: true });
         });
     });

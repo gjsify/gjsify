@@ -26,9 +26,12 @@ import {
     formatUnbuiltDevLinks,
     planDevLinks,
     prepareDevLinks,
+    readDevLinkOverride,
     removeDevLinkOverride,
     removeDevLinks,
     resolveCheckoutWorkspaces,
+    retireDevLinks,
+    scanDevLinks,
     unbuiltDevLinks,
     writeDevLinkOverride,
 } from '../utils/dev-link.js';
@@ -121,10 +124,28 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
             return;
         }
 
+        // RE-linking is a re-SELECTION, not an addition: whatever the previous
+        // override linked and this one does not is removed here. Without it a
+        // narrower `--packages` left an orphan symlink out of `node_modules` that
+        // no later command would ever name, and every `gjsify install` after it
+        // aborted (utils/dev-link.ts, `scanDevLinks`). Both checkouts are swept,
+        // because the new override may point somewhere else entirely.
+        const previousCheckout = previousCheckoutOf(consumerRoot);
+        const retired = retireDevLinks(
+            consumerRoot,
+            previousCheckout && previousCheckout !== checkout ? [previousCheckout, checkout] : [checkout],
+            new Set(links.map((l) => l.name)),
+        );
+
         const written = applyDevLinks(links);
         writeDevLinkOverride(consumerRoot, { version: 1, checkout, packages: patterns });
         const ignored = ensureLocallyIgnored(consumerRoot);
         console.log(`\n  ${written.length} link(s) written, ${links.length - written.length} already current.`);
+        if (retired.length > 0) {
+            console.log(
+                `  ${retired.length} link(s) retired (dropped by this selection): ${retired.map((l) => l.name).join(', ')}`,
+            );
+        }
         console.log(`  override: ${overridePath}`);
         if (ignored === 'added')
             console.log(`  git: ${DEV_LINK_FILE} added to .git/info/exclude (local, never committed)`);
@@ -163,10 +184,22 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
             return;
         }
 
-        // Planned from the override, not from a scan: the override is what named
-        // the checkout, so it is also what says which links are OURS to remove.
-        // A checkout that has since been deleted must still be unlinkable, so the
-        // dead-target refusal is caught here rather than propagated.
+        // TWO readers, because the plan alone is not a census of what is linked
+        // (utils/dev-link.ts, `scanDevLinks`). A checkout that has since been
+        // deleted must still be unlinkable, so the dead-target refusal is caught
+        // here rather than propagated.
+        //
+        // The checkout is read separately from the PLAN, because the plan is the
+        // part that can fail (a checkout that has since been deleted, an unbuilt
+        // one) and the checkout path is what the tree sweep below needs.
+        const checkouts: string[] = [];
+        try {
+            const checkout = readDevLinkOverride(consumerRoot)?.checkout;
+            if (checkout) checkouts.push(checkout);
+        } catch {
+            // Unparseable override: the sweep finds nothing, the plan below says
+            // why, and the override is still removed.
+        }
         let links: DevLink[] = [];
         try {
             links = prepareDevLinks(consumerRoot)?.links ?? [];
@@ -180,14 +213,45 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
         const label = `gjsify unlink${dryRun ? ' (dry-run)' : ''}`;
         console.log(`${label}  in ${consumerRoot}`);
         if (dryRun) {
-            for (const link of links) console.log(`  would remove link  ${link.name}`);
+            const names = new Set(links.map((l) => l.name));
+            for (const link of scanDevLinks(consumerRoot, checkouts)) names.add(link.name);
+            for (const name of [...names].sort()) console.log(`  would remove link  ${name}`);
             console.log(`  would remove       ${overridePath}`);
             console.log(`\n${label}: nothing changed. Drop --dry-run to apply.`);
             return;
         }
 
+        // ORDER IS THE FIX. The links go first, the override LAST: the override is
+        // the only record of which checkout to sweep, so removing it while a link
+        // is still standing destroys the escape route — measured, that left
+        // `gjsify unlink` reporting success, the reinstall aborting on the orphan,
+        // and no command able to name it again.
+        //
+        // And the sweep is by TREE, not by plan: `removeDevLinks(links)` only ever
+        // visits what the CURRENT override selects, which is exactly how the orphan
+        // survived in the first place.
         const removed = removeDevLinks(links);
+        const kept = new Set(removed.map((l) => l.name));
+        for (const link of retireDevLinks(consumerRoot, checkouts, new Set())) {
+            if (kept.has(link.name)) continue;
+            removed.push(link);
+        }
         for (const link of removed) console.log(`  unlinked  ${link.name}`);
+
+        // Nothing may point out of `node_modules` any more, or the reinstall below
+        // dies on it. If something does, the override STAYS: it is what a later
+        // `gjsify unlink` needs, and a half-undone tree with no record of the
+        // checkout is the wedge this whole block exists to prevent.
+        const stragglers = scanDevLinks(consumerRoot, checkouts);
+        if (stragglers.length > 0) {
+            console.error(
+                `gjsify unlink: ${stragglers.length} link(s) still point into a checkout and could not be removed:\n` +
+                    stragglers.map((l) => `  ${l.name}  ${l.linkPath} → ${l.target}`).join('\n') +
+                    `\n  ${overridePath} is kept so this stays undoable. Remove the paths above and re-run.`,
+            );
+            return process.exit(1);
+        }
+
         removeDevLinkOverride(consumerRoot);
         console.log(`  removed   ${overridePath}`);
 
@@ -202,3 +266,18 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
         await runCli(['install']);
     },
 };
+
+/**
+ * The checkout the CURRENT override names, or `null` — swallowing every failure.
+ *
+ * Read only to decide what to sweep before a re-link. A malformed or dead
+ * override must not stop a fresh `gjsify link` from fixing the situation, which is
+ * usually exactly why it is being run.
+ */
+function previousCheckoutOf(consumerRoot: string): string | null {
+    try {
+        return readDevLinkOverride(consumerRoot)?.checkout ?? null;
+    } catch {
+        return null;
+    }
+}

@@ -89,6 +89,7 @@ import {
 } from './bin-shim.js';
 import { detectNativePackages } from './detect-native-packages.js';
 import { findExtraneous, formatExtraneousError } from './install-extraneous.js';
+import { devLinkPath, devLinkRoot } from './dev-link.js';
 import { scanPrefix } from './prune-prefix.js';
 import {
     badPlatformError,
@@ -1755,7 +1756,7 @@ async function extractOne(
     // fail if a workspace package leaked into the fetch/extract queue (the root cause
     // fixed in `workspaceInstall`), and refusing here means a resolver regression can
     // never again `rmSync` a working-tree source dir.
-    assertNodeModulesDest(dest, node);
+    assertNodeModulesDest(dest, node, prefix);
 
     // Idempotent fast-path — skip the cache read + rm + re-extract for a node already
     // extracted at the resolved version. The npm/yarn/pnpm default (only added/changed
@@ -1907,7 +1908,7 @@ function abortError(signal: AbortSignal | undefined): Error {
  *      a workspace source tree, where `rmSync(dest, { recursive: true })` deletes the
  *      link's target contents.
  */
-function assertNodeModulesDest(dest: string, node: ResolvedNode): void {
+function assertNodeModulesDest(dest: string, node: ResolvedNode, prefix: string): void {
     const segments = dest.split(path.sep);
     if (!segments.includes('node_modules')) {
         throw new Error(
@@ -1928,9 +1929,39 @@ function assertNodeModulesDest(dest: string, node: ResolvedNode): void {
         throw new Error(
             `gjsify install: refusing to extract ${node.name}@${node.version} — ${dest} resolves to ${real}, ` +
                 `which is outside any node_modules/ directory (likely a symlink to a workspace source tree). ` +
-                `Extracting here would delete working-tree source files.`,
+                `Extracting here would delete working-tree source files.${devLinkRemedy(prefix, dest)}`,
         );
     }
+}
+
+/**
+ * The extra sentence for the ONE cause this refusal has that a developer can undo
+ * with a command: a `gjsify link` development link.
+ *
+ * Measured: relinking with a narrower `--packages` left `node_modules/is-number`
+ * pointing into the checkout while the new override no longer named it, and every
+ * later `gjsify install` died on the refusal above — which spoke only of "a
+ * workspace source tree" and named no command at all. `gjsify unlink` did not
+ * rescue it either (it removed the override first, destroying the escape route),
+ * so the only way out was a hand-written `rm`. Both halves are fixed at the
+ * source; this message is what tells someone already wedged by an older CLI.
+ *
+ * The override file may be GONE by the time this fires, so its absence is not
+ * evidence: the remedy is named whenever a `node_modules` entry points outside,
+ * and it names the file only when it is actually there.
+ */
+function devLinkRemedy(prefix: string, dest: string): string {
+    // Same walk the guard and the installer do, so the path this message tells
+    // someone to run `gjsify unlink` in is the one that holds the override.
+    const root = devLinkRoot(prefix);
+    const override = devLinkPath(root);
+    const active = fs.existsSync(override);
+    return (
+        `\n  If a \`gjsify link\` development link put it there${active ? ` — ${override} is present` : ''}: ` +
+        `run \`gjsify unlink\` in ${root} to remove the links and restore the registry copies, ` +
+        `or \`gjsify link <checkout> --packages …\` to re-select. ` +
+        `If no override is left, delete ${dest} by hand and re-run.`
+    );
 }
 
 function depth(installPath: string): number {

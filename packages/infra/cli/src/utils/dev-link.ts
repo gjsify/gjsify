@@ -36,8 +36,18 @@
 // feature promises not to do. `linkedNames` therefore applies after the lockfile
 // is written and only to what gets fetched.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import {
+    existsSync,
+    lstatSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 
@@ -370,6 +380,88 @@ function linkAlreadyPointsAt(linkPath: string, target: string): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * Every `node_modules/<name>` symlink that resolves INSIDE one of `checkouts`.
+ *
+ * The PLAN is not a census. `removeDevLinks` only ever visits the links the
+ * CURRENT override asks for, so a link the previous override made and the new one
+ * dropped is invisible to it — measured: link everything, relink with
+ * `--packages 'is-odd'`, and `node_modules/is-number` stays pointing into the
+ * checkout while nothing in the plan names it. From there `assertNodeModulesDest`
+ * aborted EVERY later `gjsify install`, and `gjsify unlink` could not help because
+ * it removed the override (the escape route) before hitting the same abort. Only a
+ * hand-written `rm` got the project back.
+ *
+ * So the ground truth for "what is linked" is the tree, not the file. Reads one
+ * level of `node_modules` plus one level into each `@scope/`, which is where
+ * top-level links live; `.bin` and real directories are skipped by construction.
+ */
+export function scanDevLinks(consumerRoot: string, checkouts: readonly string[]): DevLink[] {
+    const roots: string[] = [];
+    for (const checkout of checkouts) {
+        try {
+            roots.push(realpathSync(checkout));
+        } catch {
+            // Gone or unreadable: nothing can resolve into it, so it contributes
+            // no links. A DANGLING link is not this function's business either —
+            // the installer extracts straight over one.
+        }
+    }
+    if (roots.length === 0) return [];
+    const nodeModules = join(consumerRoot, 'node_modules');
+    const found: DevLink[] = [];
+    const consider = (name: string): void => {
+        const linkPath = join(nodeModules, name);
+        let target: string;
+        try {
+            if (!lstatSync(linkPath).isSymbolicLink()) return;
+            target = realpathSync(linkPath);
+        } catch {
+            return;
+        }
+        if (!roots.some((root) => target === root || target.startsWith(root + sep))) return;
+        found.push({ name, target, linkPath });
+    };
+    let entries: string[];
+    try {
+        entries = readdirSync(nodeModules);
+    } catch {
+        return [];
+    }
+    for (const entry of entries) {
+        if (entry.startsWith('.')) continue;
+        if (entry.startsWith('@')) {
+            let scoped: string[];
+            try {
+                scoped = readdirSync(join(nodeModules, entry));
+            } catch {
+                continue;
+            }
+            for (const inner of scoped) consider(`${entry}/${inner}`);
+            continue;
+        }
+        consider(entry);
+    }
+    found.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    return found;
+}
+
+/**
+ * Remove every dev link into `checkouts` that `keep` does not name.
+ *
+ * What makes re-linking with a narrower `--packages` a RE-selection rather than an
+ * addition, and what makes `unlink` leave the tree as it found it. Pass an empty
+ * `keep` to retire all of them.
+ */
+export function retireDevLinks(
+    consumerRoot: string,
+    checkouts: readonly string[],
+    keep: ReadonlySet<string>,
+): DevLink[] {
+    const stale = scanDevLinks(consumerRoot, checkouts).filter((link) => !keep.has(link.name));
+    return removeDevLinks(stale);
 }
 
 /** A linked package that cannot be imported, and why not. */

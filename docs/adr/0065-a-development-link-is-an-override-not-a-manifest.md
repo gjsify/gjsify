@@ -110,6 +110,13 @@ the empty list, meaning every package; a whole scope is spelled `@gjsify/*`.
   `--no-install` skips it.
 - `unlink` removes only symlinks that point into the recorded checkout. A real directory in
   that place is somebody else's, and a verifier that deletes can delete the wrong thing.
+- Re-linking is a re-SELECTION. `link` removes whatever the previous override linked and the new
+  one does not, because the plan is not a census: `removeDevLinks` only visits what the current
+  override names, so a narrower `--packages` used to leave an orphan symlink out of
+  `node_modules` that no command could name again — and `assertNodeModulesDest` then aborted
+  every later `install`, with `unlink` removing the override (the escape route) before hitting
+  the same abort. The ground truth for "what is linked" is the tree (`scanDevLinks`), and
+  `unlink` removes the links BEFORE the override for the same reason.
 - ADR 0060 § P6's verdict on `link:`/`portal:` **as resolution protocols** stands: none is
   implemented, `gjsify-lock.json` gains no new spec shape, and nothing about resolution
   changes. What is added is an install-time override with a refusal attached.
