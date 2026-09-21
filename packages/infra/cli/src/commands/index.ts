@@ -15,6 +15,7 @@ export { flatpakCommand } from './flatpak/index.js';
 export * from './ship.js';
 export * from './dlx.js';
 export * from './install.js';
+export * from './link.js';
 export * from './foreach.js';
 export * from './workspace.js';
 export * from './pack.js';

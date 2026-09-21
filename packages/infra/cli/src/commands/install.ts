@@ -55,6 +55,13 @@ import {
     type PackageJson,
 } from '../utils/pkg-json-edit.js';
 import type { NativeInstallOptions } from '../utils/install-backend-native.js';
+import {
+    type ActiveDevLinks,
+    applyDevLinks,
+    assertNoDevLinkUnderImmutable,
+    devLinkRoot,
+    prepareDevLinks,
+} from '../utils/dev-link.js';
 
 /**
  * Link type for the workspace↔workspace directory links.
@@ -218,6 +225,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
                 );
                 return process.exit(1);
             }
+            // FAIL CLOSED before anything is resolved or written: an active `gjsify
+            // link` override would make a local development tree an input to the one
+            // install shape whose whole promise is "exactly what is committed" — CI,
+            // the Flatpak build, a release. Throws rather than exits so `index.ts`
+            // prints the message that names the override file (utils/dev-link.ts).
+            assertNoDevLinkUnderImmutable(process.cwd());
         }
         if (args.global) {
             if (!args.packages || args.packages.length === 0) {
@@ -489,6 +502,65 @@ function depKindFromArgs(args: InstallOptions): DependencyKind {
     return 'dependencies';
 }
 
+/**
+ * Wire the `gjsify link` development override for this prefix, and SAY SO.
+ *
+ * Called before the fetch phase for the same reason `wireWorkspaceSymlinks` is:
+ * these links point at local source and depend on no download, so writing them
+ * first means an install that dies mid-way still leaves a resolvable tree. Called
+ * again afterwards as a near no-op safety net.
+ *
+ * The announcement is not decoration. A linked tree changes what a build compiles
+ * without changing any file the consumer commits, so the one place it can be seen
+ * is the output of the command that re-applies it — this is exactly what a bare
+ * `npm link` does not do, and why the next `npm install` silently undoes it.
+ *
+ * Returns `null` when no override is present; throws when one names a checkout
+ * that is gone, is not a gjsify workspace, or is not BUILT (utils/dev-link.ts).
+ *
+ * `devLinkRoot` and not `prefix` verbatim: `assertNoDevLinkUnderImmutable` already
+ * walks up to the workspace root to decide whether an override is in play, and two
+ * answers to "which override governs this install" is one answer too many. Nothing
+ * rescued the difference either — the bare `install` path happens to delegate to
+ * the workspace root before reaching here, `install <pkg>` does not.
+ */
+function activateDevLinks(prefix: string, announce: boolean): ActiveDevLinks | null {
+    const active = prepareDevLinks(devLinkRoot(prefix));
+    if (!active) return null;
+    const written = applyDevLinks(active.links);
+    if (!announce) return active;
+    console.log(
+        `gjsify install: development link ACTIVE (${active.overridePath}) — ${active.links.length} ` +
+            `package(s) come from ${active.checkout}, linked rather than fetched ` +
+            `(${written.length} (re)written, ${active.links.length - written.length} already current):`,
+    );
+    const names = active.links.map((l) => l.name);
+    const shown = names.slice(0, 12);
+    console.log(`  ${shown.join(', ')}${names.length > shown.length ? `, +${names.length - shown.length} more` : ''}`);
+    console.log(
+        '  `gjsify unlink` restores the registry copies; `gjsify install --immutable` refuses while it exists.',
+    );
+    return active;
+}
+
+/**
+ * Re-apply the dev links after the install, and SAY SO when it changed anything.
+ *
+ * `applyDevLinks` returns what it had to (re)write, and both post-install call
+ * sites used to throw that away — so an installer that clobbered a link and got it
+ * put back looked exactly like one that never touched it. The safety net is
+ * supposed to be a no-op; the run where it is not is the one worth a line.
+ */
+function reportRewiredDevLinks(active: ActiveDevLinks | null): void {
+    if (!active) return;
+    const rewired = applyDevLinks(active.links);
+    if (rewired.length === 0) return;
+    console.log(
+        `gjsify install: re-applied ${rewired.length} development link(s) the install had replaced: ` +
+            `${rewired.map((l) => l.name).join(', ')}`,
+    );
+}
+
 async function projectInstallNative(args: InstallOptions, signal?: AbortSignal): Promise<void> {
     const cwd = process.cwd();
     const pkgPath = join(cwd, 'package.json');
@@ -569,6 +641,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     // re-acquires the same lock re-entrantly.
     const lock = await acquireInstallLock(cwd, { signal });
     try {
+        const devLinks = activateDevLinks(cwd, true);
         // Typed as NativeInstallOptions so the native-backend-only `optionalSpecs`
         // is CHECKED here instead of smuggled past an excess-property check;
         // `installPackages` forwards the object to that backend unchanged.
@@ -590,8 +663,14 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
                 ...optionalDependencyNames(pkg ? [pkg] : []),
                 ...(args['save-optional'] ? (args.packages ?? []).map((s) => parseSpec(s).name) : []),
             ]),
+            linkedNames: devLinks?.names,
         };
         const result = await installPackages(nativeOpts);
+        // The link survives the install — the point of reading the override at all.
+        // The return value is REPORTED, not dropped: a non-empty one means the
+        // install disturbed a link that the pre-fetch pass had already wired, which
+        // is a fact about the installer, not a routine no-op.
+        reportRewiredDevLinks(devLinks);
 
         // Only the `gjsify install <pkg>...` add-a-dep flow mutates the manifest;
         // the no-args refresh must not.
@@ -731,6 +810,11 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     console.log(
         `gjsify install: ${workspaces.length} workspace(s), ${externalSpecs.size} external dep spec(s), ${symlinks.length} workspace symlink(s)`,
     );
+
+    // A `gjsify link` override at the workspace ROOT governs the whole install, and
+    // is wired here for the same reason the shims and workspace symlinks are: before
+    // anything can fail on the network.
+    const devLinks = activateDevLinks(cwd, true);
 
     // EARLY, before the download/extract phase: the shims derive from workspace
     // manifests alone, while the heavy phase that follows can die mid-way (network,
@@ -917,6 +1001,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             // `types-dev/<lib>` workspace that also exists on npm and is pinned
             // transitively in the lockfile).
             workspaceNames: new Set(byName.keys()),
+            linkedNames: devLinks?.names,
             specOrigins: new Map([...specOrigins].map(([k, v]) => [k, [...v]] as const)),
             // Aggregated over EVERY member, because the specs are: a name any member
             // declares as a plain dependency stays required.
@@ -947,6 +1032,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             frozen: args.immutable,
             signal,
             workspaceNames: new Set(byName.keys()),
+            linkedNames: devLinks?.names,
             // Same aggregated answer as the root install: these specs are a SUBSET of
             // the root's, so classifying them differently would make one dep optional
             // at the root and required in a member.
@@ -957,6 +1043,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
 
     // A near no-op safety net in case a later step disturbed a link.
     await wireWorkspaceSymlinks();
+    reportRewiredDevLinks(devLinks);
 
     // Now that the tree is materialised, refresh the shims' GJS preamble with the
     // native prebuild dirs that only became discoverable after the install (on a

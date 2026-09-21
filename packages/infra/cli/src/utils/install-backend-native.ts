@@ -89,6 +89,7 @@ import {
 } from './bin-shim.js';
 import { detectNativePackages } from './detect-native-packages.js';
 import { findExtraneous, formatExtraneousError } from './install-extraneous.js';
+import { devLinkPath, devLinkRoot } from './dev-link.js';
 import { scanPrefix } from './prune-prefix.js';
 import {
     badPlatformError,
@@ -266,6 +267,20 @@ export interface NativeInstallOptions extends InstallOptions {
      * required, the pre-platform-filter behaviour.
      */
     optionalSpecs?: Set<string>;
+    /**
+     * Names provided by a `gjsify link` development override (`utils/dev-link.ts`):
+     * `node_modules/<name>` is a symlink into a local checkout, so the registry copy
+     * must not be fetched over it — `assertNodeModulesDest` refuses that extract and
+     * aborts the whole install, correctly, since it would delete the checkout.
+     *
+     * DELIBERATELY NOT `workspaceNames`, the set it is otherwise shaped like. That
+     * one also reaches `resolveDeps` and removes the subtree from the RESOLVE — and
+     * the resolve is what writes `gjsify-lock.json`. A link is a local development
+     * decision that must leave the consumer's committed lockfile byte-identical, so
+     * these names are dropped only from what gets DOWNLOADED, after the lockfile has
+     * been written from the full resolved tree.
+     */
+    linkedNames?: Set<string>;
 }
 
 export async function installPackagesNative(opts: NativeInstallOptions): Promise<InstalledTopLevel[]> {
@@ -422,6 +437,17 @@ async function installPackagesNativeLocked(
         log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
     }
 
+    // TWO NAMES FROM HERE ON, and the split is the fix for a measured defect.
+    // `nodes` stays the FULL resolved tree — what the lockfile describes and what
+    // `topLevelResolutions` answers from. `fetchable` is the subset that still has
+    // to come off the network. A package can be present without being fetched, and
+    // collapsing the two made the installer forget it existed: with a `gjsify link`
+    // active, `gjsify install is-odd` read the FILTERED array, found no `is-odd`
+    // resolution, and wrote `"is-odd": "latest"` into package.json and
+    // `is-odd@latest` into the lockfile's `requested` — over the `^3.0.1` the
+    // control run without the link produced. Never re-merge these two names.
+    let fetchable = nodes;
+
     // A package named after one of the monorepo's own workspaces is provided by a
     // workspace symlink (wired by `workspaceInstall`), NOT by a registry tarball —
     // even when the lockfile or a transitive edge pins a same-named published
@@ -430,18 +456,31 @@ async function installPackagesNativeLocked(
     // `--immutable` robust against a committed lockfile that still carries such
     // entries, since that path never runs `resolveDeps`.
     if (opts.workspaceNames && opts.workspaceNames.size > 0) {
-        const before = nodes.length;
-        nodes = nodes.filter((n) => !opts.workspaceNames!.has(n.name));
-        const dropped = before - nodes.length;
+        const before = fetchable.length;
+        fetchable = fetchable.filter((n) => !opts.workspaceNames!.has(n.name));
+        const dropped = before - fetchable.length;
         if (dropped > 0) {
             log('install: %d workspace-provided package(s) symlinked, not fetched', dropped);
+        }
+    }
+
+    // Same exclusion, different reason and a different position in the pipeline: a
+    // `gjsify link` override provides these from a local checkout. It runs AFTER the
+    // lockfile write above on purpose — the consumer's committed lockfile must stay
+    // byte-identical whether or not a link is active (utils/dev-link.ts).
+    if (opts.linkedNames && opts.linkedNames.size > 0) {
+        const before = fetchable.length;
+        fetchable = fetchable.filter((n) => !opts.linkedNames!.has(n.name));
+        const dropped = before - fetchable.length;
+        if (dropped > 0) {
+            log('install: %d dev-linked package(s) provided by a local checkout, not fetched', dropped);
         }
     }
 
     // os/cpu/libc: throws for an incompatible REQUIRED dep, marks incompatible
     // OPTIONAL ones inert. Runs on BOTH paths (fresh resolve and lockfile) —
     // that is what makes one committed lockfile install a per-host subset.
-    const installable = applyPlatformFilter(nodes, target, force, log);
+    const installable = applyPlatformFilter(fetchable, target, force, log);
 
     log('install: downloading %d tarball(s)', installable.length);
     await downloadAndExtractAll(installable, opts.prefix, npmrc, log, opts.signal, progress);
@@ -450,7 +489,9 @@ async function installPackagesNativeLocked(
     log('install: done');
 
     // Top-level requested packages only, so callers can write the resolved version
-    // back into package.json (`npm install --save`).
+    // back into package.json (`npm install --save`). From `nodes`, NEVER from
+    // `fetchable`: "what is installed at node_modules/<name>" is not "what was
+    // downloaded", and a provided package is installed.
     return topLevelResolutions(opts.specs, nodes);
 }
 
@@ -1715,7 +1756,7 @@ async function extractOne(
     // fail if a workspace package leaked into the fetch/extract queue (the root cause
     // fixed in `workspaceInstall`), and refusing here means a resolver regression can
     // never again `rmSync` a working-tree source dir.
-    assertNodeModulesDest(dest, node);
+    assertNodeModulesDest(dest, node, prefix);
 
     // Idempotent fast-path — skip the cache read + rm + re-extract for a node already
     // extracted at the resolved version. The npm/yarn/pnpm default (only added/changed
@@ -1867,7 +1908,7 @@ function abortError(signal: AbortSignal | undefined): Error {
  *      a workspace source tree, where `rmSync(dest, { recursive: true })` deletes the
  *      link's target contents.
  */
-function assertNodeModulesDest(dest: string, node: ResolvedNode): void {
+function assertNodeModulesDest(dest: string, node: ResolvedNode, prefix: string): void {
     const segments = dest.split(path.sep);
     if (!segments.includes('node_modules')) {
         throw new Error(
@@ -1888,9 +1929,39 @@ function assertNodeModulesDest(dest: string, node: ResolvedNode): void {
         throw new Error(
             `gjsify install: refusing to extract ${node.name}@${node.version} — ${dest} resolves to ${real}, ` +
                 `which is outside any node_modules/ directory (likely a symlink to a workspace source tree). ` +
-                `Extracting here would delete working-tree source files.`,
+                `Extracting here would delete working-tree source files.${devLinkRemedy(prefix, dest)}`,
         );
     }
+}
+
+/**
+ * The extra sentence for the ONE cause this refusal has that a developer can undo
+ * with a command: a `gjsify link` development link.
+ *
+ * Measured: relinking with a narrower `--packages` left `node_modules/is-number`
+ * pointing into the checkout while the new override no longer named it, and every
+ * later `gjsify install` died on the refusal above — which spoke only of "a
+ * workspace source tree" and named no command at all. `gjsify unlink` did not
+ * rescue it either (it removed the override first, destroying the escape route),
+ * so the only way out was a hand-written `rm`. Both halves are fixed at the
+ * source; this message is what tells someone already wedged by an older CLI.
+ *
+ * The override file may be GONE by the time this fires, so its absence is not
+ * evidence: the remedy is named whenever a `node_modules` entry points outside,
+ * and it names the file only when it is actually there.
+ */
+function devLinkRemedy(prefix: string, dest: string): string {
+    // Same walk the guard and the installer do, so the path this message tells
+    // someone to run `gjsify unlink` in is the one that holds the override.
+    const root = devLinkRoot(prefix);
+    const override = devLinkPath(root);
+    const active = fs.existsSync(override);
+    return (
+        `\n  If a \`gjsify link\` development link put it there${active ? ` — ${override} is present` : ''}: ` +
+        `run \`gjsify unlink\` in ${root} to remove the links and restore the registry copies, ` +
+        `or \`gjsify link <checkout> --packages …\` to re-select. ` +
+        `If no override is left, delete ${dest} by hand and re-run.`
+    );
 }
 
 function depth(installPath: string): number {
