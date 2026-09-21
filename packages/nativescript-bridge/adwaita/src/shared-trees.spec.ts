@@ -83,10 +83,39 @@ import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scri
 // import in the build graph, and that module's own header carries the reachability rule.
 import { build, elementFor } from './builder/index.js';
 
-import { Button, LayoutBase, Switch, TextField, type View } from './testing/ns-core.mjs';
+import { Button, LayoutBase, Switch, TextField } from './testing/ns-core.mjs';
+
+/**
+ * THE ONE SEAM WHERE SHIPPED CODE MEETS THIS DOUBLE — deliberately typed as neither `View`.
+ *
+ * `build()` is shipped, production code (`builder/index.ts`'s own header): it is typed
+ * `type`-only against the REAL `@nativescript/core` `View` on purpose, so it carries no
+ * dependency on this double's directory layout. This driver's walk, below, is typed against
+ * THIS double's own `LayoutBase`/`Button`/`Switch`/`TextField` on purpose too, because those
+ * are the concrete classes an `instanceof` check narrows to and reads from. Before this
+ * builder shipped, both sides were the SAME file and there was no seam to name; ADR 0051's
+ * tree driver used to construct its own tree inline, against its own `View`.
+ *
+ * A plain alias to either concrete `View` does not survive the walk. `ns-core.d.ts`'s
+ * ambient `View` carries its own `private _measuredWidth` guard (its header: so a widget
+ * cannot shadow a real NativeScript field unseen) and this double's `View` carries its own
+ * `private _className` backing field — and TypeScript seals a class against being assigned
+ * to or from anything but itself the moment EITHER side declares a private member of its
+ * own, independent of how the public shape lines up. It is not just the top-level `View`,
+ * either: `LayoutBase.getChildAt` returns THIS double's `View`, which the walk below feeds
+ * straight back into itself, so `View.animate`'s own `AnimationDefinition.target?: View`
+ * drags the ambient guard back into the SAME comparison — measured, not assumed: typing this
+ * walk against the ambient `View` directly still failed, one recursion level down, on that
+ * `target` field.
+ *
+ * `TreeNode` is what both `View`s were always going to satisfy, because it asks nothing of
+ * either: everything this walk actually reads happens AFTER narrowing to one of this
+ * double's own concrete classes below, never on the unnarrowed node.
+ */
+type TreeNode = object;
 
 /** Depth-first over the REAL child lists the port filled, in the order it filled them. */
-function descendants(root: View, into: View[] = []): View[] {
+function descendants(root: TreeNode, into: TreeNode[] = []): TreeNode[] {
     into.push(root);
     if (root instanceof LayoutBase) {
         for (let index = 0; index < root.getChildrenCount(); index++) descendants(root.getChildAt(index), into);
@@ -94,7 +123,7 @@ function descendants(root: View, into: View[] = []): View[] {
     return into;
 }
 
-const findDescendant = (root: View, match: (view: View) => boolean): View | null =>
+const findDescendant = (root: TreeNode, match: (view: TreeNode) => boolean): TreeNode | null =>
     descendants(root).find((view) => match(view)) ?? null;
 
 /**
@@ -106,9 +135,9 @@ const findDescendant = (root: View, match: (view: View) => boolean): View | null
  * `AdwSwitchRow` both extend `AdwActionRow`, and an `instanceof` filter would let either
  * answer for the other.
  */
-function realised(root: View, wanted: readonly string[]): { view: View; tag: string }[] {
+function realised(root: TreeNode, wanted: readonly string[]): { view: TreeNode; tag: string }[] {
     const byClass = new Map<unknown, string>(wanted.map((tag) => [elementFor(tag).ctor, tag]));
-    const found: { view: View; tag: string }[] = [];
+    const found: { view: TreeNode; tag: string }[] = [];
     for (const view of descendants(root)) {
         const tag = byClass.get(view.constructor);
         if (tag !== undefined) found.push({ view, tag });
@@ -123,7 +152,7 @@ function realised(root: View, wanted: readonly string[]): { view: View; tag: str
  * the MECHANISM for "no button", so both vectors below have a row whose expected answer is
  * exactly that. A slider or a field is never absent by design.
  */
-const bannerButton = (banner: View) => findDescendant(banner, (view) => view instanceof Button) as Button | null;
+const bannerButton = (banner: TreeNode) => findDescendant(banner, (view) => view instanceof Button) as Button | null;
 
 /**
  * The platform control a composed row installed in its constructor, found in the TREE.
@@ -140,7 +169,7 @@ const bannerButton = (banner: View) => findDescendant(banner, (view) => view ins
  * A missing control is a FAILURE and not a `null` read: a row with no slider and a row whose
  * slider says `false` are different findings and must not report the same value.
  */
-function inner<T extends View>(row: View, ctor: new () => T, what: string): T {
+function inner<T extends TreeNode>(row: TreeNode, ctor: new () => T, what: string): T {
     const found = findDescendant(row, (view) => view instanceof ctor);
     if (found === null) {
         throw new Error(
@@ -158,7 +187,7 @@ function inner<T extends View>(row: View, ctor: new () => T, what: string): T {
  * in the two sibling drivers. Everything above it is renderer-free; a case that grew a block
  * name would be the per-surface branch § 9 forbids.
  */
-function read(expectation: SharedTreeExpectation, view: View): string | number | boolean {
+function read(expectation: SharedTreeExpectation, view: TreeNode): string | number | boolean {
     switch (expectation.observable) {
         case 'entry-text-length':
             // The TEXT off the tree, the COUNT from the core: a driver counting characters
