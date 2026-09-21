@@ -15,7 +15,16 @@
 // Reference: refs/libadwaita/src/adw-dialog.c (the closing/closed callback pair)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import type { BottomSheetCloseOutcome, BottomSheetCloseSource, BottomSheetTeardownCallback } from '../dialog.js';
+import type {
+    BottomSheetChrome,
+    BottomSheetCloseOutcome,
+    BottomSheetCloseSource,
+    BottomSheetOpenOutcome,
+    BottomSheetOpenSource,
+    BottomSheetSwipeTrackerConfig,
+    BottomSheetSwipeTrackerState,
+    BottomSheetTeardownCallback,
+} from '../dialog.js';
 
 /** One `resolveBottomSheetClose` expectation. */
 export interface BottomSheetCloseVector {
@@ -437,5 +446,455 @@ export const BOTTOM_SHEET_PRESENTATION_VECTORS: ReadonlyArray<BottomSheetPresent
         hasBeenOpen: true,
         rule: 'unlocking mid-life makes the same affordance start closing',
         derivedFrom: 'adw_bottom_sheet_set_can_close adw-bottom-sheet.c:2076-2091',
+    },
+];
+
+// --- Bottom-sheet OPEN conformance vectors ---
+//
+// `Adw.BottomSheet` has one user-facing way in, and it is the bottom bar. Neither port had
+// it, so neither port could be opened by a user at all: the browser element and the
+// NativeScript widget both exposed `open` and stopped there, and an app whose only
+// affordance IS the bar (easy6502's GNOME editor declares `bottom-bar` and writes `open`
+// from nowhere) lost its sheet entirely in the port.
+//
+// Three of the four inputs below are REACHABILITY rather than a branch in a callback, which
+// is why reading `bottom_bar_released_cb` alone is not enough to implement this.
+//
+// Reference: refs/libadwaita/src/adw-bottom-sheet.c
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+
+/** One `resolveBottomSheetOpen` expectation. */
+export interface BottomSheetOpenVector {
+    /** Which affordance asked to open. */
+    source: BottomSheetOpenSource;
+    /** `AdwBottomSheet:open` at the time of the request. */
+    open: boolean;
+    /** `AdwBottomSheet:can-open` at the time of the request. */
+    canOpen: boolean;
+    /** Whether `AdwBottomSheet:bottom-bar` is set. */
+    hasBottomBar: boolean;
+    /** `AdwBottomSheet:reveal-bottom-bar`. */
+    revealBottomBar: boolean;
+    /** What the C source does with it. */
+    outcome: BottomSheetOpenOutcome;
+    rule: string;
+    derivedFrom: string;
+}
+
+/**
+ * Every distinguishable `(source, open, canOpen, hasBottomBar, revealBottomBar)` the open
+ * gate answers differently for — so a renderer cannot pass by wiring the bar to `open = true`
+ * and calling it done.
+ */
+export const BOTTOM_SHEET_OPEN_VECTORS: ReadonlyArray<BottomSheetOpenVector> = [
+    // --- bottom-bar (the click, pointer or keyboard) ---
+    {
+        source: 'bottom-bar',
+        open: false,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'open',
+        rule: 'THE AFFORDANCE: clicking the bottom bar of a closed, unlocked sheet opens it. This is the row both ports were missing, and with it the only way in',
+        derivedFrom:
+            'bottom_bar_released_cb, adw-bottom-sheet.c:279-280 (and bottom_bar_clicked_cb:404-406 for the keyboard door)',
+    },
+    {
+        source: 'bottom-bar',
+        open: false,
+        canOpen: false,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'can-open off refuses the click, and refuses it SILENTLY — there is no open-attempt signal to answer with',
+        derivedFrom: 'bottom_bar_released_cb, adw-bottom-sheet.c:269-272',
+    },
+    {
+        source: 'bottom-bar',
+        open: false,
+        canOpen: true,
+        hasBottomBar: false,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'NO BAR, NO DOOR: with bottom-bar unset the stack never shows the bin, so can-open has nothing to gate — upstream says so in the property docs',
+        derivedFrom:
+            'show_bottom_bar adw-bottom-sheet.c:294-295 + set_bottom_bar:1615-1616 + the can-open doc at :2013',
+    },
+    {
+        source: 'bottom-bar',
+        open: false,
+        canOpen: false,
+        hasBottomBar: false,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'both gates shut is still one answer',
+        derivedFrom: 'adw-bottom-sheet.c:269-272 + :294-295',
+    },
+    {
+        source: 'bottom-bar',
+        open: false,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: false,
+        outcome: 'ignored',
+        rule: 'a bar that is not revealed is off screen, so there is nothing to click — the sheet bin is child-invisible at rest',
+        derivedFrom: 'reveal_animation_done_cb, adw-bottom-sheet.c:362-364 (same expression at :341-343)',
+    },
+    {
+        source: 'bottom-bar',
+        open: true,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'an open sheet shows the sheet page, not the bar: the affordance is not on screen to be clicked twice',
+        derivedFrom: 'adw_bottom_sheet_set_open, adw-bottom-sheet.c:1701-1702',
+    },
+
+    // --- swipe (the AdwSwipeTracker gesture, upward) ---
+    {
+        source: 'swipe',
+        open: false,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'open',
+        rule: 'an upward swipe off the bar opens the sheet — the tracker arm that is live precisely when a bar exists',
+        derivedFrom: 'update_swipe_tracker adw-bottom-sheet.c:451-453 + prepare_cb:1052-1053',
+    },
+    {
+        source: 'swipe',
+        open: false,
+        canOpen: false,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'prepare_cb refuses to detect an opening swipe on a sheet that may not be opened',
+        derivedFrom: 'prepare_cb, adw-bottom-sheet.c:1052-1053',
+    },
+    {
+        source: 'swipe',
+        open: false,
+        canOpen: true,
+        hasBottomBar: false,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'THE QUIET ONE: with no bar the tracker may still be enabled by can-close, but the swipe AREA is a zero-height rectangle at progress 0, so no drag ever starts. can-open cannot rescue it',
+        derivedFrom: 'get_swipe_area, adw-bottom-sheet.c:1412-1433 (bottom_bar_height = 0, so rect.height = 0)',
+    },
+    {
+        source: 'swipe',
+        open: true,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'a gesture on an OPEN sheet is a dismissal, handled by the close gate — never a second open',
+        derivedFrom: 'prepare_cb, adw-bottom-sheet.c:1050-1051',
+    },
+
+    // --- drag-handle (decorative, exactly as in the close gate) ---
+    {
+        source: 'drag-handle',
+        open: false,
+        canOpen: true,
+        hasBottomBar: true,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'REGRESSION PIN: the handle is untargetable, so it is not the way in either. Making it the open affordance to compensate for a missing bottom bar would contradict BOTTOM_SHEET_CLOSE_VECTORS, which pins the same widget as inert on the way out',
+        derivedFrom: 'gtk_widget_set_can_focus/can_target (self->drag_handle, FALSE), adw-bottom-sheet.c:1197-1198',
+    },
+    {
+        source: 'drag-handle',
+        open: false,
+        canOpen: true,
+        hasBottomBar: false,
+        revealBottomBar: true,
+        outcome: 'ignored',
+        rule: 'and it is not a fallback for a sheet without a bar — a decorative widget has no state in which it acts',
+        derivedFrom: 'adw-bottom-sheet.c:1196-1198',
+    },
+];
+
+/** One `resolveBottomSheetSwipeTracker` expectation. */
+export interface BottomSheetSwipeTrackerVector {
+    /** The four properties `update_swipe_tracker` reads. */
+    state: BottomSheetSwipeTrackerState;
+    /** The three settings it writes. */
+    config: BottomSheetSwipeTrackerConfig;
+    rule: string;
+    derivedFrom: string;
+}
+
+/**
+ * `update_swipe_tracker`'s three assignments, row by row.
+ *
+ * CORE-ONLY: an `AdwSwipeTracker` has no counterpart in either port — neither renderer runs a
+ * gesture tracker, so there is no object to read these settings off. Its `enabled` line is
+ * the same fact as the `'swipe'` rows of BOTTOM_SHEET_OPEN_VECTORS and BOTTOM_SHEET_CLOSE_VECTORS,
+ * which both renderers drive against their real widgets; this table is the third assignment
+ * and the conjunction written out, not a second source of truth.
+ */
+export const BOTTOM_SHEET_SWIPE_TRACKER_VECTORS: ReadonlyArray<BottomSheetSwipeTrackerVector> = [
+    {
+        state: { canOpen: true, canClose: false, hasBottomBar: false, showDragHandle: true },
+        config: { enabled: false, allowMouseDrag: true, lowerOvershoot: false },
+        rule: 'THE CONJUNCT: can-open alone does not enable the tracker — the `&& bottom_bar != NULL` beside it is why a barless sheet is unopenable by gesture',
+        derivedFrom: 'update_swipe_tracker, adw-bottom-sheet.c:451-453',
+    },
+    {
+        state: { canOpen: true, canClose: false, hasBottomBar: true, showDragHandle: true },
+        config: { enabled: true, allowMouseDrag: true, lowerOvershoot: true },
+        rule: 'with a bar, can-open enables the tracker on its own — a sheet that can be opened but never dismissed by gesture',
+        derivedFrom: 'adw-bottom-sheet.c:451-453 + :458-459',
+    },
+    {
+        state: { canOpen: false, canClose: true, hasBottomBar: false, showDragHandle: true },
+        config: { enabled: true, allowMouseDrag: true, lowerOvershoot: false },
+        rule: 'the other arm: can-close enables it with no bar at all, which is the barless sheet every port shipped — a tracker that exists only to CLOSE',
+        derivedFrom: 'adw-bottom-sheet.c:451-453',
+    },
+    {
+        state: { canOpen: false, canClose: false, hasBottomBar: true, showDragHandle: true },
+        config: { enabled: false, allowMouseDrag: true, lowerOvershoot: true },
+        rule: 'both gates shut disables the tracker even though a bar exists — presence of a bar is necessary, never sufficient',
+        derivedFrom: 'adw-bottom-sheet.c:451-453',
+    },
+    {
+        state: { canOpen: true, canClose: true, hasBottomBar: true, showDragHandle: false },
+        config: { enabled: true, allowMouseDrag: true, lowerOvershoot: true },
+        rule: 'a bar substitutes for the drag handle as the thing a MOUSE may drag — the handle is decorative, but it is what allow_mouse_drag keys on when there is no bar',
+        derivedFrom: 'adw-bottom-sheet.c:455-457',
+    },
+    {
+        state: { canOpen: true, canClose: true, hasBottomBar: false, showDragHandle: false },
+        config: { enabled: true, allowMouseDrag: false, lowerOvershoot: false },
+        rule: 'no handle and no bar leaves a touch-only tracker: enabled by can-close, but nothing on screen invites a mouse to drag it',
+        derivedFrom: 'adw-bottom-sheet.c:455-459',
+    },
+];
+
+/** One step of a {@link BottomSheetBottomBarVector}, in the order it is applied. */
+export type BottomSheetBottomBarStep =
+    /** `adw_bottom_sheet_set_bottom_bar` — a widget, or NULL. */
+    | { readonly kind: 'setBottomBar'; readonly present: boolean }
+    /** `adw_bottom_sheet_set_can_open`. */
+    | { readonly kind: 'setCanOpen'; readonly canOpen: boolean }
+    /** `adw_bottom_sheet_set_reveal_bottom_bar`. */
+    | { readonly kind: 'setRevealBottomBar'; readonly reveal: boolean }
+    /** The programmatic path — `adw_bottom_sheet_set_open`, ignores `can-open`. */
+    | { readonly kind: 'setOpen'; readonly open: boolean }
+    /** The interactive path — runs the {@link BOTTOM_SHEET_OPEN_VECTORS} gate. */
+    | { readonly kind: 'requestOpen'; readonly source: BottomSheetOpenSource };
+
+/**
+ * One end-to-end bottom-bar expectation.
+ *
+ * Every field is observable from a RENDERER: `chrome` is what it has to paint (which layer
+ * shows, whether the surface is on screen, whether the bar looks inert) and `notifications`
+ * is the `notify::open` stream. So the same row drives the core suite and both renderer
+ * suites against their real widgets.
+ */
+export interface BottomSheetBottomBarVector {
+    /** Applied in order, through the surface every implementation exposes. */
+    steps: readonly BottomSheetBottomBarStep[];
+    /** The outcome of each `requestOpen` step, in order. */
+    outcomes: readonly BottomSheetOpenOutcome[];
+    /** Every `notify::open` payload, in order. */
+    notifications: readonly boolean[];
+    /** `open` after the last step. */
+    open: boolean;
+    /** What the renderer must be showing after the last step. */
+    chrome: BottomSheetChrome;
+    rule: string;
+    derivedFrom: string;
+}
+
+/**
+ * The three-plus-two-method surface a {@link BottomSheetBottomBarVector} is replayed
+ * against. Core implements it directly; each renderer implements it by driving its REAL
+ * widget (adopting a bar child, writing an attribute, clicking the bar).
+ */
+export interface BottomSheetBottomBarAdapter {
+    /** Give the sheet a bottom bar, or take it away (`AdwBottomSheet:bottom-bar`). */
+    setBottomBar(present: boolean): void;
+    /** `AdwBottomSheet:can-open`. */
+    setCanOpen(canOpen: boolean): void;
+    /** `AdwBottomSheet:reveal-bottom-bar`. */
+    setRevealBottomBar(reveal: boolean): void;
+    /** The programmatic path (`AdwBottomSheet:open`). */
+    setOpen(open: boolean): void;
+    /** The interactive path — returns what the gate decided. */
+    requestOpen(source: BottomSheetOpenSource): BottomSheetOpenOutcome;
+}
+
+/**
+ * Replay a vector's steps against `adapter`, collecting the outcome of each `requestOpen`
+ * step in order. Shared by all three suites so no side can drift in HOW it replays a row.
+ */
+export function runBottomSheetBottomBarSteps(
+    adapter: BottomSheetBottomBarAdapter,
+    steps: readonly BottomSheetBottomBarStep[],
+): BottomSheetOpenOutcome[] {
+    const outcomes: BottomSheetOpenOutcome[] = [];
+    for (const step of steps) {
+        switch (step.kind) {
+            case 'setBottomBar':
+                adapter.setBottomBar(step.present);
+                break;
+            case 'setCanOpen':
+                adapter.setCanOpen(step.canOpen);
+                break;
+            case 'setRevealBottomBar':
+                adapter.setRevealBottomBar(step.reveal);
+                break;
+            case 'setOpen':
+                adapter.setOpen(step.open);
+                break;
+            case 'requestOpen':
+                outcomes.push(adapter.requestOpen(step.source));
+                break;
+        }
+    }
+    return outcomes;
+}
+
+/** The bottom bar's life as scripts: adopting one, gating it, revealing it, clicking it. */
+export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBarVector> = [
+    {
+        steps: [],
+        outcomes: [],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        rule: 'a fresh sheet has NO bottom bar and is off screen — but can-open already defaults TRUE, so the gate is open and only the bar is missing',
+        derivedFrom: 'adw_bottom_sheet_init adw-bottom-sheet.c:1129-1132 + the can-open pspec default at :940-943',
+    },
+    {
+        steps: [{ kind: 'setBottomBar', present: true }],
+        outcomes: [],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: false },
+        rule: 'adopting a bar puts the sheet bin on screen showing the BAR, without opening anything and without notifying',
+        derivedFrom: 'adw_bottom_sheet_set_bottom_bar adw-bottom-sheet.c:1613-1627',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+        ],
+        outcomes: ['open'],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        rule: 'THE WHOLE POINT: the bar is clicked, the sheet opens, and the bin morphs from bar to sheet',
+        derivedFrom: 'bottom_bar_released_cb adw-bottom-sheet.c:279-280 -> set_open:1701-1702',
+    },
+    {
+        steps: [{ kind: 'requestOpen', source: 'bottom-bar' }],
+        outcomes: ['ignored'],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        rule: 'REGRESSION PIN: with no bar there is no affordance, and the sheet stays unreachable. This is the state both ports shipped in, and the reason a consumer reached for `open = true` beside the widget',
+        derivedFrom: 'adw-bottom-sheet.c:294-295 + the can-open doc at :2013',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'setCanOpen', canOpen: false },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+            { kind: 'requestOpen', source: 'swipe' },
+        ],
+        outcomes: ['ignored', 'ignored'],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: true },
+        rule: 'a locked-open bar STAYS ON SCREEN and merely looks inert — unlike can-close, which has a signal, can-open just refuses',
+        derivedFrom: 'adw_bottom_sheet_set_can_open adw-bottom-sheet.c:2031-2038',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'setCanOpen', canOpen: false },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+            { kind: 'setCanOpen', canOpen: true },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+        ],
+        outcomes: ['ignored', 'open'],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        rule: 'unlocking mid-life makes the same affordance start working, and drops the inert class with it',
+        derivedFrom: 'adw-bottom-sheet.c:2028-2040',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'setRevealBottomBar', reveal: false },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+        ],
+        outcomes: ['ignored'],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'bottom-bar', surfaceVisible: false, bottomBarInert: false },
+        rule: 'hiding the bar hides the whole bin, so the click cannot land — note the layer is still `bottom-bar`: it is the SURFACE that is gone, not the choice of child',
+        derivedFrom:
+            'adw_bottom_sheet_set_reveal_bottom_bar adw-bottom-sheet.c:2177-2191 + reveal_animation_done_cb:362-364',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'setRevealBottomBar', reveal: false },
+            { kind: 'setOpen', open: true },
+        ],
+        outcomes: [],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        rule: 'reveal-bottom-bar governs the BAR, never the sheet: an owner opens a sheet whose bar is hidden and the sheet still shows',
+        derivedFrom: 'adw_bottom_sheet_set_open adw-bottom-sheet.c:1686 (child_visible TRUE unconditionally on open)',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+            { kind: 'setOpen', open: false },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+        ],
+        outcomes: ['open', 'open'],
+        notifications: [true, false, true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        rule: 'the bar comes BACK when the sheet closes and opens it again — a port that switched to the sheet page once and never switched back would leave every row above green and the second click dead',
+        derivedFrom:
+            'adw_bottom_sheet_set_open adw-bottom-sheet.c:1701-1705 (show_bottom_bar TRUE on the closing side)',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'setBottomBar', present: false },
+            { kind: 'requestOpen', source: 'bottom-bar' },
+        ],
+        outcomes: ['ignored'],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        rule: 'taking the bar away takes the affordance with it — presence is state, not a one-way latch',
+        derivedFrom: 'adw_bottom_sheet_set_bottom_bar adw-bottom-sheet.c:1610-1629',
+    },
+    {
+        steps: [
+            { kind: 'setBottomBar', present: true },
+            { kind: 'requestOpen', source: 'drag-handle' },
+            { kind: 'requestOpen', source: 'swipe' },
+        ],
+        outcomes: ['ignored', 'open'],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        rule: 'the handle stays inert even where an open affordance exists beside it, and the swipe is that affordance',
+        derivedFrom: 'adw-bottom-sheet.c:1197-1198 + prepare_cb:1052-1053',
     },
 ];

@@ -206,16 +206,31 @@ export type {
 } from './toast.js';
 
 // --- Dialogs: alert responses + bottom-sheet dismissal (Adw.AlertDialog / Adw.BottomSheet) ---
-export { AdwAlertResponses, BottomSheetPresentation, resolveBottomSheetClose } from './dialog.js';
+export {
+    AdwAlertResponses,
+    BottomSheetPresentation,
+    resolveBottomSheetChrome,
+    resolveBottomSheetClose,
+    resolveBottomSheetOpen,
+    resolveBottomSheetSwipeTracker,
+} from './dialog.js';
 export type {
     AdwAlertResponse,
     AdwResponseAppearance,
     AdwResponseOptions,
+    BottomSheetChrome,
+    BottomSheetChromeState,
     BottomSheetCloseOutcome,
     BottomSheetCloseSource,
     BottomSheetCloseState,
+    BottomSheetLayer,
+    BottomSheetOpenOutcome,
+    BottomSheetOpenSource,
+    BottomSheetOpenState,
     BottomSheetPresentationListener,
     BottomSheetPresentationOptions,
+    BottomSheetSwipeTrackerConfig,
+    BottomSheetSwipeTrackerState,
     BottomSheetTeardownCallback,
     OrderedConfirmResponses,
 } from './dialog.js';

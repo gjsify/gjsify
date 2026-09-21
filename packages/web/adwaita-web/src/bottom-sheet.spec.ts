@@ -15,11 +15,14 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwBottomSheet } from './elements/adw-bottom-sheet.js';
 import {
+    BOTTOM_SHEET_BOTTOM_BAR_VECTORS,
     BOTTOM_SHEET_CLOSE_VECTORS,
+    BOTTOM_SHEET_OPEN_VECTORS,
     BOTTOM_SHEET_PRESENTATION_VECTORS,
+    runBottomSheetBottomBarSteps,
     runBottomSheetSteps,
 } from '@gjsify/adwaita-core/conformance';
-import type { BottomSheetCloseOutcome } from '@gjsify/adwaita-core';
+import type { BottomSheetChrome, BottomSheetCloseOutcome } from '@gjsify/adwaita-core';
 
 /** A mounted sheet with one child in each slot, ready to be driven. */
 function mountSheet(markup = ''): AdwBottomSheet {
@@ -42,6 +45,33 @@ function dragHandle(sheet: AdwBottomSheet): HTMLElement {
 
 function insideSheet(sheet: AdwBottomSheet): HTMLElement {
     return sheet.querySelector('.adw-bottom-sheet-sheet-body > button') as HTMLElement;
+}
+
+function bottomBar(sheet: AdwBottomSheet): HTMLButtonElement {
+    return sheet.querySelector('.adw-bottom-sheet-bottom-bar') as HTMLButtonElement;
+}
+
+/** A bar child, the shape an app declares: one label inside the bin. */
+function barLabel(text = 'Help'): HTMLElement {
+    const label = document.createElement('span');
+    label.textContent = text;
+    return label;
+}
+
+/**
+ * The chrome, read back off the REAL DOM rather than off the state that produced it.
+ *
+ * `surfaceVisible` has no element of its own: the sheet bin's on-screen-ness is a CSS
+ * transform here (`gtk_widget_set_child_visible` has no DOM counterpart that keeps the
+ * slide), and the two classes that drive that transform are what it is readable from.
+ */
+function chromeOf(sheet: AdwBottomSheet): BottomSheetChrome {
+    const bar = bottomBar(sheet);
+    return {
+        layer: bar.hidden ? 'sheet' : 'bottom-bar',
+        surfaceVisible: sheet.classList.contains('open') || sheet.classList.contains('showing-bottom-bar'),
+        bottomBarInert: bar.classList.contains('inert'),
+    };
 }
 
 /** Count the dismissal signals a sheet raises while `run` executes. */
@@ -113,6 +143,137 @@ export const AdwBottomSheetTest = async () => {
                 sheet.remove();
             });
         }
+    });
+
+    await describe('adw-bottom-sheet open gate (libadwaita conformance vectors)', async () => {
+        for (const vector of BOTTOM_SHEET_OPEN_VECTORS) {
+            const { source, open, canOpen, hasBottomBar, revealBottomBar, outcome, rule } = vector;
+            const gates = `canOpen=${canOpen} · bar=${hasBottomBar} · revealed=${revealBottomBar}`;
+            const label = `${source} · open=${open} · ${gates}`;
+            await it(`${label} → ${outcome} — ${rule}`, () => {
+                const sheet = mountSheet();
+                sheet.setBottomBar(hasBottomBar ? barLabel() : null);
+                sheet.canOpen = canOpen;
+                sheet.revealBottomBar = revealBottomBar;
+                sheet.open = open;
+
+                expect(sheet.requestOpen(source)).toBe(outcome);
+                // Returning the right word and opening anyway is still wrong.
+                expect(sheet.open).toBe(outcome === 'open' ? true : open);
+                sheet.remove();
+            });
+        }
+    });
+
+    await describe('adw-bottom-sheet bottom bar (libadwaita conformance vectors)', async () => {
+        for (const vector of BOTTOM_SHEET_BOTTOM_BAR_VECTORS) {
+            await it(vector.rule, () => {
+                const sheet = mountSheet();
+                const notifications: boolean[] = [];
+                sheet.addEventListener('notify::open', (event) => {
+                    notifications.push((event as CustomEvent).detail.open);
+                });
+
+                const outcomes = runBottomSheetBottomBarSteps(
+                    {
+                        setBottomBar: (present) => {
+                            sheet.setBottomBar(present ? barLabel() : null);
+                        },
+                        setCanOpen: (canOpen) => {
+                            sheet.canOpen = canOpen;
+                        },
+                        setRevealBottomBar: (reveal) => {
+                            sheet.revealBottomBar = reveal;
+                        },
+                        setOpen: (open) => {
+                            sheet.open = open;
+                        },
+                        requestOpen: (source) => sheet.requestOpen(source),
+                    },
+                    vector.steps,
+                );
+
+                expect(outcomes).toStrictEqual([...vector.outcomes]);
+                expect(notifications).toStrictEqual([...vector.notifications]);
+                expect(sheet.open).toBe(vector.open);
+                expect(chromeOf(sheet)).toStrictEqual({ ...vector.chrome });
+                sheet.remove();
+            });
+        }
+    });
+
+    await describe('adw-bottom-sheet bottom-bar affordance', async () => {
+        await it('a real click on the bar opens the sheet', () => {
+            // The vectors above call `requestOpen` directly, which proves the GATE and
+            // not the wiring: an element that never listens for the click passes every
+            // one of them. This is the event path an app actually gets.
+            const sheet = mountSheet();
+            sheet.setBottomBar(barLabel());
+            expect(sheet.open).toBe(false);
+            bottomBar(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(true);
+            sheet.remove();
+        });
+
+        await it('declares the bar in markup, and the slot wrapper leaves nothing behind', () => {
+            const sheet = mountSheet(
+                '<adw-bottom-sheet-content><button id="under">Under</button></adw-bottom-sheet-content>' +
+                    '<adw-bottom-sheet-bottom-bar><span id="bar">Help</span></adw-bottom-sheet-bottom-bar>' +
+                    '<adw-bottom-sheet-sheet><button id="inside">Inside</button></adw-bottom-sheet-sheet>',
+            );
+            expect(sheet.querySelector('adw-bottom-sheet-bottom-bar')).toBe(null);
+            expect((sheet.bottomBar as HTMLElement).id).toBe('bar');
+            expect(chromeOf(sheet).layer).toBe('bottom-bar');
+            bottomBar(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(true);
+            sheet.remove();
+        });
+
+        await it('keeps the inert bar enabled and focusable', () => {
+            // `can-open` off adds a style class and nothing else
+            // (adw-bottom-sheet.c:2033-2036). `disabled` would remove the focus stop and
+            // silence the click at the DOM instead of at the gate, which is a different
+            // widget: the bar is still the thing a screen reader announces.
+            const sheet = mountSheet();
+            sheet.setBottomBar(barLabel());
+            sheet.canOpen = false;
+            const bar = bottomBar(sheet);
+            expect(bar.disabled).toBe(false);
+            expect(bar.classList.contains('inert')).toBe(true);
+            bar.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(false);
+            sheet.remove();
+        });
+
+        await it('shows the bar again after the sheet is dismissed', () => {
+            // The morph has to run BOTH ways. A port that switched the bin to the sheet
+            // page on open and never switched back leaves a sheet that can be opened
+            // exactly once, and every state assertion above still passes.
+            const sheet = mountSheet();
+            sheet.setBottomBar(barLabel());
+            bottomBar(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(chromeOf(sheet).layer).toBe('sheet');
+            dimming(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(false);
+            expect(chromeOf(sheet).layer).toBe('bottom-bar');
+            bottomBar(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(true);
+            sheet.remove();
+        });
+
+        await it('a sheet with no bar has no way in but its owner', () => {
+            // REGRESSION PIN: this element shipped without a bottom bar at all, so an app
+            // whose only affordance is the bar had to reach past the widget and write
+            // `open` itself. Nothing on screen opens this one.
+            const sheet = mountSheet();
+            expect(bottomBar(sheet).hidden).toBe(true);
+            expect(sheet.requestOpen('bottom-bar')).toBe('ignored');
+            expect(sheet.requestOpen('swipe')).toBe('ignored');
+            expect(sheet.open).toBe(false);
+            sheet.open = true;
+            expect(sheet.open).toBe(true);
+            sheet.remove();
+        });
     });
 
     await describe('adw-bottom-sheet open attribute semantics', async () => {

@@ -4,11 +4,22 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { AdwAlertResponses, BottomSheetPresentation, resolveBottomSheetClose } from './dialog.js';
+import {
+    AdwAlertResponses,
+    BottomSheetPresentation,
+    resolveBottomSheetChrome,
+    resolveBottomSheetClose,
+    resolveBottomSheetOpen,
+    resolveBottomSheetSwipeTracker,
+} from './dialog.js';
 import type { BottomSheetTeardownCallback } from './dialog.js';
 import {
+    BOTTOM_SHEET_BOTTOM_BAR_VECTORS,
     BOTTOM_SHEET_CLOSE_VECTORS,
+    BOTTOM_SHEET_OPEN_VECTORS,
     BOTTOM_SHEET_PRESENTATION_VECTORS,
+    BOTTOM_SHEET_SWIPE_TRACKER_VECTORS,
+    runBottomSheetBottomBarSteps,
     runBottomSheetSteps,
 } from './conformance/dialog.js';
 
@@ -161,6 +172,120 @@ export default async () => {
                 expect(outcome).not.toBe('close');
             }
             expect(resolveBottomSheetClose('close-button', { open: false, canClose: true })).toBe('delegate');
+        });
+    });
+
+    await describe('resolveBottomSheetOpen (libadwaita conformance vectors)', async () => {
+        for (const vector of BOTTOM_SHEET_OPEN_VECTORS) {
+            const { source, open, canOpen, hasBottomBar, revealBottomBar, outcome, rule } = vector;
+            const gates = `canOpen=${canOpen} · bar=${hasBottomBar} · revealed=${revealBottomBar}`;
+            const label = `${source} · open=${open} · ${gates}`;
+            await it(`${label} → ${outcome} — ${rule}`, () => {
+                expect(resolveBottomSheetOpen(source, { open, canOpen, hasBottomBar, revealBottomBar })).toBe(outcome);
+            });
+        }
+
+        await it('a missing bottom bar shuts every source, however open the gates are', () => {
+            // The measured defect in one line: both ports were exactly this state, and
+            // `can-open` could not rescue any of the three affordances.
+            const barless = { open: false, canOpen: true, hasBottomBar: false };
+            expect([
+                resolveBottomSheetOpen('bottom-bar', barless),
+                resolveBottomSheetOpen('swipe', barless),
+                resolveBottomSheetOpen('drag-handle', barless),
+            ]).toStrictEqual(['ignored', 'ignored', 'ignored']);
+        });
+
+        await it('treats an absent reveal-bottom-bar as revealed, like the C default', () => {
+            // The pspec default is TRUE (adw-bottom-sheet.c:1132), so an optional field that
+            // defaulted to `false` would make a correctly-built sheet unopenable.
+            expect(resolveBottomSheetOpen('bottom-bar', { open: false, canOpen: true, hasBottomBar: true })).toBe(
+                'open',
+            );
+        });
+    });
+
+    await describe('resolveBottomSheetSwipeTracker (libadwaita conformance vectors)', async () => {
+        for (const { state, config, rule } of BOTTOM_SHEET_SWIPE_TRACKER_VECTORS) {
+            await it(rule, () => {
+                expect(resolveBottomSheetSwipeTracker(state)).toStrictEqual(config);
+            });
+        }
+
+        await it('agrees with the open and close gates about when a gesture does anything', () => {
+            // The tracker table and the two gate tables are the same fact from two sides; if
+            // they ever disagree, one of them is transcribing the other's mistake.
+            for (const canOpen of [false, true]) {
+                for (const canClose of [false, true]) {
+                    for (const hasBottomBar of [false, true]) {
+                        const { enabled } = resolveBottomSheetSwipeTracker({
+                            canOpen,
+                            canClose,
+                            hasBottomBar,
+                            showDragHandle: true,
+                        });
+                        const open = resolveBottomSheetOpen('swipe', { open: false, canOpen, hasBottomBar });
+                        const opens = open === 'open';
+                        const closes = resolveBottomSheetClose('swipe', { open: true, canClose }) === 'close';
+                        expect(enabled).toBe(opens || closes);
+                    }
+                }
+            }
+        });
+    });
+
+    await describe('BottomSheetPresentation bottom bar (libadwaita conformance vectors)', async () => {
+        for (const vector of BOTTOM_SHEET_BOTTOM_BAR_VECTORS) {
+            await it(vector.rule, () => {
+                const state = new BottomSheetPresentation();
+                const notifications: boolean[] = [];
+                state.subscribe((open) => notifications.push(open));
+
+                const outcomes = runBottomSheetBottomBarSteps(
+                    {
+                        setBottomBar: (present) => {
+                            state.setHasBottomBar(present);
+                        },
+                        setCanOpen: (canOpen) => {
+                            state.setCanOpen(canOpen);
+                        },
+                        setRevealBottomBar: (reveal) => {
+                            state.setRevealBottomBar(reveal);
+                        },
+                        setOpen: (open) => {
+                            state.setOpen(open);
+                        },
+                        requestOpen: (source) => state.requestOpen(source),
+                    },
+                    vector.steps,
+                );
+
+                expect(outcomes).toStrictEqual([...vector.outcomes]);
+                expect(notifications).toStrictEqual([...vector.notifications]);
+                expect(state.open).toBe(vector.open);
+                expect(state.chrome).toStrictEqual({ ...vector.chrome });
+            });
+        }
+
+        await it('the programmatic path ignores can-open, as it ignores can-close', () => {
+            // "Bottom sheet can still be opened using [property@BottomSheet:open]"
+            // — adw-bottom-sheet.c:2016. The owner is never locked out of its own widget.
+            const state = new BottomSheetPresentation();
+            state.setCanOpen(false);
+            expect(state.requestOpen('bottom-bar')).toBe('ignored');
+            expect(state.setOpen(true)).toBe(true);
+            expect(state.open).toBe(true);
+        });
+
+        await it('reads its chrome off the same state the gate does', () => {
+            // `chrome` and `requestOpen` must not be able to disagree about whether the bar
+            // is on screen — that disagreement is how a dead but visible bar ships.
+            const state = new BottomSheetPresentation();
+            state.setHasBottomBar(true);
+            expect(state.chrome).toStrictEqual(resolveBottomSheetChrome(state));
+            state.setRevealBottomBar(false);
+            expect(state.chrome.surfaceVisible).toBe(false);
+            expect(state.requestOpen('bottom-bar')).toBe('ignored');
         });
     });
 
