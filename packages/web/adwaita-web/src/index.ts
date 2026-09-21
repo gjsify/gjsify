@@ -57,6 +57,14 @@ export type { ApplyAccentOptions } from './accent.js';
 export { AdwScrollShading } from './scroll-shading.js';
 export type { AdwUndershootEdges } from './scroll-shading.js';
 
+// The ADR 0051 tree instantiation half — turns an `@gjsify/adwaita-core/conformance`
+// `SharedTreeNode` into real custom elements. Shipped (not test-only) so a consumer
+// replaying an authored tree — a storybook fixture, a devtools probe, the shared-trees
+// spec itself — has a route to it that is not a `.spec.ts` import; see that file's header
+// for why `mountSharedTree` and not `buildSharedTree` alone is the instantiation half.
+export { buildSharedTree, mountSharedTree } from './shared-tree-builder.js';
+export type { MountedSharedTree } from './shared-tree-builder.js';
+
 // The stylesheet compiles a chosen SUBSET of `@gjsify/adwaita-icons` (the whole set is
 // ~1.07 MB of data-URI), so a name outside it draws the `image-missing` fallback. This is
 // the way in for an app that needs a glyph this package does not ship — see

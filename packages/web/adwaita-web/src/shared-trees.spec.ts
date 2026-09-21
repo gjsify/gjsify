@@ -14,10 +14,13 @@
 // with; and an authored property name becomes its kebab-case ATTRIBUTE, because this
 // renderer's door is markup. Both are total functions over the corpus with no tag list and
 // no per-block case — a `switch` on a widget name here would be the per-surface branch
-// § 9 forbids, and the reason the corpus admits a block only when it needs no alias. Both
-// come from `@gjsify/adwaita-core/tags` — published, so a future tree BUILDER (not this
-// driver, which stays a dev-only spec) can depend on the same two functions without
-// depending on `scripts/`, which cannot ship inside an npm package.
+// § 9 forbids, and the reason the corpus admits a block only when it needs no alias.
+//
+// `mountSharedTree` is SHIPPED code, not this driver's own — the renderer-specific half of
+// ADR 0051 that any consumer of this package may need (the same move #1726 made for
+// `gtk-host`), so it lives in `./shared-tree-builder.ts` rather than here. Its header
+// explains why THIS renderer needs a mount step the other two do not: these elements build
+// on connect.
 //
 // The readers below go through the REAL DOM the element rendered, never a state object of
 // its own: an element asserting against its own bookkeeping agrees with itself while the
@@ -37,7 +40,7 @@ import {
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
-import { attributeOf, hostTagOf } from '@gjsify/adwaita-core/tags';
+import { hostTagOf } from '@gjsify/adwaita-core/tags';
 
 // The corpus data itself, not the transforms: `scripts/` still owns the ONE gallery corpus
 // (ADR 0051), and this driver reads it here rather than transcribing it, the same as the
@@ -46,39 +49,22 @@ import { ADWAITA_GALLERY_SHARED_TREES } from '../../../../scripts/adwaita-galler
 
 import '@gjsify/adwaita-web';
 
-/**
- * The whole renderer-specific half of this driver: an element, its authored properties as
- * attributes, its children, in that order.
- *
- * A boolean is the ATTRIBUTE'S PRESENCE, which is what every element here reads
- * (`hasAttribute('revealed')`, `hasAttribute('expanded')`) — spelling `"true"` would set a
- * present attribute for `false` as well.
- */
-function build(node: SharedTreeNode): HTMLElement {
-    const el = document.createElement(hostTagOf(node.tag));
-    for (const [prop, value] of Object.entries(node.props ?? {})) {
-        if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
-        else el.setAttribute(attributeOf(prop), String(value));
-    }
-    for (const child of node.children ?? []) el.append(build(child));
-    return el;
-}
+import { mountSharedTree } from './shared-tree-builder.js';
 
 /**
  * Connect the authored root — these elements build on connect — run, and take it down again.
  *
  * The teardown is in a `finally` because a RED test must not leave a mounted tree behind:
  * the next test would then be reading a document two blocks deep, and the failure it
- * reported would name the wrong renderer.
+ * reported would name the wrong renderer. `mountSharedTree` is the shipped instantiation
+ * half; the `finally` around it is this suite's own isolation POLICY, not part of it.
  */
 function mounted<T>(node: SharedTreeNode, use: (root: Element) => T): T {
-    const host = document.createElement('div');
-    host.append(build(node));
-    document.body.append(host);
+    const { root, unmount } = mountSharedTree(node);
     try {
-        return use(host.firstElementChild!);
+        return use(root);
     } finally {
-        host.remove();
+        unmount();
     }
 }
 
