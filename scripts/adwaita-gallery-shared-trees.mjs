@@ -51,7 +51,8 @@
 // deterministic case rule and not a semantic mapping. It is `gtk-host`'s OWN rule
 // (`tagOf` in `packages/framework/gtk-host/src/tags.ts`), and arm 11 runs it against
 // every row of that package's generated table, so it cannot drift into a private
-// second spelling.
+// second spelling. The ORIGINAL of this file's copy is `@gjsify/adwaita-core/tags` — see
+// the header there for why it lives in a published package and this file still restates it.
 //
 // The vocabulary is the GIR class name because that is the one spelling both
 // renderers already carry (ADR 0034 clause 1, "named from the GIR"): it is the
@@ -180,38 +181,28 @@ export const ADWAITA_GALLERY_SHARED_TREES = [
 ];
 
 /**
- * `AdwPreferencesGroup` -> `adw-preferences-group`, the only transform in this file.
+ * `AdwPreferencesGroup` -> `adw-preferences-group`.
  *
- * THE RULE IS `@gjsify/gtk-host`'S, RESTATED — `tagOf` in
- * `packages/framework/gtk-host/src/tags.ts` is what actually stamps the `tag` column
- * of the generated table, and this is that algorithm. It is restated rather than
- * imported because these scripts are plain Node over the repo's own files and
- * `tags.ts` is TypeScript, and it is HELD rather than trusted: arm 11 of
- * `check-generated-website-data.mjs` runs it against every row of
- * `gtk-host/src/generated/widgets.ts` and fails on the first row it does not
- * reproduce. The first version of this function was a naive `([a-z0-9])([A-Z])`
- * split, and the table caught it on `GtkGLArea` — it produced `gtk-glarea` where
- * gtk-host stamps `gtk-gl-area`.
- *
- * The last capital of an acronym run opens the next word, which is why `GLArea` is
- * `gl-area` and not `g-l-area`.
- *
- * NOT AN INVERSE OF ANYTHING, and the first version of this comment claimed it was.
- * Tag -> GType is lossy in exactly that case — `gtk-gl-area` reads back as
- * `GtkGlArea` and no case rule can know better — so `gtypeOfTag` is the generated
- * table read backwards rather than a second rule. One direction is a rule the table
- * holds; the other is the table.
+ * A RESTATEMENT, not the original: that is `hostTagOf` in
+ * `packages/web/adwaita-core/src/tags.ts`, published so a markup tree BUILDER can depend on
+ * it without depending on this file, which cannot ship inside an npm package. It is restated
+ * rather than imported because this module is plain Node over the repo's own files, read in
+ * CI jobs with no `node_modules` (`audit-runtimes.yml`'s `check` / `check-windows`), while
+ * the original is TypeScript in a package that needs installing. `scripts/check-tag-case-
+ * rules.mjs` holds the two identical; see that file's header for the acronym-boundary
+ * regression (`GtkGLArea`) that is why arm 11 below ALSO holds this copy against every row
+ * of `gtk-host`'s generated table, not only against `@gjsify/adwaita-core`'s copy.
  */
 export const hostTagOf = (gtype) => {
     if (!/^(?:Adw|Gtk)[A-Z]\w*$/.test(gtype)) {
-        throw new Error(`adwaita-gallery-shared-trees: ${gtype} is not a GIR class name`);
+        throw new Error(`hostTagOf: ${gtype} is not a GIR class name`);
     }
     const out = [];
     for (let i = 0; i < gtype.length; i++) {
-        const c = gtype[i];
+        const c = gtype.charAt(i);
         if (c >= 'A' && c <= 'Z' && i > 0) {
-            const prev = gtype[i - 1];
-            const next = i + 1 < gtype.length ? gtype[i + 1] : '';
+            const prev = gtype.charAt(i - 1);
+            const next = gtype.charAt(i + 1);
             const endsLowerRun = !(prev >= 'A' && prev <= 'Z');
             const endsAcronym = next >= 'a' && next <= 'z';
             if (endsLowerRun || endsAcronym) out.push('-');
@@ -224,15 +215,11 @@ export const hostTagOf = (gtype) => {
 /**
  * `buttonLabel` -> `button-label`, the second and last transform.
  *
- * AUTHORED HERE BECAUSE TWO PLACES NEED THE SAME ONE, which is the short version of the
- * lesson {@link hostTagOf} spells out above. `adwaita-web`'s tree driver
- * (`packages/web/adwaita-web/src/shared-trees.spec.ts`) turns an authored prop into a DOM
- * attribute with this rule, and arm 13 of `check-generated-website-data.mjs` reads a
- * fence's attributes back through it. A one-liner restated in the checker would make the
- * checker agree with its own copy rather than with the renderer it is a claim about, and
- * nothing would hold the two spellings together the way arm 11 holds `hostTagOf` against
- * `gtk-host`'s generated table. The driver already imports this module for the corpus
- * itself, so one export is the whole cost.
+ * A RESTATEMENT of `attributeOf` in `packages/web/adwaita-core/src/tags.ts`, for the same
+ * reason {@link hostTagOf} above is one. `adwaita-web`'s tree driver
+ * (`packages/web/adwaita-web/src/shared-trees.spec.ts`) imports the published original
+ * directly; this copy is what arm 13 of `check-generated-website-data.mjs` reads a gallery
+ * fence's attributes back through, in the node_modules-free job that check runs in.
  *
  * NOT AN ALIAS TABLE and not a third transform: a case rule over the authored NAME, with
  * no entry to give a name it does not recognise.

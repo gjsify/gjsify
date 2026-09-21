@@ -45,11 +45,12 @@ export interface SharedTree {
 
 export declare const ADWAITA_GALLERY_SHARED_TREES: readonly SharedTree[];
 
-/** `AdwPreferencesGroup` -> `adw-preferences-group` — `gtk-host`'s own `tagOf`, restated. */
-export declare const hostTagOf: (gtype: string) => string;
-
-/** `buttonLabel` -> `button-label` — an authored prop as the DOM attribute it becomes. */
-export declare const attributeOf: (prop: string) => string;
+// `hostTagOf`/`attributeOf` used to be declared here too. No TypeScript spec imports them
+// from this `.mjs` any more — `packages/web/adwaita-web/src/shared-trees.spec.ts` now reads
+// the published originals from `@gjsify/adwaita-core/tags` — so per the rule above (this
+// file declares ONLY what a live spec imports) they are gone. The `.mjs` still exports its
+// own restatement of both, for `gtkHostTree` below and for the plain-Node readers named in
+// `scripts/check-tag-case-rules.mjs`.
 
 /** The shared block in `gtk-host` tags. */
 export declare const gtkHostTree: (widget: string) => SharedTree;

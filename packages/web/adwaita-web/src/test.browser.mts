@@ -54,9 +54,11 @@ import { AdwSlottedChildrenTest } from './slotted-children.spec.js';
 import { AdwKeyboardOperableTest } from './keyboard-operable.spec.js';
 import { AdwFontsTest } from './adw-fonts.spec.js';
 import { AdwSharedTreesTest } from './shared-trees.spec.js';
+import { AdwTagsTest } from './tags.spec.js';
 
 run({
     AdwSharedTreesTest,
+    AdwTagsTest,
     AdwKeyboardOperableTest,
     AdwConnectLifecycleTest,
     AdwEmptySectionsTest,

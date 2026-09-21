@@ -14,7 +14,10 @@
 // with; and an authored property name becomes its kebab-case ATTRIBUTE, because this
 // renderer's door is markup. Both are total functions over the corpus with no tag list and
 // no per-block case — a `switch` on a widget name here would be the per-surface branch
-// § 9 forbids, and the reason the corpus admits a block only when it needs no alias.
+// § 9 forbids, and the reason the corpus admits a block only when it needs no alias. Both
+// come from `@gjsify/adwaita-core/tags` — published, so a future tree BUILDER (not this
+// driver, which stays a dev-only spec) can depend on the same two functions without
+// depending on `scripts/`, which cannot ship inside an npm package.
 //
 // The readers below go through the REAL DOM the element rendered, never a state object of
 // its own: an element asserting against its own bookkeeping agrees with itself while the
@@ -34,16 +37,12 @@ import {
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+import { attributeOf, hostTagOf } from '@gjsify/adwaita-core/tags';
 
-// `attributeOf` — `buttonLabel` -> `button-label` — comes from the corpus rather than
-// being spelled again here, because arm 13 of `check-generated-website-data.mjs` reads
-// gallery fences back through the SAME rule: two copies would let this driver and that
-// check agree with each other while the fence a reader copies means something else.
-import {
-    ADWAITA_GALLERY_SHARED_TREES,
-    attributeOf,
-    hostTagOf,
-} from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
+// The corpus data itself, not the transforms: `scripts/` still owns the ONE gallery corpus
+// (ADR 0051), and this driver reads it here rather than transcribing it, the same as the
+// GTK and NativeScript drivers do.
+import { ADWAITA_GALLERY_SHARED_TREES } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
 
 import '@gjsify/adwaita-web';
 
