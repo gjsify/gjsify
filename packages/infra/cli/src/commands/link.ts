@@ -11,11 +11,11 @@
 // tree that no longer resolves; `--no-install` is there for the case where the next
 // step is an install anyway.
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
 
-import type { Command } from '../types/index.js';
+import type { LeafCommand } from '../types/index.js';
 import {
     applyDevLinks,
     consumerKnownNames,
@@ -23,11 +23,13 @@ import {
     devLinkPath,
     type DevLink,
     ensureLocallyIgnored,
+    formatUnbuiltDevLinks,
     planDevLinks,
     prepareDevLinks,
     removeDevLinkOverride,
     removeDevLinks,
     resolveCheckoutWorkspaces,
+    unbuiltDevLinks,
     writeDevLinkOverride,
 } from '../utils/dev-link.js';
 
@@ -42,7 +44,7 @@ interface UnlinkOptions {
     install?: boolean;
 }
 
-export const linkCommand: Command<unknown, LinkOptions> = {
+export const linkCommand: LeafCommand<unknown, LinkOptions> = {
     command: 'link <checkout>',
     description:
         'Link this project against a local gjsify checkout for development: its workspace packages replace the installed registry copies, recorded in a git-ignored .gjsify-link.json that every later `gjsify install` re-applies. Undo with `gjsify unlink`.',
@@ -103,15 +105,15 @@ export const linkCommand: Command<unknown, LinkOptions> = {
             console.log(`  ${link.name}  →  ${relative(checkout, link.target) || '.'}`);
         }
 
-        const unbuilt = links.filter((link) => !hasBuiltEntry(link.target));
+        // REFUSES rather than warns, and it refuses before anything is written.
+        // A link to an unbuilt package is not a smaller link, it is a tree whose
+        // first import fails — and the earlier draft's warning was printed once,
+        // at link time, while `gjsify install` re-applied the same link on every
+        // later run in silence (`utils/dev-link.ts`, `assertDevLinksBuilt`).
+        const unbuilt = unbuiltDevLinks(links);
         if (unbuilt.length > 0) {
-            // A linked package whose entry file does not exist fails at the
-            // consumer's first import with a resolution error that names the
-            // consumer, not the checkout — so say it here, where the checkout is.
-            console.warn(
-                `\n  ! ${unbuilt.length} linked package(s) have no built entry point yet: ${unbuilt.map((l) => l.name).join(', ')}\n` +
-                    `    Build them in the checkout (\`gjsify run build\` there) — a link does not build.`,
-            );
+            console.error(`\n${formatUnbuiltDevLinks(unbuilt)}`);
+            return process.exit(1);
         }
 
         if (dryRun) {
@@ -134,7 +136,7 @@ export const linkCommand: Command<unknown, LinkOptions> = {
     },
 };
 
-export const unlinkCommand: Command<unknown, UnlinkOptions> = {
+export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
     command: 'unlink',
     description:
         'Undo `gjsify link`: remove the development links and the .gjsify-link.json override, then reinstall the registry copies.',
@@ -200,43 +202,3 @@ export const unlinkCommand: Command<unknown, UnlinkOptions> = {
         await runCli(['install']);
     },
 };
-
-/**
- * Does this package directory have the file its manifest points at?
- *
- * Candidates are the string entry points a manifest can carry — `main`, `module`
- * and the string leaves under `exports["."]`. ANY of them existing is enough: a
- * package legitimately declares entries it does not ship on every platform, and a
- * warning that fires on a healthy tree is a warning people learn to skip.
- * Manifest-less or entry-less packages answer `true`, because nothing was
- * promised that could be missing.
- */
-function hasBuiltEntry(packageDir: string): boolean {
-    let manifest: Record<string, unknown>;
-    try {
-        manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return true;
-    }
-    const candidates: string[] = [];
-    for (const key of ['main', 'module'] as const) {
-        const value = manifest[key];
-        if (typeof value === 'string') candidates.push(value);
-    }
-    const exportsField = manifest.exports;
-    if (typeof exportsField === 'string') candidates.push(exportsField);
-    else if (exportsField && typeof exportsField === 'object') {
-        collectStringLeaves((exportsField as Record<string, unknown>)['.'], candidates);
-    }
-    if (candidates.length === 0) return true;
-    return candidates.some((rel) => existsSync(join(packageDir, rel)));
-}
-
-function collectStringLeaves(value: unknown, out: string[]): void {
-    if (typeof value === 'string') {
-        out.push(value);
-        return;
-    }
-    if (!value || typeof value !== 'object') return;
-    for (const nested of Object.values(value as Record<string, unknown>)) collectStringLeaves(nested, out);
-}

@@ -113,6 +113,11 @@ the empty list, meaning every package; a whole scope is spelled `@gjsify/*`.
 - ADR 0060 § P6's verdict on `link:`/`portal:` **as resolution protocols** stands: none is
   implemented, `gjsify-lock.json` gains no new spec shape, and nothing about resolution
   changes. What is added is an install-time override with a refusal attached.
-- A linked package is used as it is on disk — a link does not build. `gjsify link` names the
-  packages whose entry point is missing, because that failure otherwise surfaces in the
-  consumer, pointing at the consumer.
+- A linked package is used as it is on disk — a link does not build — so a link to something
+  UNBUILT is refused, by `link` and by every `install` that re-applies it, naming the path and
+  the build command. `dist/`/`lib/` are git-ignored in a gjsify checkout, which makes "the entry
+  point is not there" the ordinary result of a branch switch rather than an exotic state; the
+  first draft only warned, once, at link time, and a later install re-linked in silence while
+  the consumer died on `MODULE_NOT_FOUND` pointing at the consumer. The check runs over every
+  link, not only the ones a run rewrites, because `applyDevLinks` skips a link that is already
+  correct — which is exactly the measured state.

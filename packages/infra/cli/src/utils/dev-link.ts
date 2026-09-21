@@ -307,6 +307,14 @@ export function prepareDevLinks(consumerRoot: string): ActiveDevLinks | null {
  * Returns the links it actually wrote.
  */
 export function applyDevLinks(links: readonly DevLink[]): DevLink[] {
+    // FAIL CLOSED, over EVERY link and before the first write. Not only over the
+    // ones this call would rewrite: the idempotent skip below is exactly how the
+    // measured defect stayed invisible — the link was already correct, the checkout
+    // had meanwhile lost its `dist/`, `gjsify install` re-ran, skipped the write,
+    // printed "development link ACTIVE" and left a tree whose first import died
+    // with MODULE_NOT_FOUND. `dist/`/`lib/` are git-ignored, so a branch switch in
+    // the checkout produces this state as a matter of course.
+    assertDevLinksBuilt(links);
     const written: DevLink[] = [];
     for (const link of links) {
         if (linkAlreadyPointsAt(link.linkPath, link.target)) continue;
@@ -362,6 +370,91 @@ function linkAlreadyPointsAt(linkPath: string, target: string): boolean {
     } catch {
         return false;
     }
+}
+
+/** A linked package that cannot be imported, and why not. */
+export interface UnbuiltDevLink {
+    link: DevLink;
+    reason: string;
+}
+
+/**
+ * Which of these links point at something that is not built.
+ *
+ * Candidates are the string entry points a manifest can carry — `main`, `module`
+ * and the string leaves under `exports["."]`. ANY of them existing is enough: a
+ * package legitimately declares entries it does not ship on every platform, and a
+ * refusal that fires on a healthy tree is a refusal people learn to route around.
+ * An entry-LESS manifest is fine, because nothing was promised that could be
+ * missing.
+ *
+ * An UNREADABLE manifest is NOT fine, and that is a flip from the first draft,
+ * which answered "built" for it. "I could not tell" is not "yes" in a check whose
+ * whole job is to stop a silently unusable tree.
+ */
+export function unbuiltDevLinks(links: readonly DevLink[]): UnbuiltDevLink[] {
+    const out: UnbuiltDevLink[] = [];
+    for (const link of links) {
+        let manifest: Record<string, unknown>;
+        try {
+            manifest = JSON.parse(readFileSync(join(link.target, 'package.json'), 'utf-8')) as Record<string, unknown>;
+        } catch (err) {
+            out.push({
+                link,
+                reason: `its package.json is missing or unreadable (${err instanceof Error ? err.message : String(err)})`,
+            });
+            continue;
+        }
+        const candidates: string[] = [];
+        for (const key of ['main', 'module'] as const) {
+            const value = manifest[key];
+            if (typeof value === 'string') candidates.push(value);
+        }
+        const exportsField = manifest.exports;
+        if (typeof exportsField === 'string') candidates.push(exportsField);
+        else if (exportsField && typeof exportsField === 'object') {
+            collectStringLeaves((exportsField as Record<string, unknown>)['.'], candidates);
+        }
+        if (candidates.length === 0) continue;
+        if (candidates.some((rel) => existsSync(join(link.target, rel)))) continue;
+        out.push({ link, reason: `none of its declared entry points exist yet (${candidates.join(', ')})` });
+    }
+    return out;
+}
+
+/** The refusal text for {@link unbuiltDevLinks}, naming every path and the build. */
+export function formatUnbuiltDevLinks(unbuilt: readonly UnbuiltDevLink[]): string {
+    const rows = unbuilt.map((u) => `  ${u.link.name}  ${u.link.target}\n      ${u.reason}`).join('\n');
+    return (
+        `gjsify link: ${unbuilt.length} linked package(s) are not built, so linking them would hand the ` +
+        `consumer a tree whose first import fails with MODULE_NOT_FOUND:\n${rows}\n` +
+        `  Build them in the checkout (\`gjsify run build\` there) and re-run, or narrow the selection with ` +
+        `\`gjsify link <checkout> --packages <glob>\`. A link does not build.`
+    );
+}
+
+/**
+ * FAIL CLOSED on a link to something unbuilt.
+ *
+ * `dist/`/`lib/` are git-ignored in a gjsify checkout, so "the entry point is not
+ * there right now" is the ordinary consequence of a branch switch, not an exotic
+ * state. Measured: with the entry file deleted, `gjsify install` re-linked and
+ * printed only "development link ACTIVE"; the consumer then died on
+ * MODULE_NOT_FOUND with a message naming the consumer, not the checkout.
+ */
+export function assertDevLinksBuilt(links: readonly DevLink[]): void {
+    const unbuilt = unbuiltDevLinks(links);
+    if (unbuilt.length === 0) return;
+    throw new Error(formatUnbuiltDevLinks(unbuilt));
+}
+
+function collectStringLeaves(value: unknown, out: string[]): void {
+    if (typeof value === 'string') {
+        out.push(value);
+        return;
+    }
+    if (!value || typeof value !== 'object') return;
+    for (const nested of Object.values(value as Record<string, unknown>)) collectStringLeaves(nested, out);
 }
 
 /**
