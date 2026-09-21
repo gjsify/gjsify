@@ -1310,7 +1310,10 @@ export function vocabularyCallerWrites(root, owners) {
         // ANNOTATION is the author's own statement of the type and outranks the
         // assignments — which is what makes `this._demo`, declared `Gtk.Button | null`
         // and filled from a factory, readable at all.
-        for (const receiver of [...receivers.keys()]) {
+        // Iterating the Map's own keys while the body deletes the CURRENT key is safe —
+        // the iterator skips entries removed before it reaches them and never revisits
+        // one it has yielded — so the snapshot copy this used to take was dead weight.
+        for (const receiver of receivers.keys()) {
             if (annotated.has(receiver)) continue;
             const name = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
             const pattern = escapeForPattern(name);
