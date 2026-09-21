@@ -496,7 +496,8 @@ export const BOTTOM_SHEET_OPEN_VECTORS: ReadonlyArray<BottomSheetOpenVector> = [
         revealBottomBar: true,
         outcome: 'open',
         rule: 'THE AFFORDANCE: clicking the bottom bar of a closed, unlocked sheet opens it. This is the row both ports were missing, and with it the only way in',
-        derivedFrom: 'bottom_bar_released_cb, adw-bottom-sheet.c:279-280 (and bottom_bar_clicked_cb:404-406 for the keyboard door)',
+        derivedFrom:
+            'bottom_bar_released_cb, adw-bottom-sheet.c:279-280 (and bottom_bar_clicked_cb:404-406 for the keyboard door)',
     },
     {
         source: 'bottom-bar',
@@ -516,7 +517,8 @@ export const BOTTOM_SHEET_OPEN_VECTORS: ReadonlyArray<BottomSheetOpenVector> = [
         revealBottomBar: true,
         outcome: 'ignored',
         rule: 'NO BAR, NO DOOR: with bottom-bar unset the stack never shows the bin, so can-open has nothing to gate — upstream says so in the property docs',
-        derivedFrom: 'show_bottom_bar adw-bottom-sheet.c:294-295 + set_bottom_bar:1615-1616 + the can-open doc at :2013',
+        derivedFrom:
+            'show_bottom_bar adw-bottom-sheet.c:294-295 + set_bottom_bar:1615-1616 + the can-open doc at :2013',
     },
     {
         source: 'bottom-bar',
@@ -838,7 +840,8 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         open: false,
         chrome: { layer: 'bottom-bar', surfaceVisible: false, bottomBarInert: false },
         rule: 'hiding the bar hides the whole bin, so the click cannot land — note the layer is still `bottom-bar`: it is the SURFACE that is gone, not the choice of child',
-        derivedFrom: 'adw_bottom_sheet_set_reveal_bottom_bar adw-bottom-sheet.c:2177-2191 + reveal_animation_done_cb:362-364',
+        derivedFrom:
+            'adw_bottom_sheet_set_reveal_bottom_bar adw-bottom-sheet.c:2177-2191 + reveal_animation_done_cb:362-364',
     },
     {
         steps: [
@@ -865,7 +868,8 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         open: true,
         chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
         rule: 'the bar comes BACK when the sheet closes and opens it again — a port that switched to the sheet page once and never switched back would leave every row above green and the second click dead',
-        derivedFrom: 'adw_bottom_sheet_set_open adw-bottom-sheet.c:1701-1705 (show_bottom_bar TRUE on the closing side)',
+        derivedFrom:
+            'adw_bottom_sheet_set_open adw-bottom-sheet.c:1701-1705 (show_bottom_bar TRUE on the closing side)',
     },
     {
         steps: [
