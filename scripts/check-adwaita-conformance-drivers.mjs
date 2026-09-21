@@ -183,6 +183,32 @@ const TREE_DRIVER_DIRS = [
     { label: 'gtk-host', dir: join(ROOT, 'packages/framework/gtk-host/src'), renderer: false },
 ];
 
+/**
+ * THE FOURTH INCIDENT — the tree arm counted drivers GLOBALLY, across all of
+ * {@link TREE_DRIVER_DIRS}, so `treeDrivers.length === 0` only failed once EVERY entry had
+ * lost its driver. Measured on this tree while building #1726: delete the
+ * `sharedTreeExpectations(...)` call (and its import) from gtk-host's
+ * `shared-trees.spec.ts` alone, leave adwaita-web and nativescript untouched, and the gate
+ * printed "2 live tree driver(s)" — not 3 — and still exited 0. A renderer can lose its
+ * tree driver in total silence as long as two of the three others still stand, which is
+ * exactly the class ADR 0051 built this arm to catch. Each entry is now held on its OWN
+ * below: a directory with no live driver fails by name and path unless
+ * {@link TREE_DRIVER_LEDGER} carries a reason for it.
+ */
+const MIN_REASON = 40;
+
+/**
+ * Why a {@link TREE_DRIVER_DIRS} entry may legitimately have NO live tree driver today —
+ * keyed by label, floor borrowed rather than invented: `check-vocabulary-alignment.mjs`,
+ * `check-storybook-widget-coverage.mjs` and `check-nativescript-widget-coverage.mjs` all
+ * buy an exemption with a sentence and all set the floor at 40. Empty is the NORMAL state
+ * — the corpus is a website asset every entry on the list is expected to prove itself
+ * against — so a row here is a decision, not a default, and it is held both ways: a
+ * listed label that drives the tree again fails too, the same ratchet `MODULE_REASONS`
+ * and the `CORE-ONLY:` marker above use for a table that stopped being core-only.
+ */
+const TREE_DRIVER_LEDGER = {};
+
 /** The marker a core-only table must carry, in its own header. */
 const CORE_ONLY_MARKER = 'CORE-ONLY:';
 
@@ -600,6 +626,7 @@ const treeTables = new Set();
     const treeDrivers = [];
     for (const { label, dir, renderer } of TREE_DRIVER_DIRS) {
         const { live } = readSuiteRegistration(dirname(dir));
+        let driversForLabel = 0;
         for (const file of walk(dir)) {
             if (
                 !file.endsWith('.spec.ts') ||
@@ -613,7 +640,30 @@ const treeTables = new Set();
                 );
                 continue;
             }
+            driversForLabel += 1;
             treeDrivers.push({ label, renderer });
+        }
+
+        // PER-ENTRY, not global — see the comment on TREE_DRIVER_LEDGER above for why.
+        const reason = TREE_DRIVER_LEDGER[label];
+        if (treeTables.size > 0 && driversForLabel === 0) {
+            if (reason === undefined) {
+                failures.push(
+                    `${label}: no live suite under ${rel(ROOT, dir)} calls \`${TREE_ENTRY}\` — this entry of ` +
+                        'TREE_DRIVER_DIRS has lost its tree driver. Add one back, or add a ' +
+                        `"${label}" entry to TREE_DRIVER_LEDGER saying why it cannot drive the tree yet.`,
+                );
+            } else if (reason.trim().length < MIN_REASON) {
+                failures.push(
+                    `TREE_DRIVER_LEDGER["${label}"]: a ${reason.trim().length}-character reason, under the ` +
+                        `${MIN_REASON}-character floor the sibling ledgers set: "${reason.trim()}". Say why ` +
+                        `${label} has no live suite under ${rel(ROOT, dir)} calling \`${TREE_ENTRY}\`.`,
+                );
+            }
+        } else if (driversForLabel > 0 && reason !== undefined) {
+            failures.push(
+                `TREE_DRIVER_LEDGER["${label}"]: ${label} drives the shared tree again now — drop the entry.`,
+            );
         }
     }
     resolved.tree = treeDrivers.length;
