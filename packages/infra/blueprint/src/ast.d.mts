@@ -186,12 +186,27 @@ export interface ListValue {
     readonly line: number;
 }
 
+/**
+ * `menu-model: menu primary_menu { … }` — a menu written where the property is set.
+ *
+ * A menu VALUE and not an `ObjectValue`, because a menu is not an object: it emits `<menu>`
+ * and not `<object class="GMenu">`, it has an id and no type, and `MenuNode` already exists for
+ * the top-level form. The oracle allows it in exactly one position — a direct property value,
+ * never in a list, a setter or an extension entry.
+ */
+export interface MenuValue {
+    readonly kind: 'menu';
+    readonly menu: MenuNode;
+    readonly line: number;
+}
+
 export type Value =
     | StringValue
     | NumberValue
     | BoolValue
     | IdentValue
     | ObjectValue
+    | MenuValue
     | BindingValue
     | TypeValue
     | ListValue;
@@ -373,6 +388,21 @@ export interface Signal {
  */
 export interface Child {
     readonly slot?: string;
+    /**
+     * `[internal-child content_area]` — a DIFFERENT attribute from {@link Child.slot}, and the
+     * bracket holds exactly one of the two. GtkBuilder reads `<child type="…">` and
+     * `<child internal-child="…">` differently, so one field could not carry both.
+     */
+    readonly internalChild?: string;
+    /**
+     * `[action response=ok default]` — the child is a dialog's action widget.
+     *
+     * Unlike {@link Child.slot} and {@link Child.internalChild}, this one does NOT stay on the
+     * child: the child gets `type="action"` and the RESPONSE is written into an
+     * `<action-widgets>` block the parent emits after all its children. So the annotation is
+     * recorded here and read one level up, which is the only place the whole list exists.
+     */
+    readonly response?: { readonly id: string; readonly isDefault: boolean };
     readonly object: ObjectNode;
     readonly line: number;
     readonly order: number;
@@ -414,7 +444,60 @@ export interface ExtensionEntry {
      * oracle refuses, a divergence `corpus/divergences.mjs` is the place to record.
      */
     readonly value: Exclude<Value, ObjectValue>;
+    /**
+     * Bare keywords after the value, in SOURCE order — today only a `responses [ ]` entry has
+     * any: `destructive`, `suggested`, `disabled`.
+     *
+     * Source order is kept and is not the emitted order: the oracle writes `enabled` before
+     * `appearance` whatever the file says, so `save: "Save" suggested disabled` and
+     * `save: "Save" disabled suggested` are one XML. Keeping the order the file wrote is what
+     * lets a future decompiler write it back, and the emitter is where the fixed order lives.
+     */
+    readonly flags?: readonly string[];
     readonly line: number;
+}
+
+/**
+ * One entry of a bracketed extension list. Four payload shapes, because the six lists carry
+ * four different things and flattening them would lose which.
+ */
+export type ExtensionListItem =
+    /** `mime-types`, `patterns`, `suffixes` — a bare quoted string, never translatable. */
+    | { readonly kind: 'string'; readonly value: StringValue; readonly line: number }
+    /** `items` — a string with an optional id, and translatable. */
+    | { readonly kind: 'item'; readonly id?: string; readonly value: StringValue; readonly line: number }
+    /**
+     * `marks` — `mark (value[, position[, label]])`. The label may only appear WITH a position,
+     * which is the oracle's rule and not a convenience: the second argument is a position and
+     * there is nowhere for a label to sit without one.
+     */
+    | {
+          readonly kind: 'mark';
+          readonly value: NumberValue;
+          readonly position?: string;
+          readonly label?: StringValue;
+          readonly line: number;
+      }
+    /** `offsets` — `offset ("name", value)`, and the value may not be negative. */
+    | { readonly kind: 'offset'; readonly name: StringValue; readonly value: NumberValue; readonly line: number };
+
+/** The six bracketed lists, which are one construct with six names and four payloads. */
+export type ExtensionListName = 'marks' | 'items' | 'offsets' | 'mime-types' | 'patterns' | 'suffixes';
+
+/**
+ * `marks [ … ]` and its five siblings.
+ *
+ * Its own node and not an `Extension`, because an `Extension` holds `name: value;` entries and
+ * none of these do: a mark is a triple, an offset is a pair, a mime type is a bare string. The
+ * oracle keeps them apart for the same reason — its file-filter trio is already one
+ * implementation parameterised by wrapper tag and child tag, and that same parameterisation is
+ * what makes these six one arm here rather than six.
+ */
+export interface ExtensionList {
+    readonly name: ExtensionListName;
+    readonly items: readonly ExtensionListItem[];
+    readonly line: number;
+    readonly order: number;
 }
 
 export interface ObjectBody {
@@ -422,6 +505,7 @@ export interface ObjectBody {
     readonly children: readonly Child[];
     readonly signals: readonly Signal[];
     readonly extensions: readonly Extension[];
+    readonly extensionLists: readonly ExtensionList[];
     /**
      * The `template Type { … }` block of a `Gtk.BuilderListItemFactory`, at most one.
      *
@@ -468,6 +552,14 @@ export interface TemplateNode {
     /** Without the `$`. */
     readonly className: string;
     /**
+     * Set where the file named a TYPE rather than a `$`-sigil name: `template ListItem { }`.
+     *
+     * `ListItem` is a real Gtk type, so the class attribute is its GTYPE (`GtkListItem`) and not
+     * the spelling — which is the whole difference from the sigil form, where the name is the
+     * class being defined and reaches the XML verbatim.
+     */
+    readonly classType?: TypeRef;
+    /**
      * Absent for `template $Name { … }`, which the oracle's grammar makes Optional
      * (`Template = 'template' TypeName ( ':' TypeName )? ObjectContent`).
      *
@@ -498,6 +590,12 @@ export interface MenuAttribute {
 
 export interface MenuItem {
     readonly kind: 'item' | 'section' | 'submenu';
+    /**
+     * `section named_section { … }` — only a `section` or a `submenu` may carry one, and it is a
+     * REFERENCE TARGET: `menu-model: named_sub` resolves to it, so it has to be indexed beside
+     * the object ids or a file the oracle compiles is refused here.
+     */
+    readonly id?: string;
     readonly attributes: readonly MenuAttribute[];
     readonly items: readonly MenuItem[];
     readonly line: number;
@@ -516,6 +614,14 @@ export interface MenuNode {
 export type TopLevel = ObjectNode | TemplateNode | MenuNode;
 
 export interface BlueprintFile {
+    /**
+     * `translation-domain "…";` — the file's gettext domain, where it declares one.
+     *
+     * At most one, and only between the imports and the first root: the oracle's grammar makes
+     * it `Optional`, in that one position. It becomes `domain="…"` on `<interface>` and reaches
+     * nothing else.
+     */
+    readonly translationDomain?: string;
     /**
      * The path `parseBlueprint` was given, carried rather than re-supplied.
      *

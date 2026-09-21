@@ -268,6 +268,23 @@ const BINDING_FLAGS = new Set(['inverted', 'bidirectional', 'no-sync-create', 's
 
 const RESPONSE_FLAGS = new Set(['destructive', 'suggested', 'disabled']);
 
+/**
+ * The six bracketed lists, mapped to the shape of ONE of their items.
+ *
+ * `string` is a bare quoted string (`mime-types`, `patterns`, `suffixes`), `item` a string with
+ * an optional `id:` prefix, `mark` a `mark (…)` call and `offset` an `offset (…)` call. Six
+ * names, four shapes — which is why this is a table and not six parsers. The oracle's own
+ * file-filter trio is already one implementation parameterised the same way.
+ */
+const EXTENSION_LISTS = new Map([
+    ['marks', 'mark'],
+    ['items', 'item'],
+    ['offsets', 'offset'],
+    ['mime-types', 'string'],
+    ['patterns', 'string'],
+    ['suffixes', 'string'],
+]);
+
 const MENU_ITEM_KEYWORDS = new Set(['section', 'submenu', 'item']);
 
 /**
@@ -276,14 +293,6 @@ const MENU_ITEM_KEYWORDS = new Set(['section', 'submenu', 'item']);
  * the object-child branch, where `items [` would fail as "expected `{`" and read like a
  * broken file rather than like scope.
  */
-const REFUSED_EXTENSIONS = new Map([
-    ['items', 'the `items [ … ]` extension of Gtk.ComboBoxText'],
-    ['marks', 'the `marks [ … ]` extension of Gtk.Scale'],
-    ['offsets', 'the `offsets [ … ]` extension of Gtk.LevelBar'],
-    ['mime-types', 'the `mime-types [ … ]` extension of Gtk.FileFilter'],
-    ['patterns', 'the `patterns [ … ]` extension of Gtk.FileFilter'],
-    ['suffixes', 'the `suffixes [ … ]` extension of Gtk.FileFilter'],
-]);
 
 /** How a token reads inside "found …". */
 function describe(/** @type {Token} */ token) {
@@ -375,16 +384,19 @@ class Parser {
             );
         }
 
+        /** @type {string | undefined} */
+        let translationDomain;
         if (this.at('translation-domain')) {
-            // Out of scope because `BlueprintFile` holds imports and roots and nothing else. That
-            // is the reason and it belongs here: the MESSAGE is read by someone who installed a
-            // build plugin and has never seen this file.
-            throw this.fail(
-                this.peek(),
-                'a file-level `translation-domain` is outside the subset this parser holds. The ' +
-                    '`_("…")` markers still reach the XML as `translatable="yes"`; set the domain on the ' +
-                    `builder instead of in the \`.blp\`, or drop the line where the app has one. ${SUBSET_NOTE}`,
-            );
+            // One position only, and the oracle's grammar says which: after the `using`
+            // directives and before the first root. A second one is not "another domain", it is
+            // a file that cannot say which domain it means.
+            this.advance();
+            const value = this.parseValue({ allowObject: false, allowList: false });
+            if (value.kind !== 'string' || value.translatable) {
+                throw this.fail(this.peek(), 'a `translation-domain` is a plain quoted string');
+            }
+            translationDomain = value.value;
+            this.expect(';', '`;`');
         }
 
         /** @type {TopLevel[]} */
@@ -404,7 +416,12 @@ class Parser {
             }
         }
 
-        return { file: this.file, imports, roots };
+        return {
+            file: this.file,
+            imports,
+            ...(translationDomain === undefined ? {} : { translationDomain }),
+            roots,
+        };
     }
 
     /** @returns {BlueprintImport} */
@@ -456,11 +473,26 @@ class Parser {
     /** @returns {TemplateNode} */
     parseTemplate() {
         const keyword = this.expect('template', '`template`');
+        // `template ListItem { }` is NOT the pre-0.8.0 legacy spelling: `ListItem` is a real Gtk
+        // type, so the oracle resolves it like any type reference and warns about nothing. The
+        // legacy case is a bare name that resolves to NO type, and the oracle accepts that too
+        // with an upgrade warning — this package has no warning channel, so both read the same
+        // here and the emitted XML is identical either way.
         if (!this.at('$')) {
-            throw this.fail(
-                this.peek(),
-                `found ${describe(this.peek())}, expected \`$\` — a template class is written \`template $Name: Parent\` since blueprint 0.8.0`,
-            );
+            const type = this.parseTypeRef();
+            let parent;
+            if (this.at(':')) {
+                this.advance();
+                parent = this.parseTypeRef();
+            }
+            return {
+                kind: 'template',
+                className: `${type.namespace ?? ''}${type.name}`,
+                classType: type,
+                ...(parent === undefined ? {} : { parent }),
+                body: this.parseObjectBody(),
+                line: keyword.line,
+            };
         }
         this.advance();
         const className = this.expectIdentifier('a template class name');
@@ -503,6 +535,9 @@ class Parser {
         const signals = [];
         /** @type {Extension[]} */
         const extensions = [];
+
+        /** @type {ExtensionList[]} */
+        const extensionLists = [];
 
         /**
          * At most one, which is the oracle's rule and not a convenience: two `template { … }`
@@ -562,6 +597,8 @@ class Parser {
                 extensions.push({ ...this.parseResponsesExtension(), order: order++ });
             } else if (LIST_PROPERTIES.has(token.text) && next.text === '[') {
                 properties.push({ ...this.parseListProperty(), order: order++ });
+            } else if (EXTENSION_LISTS.has(token.text) && next.text === '[') {
+                extensionLists.push({ ...this.parseExtensionList(), order: order++ });
             } else if (token.text === 'template') {
                 if (inlineTemplate !== undefined) {
                     // The oracle's own words: "Duplicate template block". Two would be two
@@ -572,10 +609,14 @@ class Parser {
                     );
                 }
                 inlineTemplate = { ...this.parseInlineTemplate(), order: order++ };
-            } else if (REFUSED_EXTENSIONS.has(token.text) && next.text === '[') {
+            } else if (next.text === '[') {
+                // A bracketed list no table above knows. This used to be a hardcoded roster of
+                // six names, all six of which are now read — and a roster that empties itself
+                // is a mechanism that has to become general or go. Falling through to
+                // `parseObject` instead would report `expected \`{\`` and name nothing.
                 throw this.fail(
                     token,
-                    `found ${REFUSED_EXTENSIONS.get(token.text)}, which is not in this subset — no corpus file reaches it, and \`Extension\` in ast.d.mts would record its name and drop its own vocabulary`,
+                    `found the \`${token.text} [ … ]\` list, which is not in this subset — the lists this parser reads are ${[...EXTENSION_LISTS.keys(), ...LIST_PROPERTIES].sort().join(', ')}. ${SUBSET_NOTE}`,
                 );
             } else {
                 children.push({ object: this.parseObject(), line: token.line, order: order++ });
@@ -587,8 +628,130 @@ class Parser {
             children,
             signals,
             extensions,
+            extensionLists,
             ...(inlineTemplate === undefined ? {} : { inlineTemplate }),
         };
+    }
+
+    /**
+     * `marks [ … ]` and its five siblings — one reader, four item shapes.
+     *
+     * WHICH CLASS each list belongs to is not checked here. The parser sees a name and a
+     * bracket; whether the enclosing object is a `Gtk.Scale` is a fact about the object, and the
+     * emitter is where the object's type is known. Refusing here would mean refusing on the
+     * spelling rather than on the thing.
+     *
+     * @returns {Omit<ExtensionList, 'order'>}
+     */
+    parseExtensionList() {
+        const keyword = this.advance();
+        const shape = /** @type {string} */ (EXTENSION_LISTS.get(keyword.text));
+        this.expect('[', '`[`');
+        /** @type {ExtensionListItem[]} */
+        const items = [];
+        while (!this.at(']')) {
+            items.push(this.parseExtensionListItem(shape, keyword.text));
+            if (!this.at(',')) break;
+            this.advance();
+        }
+        this.expect(']', '`]`');
+        return { name: /** @type {ExtensionListName} */ (keyword.text), items, line: keyword.line };
+    }
+
+    /**
+     * One item of a bracketed list.
+     *
+     * @param {string} shape @param {string} listName
+     * @returns {ExtensionListItem}
+     */
+    parseExtensionListItem(shape, listName) {
+        const at = this.peek();
+        if (shape === 'mark' || shape === 'offset') {
+            this.expect(shape, `\`${shape} (…)\``);
+            this.expect('(', '`(`');
+            if (shape === 'offset') {
+                const name = this.parseStringItem(`a quoted name for \`offset\``, false);
+                this.expect(',', '`,`');
+                const value = this.parseNumberItem('offset');
+                // About the VALUE and not the syntax: a level bar offset is a fraction of the
+                // bar, so a negative one has no position on it. The oracle refuses it too.
+                if (value.raw.startsWith('-')) {
+                    throw this.fail(at, 'an `offset` value may not be negative — it is a fraction of the level bar');
+                }
+                this.expect(')', '`)`');
+                return { kind: 'offset', name, value, line: at.line };
+            }
+            const value = this.parseNumberItem('mark');
+            /** @type {string | undefined} */
+            let position;
+            /** @type {StringValue | undefined} */
+            let label;
+            if (this.at(',')) {
+                this.advance();
+                position = this.expectIdentifier('a `Gtk.PositionType` member').text;
+                // A label may only appear WITH a position, which is the oracle's rule and not a
+                // convenience: the second argument IS the position, so there is nowhere for a
+                // label to sit without one.
+                if (this.at(',')) {
+                    this.advance();
+                    label = this.parseStringItem('a label for `mark`', true);
+                }
+            }
+            this.expect(')', '`)`');
+            return {
+                kind: 'mark',
+                value,
+                ...(position === undefined ? {} : { position }),
+                ...(label === undefined ? {} : { label }),
+                line: at.line,
+            };
+        }
+        if (shape === 'item') {
+            // `item_id: "item"` — the id is an optional PREFIX, so the colon one token ahead is
+            // what tells the two spellings apart.
+            let id;
+            if (at.type === 'ident' && this.at(':', 1)) {
+                id = this.advance().text;
+                this.advance();
+            }
+            const value = this.parseStringItem(`a string for \`${listName}\``, true);
+            return { kind: 'item', ...(id === undefined ? {} : { id }), value, line: at.line };
+        }
+        const value = this.parseStringItem(`a quoted string for \`${listName}\``, false);
+        return { kind: 'string', value, line: at.line };
+    }
+
+    /**
+     * A string item of a bracketed list.
+     *
+     * @param {string} expected @param {boolean} translatable  whether `_("…")` is allowed here
+     * @returns {StringValue}
+     */
+    parseStringItem(expected, translatable) {
+        const at = this.peek();
+        const value = this.parseValue({ allowObject: false, allowList: false });
+        if (value.kind !== 'string') throw this.fail(at, `found a ${value.kind} value, expected ${expected}`);
+        // A file-filter string and an offset name are `UseQuoted` in the oracle's grammar, not
+        // `StringValue`: there is no translation to do on a MIME type or a CSS class name, and
+        // accepting `_("text/plain")` would emit a `translatable` attribute GtkBuilder ignores.
+        if (!translatable && value.translatable) {
+            throw this.fail(at, `a translated string is not accepted here — ${expected} is not translated`);
+        }
+        return value;
+    }
+
+    /**
+     * A number item of a bracketed list.
+     *
+     * @param {string} construct
+     * @returns {NumberValue}
+     */
+    parseNumberItem(construct) {
+        const at = this.peek();
+        const value = this.parseValue({ allowObject: false, allowList: false });
+        if (value.kind !== 'number')
+            throw this.fail(at, `found a ${value.kind} value, expected a number for \`${construct}\``);
+        return value;
     }
 
     /**
@@ -622,21 +785,39 @@ class Parser {
         const bracket = this.expect('[', '`[`');
         const slot = this.expectIdentifier('a child slot name');
         if (slot.text === 'internal-child') {
-            // `Child.slot` is the bracket TEXT alone, so it cannot tell `<child internal-child=…>`
-            // from `<child type=…>` — which is why this is refused rather than emitted as the
-            // wrong one of the two.
-            throw this.fail(
-                slot,
-                'an `[internal-child …]` bracket is outside the subset this parser holds. A bracket ' +
-                    'here becomes `<child type="…">`, a different element that GtkBuilder reads ' +
-                    `differently, so it is refused rather than spelled as the wrong one. ${SUBSET_NOTE}`,
-            );
+            // Its own field, because `<child internal-child=…>` and `<child type=…>` are two
+            // attributes GtkBuilder reads differently. The bracket holds exactly one of them —
+            // the oracle's grammar is one `AnyOf`, so the two can never both appear.
+            const name = this.expectIdentifier('an internal child name');
+            this.expect(']', '`]`');
+            return { internalChild: name.text, object: this.parseObject(), line: bracket.line };
         }
         if (slot.text === 'action' && this.at('response')) {
-            throw this.fail(
-                slot,
-                'found `[action response=…]`; `Child` in ast.d.mts has no field for a response id, so the action-widget annotation is out of scope',
-            );
+            this.advance();
+            this.expect('=', '`=`');
+            // An id (`ok`, `cancel` — a `Gtk.ResponseType` member) or a number. Which of the two
+            // is not decided here: the oracle checks the member against the GIR and the number
+            // for being non-negative, and neither fact is in this file.
+            const at = this.peek();
+            let value;
+            if (at.type === 'ident') {
+                value = this.advance().text;
+            } else {
+                const number = this.parseValue({ allowObject: false, allowList: false });
+                if (number.kind !== 'number') {
+                    throw this.fail(at, 'a `response` is a `Gtk.ResponseType` member or a non-negative integer');
+                }
+                const { negative, digits } = numberLiteral(number.raw);
+                // A fact about the FILE, so it is refused here: a response id indexes into a
+                // dialog's responses and there is no negative position in that list.
+                if (negative) throw this.fail(at, 'a numeric `response` may not be negative');
+                if (digits.includes('.')) throw this.fail(at, 'a numeric `response` is an integer');
+                value = digits;
+            }
+            const isDefault = this.at('default');
+            if (isDefault) this.advance();
+            this.expect(']', '`]`');
+            return { response: { id: value, isDefault }, object: this.parseObject(), line: bracket.line };
         }
         this.expect(']', '`]`');
         return { slot: slot.text, object: this.parseObject(), line: bracket.line };
@@ -811,16 +992,22 @@ class Parser {
                     `found a ${value.kind} value for \`${id.text}\`, expected a string or a translated string`,
                 );
             }
-            if (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
-                // `ExtensionEntry` carries a name, a value and a line, and has no field for a flag.
-                throw this.fail(
-                    this.peek(),
-                    `a response flag (\`${this.peek().text}\`) is outside the subset this parser holds. ` +
-                        'Declare the response without the flag and set its appearance or enabled state ' +
-                        `from code on the dialog. ${SUBSET_NOTE}`,
-                );
+            /** @type {string[]} */
+            const flags = [];
+            while (this.peek().type === 'ident' && RESPONSE_FLAGS.has(this.peek().text)) {
+                const flag = this.advance();
+                if (flags.includes(flag.text)) {
+                    throw this.fail(flag, `Duplicate \`${flag.text}\` flag on the response \`${id.text}\``);
+                }
+                // The oracle's own rule, and the reason it is here rather than in the emitter:
+                // two appearances are a contradiction in the FILE, and the line of the second
+                // one is what a reader needs. `'suggested' and 'destructive' are exclusive`.
+                if ((flag.text === 'suggested' || flag.text === 'destructive') && flags.some((f) => f !== 'disabled')) {
+                    throw this.fail(flag, '`suggested` and `destructive` are exclusive');
+                }
+                flags.push(flag.text);
             }
-            entries.push({ name: id.text, value, line: id.line });
+            entries.push({ name: id.text, value, ...(flags.length === 0 ? {} : { flags }), line: id.line });
             if (!this.at(',')) {
                 break;
             }
@@ -869,14 +1056,19 @@ class Parser {
         if (kind === 'item' && this.at('(')) {
             return this.parseMenuItemShorthand(keyword);
         }
-        // `section`/`submenu` take an optional id in the oracle and it is refused here:
-        // `MenuItem` in ast.d.mts has a kind, attributes, items and a line, and dropping an
-        // id the source wrote is the pass-through clause 3 forbids.
+        // `section`/`submenu` take an optional id. An `item` does not: the oracle's grammar
+        // gives one to the two container kinds only, and accepting it on an item would emit an
+        // attribute GtkBuilder has nowhere to put.
+        /** @type {string | undefined} */
+        let id;
         if (this.peek().type === 'ident') {
-            throw this.fail(
-                this.peek(),
-                `found the id \`${this.peek().text}\`; \`MenuItem\` in ast.d.mts has no \`id\` field, so a named \`${kind}\` is out of scope`,
-            );
+            if (kind === 'item') {
+                throw this.fail(
+                    this.peek(),
+                    `found the id \`${this.peek().text}\`; only a \`section\` or a \`submenu\` takes one`,
+                );
+            }
+            id = this.advance().text;
         }
 
         const opening = this.expect('{', '`{`');
@@ -906,7 +1098,7 @@ class Parser {
             attributes.push({ ...this.parseMenuAttribute(), order: order++ });
         }
         this.expect('}', '`}`');
-        return { kind, attributes, items, line: keyword.line };
+        return { kind, ...(id === undefined ? {} : { id }), attributes, items, line: keyword.line };
     }
 
     /**
@@ -1056,17 +1248,14 @@ class Parser {
             return { kind: 'type', type: this.parseAngleType(), line: keyword.line };
         }
         if (token.text === 'menu' && (this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2)))) {
-            // Legal in the oracle (`menu-model: menu { … };` compiles to a nested `<menu>`),
-            // and refused here: `Property.value` is a `Value`, and `Value` has no menu member.
-            // This refusal is the whole reason `Child.object` is an `ObjectNode` and not a
-            // union with `MenuNode` — no menu can reach a child, so the arm was a branch three
-            // readers had to write and none could take. `ast.d.mts` § `Child` records that.
-            throw this.fail(
-                token,
-                'an inline `menu` as a property value is outside the subset this parser holds. Declare ' +
-                    'the menu at the top level, give it an id, and point the property at it: ' +
-                    `\`menu myMenu { … }\` beside the object, then \`menu-model: myMenu\`. ${SUBSET_NOTE}`,
-            );
+            // ONE position: a direct property value. `allowObject` is the flag that says so —
+            // a list item, a setter and an extension entry all parse with it false, and the
+            // oracle allows a menu in none of them either. `Child.object` stays an `ObjectNode`
+            // for the same reason it always was: no menu can reach a child.
+            if (!options.allowObject) {
+                throw this.fail(token, 'an inline `menu` is a property value and this position is not one');
+            }
+            return { kind: 'menu', menu: this.parseMenu(), line: token.line };
         }
 
         const isObjectStart = this.at('.', 1) || this.at('{', 1) || (this.peek(1).type === 'ident' && this.at('{', 2));

@@ -1,0 +1,41 @@
+using Gtk 4.0;
+
+Gtk.Box {
+  Gtk.Scale {
+    marks [
+      mark (-1, bottom),
+      mark (0, top, _("zero")),
+      mark (1.5, bottom, C_("axis", "one and a half")),
+      mark (2),
+    ]
+  }
+
+  Gtk.FileFilter {
+    mime-types [
+      "text/plain",
+    ]
+
+    patterns [
+      "*.txt",
+    ]
+
+    suffixes [
+      "png",
+    ]
+  }
+
+  Gtk.ComboBoxText {
+    items [
+      "plain",
+      _("translated"),
+      chosen: "with an id",
+    ]
+  }
+
+  Gtk.LevelBar {
+    offsets [
+      offset ("low", 0.3),
+      offset ("full", 1),
+    ]
+  }
+}

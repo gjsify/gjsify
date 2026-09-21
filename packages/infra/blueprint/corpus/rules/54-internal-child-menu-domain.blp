@@ -1,0 +1,14 @@
+using Gtk 4.0;
+
+translation-domain "corpus-domain";
+
+Gtk.Dialog {
+  [internal-child content_area]
+  Gtk.Box {
+    Gtk.MenuButton {
+      menu-model: menu inlineMenu {
+        item ("Inline", "app.inline")
+      };
+    }
+  }
+}

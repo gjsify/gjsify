@@ -927,4 +927,79 @@ export const RULE_EXPECTATIONS = [
         ],
         note: "The factory survives as a node and its CONTENT does not: the block is declared lost rather than flattened, and ONE loss covers the whole sub-document however deep it goes — this file nests a second block inside the first. Flattening would be worse than dropping it — the ids inside a sub-document are allowed to repeat the outer file's, and this file repeats one on purpose, so a merged tree would carry two different objects under `corpusLabel` and no consumer could tell which it had.",
     },
+    {
+        file: '52-response-flags.blp',
+        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
+        lost: [{ kind: 'responses', line: 7, detail: 'all four responses, flags and all' }],
+        note: 'The flags share the fate of the block they sit in: `SharedNode` has no form for a dialog response, so `appearance` and `enabled` are lost with it rather than beside it. One loss for the block, which is what `31-responses.blp` already records — this file adds no new exit, only new attributes on the XML side of the same one.',
+    },
+    {
+        file: '53-extension-lists.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkScale' },
+                { tag: 'GtkFileFilter' },
+                { tag: 'GtkComboBoxText' },
+                { tag: 'GtkLevelBar' },
+            ],
+        },
+        lost: [
+            { kind: 'marks', line: 5, detail: 'four marks, one of them translated and one with a context' },
+            { kind: 'mime-types', line: 14, detail: 'one MIME type' },
+            { kind: 'patterns', line: 18, detail: 'one glob' },
+            { kind: 'suffixes', line: 22, detail: 'one suffix' },
+            { kind: 'items', line: 28, detail: 'three items, one translated and one with an id' },
+            { kind: 'offsets', line: 36, detail: 'two offsets' },
+        ],
+        note: 'Six losses for six lists, each by its own NAME rather than one shared kind. A consumer told `marks` was dropped learns something a consumer told `extension-list` was dropped does not — and the four widgets survive as bare tags, because everything each of them says is in the list that was dropped.',
+    },
+    {
+        file: '54-internal-child-menu-domain.blp',
+        node: { tag: 'GtkDialog', children: [{ tag: 'GtkBox', children: [{ tag: 'GtkMenuButton' }] }] },
+        lost: [
+            {
+                kind: 'translation-domain',
+                line: 1,
+                detail: 'the gettext domain, a fact about the FILE and not about any node',
+            },
+            {
+                kind: 'internal-child',
+                line: 6,
+                detail: 'the `content_area` annotation; the box survives, its placement does not',
+            },
+            { kind: 'menu', line: 9, detail: 'the inline menu, the same loss a top-level one takes' },
+        ],
+        note: 'All three widgets survive and all three ANNOTATIONS are lost, which is the shape of this file: nothing here changes a tag, and everything here changes where or how the tag is used. The internal-child loss is on the BRACKET line and the menu loss on the property line, each where a reader would go looking.',
+    },
+    {
+        file: '55-template-type-name.blp',
+        node: { tag: 'GtkListItem', children: [{ tag: 'GtkLabel', slot: 'child' }] },
+        lost: [
+            { kind: 'template', line: 3, detail: 'that the root is a template at all' },
+            { kind: 'binding', line: 5, detail: 'the lookup through `template`' },
+        ],
+        note: 'ONE template loss, where `50-template-orphan.blp` has two. Both are parentless; this one names a real type, so the root tag is its GType and nothing is extern. The pair is the assertion — a single file could not show that the second loss depends on which spelling the file used. The BINDING is here for a different reason: `template` inside resolves to the class, and reading the spelling there while the `<template>` tag reads the GType is what made this exact file silently different — `<template class="GtkListItem">` beside `<lookup … type="ListItem">`, a class GtkBuilder cannot find.',
+    },
+    {
+        file: '56-action-widgets-menu-ids.blp',
+        node: {
+            tag: 'GtkDialog',
+            children: [
+                { tag: 'GtkButton', props: { label: 'Cancel' } },
+                { tag: 'GtkButton', props: { label: 'Nine' } },
+                { tag: 'GtkButton', props: { label: 'OK' } },
+            ],
+        },
+        lost: [
+            { kind: 'menu', line: 3, detail: 'the whole menu, its named section and submenu with it' },
+            { kind: 'action-widget', line: 14, detail: 'the `cancel` response' },
+            { kind: 'object-id', line: 15, detail: 'the id `cancelButton`' },
+            { kind: 'action-widget', line: 19, detail: 'the numeric response `9`' },
+            { kind: 'object-id', line: 20, detail: 'the id `numericButton`' },
+            { kind: 'action-widget', line: 24, detail: 'the `ok` response, and that it is the default' },
+            { kind: 'object-id', line: 25, detail: 'the id `okButton`' },
+        ],
+        note: 'The three buttons survive and their ROLE does not: a renderer handed them without the responses would show a dialog whose buttons answer nothing. The ids are lost beside them and that pairing is the point — the XML names each widget by its id, so the two facts travel together there and are dropped together here. The menu ids take no loss of their own: the menu is one loss and everything inside it goes with it.',
+    },
 ];

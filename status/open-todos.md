@@ -6421,11 +6421,13 @@ run in shadow beside the compiler until it reports no divergence. **The shadow r
 ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBlueprint` +
 `emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
 the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4, re-measured again on
-the `@girs` 5.3.0 bump, and again on the parentless
-`template`, and again on the inline one:
-51 rule files and 12
-reality probes, all 63 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 25 refused `.blp` each
-naming their construct, their file and their line. Those four are held to the tree by
+the `@girs` 5.3.0 bump, and again on each of the
+eleven constructs that closed the subset:
+56 rule files and 12
+reality probes, all 68 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
+naming their construct, their file and their line. The refusal count went DOWN by four and that
+is the shape of this change: a fixture pinning a construct the parser now reads is a fixture
+that has to be retired, and the corpus check is what says so. Those four are held to the tree by
 `check-blueprint-corpus-counts.mjs`, because #1698 corrected them here and #1700 made every one of
 them wrong again within hours — and the gate is bidirectional, so deleting the sentence fails too.
 

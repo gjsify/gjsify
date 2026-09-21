@@ -405,6 +405,39 @@ export const CORPUS_RULES = [
         surprise:
             'the sub-document is not nested XML, it is TEXT: its own `<?xml?>` declaration, its own `<interface>`, indentation restarting at column 0, CDATA-escaped into `<property name="bytes">` — and no `<requires>`, which every other document in this corpus carries. It also has its OWN ID SCOPE, which is why `corpusLabel` is declared twice in one file and neither is a duplicate: the two documents may not reference each other at all, so `indexBody` never descends into the block and the outer index cannot see inside. The block is NESTED here on purpose — a sub-document inside a sub-document writes `]]>` into the outer CDATA, and the only escape a CDATA section has is to split across two, so `]]]]><![CDATA[>` is in the golden and that branch of the writer is held by a file rather than by an argument',
     },
+    {
+        file: '52-response-flags.blp',
+        isolates: 'the three flags a `responses [ ]` entry may carry — `destructive`, `suggested` and `disabled`',
+        surprise:
+            'the emitted order is FIXED and is not the source order: `save: … suggested disabled` writes `enabled="false"` BEFORE `appearance="suggested"`, and so would `disabled suggested` — one XML for two spellings. An absent flag omits its attribute rather than writing a default, so there is no `enabled="true"` anywhere and `plain` carries neither. `destructive` and `suggested` are mutually exclusive and the parser says so on the SECOND one, because two appearances are a contradiction in the file and the reader needs the line of the one that broke it',
+    },
+    {
+        file: '53-extension-lists.blp',
+        isolates:
+            'all six bracketed extension lists in one file — `marks`, `mime-types`, `patterns`, `suffixes`, `items`, `offsets`',
+        surprise:
+            'six names, ONE construct, and four payloads: a bare string (`mime-types`, `patterns`, `suffixes`), a string with an optional `id:` prefix (`items`), a `mark (value[, position[, label]])` triple and an `offset ("name", value)` pair. The oracle\'s own file-filter trio is already one implementation parameterised by wrapper tag and child tag, and that same parameterisation carries all six. What is NOT shared: `offset` is the one self-closing child, `mark` is never self-closing even with no label (`<mark value="2"></mark>`), and only `marks` and `items` may be translated — a MIME type and a CSS class name are `UseQuoted` in the grammar, so `_("text/plain")` is refused rather than emitted with an attribute GtkBuilder ignores',
+    },
+    {
+        file: '54-internal-child-menu-domain.blp',
+        isolates:
+            'three constructs that share only their position in the file — `translation-domain`, an `[internal-child …]` bracket, and a `menu { }` written as a property value',
+        surprise:
+            'each one goes somewhere the construct beside it does not. The domain becomes an ATTRIBUTE on `<interface>` and reaches nothing else. `[internal-child content_area]` becomes `<child internal-child="…">`, a different attribute from the `<child type="…">` every other bracket writes — the oracle\'s grammar is one `AnyOf`, so the two can never both appear on one child. And an inline menu emits `<menu id="…">` inside the `<property>`, NOT an `<object class="GMenu">`, which is why it is a value kind of its own and not an object-valued property',
+    },
+    {
+        file: '55-template-type-name.blp',
+        isolates: 'a `template` named by a TYPE rather than by a `$`-sigil name',
+        surprise:
+            '`template ListItem` is not the pre-0.8.0 legacy spelling and raises no upgrade warning anywhere: `ListItem` is a real Gtk type, so the oracle resolves it like any type reference and the class attribute is its GTYPE — `class="GtkListItem"`, not the spelling. That is the whole difference from the sigil form, where the name is the class being DEFINED and reaches the XML verbatim. It follows into the projection: the root tag is `GtkListItem` and there is NO `extern` loss, because the type is a real one — where `template $TestTemplate { }` has both. The binding through `template` is in the file because the class name is read TWICE, once for the tag and once for every identifier inside it, and reading the spelling in the second place while the GType is written in the first is what made this exact shape silently different',
+    },
+    {
+        file: '56-action-widgets-menu-ids.blp',
+        isolates:
+            'the `[action response=…]` annotation and the id a `section` or `submenu` may carry — the two constructs that reach somewhere other than the element they are written on',
+        surprise:
+            'an action widget is the only annotation whose content is emitted somewhere ELSE: the child gets `type="action"` and the response goes into an `<action-widgets>` block the PARENT writes after all its children, in source order and whatever order the children came in. The widget is named by the element\'s TEXT, not an attribute, so a child without an id cannot be written at all — the oracle refuses it and so does this. `default` is `default="True"`, capital T, because the oracle writes a Python bool straight out. The menu ids are here for a different reason: they are REFERENCE TARGETS, so accepting them without indexing them would have turned `menu-model: namedSub` into a refusal on a file the oracle compiles — the obligation `indexObjectIds` wrote down for whoever lifted the limit',
+    },
 ];
 
 /**
@@ -494,38 +527,6 @@ export const CORPUS_REFUSALS = [
         projection: 'projects',
         line: 8,
         names: 'multi-step lookup',
-    },
-    {
-        file: 'inline-menu.blp',
-        construct: 'a `menu { }` written as a property value',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 4,
-        names: 'inline `menu`',
-    },
-    {
-        file: 'response-flags.blp',
-        construct: 'a response flag, `destructive` / `suggested` / `disabled`',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 6,
-        names: 'response flag',
-    },
-    {
-        file: 'translation-domain.blp',
-        construct: 'the file-level `translation-domain "…";`',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 3,
-        names: 'translation-domain',
-    },
-    {
-        file: 'internal-child.blp',
-        construct: 'an `[internal-child …]` bracket',
-        oracle: 'compiles',
-        projection: 'refuses',
-        line: 4,
-        names: 'internal-child',
     },
     {
         file: 'unknown-enum-member.blp',

@@ -159,11 +159,11 @@ export function emitGtkBuilderXml(file, options) {
         ...seams,
         idTypes: ids.byId,
         idClasses: ids.classes,
-        templateClass: findTemplateClass(file),
+        templateClass: findTemplateClass(file, seams),
     };
 
     const xml = new XmlWriter();
-    xml.startTag('interface', {});
+    xml.startTag('interface', file.translationDomain === undefined ? {} : { domain: file.translationDomain });
     // One `<requires>` and only ever `gtk`, in every golden — 18-multiple-imports.ui pins
     // that: `using Adw 1;` is used by the file and reaches the XML nowhere.
     xml.selfClosing('requires', { lib: 'gtk', version: gtkVersion(file.imports) });
@@ -362,6 +362,73 @@ function emitInlineTemplate(xml, node, ownerType, context) {
     xml.endTag();
 }
 
+/**
+ * The six bracketed lists: wrapper tag, child tag, and the GType that may hold them.
+ *
+ * One table because they are one construct with six names — the oracle's own file-filter trio
+ * is already a single implementation parameterised exactly this way, and `marks`, `items` and
+ * `offsets` differ from it only in what one item carries.
+ */
+const EXTENSION_LIST_TAGS = new Map([
+    ['marks', { child: 'mark', owner: 'GtkScale' }],
+    ['items', { child: 'item', owner: 'GtkComboBoxText' }],
+    ['offsets', { child: 'offset', owner: 'GtkLevelBar' }],
+    ['mime-types', { child: 'mime-type', owner: 'GtkFileFilter' }],
+    ['patterns', { child: 'pattern', owner: 'GtkFileFilter' }],
+    ['suffixes', { child: 'suffix', owner: 'GtkFileFilter' }],
+]);
+
+/**
+ * `marks [ … ]` and its five siblings.
+ *
+ * The OWNER check is here and not in the parser because the enclosing object's type is known
+ * here and nowhere there. It compares the GType by NAME, so a subclass of `Gtk.Scale` carrying
+ * marks is refused where the oracle would accept it — a refusal that names itself, not wrong
+ * output, and the direction to be wrong in. A `null` owner is an extern type and validates
+ * nothing, by the same rule an extern parent carries any property name.
+ *
+ * @param {XmlWriter} xml @param {ExtensionList} list @param {string | null} ownerType
+ * @param {EmitContext} context
+ */
+function emitExtensionList(xml, list, ownerType, context) {
+    const spec = /** @type {{ child: string, owner: string }} */ (EXTENSION_LIST_TAGS.get(list.name));
+    if (ownerType !== null && ownerType !== spec.owner) {
+        throw new BlueprintEmitError(
+            `a \`${list.name} [ … ]\` block belongs to a ${spec.owner} and this one is inside \`${ownerType}\`, where the oracle refuses it`,
+            at(context, list.line),
+        );
+    }
+    xml.startTag(list.name, {});
+    for (const item of list.items) {
+        if (item.kind === 'offset') {
+            // The one self-closing child of the six.
+            xml.selfClosing(spec.child, {
+                name: scalarText(item.name, null, null, context),
+                value: numberText(item.value.raw),
+            });
+            continue;
+        }
+        if (item.kind === 'mark') {
+            // Never self-closing, even with no label: the oracle writes `<mark value="2"></mark>`.
+            xml.startTag(spec.child, {
+                value: numberText(item.value.raw),
+                ...(item.position === undefined ? {} : { position: item.position }),
+                ...(item.label === undefined ? {} : translatedAttributes(item.label)),
+            });
+            if (item.label !== undefined) xml.text(scalarText(item.label, null, null, context));
+            xml.endTag();
+            continue;
+        }
+        xml.startTag(spec.child, {
+            ...(item.kind === 'item' && item.id !== undefined ? { id: item.id } : {}),
+            ...translatedAttributes(item.value),
+        });
+        xml.text(scalarText(item.value, null, null, context));
+        xml.endTag();
+    }
+    xml.endTag();
+}
+
 /** @param {XmlWriter} xml @param {TemplateNode} template @param {EmitContext} context */
 function emitTemplate(xml, template, context) {
     // 08-template.ui: `class` is the `$Name` without its sigil, `parent` the GType of the
@@ -372,8 +439,12 @@ function emitTemplate(xml, template, context) {
     // oracle passes `parent=None` and its writer drops null-valued attributes. The owner is
     // `null` for the same reason an extern parent gives `null`: the type is unknown, so
     // nothing inside resolves against a vocabulary.
+    // A `$Name` reaches the XML verbatim; a TYPE reaches it as its GType, so `template ListItem`
+    // is `class="GtkListItem"`. Same attribute, two sources, and only the file says which.
+    const className =
+        template.classType === undefined ? template.className : gtypeName(template.classType, context, 'reference');
     const parent = template.parent === undefined ? undefined : gtypeName(template.parent, context, 'reference');
-    xml.startTag('template', { class: template.className, ...(parent === undefined ? {} : { parent }) });
+    xml.startTag('template', { class: className, ...(parent === undefined ? {} : { parent }) });
     emitBody(xml, template.body, template.parent === undefined ? null : ownerOf(template.parent, parent), context);
     xml.endTag();
 }
@@ -400,6 +471,7 @@ function emitBody(xml, body, ownerType, context) {
         ['signal', body.signals],
         ['extension', body.extensions],
         ['inline-template', body.inlineTemplate === undefined ? [] : [body.inlineTemplate]],
+        ['extension-list', body.extensionLists],
     ]);
 
     for (const [kind, member] of members) {
@@ -408,7 +480,36 @@ function emitBody(xml, body, ownerType, context) {
         else if (kind === 'signal') emitSignal(xml, /** @type {Signal} */ (member), context);
         else if (kind === 'inline-template') {
             emitInlineTemplate(xml, /** @type {InlineTemplateNode} */ (member), ownerType, context);
+        } else if (kind === 'extension-list') {
+            emitExtensionList(xml, /** @type {ExtensionList} */ (member), ownerType, context);
         } else emitExtension(xml, /** @type {Extension} */ (member), context);
+    }
+
+    // AFTER everything else, and that position is the oracle's: the block is the last content
+    // of the object, whatever order the annotated children were written in. It is the one thing
+    // a child cannot emit for itself — the list exists only here.
+    const actionWidgets = body.children.filter((child) => child.response !== undefined);
+    if (actionWidgets.length > 0) {
+        xml.startTag('action-widgets', {});
+        for (const child of actionWidgets) {
+            const response = /** @type {{ id: string, isDefault: boolean }} */ (child.response);
+            if (child.object.id === undefined) {
+                // The oracle's own refusal, and the reason is in the XML: the widget is named
+                // by the element's TEXT, so a child with no id would emit an empty reference.
+                throw new BlueprintEmitError(
+                    'an action widget must have an id — the `<action-widget>` element names it by its text',
+                    at(context, child.line),
+                );
+            }
+            // `default="True"`, capital T: the oracle writes a Python bool straight out.
+            xml.startTag('action-widget', {
+                response: response.id,
+                ...(response.isDefault ? { default: 'True' } : {}),
+            });
+            xml.text(child.object.id);
+            xml.endTag();
+        }
+        xml.endTag();
     }
 }
 
@@ -443,7 +544,13 @@ function emitChild(xml, child, context) {
     // 05-child-slot-named.ui: the `[start]` bracket is an attribute on the CHILD WRAPPER,
     // and 25-bracket-breakpoint.ui says `[breakpoint]` is nothing more than another one of
     // those. An object-valued PROPERTY is a different construct and lives in emitProperty.
-    xml.startTag('child', { type: child.slot });
+    // Two attributes GtkBuilder reads differently, and the bracket held exactly one of them.
+    xml.startTag(
+        'child',
+        child.internalChild !== undefined
+            ? { 'internal-child': child.internalChild }
+            : { type: child.response === undefined ? child.slot : 'action' },
+    );
     emitObject(xml, child.object, context);
     xml.endTag();
 }
@@ -499,6 +606,16 @@ function emitProperty(xml, property, ownerType, context) {
         // 06-property-object-valued.ui, and 08/18 for the `child:` spelling of it.
         xml.startTag('property', { name: property.name });
         emitObject(xml, value.object, context);
+        xml.endTag();
+        return;
+    }
+
+    if (value.kind === 'menu') {
+        // `<property><menu id="…">…</menu></property>` — a `<menu>`, NOT an
+        // `<object class="GMenu">`, which is the difference that makes this a value kind of its
+        // own rather than an object-valued property.
+        xml.startTag('property', { name: property.name });
+        emitMenu(xml, value.menu, context);
         xml.endTag();
         return;
     }
@@ -1164,11 +1281,22 @@ function emitExtension(xml, extension, context) {
 
     if (extension.name === 'responses') {
         // 31-responses.ui: `<responses>` of `<response id="…">`, translatable attributes after
-        // the id. The response FLAGS would add `enabled="false"` and `appearance="…"`, and the
-        // parser refuses them by name, so neither attribute is ever owed here.
+        // the id, then the FLAGS.
+        //
+        // The flag order here is FIXED and is not the source order: the oracle writes `enabled`
+        // before `appearance` whatever the file says, so `suggested disabled` and
+        // `disabled suggested` are one XML. An absent flag omits its attribute entirely rather
+        // than writing a default — there is no `enabled="true"` and no empty `appearance`.
         xml.startTag('responses', {});
         for (const response of extension.entries) {
-            xml.startTag('response', { id: response.name, ...translatedAttributes(response.value) });
+            const flags = response.flags ?? [];
+            const appearance = flags.find((flag) => flag === 'destructive' || flag === 'suggested');
+            xml.startTag('response', {
+                id: response.name,
+                ...translatedAttributes(response.value),
+                ...(flags.includes('disabled') ? { enabled: 'false' } : {}),
+                ...(appearance === undefined ? {} : { appearance }),
+            });
             xml.text(scalarText(response.value, null, null, context));
             xml.endTag();
         }
@@ -1296,12 +1424,12 @@ function unescapeQuoted(body, where) {
 
 /** @param {XmlWriter} xml @param {MenuNode | MenuItem} menu @param {EmitContext} context */
 function emitMenu(xml, menu, context) {
-    // 12-menu.ui: a top-level `menu` is a SIBLING of the objects and carries the id; the
-    // `section` / `item` / `submenu` inside it are elements named after their keyword and
-    // carry none. 22-menu-nested.ui adds that an attribute and a nested item interleave in
-    // source order, so the merge is the same one `emitBody` does.
+    // 12-menu.ui: a top-level `menu` is a SIBLING of the objects and carries an id; so may a
+    // `section` and a `submenu` inside it, and an `item` may not — the oracle gives the id to
+    // the two container kinds only. 22-menu-nested.ui adds that an attribute and a nested item
+    // interleave in source order, so the merge is the same one `emitBody` does.
     const isRoot = menu.kind === 'menu';
-    xml.startTag(isRoot ? 'menu' : menu.kind, { id: isRoot ? menu.id : undefined });
+    xml.startTag(isRoot ? 'menu' : menu.kind, { id: menu.id });
 
     const members = inSourceOrder([
         ['attribute', isRoot ? [] : menu.attributes],
@@ -1419,9 +1547,18 @@ function gtkVersion(imports) {
 }
 
 /** @param {BlueprintFile} file */
-function findTemplateClass(file) {
+function findTemplateClass(file, seams) {
     for (const root of file.roots) {
-        if (root.kind === 'template') return root.className;
+        if (root.kind !== 'template') continue;
+        // The same two sources `emitTemplate` reads, and they must agree: a `$Name` is the class
+        // being defined and reaches the XML verbatim, a TYPE reaches it as its GType. Reading
+        // the spelling here while the `<template>` tag reads the GType is how one file came out
+        // with `<template class="GtkListItem">` and `<lookup … type="ListItem">` in it —
+        // `issue_187_dec.blp`, silently different and compiling to a class GtkBuilder cannot
+        // find.
+        return root.classType === undefined
+            ? root.className
+            : gtypeName(root.classType, /** @type {EmitContext} */ (seams), 'reference');
     }
     return undefined;
 }
@@ -1453,16 +1590,36 @@ function indexObjectIds(file, seams) {
         // with `menu-model: mainMenu` — and it is indexed as `null` for the reason an extern
         // target is: there is no GType whose ParamSpecs an enum could resolve against.
         //
-        // Only the ROOT is indexed, and that is a bet on a parser limit rather than a fact
-        // about the language: the oracle accepts `menu top { section sec { … } }` and resolves
-        // `menu-model: sec` against it. Nothing diverges today because `MenuItem` has no `id`
-        // field and the parser refuses a named section by name and line, so such a file never
-        // reaches this index. WHOEVER LIFTS THAT LIMIT must index sections and submenus here
-        // in the same commit, or the reference check below turns into a false refusal on a
-        // file the oracle compiles.
-        else if (root.id !== undefined) byId.set(root.id, null);
+        // The root AND every named `section`/`submenu` inside it. The comment here used to say
+        // only the root was indexed and that this was a bet on a parser limit — `MenuItem` had
+        // no `id` field, so such a file never reached this index — with the obligation on
+        // whoever lifted the limit to index them in the same commit. That commit is this one.
+        //
+        // Each is `null` for the reason an extern target is: a `GMenuModel` has no ParamSpecs
+        // for a resolver to search, so an identifier pointing at one resolves to a name and to
+        // no vocabulary.
+        else if (root.kind === 'menu') {
+            if (root.id !== undefined) byId.set(root.id, null);
+            indexMenuIds(root.items, byId);
+        }
     }
     return index;
+}
+
+/**
+ * Every named `section` or `submenu`, however deep.
+ *
+ * `menu-model: sec` resolves against one, so leaving them out turns a file the oracle compiles
+ * into a refusal here — which is exactly what the note above this function promised would
+ * happen the day `MenuItem` gained an id.
+ *
+ * @param {readonly MenuItem[]} items @param {Map<string, string | null>} byId
+ */
+function indexMenuIds(items, byId) {
+    for (const item of items) {
+        if (item.id !== undefined) byId.set(item.id, null);
+        indexMenuIds(item.items, byId);
+    }
 }
 
 /**

@@ -190,10 +190,21 @@ const lossesOf = (file) => {
                 lost.push({ kind: property.name === 'styles' ? 'styles' : 'value-list', line: property.line });
             } else if (value.kind === 'string' && value.translatable) {
                 lost.push({ kind: 'translatable', line: property.line });
+            } else if (value.kind === 'menu') {
+                // A menu written AT the property. `SharedNode` has no menu form — a top-level
+                // one is already a `menu` loss, and this is the same loss in a second position.
+                // Without this arm it left through no arm at all: measured, `inline_menu.blp`
+                // projected a bare `GtkMenuButton` with an EMPTY loss list.
+                lost.push({ kind: 'menu', line: property.line });
             } else if (value.kind === 'object') walkObject(value.object);
         }
         for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
         for (const extension of body.extensions) lost.push({ kind: extension.name, line: extension.line });
+        // Each list by its own NAME, the way a block extension is, because that is the name a
+        // reader of the loss goes looking for. Six kinds for one mechanism is the honest count:
+        // a consumer told `marks` was dropped learns something a consumer told `extension-list`
+        // was dropped does not.
+        for (const list of body.extensionLists) lost.push({ kind: list.name, line: list.line });
         // A whole SECOND document, and `SharedNode` is one tree: there is no nesting form for
         // a sub-document with its own id scope, so the block is declared lost rather than
         // flattened into the parent. Flattening would be worse than dropping it — the ids
@@ -203,6 +214,14 @@ const lossesOf = (file) => {
             lost.push({ kind: 'inline-template', line: body.inlineTemplate.line });
         }
         for (const child of body.children) {
+            // `<child internal-child="…">` is a DIFFERENT element from `<child type="…">`, and
+            // `SharedNode.slot` carries the second. A renderer handed the first as a slot would
+            // put the object in the wrong place, so the annotation is dropped and declared.
+            if (child.internalChild !== undefined) lost.push({ kind: 'internal-child', line: child.line });
+            // The widget survives and its ROLE does not: `SharedNode` has no dialog-response
+            // form, and a renderer handed the button without it would show a dialog whose
+            // buttons answer nothing.
+            if (child.response !== undefined) lost.push({ kind: 'action-widget', line: child.line });
             if (isBreakpoint(child.object)) {
                 // Named on the OBJECT line, never on the bracket above it — the convention
                 // stated once in the header of `corpus/expectations.mjs`.
@@ -225,6 +244,11 @@ const lossesOf = (file) => {
         walkBody(object.body);
     };
 
+    // The gettext domain is a fact about the FILE and `SharedNode` is a tree: there is nowhere
+    // for it to go, and a renderer that translated against the wrong domain would be wrong
+    // silently.
+    if (file.translationDomain !== undefined) lost.push({ kind: 'translation-domain', line: 1 });
+
     // `SharedNode` is ONE tree and a file may hold several roots, so the projection keeps
     // the first widget one and every other root is a loss: a `menu` by its own kind, because
     // ADR 0042 already made menus a portable value and gives that loss a different future,
@@ -245,11 +269,16 @@ const lossesOf = (file) => {
             // The template's own class is the `template` loss above; an extern PARENT is a
             // second one, because the parent is what becomes the root tag.
             //
-            // With NO parent the template type is itself extern — the oracle's `ExternType`,
-            // `incomplete`, validating nothing — and it is the class name that becomes the
-            // root tag. So the second loss is recorded at the template's own line.
-            if (root.parent === undefined) lost.push({ kind: 'extern', line: root.line });
-            else if (root.parent.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
+            // With no parent and a `$Name`, the template type is itself extern — the oracle's
+            // `ExternType`, `incomplete`, validating nothing — and it is that name which becomes
+            // the root tag. So the second loss is recorded at the template's own line.
+            //
+            // With no parent and a TYPE (`template ListItem`), it is not extern at all: the
+            // type is a real one and the tag is its GType. Declaring a loss there would name a
+            // limit the file does not have.
+            if (root.parent === undefined && (root.classType === undefined || root.classType.extern === true)) {
+                lost.push({ kind: 'extern', line: root.line });
+            } else if (root.parent?.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
             walkBody(root.body);
         } else walkObject(root);
     }
@@ -280,11 +309,17 @@ export function projectToSharedNode(file, options) {
         // the only name the file states. It is extern by construction, which is exactly the
         // shape `tag` already spells without a namespace default — `$MyWidget` is
         // `MyWidget`, never `GtkMyWidget`.
-        const rootType = template.parent ?? /** @type {TypeRef} */ ({
-            extern: true,
-            name: template.className,
-            line: template.line,
-        });
+        // Three sources, in the order the file decides: a parent type, the TYPE the template
+        // names, or the `$Name` it defines. The third is extern by construction; the second is
+        // not, and projecting its spelling where the XML writes its GType would make the two
+        // exits disagree about one file — `template ListItem` is `<template class="GtkListItem">`
+        // and must not be a `ListItem` tag here.
+        const rootType = template.parent ??
+            template.classType ?? /** @type {TypeRef} */ ({
+                extern: true,
+                name: template.className,
+                line: template.line,
+            });
         return {
             node: { tag: tag(rootType, 'reference'), ...projectBody(template.body, tag) },
             lost: lossesOf(file),
