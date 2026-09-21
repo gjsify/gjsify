@@ -228,10 +228,19 @@ export class AdwAlertResponses {
 // WHAT IS *NOT* HERE, AND WHY. `Adw.BottomSheet` is mostly geometry:
 // `adw_bottom_sheet_size_allocate` clamps and lerps renderer-supplied measurements, and the
 // `AdwSwipeable` half derives its distance / snap points / swipe area from the same numbers.
-// None of that is lifted, because neither renderer produces those measurements today — the
-// browser sheet is pinned by CSS `left: 0; right: 0` and the NativeScript one is a
-// bottom-aligned `StackLayout`, so there is no `align`, no `progress` and no bottom bar to
-// feed it. The DISMISSAL GATE below is the renderer-independent part.
+// None of that is lifted, because neither renderer produces those measurements — the browser
+// sheet is pinned by CSS `left: 0; right: 0` and the NativeScript one is a bottom-aligned
+// `StackLayout`, so there is no `align` and no `progress` to feed it. Nor is `swipe_active`
+// (adw-bottom-sheet.c:269), the one bit that makes the bottom bar's pointer door differ from
+// its keyboard door: it is a swipe tracker's state, and neither renderer runs one.
+//
+// THE BOTTOM BAR USED TO BE ON THAT LIST, and the sentence outlived its reason. A bottom bar
+// is not a measurement: it is the ONLY affordance libadwaita gives a user to OPEN a sheet
+// (`bottom_bar_released_cb`, adw-bottom-sheet.c:263-284), and omitting it does not degrade a
+// port, it removes the sheet. Measured on easy6502, whose GNOME editor declares
+// `bottom-bar: Label { label: _("Help"); … }` and writes `open` from nowhere: the port that
+// left the bar out had no way at all to reach the quick help. So the OPEN GATE below is
+// lifted beside the DISMISSAL GATE, and both are renderer-independent.
 
 /**
  * Which affordance asked a bottom sheet to close.
@@ -325,6 +334,153 @@ export function resolveBottomSheetClose(
     }
 }
 
+/**
+ * Which affordance asked a bottom sheet to OPEN.
+ *
+ * libadwaita gives a user exactly ONE surface to open a sheet from — the bottom bar. Both
+ * doors into it are gated by `can-open`, and both are unreachable without a bar:
+ *
+ * - `'bottom-bar'`  — a click on the bar. The bin IS a `GtkButton`
+ *                     (adw-bottom-sheet.c:1203) whose own click gesture is put in
+ *                     `GTK_PHASE_NONE` by `disable_button_click` (:1209), so a pointer press
+ *                     runs `bottom_bar_released_cb` (:263-284) and a keyboard activation
+ *                     runs `bottom_bar_clicked_cb` (:402-407). Same verdict from both.
+ * - `'swipe'`       — an upward swipe off the bar (`prepare_cb`, :1052-1053).
+ * - `'drag-handle'` — the pill, decorative exactly as in the dismissal gate.
+ */
+export type BottomSheetOpenSource = 'bottom-bar' | 'swipe' | 'drag-handle';
+
+/**
+ * What a renderer must do about an open request. There is no `'open-attempt'`: libadwaita
+ * has no signal for a refused open, so a sheet that will not open is silent.
+ */
+export type BottomSheetOpenOutcome = 'open' | 'ignored';
+
+/**
+ * What {@link resolveBottomSheetOpen} decides from — the SAME four properties the chrome is
+ * derived from, which is the finding rather than a convenience: whether a user can open the
+ * sheet is exactly the question of whether the bar is on screen and not inert.
+ */
+export type BottomSheetOpenState = BottomSheetChromeState;
+
+/**
+ * The open decision table.
+ *
+ * Only ONE of the four inputs is a branch inside a callback — `can_open`. The other three
+ * are REACHABILITY, which is why a port that reads only the callbacks gets them wrong:
+ *
+ * - no bottom bar: the stack never switches to the bin (`show_bottom_bar` returns before the
+ *   switch, adw-bottom-sheet.c:294-295; `set_bottom_bar` puts `sheet_page` back, :1615-1616),
+ *   and the swipe area is a ZERO-HEIGHT rectangle at progress 0 because `bottom_bar_height`
+ *   is 0 (`get_swipe_area`, :1412-1433). Upstream states the consequence outright — `can-open`
+ *   "does nothing if [property@BottomSheet:bottom-bar] is not set" (:2013).
+ * - already open: `set_open (TRUE)` switches the stack away from the bin (:1701-1702), so
+ *   there is nothing to click, and `prepare_cb` reads an open sheet's gesture as a CLOSE
+ *   (:1050-1051) rather than a second open.
+ * - bar not revealed: at progress 0 `reveal_animation_done_cb` makes the whole sheet bin
+ *   child-invisible (:362-364, and the same expression at :341-343), so the bar is off screen.
+ *
+ * `can_open` itself is NOT reachability: the bin stays focusable and merely gains the `inert`
+ * style class (:2033-2036), which is why {@link BottomSheetChrome.bottomBarInert} is a class
+ * to paint rather than a widget to disable.
+ */
+export function resolveBottomSheetOpen(
+    source: BottomSheetOpenSource,
+    state: BottomSheetOpenState,
+): BottomSheetOpenOutcome {
+    // Not an event target, ever — the same `can_target = FALSE` pill the dismissal gate ignores.
+    if (source === 'drag-handle') return 'ignored';
+
+    // Derived from the chrome rather than re-tested here: "the bar is on screen, showing, and
+    // not inert" IS the open condition, and two spellings of it would be two truths.
+    const chrome = resolveBottomSheetChrome(state);
+    if (chrome.layer !== 'bottom-bar' || !chrome.surfaceVisible || chrome.bottomBarInert) return 'ignored';
+    return 'open';
+}
+
+/** Which of the sheet bin's two stack children is showing (`sheet_stack`). */
+export type BottomSheetLayer = 'sheet' | 'bottom-bar';
+
+/** What {@link resolveBottomSheetChrome} decides from. */
+export interface BottomSheetChromeState {
+    /** `AdwBottomSheet:open`. */
+    open: boolean;
+    /** `AdwBottomSheet:can-open`. */
+    canOpen: boolean;
+    /** Whether `AdwBottomSheet:bottom-bar` is set. */
+    hasBottomBar: boolean;
+    /** `AdwBottomSheet:reveal-bottom-bar`; absent means revealed. */
+    revealBottomBar?: boolean;
+}
+
+/** What a renderer has to put on screen for a given state. */
+export interface BottomSheetChrome {
+    /** Which stack child the sheet bin shows. */
+    layer: BottomSheetLayer;
+    /** Whether the sheet bin is on screen at all (`gtk_widget_set_child_visible`). */
+    surfaceVisible: boolean;
+    /** Whether the bar carries the `inert` style class — still clickable, just refusing. */
+    bottomBarInert: boolean;
+}
+
+/**
+ * The bin's resting appearance: which child shows, whether the bin is on screen, and whether
+ * the bar looks inert.
+ *
+ * RESTING is the whole simplification. In C these follow `progress` across
+ * `CHILD_SWITCH_THRESHOLD` mid-animation (`open_animation_cb`, adw-bottom-sheet.c:322-330);
+ * with no spring animation the settled progress IS `open`, so `showing_bottom_bar` reduces to
+ * `!open` — which is also its init value (:1131) for a sheet that starts closed.
+ */
+export function resolveBottomSheetChrome(state: BottomSheetChromeState): BottomSheetChrome {
+    const open = !!state.open;
+    const hasBottomBar = !!state.hasBottomBar;
+    const revealed = state.revealBottomBar ?? true;
+    return {
+        layer: open || !hasBottomBar ? 'sheet' : 'bottom-bar',
+        surfaceVisible: open || (hasBottomBar && revealed),
+        bottomBarInert: !state.canOpen,
+    };
+}
+
+/** What {@link resolveBottomSheetSwipeTracker} decides from. */
+export interface BottomSheetSwipeTrackerState {
+    /** `AdwBottomSheet:can-open`. */
+    canOpen: boolean;
+    /** `AdwBottomSheet:can-close`. */
+    canClose: boolean;
+    /** Whether `AdwBottomSheet:bottom-bar` is set. */
+    hasBottomBar: boolean;
+    /** `AdwBottomSheet:show-drag-handle`. */
+    showDragHandle: boolean;
+}
+
+/** The three `AdwSwipeTracker` settings `update_swipe_tracker` writes. */
+export interface BottomSheetSwipeTrackerConfig {
+    /** Whether the tracker recognises a gesture at all. */
+    enabled: boolean;
+    /** Whether a mouse drag counts, not only touch. */
+    allowMouseDrag: boolean;
+    /** Whether the gesture may overshoot below the closed position. */
+    lowerOvershoot: boolean;
+}
+
+/**
+ * `update_swipe_tracker` (adw-bottom-sheet.c:450-460) as a pure function.
+ *
+ * `enabled` is the line that decides whether a bottom sheet can be opened by gesture at all:
+ * `(can_open && bottom_bar != NULL) || can_close`. The `&& bottom_bar` conjunct is why
+ * `can-open` alone buys nothing — with no bar the only live arm is `can_close`, i.e. the
+ * tracker exists solely to CLOSE.
+ */
+export function resolveBottomSheetSwipeTracker(state: BottomSheetSwipeTrackerState): BottomSheetSwipeTrackerConfig {
+    return {
+        enabled: (!!state.canOpen && !!state.hasBottomBar) || !!state.canClose,
+        allowMouseDrag: !!state.showDragHandle || !!state.hasBottomBar,
+        lowerOvershoot: !!state.hasBottomBar,
+    };
+}
+
 /** One entry in a {@link BottomSheetPresentation}'s teardown callback pair. */
 export type BottomSheetTeardownCallback = 'closing' | 'closed';
 
@@ -356,10 +512,17 @@ export interface BottomSheetPresentationOptions {
  * still be closed using [property@BottomSheet:open]"); {@link requestClose} is the INTERACTIVE
  * path that runs the gate. Keeping them apart is what lets a locked sheet still be closed by
  * its owner.
+ *
+ * The same split holds the other way round: {@link requestOpen} is the user's path and runs
+ * {@link resolveBottomSheetOpen}, so a sheet with no bottom bar cannot be opened by a user at
+ * all, while its owner's `setOpen(true)` still works.
  */
 export class BottomSheetPresentation {
     private _open = false;
     private _canClose = true;
+    private _canOpen = true;
+    private _hasBottomBar = false;
+    private _revealBottomBar = true;
     private _hasBeenOpen = false;
     private readonly _listeners = new Set<BottomSheetPresentationListener>();
     private readonly _onClosing: (() => void) | undefined;
@@ -402,11 +565,61 @@ export class BottomSheetPresentation {
         return this._hasBeenOpen;
     }
 
+    /** Whether the user may open the sheet from its bottom bar (`AdwBottomSheet:can-open`). */
+    get canOpen(): boolean {
+        return this._canOpen;
+    }
+
+    /** Whether a bottom bar is set (`AdwBottomSheet:bottom-bar` is non-NULL). */
+    get hasBottomBar(): boolean {
+        return this._hasBottomBar;
+    }
+
+    /** Whether the bottom bar is revealed (`AdwBottomSheet:reveal-bottom-bar`). */
+    get revealBottomBar(): boolean {
+        return this._revealBottomBar;
+    }
+
+    /** What the renderer has to show for the current state — {@link resolveBottomSheetChrome}. */
+    get chrome(): BottomSheetChrome {
+        return resolveBottomSheetChrome(this);
+    }
+
     /** Set `can-close`. Returns whether it changed. */
     setCanClose(canClose: boolean): boolean {
         const next = !!canClose;
         if (next === this._canClose) return false;
         this._canClose = next;
+        return true;
+    }
+
+    /** Set `can-open`. Returns whether it changed. */
+    setCanOpen(canOpen: boolean): boolean {
+        const next = !!canOpen;
+        if (next === this._canOpen) return false;
+        this._canOpen = next;
+        return true;
+    }
+
+    /**
+     * Record whether a bottom bar is present. Returns whether it changed.
+     *
+     * A renderer calls this from wherever it adopts the bar widget — the C setter is where
+     * `update_swipe_tracker` is re-run (adw-bottom-sheet.c:1629), i.e. presence is an INPUT to
+     * the gates, not a rendering detail.
+     */
+    setHasBottomBar(hasBottomBar: boolean): boolean {
+        const next = !!hasBottomBar;
+        if (next === this._hasBottomBar) return false;
+        this._hasBottomBar = next;
+        return true;
+    }
+
+    /** Set `reveal-bottom-bar`. Returns whether it changed. */
+    setRevealBottomBar(reveal: boolean): boolean {
+        const next = !!reveal;
+        if (next === this._revealBottomBar) return false;
+        this._revealBottomBar = next;
         return true;
     }
 
@@ -454,6 +667,17 @@ export class BottomSheetPresentation {
     requestClose(source: BottomSheetCloseSource): BottomSheetCloseOutcome {
         const outcome = resolveBottomSheetClose(source, this);
         if (outcome === 'close') this.setOpen(false);
+        return outcome;
+    }
+
+    /**
+     * Route an open affordance through {@link resolveBottomSheetOpen} and APPLY the outcome.
+     * `'ignored'` is the only other answer, and it is silent: libadwaita has no
+     * `open-attempt` counterpart to `close-attempt`, so a renderer emits nothing for it.
+     */
+    requestOpen(source: BottomSheetOpenSource): BottomSheetOpenOutcome {
+        const outcome = resolveBottomSheetOpen(source, this);
+        if (outcome === 'open') this.setOpen(true);
         return outcome;
     }
 

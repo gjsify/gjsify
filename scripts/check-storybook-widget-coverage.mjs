@@ -163,6 +163,11 @@ const ONE_RENDERER_ONLY = {
         decision:
             "Upstream has no AdwBox: `GtkBox` is GTK's primitive and libadwaita styles what a caller puts IN one. On the browser a box is a `<div>` — the DOM already is a box with a gap, so wrapping it in an element would carry no behaviour, the same verdict `<adw-card>` gets from the other side. NativeScript needed a class because its `StackLayout` has no gap at all (`Style` carries no `columnGap`/`rowGap`) and no `insert_after` child order, so the two things this widget adds are the two the platform lacks (gtk-box.ts). The rest is why: a documented pane that reaches into `@nativescript/core` for a box is a different PROGRAM from its `gjs` sibling, which is what ADR 0034 § Amendment 14's `composition` kind counts.",
     },
+    'bottom-sheet-bottom-bar': {
+        only: 'web',
+        decision:
+            '`adw_bottom_sheet_set_bottom_bar()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:35), not a type. NativeScript calls the setter — `set_bottom_bar`, reachable from XML as `<adw:BottomSheet.bottomBar>` — and the browser element is the markup spelling of GtkBuilder\'s `<child type="bottom-bar">`, which leaves nothing in the tree. The BEHAVIOUR behind the bar, which is the only affordance a user has for opening a sheet, is on both renderers and is held by BOTTOM_SHEET_OPEN_VECTORS and BOTTOM_SHEET_BOTTOM_BAR_VECTORS.',
+    },
     'bottom-sheet-content': {
         only: 'web',
         decision:

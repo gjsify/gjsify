@@ -88,7 +88,7 @@ const KNOWN_GAPS = {
     ],
     'adw-action-row': ['icon-name', 'subtitle-lines', 'subtitle-selectable', 'title-lines'],
     'adw-avatar': ['icon-name'],
-    'adw-bottom-sheet': ['align', 'can-open', 'full-width', 'reveal-bottom-bar'],
+    'adw-bottom-sheet': ['align', 'full-width'],
     'adw-carousel': ['reveal-duration'],
     'adw-clamp': ['unit'],
     'adw-combo-row': ['enable-search', 'search-match-mode', 'use-subtitle'],

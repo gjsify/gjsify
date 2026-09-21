@@ -18,6 +18,13 @@
 // libadwaita builds it `can_focus = FALSE`, `can_target = FALSE`, a decorative pill
 // whose only behavioural role is `allow_mouse_drag = show_drag_handle || bottom_bar`.
 //
+// THE BOTTOM BAR IS THE WAY IN. `set_bottom_bar()` gives the sheet the collapsed form it
+// morphs out of, and a tap on it is the ONLY affordance libadwaita offers a user for
+// opening a sheet (`bottom_bar_released_cb`, adw-bottom-sheet.c:263-284). Without one, a
+// sheet can be opened by its host and by nobody on the device — which is what this port
+// shipped, and what left easy6502's quick help unreachable on Android while its GNOME
+// original (whose `editor.blp` declares `bottom-bar` and writes `open` nowhere) worked.
+//
 // FIDELITY: compromised on the slide + scrim. This CSS subset has no z-index,
 // box-shadow or translate transition, so the sheet is bottom-aligned in the grid and
 // toggled by `visibility`: instant show/hide, no upward slide, no dimming
@@ -32,23 +39,30 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
-import type { BottomSheetCloseOutcome, BottomSheetCloseSource } from '@gjsify/adwaita-core';
+import type {
+    BottomSheetCloseOutcome,
+    BottomSheetCloseSource,
+    BottomSheetOpenOutcome,
+    BottomSheetOpenSource,
+} from '@gjsify/adwaita-core';
 
 import {
+    BOTTOM_BAR_CLASS,
     CLOSE_ATTEMPT,
     NOTIFY_OPEN,
     SHEET_CLOSE,
     addMarkerClass,
-    applySheetVisibility,
+    applyBottomSheetChrome,
     createBottomSheetPresentation,
     removeMarkerClass,
     requestBottomSheetClose,
-    sheetVisibility,
+    type BottomSheetPanes,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { attachRowPressFeedback } from './row-press.js';
 import { withSignals } from './signals.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
@@ -59,15 +73,20 @@ const CONTENT_CLASS = 'adw-bottom-sheet-content';
 /** Marker class applied to the view handed to {@link AdwBottomSheet.set_sheet}. */
 const SHEET_CLASS = 'adw-bottom-sheet-sheet';
 
-/** The two layers an XML child of a bottom sheet can ask for. */
-const BOTTOM_SHEET_SLOTS = ['sheet', 'content'] as const;
+/** The three layers an XML child of a bottom sheet can ask for. */
+const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'content'] as const;
 
 export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The always-visible content layer. */
     private _content: View | null = null;
-    /** The bottom sheet panel wrapper (drag handle + sheet child). */
+    /** The bottom-anchored bin holding both layers — libadwaita's `sheet_bin`. */
     protected readonly _sheetPanel: StackLayout;
+    /** The sheet page inside the bin: drag handle + sheet child. */
+    private readonly _sheetPage: StackLayout;
+    /** The bottom-bar bin — the bin's other layer, tapped to open the sheet. */
+    private readonly _bottomBarBin: StackLayout;
     private _sheetChild: View | null = null;
+    private _bottomBar: View | null = null;
     /** The shared open/can-close model — the single source of truth for both. */
     private readonly _state = createBottomSheetPresentation();
 
@@ -84,9 +103,24 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         sheetPanel.orientation = 'vertical';
         sheetPanel.className = 'adw-bottom-sheet-panel';
         sheetPanel.verticalAlignment = 'bottom';
-        sheetPanel.visibility = sheetVisibility(this._state.open);
         GridLayout.setColumn(sheetPanel, 0);
         GridLayout.setRow(sheetPanel, 0);
+
+        // The bin's two layers. In libadwaita they are one `GtkStack`; here they are two
+        // siblings whose visibility {@link applyBottomSheetChrome} drives together, because
+        // toggling them separately is how a port paints a bar over an open sheet.
+        const bottomBarBin = new StackLayout();
+        bottomBarBin.orientation = 'vertical';
+        bottomBarBin.className = BOTTOM_BAR_CLASS;
+        // The tap is the affordance. `requestOpen` still runs the gate, so `can-open` off
+        // keeps the bar tappable and refuses, exactly as the C handler does.
+        bottomBarBin.addEventListener('tap', () => this.requestOpen('bottom-bar'));
+        attachRowPressFeedback(bottomBarBin);
+        sheetPanel.addChild(bottomBarBin);
+
+        const sheetPage = new StackLayout();
+        sheetPage.orientation = 'vertical';
+        sheetPanel.addChild(sheetPage);
 
         const handle = new Label();
         handle.text = '━';
@@ -95,18 +129,31 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         // can_target = FALSE (adw-bottom-sheet.c:1198) — the handle is decorative
         // and must not swallow (or act on) a tap.
         handle.isUserInteractionEnabled = false;
-        sheetPanel.addChild(handle);
+        sheetPage.addChild(handle);
 
         this.addChild(sheetPanel);
         this._sheetPanel = sheetPanel;
+        this._sheetPage = sheetPage;
+        this._bottomBarBin = bottomBarBin;
+        this._paintChrome();
 
         this._state.subscribe((open) => {
-            applySheetVisibility(this._sheetPanel, open);
+            this._paintChrome();
             const data: NotifyOpenEventData = { eventName: NOTIFY_OPEN, object: this, open };
             this.notify(data);
         });
 
         applyConstructProps(this, props);
+    }
+
+    /** Push the current chrome onto the three views — the widget's whole rendering step. */
+    private _paintChrome(): void {
+        const panes: BottomSheetPanes = {
+            panel: this._sheetPanel,
+            page: this._sheetPage,
+            bottomBar: this._bottomBarBin,
+        };
+        applyBottomSheetChrome(panes, this._state.chrome);
     }
 
     /** Set (or replace) the always-visible content layer (painted under the sheet) — `adw_bottom_sheet_set_content`. */
@@ -135,24 +182,46 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         if (this._sheetChild === view) return;
         if (this._sheetChild) {
             this._sheetChild.className = removeMarkerClass(this._sheetChild.className, SHEET_CLASS);
-            this._sheetPanel.removeChild(this._sheetChild);
+            this._sheetPage.removeChild(this._sheetChild);
         }
         this._sheetChild = view;
         if (view) {
             view.className = addMarkerClass(view.className, SHEET_CLASS);
-            this._sheetPanel.addChild(view);
+            this._sheetPage.addChild(view);
         }
     }
 
     /**
-     * An XML child asks for the sheet or for the content, and a bare one is CONTENT —
-     * the always-visible layer, which is what a sheet with nothing behind it would be
-     * missing. `LayoutBase`'s inherited default would put either into the grid
-     * alongside the sheet panel, where it neither paints under the sheet nor moves
+     * Set (or replace) the bottom bar — `adw_bottom_sheet_set_bottom_bar`, shown in the
+     * sheet's place while it is closed.
+     *
+     * Presence is an INPUT to the open gate, not decoration: taking the bar away takes every
+     * on-device way of opening this sheet with it, which is why the state hears about it
+     * (upstream re-runs `update_swipe_tracker` from the same setter, adw-bottom-sheet.c:1629).
+     */
+    set_bottom_bar(view: View | null): void {
+        if (this._bottomBar === view) return;
+        // No marker class on the bar's own child: the bin carries the styling, and the two
+        // markers above exist only because `set_content`/`set_sheet` hand their view to a
+        // node this theme does not paint. One fewer class to keep the stylesheet honest about.
+        if (this._bottomBar) this._bottomBarBin.removeChild(this._bottomBar);
+        this._bottomBar = view;
+        if (view) this._bottomBarBin.addChild(view);
+        this._state.setHasBottomBar(view !== null);
+        this._paintChrome();
+    }
+
+    /**
+     * An XML child asks for the sheet, the bottom bar or the content, and a bare one is
+     * CONTENT — the always-visible layer, which is what a sheet with nothing behind it
+     * would be missing. `LayoutBase`'s inherited default would put any of them into the
+     * grid alongside the sheet panel, where it neither paints under the sheet nor moves
      * with it.
      */
     _addChildFromBuilder(name: string, view: View): void {
-        if (resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content') === 'sheet') this.set_sheet(view);
+        const slot = resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content');
+        if (slot === 'sheet') this.set_sheet(view);
+        else if (slot === 'bottomBar') this.set_bottom_bar(view);
         else this.set_content(view);
     }
 
@@ -170,6 +239,11 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The sheet panel's child, or `null` — the read-back for `set_sheet`. */
     get sheet(): View | null {
         return this._sheetChild;
+    }
+
+    /** The bottom bar's child, or `null` — the read-back for `set_bottom_bar`. */
+    get bottomBar(): View | null {
+        return this._bottomBar;
     }
 
     /**
@@ -206,6 +280,32 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     }
 
     /**
+     * Whether the user may open the sheet from its bottom bar (`AdwBottomSheet:can-open`).
+     *
+     * Off, the bar STAYS on screen and only gains the inert marker: libadwaita refuses the
+     * click in the handler rather than disabling the button (adw-bottom-sheet.c:2031-2038).
+     * There is no `open-attempt` signal to answer with, so a refused tap is silent.
+     */
+    get canOpen(): boolean {
+        return this._state.canOpen;
+    }
+
+    set canOpen(raw: boolean | string) {
+        if (!this._state.setCanOpen(xmlBoolean(raw, this.canOpen))) return;
+        this._paintChrome();
+    }
+
+    /** Whether the bottom bar is shown while the sheet is closed (`AdwBottomSheet:reveal-bottom-bar`). */
+    get revealBottomBar(): boolean {
+        return this._state.revealBottomBar;
+    }
+
+    set revealBottomBar(raw: boolean | string) {
+        if (!this._state.setRevealBottomBar(xmlBoolean(raw, this.revealBottomBar))) return;
+        this._paintChrome();
+    }
+
+    /**
      * Route a dismissal affordance through the shared gate and act on the
      * verdict: close, emit `close-attempt`, emit `sheet.close` for the host to
      * forward, or do nothing.
@@ -219,5 +319,16 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         const { outcome, eventName } = requestBottomSheetClose(this._state, source);
         if (eventName) this.notify({ eventName, object: this });
         return outcome;
+    }
+
+    /**
+     * Route an open affordance through the shared gate — the bar's own tap goes through
+     * here, and a host with a gesture of its own passes `'swipe'`.
+     *
+     * Unlike {@link requestClose} there is nothing to emit on a refusal: libadwaita has no
+     * `open-attempt` counterpart to `close-attempt`, so `'ignored'` is silent.
+     */
+    requestOpen(source: BottomSheetOpenSource): BottomSheetOpenOutcome {
+        return this._state.requestOpen(source);
     }
 }

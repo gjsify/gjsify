@@ -127,7 +127,7 @@ export { AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';
 
 // Slot wrappers and a declarative response: on GTK these are `set_content()`,
 // `set_sheet()` and `add_response()` — calls, not widgets.
-export { AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
+export { AdwBottomSheetBottomBar, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
 export { AdwAlertResponse } from './elements/adw-alert-dialog.js';
 
 // Supporting types — the option bags, enums and unions the widgets above take and

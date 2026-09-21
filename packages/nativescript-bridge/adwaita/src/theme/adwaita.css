@@ -1444,6 +1444,24 @@ Page.adw-window {
     margin: 0 0 6 0;
 }
 
+/* The collapsed form the sheet morphs out of, and the only thing a user can tap to
+   open it. Flat and radius-less inside the panel, like libadwaita's
+   `> sheet > stack > button` (_bottom-sheet.scss). */
+.adw-bottom-sheet-bottom-bar {
+    padding: 8 0;
+}
+
+.adw-bottom-sheet-bottom-bar:highlighted {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* can-open off: the bar stays tappable and loses only its press feedback, because
+   upstream refuses the click in the handler rather than disabling the button
+   (adw-bottom-sheet.c:2033-2036). */
+.adw-bottom-sheet-inert:highlighted {
+    background-color: transparent;
+}
+
 /* ===== Toast (transient snackbar) ===== */
 
 .adw-toast {
@@ -2135,6 +2153,14 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-bottom-sheet-handle {
     color: rgba(255, 255, 255, 0.3);
+}
+
+.ns-dark .adw-bottom-sheet-bottom-bar:highlighted {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+.ns-dark .adw-bottom-sheet-inert:highlighted {
+    background-color: transparent;
 }
 
 /* ===== Dark: toast (dark base already; tune for dark page) ===== */

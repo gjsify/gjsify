@@ -13,7 +13,7 @@
 
 import type { EventData, View } from '@nativescript/core';
 import { BottomSheetPresentation } from '@gjsify/adwaita-core';
-import type { BottomSheetCloseOutcome, BottomSheetCloseSource } from '@gjsify/adwaita-core';
+import type { BottomSheetChrome, BottomSheetCloseOutcome, BottomSheetCloseSource } from '@gjsify/adwaita-core';
 
 /** Event name emitted when the sheet's open state changes. Mirrors GObject `notify::open`. */
 export const NOTIFY_OPEN = 'notify::open';
@@ -47,17 +47,50 @@ export function createBottomSheetPresentation(): BottomSheetPresentation {
 }
 
 /**
- * The `visibility` the sheet panel must carry for the current open state. NS has
- * no transform transition in its CSS subset, so the reveal is instant — the
- * spring animation and its intermediate `progress` are not modelled here.
+ * The `visibility` a sheet pane must carry to be shown or not. NS has no transform
+ * transition in its CSS subset, so every reveal is instant — the spring animation and its
+ * intermediate `progress` are not modelled here.
  */
-export function sheetVisibility(open: boolean): NsSheetVisibility {
-    return open ? 'visible' : 'collapse';
+export function sheetVisibility(shown: boolean): NsSheetVisibility {
+    return shown ? 'visible' : 'collapse';
 }
 
-/** Push {@link sheetVisibility} onto the real panel view. */
-export function applySheetVisibility(panel: View, open: boolean): void {
-    panel.visibility = sheetVisibility(open);
+/** Marker class on the bottom-bar bin — the collapsed form the sheet morphs out of. */
+export const BOTTOM_BAR_CLASS = 'adw-bottom-sheet-bottom-bar';
+
+/**
+ * Marker class for a bar that refuses to open (`AdwBottomSheet:can-open` off).
+ *
+ * libadwaita spells it `inert` on the bin (adw-bottom-sheet.c:2033-2036) and takes only the
+ * hover/active feedback away with it; the bar stays a live, focusable button. Prefixed here
+ * because every class this port emits is held against `theme/adwaita.css` by name.
+ */
+export const INERT_CLASS = 'adw-bottom-sheet-inert';
+
+/** The three views a bottom sheet's chrome is painted onto. */
+export interface BottomSheetPanes {
+    /** The bottom-anchored bin — libadwaita's `sheet_bin`. */
+    panel: View;
+    /** The sheet page inside it: drag handle plus the sheet child. */
+    page: View;
+    /** The bottom-bar bin, the page's sibling in the same slot. */
+    bottomBar: View;
+}
+
+/**
+ * Paint a {@link BottomSheetChrome} onto the real views.
+ *
+ * The two `visibility` writes are ONE stack in libadwaita (`sheet_stack`), so they are
+ * mutually exclusive by construction here: NS has no stack, and two independently toggled
+ * panes is how a port ends up showing a bar on top of an open sheet.
+ */
+export function applyBottomSheetChrome(panes: BottomSheetPanes, chrome: BottomSheetChrome): void {
+    panes.panel.visibility = sheetVisibility(chrome.surfaceVisible);
+    panes.page.visibility = sheetVisibility(chrome.layer === 'sheet');
+    panes.bottomBar.visibility = sheetVisibility(chrome.layer === 'bottom-bar');
+    panes.bottomBar.className = chrome.bottomBarInert
+        ? addMarkerClass(panes.bottomBar.className, INERT_CLASS)
+        : removeMarkerClass(panes.bottomBar.className, INERT_CLASS);
 }
 
 /**

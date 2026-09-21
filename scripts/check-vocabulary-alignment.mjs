@@ -335,6 +335,7 @@ const WEB_ELEMENT_ALIGNMENT = {
     'adw-view-stack-page': { webOnly: 'AdwViewStackPage descends from GObject.Object, not GtkWidget' },
     // Declarative children with no GObject of their own: on GTK these are method calls.
     'adw-alert-response': { webOnly: 'a declarative form of Adw.AlertDialog.add_response()' },
+    'adw-bottom-sheet-bottom-bar': { webOnly: 'a slot wrapper; on GTK the slot is set_bottom_bar()' },
     'adw-bottom-sheet-content': { webOnly: 'a slot wrapper; on GTK the slot is set_content()' },
     'adw-bottom-sheet-sheet': { webOnly: 'a slot wrapper; on GTK the slot is set_sheet()' },
     'adw-view-switcher-page': { webOnly: 'a declarative page of the bundled switcher+stack; GTK keeps them apart' },
@@ -784,6 +785,9 @@ const NS_METHOD_ALIGNMENT = {
     },
     'adw-bottom-sheet.requestClose': {
         own: 'GTK gates dismissal with `Adw.BottomSheet:can-close` and the `close-attempt` signal, with no method. The port routes every dismissal affordance — scrim tap, drag, back — through one gate and exposes it so a host can add its own (adw-bottom-sheet.ts).',
+    },
+    'adw-bottom-sheet.requestOpen': {
+        own: 'GTK opens a sheet from a click on its bottom bar and from a swipe off it, both inside private handlers, with no method. The port routes every open affordance through one gate and exposes it so a host with a gesture of its own can use the same verdict (adw-bottom-sheet.ts).',
     },
     'adw-carousel.navigate': {
         own: "GTK moves a carousel through its swipe tracker and the indicator widgets, both of which call `scroll_to`; there is no navigate method. The port's keyboard and back-navigation helper over the headless state (adw-carousel.ts).",

@@ -171,8 +171,8 @@ const KNOWN_GAPS = {
         why: "There is no in-app dialog to carry them: this class maps onto the platform `confirm()` / `action()` sheet so the dialog looks like the user's OS rather than a libadwaita card (adw-alert-dialog.ts:12-16). A native sheet takes PLAIN strings — no Pango markup to enable — and picks its own width, so the wide-layout hint has nothing to hint to.",
     },
     'adw-bottom-sheet': {
-        gaps: ['align', 'canOpen', 'fullWidth', 'modal', 'revealBottomBar', 'showDragHandle'],
-        why: 'The sheet is bottom-aligned in a `GridLayout` and toggled by `visibility` — "no upward slide, no dimming scrim/backdrop-blur" (adw-bottom-sheet.ts, FIDELITY). Alignment, full-width and modality are properties of a presentation this port does not perform; the bottom bar and the drag handle are the two sub-widgets it does not build, and `can-open` gates an interaction that is a plain `open` write here.',
+        gaps: ['align', 'fullWidth', 'modal', 'showDragHandle'],
+        why: 'The sheet is bottom-aligned in a `GridLayout` and toggled by `visibility` — "no upward slide, no dimming scrim/backdrop-blur" (adw-bottom-sheet.ts, FIDELITY). Alignment, full-width and modality are properties of a presentation this port does not perform, and the drag handle is the one sub-widget it does not make optional: it is decorative upstream, so there is no behaviour behind hiding it. The bottom bar IS built, and with it `can-open` and `reveal-bottom-bar` — it is the only affordance a user has for opening a sheet, so leaving it out left an app whose GNOME original opens from the bar with no way in at all.',
     },
     'adw-carousel': {
         gaps: ['allowLongSwipes', 'allowMouseDrag', 'allowScrollWheel', 'revealDuration', 'spacing'],

@@ -509,12 +509,25 @@ export type {
 } from './chrome.js';
 
 // --- Bottom-sheet dismissal (Adw.BottomSheet) vectors ---
-export { BOTTOM_SHEET_CLOSE_VECTORS, BOTTOM_SHEET_PRESENTATION_VECTORS, runBottomSheetSteps } from './dialog.js';
+export {
+    BOTTOM_SHEET_BOTTOM_BAR_VECTORS,
+    BOTTOM_SHEET_CLOSE_VECTORS,
+    BOTTOM_SHEET_OPEN_VECTORS,
+    BOTTOM_SHEET_PRESENTATION_VECTORS,
+    BOTTOM_SHEET_SWIPE_TRACKER_VECTORS,
+    runBottomSheetBottomBarSteps,
+    runBottomSheetSteps,
+} from './dialog.js';
 export type {
+    BottomSheetBottomBarAdapter,
+    BottomSheetBottomBarStep,
+    BottomSheetBottomBarVector,
     BottomSheetCloseVector,
+    BottomSheetOpenVector,
     BottomSheetPresentationAdapter,
     BottomSheetPresentationStep,
     BottomSheetPresentationVector,
+    BottomSheetSwipeTrackerVector,
 } from './dialog.js';
 
 // --- Popover surface + keyboard navigation (GtkPopover) vectors ---
