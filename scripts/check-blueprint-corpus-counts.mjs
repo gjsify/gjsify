@@ -204,6 +204,11 @@ const SNAPSHOTS = [
         claims: 'a9a9c5dcff806020',
         why: "a dated re-derivation of 0058's census, with a § Method naming the revision, the compiler and the `@girs` pin it was taken under",
     },
+    {
+        file: 'docs/adr/0066-composition-gets-a-spelling-template-and-object-id.md',
+        claims: '643b82776b3aa6a4',
+        why: 'its before/after table is the measurement that justified the decision, taken at the revision the record names — a later corpus file moves the live count and must not silently rewrite the evidence the decision was made on',
+    },
 ];
 
 /**
