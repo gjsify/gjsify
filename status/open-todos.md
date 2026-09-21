@@ -6838,10 +6838,10 @@ blocks into the shared corpus: all 17 ledgered divergences are `property` (5),
 surface authors `adjustment` as an object and the other as the JSON string its XML door
 parses, and a shared node cannot be authored in two doors whatever `props` admits.
 
-So one loss is left needing a field, and ADR 0058 proposes it (**Proposed** — unmade): the
-translatable marking, spelled as `StringValue['translatable']` already is in the AST and
-landing with the `.blp` emitter that reads it, never before. And where `SharedNode` must
-live is still open, deliberately.
+So one loss was left needing a field, and ADR 0058 proposed it: the translatable marking,
+spelled as `StringValue['translatable']` already is in the AST. ADR 0067 landed exactly that
+spelling and dropped only its "never before the emitter" clause — see the paragraph below. And
+where `SharedNode` must live is still open, deliberately.
 
 **TWO OTHER LOSSES GOT A FIELD FIRST, and ADR 0066 is why.** `template` and `object-id` are
 not shape questions the way `slot` is, and they are not waiting on a consumer the way the
@@ -6849,8 +6849,29 @@ marking is: they are GtkBuilder's ADDRESSING model, they are what stopped every 
 from projecting without loss, and all three surfaces have a native form for each (a composite
 class and a node name; only `bind` is GTK-only). The projection now carries `id` on a node and
 `template` on a root, spelled as `<template class=…>` writes it, and the shipped `.blp` that
-project with no loss went from none to five of twelve. Every other loss kind stays refused,
-`translatable` among them, and ADR 0058's other four clauses are untouched.
+project with no loss went from none to five of twelve.
+
+**AND THEN THE MARKING FOLLOWED THEM, ADR 0067, on 0058's spelling and against its timing.**
+0058 § 1's field is taken verbatim — `Record<prop, { context? }>` beside `props`, the AST's own
+`StringValue['translatable']` per key — and § 2's "lands with the emitter, never before" is
+taken back on ADR 0066's test: the projection direction has readers today, and this is the one
+loss under which their output is WRONG rather than short, because a tree that lost its markings
+looks finished and is unreachable by `xgettext` (ADR 0033's whole argument, and
+`templates/gtk-minimal/src/main-window.blp` says so in its own comments). Shipped `.blp` with no
+loss 5 of 12 → 6 of 12, corpus-wide 23 → 25 of 68, losses 151 → 125. The field's REACH is 26 of
+the corpus's 43 marked strings: the other 17 sit inside a menu, a value list, a `responses`
+block, a closure or a `marks` list, and leave with the construct around them. `bind`,
+`breakpoint` and the file-level `translation-domain` stay refused — the domain because it is a
+fact about a FILE and the only place to hang it is the root node, where a lifted subtree would
+carry a domain from a file it is no longer in. Nine loss kinds are left refused, and ADR 0058's
+clauses 3, 4 and 5 are untouched.
+
+**What that measurement newly exposes is `styles`.** Three shipped files are now blocked by it
+ALONE — `header-bar.blp`, `toolbar-view.blp`, `gtk-minimal/src/main-window.blp` — where before
+the marking was always beside it, so closing `styles` would have moved nothing and nobody could
+see it. ADR 0058 § 4 already says the obstacle there is the vocabulary and not the shape, which
+makes ADR 0034's ledger countdown (above) the next thing between this repository and a lossless
+projection of half its `.blp`, rather than the thing after the next thing.
 `scripts/adwaita-gallery-shared-trees.d.mts` is a hand-written declaration whose own header refuses
 a second transcript, and the corpus reads it the way every other consumer does. The question
 becomes forced — not sooner — by the first PR that PUBLISHES a package producing the projection:

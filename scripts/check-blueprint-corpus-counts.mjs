@@ -209,6 +209,11 @@ const SNAPSHOTS = [
         claims: '643b82776b3aa6a4',
         why: 'its before/after table is the measurement that justified the decision, taken at the revision the record names — a later corpus file moves the live count and must not silently rewrite the evidence the decision was made on',
     },
+    {
+        file: 'docs/adr/0067-the-translatable-marking-becomes-a-field.md',
+        claims: 'e5bfbd579c5d9937',
+        why: 'the same shape one decision later, and for the same reason: its tables are two readings of one tree taken before and after the change, and its § How the numbers here were obtained says to read every count as a date',
+    },
 ];
 
 /**

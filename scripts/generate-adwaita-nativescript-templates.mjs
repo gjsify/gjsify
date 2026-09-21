@@ -405,6 +405,8 @@ export interface ExpectNode {
     slot?: string;
     /** Attribute name -> the value the widget must READ BACK, typed. */
     props?: Record<string, string | number | boolean>;
+    /** Which of those props the source marked for translation. No gallery block marks one. */
+    translatable?: Record<string, { context?: string }>;
     children?: ExpectNode[];
 }
 

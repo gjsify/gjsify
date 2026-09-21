@@ -344,6 +344,13 @@ without loss at all now and none did before. Both are held against the oracle's 
 stage D compares `node.template` to the golden's `<template class="…">` and every `node.id` to
 the golden's `id="…"`, so the two exits cannot describe one file's addressing differently.
 
+The `_()` marking joined them under ADR 0067, held the same way — the golden's
+`translatable="yes"` and `context="…"` against `node.translatable`, as a multiset, because the
+emitter re-orders and the hand-written tree is what pins WHERE each marking sits. It reaches
+the 26 markings that sit on a scalar property; the corpus's other 17 sit inside a menu, a value
+list, a `responses` block, a closure or a `marks` list and leave with those. The file-level
+`translation-domain` stays a loss: it is a fact about the file, and this shape is a tree.
+
 ### An earlier version of this file got item 2 wrong, and how
 
 It claimed the published types already carried positional enum values — measured on

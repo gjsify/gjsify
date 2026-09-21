@@ -86,6 +86,11 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 
 // ------------------------------------------------------------------ 1. the ledger
 
+// The one delta line that repeats across every `apart` entry, written once: the marking of
+// ADR 0067 is absent from all five of them, and five copies of one string is five places to
+// forget when its spelling moves.
+const MARK = '- translatable?: Record<string, { context?: string }>';
+
 /** The declaration that decides the shape. Everything else is measured against it. */
 const ORIGINAL = {
     file: 'packages/web/adwaita-core/src/conformance/shared-trees.ts',
@@ -143,6 +148,7 @@ const FAMILY = [
             '- id?: string',
             '- slot?: string',
             '- template?: string',
+            `${MARK}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -165,6 +171,7 @@ const FAMILY = [
             '+ gtype: string',
             '- id?: string',
             '- template?: string',
+            `${MARK}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -185,6 +192,7 @@ const FAMILY = [
             '- props?: Record<string, string | number | boolean>',
             '- slot?: string',
             '- template?: string',
+            `${MARK}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -409,6 +417,7 @@ export interface SharedTreeNode {
     template?: string;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
+    translatable?: Readonly<Record<string, { readonly context?: string }>>;
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -422,6 +431,7 @@ const VECTORS = [
     template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
+    translatable?: Record<string, { context?: string }>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -435,6 +445,7 @@ const VECTORS = [
     template?: string;
     slot: string;
     props?: Record<string, string | number | boolean>;
+    translatable?: Record<string, { context?: string }>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -454,6 +465,7 @@ const VECTORS = [
             '+ gtype: string',
             '- id?: string',
             '- template?: string',
+            `${MARK}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -464,6 +476,7 @@ const VECTORS = [
     id?: string;
     template?: string;
     props?: Record<string, string | number | boolean>;
+    translatable?: Record<string, { context?: string }>;
     children?: Lossy[];
 }`,
         'Lossy',
@@ -478,6 +491,7 @@ const VECTORS = [
     slot?: string;
     render: (into: Callbacky) => void;
     props?: Record<string, string | number | boolean>;
+    translatable?: Record<string, { context?: string }>;
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -491,6 +505,7 @@ const VECTORS = [
     template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
+    translatable?: Record<string, { context?: string }>;
     children?: (Widened | string)[];
 }`,
         'Widened',

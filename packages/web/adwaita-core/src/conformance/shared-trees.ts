@@ -86,6 +86,21 @@ export interface SharedTreeNode {
     template?: string;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
+    /**
+     * Which of this node's `props` are marked for translation, keyed by the prop name.
+     *
+     * A present key means marked; `context` carries the message context `C_("noun", …)` gives
+     * one. BESIDE `props` and not inside it, because that is what the marking is wherever a
+     * surface has one: GtkBuilder writes `translatable="yes" context="noun"` as attributes NEXT
+     * to the value, and a marked value is still the same value. Widening `props` to a union
+     * would make every reader of a value narrow past something that is not one.
+     *
+     * Worth carrying although no renderer here translates: a caption whose marking was dropped
+     * looks finished and is unreachable by `xgettext`, which is the exact defect ADR 0033 gives
+     * as its reason for preferring a declarative template. ADR 0067 measures it and says why
+     * the file-level `translation-domain` is not a node fact and stays a loss.
+     */
+    translatable?: Readonly<Record<string, { readonly context?: string }>>;
     children?: readonly SharedTreeNode[];
 }
 

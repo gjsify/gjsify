@@ -35,6 +35,8 @@ export interface SharedNode {
     template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
+    /** Which of `props` carry an `_()` marking, with `C_()`'s context where there is one. */
+    translatable?: Record<string, { context?: string }>;
     children?: SharedNode[];
 }
 

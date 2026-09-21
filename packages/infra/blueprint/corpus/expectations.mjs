@@ -63,7 +63,7 @@
 //   THE LINE A LOSS NAMES is the line of the construct that is dropped, and where that
 //   construct spans lines it is the OPENING one: the object line for `breakpoint` and
 //   `sibling-object` (never the bracket above it), the property line
-//   for `translatable`, `binding` and `value-list`, the `styles [` / `layout {` /
+//   for `binding` and `value-list`, the `styles [` / `layout {` /
 //   `accessibility {` line for those three.
 //
 //   `children` IS IN SOURCE ORDER, including where bracket-derived and
@@ -88,8 +88,13 @@
  * `template` and `object-id` were on this list until ADR 0066 gave each a field on the node.
  * They are the two GtkBuilder ADDRESSING constructs, and dropping them is what kept every
  * shipped `.blp` out of the shared shape: a file declared a widget and could not place one.
+ * `translatable` left it the same way under ADR 0067, and for the opposite reason: a dropped
+ * marking leaves a tree that looks COMPLETE and whose captions `xgettext` cannot see.
  *
- * @typedef {'translatable'|'signal'|'binding'|'breakpoint'
+ * `translation-domain` stays, and is the marking's remainder: `translation-domain "app";` is a
+ * fact about the FILE, and this shape is a tree — ADR 0067 § 4.
+ *
+ * @typedef {'signal'|'binding'|'breakpoint'
  *          |'menu'|'styles'|'layout'|'accessibility'|'comment'|'value-list'
  *          |'sibling-object'|'responses'|'extern'} LossKind
  */
@@ -196,19 +201,16 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'GtkBox',
             children: [
-                { tag: 'GtkLabel', props: { label: 'translated' } },
-                { tag: 'GtkLabel', props: { label: 'context-translated' } },
+                { tag: 'GtkLabel', props: { label: 'translated' }, translatable: { label: {} } },
+                {
+                    tag: 'GtkLabel',
+                    props: { label: 'context-translated' },
+                    translatable: { label: { context: 'noun' } },
+                },
             ],
         },
-        lost: [
-            {
-                kind: 'translatable',
-                line: 5,
-                detail: 'the `_()` marking; the string survives, its translatability does not',
-            },
-            { kind: 'translatable', line: 9, detail: 'the `C_()` marking AND the message context `noun`' },
-        ],
-        note: 'The costly loss: ADR 0033 prefers declarative templates partly BECAUSE `.blp` marks translatable strings, and this is the exit where that marking stops.',
+        lost: [],
+        note: 'The file that isolates the marking, and the ONE place in this corpus where a context reaches the tree: six other `C_()` contexts sit inside a menu, a value list, a `responses` block, a closure and a `marks` list, each lost with the construct around it. `_()` is `{}` and `C_("noun", …)` is `{ context: "noun" }` — the empty object is "marked, nothing more", not "unmarked".',
     },
     {
         file: '10-styles.blp',

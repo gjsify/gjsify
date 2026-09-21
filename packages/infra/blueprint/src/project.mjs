@@ -4,12 +4,14 @@
 // named at the seam rather than discovered downstream". This is that seam. Every loss it
 // takes is returned beside the tree, so nothing downstream has to discover one.
 //
-// TWO OF THEM STOPPED BEING LOSSES, AND THAT IS WHAT MADE THE EXIT USABLE. ADR 0066 gave
+// THREE OF THEM STOPPED BEING LOSSES, AND THAT IS WHAT MADE THE EXIT USABLE. ADR 0066 gave
 // `template` and `object-id` a field each on the node. They are GtkBuilder's two ADDRESSING
 // constructs — the class a tree DEFINES and the name a node is addressed BY — and dropping
 // them is why no shipped `.blp` in this repository projected without loss: a file could
-// declare a widget and not place one. `_()`, `bind` and `breakpoint` stay losses and stay
-// declared; ADR 0066 § 3 says why each.
+// declare a widget and not place one. ADR 0067 then gave the `_()` marking one, for the
+// opposite reason: dropping it leaves a tree that looks FINISHED and whose captions
+// `xgettext` can no longer see. `bind` and `breakpoint` stay losses and stay declared; ADR
+// 0067 § 3 says why each, and why the file-level `translation-domain` is not a node fact.
 //
 // WHAT THIS MAKES CHECKABLE, WHICH NOTHING WAS BEFORE
 //
@@ -121,6 +123,8 @@ const scalarOf = (value, tag) => {
 const projectBody = (body, tag) => {
     /** @type {Record<string, string | number | boolean>} */
     const props = {};
+    /** @type {Record<string, { context?: string }>} */
+    const translatable = {};
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
@@ -138,7 +142,17 @@ const projectBody = (body, tag) => {
             continue;
         }
         const scalar = scalarOf(property.value, tag);
-        if (scalar !== undefined) props[property.name] = scalar;
+        if (scalar === undefined) continue;
+        props[property.name] = scalar;
+        // The marking travels with the prop and is keyed by the same name, so the two cannot
+        // come apart. A fresh object rather than the AST's own: the tree is handed to
+        // consumers that may keep it, and sharing the parser's node would let one of them
+        // reach back into the parse. Absent `context` stays absent — `{}` is "marked, no
+        // context", which is what `_()` means beside `C_()`.
+        if (property.value.kind === 'string' && property.value.translatable !== undefined) {
+            const { context } = property.value.translatable;
+            translatable[property.name] = context === undefined ? {} : { context };
+        }
     }
     for (const child of body.children) {
         placed.push({
@@ -161,6 +175,7 @@ const projectBody = (body, tag) => {
 
     return {
         ...(Object.keys(props).length > 0 ? { props } : {}),
+        ...(Object.keys(translatable).length > 0 ? { translatable } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -205,8 +220,6 @@ const lossesOf = (file) => {
                 // `styles` has its own fate — ADR 0049 makes style classes a list, and
                 // `props` holds none — while `strings`/`widgets` are ordinary value lists.
                 lost.push({ kind: property.name === 'styles' ? 'styles' : 'value-list', line: property.line });
-            } else if (value.kind === 'string' && value.translatable) {
-                lost.push({ kind: 'translatable', line: property.line });
             } else if (value.kind === 'menu') {
                 // A menu written AT the property. `SharedNode` has no menu form — a top-level
                 // one is already a `menu` loss, and this is the same loss in a second position.
