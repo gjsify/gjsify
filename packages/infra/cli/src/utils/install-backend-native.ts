@@ -266,6 +266,20 @@ export interface NativeInstallOptions extends InstallOptions {
      * required, the pre-platform-filter behaviour.
      */
     optionalSpecs?: Set<string>;
+    /**
+     * Names provided by a `gjsify link` development override (`utils/dev-link.ts`):
+     * `node_modules/<name>` is a symlink into a local checkout, so the registry copy
+     * must not be fetched over it — `assertNodeModulesDest` refuses that extract and
+     * aborts the whole install, correctly, since it would delete the checkout.
+     *
+     * DELIBERATELY NOT `workspaceNames`, the set it is otherwise shaped like. That
+     * one also reaches `resolveDeps` and removes the subtree from the RESOLVE — and
+     * the resolve is what writes `gjsify-lock.json`. A link is a local development
+     * decision that must leave the consumer's committed lockfile byte-identical, so
+     * these names are dropped only from what gets DOWNLOADED, after the lockfile has
+     * been written from the full resolved tree.
+     */
+    linkedNames?: Set<string>;
 }
 
 export async function installPackagesNative(opts: NativeInstallOptions): Promise<InstalledTopLevel[]> {
@@ -435,6 +449,19 @@ async function installPackagesNativeLocked(
         const dropped = before - nodes.length;
         if (dropped > 0) {
             log('install: %d workspace-provided package(s) symlinked, not fetched', dropped);
+        }
+    }
+
+    // Same exclusion, different reason and a different position in the pipeline: a
+    // `gjsify link` override provides these from a local checkout. It runs AFTER the
+    // lockfile write above on purpose — the consumer's committed lockfile must stay
+    // byte-identical whether or not a link is active (utils/dev-link.ts).
+    if (opts.linkedNames && opts.linkedNames.size > 0) {
+        const before = nodes.length;
+        nodes = nodes.filter((n) => !opts.linkedNames!.has(n.name));
+        const dropped = before - nodes.length;
+        if (dropped > 0) {
+            log('install: %d dev-linked package(s) provided by a local checkout, not fetched', dropped);
         }
     }
 

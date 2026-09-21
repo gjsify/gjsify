@@ -38,6 +38,8 @@ import {
     shipCommand as ship,
     dlxCommand as dlx,
     installCommand as install,
+    linkCommand as link,
+    unlinkCommand as unlink,
     foreachCommand as foreach,
     workspaceCommand as workspace,
     packCommand as pack,
@@ -139,6 +141,8 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .wrap(cli.terminalWidth())
         .command(create.command, create.description, create.builder, create.handler)
         .command(install.command, install.description, install.builder, install.handler)
+        .command(link.command, link.description, link.builder, link.handler)
+        .command(unlink.command, unlink.description, unlink.builder, unlink.handler)
         .command(build.command, build.description, build.builder, build.handler)
         .command(clear.command, clear.description, clear.builder, clear.handler)
         .command(copy.command, copy.description, copy.builder, copy.handler)
