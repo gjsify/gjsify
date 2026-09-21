@@ -3,8 +3,8 @@
 // The planner rows are plain objects, so nested placements, symlinks and subtree
 // collapsing are decidable without a filesystem.
 //
-// The last two rows are the guard that matters: they plant a real tree and call the
-// real `installPackagesNative({ frozen: true })` — the exact entry point that exited
+// The last three rows are the guard that matters: they plant a real tree and call
+// the real `installPackagesNative({ frozen: true })` — the exact entry point that exited
 // 0 over a poisoned `node_modules` in gjsify#1683. A pure-function test alone would
 // have passed while `--immutable` went on ignoring the stranger, which is precisely
 // how the defect survived. Both run offline: the refusal fires before any download,
@@ -198,6 +198,46 @@ export default async () => {
                 }
                 expect(message).toContain('node_modules/pkg-a/node_modules/pkg-b');
                 expect(message).toContain('pkg-b@2.0.0');
+            } finally {
+                rmSync(prefix, { recursive: true, force: true });
+            }
+        });
+
+        await it('reports a dev-LINKED top-level package as installed, not as absent', async () => {
+            // REGRESSION, blocker 1 of the #1730 review — the defect that broke the
+            // one promise `gjsify link` makes: that the consumer's package.json and
+            // lockfile do not change.
+            //
+            // `linkedNames` drops the linked node from the FETCH set, and the
+            // backend used to answer `topLevelResolutions` from that same filtered
+            // array. So `result.installed` had no `pkg-a`, `commands/install.ts`
+            // fell back to `'latest'`, and `gjsify install is-odd` against a linked
+            // is-odd rewrote `"is-odd": "^3.0.1"` to `"is-odd": "latest"` in
+            // package.json AND `is-odd@latest` in the lockfile's `requested`. The
+            // control run without the link wrote `^3.0.1`.
+            //
+            // Offline like its two neighbours: frozen path, tree already extracted,
+            // and the linked package is excluded from the fetch anyway.
+            const prefix = mkdtempSync(join(tmpdir(), 'gjsify-linked-resolution-'));
+            try {
+                writeLock(prefix, {
+                    'node_modules/pkg-a': { version: '1.0.0', resolved: 'https://example.invalid/a.tgz' },
+                });
+                writePackage(prefix, 'node_modules/pkg-a', 'pkg-a');
+
+                const out = await installPackagesNative({
+                    prefix,
+                    specs: ['pkg-a@1.0.0'],
+                    frozen: true,
+                    lockfile: false,
+                    progress: QUIET,
+                    linkedNames: new Set(['pkg-a']),
+                });
+                // Present is not the same question as downloaded. A linked package
+                // is installed — by a symlink — so the resolution must survive.
+                expect(out.length).toBe(1);
+                expect(out[0]!.name).toBe('pkg-a');
+                expect(out[0]!.version).toBe('1.0.0');
             } finally {
                 rmSync(prefix, { recursive: true, force: true });
             }

@@ -80,6 +80,15 @@ would rewrite the consumer's committed lockfile the moment a link went active �
 rule 1 promises not to do. So `linkedNames` is a separate option applied **after** the lockfile
 write and only to the download set.
 
+**And "not fetched" is not "not installed."** The first implementation answered the installer's
+`topLevelResolutions` — the map `gjsify install <pkg>` writes back into `package.json` — from the
+same array the exclusion had already filtered, so a linked package had no resolved version at
+all. Measured on a throwaway consumer: `gjsify install is-odd` with is-odd linked rewrote
+`"is-odd": "^3.0.1"` to `"is-odd": "latest"` and put `is-odd@latest` into the lockfile's
+`requested`; the control run without the link wrote `^3.0.1`. That is rule 1 broken by the code
+that implements rule 3. The tree of resolved nodes and the set still to download are therefore
+two named values in `install-backend-native.ts` (`nodes` and `fetchable`) and must stay two.
+
 ### What `link` links
 
 The checkout's workspace packages, narrowed by `--packages`, **intersected** with what the

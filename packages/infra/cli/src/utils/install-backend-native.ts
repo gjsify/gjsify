@@ -436,6 +436,17 @@ async function installPackagesNativeLocked(
         log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
     }
 
+    // TWO NAMES FROM HERE ON, and the split is the fix for a measured defect.
+    // `nodes` stays the FULL resolved tree — what the lockfile describes and what
+    // `topLevelResolutions` answers from. `fetchable` is the subset that still has
+    // to come off the network. A package can be present without being fetched, and
+    // collapsing the two made the installer forget it existed: with a `gjsify link`
+    // active, `gjsify install is-odd` read the FILTERED array, found no `is-odd`
+    // resolution, and wrote `"is-odd": "latest"` into package.json and
+    // `is-odd@latest` into the lockfile's `requested` — over the `^3.0.1` the
+    // control run without the link produced. Never re-merge these two names.
+    let fetchable = nodes;
+
     // A package named after one of the monorepo's own workspaces is provided by a
     // workspace symlink (wired by `workspaceInstall`), NOT by a registry tarball —
     // even when the lockfile or a transitive edge pins a same-named published
@@ -444,9 +455,9 @@ async function installPackagesNativeLocked(
     // `--immutable` robust against a committed lockfile that still carries such
     // entries, since that path never runs `resolveDeps`.
     if (opts.workspaceNames && opts.workspaceNames.size > 0) {
-        const before = nodes.length;
-        nodes = nodes.filter((n) => !opts.workspaceNames!.has(n.name));
-        const dropped = before - nodes.length;
+        const before = fetchable.length;
+        fetchable = fetchable.filter((n) => !opts.workspaceNames!.has(n.name));
+        const dropped = before - fetchable.length;
         if (dropped > 0) {
             log('install: %d workspace-provided package(s) symlinked, not fetched', dropped);
         }
@@ -457,9 +468,9 @@ async function installPackagesNativeLocked(
     // lockfile write above on purpose — the consumer's committed lockfile must stay
     // byte-identical whether or not a link is active (utils/dev-link.ts).
     if (opts.linkedNames && opts.linkedNames.size > 0) {
-        const before = nodes.length;
-        nodes = nodes.filter((n) => !opts.linkedNames!.has(n.name));
-        const dropped = before - nodes.length;
+        const before = fetchable.length;
+        fetchable = fetchable.filter((n) => !opts.linkedNames!.has(n.name));
+        const dropped = before - fetchable.length;
         if (dropped > 0) {
             log('install: %d dev-linked package(s) provided by a local checkout, not fetched', dropped);
         }
@@ -468,7 +479,7 @@ async function installPackagesNativeLocked(
     // os/cpu/libc: throws for an incompatible REQUIRED dep, marks incompatible
     // OPTIONAL ones inert. Runs on BOTH paths (fresh resolve and lockfile) —
     // that is what makes one committed lockfile install a per-host subset.
-    const installable = applyPlatformFilter(nodes, target, force, log);
+    const installable = applyPlatformFilter(fetchable, target, force, log);
 
     log('install: downloading %d tarball(s)', installable.length);
     await downloadAndExtractAll(installable, opts.prefix, npmrc, log, opts.signal, progress);
@@ -477,7 +488,9 @@ async function installPackagesNativeLocked(
     log('install: done');
 
     // Top-level requested packages only, so callers can write the resolved version
-    // back into package.json (`npm install --save`).
+    // back into package.json (`npm install --save`). From `nodes`, NEVER from
+    // `fetchable`: "what is installed at node_modules/<name>" is not "what was
+    // downloaded", and a provided package is installed.
     return topLevelResolutions(opts.specs, nodes);
 }
 
