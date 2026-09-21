@@ -32,7 +32,7 @@
 // Nothing about the IMPLEMENTATION. It reads the `types` condition of `exports`, so it holds
 // what `index.d.mts` DECLARES; `index.mjs` is not in the program, and dropping an `export` from
 // it leaves this file green — measured. That half belongs to `check-blueprint-corpus.mjs`,
-// which imports the package at run time and names any of the eight that stops being a
+// which imports the package at run time and names any of the TEN that stops being a
 // function. Two lists, in two files, held by two mechanisms, because neither can see what the
 // other does.
 
@@ -50,6 +50,7 @@ import type {
     LiteralExpression,
     LookupExpression,
     MenuNode,
+    MenuValue,
     NumberValue,
     ObjectNode,
     ObjectValue,
@@ -96,7 +97,18 @@ export type SurfaceIsExactlyThese = Assert<
 >;
 
 export type EveryValueArmIsNamed = Assert<
-    Same<Value, BindingValue | BoolValue | IdentValue | ListValue | NumberValue | ObjectValue | StringValue | TypeValue>
+    Same<
+        Value,
+        | BindingValue
+        | BoolValue
+        | IdentValue
+        | ListValue
+        | MenuValue
+        | NumberValue
+        | ObjectValue
+        | StringValue
+        | TypeValue
+    >
 >;
 
 export type EveryExpressionArmIsNamed = Assert<
