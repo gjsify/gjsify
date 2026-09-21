@@ -69,7 +69,6 @@ import {
     sharedTreeExpectations,
     subjectIndexOf,
     type SharedTreeExpectation,
-    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 // The core's OWN character count, applied to text taken off the tree. Counting here
 // instead would be a second `g_utf8_strlen` for the driver to agree with itself about.
@@ -77,115 +76,14 @@ import { entryTextLength } from '@gjsify/adwaita-core';
 
 import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
 
-// The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
-// Imported as MODULE NAMESPACES because that is literally what this door is:
-// `component-builder`'s `createComponentInstance` ends in `instanceModule[elementName]`, and
-// the prefix selects the module. Importing the widget classes by name instead would be a
-// per-widget table and would skip the door entirely.
-import * as Adw from './namespace/adw.js';
-import * as Gtk from './namespace/gtk.js';
+// `elementFor`/`build` are the shipped `xmlns`-barrel interpreter, not test code — moved to
+// `./builder/index.ts` (the NativeScript half of PR #1726's gtk-host move) so this spec stays
+// free of the widget-class imports its OWN header explains the package normally forbids: the
+// barrels those two functions reach are what put every widget module's `@nativescript/core`
+// import in the build graph, and that module's own header carries the reachability rule.
+import { build, elementFor } from './builder/index.js';
 
 import { Button, LayoutBase, Switch, TextField, type View } from './testing/ns-core.mjs';
-
-/** A class the barrel offers as an element — NativeScript builds one with NO arguments. */
-type ElementClass = new () => View;
-
-/** `AdwSwitchRow` -> `<adw:SwitchRow>`: the element name, and the class behind it. */
-interface Element {
-    /** The XML name this dialect spells, which is also what an XML child arrives under. */
-    xmlName: string;
-    ctor: ElementClass;
-}
-
-const BARRELS: Readonly<Record<string, object>> = { adw: Adw, gtk: Gtk };
-
-/**
- * The element a GIR class name is, in the `xmlns` barrel dialect.
- *
- * THE WHOLE TRANSFORM, and it is a split rather than a table: the prefix names the library,
- * the member is the rest. What makes it safe is that the member is then READ OFF THE BARREL
- * — the same module NativeScript would read — so a placement this split gets wrong is a
- * missing member and throws, never another library's widget under this prefix. That is the
- * measured hazard `generate-adwaita-nativescript-templates.mjs` records as the
- * prefix-as-membership-test defect: the defect was deciding placement from the name ALONE.
- *
- * The class the barrel hands back must be the class the corpus NAMED, which is ADR 0034
- * clause 1 — a widget is named after the library owning its GType — held at runtime instead
- * of taken on trust. (This suite's bundles are built `--no-minify` so a class name is the
- * one the source declares; a mangled one fails here rather than resolving to a stranger.)
- */
-function elementFor(tag: string): Element {
-    for (const [prefix, barrel] of Object.entries(BARRELS)) {
-        const library = `${prefix[0]!.toUpperCase()}${prefix.slice(1)}`;
-        if (!tag.startsWith(library)) continue;
-        const member = tag.slice(library.length);
-        const exported = (barrel as Record<string, unknown>)[member];
-        if (typeof exported !== 'function') {
-            throw new Error(
-                `Module '~/${prefix}' has no member for element '${prefix}:${member}' — the name ` +
-                    `\`${tag}\` is authored in the shared corpus and this dialect cannot spell it. Give the ` +
-                    'widget a namespace member (ADR 0034 clause 2), or ledger the block as divergent.',
-            );
-        }
-        if (exported.name !== tag) {
-            throw new Error(
-                `'${prefix}:${member}' resolves to class \`${exported.name}\`, not \`${tag}\`. The corpus is ` +
-                    'authored in GIR class names and ADR 0034 clause 1 says a widget carries that name, so a ' +
-                    'barrel member bound to another class would build the wrong widget at exit 0.',
-            );
-        }
-        return { xmlName: `${prefix}:${member}`, ctor: exported as ElementClass };
-    }
-    throw new Error(
-        `\`${tag}\` starts with no library this dialect has a barrel for (${Object.keys(BARRELS).join(', ')}).`,
-    );
-}
-
-/** What a parent must be for an XML child to reach a slot rather than the first cell. */
-interface BuilderParent {
-    _addChildFromBuilder(name: string, view: View): void;
-}
-
-/**
- * Build one authored node the way NativeScript's XML builder does: construct with no
- * arguments, write the attributes, then hand each child to the parent's own child door.
- *
- * AN ATTRIBUTE IS ALWAYS A STRING, and that is the door rather than a choice of this
- * driver: `setPropertyValue` ends in `instance[name] = value` with no conversion at all for
- * a plain accessor, so a setter declared `boolean` is handed `'true'`. Writing the authored
- * boolean instead would drive the construct-props bag — a different door — and would leave
- * the coercion `widgets/xml-values.ts` exists for untested on the trees the website ships.
- *
- * AN ATTRIBUTE THAT LANDS NOWHERE IS REFUSED HERE. `instance[name] = value` on a name
- * nothing declares adds a dead own-property and returns, at exit 0 — this surface's own
- * silent drop. The membership test runs BEFORE the write, because afterwards the dead
- * property answers it.
- */
-function build(node: SharedTreeNode): View {
-    const element = elementFor(node.tag);
-    const view = new element.ctor();
-    for (const [prop, value] of Object.entries(node.props ?? {})) {
-        if (!(prop in view)) {
-            throw new Error(
-                `<${element.xmlName} ${prop}="${value}"> reaches nothing: \`${node.tag}\` declares no ` +
-                    `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
-                    'so the attribute door cannot report this and the tree would render without it.',
-            );
-        }
-        (view as unknown as Record<string, unknown>)[prop] = String(value);
-    }
-    for (const child of node.children ?? []) {
-        const parent = view as unknown as Partial<BuilderParent>;
-        if (typeof parent._addChildFromBuilder !== 'function') {
-            throw new Error(
-                `<${element.xmlName}> takes no XML child: \`${node.tag}\` has no \`_addChildFromBuilder\`, so ` +
-                    'the corpus nests a node this element cannot hold.',
-            );
-        }
-        parent._addChildFromBuilder(elementFor(child.tag).xmlName, build(child));
-    }
-    return view;
-}
 
 /** Depth-first over the REAL child lists the port filled, in the order it filled them. */
 function descendants(root: View, into: View[] = []): View[] {
