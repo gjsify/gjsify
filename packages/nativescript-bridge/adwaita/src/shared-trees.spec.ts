@@ -69,7 +69,6 @@ import {
     sharedTreeExpectations,
     subjectIndexOf,
     type SharedTreeExpectation,
-    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 // The core's OWN character count, applied to text taken off the tree. Counting here
 // instead would be a second `g_utf8_strlen` for the driver to agree with itself about.
@@ -77,118 +76,46 @@ import { entryTextLength } from '@gjsify/adwaita-core';
 
 import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
 
-// The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
-// Imported as MODULE NAMESPACES because that is literally what this door is:
-// `component-builder`'s `createComponentInstance` ends in `instanceModule[elementName]`, and
-// the prefix selects the module. Importing the widget classes by name instead would be a
-// per-widget table and would skip the door entirely.
-import * as Adw from './namespace/adw.js';
-import * as Gtk from './namespace/gtk.js';
+// `elementFor`/`build` are the shipped `xmlns`-barrel interpreter, not test code — moved to
+// `./builder/index.ts` (the NativeScript half of PR #1726's gtk-host move) so this spec stays
+// free of the widget-class imports its OWN header explains the package normally forbids: the
+// barrels those two functions reach are what put every widget module's `@nativescript/core`
+// import in the build graph, and that module's own header carries the reachability rule.
+import { build, elementFor } from './builder/index.js';
 
-import { Button, LayoutBase, Switch, TextField, type View } from './testing/ns-core.mjs';
-
-/** A class the barrel offers as an element — NativeScript builds one with NO arguments. */
-type ElementClass = new () => View;
-
-/** `AdwSwitchRow` -> `<adw:SwitchRow>`: the element name, and the class behind it. */
-interface Element {
-    /** The XML name this dialect spells, which is also what an XML child arrives under. */
-    xmlName: string;
-    ctor: ElementClass;
-}
-
-const BARRELS: Readonly<Record<string, object>> = { adw: Adw, gtk: Gtk };
+import { Button, LayoutBase, Switch, TextField } from './testing/ns-core.mjs';
 
 /**
- * The element a GIR class name is, in the `xmlns` barrel dialect.
+ * THE ONE SEAM WHERE SHIPPED CODE MEETS THIS DOUBLE — deliberately typed as neither `View`.
  *
- * THE WHOLE TRANSFORM, and it is a split rather than a table: the prefix names the library,
- * the member is the rest. What makes it safe is that the member is then READ OFF THE BARREL
- * — the same module NativeScript would read — so a placement this split gets wrong is a
- * missing member and throws, never another library's widget under this prefix. That is the
- * measured hazard `generate-adwaita-nativescript-templates.mjs` records as the
- * prefix-as-membership-test defect: the defect was deciding placement from the name ALONE.
+ * `build()` is shipped, production code (`builder/index.ts`'s own header): it is typed
+ * `type`-only against the REAL `@nativescript/core` `View` on purpose, so it carries no
+ * dependency on this double's directory layout. This driver's walk, below, is typed against
+ * THIS double's own `LayoutBase`/`Button`/`Switch`/`TextField` on purpose too, because those
+ * are the concrete classes an `instanceof` check narrows to and reads from. Before this
+ * builder shipped, both sides were the SAME file and there was no seam to name; ADR 0051's
+ * tree driver used to construct its own tree inline, against its own `View`.
  *
- * The class the barrel hands back must be the class the corpus NAMED, which is ADR 0034
- * clause 1 — a widget is named after the library owning its GType — held at runtime instead
- * of taken on trust. (This suite's bundles are built `--no-minify` so a class name is the
- * one the source declares; a mangled one fails here rather than resolving to a stranger.)
+ * A plain alias to either concrete `View` does not survive the walk. `ns-core.d.ts`'s
+ * ambient `View` carries its own `private _measuredWidth` guard (its header: so a widget
+ * cannot shadow a real NativeScript field unseen) and this double's `View` carries its own
+ * `private _className` backing field — and TypeScript seals a class against being assigned
+ * to or from anything but itself the moment EITHER side declares a private member of its
+ * own, independent of how the public shape lines up. It is not just the top-level `View`,
+ * either: `LayoutBase.getChildAt` returns THIS double's `View`, which the walk below feeds
+ * straight back into itself, so `View.animate`'s own `AnimationDefinition.target?: View`
+ * drags the ambient guard back into the SAME comparison — measured, not assumed: typing this
+ * walk against the ambient `View` directly still failed, one recursion level down, on that
+ * `target` field.
+ *
+ * `TreeNode` is what both `View`s were always going to satisfy, because it asks nothing of
+ * either: everything this walk actually reads happens AFTER narrowing to one of this
+ * double's own concrete classes below, never on the unnarrowed node.
  */
-function elementFor(tag: string): Element {
-    for (const [prefix, barrel] of Object.entries(BARRELS)) {
-        const library = `${prefix[0]!.toUpperCase()}${prefix.slice(1)}`;
-        if (!tag.startsWith(library)) continue;
-        const member = tag.slice(library.length);
-        const exported = (barrel as Record<string, unknown>)[member];
-        if (typeof exported !== 'function') {
-            throw new Error(
-                `Module '~/${prefix}' has no member for element '${prefix}:${member}' — the name ` +
-                    `\`${tag}\` is authored in the shared corpus and this dialect cannot spell it. Give the ` +
-                    'widget a namespace member (ADR 0034 clause 2), or ledger the block as divergent.',
-            );
-        }
-        if (exported.name !== tag) {
-            throw new Error(
-                `'${prefix}:${member}' resolves to class \`${exported.name}\`, not \`${tag}\`. The corpus is ` +
-                    'authored in GIR class names and ADR 0034 clause 1 says a widget carries that name, so a ' +
-                    'barrel member bound to another class would build the wrong widget at exit 0.',
-            );
-        }
-        return { xmlName: `${prefix}:${member}`, ctor: exported as ElementClass };
-    }
-    throw new Error(
-        `\`${tag}\` starts with no library this dialect has a barrel for (${Object.keys(BARRELS).join(', ')}).`,
-    );
-}
-
-/** What a parent must be for an XML child to reach a slot rather than the first cell. */
-interface BuilderParent {
-    _addChildFromBuilder(name: string, view: View): void;
-}
-
-/**
- * Build one authored node the way NativeScript's XML builder does: construct with no
- * arguments, write the attributes, then hand each child to the parent's own child door.
- *
- * AN ATTRIBUTE IS ALWAYS A STRING, and that is the door rather than a choice of this
- * driver: `setPropertyValue` ends in `instance[name] = value` with no conversion at all for
- * a plain accessor, so a setter declared `boolean` is handed `'true'`. Writing the authored
- * boolean instead would drive the construct-props bag — a different door — and would leave
- * the coercion `widgets/xml-values.ts` exists for untested on the trees the website ships.
- *
- * AN ATTRIBUTE THAT LANDS NOWHERE IS REFUSED HERE. `instance[name] = value` on a name
- * nothing declares adds a dead own-property and returns, at exit 0 — this surface's own
- * silent drop. The membership test runs BEFORE the write, because afterwards the dead
- * property answers it.
- */
-function build(node: SharedTreeNode): View {
-    const element = elementFor(node.tag);
-    const view = new element.ctor();
-    for (const [prop, value] of Object.entries(node.props ?? {})) {
-        if (!(prop in view)) {
-            throw new Error(
-                `<${element.xmlName} ${prop}="${value}"> reaches nothing: \`${node.tag}\` declares no ` +
-                    `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
-                    'so the attribute door cannot report this and the tree would render without it.',
-            );
-        }
-        (view as unknown as Record<string, unknown>)[prop] = String(value);
-    }
-    for (const child of node.children ?? []) {
-        const parent = view as unknown as Partial<BuilderParent>;
-        if (typeof parent._addChildFromBuilder !== 'function') {
-            throw new Error(
-                `<${element.xmlName}> takes no XML child: \`${node.tag}\` has no \`_addChildFromBuilder\`, so ` +
-                    'the corpus nests a node this element cannot hold.',
-            );
-        }
-        parent._addChildFromBuilder(elementFor(child.tag).xmlName, build(child));
-    }
-    return view;
-}
+type TreeNode = object;
 
 /** Depth-first over the REAL child lists the port filled, in the order it filled them. */
-function descendants(root: View, into: View[] = []): View[] {
+function descendants(root: TreeNode, into: TreeNode[] = []): TreeNode[] {
     into.push(root);
     if (root instanceof LayoutBase) {
         for (let index = 0; index < root.getChildrenCount(); index++) descendants(root.getChildAt(index), into);
@@ -196,7 +123,7 @@ function descendants(root: View, into: View[] = []): View[] {
     return into;
 }
 
-const findDescendant = (root: View, match: (view: View) => boolean): View | null =>
+const findDescendant = (root: TreeNode, match: (view: TreeNode) => boolean): TreeNode | null =>
     descendants(root).find((view) => match(view)) ?? null;
 
 /**
@@ -208,9 +135,9 @@ const findDescendant = (root: View, match: (view: View) => boolean): View | null
  * `AdwSwitchRow` both extend `AdwActionRow`, and an `instanceof` filter would let either
  * answer for the other.
  */
-function realised(root: View, wanted: readonly string[]): { view: View; tag: string }[] {
+function realised(root: TreeNode, wanted: readonly string[]): { view: TreeNode; tag: string }[] {
     const byClass = new Map<unknown, string>(wanted.map((tag) => [elementFor(tag).ctor, tag]));
-    const found: { view: View; tag: string }[] = [];
+    const found: { view: TreeNode; tag: string }[] = [];
     for (const view of descendants(root)) {
         const tag = byClass.get(view.constructor);
         if (tag !== undefined) found.push({ view, tag });
@@ -225,7 +152,7 @@ function realised(root: View, wanted: readonly string[]): { view: View; tag: str
  * the MECHANISM for "no button", so both vectors below have a row whose expected answer is
  * exactly that. A slider or a field is never absent by design.
  */
-const bannerButton = (banner: View) => findDescendant(banner, (view) => view instanceof Button) as Button | null;
+const bannerButton = (banner: TreeNode) => findDescendant(banner, (view) => view instanceof Button) as Button | null;
 
 /**
  * The platform control a composed row installed in its constructor, found in the TREE.
@@ -242,7 +169,7 @@ const bannerButton = (banner: View) => findDescendant(banner, (view) => view ins
  * A missing control is a FAILURE and not a `null` read: a row with no slider and a row whose
  * slider says `false` are different findings and must not report the same value.
  */
-function inner<T extends View>(row: View, ctor: new () => T, what: string): T {
+function inner<T extends TreeNode>(row: TreeNode, ctor: new () => T, what: string): T {
     const found = findDescendant(row, (view) => view instanceof ctor);
     if (found === null) {
         throw new Error(
@@ -260,7 +187,7 @@ function inner<T extends View>(row: View, ctor: new () => T, what: string): T {
  * in the two sibling drivers. Everything above it is renderer-free; a case that grew a block
  * name would be the per-surface branch § 9 forbids.
  */
-function read(expectation: SharedTreeExpectation, view: View): string | number | boolean {
+function read(expectation: SharedTreeExpectation, view: TreeNode): string | number | boolean {
     switch (expectation.observable) {
         case 'entry-text-length':
             // The TEXT off the tree, the COUNT from the core: a driver counting characters
