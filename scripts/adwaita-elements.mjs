@@ -1129,6 +1129,29 @@ const CALLER_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g;
  */
 export function vocabularyCallers(root, owners) {
     const found = [];
+    walkCallerFiles(root, (rel, text) => {
+        for (const [, clause, specifier] of text.matchAll(CALLER_IMPORT)) {
+            const owner = owners.get(specifier);
+            if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
+            const names = importedNames(clause).map(({ imported }) => imported);
+            if (names.length > 0) found.push({ file: rel, package: specifier, names });
+        }
+    });
+    return found;
+}
+
+/**
+ * Every caller file under {@link VOCABULARY_CALLER_DIRS}, as (repo-relative path, text).
+ *
+ * ONE walk for both readers below. The second one was a copy for about an hour, and the
+ * copy is the shape this module's own header is about: two scans of the same corpus
+ * answer two questions, and the day one of them learns to skip a directory the other
+ * keeps reporting findings from it.
+ *
+ * @param {string} root repository root
+ * @param {(rel: string, text: string) => void} visit
+ */
+function walkCallerFiles(root, visit) {
     const walk = (dir) => {
         let entries = [];
         try {
@@ -1144,30 +1167,204 @@ export function vocabularyCallers(root, owners) {
                 continue;
             }
             if (!/\.(ts|tsx|mts|cts|js|mjs|mdx)$/.test(entry.name)) continue;
-            const rel = toPosixPath(relative(root, path));
             let text;
             try {
                 text = readFileSync(path, 'utf8');
             } catch {
                 continue;
             }
-            for (const [, clause, specifier] of text.matchAll(CALLER_IMPORT)) {
-                const owner = owners.get(specifier);
-                if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
-                const names = clause
-                    .split(',')
-                    .map((entry_) =>
-                        entry_
-                            .trim()
-                            .replace(/^type\s+/, '')
-                            .split(/\s+as\s+/)[0]
-                            .trim(),
-                    )
-                    .filter((name) => name !== '');
-                if (names.length > 0) found.push({ file: rel, package: specifier, names });
-            }
+            visit(toPosixPath(relative(root, path)), text);
         }
     };
     for (const dir of VOCABULARY_CALLER_DIRS) walk(join(root, dir));
+}
+
+/** `{ Adw, Gtk as G, type StoryMeta }` -> the imported name and the local one it binds. */
+function importedNames(clause) {
+    return clause
+        .split(',')
+        .map((entry) => entry.trim().replace(/^type\s+/, ''))
+        .filter((entry) => entry !== '')
+        .map((entry) => {
+            const [imported, local] = entry.split(/\s+as\s+/).map((part) => part.trim());
+            return { imported, local: local ?? imported };
+        });
+}
+
+/**
+ * How a caller NAMES a widget it constructs, and every property it then writes on it.
+ *
+ * WHAT THIS IS FOR. {@link vocabularyCallers} holds the IMPORT CLAUSE: a caller may not
+ * name a class the surface stopped exporting flat. That is one line of a caller file, and
+ * the rename that produced this reader moved a PROPERTY: `Gtk.Button`'s label was NS's
+ * inherited `text` and became the GIR name `label`, so every `button.text = 'Save'` in
+ * the storybook went on compiling, went on running, and rendered an empty pill on the
+ * device. The import clause was correct in all sixteen of them. ADR 0034 § Amendment 7
+ * records the same miss one rename earlier — "four story files and one fence writing a
+ * property name that had moved" — which is what makes this the second half of one rule
+ * rather than a new one.
+ *
+ * WHY A GATE AND NOT THE COMPILER, again and harder. A write to a name the class does not
+ * declare is TS2339 — for a caller that is compiled. `showcases/dom/*` are outside the
+ * workspace globs and no CI job type-checks them; the widget bases come from an ambient
+ * `@nativescript/core` slice; and the receiver is a class instance, so there is not even
+ * an `any` to blame. Nothing in this repository looked at these lines.
+ *
+ * WHAT IT READS. A binding is a local `const`/`let`/`var` or a class field whose value is
+ * `new <Ns>.<Member>(…)` or whose ANNOTATION is `<Ns>.<Member>`, where `<Ns>` is a name
+ * this file imported from a surface package — the alias is resolved back to the imported
+ * name, so `import { Adw as A }` still reports `Adw.Bin`. A local function whose RETURN
+ * type is such a member binds every variable it is assigned to, which is how the factory
+ * in `button-styles.ns.ts` (`function button(…): Gtk.Button`) reaches its callers.
+ *
+ * A receiver bound MORE THAN ONCE in a file carries every spelling it was bound to, and
+ * the rule holds a write against the UNION. `overview/widgets.ns.ts` declares two `const
+ * child` in sibling branches — an `Adw.SwitchRow` and an `Adw.ActionRow` — and a reader
+ * that let the last binding win reported `child.active` (real, on the switch row) as a
+ * write into nothing. Sound direction first: this reader would rather miss a write than
+ * invent one, because only one of those gets a gate switched off.
+ *
+ * @param {string} root repository root
+ * @param {Map<string, string>} owners package name -> the repo-relative package dir it lives in
+ * @returns {{file: string, package: string, receiver: string, spellings: string[], property: string, line: number}[]}
+ */
+export function vocabularyCallerWrites(root, owners) {
+    const found = [];
+    walkCallerFiles(root, (rel, raw) => {
+        /** local identifier -> `{package, imported}` for the namespaces this file brought in. */
+        const namespaces = new Map();
+        for (const [, clause, specifier] of raw.matchAll(CALLER_IMPORT)) {
+            const owner = owners.get(specifier);
+            if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
+            for (const { imported, local } of importedNames(clause)) {
+                namespaces.set(local, { package: specifier, imported });
+            }
+        }
+        if (namespaces.size === 0) return;
+
+        const code = stripComments(raw);
+        const member = `(${[...namespaces.keys()].map(escapeForPattern).join('|')})\\.(\\w+)`;
+        /** receiver expression -> the `<pkg>\u0000<Ns>.<Member>` spellings it was bound to. */
+        const receivers = new Map();
+        /** How many times each receiver was bound HERE, to compare against every binding site. */
+        const sites = new Map();
+        /** A `this.x` whose field declaration carries a port type: the annotation decides. */
+        const annotated = new Set();
+        const bind = (receiver, ns, name) => {
+            const binding = namespaces.get(ns);
+            if (binding === undefined) return;
+            const spelling = `${binding.package}\u0000${binding.imported}.${name}`;
+            const bound = receivers.get(receiver);
+            if (bound === undefined) receivers.set(receiver, new Set([spelling]));
+            else bound.add(spelling);
+            sites.set(receiver, (sites.get(receiver) ?? 0) + 1);
+        };
+
+        // `const btn = new Gtk.Button()` and `private _demo: Gtk.Button | null = null`,
+        // plus the `this.`-qualified forms of both. A class field is matched at its own
+        // indentation so a local declaration inside a method cannot be read as one.
+        for (const [, name, ns, klass] of code.matchAll(
+            new RegExp(
+                String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*new\s+${member}\s*\(`,
+                'g',
+            ),
+        ))
+            bind(name, ns, klass);
+        for (const [, name, ns, klass] of code.matchAll(
+            new RegExp(String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*${member}`, 'g'),
+        ))
+            bind(name, ns, klass);
+        const FIELD = String.raw`^ {4}(?:(?:private|protected|public|readonly|override|declare|static)\s+)*([A-Za-z_$][\w$]*)[!?]?`;
+        for (const [, name, ns, klass] of code.matchAll(new RegExp(`${FIELD}\\s*:\\s*${member}`, 'gm'))) {
+            bind(`this.${name}`, ns, klass);
+            annotated.add(`this.${name}`);
+        }
+        for (const [, name, ns, klass] of code.matchAll(new RegExp(`${FIELD}\\s*=\\s*new\\s+${member}\\s*\\(`, 'gm')))
+            bind(`this.${name}`, ns, klass);
+
+        // A local factory: `function button(label: string): Gtk.Button`. Its callers are
+        // bound to what it returns, which is the only reason the three writes in
+        // `button-styles.ns.ts` are visible at all.
+        const factories = new Map();
+        for (const [, fn, ns, klass] of code.matchAll(
+            new RegExp(String.raw`\bfunction\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*:\s*${member}`, 'g'),
+        ))
+            factories.set(fn, [ns, klass]);
+        if (factories.size > 0) {
+            const call = new RegExp(
+                String.raw`\b(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)|(this\.[A-Za-z_$][\w$]*))\s*=\s*([A-Za-z_$][\w$]*)\s*\(`,
+                'g',
+            );
+            for (const [, local, field, fn] of code.matchAll(call)) {
+                const made = factories.get(fn);
+                if (made !== undefined) bind(local ?? field, made[0], made[1]);
+            }
+        }
+        // A NAME IS NOT A VARIABLE, and this is where that bites. `storybook/src/app.ts`
+        // declares `const header = new Adw.HeaderBar()` in one method and `const header =
+        // new Label()` in another; a reader that binds the name holds the Label's `text`
+        // against the header bar and reports a write that is perfectly correct. So a
+        // receiver is held only when EVERY binding site of that name in the file is one
+        // of the port bindings above: a second declaration, a parameter of that name, or
+        // a bare reassignment retires it. A field is the exception, because its
+        // ANNOTATION is the author's own statement of the type and outranks the
+        // assignments — which is what makes `this._demo`, declared `Gtk.Button | null`
+        // and filled from a factory, readable at all.
+        for (const receiver of [...receivers.keys()]) {
+            if (annotated.has(receiver)) continue;
+            const name = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
+            const pattern = escapeForPattern(name);
+            const declarations = receiver.startsWith('this.')
+                ? [
+                      ...code.matchAll(
+                          new RegExp(
+                              String.raw`(?:^ {4}(?:\w+\s+)*${pattern}[!?]?\s*[:=]|\bthis\.${pattern}\s*=(?!=))`,
+                              'gm',
+                          ),
+                      ),
+                  ].length
+                : [...code.matchAll(new RegExp(String.raw`\b(?:const|let|var)\s+${pattern}\s*[:=]`, 'g'))].length;
+            // A PARAMETER of the same name, and nothing else that merely LOOKS like one:
+            // `stack.addChild(button)` is an argument, and an earlier spelling of this
+            // test read that `(button)` as a parameter list and retired twelve of the
+            // sixteen real findings — a guard against false names that deleted the true
+            // ones. So: an annotated parameter, an untyped arrow parameter, or a bare
+            // reassignment, each of which really can hand the name another object.
+            const shadowed =
+                !receiver.startsWith('this.') &&
+                (new RegExp(String.raw`[(,]\s*${pattern}\s*:`).test(code) ||
+                    new RegExp(String.raw`[(,]\s*${pattern}\s*\)?\s*=>`).test(code) ||
+                    new RegExp(String.raw`(?:^|[;{}])\s*${pattern}\s*=(?!=)`, 'm').test(code));
+            if (declarations !== sites.get(receiver) || shadowed) receivers.delete(receiver);
+        }
+        if (receivers.size === 0) return;
+
+        // The write itself. `a.b.c = …` matches nothing — the outer receiver is not `a.b`
+        // and the inner one is preceded by a dot — which is a miss and never a false name.
+        const write = /(?:^|[^.\w$])((?:this\.)?[A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*=(?!=)/g;
+        for (const match of code.matchAll(write)) {
+            const bound = receivers.get(match[1]);
+            if (bound === undefined) continue;
+            const byPackage = new Map();
+            for (const spelling of bound) {
+                const [pkg, name] = spelling.split('\u0000');
+                byPackage.set(pkg, [...(byPackage.get(pkg) ?? []), name]);
+            }
+            const line = lineAt(code, match.index);
+            for (const [pkg, spellings] of byPackage) {
+                found.push({ file: rel, package: pkg, receiver: match[1], spellings, property: match[2], line });
+            }
+        }
+    });
     return found;
 }
+
+/** The 1-based line `index` falls on. */
+const lineAt = (text, index) => {
+    let line = 1;
+    for (let i = 0; i < index; i += 1) if (text[i] === '\n') line += 1;
+    return line;
+};
+
+/** An identifier, safe to interpolate. Callers alias imports, and an alias is user text. */
+const escapeForPattern = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

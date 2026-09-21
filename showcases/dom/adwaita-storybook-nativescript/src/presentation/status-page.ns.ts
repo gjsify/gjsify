@@ -27,7 +27,7 @@ export class StatusPageNsStory extends StoryView {
 
         // Suggested-action pill button, matching the native story's child.
         const button = new Gtk.Button();
-        button.text = 'New Document';
+        button.label = 'New Document';
         button.styleClasses = 'suggested-action';
         this._page.set_child(button);
 

@@ -44,7 +44,7 @@ export class PreferencesGroupNsStory extends StoryView {
         // present the story identically instead of moving the button into a row.
         const signOut = new Gtk.Button();
         signOut.styleClasses = 'flat';
-        signOut.text = 'Sign out';
+        signOut.label = 'Sign out';
         this._group.headerSuffix = signOut;
 
         this._syncGroup();

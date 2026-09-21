@@ -80,7 +80,7 @@ export class PreferencesDialogNsStory extends StoryView {
         stack.addRow(new ItemSpec(1, 'star'));
 
         const button = new Gtk.Button();
-        button.text = 'Show dialog';
+        button.label = 'Show dialog';
         button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';

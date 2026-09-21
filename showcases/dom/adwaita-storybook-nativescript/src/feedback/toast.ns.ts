@@ -20,7 +20,7 @@ export class ToastNsStory extends StoryView {
 
     initialize(): void {
         const button = new Gtk.Button();
-        button.text = 'Show toast';
+        button.label = 'Show toast';
         button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';

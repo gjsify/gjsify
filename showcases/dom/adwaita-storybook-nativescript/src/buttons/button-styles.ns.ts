@@ -22,7 +22,7 @@ const CLASSES_BY_STYLE: Record<string, string> = {
 
 function button(label: string, styleClasses: string): Gtk.Button {
     const btn = new Gtk.Button();
-    btn.text = label;
+    btn.label = label;
     btn.styleClasses = styleClasses;
     return btn;
 }
@@ -71,9 +71,9 @@ export class ButtonStylesNsStory extends StoryView {
         this._demo.styleClasses = CLASSES_BY_STYLE[style] ?? '';
         // The circular style is icon-only (no label), like the native demo.
         if (style === 'circular') {
-            this._demo.text = '\u{2795}'; // ➕ (list-add)
+            this._demo.label = '\u{2795}'; // ➕ (list-add)
         } else {
-            this._demo.text = this.args.label as string;
+            this._demo.label = this.args.label as string;
         }
     }
 }

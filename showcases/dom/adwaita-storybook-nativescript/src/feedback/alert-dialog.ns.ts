@@ -26,7 +26,7 @@ export class AlertDialogNsStory extends StoryView {
 
     initialize(): void {
         const button = new Gtk.Button();
-        button.text = 'Show dialog';
+        button.label = 'Show dialog';
         button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';
