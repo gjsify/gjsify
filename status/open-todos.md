@@ -6422,7 +6422,9 @@ ADR 0053 Amendment 3 is the flip that takes it:** the plugin calls `parseBluepri
 `emitGtkBuilderXml`, spawns nothing and has no fallback to the binary. Re-measured 2026-09-19 on
 the flip branch with `--require-oracle` against `blueprint-compiler` 0.20.4, re-measured again on
 the `@girs` 5.3.0 bump, and again on each of the
-eleven constructs that closed the subset:
+eleven constructs that closed the subset, and once more against the PUBLISHED `@girs` 5.4.0
+rather than a local build — **95 of 95** in `tests/samples` and **272 of 273** wild, 0 silently
+wrong, the one remainder being a deliberately invalid fixture the oracle refuses too:
 56 rule files and 12
 reality probes, all 68 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
 naming their construct, their file and their line. The refusal count went DOWN by four and that
