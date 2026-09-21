@@ -1,44 +1,39 @@
-// Vectors for the two case rules — the acronym boundary is what the first version of
 // `hostTagOf` got wrong (`GtkGLArea` -> `gtk-glarea` instead of `gtk-gl-area`), so it is
-// asserted here rather than trusted from the docstring. `scripts/check-tag-case-rules.mjs`
-// holds the `scripts/` restatement of both functions identical to this module; this suite is
-// what pins the ALGORITHM itself, on Node as well as GJS.
+// pinned by `HOST_TAG_VECTORS`/`ATTRIBUTE_OF_VECTORS` (conformance/tags.ts) rather than
+// trusted from the docstring — the same table `adwaita-web`'s own suite drives against real
+// DOM. `scripts/check-tag-case-rules.mjs` holds the `scripts/` restatement of both functions
+// identical to this module; this suite is what pins the ALGORITHM itself, on Node as well as
+// GJS.
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS } from './conformance/tags.js';
 import { attributeOf, hostTagOf } from './tags.js';
 
 export default async () => {
-    await describe('hostTagOf', async () => {
-        await it('lower-cases a plain run and marks each word boundary', () => {
-            expect(hostTagOf('AdwPreferencesGroup')).toBe('adw-preferences-group');
-            expect(hostTagOf('AdwSwitchRow')).toBe('adw-switch-row');
-            expect(hostTagOf('GtkBox')).toBe('gtk-box');
-        });
-
-        await it('closes an acronym run at its LAST capital, not its first', () => {
-            // The measured regression: a naive `([a-z0-9])([A-Z])` split produces
-            // `gtk-glarea`, one word short of `gtk-host`'s own `gtk-gl-area`.
-            expect(hostTagOf('GtkGLArea')).toBe('gtk-gl-area');
-            expect(hostTagOf('GtkATContext')).toBe('gtk-at-context');
-        });
-
-        await it('refuses a name that is not a GIR class', () => {
-            expect(() => hostTagOf('preferences-group')).toThrow('is not a GIR class name');
-            expect(() => hostTagOf('')).toThrow('is not a GIR class name');
-            expect(() => hostTagOf('WkWebView')).toThrow('is not a GIR class name');
-        });
+    await describe('hostTagOf (conformance vectors)', async () => {
+        for (const vector of HOST_TAG_VECTORS) {
+            await it(`${vector.gtype || '(empty)'} — ${vector.rule}`, () => {
+                if (vector.error !== undefined) {
+                    let caught: unknown;
+                    try {
+                        hostTagOf(vector.gtype);
+                    } catch (error) {
+                        caught = error;
+                    }
+                    expect(caught instanceof Error ? caught.message : undefined).toBe(vector.error);
+                    return;
+                }
+                expect(hostTagOf(vector.gtype)).toBe(vector.expected);
+            });
+        }
     });
 
-    await describe('attributeOf', async () => {
-        await it('kebab-cases a camelCase property name', () => {
-            expect(attributeOf('buttonLabel')).toBe('button-label');
-            expect(attributeOf('showInitials')).toBe('show-initials');
-        });
-
-        await it('leaves an already-lowercase name unchanged', () => {
-            expect(attributeOf('title')).toBe('title');
-            expect(attributeOf('')).toBe('');
-        });
+    await describe('attributeOf (conformance vectors)', async () => {
+        for (const vector of ATTRIBUTE_OF_VECTORS) {
+            await it(`${vector.prop || '(empty)'} — ${vector.rule}`, () => {
+                expect(attributeOf(vector.prop)).toBe(vector.expected);
+            });
+        }
     });
 };
