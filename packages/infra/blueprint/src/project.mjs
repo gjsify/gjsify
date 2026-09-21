@@ -26,6 +26,7 @@
 // before comparing rather than teaching this file to invent it.
 
 /** @import { BlueprintFile, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
+/** @import { ProjectedLoss, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -108,7 +109,7 @@ const scalarOf = (value, tag) => {
 
 /**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
- * @returns {{ props?: Record<string, string | number | boolean>, children?: object[] }}
+ * @returns {Pick<SharedNode, 'props' | 'children'>}
  */
 const projectBody = (body, tag) => {
     /** @type {Record<string, string | number | boolean>} */
@@ -159,6 +160,7 @@ const projectBody = (body, tag) => {
 
 /**
  * @param {ObjectNode} object @param {string | undefined} slot @param {(type: TypeRef) => string} tag
+ * @returns {SharedNode}
  */
 const projectObject = (object, slot, tag) => {
     const body = projectBody(object.body, tag);
@@ -173,10 +175,10 @@ const projectObject = (object, slot, tag) => {
  * What the projection drops, by kind and line.
  *
  * @param {BlueprintFile} file
- * @returns {{ kind: string, line: number }[]}
+ * @returns {ProjectedLoss[]}
  */
 const lossesOf = (file) => {
-    /** @type {{ kind: string, line: number }[]} */
+    /** @type {ProjectedLoss[]} */
     const lost = [];
 
     /** @param {ObjectBody} body */
@@ -289,7 +291,7 @@ const lossesOf = (file) => {
  * Project a parsed `.blp` into the node shape ADR 0051's renderers consume.
  *
  * @param {BlueprintFile} file @param {ProjectOptions} [options]
- * @returns {{ node: object, lost: { kind: string, line: number }[] }}
+ * @returns {SharedNodeProjection}
  */
 export function projectToSharedNode(file, options) {
     const tag = tagReader(options, file.file);

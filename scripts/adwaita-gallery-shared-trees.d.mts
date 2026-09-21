@@ -19,7 +19,14 @@
 // consumers only and is deliberately absent; add one here when, and only when, a spec
 // imports it.
 
-/** One node of an authored tree, spelled in GIR class names. */
+/**
+ * One node of an authored tree, spelled in GIR class names.
+ *
+ * A RESTATEMENT, not the original: that is `SharedTreeNode` in
+ * `packages/web/adwaita-core/src/conformance/shared-trees.ts`, and the paragraph above is why
+ * this file cannot import it. `scripts/check-shared-tree-shape.mjs` holds the two together
+ * field by field, so the copy cannot drift in silence.
+ */
 export interface SharedNode {
     tag: string;
     slot?: string;

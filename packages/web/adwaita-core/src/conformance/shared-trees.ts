@@ -49,7 +49,17 @@ import { BANNER_BUTTON_TEXT_VECTORS, BANNER_BUTTON_VISIBLE_VECTORS } from './ban
 import { ENTRY_TEXT_LENGTH_VECTORS } from './entry-row.js';
 import { SWITCH_ROW_NOTIFY_VECTORS } from './action-row.js';
 
-/** One node of an authored tree — the shape `ADWAITA_GALLERY_SHARED_TREES` is written in. */
+/**
+ * One node of an authored tree — the shape `ADWAITA_GALLERY_SHARED_TREES` is written in.
+ *
+ * THIS DECLARATION IS THE ORIGINAL. Every other spelling of the shape in this repository
+ * restates it — `scripts/adwaita-gallery-shared-trees.d.mts` for the plain-Node generators,
+ * `packages/infra/blueprint/src/shared-node.d.mts` for the projection, and more besides —
+ * each because it cannot import from here, each saying why in its own header.
+ * `scripts/check-shared-tree-shape.mjs` carries the list, holds every entry to this
+ * declaration field by field, and fails on a spelling that declares itself nowhere. So a
+ * field added here is added there too, or the gate says which field and where.
+ */
 export interface SharedTreeNode {
     /** A GIR class name, e.g. `AdwPreferencesGroup`. */
     tag: string;
