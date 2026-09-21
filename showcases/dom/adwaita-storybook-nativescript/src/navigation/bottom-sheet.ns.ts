@@ -62,6 +62,24 @@ export class BottomSheetNsStory extends StoryView {
         return box;
     }
 
+    /**
+     * The collapsed form the sheet morphs out of — and the only affordance this
+     * renderer offers for opening one. Without it the story's sheet answers the
+     * `Open` control and nothing on the device, which is how the port shipped a
+     * `bottom-bar` nobody had ever tapped.
+     */
+    private _buildBottomBar(): StackLayout {
+        const bar = new StackLayout();
+        bar.orientation = 'vertical';
+
+        const label = new Label();
+        label.text = 'Now playing';
+        label.horizontalAlignment = 'center';
+        bar.addChild(label);
+
+        return bar;
+    }
+
     initialize(): void {
         this._sheet = new Adw.BottomSheet();
         // Match the native story's fixed 480×340 viewport so the sheet has a
@@ -71,6 +89,7 @@ export class BottomSheetNsStory extends StoryView {
 
         this._sheet.set_content(this._buildContent());
         this._sheet.set_sheet(this._buildSheet());
+        this._sheet.set_bottom_bar(this._buildBottomBar());
 
         this._sync();
         this.addContent(this._sheet);
