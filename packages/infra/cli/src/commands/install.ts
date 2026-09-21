@@ -59,6 +59,7 @@ import {
     type ActiveDevLinks,
     applyDevLinks,
     assertNoDevLinkUnderImmutable,
+    devLinkRoot,
     prepareDevLinks,
 } from '../utils/dev-link.js';
 
@@ -515,16 +516,23 @@ function depKindFromArgs(args: InstallOptions): DependencyKind {
  * `npm link` does not do, and why the next `npm install` silently undoes it.
  *
  * Returns `null` when no override is present; throws when one names a checkout
- * that is gone or is not a gjsify workspace (utils/dev-link.ts).
+ * that is gone, is not a gjsify workspace, or is not BUILT (utils/dev-link.ts).
+ *
+ * `devLinkRoot` and not `prefix` verbatim: `assertNoDevLinkUnderImmutable` already
+ * walks up to the workspace root to decide whether an override is in play, and two
+ * answers to "which override governs this install" is one answer too many. Nothing
+ * rescued the difference either — the bare `install` path happens to delegate to
+ * the workspace root before reaching here, `install <pkg>` does not.
  */
 function activateDevLinks(prefix: string, announce: boolean): ActiveDevLinks | null {
-    const active = prepareDevLinks(prefix);
+    const active = prepareDevLinks(devLinkRoot(prefix));
     if (!active) return null;
-    applyDevLinks(active.links);
+    const written = applyDevLinks(active.links);
     if (!announce) return active;
     console.log(
         `gjsify install: development link ACTIVE (${active.overridePath}) — ${active.links.length} ` +
-            `package(s) come from ${active.checkout}, linked rather than fetched:`,
+            `package(s) come from ${active.checkout}, linked rather than fetched ` +
+            `(${written.length} (re)written, ${active.links.length - written.length} already current):`,
     );
     const names = active.links.map((l) => l.name);
     const shown = names.slice(0, 12);
@@ -533,6 +541,24 @@ function activateDevLinks(prefix: string, announce: boolean): ActiveDevLinks | n
         '  `gjsify unlink` restores the registry copies; `gjsify install --immutable` refuses while it exists.',
     );
     return active;
+}
+
+/**
+ * Re-apply the dev links after the install, and SAY SO when it changed anything.
+ *
+ * `applyDevLinks` returns what it had to (re)write, and both post-install call
+ * sites used to throw that away — so an installer that clobbered a link and got it
+ * put back looked exactly like one that never touched it. The safety net is
+ * supposed to be a no-op; the run where it is not is the one worth a line.
+ */
+function reportRewiredDevLinks(active: ActiveDevLinks | null): void {
+    if (!active) return;
+    const rewired = applyDevLinks(active.links);
+    if (rewired.length === 0) return;
+    console.log(
+        `gjsify install: re-applied ${rewired.length} development link(s) the install had replaced: ` +
+            `${rewired.map((l) => l.name).join(', ')}`,
+    );
 }
 
 async function projectInstallNative(args: InstallOptions, signal?: AbortSignal): Promise<void> {
@@ -641,7 +667,10 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         };
         const result = await installPackages(nativeOpts);
         // The link survives the install — the point of reading the override at all.
-        if (devLinks) applyDevLinks(devLinks.links);
+        // The return value is REPORTED, not dropped: a non-empty one means the
+        // install disturbed a link that the pre-fetch pass had already wired, which
+        // is a fact about the installer, not a routine no-op.
+        reportRewiredDevLinks(devLinks);
 
         // Only the `gjsify install <pkg>...` add-a-dep flow mutates the manifest;
         // the no-args refresh must not.
@@ -1014,7 +1043,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
 
     // A near no-op safety net in case a later step disturbed a link.
     await wireWorkspaceSymlinks();
-    if (devLinks) applyDevLinks(devLinks.links);
+    reportRewiredDevLinks(devLinks);
 
     // Now that the tree is materialised, refresh the shims' GJS preamble with the
     // native prebuild dirs that only became discoverable after the install (on a

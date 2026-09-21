@@ -29,6 +29,7 @@ import {
     readDevLinkOverride,
     removeDevLinkOverride,
     removeDevLinks,
+    removeLocalIgnore,
     resolveCheckoutWorkspaces,
     retireDevLinks,
     scanDevLinks,
@@ -119,6 +120,14 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
             return process.exit(1);
         }
 
+        // A dry run that hides the REMOVALS is the half-report this feature keeps
+        // being caught by: retiring a link is the destructive half of a re-link,
+        // and it is the half worth seeing before it happens.
+        const sweep = sweepCheckouts(consumerRoot, checkout);
+        const keep = new Set(links.map((l) => l.name));
+        const stale = scanDevLinks(consumerRoot, sweep).filter((link) => !keep.has(link.name));
+        for (const link of stale) console.log(`  retire  ${link.name}  (no longer selected)`);
+
         if (dryRun) {
             console.log(`\n${label}: nothing written. Drop --dry-run to apply.`);
             return;
@@ -130,26 +139,28 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
         // no later command would ever name, and every `gjsify install` after it
         // aborted (utils/dev-link.ts, `scanDevLinks`). Both checkouts are swept,
         // because the new override may point somewhere else entirely.
-        const previousCheckout = previousCheckoutOf(consumerRoot);
-        const retired = retireDevLinks(
-            consumerRoot,
-            previousCheckout && previousCheckout !== checkout ? [previousCheckout, checkout] : [checkout],
-            new Set(links.map((l) => l.name)),
-        );
+        const retired = retireDevLinks(consumerRoot, sweep, keep);
 
         const written = applyDevLinks(links);
         writeDevLinkOverride(consumerRoot, { version: 1, checkout, packages: patterns });
         const ignored = ensureLocallyIgnored(consumerRoot);
         console.log(`\n  ${written.length} link(s) written, ${links.length - written.length} already current.`);
-        if (retired.length > 0) {
-            console.log(
-                `  ${retired.length} link(s) retired (dropped by this selection): ${retired.map((l) => l.name).join(', ')}`,
-            );
+        // Counted against what was PLANNED, not just reported: `removeDevLinks`
+        // refuses a real directory sitting where a link belongs, and a retire that
+        // silently did less than it announced is the same half-report again.
+        if (stale.length > 0) {
+            console.log(`  ${retired.length} of ${stale.length} retired link(s) removed.`);
         }
         console.log(`  override: ${overridePath}`);
         if (ignored === 'added')
             console.log(`  git: ${DEV_LINK_FILE} added to .git/info/exclude (local, never committed)`);
         if (ignored === 'no-git') console.log(`  git: ${consumerRoot} is not a git repository — nothing to ignore`);
+        if (ignored === 'unreadable-git') {
+            console.warn(
+                `  ! git: ${consumerRoot} has a .git POINTER that does not parse, so ${DEV_LINK_FILE} is NOT ignored. ` +
+                    `Add it to .gitignore by hand, or the next \`git add -A\` commits your local override.`,
+            );
+        }
         console.log(
             `\nEvery \`gjsify install\` here now re-applies these links and says so.\n` +
                 `\`gjsify install --immutable\` refuses while the override exists. Undo: \`gjsify unlink\`.`,
@@ -217,6 +228,7 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
             for (const link of scanDevLinks(consumerRoot, checkouts)) names.add(link.name);
             for (const name of [...names].sort()) console.log(`  would remove link  ${name}`);
             console.log(`  would remove       ${overridePath}`);
+            console.log(`  would remove       ${DEV_LINK_FILE} entry from .git/info/exclude (if this module wrote it)`);
             console.log(`\n${label}: nothing changed. Drop --dry-run to apply.`);
             return;
         }
@@ -254,6 +266,12 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
 
         removeDevLinkOverride(consumerRoot);
         console.log(`  removed   ${overridePath}`);
+        // The `.git/info/exclude` block is part of what `link` wrote, so it is part
+        // of what `unlink` owes back. Leaving it behind made the undo incomplete in
+        // a way nobody notices until they read the file and wonder what wrote it.
+        if (removeLocalIgnore(consumerRoot) === 'removed') {
+            console.log(`  removed   ${DEV_LINK_FILE} entry from .git/info/exclude`);
+        }
 
         if (args.install === false) {
             console.log(
@@ -268,16 +286,19 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
 };
 
 /**
- * The checkout the CURRENT override names, or `null` — swallowing every failure.
+ * Which checkouts a re-link has to sweep: the one it is about to record, plus the
+ * one the CURRENT override names when that is a different directory.
  *
- * Read only to decide what to sweep before a re-link. A malformed or dead
- * override must not stop a fresh `gjsify link` from fixing the situation, which is
- * usually exactly why it is being run.
+ * Every failure reading the old override is swallowed. A malformed or dead one
+ * must not stop a fresh `gjsify link` from fixing the situation, which is usually
+ * exactly why it is being run.
  */
-function previousCheckoutOf(consumerRoot: string): string | null {
+function sweepCheckouts(consumerRoot: string, checkout: string): string[] {
+    let previous: string | null = null;
     try {
-        return readDevLinkOverride(consumerRoot)?.checkout ?? null;
+        previous = readDevLinkOverride(consumerRoot)?.checkout ?? null;
     } catch {
-        return null;
+        previous = null;
     }
+    return previous && previous !== checkout ? [previous, checkout] : [checkout];
 }

@@ -549,6 +549,9 @@ function collectStringLeaves(value: unknown, out: string[]): void {
     for (const nested of Object.values(value as Record<string, unknown>)) collectStringLeaves(nested, out);
 }
 
+/** The comment line `ensureLocallyIgnored` writes above the pattern. */
+const IGNORE_COMMENT = '# gjsify link — local development override, never commit';
+
 /**
  * Make `.gjsify-link.json` invisible to git WITHOUT editing a tracked file.
  *
@@ -559,23 +562,64 @@ function collectStringLeaves(value: unknown, out: string[]): void {
  * over.
  *
  * Returns what it did, so the caller can say so. A consumer that is not a git
- * repository is not an error: nothing can commit the file there either.
+ * repository is not an error: nothing can commit the file there either. A
+ * consumer whose `.git` POINTER cannot be followed IS worth a word, though —
+ * there the file stays visible to `git status` and one `git add -A` commits it.
  */
-export function ensureLocallyIgnored(consumerRoot: string): 'added' | 'already-ignored' | 'no-git' {
-    const gitDir = resolveGitDir(consumerRoot);
-    if (!gitDir) return 'no-git';
+export function ensureLocallyIgnored(consumerRoot: string): 'added' | 'already-ignored' | 'no-git' | 'unreadable-git' {
+    const found = resolveGitDir(consumerRoot);
+    if (!found.gitDir) return found.why;
     const gitignore = join(consumerRoot, '.gitignore');
     if (existsSync(gitignore) && fileMentionsPattern(gitignore, DEV_LINK_FILE)) return 'already-ignored';
-    const excludePath = join(gitDir, 'info', 'exclude');
+    const excludePath = join(found.gitDir, 'info', 'exclude');
     if (existsSync(excludePath) && fileMentionsPattern(excludePath, DEV_LINK_FILE)) return 'already-ignored';
     mkdirSync(dirname(excludePath), { recursive: true });
     const existing = existsSync(excludePath) ? readFileSync(excludePath, 'utf-8') : '';
     const prefix = existing === '' || existing.endsWith('\n') ? '' : '\n';
-    writeFileSync(
-        excludePath,
-        `${existing}${prefix}# gjsify link — local development override, never commit\n${DEV_LINK_FILE}\n`,
-    );
+    writeFileSync(excludePath, `${existing}${prefix}${IGNORE_COMMENT}\n${DEV_LINK_FILE}\n`);
     return 'added';
+}
+
+/**
+ * Undo {@link ensureLocallyIgnored} — the other half of `unlink`.
+ *
+ * Measured: the `.git/info/exclude` block outlived `gjsify unlink` (idempotently,
+ * so it never grew — it just never left). A command that promises to undo itself
+ * and leaves a line behind is not an undo, and the leftover is a rule about a file
+ * that no longer exists, which the next reader has to research to delete.
+ *
+ * ONLY the two lines this module wrote, matched as a pair: a `.gitignore` entry or
+ * a hand-written exclude line is someone else's decision, and removing it would be
+ * the same overreach `removeDevLinks` refuses.
+ */
+export function removeLocalIgnore(consumerRoot: string): 'removed' | 'absent' | 'no-git' | 'unreadable-git' {
+    const found = resolveGitDir(consumerRoot);
+    if (!found.gitDir) return found.why;
+    const excludePath = join(found.gitDir, 'info', 'exclude');
+    let text: string;
+    try {
+        text = readFileSync(excludePath, 'utf-8');
+    } catch {
+        return 'absent';
+    }
+    const lines = text.split(/\r?\n/);
+    const out: string[] = [];
+    let removed = false;
+    for (let i = 0; i < lines.length; i++) {
+        if (
+            !removed &&
+            lines[i]?.trim() === IGNORE_COMMENT &&
+            (lines[i + 1]?.trim() === DEV_LINK_FILE || lines[i + 1]?.trim() === `/${DEV_LINK_FILE}`)
+        ) {
+            i++; // skip the pattern line too
+            removed = true;
+            continue;
+        }
+        out.push(lines[i] ?? '');
+    }
+    if (!removed) return 'absent';
+    writeFileSync(excludePath, out.join('\n'));
+    return 'removed';
 }
 
 /** A line naming exactly this pattern, ignoring comments and whitespace. */
@@ -592,30 +636,43 @@ function fileMentionsPattern(file: string, pattern: string): boolean {
     });
 }
 
+/** Where a consumer's git directory is, or WHY there is none. */
+interface GitDirLookup {
+    gitDir: string | null;
+    /** Only meaningful when `gitDir` is null. */
+    why: 'no-git' | 'unreadable-git';
+}
+
 /**
  * The `.git` directory for `root` — following the `gitdir:` pointer file a
  * worktree or submodule has in place of a directory. Skipping that indirection
  * would write an `info/exclude` inside a plain file's parent and silently ignore
  * nothing at all.
+ *
+ * TWO outcomes, not one. "There is no repository here" and "there is one and its
+ * pointer does not parse" call for opposite reactions — the first is fine, the
+ * second leaves the override exposed to the next `git add -A` — and answering
+ * both with `null` made the second announce the first.
  */
-function resolveGitDir(root: string): string | null {
+function resolveGitDir(root: string): GitDirLookup {
     const dotGit = join(root, '.git');
     let stat;
     try {
         stat = statSync(dotGit);
     } catch {
-        return null;
+        return { gitDir: null, why: 'no-git' };
     }
-    if (stat.isDirectory()) return dotGit;
+    if (stat.isDirectory()) return { gitDir: dotGit, why: 'no-git' };
+    let pointer: string;
     try {
-        const pointer = readFileSync(dotGit, 'utf-8').trim();
-        const match = /^gitdir:\s*(.+)$/.exec(pointer);
-        if (!match?.[1]) return null;
-        const target = match[1].trim();
-        return isAbsolute(target) ? target : resolve(root, target);
+        pointer = readFileSync(dotGit, 'utf-8').trim();
     } catch {
-        return null;
+        return { gitDir: null, why: 'unreadable-git' };
     }
+    const match = /^gitdir:\s*(.+)$/.exec(pointer);
+    const target = match?.[1]?.trim();
+    if (!target) return { gitDir: null, why: 'unreadable-git' };
+    return { gitDir: isAbsolute(target) ? target : resolve(root, target), why: 'no-git' };
 }
 
 /**

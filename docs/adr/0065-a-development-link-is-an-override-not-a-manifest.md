@@ -117,6 +117,9 @@ the empty list, meaning every package; a whole scope is spelled `@gjsify/*`.
   every later `install`, with `unlink` removing the override (the escape route) before hitting
   the same abort. The ground truth for "what is linked" is the tree (`scanDevLinks`), and
   `unlink` removes the links BEFORE the override for the same reason.
+- `unlink` also removes the `.git/info/exclude` block `link` wrote — only that block, matched as
+  comment plus pattern, never a `.gitignore` line or a hand-written entry. A cleanup that leaves
+  a rule behind about a file that no longer exists is not a cleanup.
 - ADR 0060 § P6's verdict on `link:`/`portal:` **as resolution protocols** stands: none is
   implemented, `gjsify-lock.json` gains no new spec shape, and nothing about resolution
   changes. What is added is an install-time override with a refusal attached.

@@ -42,6 +42,7 @@ import {
     prepareDevLinks,
     readDevLinkOverride,
     removeDevLinks,
+    removeLocalIgnore,
     resolveCheckoutWorkspaces,
     scanDevLinks,
     writeDevLinkOverride,
@@ -438,6 +439,44 @@ export default async () => {
         await it('reports a non-git consumer instead of pretending to ignore', async () => {
             const root = scratch();
             expect(ensureLocallyIgnored(root)).toBe('no-git');
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('says so when a .git POINTER exists but does not parse', async () => {
+            // Two causes, two answers. `no-git` here would announce "nothing can
+            // commit the file" about a repository that very much can.
+            const root = scratch();
+            writeFileSync(join(root, '.git'), 'this is not a gitdir pointer\n');
+            expect(ensureLocallyIgnored(root)).toBe('unreadable-git');
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('is undone exactly, leaving the file as it was', async () => {
+            // Blocker 4 of the #1730 review: the block outlived `unlink`. An undo
+            // that leaves a rule behind about a file that no longer exists is not
+            // an undo.
+            const root = scratch();
+            mkdirSync(join(root, '.git', 'info'), { recursive: true });
+            const excludePath = join(root, '.git', 'info', 'exclude');
+            const before = '# git ls-files --others\n*.tmp\n';
+            writeFileSync(excludePath, before);
+            expect(ensureLocallyIgnored(root)).toBe('added');
+            expect(removeLocalIgnore(root)).toBe('removed');
+            expect(readFileSync(excludePath, 'utf-8')).toBe(before);
+            // Idempotent, and it never claims to have removed what it did not.
+            expect(removeLocalIgnore(root)).toBe('absent');
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('never removes a line this module did not write', async () => {
+            const root = scratch();
+            mkdirSync(join(root, '.git', 'info'), { recursive: true });
+            const excludePath = join(root, '.git', 'info', 'exclude');
+            // A hand-written entry, with no marker comment above it: someone else's
+            // decision, and the same overreach `removeDevLinks` refuses.
+            writeFileSync(excludePath, `${DEV_LINK_FILE}\n`);
+            expect(removeLocalIgnore(root)).toBe('absent');
+            expect(readFileSync(excludePath, 'utf-8')).toContain(DEV_LINK_FILE);
             rmSync(root, { recursive: true, force: true });
         });
     });
