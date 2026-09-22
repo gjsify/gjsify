@@ -161,6 +161,23 @@ export interface ToolbarViewClassNames {
 }
 
 /**
+ * A `className` as READ BACK off a NativeScript view.
+ *
+ * NOT `string`, and the difference is a crash. `classNameProperty` is registered with NO
+ * `defaultValue` (`ui/core/view-base/index.ts:1592`) and `Property`'s getter answers
+ * `key in this ? this[key] : defaultValue` (`ui/core/properties/index.ts:303`), so a view
+ * nobody has written a class onto reads `undefined` — measured against
+ * `@nativescript/core` 9.1.2, not inferred. NativeScript's own `valueChanged` guards
+ * `typeof newValue === 'string'` for exactly this reason.
+ *
+ * A view with no class of its own is ordinary, not exotic: `Gtk.Box` and `Gtk.Label` are
+ * transparent and write no `className` at all, and so does any plain `@nativescript/core`
+ * view a consumer hands a widget. Every function here that takes a class string its
+ * caller did NOT write itself takes this type.
+ */
+export type NsClassName = string | null | undefined;
+
+/**
  * Swap the classes a widget MANAGES on a NativeScript `className`, leaving every
  * other token in place.
  *
@@ -169,9 +186,19 @@ export interface ToolbarViewClassNames {
  * a fixed base instead would silently drop what a CONSUMER added — the storybook
  * appends `sb-sidebar-pane` to an `AdwToolbarView`, and a re-style would have
  * taken it away again.
+ *
+ * THE ONE FUNNEL, which is why the missing class is answered here and not at a call site.
+ * This took `current: string` and split it unconditionally, and that is how `Adw.Clamp`
+ * killed Learn6502's Android port at startup on a real emulator: `TypeError: … reading
+ * 'split'` on a clamp child carrying no class. THE TYPE IS WHAT HID IT — the ambient
+ * `ns-core.d.ts` promised `string`, so `gjsify tsc` held every call correct, and the
+ * off-device double answered `''` where a device answers `undefined`, leaving nothing in
+ * the package able to see it. Four sibling readers of a class string their caller did not
+ * write — `addMarkerClass`, `removeMarkerClass`, `navigationPageClassName`,
+ * `_paneClassName` — were already tolerant; this family was the one that was not.
  */
-export function replaceClasses(current: string, managed: readonly string[], next: readonly string[]): string {
-    const tokens = current.split(/\s+/).filter((token) => token.length > 0 && !managed.includes(token));
+export function replaceClasses(current: NsClassName, managed: readonly string[], next: readonly string[]): string {
+    const tokens = (current ?? '').split(/\s+/).filter((token) => token.length > 0 && !managed.includes(token));
     for (const cls of next) {
         if (!tokens.includes(cls)) tokens.push(cls);
     }
@@ -179,7 +206,7 @@ export function replaceClasses(current: string, managed: readonly string[], next
 }
 
 /** The child `className` for a clamp allocation — the size class, and nothing else touched. */
-export function clampChildClassName(current: string, sizeClass: AdwClampSizeClass | null): string {
+export function clampChildClassName(current: NsClassName, sizeClass: AdwClampSizeClass | null): string {
     return replaceClasses(current, ADW_CLAMP_SIZE_CLASSES, sizeClass ? [sizeClass] : []);
 }
 
@@ -226,7 +253,7 @@ export function bannerVisibility(revealed: boolean): 'visible' | 'collapse' {
  * `adw_banner_set_button_style` only ever adds or removes `suggested-action`; it
  * never rewrites the button's class list, and neither does this.
  */
-export function bannerButtonClassName(current: string, style: AdwBannerButtonStyle): string {
+export function bannerButtonClassName(current: NsClassName, style: AdwBannerButtonStyle): string {
     return replaceClasses(current, ADW_BANNER_BUTTON_STYLE_CLASSES, bannerButtonStyleClasses(style));
 }
 
@@ -239,7 +266,7 @@ export function bannerButtonClassName(current: string, style: AdwBannerButtonSty
  * that was never given a height fades nothing, so it gets no undershoot.
  */
 export function toolbarViewClassNames(
-    current: { view: string; topBar: string; bottomBar: string },
+    current: { view: NsClassName; topBar: NsClassName; bottomBar: NsClassName },
     props: ToolbarViewProps,
     heights: { topBarHeight: number; bottomBarHeight: number },
 ): ToolbarViewClassNames {

@@ -36,7 +36,7 @@ import {
     buttonContentLabelVisible,
 } from '@gjsify/adwaita-core';
 import type { ButtonContentEllipsize } from '@gjsify/adwaita-core';
-import { replaceClasses } from './chrome.js';
+import { type NsClassName, replaceClasses } from './chrome.js';
 import { ICON_FALLBACK_NAME } from './icon-theme.js';
 
 // Re-exported so `adw-button-content.ts` and its consumers get both halves from one place.
@@ -72,7 +72,7 @@ export function buttonContentIconIsFallback(icon: string): boolean {
  * of `adw_button_content_root`. Adds rather than rewrites, so a caller's composed
  * classes survive, and is idempotent, so a re-parent cannot double the token.
  */
-export function buttonContentRootedParentClassName(current: string): string {
+export function buttonContentRootedParentClassName(current: NsClassName): string {
     return replaceClasses(current, [BUTTON_CONTENT_STYLE_CLASS], [BUTTON_CONTENT_STYLE_CLASS]);
 }
 
@@ -81,7 +81,7 @@ export function buttonContentRootedParentClassName(current: string): string {
  * A button that loses its content must go back to plain-button padding, or the 9px
  * stays on a now text-only button.
  */
-export function buttonContentUnrootedParentClassName(current: string): string {
+export function buttonContentUnrootedParentClassName(current: NsClassName): string {
     return replaceClasses(current, [BUTTON_CONTENT_STYLE_CLASS], []);
 }
 
@@ -91,6 +91,6 @@ export function buttonContentLabelVisibility(label: string): 'visible' | 'collap
 }
 
 /** The content's own `className` for a `can-shrink` value, other tokens untouched. */
-export function buttonContentClassName(current: string, canShrink: boolean): string {
+export function buttonContentClassName(current: NsClassName, canShrink: boolean): string {
     return replaceClasses(current, OWN_CLASSES, canShrink ? [BUTTON_CONTENT_CAN_SHRINK_CLASS] : []);
 }

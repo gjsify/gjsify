@@ -156,7 +156,26 @@ export interface TouchGestureEventData extends EventData {
 const PARENTS = new WeakMap<object, View>();
 
 export class View extends Observable {
-    private _className = '';
+    /**
+     * UNSET, NOT EMPTY — a view nobody has written a class onto reads `undefined`.
+     *
+     * This field held `''` and the setter coerced `value ?? ''`, which made the suite
+     * STRUCTURALLY BLIND to the whole class of defect that reads a `className` as if it
+     * were always a string: on a device `Adw.Clamp` with a classless child dies at
+     * startup with `TypeError: … reading 'split'`, and every test here passed because the
+     * double answered `''` to the one question a device answers `undefined`.
+     *
+     * The real semantics, measured against `@nativescript/core` 9.1.2 by registering
+     * `classNameProperty`'s own options on a bare class: the property carries no
+     * `defaultValue`, its getter is `key in this ? this[key] : defaultValue`, so it reads
+     * `undefined` until written; `undefined` is not `unsetValue`, so writing it stores
+     * `undefined` rather than resetting; and `valueChanged` feeds `cssClasses` only from
+     * `typeof newValue === 'string' && newValue !== ''`.
+     *
+     * A DOUBLE THAT SMOOTHS AN EDGE OFF THE PLATFORM CANNOT REPORT THAT EDGE. It is the
+     * only reason this file may differ from a convenient JS object at all.
+     */
+    private _className: string | undefined;
     /**
      * The live class set the CSS engine matches against, rebuilt from `className` on every
      * write. Reproduced because it is a name a port widget must NOT take: ADR 0049 first
@@ -168,7 +187,15 @@ export class View extends Observable {
     height: number | string = 'auto';
     horizontalAlignment = 'stretch';
     verticalAlignment = 'stretch';
-    backgroundColor = '';
+    /**
+     * UNSET like {@link View.className}, and for the same measured reason: the `Property`
+     * behind it carries no `defaultValue`, so NativeScript answers `undefined` until
+     * something writes one. Every member of this double that models such a property is
+     * declared without an initialiser, and
+     * `scripts/check-nativescript-ns-defaults.mjs` holds the list against
+     * `status/nativescript-undefined-defaults.json`.
+     */
+    backgroundColor: string | undefined;
     opacity = 1;
     paddingTop = 0;
     paddingBottom = 0;
@@ -186,21 +213,22 @@ export class View extends Observable {
     /** Never loaded here: nothing mounts a view into a page without a platform. */
     readonly isLoaded: boolean = false;
     androidOverflowEdge = 'none';
-    accessibilityRole = '';
-    accessibilityState = '';
-    accessibilityLabel = '';
+    accessibilityRole: string | undefined;
+    accessibilityState: string | undefined;
+    accessibilityLabel: string | undefined;
     readonly style: { direction?: 'ltr' | 'rtl' | null } = { direction: null };
     /** The pseudo-classes `attachRowPressFeedback` toggles — observable, not styled. */
     readonly pseudoClasses: Set<string> = new Set();
 
-    get className(): string {
+    get className(): string | undefined {
         return this._className;
     }
 
-    set className(value: string) {
-        this._className = value ?? '';
+    set className(value: string | undefined) {
+        this._className = value;
         this.cssClasses.clear();
-        for (const token of this._className.split(/\s+/)) if (token !== '') this.cssClasses.add(token);
+        if (typeof value !== 'string') return;
+        for (const token of value.split(/\s+/)) if (token !== '') this.cssClasses.add(token);
     }
 
     get parent(): View | null {
@@ -535,8 +563,8 @@ export class ImageSource {
 }
 
 export class Image extends View {
-    src: string | ImageSource = '';
-    imageSource: ImageSource = null;
+    src: string | ImageSource | undefined;
+    imageSource: ImageSource | undefined;
     stretch = 'aspectFit';
 }
 
@@ -545,7 +573,7 @@ export class SegmentedBarItem extends Observable {
 }
 
 export class SegmentedBar extends View {
-    items: SegmentedBarItem[] = [];
+    items: SegmentedBarItem[] | undefined;
     selectedIndex = 0;
 }
 

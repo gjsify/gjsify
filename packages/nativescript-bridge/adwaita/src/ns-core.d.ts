@@ -77,8 +77,35 @@ declare module '@nativescript/core' {
          * any visibility.
          */
         private _measuredWidth: number;
-        /** CSS class list applied to this view (space-separated). */
-        className: string;
+        /**
+         * CSS class list applied to this view (space-separated) — `undefined` until
+         * something writes one.
+         *
+         * THE OPTIONAL HALF IS THE WHOLE POINT, and this slice is the only thing that can
+         * state it: it is an ambient `declare module`, so it WINS over a real installed
+         * `@nativescript/core` (measured), and upstream's own `.d.ts` says `string`
+         * because `@nsProperty` generates the declaration from the class field, not from
+         * the `Property` that backs it. `classNameProperty` is registered with NO
+         * `defaultValue` (`ui/core/view-base/index.ts:1592`) and `Property`'s getter
+         * answers `key in this ? this[key] : defaultValue`
+         * (`ui/core/properties/index.ts:303`), so a fresh view reads `undefined` —
+         * measured against `@nativescript/core` 9.1.2 by registering that exact property
+         * on a bare class and reading it back, not inferred from the source.
+         *
+         * Declaring it `string` is what let `Adw.Clamp` hand a classless child's
+         * `undefined` to `replaceClasses`, which killed Learn6502's Android port at
+         * startup on a real emulator with `TypeError: … reading 'split'`. `gjsify tsc`
+         * held the call CORRECT the whole time. Now it does not, and that is the guard:
+         * every call that feeds this to something expecting a `string` is a type error
+         * before it is a device crash.
+         *
+         * A classless view is ordinary here — `Gtk.Box` and `Gtk.Label` are transparent
+         * and write no class, and neither does any plain `@nativescript/core` view a
+         * consumer builds. `scripts/check-nativescript-ns-defaults.mjs` holds this
+         * declaration, and every other member of this slice NativeScript leaves
+         * undefined, against `status/nativescript-undefined-defaults.json`.
+         */
+        className: string | undefined;
         /**
          * The LIVE set of classes the CSS engine matches against, rebuilt from
          * `className` on every write (`ui/core/view-base/index.js:1140-1154`), and
@@ -113,7 +140,7 @@ declare module '@nativescript/core' {
         /** Vertical alignment (`'top' | 'middle' | 'bottom' | 'stretch'`). */
         verticalAlignment: string;
         /** Inline background color (hex string or `Color`). */
-        backgroundColor: string;
+        backgroundColor: string | undefined;
         /** Inline opacity in [0, 1]. */
         opacity: number;
         /**
@@ -164,17 +191,17 @@ declare module '@nativescript/core' {
         androidOverflowEdge: string;
         /** Accessibility role announced to the platform screen reader —
          *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
-        accessibilityRole: string;
+        accessibilityRole: string | undefined;
         /** The view's resolved style. `direction` is an INHERITED CSS property
          *  (`ui/styling/style-properties`: `new InheritedCssProperty({ name:
          *  'direction', cssName: 'direction' })`, default null), which is the
          *  text direction `start`/`end` are resolved against. */
         readonly style: { direction?: 'ltr' | 'rtl' | null };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
-        accessibilityState: string;
+        accessibilityState: string | undefined;
         /** The text a screen reader announces for this view — NS's counterpart
          *  to `gtk_accessible_update_property (…, DESCRIPTION, …)`. */
-        accessibilityLabel: string;
+        accessibilityLabel: string | undefined;
         /** Animate one or more properties to their target values. Resolves when the
          *  animation finishes; the returned promise can also be `cancel()`ed. */
         animate(options: AnimationDefinition): AnimationPromise;
@@ -348,7 +375,7 @@ declare module '@nativescript/core' {
 
     /** A wheel/list picker — `<ListPicker>`. */
     export class ListPicker extends View {
-        items: unknown[];
+        items: unknown[] | undefined;
         selectedIndex: number;
     }
 
@@ -403,9 +430,9 @@ declare module '@nativescript/core' {
     /** An image view — `<Image>`. */
     export class Image extends View {
         /** Image source: a URI, `data:` URL, `~/`-relative path, or `res://` resource. */
-        src: string | ImageSource;
+        src: string | ImageSource | undefined;
         /** A pre-decoded native image source (preferred for in-memory bitmaps). */
-        imageSource: ImageSource;
+        imageSource: ImageSource | undefined;
         /** Stretch mode (`'none' | 'aspectFill' | 'aspectFit' | 'fill'`). */
         stretch: string;
     }
@@ -428,7 +455,7 @@ declare module '@nativescript/core' {
 
     /** A segmented (linked) control — `<SegmentedBar>`. Exactly one item is selected. */
     export class SegmentedBar extends View {
-        items: SegmentedBarItem[];
+        items: SegmentedBarItem[] | undefined;
         selectedIndex: number;
     }
 
