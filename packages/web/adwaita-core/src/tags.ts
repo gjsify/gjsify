@@ -70,3 +70,18 @@ export const hostTagOf = (gtype: string) => {
  * through the `scripts/` restatement of it, so the two stay one spelling rather than two.
  */
 export const attributeOf = (prop: string) => prop.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
+
+/**
+ * `maximum-size` -> `maximumSize`: a GObject property name as the JavaScript member a
+ * NativeScript widget declares for it.
+ *
+ * A `.blp` projects its properties under their GIR spelling, because that is what GtkBuilder
+ * and the `<adw-*>` attributes read. The NativeScript port names the same property in camel
+ * case (`Adw.Clamp:maximum-size` is `AdwClamp.maximumSize`), so a builder handed a projected
+ * tree needs this rule to find the member, and without it every hyphenated property of a real
+ * `.blp` is refused as reaching nothing. GObject treats `_` and `-` in a property name as one
+ * separator, so both close a word here. Idempotent on a camel-case name, which is how the
+ * gallery's hand-authored trees already spell theirs.
+ */
+export const propertyOf = (name: string) =>
+    name.replace(/[-_]([a-z0-9])/g, (_match, next: string) => next.toUpperCase());

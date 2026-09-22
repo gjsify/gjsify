@@ -31,6 +31,7 @@
 // function they belong to.
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { propertyOf } from '@gjsify/adwaita-core/tags';
 import type { View } from '@nativescript/core';
 
 import { declaredBuilderSlots } from '../widgets/builder-slots.js';
@@ -125,10 +126,14 @@ export function build(node: SharedTreeNode): View {
     // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
     // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
     if (node.id !== undefined) view.id = node.id;
-    for (const [prop, value] of Object.entries(node.props ?? {})) {
+    for (const [authored, value] of Object.entries(node.props ?? {})) {
+        // A projected `.blp` spells a property as GObject does (`maximum-size`); the widget
+        // declares it in camel case (`maximumSize`). Without the case rule every hyphenated
+        // property of a real `.blp` was refused below, so only hand-authored trees built.
+        const prop = propertyOf(authored);
         if (!(prop in view)) {
             throw new Error(
-                `<${element.xmlName} ${prop}="${value}"> reaches nothing: \`${node.tag}\` declares no ` +
+                `<${element.xmlName} ${authored}="${value}"> reaches nothing: \`${node.tag}\` declares no ` +
                     `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
                     'so the attribute door cannot report this and the tree would render without it.',
             );

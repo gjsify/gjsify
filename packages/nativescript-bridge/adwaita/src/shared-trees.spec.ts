@@ -66,6 +66,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     authoredTags,
+    PROPERTY_OF_VECTORS,
     sharedTreeExpectations,
     sharedTreePlacements,
     subjectIndexOf,
@@ -265,6 +266,35 @@ export const AdwSharedTreesNsTest = async () => {
         await it('a widget without a class list refuses them BY NAME', () => {
             expect(() => build({ tag: 'AdwClamp', styleClasses: ['card'] })).toThrow('takes no style classes');
         });
+    });
+
+    // `PROPERTY_OF_VECTORS` (`adwaita-core/conformance/tags.ts`) pins `propertyOf`'s case
+    // rule, and until now nothing drove it against a REAL declared member — the gap
+    // `build()`'s own fix (`builder/index.ts`) exposed: a projected `.blp` spells a property
+    // as GObject does (`maximum-size`), the widget declares it camelCase (`maximumSize`),
+    // and only `propertyOf` stands between the two. This is this pillar's own driver,
+    // against the real widget each vector names — the shape `adwaita-web/src/tags.spec.ts`
+    // already holds `attributeOf` to, against a real DOM element, for its own table.
+    await describe('PROPERTY_OF_VECTORS reach the real declared member', async () => {
+        const WIDGET_OF: Readonly<Record<string, string>> = {
+            'maximum-size': 'AdwClamp',
+            'tightening-threshold': 'AdwClamp',
+            icon_name: 'GtkImage',
+            label: 'GtkLabel',
+            maximumSize: 'AdwClamp',
+        };
+
+        for (const vector of PROPERTY_OF_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                const tag = WIDGET_OF[vector.name];
+                if (tag === undefined) throw new Error(`no widget named for vector '${vector.name}'`);
+
+                const value = vector.name.toLowerCase().includes('icon') ? 'list-add-symbolic' : '400';
+                const view = build({ tag, props: { [vector.name]: value } }) as unknown as Record<string, unknown>;
+
+                expect(String(view[vector.expected])).toBe(value);
+            });
+        }
     });
 
     await describe('the shared corpus is placed where it says', async () => {

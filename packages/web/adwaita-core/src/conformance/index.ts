@@ -590,8 +590,8 @@ export {
 export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWidgetVector } from './header-bar.js';
 
 // --- The two tag-case rules (`@gjsify/adwaita-core/tags`) ---
-export { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS } from './tags.js';
-export type { AttributeOfVector, HostTagVector } from './tags.js';
+export { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS, PROPERTY_OF_VECTORS } from './tags.js';
+export type { AttributeOfVector, HostTagVector, PropertyOfVector } from './tags.js';
 
 // --- Which vectors an AUTHORED WIDGET TREE reaches (ADR 0051) — no table of its own ---
 export {
