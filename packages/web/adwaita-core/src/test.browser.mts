@@ -37,6 +37,7 @@ import checksTestSuite from './checks.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
+import sourceTestSuite from './source.spec.js';
 
 run({
     adjustmentTestSuite,
@@ -71,4 +72,5 @@ run({
     wrapBoxTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
+    sourceTestSuite,
 });

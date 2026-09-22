@@ -33,7 +33,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 
 import { asm6502 } from './asm6502.js';
 import { adwaitaEditorTheme, adwaitaHighlightStyle, ensureSourceViewStyleInjected } from './theme.js';
-import { formatHexAddress, formatLineNumber, stripWhitespace } from './hex.js';
+import { formatHexAddress, formatLineNumber, stripSourceWhitespace } from '@gjsify/adwaita-core';
 import { createGtkImage } from '../elements/gtk-image.js';
 
 /** A recognisable copy glyph rendered inline so the subpath needs no icon CSS. */
@@ -379,7 +379,7 @@ export class AdwSourceView extends HTMLElement {
                 const { from, to } = view.state.selection.main;
                 if (from === to) return false;
                 const selected = view.state.sliceDoc(from, to);
-                event.clipboardData?.setData('text/plain', stripWhitespace(selected));
+                event.clipboardData?.setData('text/plain', stripSourceWhitespace(selected));
                 event.preventDefault();
                 return true;
             },
@@ -391,7 +391,7 @@ export class AdwSourceView extends HTMLElement {
     }
 
     private _onCopyButtonClick(): void {
-        const text = this._hexAddresses ? stripWhitespace(this.code) : this.code;
+        const text = this._hexAddresses ? stripSourceWhitespace(this.code) : this.code;
         const clipboard = (globalThis.navigator as Navigator | undefined)?.clipboard;
         if (clipboard?.writeText) void clipboard.writeText(text).catch(() => undefined);
         this.dispatchEvent(new CustomEvent('copy', { bubbles: true, detail: { code: this.code } }));

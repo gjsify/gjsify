@@ -796,3 +796,22 @@ export type {
     WrapBoxFlexStyle,
     WrapBoxLineLayout,
 } from './wrap-box.js';
+
+// --- Source-code presentation (GtkSourceView's language + scheme, renderer-free) ---
+export {
+    ADW_SOURCE_6502_DIRECTIVES,
+    ADW_SOURCE_6502_LINE_COMMENT,
+    ADW_SOURCE_6502_OPCODES,
+    ADW_SOURCE_6502_REGISTERS,
+    ADW_SOURCE_6502_TOKEN_ROLES,
+    ADW_SOURCE_HEX_STRIDE,
+    ADW_SOURCE_PALETTE_DARK,
+    ADW_SOURCE_PALETTE_LIGHT,
+    ADW_SOURCE_SYNTAX_ROLES,
+    classifyAsm6502Word,
+    formatHexAddress,
+    formatLineNumber,
+    stripSourceWhitespace,
+    tokenizeAsm6502,
+} from './source.js';
+export type { AdwSourcePalette, AdwSourceSyntaxRole, AdwSourceTokenClass, AdwSourceTokenStream } from './source.js';

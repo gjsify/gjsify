@@ -14,6 +14,12 @@
 import { EditorView } from '@codemirror/view';
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import {
+    ADW_SOURCE_PALETTE_DARK,
+    ADW_SOURCE_PALETTE_LIGHT,
+    ADW_SOURCE_SYNTAX_ROLES,
+    type AdwSourcePalette,
+} from '@gjsify/adwaita-core';
 
 /**
  * Monospace stack — the `--monospace-font-family` token, with its own value
@@ -95,18 +101,19 @@ export const adwaitaHighlightStyle = HighlightStyle.define([
     { tag: tags.variableName, color: 'var(--view-fg-color, rgba(0,0,6,0.8))' },
 ]);
 
+/**
+ * Emit one `--adw-src-<role>: <colour>;` declaration per syntax role, in the
+ * core's role order. The two schemes therefore cannot drift into listing
+ * different roles, which is the failure a hand-written pair of blocks invites.
+ */
+const paletteDeclarations = (palette: AdwSourcePalette): string =>
+    ADW_SOURCE_SYNTAX_ROLES.map((role) => `    --adw-src-${role}: ${palette[role]};`).join('\n');
+
 // The light-theme syntax palette + shared chrome. Dark values are supplied by
 // the overrides block (same mechanism as adwaita-web's _theme.scss: auto via
 // prefers-color-scheme, manual via .theme-dark / opt-out via .theme-light).
 const DARK_TOKENS = `
-    --adw-src-comment: #9a9996;
-    --adw-src-keyword: #78aeed;
-    --adw-src-number: #ffa348;
-    --adw-src-string: #8ff0a4;
-    --adw-src-label: #dc8add;
-    --adw-src-register: #33d1c9;
-    --adw-src-directive: #f66151;
-    --adw-src-operator: rgba(255, 255, 255, 0.55);
+${paletteDeclarations(ADW_SOURCE_PALETTE_DARK)}
     --adw-src-gutter-fg: rgba(255, 255, 255, 0.35);
     --adw-src-active-line: color-mix(in srgb, #ffffff 6%, transparent);`;
 
@@ -116,14 +123,7 @@ export const SOURCE_VIEW_STYLE_ID = 'adw-source-view-style';
 /** The chrome stylesheet: container, copy button, LTR pin, syntax palette. */
 export const SOURCE_VIEW_CSS = `
 .adw-source-view {
-    --adw-src-comment: #5e5c64;
-    --adw-src-keyword: #1c71d8;
-    --adw-src-number: #c64600;
-    --adw-src-string: #26a269;
-    --adw-src-label: #813d9c;
-    --adw-src-register: #007e8a;
-    --adw-src-directive: #a51d2d;
-    --adw-src-operator: rgba(0, 0, 6, 0.55);
+${paletteDeclarations(ADW_SOURCE_PALETTE_LIGHT)}
     --adw-src-selection: color-mix(in srgb, var(--accent-bg-color, #3584e4) 26%, transparent);
     --adw-src-gutter-bg: var(--view-bg-color, #ffffff);
     --adw-src-gutter-fg: rgba(0, 0, 6, 0.35);
