@@ -111,6 +111,22 @@
 //     published 4.6.0; the gap is in `status/open-todos.md`). That is a different kind
 //     of side from `props.ts`, and the difference is stated below where it matters.
 //
+//  7. THE VALUE LEDGER. A clause-2 namespace carries the non-widget GObjects an author
+//     CONSTRUCTS as well as its widgets (ADR 0034 § Amendment 19) — on GJS a menu is
+//     `new Gio.Menu()`, and until the ports carried that name every such pane had to be
+//     written twice. `Gio` is a namespace here for that reason and owns no widget at all.
+//     Rule 5's "a member with no widget outlives the widget it named" would refuse every
+//     one of them, so `CONSTRUCTIBLE_VALUES` in `scripts/value-types.mjs` names each
+//     exempted member with the GIR type it is — and an exemption table is only worth
+//     what holds it, so it is held from four sides against
+//     `packages/framework/gtk-host/src/generated/value-types.mts`, written from the
+//     INSTALLED TYPELIB by `scripts/generate-value-types.mjs`.
+//
+//     THE ARTIFACT IS THE POINT. The first version of this rule read `node_modules/@girs`
+//     directly; this check runs in a job that performs no install, so it could only ever
+//     fail — which it did, on every push. `generated/methods.mts` had already stated the
+//     arrangement in its own header, and this is the third use of it.
+//
 // WHICH HALF CAN GO RED — INCLUDING THE PARTS ADDED LAST
 //
 // The § 1 argument above is that a rule comparing a mapped type with its own source is
@@ -212,6 +228,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
     adwaitaNativeScriptWidgets,
+    CONSTRUCTIBLE_VALUES,
     namespaceBarrelMembers,
     reactNativeBarrelWidgets,
     rootValueExports,
@@ -230,6 +247,7 @@ import {
     writeSurfaces,
 } from './nativescript-xml-doors.mjs';
 import { METHODS_FILE, methodsOf, readMethodTable, snakeOf } from './widget-methods.mjs';
+import { readValueTypes, VALUE_TYPES_FILE } from './value-types.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
 // reports the explanation as the violation — measured on the sibling check for the
@@ -1266,11 +1284,12 @@ function namespacePlace(tag) {
  *   tagOf: (widget: string) => string | undefined,
  *   classOf: (widget: string) => string,
  *   describe: (widget: string) => string,
+ *   values: { member: string, gir: string, why: string }[],
  * }} surface
  * @returns {string[]}
  */
 function namespaceProblems(surface) {
-    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe, flatExports } = surface;
+    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe, flatExports, values } = surface;
     const problems = [];
     if (namespace === null) {
         return [
@@ -1351,14 +1370,117 @@ function namespaceProblems(surface) {
     for (const [name, actual] of namespace) {
         const members = expected.get(name);
         for (const member of actual.keys()) {
-            if (members?.has(member)) continue;
+            const declaredValue = values.some((entry) => entry.member === `${name}.${member}`);
+            if (members?.has(member)) {
+                // The stale-entry direction: a member the ports ship as a WIDGET may not sit
+                // in the value ledger, or the ledger becomes the second place a widget is
+                // declared and the rule above stops meaning anything. Held here AND against
+                // the GIR in `constructibleValueProblems`, because the two answer different
+                // questions — this one catches a widget this surface ships under a name the
+                // GIR gives something else.
+                if (declaredValue) {
+                    problems.push(
+                        `\`${name}.${member}\` is declared a constructible value and ${pkg} ships it as a ` +
+                            'WIDGET. Drop the entry from CONSTRUCTIBLE_VALUES — the rule above already covers it.',
+                    );
+                }
+                continue;
+            }
+            // A ledger entry is held against the GIR ONCE, in `constructibleValueProblems`:
+            // the ledger is one list and the surfaces are several, so failing here too would
+            // ask for one fix as many times as there are surfaces carrying the member.
+            if (declaredValue) continue;
             problems.push(
                 `${source} names \`${name}.${member}\`, which no ${pkg} widget corresponds to — drop it, ` +
-                    'or ship the widget it promises',
+                    'ship the widget it promises, or declare it a constructible value in ' +
+                    `CONSTRUCTIBLE_VALUES (scripts/value-types.mjs) and regenerate ${VALUE_TYPES_FILE} ` +
+                    '(ADR 0034 § Amendment 19)',
             );
         }
     }
 
+    return problems;
+}
+
+/**
+ * The value ledger itself, held against the GIR — once for the repository, not per surface.
+ *
+ * WHY IT IS NOT IN THE LOOP ABOVE. `CONSTRUCTIBLE_VALUES` is ONE list and the surfaces
+ * carrying its members are several, so a ledger entry checked per surface reports one
+ * mistake once per port. It is also a claim about the GIR rather than about any surface,
+ * and the two directions it can be wrong in are both GIR facts.
+ *
+ * WHERE THE GIR ANSWER COMES FROM, and the incident that decided it. The first version of
+ * this rule read `node_modules/@girs/<pkg>/<pkg>.d.ts` directly. This check runs in
+ * `audit-runtimes.yml`, a job that deliberately performs NO install — so the read always
+ * failed, and the gate exited 1 on every push. The answer is the one `generated/methods.mts`
+ * already states in its own header: a committed artifact, written under GJS where the
+ * typelib is, read here with no install. `scripts/generate-value-types.mjs` writes it.
+ *
+ * THREE DIRECTIONS, each able to fail alone:
+ *   · the artifact has no row for a ledger entry — someone added an exemption and did not
+ *     regenerate, so nothing ever held it against anything;
+ *   · the row says the namespace declares no such GObject — the exemption names a ghost;
+ *   · the row says the type IS a `GtkWidget` subclass — a widget hiding in the table whose
+ *     whole job is to excuse things that are not widgets.
+ * …plus the reverse of the first: a row the ledger no longer names, which is the same
+ * staleness seen from the artifact's side.
+ *
+ * @param {{ valueLedger: { member: string, gir: string, why: string }[], valueTypes: {
+ *   provenance: string,
+ *   declared: Map<string, { gtype: string, widget: boolean }>,
+ *   undeclared: Map<string, string>,
+ * } }} world
+ * @returns {string[]}
+ */
+function constructibleValueProblems(world) {
+    const { valueLedger, valueTypes } = world;
+    const problems = [];
+    for (const entry of valueLedger) {
+        problems.push(
+            ...reasonProblems(
+                `\`${entry.member}\` is declared a constructible value`,
+                entry.why,
+                "a 'why'",
+                'CONSTRUCTIBLE_VALUES in scripts/value-types.mjs',
+            ),
+        );
+        const row = valueTypes.declared.get(entry.member);
+        const undeclared = valueTypes.undeclared.get(entry.member);
+        if (row === undefined && undeclared === undefined) {
+            problems.push(
+                `\`${entry.member}\` is declared a constructible value and ${VALUE_TYPES_FILE} has no row for ` +
+                    'it, so nothing has held it against the GIR. Regenerate the artifact with ' +
+                    '`gjs -m scripts/generate-value-types.mjs` — an exemption no oracle answered excuses ' +
+                    'whatever it names.',
+            );
+            continue;
+        }
+        if (undeclared !== undefined) {
+            problems.push(
+                `\`${entry.member}\` is declared a constructible value and the typelib \`${undeclared}\` ` +
+                    `declares no GObject \`${entry.gir}\`. Fix the name in CONSTRUCTIBLE_VALUES, or drop the ` +
+                    'entry: the member is then a name with nothing behind it on any surface.',
+            );
+            continue;
+        }
+        if (row.widget) {
+            problems.push(
+                `\`${entry.member}\` is declared a constructible value and \`${row.gtype}\` is a GtkWidget ` +
+                    'subclass in the GIR. Drop the entry and ship the widget — the value ledger exists to ' +
+                    'excuse members that are NOT widgets, and a widget inside it is the second place a widget ' +
+                    'is declared.',
+            );
+        }
+    }
+    const named = new Set(valueLedger.map((entry) => entry.member));
+    for (const member of [...valueTypes.declared.keys(), ...valueTypes.undeclared.keys()]) {
+        if (named.has(member)) continue;
+        problems.push(
+            `${VALUE_TYPES_FILE} carries a row for \`${member}\`, which CONSTRUCTIBLE_VALUES does not name — ` +
+                'the artifact is stale. Regenerate it with `gjs -m scripts/generate-value-types.mjs`.',
+        );
+    }
     return problems;
 }
 
@@ -1528,6 +1650,7 @@ const webNamespaceSurface = (world, runtimeTags) => ({
     source: NAMESPACE_SOURCE,
     widgets: world.webElements,
     namespace: world.webNamespace,
+    values: world.valueLedger,
     flatExports: world.flatExports.get(WEB_SURFACE) ?? new Set(),
     tagOf: (element) => {
         if (runtimeTags.has(element)) return element;
@@ -1546,11 +1669,12 @@ const webNamespaceSurface = (world, runtimeTags) => ({
  * table does not carry resolves to nothing here: `rendererWidgetProblems` has already
  * failed on it, and a second failure would ask for two fixes for one edit.
  */
-const rendererNamespaceSurface = (surface, runtime, runtimeTags, flatExports) => ({
+const rendererNamespaceSurface = (surface, runtime, runtimeTags, flatExports, values) => ({
     package: surface.package,
     source: surface.namespaceSource,
     widgets: surface.widgets,
     namespace: surface.namespace,
+    values,
     flatExports: flatExports.get(surface.package) ?? new Set(),
     tagOf: (widget) => {
         if (runtimeTags.has(widget)) return widget;
@@ -2125,6 +2249,10 @@ export function alignmentProblems(world) {
     // second spelling clause 2 requires. It runs after the rules above because it reuses
     // their verdicts — an element the table declares web-only is one this rule expects no
     // member for.
+    // The LEDGER behind that half, held against the GIR before any surface is read: a
+    // ledger entry that excuses a ghost, or a widget, excuses it on every surface at once.
+    problems.push(...constructibleValueProblems(world));
+
     problems.push(...namespaceProblems(webNamespaceSurface(world, runtimeTags)));
 
     // The RENDERER halves. The same shape over a second independent source per surface:
@@ -2140,7 +2268,9 @@ export function alignmentProblems(world) {
         // different. Held after the widget names, because it reuses their verdicts.
         if (surface.namespace !== undefined) {
             problems.push(
-                ...namespaceProblems(rendererNamespaceSurface(surface, runtime, runtimeTags, world.flatExports)),
+                ...namespaceProblems(
+                    rendererNamespaceSurface(surface, runtime, runtimeTags, world.flatExports, world.valueLedger),
+                ),
             );
         }
     }
@@ -2223,6 +2353,10 @@ const WORLD = () => ({
     webNamespace: new Map([
         ['Adw', new Map([['Bin', 'AdwBin']])],
         ['Gtk', new Map([['Button', 'AdwButton']])],
+        // A namespace with no widget at all, which is the shape ADR 0034 § Amendment 19
+        // made legal. Without it the baseline never runs the value branch and every vector
+        // below would be measuring a path the real tree has and the fixture does not.
+        ['Gio', new Map([['Menu', 'Menu']])],
     ]),
     // The three flat exports the fixture surfaces keep: two widgets with no member (a
     // `composes` and an `own`) and one helper. None of them may be reported, which is what
@@ -2297,6 +2431,15 @@ const WORLD = () => ({
     ]),
     nsWidgets: FIXTURE_NS_WIDGETS,
     nsTable: FIXTURE_NS_TABLE,
+    // The value ledger and the typelib's committed answer about it, as the real world
+    // carries them: one member that is a GObject and is not a widget, which is the only
+    // state that may pass.
+    valueLedger: [{ member: 'Gio.Menu', gir: 'Menu', why: FIXTURE_REASON }],
+    valueTypes: {
+        provenance: 'Gio-2.0 Gtk-4.0/4.22.5',
+        declared: new Map([['Gio.Menu', { gtype: 'GMenu', widget: false }]]),
+        undeclared: new Map(),
+    },
     // The renderer's clause-2 namespace, which is where the two derivations differ: the
     // fixture ledger says `adw-button` IS `GtkButton`, a GTYPE, so placing it needs the
     // runtime table above. `adw-icon-button` composes two and `adw-grid` is `own`, so
@@ -2511,6 +2654,57 @@ const VECTORS = [
         'a surface that exports no namespace at all',
         (w) => ({ ...w, webNamespace: null }),
         'exports no `Adw`/`Gtk` namespace',
+    ],
+    // ADR 0034 § Amendment 19. The value ledger is an EXEMPTION table, so every way it can
+    // excuse something it must not has to be a vector: an entry nothing answered, an entry
+    // naming a type the GIR does not have, an entry on a real widget, and an answer the
+    // ledger no longer asks for. The first version of this rule read `node_modules/@girs`
+    // in a job that installs nothing and could only ever fail; these run over the artifact
+    // the gate really reads.
+    [
+        'a value ledger entry the committed artifact never answered',
+        (w) => ({ ...w, valueTypes: { ...w.valueTypes, declared: new Map() } }),
+        'has no row for it',
+    ],
+    [
+        'a value ledger entry naming a type the GIR does not declare',
+        (w) => ({
+            ...w,
+            valueTypes: { ...w.valueTypes, declared: new Map(), undeclared: new Map([['Gio.Menu', 'Gio-2.0']]) },
+        }),
+        'declares no GObject `Menu`',
+    ],
+    [
+        'a widget excused as a constructible value',
+        (w) => ({
+            ...w,
+            valueTypes: { ...w.valueTypes, declared: new Map([['Gio.Menu', { gtype: 'GMenu', widget: true }]]) },
+        }),
+        'is a GtkWidget subclass in the GIR',
+    ],
+    [
+        'an artifact row the ledger no longer names',
+        (w) => ({
+            ...w,
+            valueTypes: {
+                ...w.valueTypes,
+                declared: new Map([...w.valueTypes.declared, ['Gio.Ghost', { gtype: 'GGhost', widget: false }]]),
+            },
+        }),
+        'the artifact is stale',
+    ],
+    [
+        'a value ledger entry with a reason under the floor',
+        (w) => ({ ...w, valueLedger: [{ ...w.valueLedger[0], why: 'a value' }] }),
+        '`Gio.Menu` is declared a constructible value with a 7-character reason',
+    ],
+    [
+        'a widget the ports ship AND excuse as a value',
+        (w) => ({
+            ...w,
+            valueLedger: [...w.valueLedger, { member: 'Adw.Bin', gir: 'Bin', why: FIXTURE_REASON }],
+        }),
+        '`Adw.Bin` is declared a constructible value and @gjsify/adwaita-web ships it as a WIDGET',
     ],
     [
         'a registered element with no namespace member',
@@ -3347,6 +3541,12 @@ try {
         // The method half's two sides: the typelib-read table, and what each NativeScript
         // widget class declares. `null` for an unreadable class is deliberate, as above.
         methodTable: readMethodTable(read(METHODS_FILE)),
+        // The value half of clause 2: the hand-written ledger, and the typelib's answer
+        // about it, committed by `scripts/generate-value-types.mjs`. Both travel in `world`
+        // so the vectors can break either side — the ledger is a module constant, and a
+        // rule reading a constant directly is one no vector can make go red.
+        valueLedger: CONSTRUCTIBLE_VALUES,
+        valueTypes: readValueTypes(read(VALUE_TYPES_FILE)),
         nsMethods: new Map([...nsFiles.keys()].map((tag) => [tag, nsMethodsOf(tagClass(tag))])),
         methodLedger: NS_METHOD_ALIGNMENT,
     };
@@ -3437,6 +3637,11 @@ console.log(
         `${methods.unmeasured.length > 0 ? `; ${methods.unmeasured.length} widget(s) whose counterpart the generating host predates: ${methods.unmeasured.join(', ')}` : ''}` +
         "; and every class reaches the host's connect/disconnect through withSignals(), counted by " +
         'check-nativescript-xml-doors. ' +
+        // The value half of clause 2, counted for the reason every other number here is: a
+        // ledger that quietly emptied would otherwise look exactly like a ledger that holds.
+        `Constructible values (ADR 0034 § Amendment 19): ${world.valueLedger.length} namespace member(s) ` +
+        `excused as values, ${world.valueTypes.declared.size} answered by the typelib-read ` +
+        `${VALUE_TYPES_FILE} (${world.valueTypes.provenance}), none of them a widget. ` +
         `Namespace exports (ADR 0034 clause 2): ${namespaced.length} of ${renderersDeclared} renderer(s)` +
         `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}, ` +
         `held at ${world.callers.length} caller import(s) in ` +

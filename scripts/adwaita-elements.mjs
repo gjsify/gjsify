@@ -897,11 +897,34 @@ export function reactNativeBarrelWidgets(code, where) {
     return [...modules].sort((a, b) => a.localeCompare(b));
 }
 
-/** The two GIR namespaces clause 2 is satisfied by. Nothing else is a namespace here. */
-const NAMESPACE_NAMES = ['Adw', 'Gtk'];
+/**
+ * The members a clause-2 namespace carries as VALUES rather than widgets.
+ *
+ * RE-EXPORTED, not owned: the ledger's other reader is `scripts/generate-value-types.mjs`,
+ * which runs under `gjs -m`, where this module's `node:fs` import is an `ImportError`
+ * (measured). So it lives in `value-types.mjs`, which imports nothing, and the two Node
+ * consumers — the vocabulary gate and the NativeScript template generator — still read it
+ * from the vocabulary module rather than each reaching for a list of their own.
+ */
+export { CONSTRUCTIBLE_VALUES } from './value-types.mjs';
+
+/**
+ * The namespaces clause 2 covers.
+ *
+ * `Gio` JOINED THEM, and it was invisible until it did: a port shipped
+ * `export * as Gio` and every check that reads a barrel simply skipped it, so a bogus
+ * `Gio.Ghost` passed `check-vocabulary-alignment.mjs` at exit 0 — measured, 2026-09-22,
+ * before this line changed. A namespace the tooling cannot see is worse than one it
+ * refuses: the refusal is a sentence, the blindness is a green run.
+ *
+ * Why a namespace that owns no widget belongs here at all is ADR 0034 § Amendment 19: the
+ * reference surface is GJS, an author there writes `new Gio.Menu()`, and the ports carry
+ * that spelling so the two dialects are one.
+ */
+const NAMESPACE_NAMES = ['Adw', 'Gtk', 'Gio'];
 
 /** `export const Adw = { … }` — one flat object literal, which is all the clause needs. */
-const NAMESPACE_DECLARATION = /export const (Adw|Gtk) = \{([^}]*)\}/g;
+const NAMESPACE_DECLARATION = /export const (Adw|Gtk|Gio) = \{([^}]*)\}/g;
 
 /** `export { Adw, Gtk } from './namespace.js'` — the one hop {@link namespaceExport} follows. */
 const NAMESPACE_REEXPORT = /export\s*\{([^}]*)\}\s*from\s*'(\.[^']*)'/g;
