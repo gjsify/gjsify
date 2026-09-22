@@ -210,6 +210,11 @@ const SNAPSHOTS = [
         why: 'its before/after table is the measurement that justified the decision, taken at the revision the record names — a later corpus file moves the live count and must not silently rewrite the evidence the decision was made on',
     },
     {
+        file: 'docs/adr/0068-style-classes-get-a-field-both-spellings.md',
+        claims: '42bb6b46f547e442',
+        why: 'the same shape one decision further: its per-kind loss table and its before/after pair are two readings of one tree taken around the change, at the revision its § How the numbers here were obtained names, and a later corpus file must not silently rewrite the evidence the decision rests on',
+    },
+    {
         file: 'docs/adr/0067-the-translatable-marking-becomes-a-field.md',
         claims: 'e5bfbd579c5d9937',
         why: 'the same shape one decision later, and for the same reason: its tables are two readings of one tree taken before and after the change, and its § How the numbers here were obtained says to read every count as a date',

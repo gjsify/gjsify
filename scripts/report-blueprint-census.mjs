@@ -41,6 +41,17 @@
 // object out of the census in silence — a census that quietly stops counting is worse than
 // one that stops.
 //
+// THE `SharedNode` COLUMN IS ADR 0053's PROPOSED MAPPING, NOT A READING OF THE PROJECTION,
+// and four of its cells have since been superseded by measurement. `template`, the object id and
+// `_("Back")` say `—` where ADR 0066 and ADR 0067 gave each a field, and the style-class cell
+// names `cssClasses`, which ADR 0049 § 1 measured fatal on NativeScript and ADR 0068 replaced
+// with `styleClasses` — a LIST, filled from both Blueprint spellings of the one GTK property.
+// The cells are left as the ADR wrote them on purpose: this block is a DATED decision's table,
+// the gate below holds the ADR to exactly these bytes, and the series records a correction in
+// the ADR that measured it rather than by editing the one it corrects. What is live is
+// `corpus/expectations.mjs` finding 2 and stage D of `check-blueprint-corpus.mjs`. Only the
+// COUNT column is a claim about the tree, and that is the half this script derives.
+//
 // No counts are written in this file. They are printed, for the reason
 // `check-blueprint-corpus.mjs` gives at length: a live count in a comment is restatement
 // that goes stale one commit later, which is the whole failure this script exists to end.

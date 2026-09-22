@@ -86,10 +86,11 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 
 // ------------------------------------------------------------------ 1. the ledger
 
-// The one delta line that repeats across every `apart` entry, written once: the marking of
-// ADR 0067 is absent from all five of them, and five copies of one string is five places to
-// forget when its spelling moves.
+// The delta lines that repeat across every `apart` entry, written once each: the marking of
+// ADR 0067 and the style-class list of ADR 0068 are absent from all five of them, and five
+// copies of one string is five places to forget when its spelling moves.
 const MARK = '- translatable?: Record<string, { context?: string }>';
+const STYLES = '- styleClasses?: string[]';
 
 /** The declaration that decides the shape. Everything else is measured against it. */
 const ORIGINAL = {
@@ -149,6 +150,7 @@ const FAMILY = [
             '- slot?: string',
             '- template?: string',
             `${MARK}`,
+            `${STYLES}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -172,6 +174,7 @@ const FAMILY = [
             '- id?: string',
             '- template?: string',
             `${MARK}`,
+            `${STYLES}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -193,6 +196,7 @@ const FAMILY = [
             '- slot?: string',
             '- template?: string',
             `${MARK}`,
+            `${STYLES}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -418,6 +422,7 @@ export interface SharedTreeNode {
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     translatable?: Readonly<Record<string, { readonly context?: string }>>;
+    styleClasses?: readonly string[];
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -432,6 +437,7 @@ const VECTORS = [
     slot?: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
+    styleClasses?: string[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -446,6 +452,7 @@ const VECTORS = [
     slot: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
+    styleClasses?: string[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -466,6 +473,7 @@ const VECTORS = [
             '- id?: string',
             '- template?: string',
             `${MARK}`,
+            `${STYLES}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -477,6 +485,7 @@ const VECTORS = [
     template?: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
+    styleClasses?: string[];
     children?: Lossy[];
 }`,
         'Lossy',
@@ -492,6 +501,7 @@ const VECTORS = [
     render: (into: Callbacky) => void;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
+    styleClasses?: string[];
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -506,6 +516,7 @@ const VECTORS = [
     slot?: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
+    styleClasses?: string[];
     children?: (Widened | string)[];
 }`,
         'Widened',

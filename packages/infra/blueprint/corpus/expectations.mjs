@@ -31,18 +31,22 @@
 //     through `SharedNode` is not available without a shape change, and no ADR had said
 //     so.
 //
-//  2. `styles [...]` HAS NOWHERE TO GO, AND THAT MOVES A ROW OF THE ADR. ADR 0049
-//     decided style classes are a LIST, and `SharedNode['props']` is `Record<string,
-//     string | number | boolean>`. A space-joined string would be a lie about the shape
-//     0049 chose, so this file records a loss instead. Note precisely what that
-//     refutes: ADR 0053 § Context's table maps `styles ["flat"]` to `cssClasses:
-//     ['flat']` and calls it GIR-derived — a field `SharedNode` does not have, holding
-//     a value its `props` cannot hold. That row is the one 0053 § Consequences said to
-//     expect ("the honest expectation is that the first suite moves at least one row of
-//     it"), and this is it, moved. `layout { }` and `accessibility { }` are the same
-//     shape and were in no row at all. All of it is evidence for, not an answer to, the
-//     open question 0053 leaves about whether `SharedNode` grows to hold the portable
-//     values of ADRs 0042 / 0046 / 0047.
+//  2. STYLE CLASSES ARE TWO SPELLINGS OF ONE PROPERTY, AND THIS RECORD HAS NOW BEEN
+//     WRONG TWICE. It first said `styles [...]` has nowhere to go, because ADR 0049
+//     decided style classes are a LIST and `props` holds none. ADR 0058 § 4 corrected
+//     that — 0049 § 3's WRITE door is a space-separated string, which `props` does
+//     hold — and named the vocabulary as the obstacle instead. ADR 0068 measured the
+//     goldens and both readings come out wrong: the oracle writes `styles ["flat"]` as
+//     `<style><class name="flat"/></style>` and the same GTK property written as
+//     `css-classes: ["flat", "narrow"]` (`21-value-array.blp`) as a `<property>` whose
+//     text is NEWLINE-joined. A space-joined string in `props` would have to pick one of
+//     those two joins and could then not be held against the other golden at all. So the
+//     shape carries `styleClasses`, a LIST, filled from both spellings, and stage D holds
+//     it against both patterns. What the correction does NOT reach: ADR 0053 § Context's
+//     table maps this row to `cssClasses: ['flat']`, and that NAME is still wrong —
+//     0049 § 1 measured `cssClasses` fatal on NativeScript. `layout { }` and
+//     `accessibility { }` are the same bracketed shape, are in no row of that table at
+//     all, and stay losses: they resolve through neither the widget nor a property.
 //
 //  3. AN ID REFERENCE SURVIVES AS A PLAIN STRING. `menu-model: mainMenu` projects to
 //     `props: { 'menu-model': 'mainMenu' }`, indistinguishable from the literal
@@ -63,8 +67,7 @@
 //   THE LINE A LOSS NAMES is the line of the construct that is dropped, and where that
 //   construct spans lines it is the OPENING one: the object line for `breakpoint` and
 //   `sibling-object` (never the bracket above it), the property line
-//   for `binding` and `value-list`, the `styles [` / `layout {` /
-//   `accessibility {` line for those three.
+//   for `binding` and `value-list`, the `layout {` / `accessibility {` line for those two.
 //
 //   `children` IS IN SOURCE ORDER, including where bracket-derived and
 //   property-derived children interleave. GtkBuilder puts the two in different places,
@@ -91,11 +94,17 @@
  * `translatable` left it the same way under ADR 0067, and for the opposite reason: a dropped
  * marking leaves a tree that looks COMPLETE and whose captions `xgettext` cannot see.
  *
+ * `styles` left it under ADR 0068, which found the two spellings of `GtkWidget:css-classes` and
+ * gave them one field. `value-list` STAYED and is now the kind to read carefully: it is where a
+ * bracketed value that is not a style class leaves — `widgets [ ]` holds object REFERENCES and
+ * `strings [ ]` emits as `<items>` rather than as a property — and where an ident inside either
+ * style-class spelling leaves too, because the reference compiler refuses that construct.
+ *
  * `translation-domain` stays, and is the marking's remainder: `translation-domain "app";` is a
  * fact about the FILE, and this shape is a tree — ADR 0067 § 4.
  *
  * @typedef {'signal'|'binding'|'breakpoint'
- *          |'menu'|'styles'|'layout'|'accessibility'|'comment'|'value-list'
+ *          |'menu'|'layout'|'accessibility'|'comment'|'value-list'
  *          |'sibling-object'|'responses'|'extern'} LossKind
  */
 
@@ -214,14 +223,9 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '10-styles.blp',
-        node: { tag: 'GtkButton', props: { label: 'styled' } },
-        lost: [
-            {
-                kind: 'styles',
-                line: 6,
-                detail: 'the style classes `flat` and `circular` — a list, and `props` holds no lists (ADR 0049)',
-            },
-        ],
+        node: { tag: 'GtkButton', props: { label: 'styled' }, styleClasses: ['flat', 'circular'] },
+        lost: [],
+        note: 'The file that isolates the block spelling, and the reason this corpus can tell the two spellings apart at all: the golden writes it as `<style><class name="flat"/></style>` where `21-value-array.blp` gets a NEWLINE-joined `<property name="css-classes">` for the same GTK property. Both fill `styleClasses`, which is why it is a list — ADR 0068 § 2.',
     },
     {
         file: '11-signal.blp',
@@ -298,12 +302,9 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'GtkCenterBox',
             props: { orientation: 'vertical' },
-            children: [{ tag: 'GtkLabel', slot: 'start', props: { label: 'commented' } }],
+            children: [{ tag: 'GtkLabel', slot: 'start', props: { label: 'commented' }, styleClasses: ['a', 'b'] }],
         },
-        lost: [
-            { kind: 'comment', line: 1, detail: 'ten comments in nine positions; none reaches either exit' },
-            { kind: 'styles', line: 14, detail: 'the style classes `a` and `b`, with two comments between them' },
-        ],
+        lost: [{ kind: 'comment', line: 1, detail: 'ten comments in nine positions; none reaches either exit' }],
         note: 'Listed here and nowhere else. The rule under test is that a comment changes neither exit, and this file reaches every position an earlier version of it listed as unexercised: before the `using` directive, before the object, before a property, between a property `:` and its value, trailing after a property, between a `[slot]` bracket and the object it labels, inside a `styles [ … ]` list (after an item and before one), before the closing brace, and after the last one.',
     },
     {
@@ -398,13 +399,12 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '21-value-array.blp',
-        node: { tag: 'GtkDropDown', children: [{ tag: 'GtkStringList', slot: 'model' }] },
+        node: {
+            tag: 'GtkDropDown',
+            styleClasses: ['flat', 'narrow'],
+            children: [{ tag: 'GtkStringList', slot: 'model' }],
+        },
         lost: [
-            {
-                kind: 'value-list',
-                line: 4,
-                detail: '`css-classes: ["flat", "narrow"]` — the property behind `styles [ ]`, written as a VALUE; it is the `value-list` kind and not `styles` because the projection names a loss after the spelling the file used, and the XML differs too',
-            },
             {
                 kind: 'value-list',
                 line: 7,
@@ -480,6 +480,7 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'GtkButton',
             props: { label: 'on one line', 'margin-top': 4, 'margin-bottom': 4 },
+            styleClasses: ['flat'],
             children: [{ tag: 'GtkLabel' }],
         },
         lost: [
@@ -493,13 +494,8 @@ export const RULE_EXPECTATIONS = [
                 line: 10,
                 detail: 'the handler binding `clicked => $onClicked()`, which shares its line with the property beside it',
             },
-            {
-                kind: 'styles',
-                line: 12,
-                detail: '`styles ["flat"]`, which shares its line with the property beside it',
-            },
         ],
-        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal, no styles and no menu, so the projection sees only a fraction of what this file pins.',
+        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal and no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
     },
     {
         file: '27-property-flags.blp',

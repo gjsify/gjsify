@@ -4,14 +4,17 @@
 // named at the seam rather than discovered downstream". This is that seam. Every loss it
 // takes is returned beside the tree, so nothing downstream has to discover one.
 //
-// THREE OF THEM STOPPED BEING LOSSES, AND THAT IS WHAT MADE THE EXIT USABLE. ADR 0066 gave
+// FOUR OF THEM STOPPED BEING LOSSES, AND THAT IS WHAT MADE THE EXIT USABLE. ADR 0066 gave
 // `template` and `object-id` a field each on the node. They are GtkBuilder's two ADDRESSING
 // constructs — the class a tree DEFINES and the name a node is addressed BY — and dropping
 // them is why no shipped `.blp` in this repository projected without loss: a file could
 // declare a widget and not place one. ADR 0067 then gave the `_()` marking one, for the
 // opposite reason: dropping it leaves a tree that looks FINISHED and whose captions
-// `xgettext` can no longer see. `bind` and `breakpoint` stay losses and stay declared; ADR
-// 0067 § 3 says why each, and why the file-level `translation-domain` is not a node fact.
+// `xgettext` can no longer see. ADR 0068 gave the STYLE CLASSES one, and closed the last
+// loss any shipped `.blp` here reaches that is not a grammar: `styles [ ]` and
+// `css-classes: [ ]` are two spellings of `GtkWidget:css-classes`, and both fill
+// `styleClasses`. `bind` and `breakpoint` stay losses and stay declared; ADR 0067 § 3 says
+// why each, and why the file-level `translation-domain` is not a node fact.
 //
 // WHAT THIS MAKES CHECKABLE, WHICH NOTHING WAS BEFORE
 //
@@ -117,6 +120,35 @@ const scalarOf = (value, tag) => {
 };
 
 /**
+ * The style classes a property carries, or `undefined` where the property is not a list of them.
+ *
+ * ONE FIELD FOR TWO SPELLINGS, because they are one GTK property. `styles ["flat"]` is a block
+ * and `css-classes: ["flat"]` is a property value, and both set `GtkWidget:css-classes` — so
+ * both fill `styleClasses` and neither is a loss any more.
+ *
+ * A non-string item is NOT a style class here. `styles [ flat ]` parses in this package and the
+ * reference compiler refuses it outright ("Unexpected tokens"), and `css-classes: [flat]` is
+ * refused by this package's own emitter — so an ident in either position is a construct with no
+ * oracle behind it, and it leaves as `value-list` rather than under a `styles` kind that nothing
+ * else would ever produce.
+ *
+ * ONE READER FOR BOTH SEAMS. `projectBody` fills the field from this and `lossesOf` asks it the
+ * same question to decide whether the line is still a loss. A second copy of the condition would
+ * let a class the tree KEEPS be declared lost on the same line, which is stage D's two arms
+ * contradicting each other about one file.
+ *
+ * @param {ObjectBody['properties'][number]} property
+ * @returns {string[] | undefined}
+ */
+const styleClassesOf = (property) => {
+    if (property.value.kind !== 'list') return undefined;
+    if (property.name !== 'styles' && property.name !== 'css-classes') return undefined;
+    const items = property.value.items;
+    if (!items.every((item) => item.kind === 'string')) return undefined;
+    return items.map((item) => /** @type {{ value: string }} */ (item).value);
+};
+
+/**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
  * @returns {Pick<SharedNode, 'props' | 'children'>}
  */
@@ -125,6 +157,8 @@ const projectBody = (body, tag) => {
     const props = {};
     /** @type {Record<string, { context?: string }>} */
     const translatable = {};
+    /** @type {string[]} */
+    const styleClasses = [];
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
@@ -139,6 +173,14 @@ const projectBody = (body, tag) => {
                 slot: property.name,
                 object: property.value.object,
             });
+            continue;
+        }
+        // Appended in BODY ORDER, which is the order the golden writes them in, and concatenated
+        // where one node writes both spellings: they are one property, so the node carries the
+        // union the file wrote. No corpus file writes both, and picking a winner would be a rule
+        // nothing holds.
+        if (property.value.kind === 'list') {
+            styleClasses.push(...(styleClassesOf(property) ?? []));
             continue;
         }
         const scalar = scalarOf(property.value, tag);
@@ -176,6 +218,7 @@ const projectBody = (body, tag) => {
     return {
         ...(Object.keys(props).length > 0 ? { props } : {}),
         ...(Object.keys(translatable).length > 0 ? { translatable } : {}),
+        ...(styleClasses.length > 0 ? { styleClasses } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -217,9 +260,13 @@ const lossesOf = (file) => {
             const value = property.value;
             if (value.kind === 'binding') lost.push({ kind: 'binding', line: property.line });
             else if (value.kind === 'list') {
-                // `styles` has its own fate — ADR 0049 makes style classes a list, and
-                // `props` holds none — while `strings`/`widgets` are ordinary value lists.
-                lost.push({ kind: property.name === 'styles' ? 'styles' : 'value-list', line: property.line });
+                // Style classes are carried now — ADR 0068 gave them `styleClasses`, through the
+                // one reader above. Everything else bracketed is still a loss: `widgets [ ]` is a
+                // list of object REFERENCES and `strings [ ]` emits as `<items>` rather than as a
+                // property at all, so neither is a value `props` could hold.
+                if (styleClassesOf(property) === undefined) {
+                    lost.push({ kind: 'value-list', line: property.line });
+                }
             } else if (value.kind === 'menu') {
                 // A menu written AT the property. `SharedNode` has no menu form — a top-level
                 // one is already a `menu` loss, and this is the same loss in a second position.

@@ -351,6 +351,15 @@ the 26 markings that sit on a scalar property; the corpus's other 17 sit inside 
 list, a `responses` block, a closure or a `marks` list and leave with those. The file-level
 `translation-domain` stays a loss: it is a fact about the file, and this shape is a tree.
 
+The style classes joined them under ADR 0068, and they are the entry that shows why a per-KIND
+census can hide a family: Blueprint spells one GTK property two ways, `styles ["flat"]` as a
+block and `css-classes: ["flat"]` as a property value, and the projection named their losses
+`styles` and `value-list`, so nothing had ever counted them together. Both fill `styleClasses`
+now, through one reader the projection and the loss census both ask. The arm reads the golden's
+two patterns — `<class name="…"/>` inside a `<style>` block, and the NEWLINE-separated text of a
+`<property name="css-classes">` — and that newline is what decided the field is a list: a joined
+string would have to pick one join and could not be held where the oracle picked the other.
+
 ### An earlier version of this file got item 2 wrong, and how
 
 It claimed the published types already carried positional enum values — measured on

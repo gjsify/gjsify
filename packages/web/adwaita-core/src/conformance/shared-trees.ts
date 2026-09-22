@@ -101,6 +101,24 @@ export interface SharedTreeNode {
      * the file-level `translation-domain` is not a node fact and stays a loss.
      */
     translatable?: Readonly<Record<string, { readonly context?: string }>>;
+    /**
+     * The style classes this node carries, as a list, in the order the source wrote them.
+     *
+     * ONE FIELD FOR TWO SPELLINGS, because they are one GTK property. Blueprint writes
+     * `styles ["flat", "circular"]` as a block and `css-classes: ["flat", "narrow"]` as a
+     * property value, and both set `GtkWidget:css-classes` — measured against the reference
+     * compiler, which writes the first as `<style><class name="flat"/></style>` and the second
+     * as a `<property>` whose text is NEWLINE-joined. A joined string in `props` would have to
+     * pick one of those two joins and could then not be held against the other golden, which is
+     * why the list is the field and not a string (ADR 0068 § 2).
+     *
+     * `styleClasses` and not `cssClasses`: ADR 0049 § 1 measured that name fatal on
+     * NativeScript, where `ViewBase` owns it as a live `Set` its CSS engine reads. So the field
+     * carries the name the three surfaces CAN share, and each driver maps it to its own door —
+     * the same arrangement `slot` already has, where GTK writes `<child type="start">` and the
+     * web writes `slot="start"`.
+     */
+    styleClasses?: readonly string[];
     children?: readonly SharedTreeNode[];
 }
 

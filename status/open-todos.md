@@ -6819,7 +6819,16 @@ reached through the one door that clause does not watch.
 used to say a space-joined string "would be a lie about the shape 0049 chose". ADR 0049 § 3
 chose exactly that: `set styleClasses(value: string | null | undefined) // space-separated,
 as in XML`, with an array-taking door rejected on a measurement — the LIST is the read-back.
-`props` already holds that string. What blocks it is three spellings on three surfaces —
+`props` already holds that string. **And the paragraph is wrong a SECOND time, measured under
+ADR 0068: a space-joined string in `props` could not be held against the goldens.** The oracle
+writes the block spelling as `<class name="flat"/>` elements and the property spelling
+(`css-classes: [...]`) as a `<property>` whose text is NEWLINE-joined, so one joined string
+has to pick one of those and stops being comparable where the oracle picked the other. The
+field that landed is therefore a LIST, `styleClasses`, filled from both spellings through one
+reader — and the diagnosis below survives it unchanged, because a field is not a `props` key
+and admits no gallery block: `check-generated-website-data` arm 11 reports the same 7 shared
+and 17 ledgered after the change as before. What blocks the LEDGER is three spellings on three
+surfaces —
 `cssClasses` on `gtk-host` (`props.ts:5772`), `styleClasses` on the NativeScript port (the
 GIR name is taken by `@nativescript/core`'s `ViewBase`), boolean attributes on `adwaita-web`
 — against ADR 0051's rule that a block joins the shared corpus only when it needs no alias
@@ -6866,12 +6875,28 @@ fact about a FILE and the only place to hang it is the root node, where a lifted
 carry a domain from a file it is no longer in. Nine loss kinds are left refused, and ADR 0058's
 clauses 3, 4 and 5 are untouched.
 
-**What that measurement newly exposes is `styles`.** Three shipped files are now blocked by it
-ALONE — `header-bar.blp`, `toolbar-view.blp`, `gtk-minimal/src/main-window.blp` — where before
-the marking was always beside it, so closing `styles` would have moved nothing and nobody could
-see it. ADR 0058 § 4 already says the obstacle there is the vocabulary and not the shape, which
-makes ADR 0034's ledger countdown (above) the next thing between this repository and a lossless
-projection of half its `.blp`, rather than the thing after the next thing.
+**What that measurement newly exposed was `styles`, AND ADR 0068 CLOSED IT.** Three shipped
+files were blocked by it alone — `header-bar.blp`, `toolbar-view.blp`,
+`gtk-minimal/src/main-window.blp` — where before the marking was always beside it, so closing
+it would have moved nothing and nobody could see it. Shipped `.blp` with no loss 6 of 12 → 9 of
+12, corpus-wide 25 → 30 of 68, losses 125 → 115. The family turned out to be larger than every
+census had said: Blueprint spells `GtkWidget:css-classes` two ways and the projection named
+their losses `styles` and `value-list`, so a per-KIND reading could not see them as one thing.
+**That is the instrument finding to carry forward** — the census that found it is keyed on the
+PROPERTY NAME of every bracketed value, not on the loss kind, and it is the reading to repeat
+before the next family is chosen.
+
+**The next family is `extern`, and it is now the only one left that moves anything outside a
+grammar.** Measured over the same census: it is the sole loss left on four written entries of
+the corpus and on none of the shipped `.blp`, it
+is ADR 0062's blocker 1, and it is 3 of the 5 losses left on Learn6502's
+`preferences.dialog.blp` — the file this series' outside purpose is measured against, which went
+from 11 losses to 5 under ADR 0068 because all six of its style classes are written as the
+PROPERTY spelling. The parser and the emitter already handle `$Extern` (`rules/32-extern-nested`
+has a golden); what is open is that `SharedNode.tag` promises a GIR class name and an
+application class is in no GIR. What is left on the three shipped files that still lose
+something is `bind` plus `Adw.Breakpoint`, both languages rather than constructs, and both
+refused by decisions of their own.
 `scripts/adwaita-gallery-shared-trees.d.mts` is a hand-written declaration whose own header refuses
 a second transcript, and the corpus reads it the way every other consumer does. The question
 becomes forced — not sooner — by the first PR that PUBLISHES a package producing the projection:

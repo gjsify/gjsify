@@ -88,6 +88,7 @@ the TODO records the *what's left*.
 | [0065](0065-a-development-link-is-an-override-not-a-manifest.md) | A development link is an OVERRIDE the installer reads, not a manifest edit | Accepted |
 | [0066](0066-composition-gets-a-spelling-template-and-object-id.md) | Composition gets a spelling: `template` and `object-id` become fields | Proposed |
 | [0067](0067-the-translatable-marking-becomes-a-field.md) | The translatable marking becomes a field, on ADR 0058's own spelling | Proposed |
+| [0068](0068-style-classes-get-a-field-both-spellings.md) | Style classes get a field, and it carries both of Blueprint's spellings for them | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
