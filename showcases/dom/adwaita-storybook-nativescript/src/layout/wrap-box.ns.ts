@@ -25,7 +25,7 @@ export class WrapBoxNsStory extends StoryView {
 
         for (const tag of TAGS) {
             const chip = new Gtk.Button();
-            chip.text = tag;
+            chip.label = tag;
             chip.styleClasses = 'pill';
             this._wrap.add(chip);
         }

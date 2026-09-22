@@ -884,6 +884,81 @@ export function membersOf(sources, tag) {
 }
 
 /**
+ * Every member ONE ambient class declares in its own body.
+ *
+ * Brace-matched from the declaration for the reason {@link publicMethodsOf} is: a slice
+ * to the next `class` keyword picks up whatever sits between two declarations, and this
+ * file's classes are separated by interfaces, type aliases and free functions.
+ *
+ * @param {string} source `ns-core.d.ts`
+ * @param {string} klass the ambient class
+ * @returns {Set<string> | null} `null` when the file declares no such class
+ */
+export function coreMembersOf(source, klass) {
+    const head = new RegExp(`\\bclass\\s+${klass}\\b[^{]*\\{`).exec(source);
+    if (head === null) return null;
+    const open = head.index + head[0].length - 1;
+    const close = matchingBrace(source, open);
+    if (close === -1) return null;
+    const members = new Set();
+    const declaration =
+        /^\s{8}(?:(?:readonly|private|protected|public|static|abstract|declare)\s+)*([A-Za-z_$][\w$]*)\??\s*[:(<]/gm;
+    for (const [, name] of source.slice(open + 1, close).matchAll(declaration)) members.add(name);
+    return members;
+}
+
+/**
+ * Everything a CALLER may write on each widget class: the port's own members, plus the
+ * members of the ambient `@nativescript/core` chain the class actually ends in.
+ *
+ * THE CHAIN IS THE WHOLE POINT, and it is why this does not call
+ * {@link readCoreProperties}. That set is every name the ambient slice declares ANYWHERE
+ * and is documented as deliberately over-broad, because it is only ever used to EXEMPT.
+ * Used here it would exempt the defect: `text` is declared on `Label`, `TextField` and
+ * `Button`, so a flat set answers "yes, a button has `text`" for `GtkButton` — which
+ * extends `GridLayout`, has no text at all, and was rendering an empty pill on the
+ * device for exactly that reason. One class's inheritance, or nothing.
+ *
+ * A chain that leaves the package into a base the ambient slice does not declare gets
+ * `base: null` and only the port half of its surface. The caller REPORTS that rather
+ * than silently holding a write against half a class.
+ *
+ * `own` is the PORT half alone, kept apart because it is what a failure should print: the
+ * full set is sixty-five names, most of them `@nativescript/core`'s, and a refusal that
+ * lists all of them buries the one the author meant.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, {members: Set<string>, own: string[], base: string | null}>}
+ */
+export function writeSurfaces(root) {
+    const { sources } = readWidgets(root);
+    const core = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
+    const coreBases = classBases(core);
+    const coreSurface = (klass) => {
+        const members = new Set();
+        for (let name = klass; name !== undefined && name !== null && coreBases.has(name);) {
+            for (const member of coreMembersOf(core, name) ?? []) members.add(member);
+            name = coreBases.get(name).base;
+        }
+        return members;
+    };
+    const surfaces = new Map();
+    for (const klass of sources.keys()) {
+        let base = klass;
+        while (sources.has(base)) {
+            const entry = classBases(sources.get(base).text).get(base);
+            base = entry?.base ?? null;
+            if (base === null) break;
+        }
+        const members = membersOf(sources, klass);
+        const own = [...members].filter((name) => name !== 'constructor' && !name.startsWith('_')).sort();
+        if (base !== null) for (const member of coreSurface(base)) members.add(member);
+        surfaces.set(klass, { members, own, base: coreBases.has(base) ? base : null });
+    }
+    return surfaces;
+}
+
+/**
  * The PUBLIC methods one class declares in its own body — the port's method vocabulary,
  * which is what `check-vocabulary-alignment.mjs` holds against the GIR's.
  *

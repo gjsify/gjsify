@@ -44,7 +44,7 @@ export class NavigationViewNsStory extends StoryView {
         this._rootHeader.title = this.args.rootTitle as string;
 
         const openButton = new Gtk.Button();
-        openButton.text = 'Open contact';
+        openButton.label = 'Open contact';
         openButton.styleClasses = 'pill';
         openButton.horizontalAlignment = 'center';
         openButton.verticalAlignment = 'middle';

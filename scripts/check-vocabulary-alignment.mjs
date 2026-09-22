@@ -72,6 +72,17 @@
 //     a second source — that file imports `@girs/*`, and ADR 0034 says so in the section
 //     the ledger's own header cites. Held to one surface, named in the summary.
 //
+//     AND THE SAME PROPERTIES AGAIN AT THE CALLER, which is where the ledger's reasoning
+//     stops and a device starts. The ledger holds what the widget DECLARES; nothing held
+//     what a caller WRITES. When `Gtk.Button`'s label converged from NativeScript's
+//     inherited `text` to the GIR name `label`, sixteen `button.text = …` in twelve
+//     NativeScript storybook stories kept compiling, kept running, and rendered empty
+//     pills — found on an emulator, not by a gate. `callerWriteProblems` is that half:
+//     every property a caller writes on a port widget is a member the class or its
+//     `@nativescript/core` base chain declares, with no ledger, because a write to a name
+//     the widget does not have is never a decision. It shares one corpus scan with
+//     `callerProblems`, the clause-2 rule that reads the same files' import clauses.
+//
 //  5. ENROLMENT. Which surfaces exist is a per-package DECLARATION —
 //     `gjsify.widgetVocabulary` — joined to the readers in `scripts/widget-surfaces.mjs`,
 //     and a declared surface with no reader FAILS. Before that, this file knew about its
@@ -207,9 +218,17 @@ import {
     settablePropertiesOfClass,
     tagClass,
     vocabularyCallers,
+    vocabularyCallerWrites,
     VOCABULARY_CALLER_DIRS,
 } from './adwaita-elements.mjs';
-import { extendsOf, publicMethodsOf, readWidgets } from './nativescript-xml-doors.mjs';
+import {
+    extendsOf,
+    publicMethodsOf,
+    readNamespaceSpellings,
+    readWidgets,
+    widgetClassOf,
+    writeSurfaces,
+} from './nativescript-xml-doors.mjs';
 import { METHODS_FILE, methodsOf, readMethodTable, snakeOf } from './widget-methods.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
@@ -872,6 +891,9 @@ const RENDERER_TABLES = {
 /** The surface the web half above holds, named once so the coverage rule can see it. */
 const WEB_SURFACE = '@gjsify/adwaita-web';
 
+/** The renderer the property, method and caller-write halves hold, named for the same reason. */
+const NS_SURFACE = '@gjsify/adwaita-nativescript';
+
 /**
  * Where each clause-2 surface LIVES, so a caller of it can be told from a file inside it.
  *
@@ -1416,6 +1438,87 @@ function callerProblems({ callers, webNamespace, renderers }) {
                     `it is \`${spelling}\` (ADR 0034 clause 2). Import the namespace and write that.`,
             );
         }
+    }
+    return problems;
+}
+
+/**
+ * The PROPERTY at the caller — the other half of {@link callerProblems}, and the half
+ * whose absence cost sixteen empty buttons on a device.
+ *
+ * WHAT IT HOLDS. Every property a caller WRITES on a widget of
+ * `@gjsify/adwaita-nativescript` is a member that widget's class declares, or that its
+ * `@nativescript/core` base chain declares. Nothing else — no ledger, no exemption: a
+ * write to a name the widget does not have cannot be a decision, because it does not
+ * reach the widget at all.
+ *
+ * THE INCIDENT. `Gtk.Button` was a `@nativescript/core` `Button` and carried that class's
+ * inherited `text`. ADR 0034 clause 1 made it a tappable `GridLayout` with `label`, the
+ * GIR name, and `gtk-button.ts` wrote down that "`text` IS GONE. It was NativeScript's
+ * name for the label, INHERITED rather than declared, so no gate could see it diverging."
+ * The port half was right. Sixteen `button.text = 'Save'` in twelve NativeScript
+ * storybook stories were not, and every one of them survived: the assignment is legal
+ * JavaScript, it lands as a dead own-property on the instance, and the button renders as
+ * an empty pill. Found on an Android emulator while verifying #1731, by looking.
+ *
+ * WHY NOTHING SAW IT. `callerProblems` above reads the IMPORT CLAUSE, which was correct
+ * in all sixteen; the storybook suite asserts conformance vectors, not rendered labels;
+ * `showcases/dom/*` are outside the workspace globs and no CI job type-checks them; and
+ * `check-nativescript-widget-coverage.mjs` asks the opposite question — whether the
+ * widget declares the properties GIR has — which a caller's spelling cannot answer.
+ *
+ * SCOPED TO THE ONE SURFACE whose declared members this repository can read. The web
+ * elements answer "which properties" with `observedAttributes` plus whatever `HTMLElement`
+ * brings, and React Native's with props a component destructures; neither has a reader
+ * here, so a rule over them would pass vacuously. The reader is surface-agnostic and
+ * reports which package each write is against, so the day one of those grows a member
+ * reader this rule grows a branch rather than a sibling.
+ *
+ * @param {{
+ *   callerWrites: {file: string, package: string, receiver: string, spellings: string[], property: string, line: number}[],
+ *   nsSurfaces: Map<string, {members: Set<string>, base: string | null}>,
+ *   nsSpellings: Map<string, string>,
+ * }} world
+ * @returns {string[]}
+ */
+function callerWriteProblems({ callerWrites, nsSurfaces, nsSpellings }) {
+    const problems = [];
+    const held = callerWrites.filter((write) => write.package === NS_SURFACE);
+    // A reader that finds no write clears every caller at once, which is the vacuous pass
+    // this file refuses everywhere else. The storybook alone constructs widgets in forty
+    // files, so zero means the reader broke and not that the tree got tidy.
+    if (held.length === 0) {
+        problems.push(
+            `no file outside ${NS_SURFACE} writes a property on one of its widgets, across ` +
+                `${VOCABULARY_CALLER_DIRS.join(', ')}. A caller scan that finds nothing passes every caller, ` +
+                'so this is a failure and not a pass — either the reader broke or the corpus list is short.',
+        );
+    }
+    if (nsSurfaces.size === 0) {
+        problems.push(
+            `no widget class of ${NS_SURFACE} has a readable member set, so every caller write below would be ` +
+                'held against an empty surface and reported. The reader of the widget sources broke.',
+        );
+    }
+    if (problems.length > 0) return problems;
+
+    for (const write of held) {
+        const classes = write.spellings
+            .map((spelling) => widgetClassOf(spelling, nsSpellings))
+            .filter((klass) => klass !== null && nsSurfaces.has(klass));
+        // A spelling that resolves to no class is a name this package does not export, and
+        // that is `callerProblems`' finding, not this one's — reporting it here too would
+        // print one mistake twice under two different explanations.
+        if (classes.length === 0) continue;
+        if (classes.some((klass) => nsSurfaces.get(klass).members.has(write.property))) continue;
+        const { base, own } = nsSurfaces.get(classes[0]);
+        problems.push(
+            `${write.file}:${write.line} writes \`${write.receiver}.${write.property}\` on ` +
+                `${write.spellings.join(' / ')}, which declares no \`${write.property}\` — not on ` +
+                `${classes.join('/')} and not on its ${base ?? 'unreadable'} base chain. The assignment is legal ` +
+                'JavaScript and lands as a dead own-property, so the widget renders as if the line were not ' +
+                `there. ${classes[0]} declares: ${own.join(', ')}.`,
+        );
     }
     return problems;
 }
@@ -2052,6 +2155,9 @@ export function alignmentProblems(world) {
     // members, so a surface whose namespace is wrong is reported there and not twice here.
     problems.push(...callerProblems(world));
 
+    // …and clause 1 at the caller: the PROPERTY it writes, not just the class it imports.
+    problems.push(...callerWriteProblems(world));
+
     // The PROPERTY half — one level down, on the surface where it was measured.
     problems.push(...propertyProblems(world));
 
@@ -2141,6 +2247,60 @@ const WORLD = () => ({
             names: ['Adw', 'Gtk', 'AdwGrid'],
         },
     ],
+    // What that caller then WRITES. `nsSurfaces` arrives already resolved — the widget's
+    // own members and its ambient base chain's in one set, which is the shape
+    // `writeSurfaces` hands over — so the vectors are about the RULE and the chain walk
+    // is proven where it lives. The third write is the shape that matters most here: a
+    // receiver bound to TWO classes, where only one has the member. That is the union
+    // case, and it is what stopped `child.active` in `overview/widgets.ns.ts` — a real
+    // property of the switch row in one branch — being reported as a write into nothing.
+    callerWrites: [
+        {
+            file: 'showcases/dom/example/story.ns.ts',
+            package: NS_SURFACE,
+            receiver: 'button',
+            spellings: ['Gtk.Button'],
+            property: 'label',
+            line: 12,
+        },
+        {
+            file: 'showcases/dom/example/story.ns.ts',
+            package: NS_SURFACE,
+            receiver: 'button',
+            spellings: ['Gtk.Button'],
+            property: 'className',
+            line: 13,
+        },
+        {
+            file: 'showcases/dom/example/story.ns.ts',
+            package: NS_SURFACE,
+            receiver: 'child',
+            spellings: ['Adw.Bin', 'Gtk.Button'],
+            property: 'label',
+            line: 20,
+        },
+        // A write against a surface with no member reader: read, reported by package, and
+        // held by nothing — which is what keeps the rule from passing vacuously over it.
+        {
+            file: 'showcases/dom/example/app.ts',
+            package: WEB_SURFACE,
+            receiver: 'dialog',
+            spellings: ['Adw.Dialog'],
+            property: 'innerHTML',
+            line: 4,
+        },
+    ],
+    nsSurfaces: new Map([
+        [
+            'GtkButton',
+            { members: new Set(['label', 'iconName', 'className']), own: ['iconName', 'label'], base: 'GridLayout' },
+        ],
+        ['AdwBin', { members: new Set(['child', 'className']), own: ['child'], base: 'GridLayout' }],
+    ]),
+    nsSpellings: new Map([
+        ['Gtk.Button', 'GtkButton'],
+        ['Adw.Bin', 'AdwBin'],
+    ]),
     nsWidgets: FIXTURE_NS_WIDGETS,
     nsTable: FIXTURE_NS_TABLE,
     // The renderer's clause-2 namespace, which is where the two derivations differ: the
@@ -2471,6 +2631,60 @@ const VECTORS = [
         (w) => ({ ...w, callers: [] }),
         'A caller scan that finds nothing passes every caller at once',
     ],
+    // The caller's PROPERTY, which is what the import clause above cannot see. The first
+    // vector is the defect itself, in the spelling twelve story files had.
+    [
+        'a caller writing the retired property name',
+        (w) => ({
+            ...w,
+            callerWrites: [
+                ...w.callerWrites,
+                {
+                    file: 'showcases/dom/adwaita-storybook-nativescript/src/feedback/toast.ns.ts',
+                    package: NS_SURFACE,
+                    receiver: 'button',
+                    spellings: ['Gtk.Button'],
+                    property: 'text',
+                    line: 23,
+                },
+            ],
+        }),
+        'writes `button.text` on Gtk.Button, which declares no `text`',
+    ],
+    [
+        'a caller writing a property no widget ever had',
+        (w) => ({
+            ...w,
+            callerWrites: [
+                ...w.callerWrites,
+                {
+                    file: 'showcases/dom/example/story.ns.ts',
+                    package: NS_SURFACE,
+                    receiver: 'button',
+                    spellings: ['Gtk.Button'],
+                    property: 'captionText',
+                    line: 31,
+                },
+            ],
+        }),
+        'declares no `captionText`',
+    ],
+    [
+        'a receiver whose every binding lacks the property',
+        (w) => ({
+            ...w,
+            callerWrites: w.callerWrites.map((write) =>
+                write.receiver === 'child' ? { ...write, property: 'subtitle' } : write,
+            ),
+        }),
+        'writes `child.subtitle` on Adw.Bin / Gtk.Button',
+    ],
+    [
+        'a caller-write scan that found nothing',
+        (w) => ({ ...w, callerWrites: [] }),
+        'writes a property on one of its widgets',
+    ],
+    ['a widget member reader that read nothing', (w) => ({ ...w, nsSurfaces: new Map() }), 'has a readable member set'],
     // The NativeScript half.
     [
         'no NativeScript widgets at all',
@@ -3036,6 +3250,9 @@ if (selfTestFailures.length > 0) {
 
 const read = (relativePath) => readFileSync(join(ROOT, relativePath), 'utf8');
 
+/** Package -> its own directory, so a file INSIDE a surface is not read as a caller of it. */
+const callerOwners = new Map(Object.entries(NAMESPACE_PACKAGES).map(([pkg, { dir }]) => [pkg, dir]));
+
 let world;
 try {
     const props = read(PROPS);
@@ -3106,10 +3323,14 @@ try {
         flatExports: new Map(
             Object.entries(NAMESPACE_PACKAGES).map(([pkg, { src }]) => [pkg, rootValueExports(ROOT, src)]),
         ),
-        callers: vocabularyCallers(
-            ROOT,
-            new Map(Object.entries(NAMESPACE_PACKAGES).map(([pkg, { dir }]) => [pkg, dir])),
-        ),
+        callers: vocabularyCallers(ROOT, callerOwners),
+        // Clause 1's side of the same corpus: the PROPERTY each caller writes, held
+        // against what the widget really declares. Both readers walk one scan of
+        // `VOCABULARY_CALLER_DIRS`, so a directory one of them learns to skip cannot stay
+        // visible to the other.
+        callerWrites: vocabularyCallerWrites(ROOT, callerOwners),
+        nsSurfaces: writeSurfaces(ROOT),
+        nsSpellings: readNamespaceSpellings(ROOT),
         nsWidgets,
         nsTable: NS_WIDGET_ALIGNMENT,
         // The declaration half. `declaredWidgetSurfaces` reads the manifests and
@@ -3196,6 +3417,8 @@ for (const [name, reader] of Object.entries(WIDGET_SURFACE_READERS)) {
 const renderersDeclared = Object.values(WIDGET_SURFACE_READERS).filter((r) => r.role === 'renderer').length;
 
 const census = propertyCensus(world);
+const nsWrites = world.callerWrites.filter((write) => write.package === NS_SURFACE);
+const otherWrites = world.callerWrites.length - nsWrites.length;
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 const methods = methodCensus(world);
 const methodConverge = kindCount(NS_METHOD_ALIGNMENT, 'gir');
@@ -3224,6 +3447,13 @@ console.log(
         `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}, ` +
         `held at ${world.callers.length} caller import(s) in ` +
         `${new Set(world.callers.map((caller) => caller.file)).size} file(s). ` +
+        // The caller's PROPERTY writes, counted for the reason every other number here is:
+        // a rule that reports nothing while it holds is one nobody notices has stopped
+        // running. A reader that finds none is a FAILURE, so this number is never zero.
+        `Caller property writes on ${NS_SURFACE}: ${nsWrites.length} in ` +
+        `${new Set(nsWrites.map((write) => write.file)).size} file(s), each held against what the widget class ` +
+        'and its @nativescript/core base chain really declare' +
+        `${otherWrites > 0 ? `; ${otherWrites} on surfaces with no member reader, read and held by nothing` : ''}. ` +
         `Distance to one vocabulary: ${widgetDistance} widget name(s), ${propConverge} property name(s) and ` +
         `${methodConverge} method name(s), and all three can only go down.`,
 );
