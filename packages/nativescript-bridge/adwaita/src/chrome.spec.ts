@@ -240,5 +240,17 @@ export default async () => {
             expect(clampChildClassName('   ', 'small')).toBe('small');
             expect(replaceClasses('card', ['small'], [])).toBe('card');
         });
+
+        await it('survives a child that carries NO className at all', () => {
+            // `undefined` IS WHAT A DEVICE ANSWERS, not a defensive hypothetical.
+            // `classNameProperty` carries no `defaultValue`, so an unwritten `className`
+            // reads `undefined` (measured, @nativescript/core 9.1.2), and `Gtk.Box` and
+            // `Gtk.Label` never write one. Splitting that killed Learn6502's Android port
+            // at startup on a real emulator: `TypeError: … reading 'split'`.
+            expect(clampChildClassName(undefined, 'small')).toBe('small');
+            expect(clampChildClassName(undefined, null)).toBe('');
+            expect(clampChildClassName(null, 'medium')).toBe('medium');
+            expect(replaceClasses(undefined, ['small'], ['large'])).toBe('large');
+        });
     });
 };

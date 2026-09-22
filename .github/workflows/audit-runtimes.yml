@@ -926,6 +926,15 @@ jobs:
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 
+      # `@nsProperty` generates upstream's own .d.ts from the class FIELD, not from the
+      # `Property` behind it, so @nativescript/core promises `className: string` where a
+      # view nobody has written a class onto answers `undefined`. The package's ambient
+      # slice repeated that promise and its off-device double answered `''`, so `gjsify
+      # tsc` held every call correct and 1400+ tests passed while an Adw.Clamp around a
+      # classless child killed Learn6502's Android port at startup on a real emulator.
+      - name: Check the NativeScript model states what is undefined before a write
+        run: node scripts/check-nativescript-ns-defaults.mjs
+
       # The NS theme inlines the accent as a literal in every rule that uses it (the
       # CSS subset has no custom properties), so a runtime accent is a generated
       # override of those exact selectors. A table with nothing checking it drifts:
@@ -1608,6 +1617,15 @@ jobs:
 
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
+
+      # `@nsProperty` generates upstream's own .d.ts from the class FIELD, not from the
+      # `Property` behind it, so @nativescript/core promises `className: string` where a
+      # view nobody has written a class onto answers `undefined`. The package's ambient
+      # slice repeated that promise and its off-device double answered `''`, so `gjsify
+      # tsc` held every call correct and 1400+ tests passed while an Adw.Clamp around a
+      # classless child killed Learn6502's Android port at startup on a real emulator.
+      - name: Check the NativeScript model states what is undefined before a write
+        run: node scripts/check-nativescript-ns-defaults.mjs
 
       # The NS theme inlines the accent as a literal in every rule that uses it (the
       # CSS subset has no custom properties), so a runtime accent is a generated

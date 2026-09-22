@@ -1,0 +1,85 @@
+{
+    "$comment": [
+        "Members of the NativeScript surface this package models that read `undefined` until",
+        "something writes them. Held by scripts/check-nativescript-ns-defaults.mjs against",
+        "packages/nativescript-bridge/adwaita/src/ns-core.d.ts (the ambient slice) and",
+        "packages/nativescript-bridge/adwaita/src/testing/ns-core.mts (the off-device double).",
+        "",
+        "MEASURED, NOT READ OFF THE TYPES. @nativescript/core's own .d.ts spells every one of",
+        "these as always-present, because `@nsProperty` generates the declaration from the class",
+        "field rather than from the `Property` that backs it. The measurement: each name below is",
+        "registered through `new Property({...})` with NO `defaultValue`, and `Property`'s getter",
+        "is `key in this ? this[key] : defaultValue` (ui/core/properties/index.ts:303) — so before",
+        "the first write the member is absent and the getter hands back `undefined`. Reproduced by",
+        "registering classNameProperty's own options on a bare class and reading the member:",
+        "`typeof === 'undefined'`, and `.split` threw the exact TypeError a device threw.",
+        "",
+        "WHY THE LIST EXISTS AT ALL. Declaring one of these `string` is not a cosmetic slip: it is",
+        "what let Adw.Clamp hand a classless child's `undefined` to `replaceClasses`, killing",
+        "Learn6502's Android port at startup on a real emulator. `gjsify tsc` held that call",
+        "correct, and the double answered `''` where a device answers `undefined`, so neither the",
+        "type checker nor 1400 tests could see it.",
+        "",
+        "ADDING A MEMBER TO THE SLICE. Measure what NativeScript answers before the first write.",
+        "If the Property carries no defaultValue, add it here and declare it optional in both",
+        "files. There is no exemption bucket: a member that belongs here and is declared",
+        "always-present is the defect, not a style preference."
+    ],
+    "measuredAgainst": "@nativescript/core 9.1.2",
+    "members": [
+        {
+            "class": "View",
+            "property": "className",
+            "registeredOn": "ViewBase",
+            "source": "ui/core/view-base/index.ts:1592"
+        },
+        {
+            "class": "View",
+            "property": "backgroundColor",
+            "registeredOn": "Style",
+            "source": "ui/styling/style-properties.ts"
+        },
+        {
+            "class": "View",
+            "property": "accessibilityLabel",
+            "registeredOn": "ViewCommon",
+            "source": "ui/core/view/view-common.ts"
+        },
+        {
+            "class": "View",
+            "property": "accessibilityRole",
+            "registeredOn": "Style",
+            "source": "ui/styling/style-properties.ts"
+        },
+        {
+            "class": "View",
+            "property": "accessibilityState",
+            "registeredOn": "Style",
+            "source": "ui/styling/style-properties.ts"
+        },
+        {
+            "class": "Image",
+            "property": "src",
+            "registeredOn": "ImageBase",
+            "source": "ui/image/image-common.ts"
+        },
+        {
+            "class": "Image",
+            "property": "imageSource",
+            "registeredOn": "ImageBase",
+            "source": "ui/image/image-common.ts"
+        },
+        {
+            "class": "ListPicker",
+            "property": "items",
+            "registeredOn": "ListPickerBase",
+            "source": "ui/list-picker/list-picker-common.ts"
+        },
+        {
+            "class": "SegmentedBar",
+            "property": "items",
+            "registeredOn": "SegmentedBarBase",
+            "source": "ui/segmented-bar/segmented-bar-common.ts"
+        }
+    ]
+}

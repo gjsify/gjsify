@@ -13,8 +13,10 @@
 
 import { run } from '@gjsify/unit';
 
+import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 
 run({
     AdwSharedTreesNsTest,
+    AdwClampClasslessChildNsTest,
 });
