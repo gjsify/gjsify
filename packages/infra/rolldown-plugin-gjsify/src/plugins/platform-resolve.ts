@@ -1,16 +1,20 @@
-// Platform file resolution — ONE plugin, ONE resolution order, two chains.
+// Platform file resolution — ONE plugin, ONE resolution order, three chains.
 //
 // Lets a shared codebase fork a single module per target by file name. An
 // `import './foo'` (or `import './foo.js'`) resolves to the most specific
 // variant on disk, in the priority order the caller's chain declares:
 //
-//   NativeScript (`--app nativescript`)     GTK / desktop (`--app gjs|node`)
-//   ./foo.<android|ios|visionos>.<ext>      ./foo.gtk.<ext>
-//   ./foo.native.<ext>                      ./foo.<linux|macos|windows>.<ext>
-//   ./foo.<ext>                             ./foo.desktop.<ext>
-//                                           ./foo.<ext>
+//   NativeScript (`--app nativescript`)  GTK / desktop (`--app gjs|node`)
+//     ./foo.<android|ios|visionos>.<ext>   ./foo.gtk.<ext>
+//     ./foo.native.<ext>                   ./foo.<linux|macos|windows>.<ext>
+//     ./foo.<ext>                          ./foo.desktop.<ext>
+//                                          ./foo.<ext>
 //
-// TWO CHAINS, NOT TWO PLUGINS (ADR 0032 § 9). A second plugin would give the
+//   Browser (`--app browser`)
+//     ./foo.web.<ext>
+//     ./foo.<ext>
+//
+// THREE CHAINS, NOT THREE PLUGINS (ADR 0032 § 9). A second plugin would give the
 // tree two resolution orders that no single file states, and the order IS the
 // contract — `.gtk` before `.<os>` before `.desktop` is a decision, not an
 // implementation detail. So the chain is a PARAMETER and the builders below are
@@ -93,6 +97,49 @@ export const DESKTOP_OS_SUFFIXES: Readonly<Record<string, string>> = {
 export const DESKTOP_REFUSED_SUFFIXES: readonly string[] = ['native', 'web'];
 
 /**
+ * Suffixes that must NEVER be a rung of the BROWSER chain — the mirror of
+ * {@link DESKTOP_REFUSED_SUFFIXES}, built by the same rule read from the other
+ * side: **refuse the other families' UMBRELLA rungs, not their per-target
+ * spellings.** The desktop list names `.web` (the whole browser chain) and
+ * `.native` (the phone family's umbrella) and deliberately leaves
+ * `.android`/`.ios`/`.visionos` out; from here the same rule names the GTK
+ * desktop family's two non-OS rungs plus that same phone umbrella.
+ *
+ * `.gtk` is the one a reader reaches for while chasing a missing widget, and it
+ * is the worst possible answer: `--app browser` redirects `gi://*` and `@girs/*`
+ * to an EMPTY module, so a `.gtk.tsx` reaching `Adw.ActionRow` does not fail to
+ * import — it gets `{}`, and `class X extends Adw.ActionRow` throws
+ * `Class extends value undefined` at load. That is measured, and the ADR 0034
+ * stage 9 e2e keeps exactly that row as its control.
+ *
+ * `.desktop` is named as well as `.gtk`, though only one of the two appears in
+ * this repository today: § 9 writes `.desktop` as the umbrella over `.gtk` and
+ * the three OS spellings, so refusing one and not the other is a gap, and a gap
+ * in a refusal list reads as a judgement that the omitted one is fine here.
+ *
+ * `.native` is the phone bridge — `NativeModules` exists in neither a browser
+ * nor a GTK host, which is why both lists carry it.
+ *
+ * NOT here, and each is a DECISION rather than an omission:
+ * - **the three OS spellings** (`linux`/`macos`/`windows`). They only ever
+ *   appear as rungs of the desktop chain, whose umbrella is already named — the
+ *   same reason `.android` is absent from the desktop list. Naming them would
+ *   put a warning line on every OS-forked module of a normal dual-target tree,
+ *   which is how a warning gets switched off.
+ * - **a refusal list for NativeScript at all.** That chain runs with
+ *   `siblingIndex` OFF under a byte-identical mandate, and with no listing to
+ *   filter them a refusal list costs two real `this.resolve` calls on every
+ *   relative import that has no variant — the majority, inside
+ *   `@nativescript/core` included. The desktop chain's own measurement (+14% on
+ *   a ~1400-module bundle from six failed resolves) is what says failed resolves
+ *   are not free. It is a cost with a measured-zero benefit on this tree: the
+ *   30 `.gtk.*`/`.native.*` pairs in `@gjsify/adwaita-react-native` all HIT the
+ *   NS chain at `.native`, and the refusal probe only runs when the chain found
+ *   nothing. Reopen it from a measurement of that tree with the index on.
+ */
+export const BROWSER_REFUSED_SUFFIXES: readonly string[] = ['gtk', 'desktop', 'native'];
+
+/**
  * The NativeScript chain: platform-specific first, then the platform-agnostic
  * `native` suffix. Without a known platform only `native` applies.
  */
@@ -114,6 +161,40 @@ export function nativescriptSuffixChain(platform?: NativescriptPlatform): readon
  */
 export function desktopSuffixChain(os?: string): readonly string[] {
     return os ? ['gtk', os, 'desktop'] : ['gtk', 'desktop'];
+}
+
+/**
+ * The BROWSER chain: `.web` → base. Exactly ONE rung, and the count is the
+ * decision.
+ *
+ * A desktop build knows three different things about itself and so gets three
+ * rungs: the toolkit (`.gtk`), the kernel (`.<os>`) and the target family
+ * (`.desktop`). A `--app browser` build knows ONE — it targets the DOM — and
+ * every candidate second rung was rejected for a stated reason rather than left
+ * out for tidiness:
+ *
+ * - **No engine rung** (`.firefox` / `.chromium`). The target compiles one
+ *   `esnext` bundle with no per-engine branch anywhere in it; a rung nobody can
+ *   fill is a resolution rule that can only ever surprise someone.
+ * - **No OS rung.** One browser bundle is served to every operating system, so
+ *   an OS rung would resolve against the BUILD HOST and bake it into a
+ *   platform-neutral artifact. That is the mistake `plugins/gi-runtime-paths.ts`
+ *   already documents for the GI prologue, committed here at resolution time
+ *   where the evidence is a file name and not a code path.
+ * - **No `.dom` synonym.** Two spellings for one concept is a priority order
+ *   someone has to memorise, and `.web` is what § 9 writes and what every
+ *   `.web.*` file in this repository already uses.
+ * - **No `.browser` umbrella.** `.desktop` earns its rung by sitting above four
+ *   spellings; above `.web` there is nothing for an umbrella to cover.
+ *
+ * Takes no parameter, unlike {@link desktopSuffixChain}: nothing about this
+ * chain depends on the host, which is the previous point restated from the API
+ * side. It is a function rather than a constant so that
+ * {@link PlatformResolvePluginOptions.suffixes} keeps its rule — a hand-written
+ * array is a second resolution order the tree does not state.
+ */
+export function browserSuffixChain(): readonly string[] {
+    return ['web'];
 }
 
 /**
@@ -143,16 +224,19 @@ export function desktopOsSuffix(platform: string = process.platform): string | u
 export interface PlatformResolvePluginOptions {
     /**
      * The suffix chain, most specific first. Build it with
-     * {@link nativescriptSuffixChain} or {@link desktopSuffixChain} — a
-     * hand-written array is a second resolution order the tree does not state.
+     * {@link nativescriptSuffixChain}, {@link desktopSuffixChain} or
+     * {@link browserSuffixChain} — a hand-written array is a second resolution
+     * order the tree does not state.
      */
     suffixes: readonly string[];
     /**
      * Suffixes deliberately NOT resolved, but whose presence on disk is worth
      * saying out loud: {@link DESKTOP_REFUSED_SUFFIXES} for the desktop chain,
-     * empty for NativeScript (where `.native` is a real rung). Probed only after
-     * the chain found nothing, so an empty list costs zero extra resolves and
-     * the NS path is byte-unchanged.
+     * {@link BROWSER_REFUSED_SUFFIXES} for the browser chain, empty for
+     * NativeScript — where `.native` is a real rung and the rest is a measured
+     * decision written out on `BROWSER_REFUSED_SUFFIXES`. Probed only after the
+     * chain found nothing, so an empty list costs zero extra resolves and the NS
+     * path is byte-unchanged.
      */
     refusedSuffixes?: readonly string[];
     /**
@@ -218,8 +302,8 @@ export function platformResolvePlugin(options: PlatformResolvePluginOptions): Pl
         // mis-wired orchestrator has — and it would send every import to base
         // while looking installed.
         throw new Error(
-            'gjsify platform resolve: the suffix chain is empty. Pass nativescriptSuffixChain(…) or ' +
-                'desktopSuffixChain(…), or omit the plugin.',
+            'gjsify platform resolve: the suffix chain is empty. Pass nativescriptSuffixChain(…), ' +
+                'desktopSuffixChain(…) or browserSuffixChain(), or omit the plugin.',
         );
     }
     const refused = options.refusedSuffixes ?? [];
@@ -314,13 +398,17 @@ export function platformResolvePlugin(options: PlatformResolvePluginOptions): Pl
                     const probe = await tryResolve(`${base}.${suffix}`);
                     if (!probe || warned.has(probe.id)) continue;
                     warned.add(probe.id);
+                    // The remedy names THIS chain's own rungs. It used to end in
+                    // a hardcoded `.desktop`, which was true of the only chain
+                    // that had a refusal list and became advice to write a file
+                    // the browser chain refuses the moment a second one did.
+                    const ownVariants = suffixes.map((own) => `.${own}`).join(' / ');
                     this.warn(
                         `gjsify platform resolve: "${base}.${suffix}" exists but is NOT a rung of this ` +
                             `target's chain (${suffixes.join(' → ')} → base), so ${importer} gets the base ` +
                             `file. ADR 0032 § 9: a .${suffix} variant is written for a runtime this build ` +
                             `is not, and reaching for it would hand this target code whose failure only ` +
-                            `shows up on screen. Move what applies here into a .${suffixes[0]} or ` +
-                            `.desktop variant.`,
+                            `shows up on screen. Move what applies here into ${ownVariants} or the base file.`,
                     );
                 }
 

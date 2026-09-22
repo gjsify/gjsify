@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
-// The two suffix chains and the one plugin that walks them (ADR 0032 § 9).
+// The three suffix chains and the one plugin that walks them (ADR 0032 § 9).
 //
 // WHAT IS ACTUALLY BEING PINNED. Not "does a `.gtk` file resolve" — that is one
-// `this.resolve` call — but the ORDER, and the two exclusions that look like
+// `this.resolve` call — but the ORDER, and the exclusions that look like
 // oversights. `.gtk` before `.<os>` before `.desktop` is a decision, `.native`
-// and `.web` being absent is a decision, and both are the kind of decision the
-// next reader "fixes". The disjointness row below iterates the REAL suffix map,
-// so adding a `web` row to it turns this suite red rather than quietly widening
-// the chain.
+// and `.web` being absent from it is a decision, the browser chain having ONE
+// rung is a decision, and all of them are the kind the next reader "fixes". The
+// disjointness row below iterates the REAL suffix map, so adding a `web` row to
+// it turns this suite red rather than quietly widening the chain, and the
+// symmetry block pins the two refusal lists AGAINST EACH OTHER — including the
+// two places they are deliberately not symmetric.
 //
 // NOTHING HERE ASSERTS WHICH OS THE TEST RUNS ON. `desktopOsSuffix` takes the
 // platform token as a parameter, so all three OS legs are exercised on every
@@ -25,6 +27,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+    BROWSER_REFUSED_SUFFIXES,
+    browserSuffixChain,
     DESKTOP_OS_SUFFIXES,
     DESKTOP_REFUSED_SUFFIXES,
     desktopOsSuffix,
@@ -100,6 +104,79 @@ export default async () => {
 
         await it('refuses exactly .native and .web, and says nothing about others', () => {
             expect([...DESKTOP_REFUSED_SUFFIXES].sort()).toStrictEqual(['native', 'web']);
+        });
+    });
+
+    await describe('platform-resolve: the browser chain (ADR 0032 § 9, amended)', async () => {
+        await it('is `.web` and nothing else — one rung', () => {
+            expect(browserSuffixChain()).toStrictEqual(['web']);
+        });
+
+        // The rung that would be easiest to add and is the one with a measured
+        // reason against it: ONE browser bundle is served to every OS, so an OS
+        // rung resolves against the BUILD HOST and bakes it into a
+        // platform-neutral artifact. Iterating the real map means a `web` row
+        // added there reds this row too.
+        await it('carries no OS rung, for any OS the map knows', () => {
+            const chain = browserSuffixChain();
+            for (const os of Object.values(DESKTOP_OS_SUFFIXES)) {
+                expect(chain.includes(os)).toBe(false);
+            }
+        });
+
+        await it('refuses exactly .gtk, .desktop and .native', () => {
+            expect([...BROWSER_REFUSED_SUFFIXES].sort()).toStrictEqual(['desktop', 'gtk', 'native']);
+        });
+    });
+
+    // THE SYMMETRY, as a machine check rather than a paragraph. Each list is the
+    // OTHER families' umbrella rungs read from its own side; the two places the
+    // lists are NOT symmetric — the OS spellings, and NativeScript having no list
+    // at all — are decisions, so they are asserted too. A refusal list that
+    // exists for one target only is either a gap or an unspoken decision, and the
+    // difference between those two is whether a test says which.
+    await describe('platform-resolve: the refusal lists are symmetric', async () => {
+        await it('never refuses a suffix its own chain resolves', () => {
+            for (const os of [undefined, ...Object.values(DESKTOP_OS_SUFFIXES)]) {
+                for (const refused of DESKTOP_REFUSED_SUFFIXES) {
+                    expect(desktopSuffixChain(os).includes(refused)).toBe(false);
+                }
+            }
+            for (const refused of BROWSER_REFUSED_SUFFIXES) {
+                expect(browserSuffixChain().includes(refused)).toBe(false);
+            }
+        });
+
+        await it('refuses the whole browser chain from the desktop side', () => {
+            for (const rung of browserSuffixChain()) {
+                expect(DESKTOP_REFUSED_SUFFIXES.includes(rung)).toBe(true);
+            }
+        });
+
+        await it("refuses the desktop family's two non-OS rungs from the browser side", () => {
+            expect(BROWSER_REFUSED_SUFFIXES.includes('gtk')).toBe(true);
+            expect(BROWSER_REFUSED_SUFFIXES.includes('desktop')).toBe(true);
+        });
+
+        await it('refuses the NativeScript umbrella .native from both sides', () => {
+            expect(DESKTOP_REFUSED_SUFFIXES.includes('native')).toBe(true);
+            expect(BROWSER_REFUSED_SUFFIXES.includes('native')).toBe(true);
+        });
+
+        // The omission, pinned so it stays a decision: a family's per-target
+        // spellings are left to the umbrella above them. `.android` is absent
+        // from the desktop list for the same reason `.linux` is absent from the
+        // browser list — naming them would put a warning line on every forked
+        // module of a normal dual-target tree, which is how a warning gets
+        // switched off.
+        await it("leaves each family's per-target spellings to its umbrella", () => {
+            for (const os of Object.values(DESKTOP_OS_SUFFIXES)) {
+                expect(BROWSER_REFUSED_SUFFIXES.includes(os)).toBe(false);
+            }
+            for (const platform of ['android', 'ios', 'visionos']) {
+                expect(DESKTOP_REFUSED_SUFFIXES.includes(platform)).toBe(false);
+                expect(BROWSER_REFUSED_SUFFIXES.includes(platform)).toBe(false);
+            }
         });
     });
 
@@ -205,6 +282,20 @@ export default async () => {
             expect(ctx.warnings.length).toBe(0);
         });
 
+        // THE ASYMMETRY, as behaviour rather than as an absent constant: with
+        // both refused siblings actually on disk, the NS chain still asks for its
+        // own two and says nothing. Written down so that giving NativeScript a
+        // refusal list is a change to a TEST and not an unnoticed widening — the
+        // measured argument for leaving it empty is on `BROWSER_REFUSED_SUFFIXES`.
+        await it('stays silent about .gtk and .web siblings on the NativeScript chain', async () => {
+            const plugin = platformResolvePlugin({ suffixes: nativescriptSuffixChain('ios') });
+            const ctx = mockCtx(['./card.gtk', './card.web']);
+            const resolved = await handlerOf(plugin).call(ctx, './card', IMPORTER);
+            expect(resolved).toBe(null);
+            expect(ctx.asked).toStrictEqual(['./card.ios', './card.native']);
+            expect(ctx.warnings.length).toBe(0);
+        });
+
         await it('strips a known extension so the suffix lands before it', async () => {
             const ctx = mockCtx(['./card.gtk']);
             const resolved = await handlerOf(desktop()).call(ctx, './card.js', IMPORTER);
@@ -244,6 +335,84 @@ export default async () => {
             }
             expect(thrown instanceof Error).toBe(true);
             expect((thrown as Error).message.includes('suffix chain is empty')).toBe(true);
+        });
+    });
+
+    await describe('platform-resolve: the plugin walks the browser chain', async () => {
+        const browser = () =>
+            platformResolvePlugin({
+                suffixes: browserSuffixChain(),
+                refusedSuffixes: BROWSER_REFUSED_SUFFIXES,
+            });
+
+        await it('takes .web when it exists', async () => {
+            const ctx = mockCtx(['./card.web']);
+            const resolved = await handlerOf(browser()).call(ctx, './card', IMPORTER);
+            expect(resolved?.id).toBe('/proj/src/card.web.tsx');
+            expect(ctx.asked).toStrictEqual(['./card.web']);
+        });
+
+        await it('falls through to the base file when no .web sibling exists', async () => {
+            const ctx = mockCtx([]);
+            const resolved = await handlerOf(browser()).call(ctx, './card', IMPORTER);
+            expect(resolved).toBe(null);
+            expect(ctx.warnings.length).toBe(0);
+        });
+
+        // The mirror of the desktop refusals: a `.gtk.tsx` would not fail to
+        // import here, it would get `{}` from the empty-module redirect and throw
+        // `Class extends value undefined` at load. The base file is the honest
+        // answer, and the warning is the part that keeps it from being silent.
+        await it('returns null (→ base) past a .gtk sibling, and warns naming it', async () => {
+            const ctx = mockCtx(['./card.gtk']);
+            const resolved = await handlerOf(browser()).call(ctx, './card', IMPORTER);
+            expect(resolved).toBe(null);
+            expect(ctx.warnings.length).toBe(1);
+            expect(ctx.warnings[0]?.includes('./card.gtk')).toBe(true);
+            expect(ctx.warnings[0]?.includes('web → base')).toBe(true);
+        });
+
+        await it('returns null (→ base) past .desktop and .native siblings too', async () => {
+            for (const refused of ['./card.desktop', './card.native']) {
+                const ctx = mockCtx([refused]);
+                const resolved = await handlerOf(browser()).call(ctx, './card', IMPORTER);
+                expect(resolved).toBe(null);
+                expect(ctx.warnings.length).toBe(1);
+                expect(ctx.warnings[0]?.includes(refused)).toBe(true);
+            }
+        });
+
+        // The remedy must name THIS chain's rungs. It used to end in a hardcoded
+        // `.desktop`, which was true while one chain had a refusal list and became
+        // advice to write the file this chain refuses as soon as a second one did.
+        await it('points the author at .web, never at the variant it just refused', async () => {
+            const ctx = mockCtx(['./card.desktop']);
+            await handlerOf(browser()).call(ctx, './card', IMPORTER);
+            const warning = ctx.warnings[0] ?? '';
+            expect(warning.includes('into .web or the base file')).toBe(true);
+        });
+
+        // THE COLLISION PROPERTY, and the reason the 41 `.web.*` files already in
+        // this repository are untouched by this chain. They are imported by their
+        // full path (`'./avatar.web.js'`) and have no same-stem base file, so the
+        // specifier's own `.web` is part of the STEM: the candidate is
+        // `./avatar.web.web`, which is a miss, and resolution falls through to the
+        // file the author named. A chain that reached them would pick a story
+        // module in place of its own sibling.
+        await it('leaves an explicit .web.js import alone instead of probing .web.web', async () => {
+            const ctx = mockCtx(['./card.web']);
+            const resolved = await handlerOf(browser()).call(ctx, './card.web.js', IMPORTER);
+            expect(resolved).toBe(null);
+            // `./card.web` itself is never among them: the author's file is
+            // reached by ordinary resolution, not by this chain.
+            expect(ctx.asked).toStrictEqual([
+                './card.web.web',
+                './card.web.web.js',
+                './card.web.gtk',
+                './card.web.desktop',
+                './card.web.native',
+            ]);
+            expect(ctx.warnings.length).toBe(0);
         });
     });
 

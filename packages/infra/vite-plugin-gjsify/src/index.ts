@@ -11,6 +11,13 @@
 //   - gjsImportsEmptyPlugin()  → resolve `@girs/*` / `gi://*` to an empty
 //                                module (GJS-only specifiers leak transitively
 //                                via `@gjsify/unit` etc.; no browser equivalent)
+//   - platformResolvePlugin()  → the BROWSER platform-file chain, ADR 0032 § 9:
+//                                `./foo.web.<ext>` ahead of `./foo.<ext>`. Not
+//                                optional for parity — a resolution rule the
+//                                build has and the dev server does not means the
+//                                two disagree about WHICH FILE the module is,
+//                                which is the one kind of difference no amount of
+//                                matching aliases and conditions can paper over.
 //   - blueprintPlugin()        → compile `.blp` GNOME Blueprint files to XML
 //   - deepkitPlugin()          → optional Deepkit type reflection (opt-in)
 //   - an inline Vite config hook supplying the browser-target resolve aliases,
@@ -38,6 +45,8 @@ import {
     gjsImportsEmptyPlugin,
     platformResolvePlugin,
     nativescriptSuffixChain,
+    browserSuffixChain,
+    BROWSER_REFUSED_SUFFIXES,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
     cssAsStringPlugin,
@@ -149,6 +158,19 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
     };
 
     return [
+        // The browser platform-file chain, matching `app/browser.ts`.
+        //
+        // WITHOUT `siblingIndex`, and that is the one deliberate difference from
+        // the Rolldown side. The index is a per-directory `readdirSync` cached for
+        // the life of the plugin instance; a Vite dev server IS long-lived, so an
+        // author creating `foo.web.ts` while it runs would keep being served
+        // `foo.ts` until restart — a stale-cache correctness bug traded for a
+        // saving that was measured on a ~1400-module cold bundle, which a dev
+        // server resolving lazily per request is not.
+        platformResolvePlugin({
+            suffixes: browserSuffixChain(),
+            refusedSuffixes: BROWSER_REFUSED_SUFFIXES,
+        }) as unknown as Plugin,
         gjsImportsEmptyPlugin() as unknown as Plugin,
         blueprintPlugin(),
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,

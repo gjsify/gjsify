@@ -208,6 +208,9 @@ Native runtime and reaching for it would silently feed the GTK build code that e
 honest outcome. `.web` is worse still: it looks like the right choice for a desktop
 target and carries exactly the DOM assumptions this design rules out.
 
+*The browser target gained a chain of its own after this section was written; the
+amendment at the end of this file is where its rungs and its refusals are decided.*
+
 ### 10. Routing reuses `@react-navigation/core`
 
 `expo-router` is built on React Navigation, and React Navigation 7's `core` and
@@ -409,3 +412,81 @@ sets do not.
 § 8's TextInput handle claim was re-measured rather than assumed: `focus` and `blur` come
 from `HostInstance`, `isFocused`, `clear` and `setSelection` are declared on `TextInput`,
 which is the same five `handles.ts` implements.
+
+## Amendment, 2026-09-22 — the browser target gets a chain, and the refusals get a rule
+
+§ 9 decided the desktop chain and named `.web` twice — once as a refused suffix, once
+as the thing a desktop build must never reach for. What it never said is what a
+`--app browser` build does with `.web`, and the answer on disk was **nothing**:
+`platformResolvePlugin` was wired into `app/gjs.ts`, `app/node.ts` and
+`app/nativescript.ts`, and not into `app/browser.ts`. GTK could express a fork by file
+name, NativeScript could, and the browser — the one target `.web` is actually named
+after — could not. This amendment closes that and, because closing it produced a
+SECOND refusal list, fixes the rule the first one was an unstated instance of.
+
+### The browser chain is `.web` → base. One rung, and the count is the decision
+
+```
+foo.web.tsx  →  DOM-specific
+foo.tsx      →  base
+```
+
+A desktop build knows three different things about itself — its toolkit, its kernel and
+its target family — and gets a rung for each. A browser build knows one: it targets the
+DOM. Each candidate second rung was rejected for a stated reason, not left out for
+tidiness:
+
+- **No engine rung** (`.firefox` / `.chromium`). The target compiles one `esnext` bundle
+  with no per-engine branch anywhere in it. A rung nobody can fill is a resolution rule
+  that can only ever surprise someone.
+- **No OS rung.** ONE browser bundle is served to every operating system, so an OS rung
+  would resolve against the BUILD HOST and bake it into a platform-neutral artifact —
+  the mistake `plugins/gi-runtime-paths.ts` already documents for the GI prologue,
+  committed at resolution time where the evidence is a file name and not a code path.
+- **No `.dom` synonym, no `.browser` umbrella.** Two spellings for one concept is a
+  priority order someone has to memorise, and an umbrella needs something to cover:
+  `.desktop` sits above four spellings, above `.web` there is nothing.
+
+### The refusal lists now follow a rule instead of a precedent
+
+`DESKTOP_REFUSED_SUFFIXES` was `['native', 'web']` and read as a transcription of § 9's
+sentence. It is really an instance of a rule, and the browser list is that rule applied
+from the other side: **refuse the other families' UMBRELLA rungs, not their per-target
+spellings.** The desktop list names `.web` and `.native` and leaves
+`.android`/`.ios`/`.visionos` out; the browser list names the GTK desktop family's two
+non-OS rungs, `.gtk` and `.desktop`, plus that same `.native`, and leaves
+`.linux`/`.macos`/`.windows` out. Both omissions are the same judgement: the umbrella
+above them is already named, and a warning line per forked module of a normal
+dual-target tree is how a warning gets switched off.
+
+`.gtk` is the entry that earns the list on the browser side. It is what a reader reaches
+for while chasing a missing widget, and it is the worst available answer: `--app browser`
+redirects `gi://*` and `@girs/*` to an EMPTY module, so a `.gtk.tsx` touching
+`Adw.ActionRow` does not fail to import — it receives `{}`, and `class X extends
+Adw.ActionRow` throws `Class extends value undefined` at load. That is measured; the
+ADR 0034 stage 9 e2e keeps exactly that row as its control.
+
+**NativeScript still has no refusal list, and that is now a decision rather than a
+blank.** That chain runs with `siblingIndex` off under a byte-identical mandate, so
+there is no directory listing to filter a refusal probe and each entry costs two real
+`this.resolve` calls on every relative import without a variant — the majority, inside
+`@nativescript/core` included. The desktop chain's own measurement (+14% on a
+~1400-module bundle from six failed resolves) is what says failed resolves are not free.
+And the benefit measures zero on this tree: the 30 `.gtk.*`/`.native.*` pairs in
+`@gjsify/adwaita-react-native` all HIT the NS chain at `.native`, and a refusal probe
+only runs after the chain found nothing. Reopen it from a measurement of that tree with
+the index on.
+
+### Two things the closure exposed
+
+**The remedy sentence was hardcoded.** The refusal warning ended in "Move what applies
+here into a `.<first rung>` or `.desktop` variant" — true while one chain had a refusal
+list, and advice to write the file the browser refuses the moment a second one did. It
+now names the chain it is speaking for.
+
+**No existing file changes meaning.** All 41 `.web.*` files in this repository sit under
+`showcases/gtk/adwaita-storybook/src/browser/`, are imported by their full path
+(`'./avatar.web.js'`), and have no same-stem base file — measured, 41 of 41 with zero
+base siblings and zero directory shadowing. The specifier's own `.web` is therefore part
+of the STEM, the candidate is `./avatar.web.web`, and the file the author named is what
+resolves. The showcase's `--app browser` bundle is byte-identical across the change.
