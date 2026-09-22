@@ -502,6 +502,17 @@ jobs:
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)
         run: node scripts/check-vocabulary-alignment.mjs
 
+      # The same question one layer down, on the surface that has no widgets at all.
+      # `@gjsify/adwaita-core` borrows shapes from Gtk and Gio — an adjustment, a list
+      # model, a menu — and names them with its own package prefix, which ADR 0034 § 1
+      # permits because that clause binds WIDGET-bearing surfaces. What it does not
+      # permit is leaving the correspondence in a doc comment: a `.blp` authors
+      # `Gtk.Adjustment` by that name, and the projection needs the link somewhere a
+      # program can read it. Self-testing, on a fixture table of its own so that
+      # breaking the real one shows up in the SWEEP and not one line earlier.
+      - name: Check the core says what it borrowed and from where (self-testing)
+        run: node scripts/check-core-namespace-claims.mjs
+
       # The other half of that vocabulary: what a nick is WORTH. `ENUM_NICKS` says a
       # member is called `baseline`; nothing said it is 4. A surface with no GI has to
       # hand GTK an integer anyway, and counting the position in the nick list is wrong
