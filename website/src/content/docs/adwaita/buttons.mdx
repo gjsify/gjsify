@@ -175,12 +175,15 @@ header bar or toolbar, where a raised button looks too heavy.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import { Gio } from '@gjsify/adwaita-nativescript';
 
-    const button = new Adw.SplitButton({
-        menuModel: ['Save as…', 'Export', 'Print'], // or items, sections, submenus — ADR 0042
-        iconName: 'document-save-symbolic',
-    });
-    // With no icon set, the label drives the action half: button.label = 'Save';
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    menu.append('Export', 'app.export');
+    menu.append('Print', 'app.print');
+
+    const button = new Adw.SplitButton({ label: 'Save', menuModel: menu });
+    button.iconName = 'document-save-symbolic';
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
     ```
   </Fragment>

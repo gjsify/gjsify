@@ -35,11 +35,13 @@ import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
 import iconSizeTestSuite from './icon-size.spec.js';
+import gioMenuTestSuite from './gio-menu.spec.js';
 
 run({
     constructPropsTestSuite,
     signalsTestSuite,
     iconSizeTestSuite,
+    gioMenuTestSuite,
     bannerNsTestSuite,
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,

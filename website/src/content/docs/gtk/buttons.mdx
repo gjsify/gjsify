@@ -232,14 +232,19 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
+    import { Gio } from '@gjsify/adwaita-nativescript';
     import Gtk from 'gi://Gtk?version=4.0';
+
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    menu.append('Export', 'app.export');
+    menu.append('Print', 'app.print');
 
     const button = new Gtk.MenuButton({
         iconName: 'open-menu-symbolic',
-        menuModel: [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }],
-        menuTitle: 'Document',
+        menuModel: menu,
+        menuTitle: 'Document', // the action sheet's heading: there is no popover to open
     });
-    // NativeScript has no popover, so the menu opens as the platform action sheet.
     ```
   </Fragment>
 </AdwWidget>

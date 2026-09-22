@@ -36,6 +36,7 @@ import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
 import { GtkEntryTest } from './gtk-entry.spec.js';
 import { GtkMenuButtonTest } from './gtk-menu-button.spec.js';
+import { GioMenuTest } from './gio-menu.spec.js';
 import { GtkButtonTest } from './gtk-button.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
@@ -101,6 +102,7 @@ run({
     AdwHeaderBarTest,
     GtkEntryTest,
     GtkMenuButtonTest,
+    GioMenuTest,
     GtkButtonTest,
     AdwViewStackTest,
     AdwNavigationViewTest,

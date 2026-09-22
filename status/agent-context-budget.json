@@ -7,10 +7,10 @@
     "packages/infra/resolve-npm/AGENTS.md": 7939,
     "packages/infra/rolldown-plugin-gjsify/AGENTS.md": 26916,
     "packages/napi/AGENTS.md": 7179,
-    "packages/nativescript-bridge/AGENTS.md": 17783,
+    "packages/nativescript-bridge/AGENTS.md": 17995,
     "packages/node-gi/AGENTS.md": 22248,
     "packages/node-runtime/AGENTS.md": 8770,
     "packages/node/AGENTS.md": 19747,
-    "packages/web/AGENTS.md": 10079,
+    "packages/web/AGENTS.md": 10291,
     "tests/AGENTS.md": 11390
 }
