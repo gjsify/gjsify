@@ -105,10 +105,22 @@ export class GtkStringList extends Array<string> {
      * thing from passing `undefined` — so it is spelled as the count that reaches the end,
      * which `splice` clamps the same way for a negative `position` as the one-argument form
      * does.
+     *
+     * Flattened by hand, not `Array.prototype.flatMap` (ES2019): this source is also
+     * type-checked through `@gjsify/gtk-host`'s type-surface gate, whose `tsconfig`s
+     * pin `lib` to ES2017 for reasons of their own (`type-tests/{jsx,react}/tsconfig.json`)
+     * — a method this file alone would happily target ES2020 for is invisible there.
      */
     splice(position: number, nRemovals?: number, ...additions: readonly (string | readonly string[])[]): string[] {
         const removals = nRemovals ?? this.length - position;
-        const flat = additions.flatMap((entry) => (typeof entry === 'string' ? [entry] : [...entry]));
+        const flat: string[] = [];
+        for (const entry of additions) {
+            if (typeof entry === 'string') {
+                flat.push(entry);
+            } else {
+                flat.push(...entry);
+            }
+        }
         return Array.prototype.splice.call(this, position, removals, ...flat) as string[];
     }
 
