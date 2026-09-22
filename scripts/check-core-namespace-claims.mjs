@@ -195,7 +195,19 @@ function fail(lines) {
     process.exit(1);
 }
 
-/** Every class/enum/interface a `@girs` declaration file declares. */
+/**
+ * Every class/enum/interface a `@girs` declaration file declares.
+ *
+ * `type X = …` ALIASES ARE DELIBERATELY LEFT OUT, and that is a measured gap rather than
+ * an oversight left unstated: the five files carry 494 of them (92 adw-1, 212 gtk-4.0,
+ * 126 gio-2.0, 16 glib-2.0, 48 gtksource-5) this oracle never sees. Widening the regex to
+ * `class|enum|interface|type` and re-running the sweep on this tree moves `backed` and
+ * `foreign` not at all and `own` from 37 to 37 — every alias a name here could have hit is
+ * already reachable through its `class` (`XClass = typeof X` and equivalent restatements),
+ * so the wider oracle changes nothing it classifies. If a future `own` count moves after
+ * touching this file or the `@girs` tree, re-run that widened regex before trusting the
+ * number — the gap is real, just empty on the names that exist today.
+ */
 function girTypes(file) {
     const text = readFileSync(file, 'utf8');
     const names = new Set();
@@ -363,6 +375,13 @@ for (const claim of PORTABLE_OF) {
 }
 
 if (LIST) {
+    // `backed` included, not just `foreign`/`own`: the matched type is a STEM MATCH, not
+    // a declared one, and printing it is what makes a coincidental hit to the wrong Adw
+    // type readable instead of silent — e.g. `AdwToastQueue <- Adw.Toast`, where
+    // `toast.ts`'s own header says it mirrors `Adw.ToastOverlay`. The verdict ("backed")
+    // is still right; only the reader who wants to check the MATCH needs this line, which
+    // is why it stayed out of the printed prose below and lives only behind `--list`.
+    for (const line of backed) console.log(`  backed   ${line}`);
     for (const line of foreign) console.log(`  foreign  ${line}`);
     for (const line of own) console.log(`  own      ${line}`);
 }
