@@ -17,8 +17,31 @@ import { buildStringList, isPortableListModel } from './list-model.js';
 import { buildGioMenu, isPortableMenu } from './menu.js';
 import type { WidgetDescriptor } from './types.js';
 
-/** GType name prefix -> the GI namespace object that carries its enums. */
-const ENUM_NAMESPACES: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+/**
+ * Where a GType NAME is looked up, when the name is all a caller has.
+ *
+ * NOT on the coercion path any more, and that is the repair: `coerce` holds the
+ * ParamSpec's own `value_type` and has GTK read the nick off THAT, so it needs no
+ * namespace list at all. What still needs somewhere to look is the name-keyed
+ * question {@link lookupEnumNick} and {@link enumMembers} ask, because
+ * `GObject.type_from_name` answers null for a type nothing in the process has
+ * touched yet — measured on a fresh process, `GPasswordSave` is exactly that case.
+ *
+ * THE PREFIX NO LONGER DECIDES. It says where to look; the candidate is confirmed
+ * against the GType it carries itself, so an entry that matched by accident cannot
+ * answer. That is what lets `G` — the prefix Gio, GLib and GObject share — appear
+ * more than once: `GPasswordSave` is `Gio.PasswordSave`, and while `G` mapped to
+ * GObject alone this host offered `GPasswordSaveNick` in its type surface and then
+ * refused all three of those nicks at the call.
+ *
+ * Enumerating the namespaces instead would need no table at all, and is rejected on a
+ * measurement: `Object.keys(Gio)` emits a deprecation warning
+ * (`DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME`) and `Object.keys(GLib)` three
+ * "cannot be safely stored in a JS Number" warnings, so the derivation would itself
+ * trip the diagnostics gate every spec here runs under. A namespace missing from this
+ * list is held RED instead, by `generated.spec.ts`.
+ */
+const GI_NAMESPACES: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
     ['Gtk', Gtk as unknown as Record<string, unknown>],
     ['Adw', Adw as unknown as Record<string, unknown>],
     ['Gdk', Gdk as unknown as Record<string, unknown>],
@@ -26,6 +49,7 @@ const ENUM_NAMESPACES: ReadonlyArray<readonly [string, Record<string, unknown>]>
     // `PangoEllipsizeMode`, `wrap-mode` is `PangoWrapMode` — and GtkLabel is in
     // the shipped table, so leaving it out made a built-in widget unsettable.
     ['Pango', Pango as unknown as Record<string, unknown>],
+    ['G', Gio as unknown as Record<string, unknown>],
     ['G', GObject as unknown as Record<string, unknown>],
 ];
 
@@ -89,56 +113,118 @@ export function constructOnlyNames(klass: GObject.ObjectClass, gtypeName: string
     return names;
 }
 
-interface EnumLookup {
-    /** The enum object was found, so a miss is a bad NICK, not an unknown namespace. */
-    resolved: boolean;
-    value?: number;
-}
-
-function resolveEnumValue(gtypeName: string, nick: string): EnumLookup {
-    for (const [prefix, ns] of ENUM_NAMESPACES) {
+/** The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries. */
+function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
+    for (const [prefix, ns] of GI_NAMESPACES) {
         if (!gtypeName.startsWith(prefix)) continue;
-        const enumObject = ns[gtypeName.slice(prefix.length)] as Record<string, number> | undefined;
-        if (!enumObject) continue; // prefix matched by accident — keep looking
-        const value = enumObject[nick.toUpperCase().replace(/-/g, '_')];
-        return typeof value === 'number' ? { resolved: true, value } : { resolved: true };
+        const candidate = ns[gtypeName.slice(prefix.length)];
+        if (!candidate || typeof candidate !== 'object') continue;
+        const gtype = (candidate as { $gtype?: GObject.GType }).$gtype;
+        if (!gtype || GObject.type_name(gtype) !== gtypeName) continue;
+        return candidate as Record<string, unknown>;
     }
-    // The `G` prefix matches every GLib/Gio type, so deciding on the PREFIX alone
-    // reported "bad nick" for types whose enum object was never found at all.
-    return { resolved: false };
+    return undefined;
 }
 
 /**
- * The value a nick names on an enum GType, or undefined if it names none.
+ * The GType a name registers on this host, forcing the registration if it has to.
+ *
+ * `type_from_name` is asked FIRST because it is the answer that needs no table. It
+ * answers null until something has touched the type, which is why the table is still
+ * reachable at all: reading `Gio.PasswordSave` is what registers `GPasswordSave`.
+ */
+function gtypeOfName(gtypeName: string): GObject.GType | undefined {
+    const registered = GObject.type_from_name(gtypeName);
+    if (registered) return registered;
+    return (giTypeObject(gtypeName) as { $gtype?: GObject.GType } | undefined)?.$gtype;
+}
+
+/**
+ * One lazily built `Gtk.Builder`, the parser every nick in this file goes through.
+ *
+ * Constructing one costs nothing and needs no `Gtk.init()` (measured), and 10 000
+ * parses take 12 ms — so the ONE parser is affordable on the property path, which is
+ * what keeps a second nick-resolution rule from existing in this package at all.
+ */
+let nickParser: Gtk.Builder | undefined;
+
+/**
+ * The number GTK's own `.ui` parser reads out of `text` for an enum or flags GType.
+ *
+ * WHY GTK AND NOT GOBJECT. `GObject.enum_get_value_by_nick` and
+ * `flags_get_value_by_nick` are both present on the GJS namespace and both unusable
+ * from it: the only way to reach a class is `GObject.type_class_ref`, which hands back
+ * a `GObject.TypeClass` that GJS refuses to convert to `GObject.EnumClass`
+ * ("Object is of type GObject.TypeClass - cannot convert"). That is the fact the old
+ * refusal here was written against, and it is still true. What IS reachable is
+ * `gtk_builder_value_from_string_type`, the parser a `.ui` file's every enum and flags
+ * attribute goes through — so the spellings this host accepts are now GTK's own,
+ * including the `|`-joined SET that GObject will not resolve.
+ *
+ * The `catch` is not defensive: the call is `throws="1"` and raises a GError for an
+ * unparseable value ("Unknown flag: 'nope'", "Could not parse enum: 'sideways'").
+ * Turning that into `undefined` is what lets the caller name the tag and the property,
+ * which a GError out of GTK cannot.
+ */
+function parseNickText(valueType: GObject.GType, text: string): number | undefined {
+    nickParser ??= new Gtk.Builder();
+    try {
+        const [ok, value] = nickParser.value_from_string_type(valueType, text);
+        return ok && typeof value === 'number' ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** A flags value is a `|`-joined set, exactly as GObject and Blueprint spell one. */
+const FLAG_SEPARATOR = '|';
+
+/**
+ * A member of a nick SET that names nothing — `""`, `"a|"`, `"|"`, `"a||b"`.
+ *
+ * Refused here rather than handed on, because this is the one input GTK's parser
+ * answers SILENTLY: measured, `""` and `" "` both parse to `[true, 0]`, and a leading
+ * empty member is dropped without a word. Zero is a legal flags value, so the caller
+ * gets a widget with every flag cleared and no diagnostic — the exact silent-wrong
+ * value this file exists to refuse.
+ */
+const hasBlankMember = (text: string): boolean =>
+    text.split(FLAG_SEPARATOR).some((member) => member.trim().length === 0);
+
+/**
+ * The value a nick names on an enum or bitfield GType, or undefined if it names none.
  *
  * Exported for the generated surface's own check: the type surface offers a union
  * of nicks per enum, and a nick this host cannot resolve would type-check and then
  * be refused at runtime. `generated.spec.ts` resolves every emitted nick through
  * this function, so the GIR-member-to-nick spelling is measured rather than
  * assumed. Also the primitive a renderer needs for a "did you mean" diagnostic.
+ *
+ * The NAME is kept in the signature although a GType would need no lookup, because
+ * every caller has the name and not the type — the check reads it off a generated
+ * table, a renderer off `GObject.type_name(spec.value_type)`.
  */
-export const lookupEnumNick = (gtypeName: string, nick: string): number | undefined =>
-    resolveEnumValue(gtypeName, nick).value;
+export const lookupEnumNick = (gtypeName: string, nick: string): number | undefined => {
+    const gtype = gtypeOfName(gtypeName);
+    return gtype === undefined ? undefined : parseNickText(gtype, nick);
+};
 
 /**
- * The member names an installed enum registers, or `undefined` if this host has none.
+ * The member names an installed enum or bitfield registers, or `undefined` if this
+ * host has none.
  *
  * The INVERSE of {@link lookupEnumNick}, and it exists for the one question that
  * function cannot answer: a nick the vocabulary never emitted is absent from every
- * list a check could iterate, so only the host's own members can reveal it. Read off
- * the same `ENUM_NAMESPACES` table, so the two cannot disagree about where an enum
- * lives — a second copy of that list is what made `Pango` missing once already.
+ * list a check could iterate, so only the host's own members can reveal it. GJS
+ * offers no route to a `GEnumClass`, so the members come off the namespace object —
+ * which is the whole remaining reason {@link GI_NAMESPACES} exists.
  *
  * `$gtype` and anything non-numeric are not members; GJS puts both on the same object.
  */
 export function enumMembers(gtypeName: string): string[] | undefined {
-    for (const [prefix, ns] of ENUM_NAMESPACES) {
-        if (!gtypeName.startsWith(prefix)) continue;
-        const enumObject = ns[gtypeName.slice(prefix.length)] as Record<string, unknown> | undefined;
-        if (!enumObject) continue; // prefix matched by accident — keep looking
-        return Object.keys(enumObject).filter((key) => key !== '$gtype' && typeof enumObject[key] === 'number');
-    }
-    return undefined;
+    const enumObject = giTypeObject(gtypeName);
+    if (!enumObject) return undefined;
+    return Object.keys(enumObject).filter((key) => key !== '$gtype' && typeof enumObject[key] === 'number');
 }
 
 /** What a refusal calls the value it got — the kind with its article, so the sentence reads. */
@@ -206,17 +292,23 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
     }
 
     if (GObject.type_is_a(valueType, GObject.TYPE_ENUM) && typeof value === 'string') {
-        const gtypeName = GObject.type_name(valueType);
-        const lookup = resolveEnumValue(gtypeName, value);
-        if (lookup.value !== undefined) return lookup.value;
-        throw lookup.resolved ? err.badEnum(tag, spec.get_name(), value, gtypeName) : err.unresolvableEnum(gtypeName);
+        const resolved = parseNickText(valueType, value);
+        if (resolved !== undefined) return resolved;
+        throw err.badEnum(tag, spec.get_name(), value, GObject.type_name(valueType));
     }
 
-    // Flags take the same silent-drop path as enums, and resolving a nick set
-    // ("horizontal|vertical") is not something GObject exposes to us. Refuse it by
-    // name rather than let it vanish.
+    // FLAGS TAKE THE SAME SILENT-DROP PATH AS ENUMS, and a nick SET
+    // ("spellcheck|lowercase") is not something GObject resolves — which is why this
+    // branch refused every string by name for as long as that was the whole truth.
+    // GTK's own `.ui` parser does resolve one, so the refusal is replaced by the
+    // answer and kept for the two inputs that still have none: an unknown member, and
+    // a blank one, which GTK reads as zero without a word.
     if (GObject.type_is_a(valueType, GObject.TYPE_FLAGS) && typeof value === 'string') {
-        throw err.badFlags(tag, spec.get_name(), value, GObject.type_name(valueType));
+        const gtypeName = GObject.type_name(valueType);
+        if (hasBlankMember(value)) throw err.blankFlags(tag, spec.get_name(), value, gtypeName);
+        const resolved = parseNickText(valueType, value);
+        if (resolved !== undefined) return resolved;
+        throw err.badFlags(tag, spec.get_name(), value, gtypeName);
     }
 
     if (GObject.type_is_a(valueType, GObject.TYPE_BOOLEAN)) {

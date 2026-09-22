@@ -76,3 +76,24 @@ export const listViewNotWidened = <gtk-list-view model={['a', 'b']} />;
  */
 // @ts-expect-error TS2322 — adjustment takes an object of the six numbers, or a real Gtk.Adjustment
 export const adjustmentNotANumber = <adw-spin-row adjustment={5} />;
+
+/**
+ * A BITFIELD property, a member nick outside the bitfield.
+ *
+ * The flags counterpart of `badNick` above, and it needs a negative of its own
+ * because the member list comes from a different table: `@girs` publishes no nick
+ * LIST for a bitfield — GObject resolves no nick set — so the surface derives the
+ * union from `FLAG_VALUES`' keys instead.
+ */
+// @ts-expect-error TS2322 — 'spellchek' is not a GtkInputHintsNick
+export const badFlagNick = <gtk-entry input-hints="spellchek" />;
+
+/**
+ * The FIRST member of a nick SET is checked exactly, and this is the line that says
+ * how far that reaches: `${Nick}|${string}` pins member one and the host resolves
+ * the rest, because checking every member of a set of arbitrary length means
+ * enumerating its permutations. A typo in member TWO compiles here and is refused at
+ * the call with `bad-flags` — which is why the runtime vectors exist.
+ */
+// @ts-expect-error TS2322 — the leading member of the set is not a GtkInputHintsNick
+export const badFlagSetHead = <gtk-entry input-hints="spellchek|lowercase" />;

@@ -9,6 +9,8 @@ import Gtk from 'gi://Gtk?version=4.0';
 import type Adw from 'gi://Adw?version=1';
 
 import { installDiagnosticsGate } from './conformance/index.js';
+import { NICK_VECTORS } from './conformance/nick-vectors.mjs';
+import { camelOf } from './generator/names.mjs';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
@@ -167,15 +169,6 @@ export default async () => {
                 expect(() => setProp(btn, 'scale-factor', 2)).toThrow('read-only');
             });
 
-            await it('refuses a string for a flags property, which GObject also drops', async () => {
-                const win = createElement('GtkWindow');
-                materialize(win);
-                // Gtk.Window has no flags prop to hand; Gtk.Entry's input-hints does.
-                const entry = createElement('GtkEntry');
-                materialize(entry);
-                expect(() => setProp(entry, 'input-hints', 'spellcheck')).toThrow('flags type');
-            });
-
             await it('refuses a real installed GType that carries no descriptor', async () => {
                 // NOT `AdwClamp` — it is a concrete GtkWidget descendant, so the
                 // generated table has carried it since #1281 and pinning it here
@@ -208,6 +201,48 @@ export default async () => {
                 }
                 expect(caught instanceof GtkHostError).toBe(true);
                 expect((caught as GtkHostError).code).toBe('unknown-prop');
+            });
+        });
+
+        // THE NICK VECTORS, each driven against a real widget of the installed GTK.
+        // The outcome is read back off the WIDGET, never off the shadow tree: a host
+        // that recorded the prop and wrote nothing would agree with itself.
+        await gated(diagnostics, 'nick vectors (enums and bitfields, one resolver)', async () => {
+            for (const vector of NICK_VECTORS) {
+                const authored = JSON.stringify(vector.authored);
+                await it(`<${vector.tag}>.${vector.prop} = ${authored} — ${vector.what}`, async () => {
+                    const el = createElement(vector.tag);
+                    const widget = materialize(el) as unknown as Record<string, unknown>;
+                    if ('refuses' in vector.outcome) {
+                        let caught: unknown;
+                        try {
+                            setProp(el, vector.prop, vector.authored);
+                        } catch (error) {
+                            caught = error;
+                        }
+                        expect(caught instanceof GtkHostError).toBe(true);
+                        // The CODE, not the message: a message is prose and gets
+                        // reworded, a code is what a renderer branches on.
+                        expect((caught as GtkHostError).code).toBe(vector.outcome.refuses);
+                        return;
+                    }
+                    setProp(el, vector.prop, vector.authored);
+                    expect(widget[camelOf(vector.prop)]).toBe(vector.outcome.holds);
+                });
+            }
+
+            await it('drives every edge the table claims', async () => {
+                // Not vacuous, and it is the loop above that needs saying so: a table
+                // that lost its refusal rows would leave 20-odd green assertions and
+                // nothing checking that a bad nick still fails.
+                const refusals = new Set(
+                    NICK_VECTORS.flatMap((v) => ('refuses' in v.outcome ? [v.outcome.refuses] : [])),
+                );
+                expect([...refusals].sort()).toStrictEqual(['bad-enum', 'bad-flags', 'blank-flags']);
+                // Every bitfield row names a property of a DIFFERENT type than the
+                // last, or the table proves one parser call over and over.
+                const flagProps = new Set(NICK_VECTORS.map((v) => `${v.tag}.${v.prop}`));
+                expect(flagProps.size >= 6).toBe(true);
             });
         });
 

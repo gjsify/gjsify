@@ -80,6 +80,15 @@ export interface SurfaceModel {
     readonly closure: ReadonlyMap<string, readonly string[]>;
     /** Enum GType -> nicks, for the emitted aliases and for the runtime nick check. */
     readonly enumNicks: ReadonlyMap<string, readonly string[]>;
+    /**
+     * Bitfield GType -> member nicks, for the bitfields this surface's properties carry.
+     *
+     * Separate from `enumNicks`, because the two answer different questions and one map
+     * would hide it: an enum property takes ONE nick, so the union IS the type, while a
+     * bitfield property takes a `|`-joined SET and the union is only its members.
+     * `emit-types.mts` renders each kind accordingly.
+     */
+    readonly flagNicks: ReadonlyMap<string, readonly string[]>;
     readonly namespacesUsed: ReadonlySet<string>;
     /** Namespace -> the `@girs` package that types it, so the emitter needs no second source. */
     readonly packages: Readonly<Record<string, string>>;

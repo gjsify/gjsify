@@ -52,10 +52,54 @@ gjs 1.88.1:
 | text inside `<GtkImage>` | nothing | throws, naming the tag and the fix |
 | a child under a childless widget | `Gtk-WARNING` at exit 0 | throws, naming the three fixes |
 | `selectable: 'false'` (a string) | JS truthiness makes it TRUE | honours `'true'`/`'false'`, throws on any other string |
-| a string for a flags property | dropped silently | throws, naming the flags GType and asking for the numeric value |
+| `input-hints: 'spellcheck|lowercase'` | dropped silently | resolves the nick SET through GTK's own `.ui` parser |
+| `input-hints: 'spellchek'` | same silence | throws `bad-flags`, naming the set and the GType |
+| `input-hints: ''` or `'spellcheck|'` | reads as 0 — every flag cleared, no diagnostic | throws `blank-flags` |
 | `model: 'Blue'` on a `Gio.ListModel` property | a CRITICAL and an EMPTY list | throws `bad-list-model`, naming the tag and the kind it got |
 | `model: ['a']` on `Gtk.ListView`, whose model is a `Gtk.SelectionModel` | `set_property` turns it into NULL and logs NOTHING — an empty view, and even the diagnostics gate is quiet; constructed with it, GJS throws from inside `materialize` | throws `list-model-mismatch` at the authoring call, naming the type GTK wants |
 | `adjustment: 5` on a `Gtk.Adjustment` property | guesses a GType, stores nothing | throws `bad-adjustment`: a number would be the `value`, which is its own property |
+
+### One nick parser, and it is GTK's
+
+An enum nick and a flags nick SET go through the same call:
+`gtk_builder_value_from_string_type`, the parser every enum and flags attribute of a
+`.ui` file already goes through. So what this host accepts is what GTK accepts — a
+nick, the C member name, a numeric string, mixed case, `|`-joined members with or
+without spaces — and there is one vocabulary rather than two.
+
+**GObject was asked first and cannot answer.** `GObject.enum_get_value_by_nick` and
+`flags_get_value_by_nick` are both on the GJS namespace and both unreachable from it:
+the only route to a class is `GObject.type_class_ref`, which returns a
+`GObject.TypeClass` that GJS refuses to convert to `GObject.EnumClass`. That is the
+measurement the old refusal ("a nick set is not something GObject exposes to us") was
+written against, and it is still true — it just is not the whole answer.
+
+**Two inputs are still refused, and one of them is why the blank check exists.**
+Measured on GTK 4.22.4: `""` and `" "` parse to `[true, 0]`, and a LEADING empty
+member is dropped without a word. Zero is a legal flags value, so a stray separator
+would be a widget with every flag cleared at exit 0 — the exact silent-wrong value
+this host exists to refuse. `blank-flags` covers all of them; `bad-flags` is the member
+that names nothing.
+
+**The type surface takes both spellings.** A bitfield property is `<GType>NickSet |
+number`, where the set alias pins the FIRST member exactly and leaves the rest to the
+host: checking every member of a set of arbitrary length means enumerating its
+permutations, n! terms for an n-member bitfield and 26 members on the largest one here.
+The member names come from `FLAG_VALUES`' KEYS — `@girs` publishes no nick LIST for a
+bitfield, precisely because GObject resolves no set — joined to the property by
+`PROP_ENUMS`, since nothing in the rendered `number` says which bitfield it is.
+
+**The namespace list is no longer on the property path.** `coerce` holds the
+ParamSpec's own `value_type`, so it needs no table at all. What is left of the list
+answers the NAME-keyed question `lookupEnumNick`/`enumMembers` ask, the prefix only
+says where to look, and a candidate is confirmed against the GType it carries itself —
+which is what lets `G`, the prefix Gio, GLib and GObject share, appear more than once.
+It had to: `GPasswordSave` is `Gio.PasswordSave`, the surface offered
+`GPasswordSaveNick`, and the host refused all three of those nicks at the call. The
+check that would have said so excused it as "newer than the installed library", which
+was false about every one of them, so `generated.spec.ts` now holds an unresolvable
+nick against two witnesses outside that list — the installed classes' ParamSpecs and
+the typelib-read values artifact — instead of against a version comparison.
 
 ### Values that cross the seam
 

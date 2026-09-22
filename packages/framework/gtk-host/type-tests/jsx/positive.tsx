@@ -38,6 +38,21 @@ export const layout = (
  */
 export const rows = <gtk-list-box onRowActivated={(row: Gtk.ListBoxRow) => row.set_selectable(false)} />;
 
+/**
+ * A bitfield property in all three legal spellings: one member nick, a `|`-joined
+ * SET, and the number every renderer could always write.
+ *
+ * The set is the one that was a compile error for exactly as long as it was a runtime
+ * refusal — see `negative-props.tsx` for how far the check on it reaches.
+ */
+export const hints = (
+    <gtk-box>
+        <gtk-entry input-hints="spellcheck" />
+        <gtk-entry inputHints="spellcheck|lowercase" />
+        <gtk-entry input-hints={0x9} />
+    </gtk-box>
+);
+
 /** `ref` carries the widget's own instance type, not `unknown`. */
 export const boxRef = <gtk-box ref={(el) => el.set_spacing(12)} />;
 

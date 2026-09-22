@@ -50,8 +50,10 @@ import { readDeclaredInterfaces, readNamespaceImports } from './generator/vocabu
 import {
     DECLS as VOCABULARY_DECLS,
     ENUM_NICKS as VOCABULARY_ENUM_NICKS,
+    FLAG_VALUES as VOCABULARY_FLAG_VALUES,
     OWN_PROPS as VOCABULARY_OWN_PROPS,
     OWN_SIGNALS as VOCABULARY_OWN_SIGNALS,
+    PROP_ENUMS as VOCABULARY_PROP_ENUMS,
     PROVENANCE as VOCABULARY_PROVENANCE,
     SINCE as VOCABULARY_SINCE,
 } from '@girs/gtk-4.0/vocabulary';
@@ -65,7 +67,7 @@ import {
 import { OWN_PROPS as GIO_OWN_PROPS, OWN_SIGNALS as GIO_OWN_SIGNALS } from '@girs/gio-2.0/vocabulary';
 import { OWN_PROPS as GOBJECT_OWN_PROPS, OWN_SIGNALS as GOBJECT_OWN_SIGNALS } from '@girs/gobject-2.0/vocabulary';
 
-import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
+import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import type { AdwPreferencesPageProps, GtkEntryProps, GtkWidgetProps } from './generated/props.js';
 import { assertInjective, tagOf } from './tags.js';
 import type { WidgetDescriptor } from './types.js';
@@ -165,13 +167,15 @@ const widgetProps: GtkWidgetProps = {
 // this one property. `null` here is what needs the `Omit` — assign a plain string and the
 // literal compiles either way.
 const preferencesPageProps: AdwPreferencesPageProps = { name: null };
-const entryProps: GtkEntryProps = {
-    // FLAGS ARE `number`, mirroring the runtime exactly: the host REFUSES a nick
-    // string for a flags property by name (`err.badFlags`), because resolving a nick
-    // set is not something GObject exposes. A union here would type-check what the
-    // host rejects.
-    'input-hints': 0x2,
-};
+// A BITFIELD PROPERTY TAKES BOTH SPELLINGS, and all three literals are the assertion
+// — `gjsify tsc` is the checker, the runner only proves they were reached. The number
+// is what every renderer could always write. The nick and the `|`-joined SET were a
+// type error here for exactly as long as they were a runtime refusal, and the type
+// surface has been the narrower of the two ever since the host started resolving a set
+// through GTK's own `.ui` parser.
+const entryProps: GtkEntryProps = { 'input-hints': 0x2 };
+const entryNickProps: GtkEntryProps = { 'input-hints': 'spellcheck' };
+const entryNickSetProps: GtkEntryProps = { inputHints: 'spellcheck|lowercase' };
 
 export default async () => {
     await on(GTK_HOSTS, async () => {
@@ -324,16 +328,30 @@ export default async () => {
             expect(underscored).toStrictEqual([]);
         });
 
-        await it('gives a flags type no nick union at all', async () => {
-            // Why `entryProps['input-hints']` above can only be `number`: the
-            // vocabulary lists nicks for enums and omits flags entirely, so there is
-            // no `GtkInputHintsNick` for the emitter to reference. Same answer the
-            // host gives, for the same reason — a nick SET ("spellcheck|lowercase") is
-            // not something GObject resolves.
+        await it('builds a bitfield nick union out of the value table', async () => {
+            // `ENUM_NICKS` STILL LISTS NO BITFIELD, and that premise is what the flags
+            // half rests on: the vocabulary publishes no nick list for one, because
+            // GObject resolves no nick SET. It says nothing about what a single member
+            // is CALLED — the names are in `FLAG_VALUES`' keys, and that is where this
+            // artefact's union comes from.
             expect('GtkInputHints' in VOCABULARY_ENUM_NICKS).toBe(false);
             expect('GtkInputHints' in ENUM_NICKS).toBe(false);
+            expect(FLAG_NICKS.GtkInputHints?.includes('spellcheck')).toBe(true);
+            expect(FLAG_NICKS.GtkInputHints?.includes('word-completion')).toBe(true);
+            // Carried VERBATIM, key by key, the way the enum half is compared below: a
+            // nick this emitter invented would type-check and then be refused.
+            const fromValues = Object.keys(VOCABULARY_FLAG_VALUES)
+                .filter((key) => key.startsWith('GtkInputHints.'))
+                .map((key) => key.slice('GtkInputHints.'.length))
+                .sort();
+            expect([...(FLAG_NICKS.GtkInputHints ?? [])]).toStrictEqual(fromValues);
+            // And the JOIN that put it on this property at all — nothing in the
+            // rendered `number` says which bitfield it is.
+            expect(VOCABULARY_PROP_ENUMS['GtkEntry.input-hints']).toBe('GtkInputHints');
             expect(VOCABULARY_OWN_PROPS.GtkEntry?.includes('input-hints')).toBe(true);
             expect(entryProps['input-hints']).toBe(2);
+            expect(entryNickProps['input-hints']).toBe('spellcheck');
+            expect(entryNickSetProps.inputHints).toBe('spellcheck|lowercase');
         });
 
         await it('carries the vocabulary into the committed artefact verbatim', async () => {

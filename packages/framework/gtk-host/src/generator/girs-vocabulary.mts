@@ -44,6 +44,17 @@ interface VocabularyModule {
     readonly OWN_SIGNALS: Record<string, readonly string[]>;
     readonly DECLS: Record<string, readonly string[]>;
     readonly ENUM_NICKS: Record<string, readonly string[]>;
+    /**
+     * `<bitfield GType>.<nick>` -> its number.
+     *
+     * The table `ENUM_NICKS` deliberately omits: GObject resolves no nick SET, so the
+     * vocabulary ships no nick LIST for a bitfield. That says nothing about what a
+     * single member is CALLED, and the names are the half a type surface needs — the
+     * keys carry them, which is why this is read for its keys and not its values.
+     */
+    readonly FLAG_VALUES: Record<string, number>;
+    /** `<declaration GType>.<property>` -> the GType of that property's enum or bitfield. */
+    readonly PROP_ENUMS: Record<string, string>;
     readonly CHILD_HOLDERS: readonly string[];
     readonly SINCE: Record<string, string>;
     readonly PROVENANCE: {
@@ -277,6 +288,35 @@ export async function buildFromVocabulary(
     const declarations = new Map<string, Declaration>();
     const closure = new Map<string, readonly string[]>();
     const enumNicks = new Map<string, readonly string[]>();
+    /**
+     * Bitfield GType -> its member nicks, from EVERY vocabulary read.
+     *
+     * Kept whole rather than filtered as it is built, because the join that decides
+     * which of these a property needs runs after the declarations exist. What reaches
+     * the artefact is `flagNicks` below, one bitfield at a time.
+     */
+    const allFlagNicks = new Map<string, string[]>();
+    /** `<declaration GType>.<property>` -> the enum or bitfield GType it carries. */
+    const propEnums = new Map<string, string>();
+    /**
+     * The two tables a bitfield property needs, taken from every vocabulary alike.
+     *
+     * A bitfield is published by the namespace that OWNS it, and the property that
+     * carries it is declared somewhere else — `GtkTextTag:show-spaces` is a
+     * `PangoShowFlags` — so reading either table from the widget namespaces alone
+     * answers half the join. An `@girs` predating these tables simply has neither, and
+     * the surface then renders what it always did.
+     */
+    const absorbFlags = (runtime: VocabularyModule): void => {
+        for (const key of Object.keys(runtime.FLAG_VALUES ?? {})) {
+            const at = key.indexOf('.');
+            const gtype = key.slice(0, at);
+            let nicks = allFlagNicks.get(gtype);
+            if (!nicks) allFlagNicks.set(gtype, (nicks = []));
+            if (!nicks.includes(key.slice(at + 1))) nicks.push(key.slice(at + 1));
+        }
+        for (const [key, gtype] of Object.entries(runtime.PROP_ENUMS ?? {})) propEnums.set(key, gtype);
+    };
     const namespacesUsed = new Set<string>();
     const widgets: WidgetRef[] = [];
     const allRendered = new Map<string, DeclaredInterface>();
@@ -320,6 +360,7 @@ export async function buildFromVocabulary(
         indexLoadedNamespaces();
 
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) enumNicks.set(gtype, nicks);
+        absorbFlags(runtime);
         namespacesUsed.add(source.prefix);
 
         // A TAG IS A WIDGET, OR A NON-WIDGET THAT HOLDS ONE — which is the rule
@@ -458,6 +499,7 @@ export async function buildFromVocabulary(
         const declared = readDeclaredInterfaces(dts);
         for (const [ns, from] of readNamespaceImports(dts, pkg)) if (!importable.has(ns)) importable.set(ns, from);
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) foreignNicks.set(gtype, nicks);
+        absorbFlags(runtime);
         for (const gtype of new Set([...Object.keys(runtime.OWN_PROPS), ...Object.keys(runtime.OWN_SIGNALS)])) {
             if (!foreignOwned.has(gtype)) foreignOwned.set(gtype, { runtime, rendered: declared.get(gtype) });
         }
@@ -537,6 +579,37 @@ export async function buildFromVocabulary(
         }
     }
 
+    // A BITFIELD PROPERTY IS RENDERED BARE `number`, and that is the vocabulary being
+    // exact rather than incomplete: a bitfield VALUE is an or of members, which no enum
+    // type in TypeScript can hold, so upstream declares the widest thing that is true.
+    // The nick half it leaves unsaid is the half an authored surface wants — the host
+    // now resolves `"spellcheck|lowercase"` through GTK's own `.ui` parser, so the type
+    // that used to be right has become narrower than the runtime.
+    //
+    // WHICH BITFIELD A PROPERTY IS cannot be read off `number`, so `PROP_ENUMS` is the
+    // join, walked at the DECLARING type the way the vocabulary keys it. Only where the
+    // rendered type still IS `number` (with or without `| null`): anything else is a
+    // shape this rewrite has not measured, and leaving it alone keeps the surface
+    // compiling instead of guessing.
+    //
+    // ONE BITFIELD AT A TIME, by name, for the same reason the enum loop above says so:
+    // the vocabularies carry 82 of them and this surface references a handful.
+    const flagNicks = new Map<string, readonly string[]>();
+    for (const [key, declaration] of declarations) {
+        const props = declaration.props.map((member) => {
+            const flagType = propEnums.get(`${declaration.gtype}.${member.kebab}`);
+            if (flagType === undefined) return member;
+            const nicks = allFlagNicks.get(flagType);
+            if (!nicks || nicks.length === 0) return member;
+            if (member.ts !== 'number' && member.ts !== 'number | null') return member;
+            flagNicks.set(flagType, [...nicks].sort());
+            return { ...member, ts: `${flagType}NickSet | ${member.ts}` };
+        });
+        if (props.some((member, at) => member !== declaration.props[at])) {
+            declarations.set(key, { ...declaration, props });
+        }
+    }
+
     const packages: Record<string, string> = Object.fromEntries(sources.map((s) => [s.prefix, `@girs/${s.pkg}`]));
     const unimportable = new Map<string, string>();
     for (const declaration of declarations.values()) {
@@ -570,6 +643,7 @@ export async function buildFromVocabulary(
             declarations,
             closure,
             enumNicks,
+            flagNicks,
             namespacesUsed,
             packages,
             omissions: computeOmissions(declarations),

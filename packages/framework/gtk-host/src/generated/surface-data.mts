@@ -4137,6 +4137,105 @@ export const ENUM_NICKS: Readonly<Record<string, readonly string[]>> = {
     PangoWrapMode: ['word', 'char', 'word-char', 'none'],
 };
 
+/**
+ * Bitfield GType -> the member nicks the surface offers, for the bitfields a property
+ * of this surface carries.
+ *
+ * Derived from `FLAG_VALUES`' KEYS rather than from a nick list, because `@girs`
+ * publishes none for a bitfield — GObject resolves no nick SET, so the vocabulary says
+ * nothing about sets and the members keep their names in the value table. Held against
+ * the installed library the same way `ENUM_NICKS` is.
+ */
+export const FLAG_NICKS: Readonly<Record<string, readonly string[]>> = {
+    AdwTabViewShortcuts: [
+        'all-shortcuts',
+        'alt-digits',
+        'alt-zero',
+        'control-end',
+        'control-home',
+        'control-page-down',
+        'control-page-up',
+        'control-shift-end',
+        'control-shift-home',
+        'control-shift-page-down',
+        'control-shift-page-up',
+        'control-shift-tab',
+        'control-tab',
+        'none',
+    ],
+    GApplicationFlags: [
+        'allow-replacement',
+        'can-override-app-id',
+        'default-flags',
+        'flags-none',
+        'handles-command-line',
+        'handles-open',
+        'is-launcher',
+        'is-service',
+        'non-unique',
+        'replace',
+        'send-environment',
+    ],
+    GBindingFlags: ['bidirectional', 'default', 'invert-boolean', 'sync-create'],
+    GdkDragAction: ['ask', 'copy', 'link', 'move', 'none'],
+    GdkGLAPI: ['gl', 'gles'],
+    GdkModifierType: [
+        'alt-mask',
+        'button1-mask',
+        'button2-mask',
+        'button3-mask',
+        'button4-mask',
+        'button5-mask',
+        'control-mask',
+        'hyper-mask',
+        'lock-mask',
+        'meta-mask',
+        'no-modifier-mask',
+        'shift-mask',
+        'super-mask',
+    ],
+    GtkEventControllerScrollFlags: [
+        'both-axes',
+        'discrete',
+        'horizontal',
+        'kinetic',
+        'none',
+        'physical-direction',
+        'vertical',
+    ],
+    GtkFontChooserLevel: ['family', 'features', 'size', 'style', 'variations'],
+    GtkInputHints: [
+        'emoji',
+        'inhibit-osk',
+        'lowercase',
+        'no-emoji',
+        'no-spellcheck',
+        'none',
+        'private',
+        'spellcheck',
+        'uppercase-chars',
+        'uppercase-sentences',
+        'uppercase-words',
+        'vertical-writing',
+        'word-completion',
+    ],
+    GtkPopoverMenuFlags: ['nested', 'sliding'],
+    GtkPrintCapabilities: [
+        'collate',
+        'copies',
+        'generate-pdf',
+        'generate-ps',
+        'number-up',
+        'number-up-layout',
+        'page-set',
+        'preview',
+        'reverse',
+        'scale',
+    ],
+    GtkSvgFeatures: ['animations', 'extensions', 'external-resources', 'system-resources', 'traditional-symbolic'],
+    PangoShowFlags: ['ignorables', 'line-breaks', 'none', 'spaces'],
+};
+
 /** Widget GType -> its kebab tag. */
 export const TAGS: Readonly<Record<string, string>> = {
     AdwAboutDialog: 'adw-about-dialog',
