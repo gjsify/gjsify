@@ -3188,12 +3188,30 @@ name, and its absence is what forced every such pane to be written twice.
 author writes, alongside its widgets, under the name the GIR gives them. `Gio` is a clause-2
 namespace for this reason and no other: it owns no widget and never will.
 
-**What keeps this from being a hole.** `CONSTRUCTIBLE_VALUES` in
-`check-vocabulary-alignment.mjs` names each such member with the GIR type it is, held
-against the installed `@girs`. Three directions, each able to fail alone: a member that is
-neither a widget nor declared; a declared origin naming a type that namespace does not have;
-and a member the ports ship as a WIDGET sitting in the value table, which would make it the
-second place a widget is declared.
+**What keeps this from being a hole.** `CONSTRUCTIBLE_VALUES` in `scripts/value-types.mjs`
+names each such member with the GIR type it is, and `scripts/generate-value-types.mjs`
+answers it from the installed typelib into the committed
+`packages/framework/gtk-host/src/generated/value-types.mts`. Four directions, each able to
+fail alone: a ledger entry the artifact has no row for, so nothing ever held it; a row
+saying the namespace declares no such GObject; a row saying the type IS a `GtkWidget`
+subclass, which would make the exemption table the second place a widget is declared; and a
+member the ports ship as a WIDGET sitting in the ledger. `generated.spec.ts` holds every row
+against whatever GJS is running, which is the half a no-install gate cannot.
+
+**Why a committed artifact and not a lookup.** The first version read
+`node_modules/@girs/<pkg>/<pkg>.d.ts` from inside `check-vocabulary-alignment.mjs`. That
+gate is a step of `audit-runtimes.yml`, a job that deliberately performs NO install — so the
+read always failed and the gate exited 1 on every push. The repository had already written
+the answer down, in `generated/methods.mts`'s own header: a committed artifact exists so the
+gate can hold a port against the GIR *with no install*. This is that arrangement a third
+time, after the enum values and the methods.
+
+**A value-only namespace needs no XML barrel.** `Gio.Menu` is a value a view-model
+constructs and hands to a widget, never an element Builder instantiates, so
+`generate-adwaita-nativescript-templates.mjs` demands an `xmlns` barrel only from a
+namespace that contributes at least one member which is not a declared constructible value.
+The throw is unchanged in strength for every namespace that does — it is what caught the
+four clause-1 renames resolving silently against NativeScript's own components.
 
 **The measurement that produced this, and a caution with it.** Adding `Gio` to
 `NAMESPACE_NAMES` was not cosmetic: before it, a bogus `Gio.Ghost` in a port's barrel passed

@@ -58,7 +58,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ADWAITA_GALLERY_NS_TEMPLATES, ADWAITA_GALLERY_NS_REFUSALS } from './adwaita-gallery-ns-templates.mjs';
-import { namespaceExport } from './adwaita-elements.mjs';
+import { CONSTRUCTIBLE_VALUES, namespaceExport } from './adwaita-elements.mjs';
 import { WIDGET_CLASS } from './nativescript-xml-doors.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +73,17 @@ export const NS_PACKAGE_SRC = 'packages/nativescript-bridge/adwaita/src';
 
 /** XML prefix -> the app-local barrel module its `xmlns` names, without the `~/`. */
 export const NS_XMLNS_BARRELS = { adw: 'adw', gtk: 'gtk' };
+
+/**
+ * The namespace members that are VALUES, so no XML element is ever wanted for them.
+ *
+ * ADR 0034 § Amendment 19: a clause-2 namespace carries the non-widget GObjects an author
+ * constructs — `new Gio.Menu()` — under their GIR name. A template cannot write one: it is
+ * a value a view-model hands to a widget, not a tag Builder instantiates. Read from the
+ * vocabulary module rather than listed here, because the gate that holds the ledger
+ * against the GIR reads the same array.
+ */
+const VALUE_MEMBERS = new Set(CONSTRUCTIBLE_VALUES.map((entry) => entry.member));
 
 /** Where the generated outputs live, so the gate does not restate them. */
 export const NS_GENERATED = {
@@ -139,12 +150,24 @@ function widgetPlacement() {
     }
     for (const [namespace, members] of namespaces) {
         const prefix = namespace.toLowerCase();
+        // A VALUE-ONLY NAMESPACE IS LEGAL and needs no barrel. `Gio` carries `Menu` and
+        // `MenuItem` and will never carry a widget: they are values a view-model constructs
+        // and hands to a widget, so no template can name them and an `xmlns:gio` would point
+        // at a module with nothing in it. The throw below is unchanged in strength for every
+        // namespace that DOES contribute a widget — it is what caught the four clause-1
+        // renames resolving against NativeScript's own components, silently, and a
+        // namespace-wide exemption here would put that back.
+        const widgets = [...members].filter(([member]) => !VALUE_MEMBERS.has(`${namespace}.${member}`));
+        if (widgets.length === 0) continue;
         if (!Object.hasOwn(NS_XMLNS_BARRELS, prefix)) {
             throw new Error(
-                `no xmlns barrel is declared for the \`${namespace}\` namespace — add one to NS_XMLNS_BARRELS.`,
+                `no xmlns barrel is declared for the \`${namespace}\` namespace, which contributes ` +
+                    `${widgets.length} widget member(s) (${widgets.map(([member]) => member).join(', ')}) — ` +
+                    'add one to NS_XMLNS_BARRELS. A namespace whose every member is a declared constructible ' +
+                    'value needs none; this one is not that.',
             );
         }
-        for (const [member, binding] of members) placement.set(binding, { prefix, member });
+        for (const [member, binding] of widgets) placement.set(binding, { prefix, member });
     }
     return placement;
 }

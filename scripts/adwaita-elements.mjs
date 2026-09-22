@@ -897,7 +897,17 @@ export function reactNativeBarrelWidgets(code, where) {
     return [...modules].sort((a, b) => a.localeCompare(b));
 }
 
-/** The two GIR namespaces clause 2 is satisfied by. Nothing else is a namespace here. */
+/**
+ * The members a clause-2 namespace carries as VALUES rather than widgets.
+ *
+ * RE-EXPORTED, not owned: the ledger's other reader is `scripts/generate-value-types.mjs`,
+ * which runs under `gjs -m`, where this module's `node:fs` import is an `ImportError`
+ * (measured). So it lives in `value-types.mjs`, which imports nothing, and the two Node
+ * consumers — the vocabulary gate and the NativeScript template generator — still read it
+ * from the vocabulary module rather than each reaching for a list of their own.
+ */
+export { CONSTRUCTIBLE_VALUES } from './value-types.mjs';
+
 /**
  * The namespaces clause 2 covers.
  *

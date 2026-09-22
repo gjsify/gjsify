@@ -36,7 +36,7 @@
 // data, so the GJS half (GLib file reads) and the Node half (`node:fs`) can each bring
 // their own I/O.
 
-import { readBlock, readStringArray } from './enum-values.mjs';
+import { readBlock, readStringArray, residue } from './enum-values.mjs';
 
 /** Where the method tables live — this oracle. */
 export const METHODS_FILE = 'packages/framework/gtk-host/src/generated/methods.mts';
@@ -56,18 +56,6 @@ export function readRuntimeGTypes(text) {
     for (const [, gtype] of text.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'[^']+'/g)) out.push(gtype);
     if (out.length === 0) throw new Error(`no widget rows found in ${WIDGETS_FILE} — the emitted shape moved`);
     return out;
-}
-
-/** What a matcher did NOT consume, once commas and whitespace are discounted. */
-function residue(body, spans) {
-    const kept = [];
-    let at = 0;
-    for (const [from, to] of spans.sort((a, b) => a[0] - b[0])) {
-        kept.push(body.slice(at, from));
-        at = to;
-    }
-    kept.push(body.slice(at));
-    return kept.join('').replace(/[\s,]/g, '');
 }
 
 /**

@@ -36,7 +36,14 @@ export const ENUM_VALUES_FILE = 'packages/framework/gtk-host/src/generated/enum-
  */
 function initialiser(text, name) {
     const declaration = `export const ${name}`;
-    const start = text.indexOf(declaration);
+    // WORD-BOUNDED, because a plain `indexOf` finds a declaration whose name merely STARTS
+    // with this one. Measured while `value-types.mts` was being added: asking for
+    // `VALUE_TYPES` matched `VALUE_TYPES_PROVENANCE`, a string constant declared above it,
+    // and the brace scan then walked past that line into the NEXT declaration's type
+    // annotation and returned `gtype: string; widget: boolean` as the record's body. It
+    // threw, because every reader here residue-checks — which is the only reason this was a
+    // message and not a table read as containing one entry named `gtype`.
+    const start = text.search(new RegExp(`export const ${name}\\b`));
     if (start === -1) throw new Error(`${name} is not declared in this file`);
     const equals = text.indexOf('=', start + declaration.length);
     if (equals === -1) throw new Error(`${name} is declared with no initialiser`);
@@ -65,8 +72,15 @@ export function readBlock(text, name) {
     throw new Error(`${name}'s object literal is not closed`);
 }
 
-/** What a matcher did NOT consume, once commas and whitespace are discounted. */
-function residue(body, spans) {
+/**
+ * What a matcher did NOT consume, once commas and whitespace are discounted.
+ *
+ * EXPORTED because the readers of the other generated artifacts need exactly this rule:
+ * `widget-methods.mjs` and `value-types.mjs` are held to "fail, do not return less" the
+ * same way, and a second copy of the residue walk is a second answer to what "unconsumed"
+ * means.
+ */
+export function residue(body, spans) {
     const kept = [];
     let at = 0;
     for (const [from, to] of spans.sort((a, b) => a[0] - b[0])) {

@@ -497,6 +497,14 @@ jobs:
       # declared surface with no reader fails — which is what makes the rule reach a port
       # nobody has written. The manifest half of that is the `widget-vocabulary` rule in the
       # conformance step above.
+      # ADR 0034 § Amendment 19 added a fourth half: a clause-2 namespace carries the
+      # non-widget GObjects an author constructs (`new Gio.Menu()`) as well as its widgets,
+      # so a ledger of exempted members is held against the GIR. THIS JOB PERFORMS NO
+      # INSTALL, which is the whole reason the GIR's answer is a committed artifact —
+      # `generated/value-types.mts`, written from the installed typelib by
+      # `scripts/generate-value-types.mjs`. The first version of that rule read
+      # `node_modules/@girs` from here and failed on every push; the same split as the enum
+      # values below fixed it, and gtk-host's `generated.spec.ts` is its runtime half.
       # Self-tests before it reads the repository, for the reason the step above spells out:
       # no run of the real scan can show a rule that cannot fail.
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)

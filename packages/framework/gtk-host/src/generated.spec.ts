@@ -36,6 +36,7 @@ import {
     METHODS_UNAVAILABLE,
     OWN_METHODS,
 } from './generated/methods.mjs';
+import { VALUE_TYPES, VALUE_TYPES_PROVENANCE, VALUE_TYPES_UNDECLARED } from './generated/value-types.mjs';
 import { ARIA_SLOTS } from './generated/accessibility.js';
 import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
@@ -1104,6 +1105,94 @@ export default async () => {
                     expect(rows.has(gtype)).toBe(true);
                     expect(gtype in ANCESTRY).toBe(false);
                 }
+            });
+
+            // ── The constructible-value table, `generated/value-types.mts`. Read from a
+            // typelib by `scripts/generate-value-types.mjs` so the no-install vocabulary gate
+            // can decide whether a namespace member that is no widget may be excused as a
+            // value (ADR 0034 § Amendment 19). Same split as the two tables above, and the
+            // same reason: the gate holds the SHAPE, this holds the FACTS against the
+            // running host.
+
+            /** The class a `Gio.Menu`-style member names on this host, or `undefined`. */
+            const valueClass = (member: string): { $gtype?: GObject.GType } | undefined => {
+                const at = member.indexOf('.');
+                const namespace = member.slice(0, at);
+                const ns = (
+                    namespace === 'Gio' ? Gio : namespace === 'Gtk' ? Gtk : namespace === 'Adw' ? Adw : null
+                ) as Record<string, unknown> | null;
+                // FAILING on a namespace this map does not know, for the reason `methodOwner`
+                // does: an unknown namespace read as "absent" would excuse every row in it.
+                if (ns === null) throw new Error(`${member}: no namespace map for it in this spec`);
+                return ns[member.slice(at + 1)] as { $gtype?: GObject.GType } | undefined;
+            };
+
+            await it('resolves every constructible value on the running libraries', async () => {
+                // THE WHOLE POINT of the artifact: the gate excuses these members from the
+                // rule that every namespace member has a widget behind it, and the excuse is
+                // only worth anything while the type is real. A row that resolves to nothing
+                // here is an exemption for a name no author can construct.
+                const problems: string[] = [];
+                for (const [member, row] of Object.entries(VALUE_TYPES)) {
+                    const klass = valueClass(member);
+                    if (klass === undefined) {
+                        problems.push(`${member} is not a member of its namespace on this host`);
+                        continue;
+                    }
+                    if (klass.$gtype === undefined) {
+                        problems.push(`${member} resolves to something with no GType`);
+                        continue;
+                    }
+                    const gtype = GObject.type_name(klass.$gtype);
+                    if (gtype !== row.gtype) {
+                        problems.push(`${member} registers ${String(gtype)} here, the artifact says ${row.gtype}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: an empty table would otherwise pass with an empty problem list.
+                expect(Object.keys(VALUE_TYPES).length > 0).toBe(true);
+                expect(VALUE_TYPES_PROVENANCE.length > 0).toBe(true);
+            });
+
+            await it('excuses nothing the running GTK calls a widget', async () => {
+                // The direction the ledger is guarded for, asked of the LIVE type system
+                // rather than of the typelib declaration the generator walked: two
+                // independent answers to "is this a widget", and the artifact is only
+                // admissible while they agree. A widget excused as a value would be the
+                // second place a widget is declared, which is what the rule it exempts from
+                // exists to prevent.
+                const problems: string[] = [];
+                let checked = 0;
+                for (const [member, row] of Object.entries(VALUE_TYPES)) {
+                    const klass = valueClass(member);
+                    if (klass?.$gtype === undefined) continue;
+                    checked++;
+                    const isWidget = GObject.type_is_a(klass.$gtype, Gtk.Widget.$gtype);
+                    if (isWidget) problems.push(`${member} IS a Gtk.Widget subclass on this host`);
+                    if (isWidget !== row.widget) {
+                        problems.push(`${member}: the artifact says widget=${row.widget}, this host says ${isWidget}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: `type_is_a` answering false for everything would pass above, so
+                // the probe asserts it answers TRUE for a type that really is a widget.
+                expect(GObject.type_is_a(Gtk.Button.$gtype, Gtk.Widget.$gtype)).toBe(true);
+                expect(checked).toBe(Object.keys(VALUE_TYPES).length);
+            });
+
+            await it('excuses only the values this host really has no type for', async () => {
+                // The declared remainder, as for the two tables above. An entry here is a
+                // ledger entry that is simply wrong rather than a version gap — nothing may
+                // excuse a member whose type the GIR has never heard of — so a row this host
+                // DOES resolve means the artifact predates a fix and the generator's `--check`
+                // is where that is settled.
+                const stale = Object.keys(VALUE_TYPES_UNDECLARED).filter((member) => valueClass(member) !== undefined);
+                if (stale.length > 0) {
+                    console.error(
+                        `  (${stale.length} value(s) excused as undeclared that this host DOES have: ${stale.join(', ')})`,
+                    );
+                }
+                for (const member of Object.keys(VALUE_TYPES_UNDECLARED)) expect(member in VALUE_TYPES).toBe(false);
             });
 
             await it('names every event prop so the host resolves it back to the same signal', async () => {
