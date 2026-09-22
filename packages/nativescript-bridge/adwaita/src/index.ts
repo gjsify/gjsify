@@ -227,6 +227,11 @@ export type {
 export * as Adw from './namespace/adw.js';
 export * as Gtk from './namespace/gtk.js';
 
+// The THIRD namespace, and the one that holds no widget: the GObject types an author
+// CONSTRUCTS while building a tree. `Gio.Menu` is what makes `menuModel: menu` the same
+// program here as on GJS — `./namespace/gio.ts` says what does not go in it.
+export * as Gio from './namespace/gio.js';
+
 // Fonts
 export {
     ADWAITA_SANS_FONT_FAMILY,

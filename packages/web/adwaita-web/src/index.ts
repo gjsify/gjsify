@@ -95,6 +95,11 @@ export { isIconAvailable, registerIcon } from './icon-registry.js';
 export * as Adw from './namespace/adw.js';
 export * as Gtk from './namespace/gtk.js';
 
+// The THIRD namespace, and the one that defines no element: the GObject types an author
+// CONSTRUCTS while building a tree. `Gio.Menu` is what makes `menuModel: menu` the same
+// program here as on GJS — `./namespace/gio.ts` says what does not go in it.
+export * as Gio from './namespace/gio.js';
+
 // WHAT DID NOT MOVE INTO THE NAMESPACE, and the rule that decides it. A member exists
 // for an element whose GIR tag names a real widget; `WEB_ELEMENT_ALIGNMENT` declares the
 // rest `webOnly`, meaning no widget in the reference vocabulary stands behind it, so
