@@ -15,7 +15,7 @@ read `tag`, `props` and `children` and nothing else:
 
 Nothing could see it, because ADR 0051's corpus — the only source of shared trees there was —
 authors **zero** `slot`s across its seven blocks. ADR 0053's `.blp` projection is the first source
-that authors any, and `showcases/gtk/effect-adw-services/src/window.blp` authors seven of them
+that authors any, and `showcases/gtk/effect-adw-services/src/window.blp` authors four of them
 over fourteen nodes.
 
 WHAT IT COSTS, measured on `adwaita-web` in a real browser
@@ -38,9 +38,11 @@ vocabulary; ADR 0070 § 7 names the gap and says why it did not take it).
 
 Measured 2026-09-22 at `95198adaf6`: among the shipped templates whose projection declares no
 loss, **not one** has every tag in `packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts`.
-Every one of them roots at `AdwApplicationWindow`, for which the Adw barrel has no member; two
-also name `GtkScrolledWindow` and one `GtkSeparator`. ADR 0070 § How the numbers here were
-obtained carries the denominator, dated. `elementFor` refuses a missing member by design, so
+They root at `AdwApplicationWindow` ×6, `AdwBin` ×2 and `GtkApplicationWindow` ×1, and the
+barrels have a member for none of the three; the rest of the gap is `GtkScrolledWindow` ×2,
+`GtkSeparator` ×1 and `GtkActionBar` ×1. ADR 0070 § How the numbers here were obtained carries
+the denominator, dated — it is nine files now, not six, because ADR 0068 carried the style
+classes and three more files went lossless. `elementFor` refuses a missing member by design, so
 this is a clean refusal and not a wrong widget.
 
 ADR 0070 wired `blueprintPlugin()` onto the `nativescript` target and retired the

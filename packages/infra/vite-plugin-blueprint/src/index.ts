@@ -82,15 +82,29 @@ const SEAMS: Required<EmitOptions> = Object.freeze({
  *     keep in step with the list of targets, which is the drift `app/nativescript.ts`'s
  *     "NO blueprintPlugin" comment was one half of.
  */
-const SHARED_TREE_QUERY = '?shared-tree';
+const SHARED_TREE_PARAM = 'shared-tree';
 
-/** The `.blp` path a module id names, with the exit it asked for. */
+/** The specifier an import site writes: `./x.blp?shared-tree`. */
+export const SHARED_TREE_QUERY = `?${SHARED_TREE_PARAM}`;
+
+/**
+ * The `.blp` path a module id names, with the exit it asked for.
+ *
+ * A PARAMETER, not a suffix, and that distinction is the whole correctness of this plugin
+ * under Vite. This package is published as a *vite* plugin, and Vite appends its own segments
+ * to a module id on the way through: `?shared-tree&import` from import analysis, `&v=<hash>`
+ * from the dep optimizer, `&used` from the SSR transform. An `endsWith('?shared-tree')` test
+ * matches none of those — and then the `.blp` fallback below misses too, because the id no
+ * longer ends in `.blp` either. The plugin would DECLINE the module, silently, and raw
+ * Blueprint source would reach whatever loader runs next. Rolldown, which is what this repo
+ * builds with, appends nothing, so the repo's own builds never show it.
+ */
 function readId(id: string): { file: string; sharedTree: boolean } | undefined {
-    if (id.endsWith(SHARED_TREE_QUERY)) {
-        const file = id.slice(0, -SHARED_TREE_QUERY.length);
-        return file.endsWith('.blp') ? { file, sharedTree: true } : undefined;
-    }
-    return id.endsWith('.blp') ? { file: id, sharedTree: false } : undefined;
+    const queryAt = id.indexOf('?');
+    const file = queryAt === -1 ? id : id.slice(0, queryAt);
+    if (!file.endsWith('.blp')) return undefined;
+    if (queryAt === -1) return { file, sharedTree: false };
+    return { file, sharedTree: new URLSearchParams(id.slice(queryAt + 1)).has(SHARED_TREE_PARAM) };
 }
 
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
@@ -105,11 +119,13 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
         // two ids, two module records — so importing a template both ways in one bundle gets
         // the XML and the tree rather than whichever was loaded first.
         async resolveId(source, importer) {
-            if (!source.endsWith(SHARED_TREE_QUERY)) return null;
-            const bare = source.slice(0, -SHARED_TREE_QUERY.length);
-            if (!bare.endsWith('.blp')) return null;
-            const resolved = await this.resolve(bare, importer, { skipSelf: true });
-            return resolved === null ? null : `${resolved.id}${SHARED_TREE_QUERY}`;
+            const asked = readId(source);
+            if (asked === undefined || !asked.sharedTree) return null;
+            const resolved = await this.resolve(asked.file, importer, { skipSelf: true });
+            // The WHOLE query goes back on, not just ours: anything the host added to the
+            // specifier is the host's, and dropping it here would resolve to a different
+            // module than the one it asked for.
+            return resolved === null ? null : `${resolved.id}${source.slice(source.indexOf('?'))}`;
         },
 
         async load(id) {

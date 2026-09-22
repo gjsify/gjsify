@@ -24,7 +24,7 @@ import {
     parseBlueprint,
     projectToSharedNode,
 } from '@gjsify/blueprint';
-import { CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
+import { CORPUS_REAL_FILES, CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 import type { Plugin } from 'vite';
 import blueprintPlugin, { BlueprintProjectionError } from './index.js';
@@ -83,6 +83,33 @@ const resolveIdOf = (plugin: Plugin) => {
  */
 const projectionOf = (file: string) =>
     projectToSharedNode(parseBlueprint(readFileSync(file, 'utf8'), file), { gtypeName });
+
+/**
+ * A shipped `.blp` the projection still loses something on — ASKED, never named.
+ *
+ * The refusal test used to name `templates/gtk-minimal/src/main-window.blp`, and the pairing
+ * was the point: one file, the XML exit green and the tree exit refused in the same run. ADR
+ * 0068 ended that by carrying its `styles` block, and the test went red with
+ * `expect(lost.length > 0).toBe(true)` — the premise, not the behaviour. Three gates were green
+ * over it, because none of them reads this suite.
+ *
+ * So the file is CHOSEN BY MEASUREMENT on every run. Each ADR that closes a loss family moves
+ * the answer instead of breaking the test, and the day none is left this throws a sentence that
+ * says what happened rather than an assertion that says a number is not bigger than zero.
+ */
+function lossyShippedBlp(): { file: string; lost: readonly { kind: string; line: number }[] } {
+    for (const { source } of CORPUS_REAL_FILES) {
+        const file = join(repoRoot, source);
+        const { lost } = projectionOf(file);
+        if (lost.length > 0) return { file, lost };
+    }
+    throw new Error(
+        `every one of the ${CORPUS_REAL_FILES.length} shipped .blp now projects losslessly, so this ` +
+            'suite can no longer reach the refusal path with a real file. That is the goal arriving, ' +
+            'not a defect: give this vector a fixture under corpus/ that still loses something, and ' +
+            'say in the corpus manifest which construct it is kept lossy for.',
+    );
+}
 
 export default async () => {
     await describe('vite-plugin-blueprint', async () => {
@@ -163,14 +190,14 @@ export default async () => {
         });
 
         await it('refuses a lossy .blp as a shared tree, and compiles the same file to XML', async () => {
-            // The pairing is the point. `templates/gtk-minimal/src/main-window.blp` is the file
-            // the first test in this suite byte-compares against the reference compiler, and it
-            // drops a `styles` block on the way to a node. So: GTK path green, shared-tree path
-            // refused, one file, one run. A build that emitted the tree anyway would render a
-            // window whose styling is simply absent, on a target where nothing else can notice.
-            const source = join(repoRoot, 'templates/gtk-minimal/src/main-window.blp');
-            const { lost } = projectionOf(source);
-            expect(lost.length > 0).toBe(true);
+            // Both exits of ONE file, in one run: the GTK path compiles, the tree path refuses.
+            // A build that emitted the tree anyway would render a UI smaller than the `.blp`
+            // describes, on a target where nothing else can notice.
+            //
+            // The file is whichever shipped `.blp` still loses something — see
+            // `lossyShippedBlp`. Naming one was how this test broke: the file it named stopped
+            // being lossy and the suite failed on its own premise.
+            const { file: source, lost } = lossyShippedBlp();
 
             let thrown: unknown;
             try {

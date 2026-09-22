@@ -7,7 +7,9 @@
 // by `@gjsify/vite-plugin-blueprint`'s `?shared-tree` exit at build time. So what is under test
 // is not the builder — that is the sibling's job — it is the JOIN: that a `.blp` a GTK showcase
 // actually ships arrives on this target as a tree this renderer mounts, with the fields ADRs
-// 0066 and 0067 put on the node still on it.
+// 0066, 0067 and 0068 put on the node still on it — `template`/`object-id`, the translatable
+// marking, and the style classes. Naming two of the three read as a complete list once 0068
+// landed, which is how a reader learns a field is not carried when it is.
 //
 // WHY A SHIPPED FILE AND NOT A FIXTURE. A fixture written for this test would be written to
 // pass it. `showcases/gtk/effect-adw-services/src/window.blp` is a real interface — an
@@ -20,7 +22,7 @@
 // WHAT THIS MEASURED THAT NOTHING HAD: SLOT PLACEMENT IS NOT CARRIED, AND IT COSTS CAPTIONS.
 // `SharedTreeNode.slot` is on the node shape and read by NONE of the three tree builders. That
 // went unnoticed because ADR 0051's seven-block corpus authors zero slots — a `.blp` is the
-// first source that authors any, and this one authors seven. The two `it.failing` cases below
+// first source that authors any, and this one authors four. The two `it.failing` cases below
 // are what it costs on this renderer, and they are `it.failing` rather than a note so they go
 // red the day placement lands: the header bar authored `[top]` lands in the toolbar view's
 // CONTENT, and the `title-widget:` window title is then discarded by `adw-header-bar`'s own

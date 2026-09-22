@@ -42,18 +42,26 @@ prints; the per-file ones are `projectToSharedNode` over the twelve entries of
 
 | | measured |
 |---|---:|
-| shipped `.blp` that project with NO loss | 6 of 12 |
-| corpus files that project with no loss | 25 of 68 |
-| losses the projection takes, corpus-wide | 125 |
+| shipped `.blp` that project with NO loss | 9 of 12 |
+| corpus files that project with no loss | 30 of 68 |
+| losses the projection takes, corpus-wide | 115 |
 
-All three are unchanged from ADR 0067's "after" column: the corpus has not moved since, and these
-are a re-derivation rather than a new reading.
+All three MOVED under ADR 0068, which carried the style classes while this decision was open:
+6 → 9, 25 → 30, 125 → 115, exactly the step 0068 § Consequences records. They are re-read here
+rather than copied, because an earlier draft of this table carried 0067's "after" column through a
+rebase and said the corpus had not moved — the digest arm of `check-blueprint-corpus-counts.mjs`
+holds the SNAPSHOT counts and cannot see a sentence about them.
+
+What is left is two families on three files: `binding` ×6 and `breakpoint` ×6, all of them in the
+three DOM showcase windows. Every other family the shipped corpus reaches now has a field.
 
 ### What a real `.blp` authors that the shared corpus never did
 
 ADR 0051's corpus is seven blocks in `scripts/adwaita-gallery-shared-trees.mjs`, and they author
 **zero `slot`s**. `showcases/gtk/effect-adw-services/src/window.blp` — fourteen nodes — authors
-**seven**: `content:` twice, `[top]`, `title-widget:`, and the bracket-free single children.
+**four**: `AdwToolbarView` at `content`, `AdwHeaderBar` at `top`, `AdwWindowTitle` at
+`title-widget`, `GtkScrolledWindow` at `content`. The bracket-free single children carry no slot
+at all, which is why the count is four and not seven.
 
 That matters because `slot` is on the node shape and **no tree builder reads it**. All three read
 `tag`, `props` and `children` and nothing else, which nothing noticed while the only source of
@@ -63,9 +71,11 @@ in § 7 rather than described.
 ### What the NativeScript port can spell
 
 The `xmlns` barrels resolve a tag through `namespace/adw.ts` / `namespace/gtk.ts`, and a member
-they do not have is a refusal in `elementFor`. Over the six lossless shipped files: **0 of 6** have
-every tag in the barrels. Every one roots at `AdwApplicationWindow`, which the Adw barrel has no
-member for; two also name `GtkScrolledWindow` and one `GtkSeparator`.
+they do not have is a refusal in `elementFor`. Over the nine lossless shipped files: **0 of 9** have
+every tag in the barrels — the verdict survives the bigger denominator, which is the point of
+re-measuring it. The roots are `AdwApplicationWindow` ×6, `AdwBin` ×2 and `GtkApplicationWindow`
+×1, and the Adw and Gtk barrels have a member for none of the three. The rest of the gap is
+`GtkScrolledWindow` ×2, `GtkSeparator` ×1 and `GtkActionBar` ×1.
 
 ### The failure this decision is really about
 
