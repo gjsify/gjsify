@@ -502,6 +502,13 @@ jobs:
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)
         run: node scripts/check-vocabulary-alignment.mjs
 
+      # The same question one layer down, on the surface that has no widgets at all,
+      # moved to `main.yml`'s `tree-checks` job (beside `check-doc-fences.mjs`) because
+      # its real oracle is the INSTALLED `@girs` tree, not a committed generated table —
+      # `node_modules/@girs` per-namespace `.d.ts` — and this job deliberately installs
+      # nothing (see the note at the top of this file). It still self-tests on a fixture
+      # first; only the sweep against the real tree needed the move.
+
       # The other half of that vocabulary: what a nick is WORTH. `ENUM_NICKS` says a
       # member is called `baseline`; nothing said it is 4. A surface with no GI has to
       # hand GTK an integer anyway, and counting the position in the nick list is wrong
