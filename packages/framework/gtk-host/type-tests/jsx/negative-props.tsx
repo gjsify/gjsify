@@ -97,3 +97,41 @@ export const badFlagNick = <gtk-entry input-hints="spellchek" />;
  */
 // @ts-expect-error TS2322 — the leading member of the set is not a GtkInputHintsNick
 export const badFlagSetHead = <gtk-entry input-hints="spellchek|lowercase" />;
+
+/**
+ * AN ARIA NAME THAT DOES NOT EXIST — the hole `known-hole-hyphen.tsx` records, closed.
+ *
+ * A flat `aria-labell` attribute would be exempt from excess-property checking like every
+ * other hyphenated JSX attribute; a key inside a FRESH OBJECT LITERAL is not. That is the
+ * measured reason `accessibility` is one grouped prop and not 53 flat ones.
+ */
+// @ts-expect-error TS2561 — `labell` is not a member of AccessibilityAttributes, and TS suggests `label`
+export const unknownAria = <gtk-label accessibility={{ labell: 'Save' }} />;
+
+/**
+ * A real ARIA slot, the wrong value type.
+ *
+ * `value-now` is a `double` in GTK's own ARIA table and there is no ParamSpec behind it, so
+ * this is the only place a wrong type can be caught before GJS guesses a GValue and GTK
+ * drops the write with a critical at exit 0.
+ */
+// @ts-expect-error TS2322 — `value-now` is a number slot
+export const ariaWrongType = <gtk-label accessibility={{ 'value-now': 'three' }} />;
+
+/**
+ * An ARIA nick outside its enum — typed by the ARIA table, not by the widget.
+ *
+ * `checked` is a `GtkAccessibleTristate`, and `GtkLabel` has no `checked` property at all,
+ * so nothing about the widget could have produced this union.
+ */
+// @ts-expect-error TS2322 — 'perhaps' is not a GtkAccessibleTristateNick
+export const ariaBadNick = <gtk-label accessibility={{ checked: 'perhaps' }} />;
+
+/**
+ * A RELATION that points at another widget: the named gap, DECLARED and unwritable.
+ *
+ * Omitting these fourteen names would make the excess-property check say GTK has no such
+ * name, which is false. `never` says whose gap it is, and hover carries the reason.
+ */
+// @ts-expect-error TS2322 — `labelled-by` needs a widget address this host has not got
+export const ariaReference = <gtk-label accessibility={{ 'labelled-by': 'other' }} />;

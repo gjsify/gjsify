@@ -12,6 +12,7 @@
 
 import type GObject from '@girs/gobject-2.0';
 import type Gtk from '@girs/gtk-4.0';
+import type { AriaValueType } from '@girs/gtk-4.0/vocabulary';
 
 export type NodeKind = 'element' | 'text' | 'anchor';
 
@@ -64,6 +65,15 @@ export interface HostElement extends HostNodeBase {
     listeners: Map<string, (...args: unknown[]) => unknown>;
     /** Positional data for `coords` parents (`Gtk.Grid`), read off the child. */
     layout: Record<string, unknown> | null;
+    /**
+     * The authored ARIA object, or null — the accessibility GTK holds for this widget.
+     *
+     * A field of its own and NOT a key in `props`, for the reason `layout` is one: `props`
+     * is replayed into `g_object_new` by `materialize`, and none of these names is a
+     * construct property. It is the LAST authored value, so a patch can compute which
+     * slots the new object no longer sets and reset exactly those.
+     */
+    accessibility: Record<string, unknown> | null;
     /** True once text CHILDREN wrote the sink, so removing the last one clears it
      *  instead of leaving the stale string an authored prop never set. */
     textFromChildren: boolean;
@@ -450,4 +460,52 @@ export interface WidgetDescriptor {
      * to check with.
      */
     readonly requiresProps?: readonly string[];
+}
+
+// ---------------------------------------------------------------------------
+// Accessibility — the axis no ParamSpec carries
+// ---------------------------------------------------------------------------
+
+/**
+ * The three enums whose MEMBERS are GTK's ARIA names.
+ *
+ * `GtkAccessibleProperty`, `GtkAccessibleState` and `GtkAccessibleRelation` are three
+ * tables and three calls — `update_property`, `update_state`, `update_relation` — and
+ * which name belongs to which is GTK's answer, never ours. The runtime derives the call
+ * from this string, which is why a fourth table is refused at generation time rather
+ * than emitted: a call that does not exist is a `TypeError` inside a render.
+ */
+export type AriaTable = 'GtkAccessibleProperty' | 'GtkAccessibleRelation' | 'GtkAccessibleState';
+
+/**
+ * One ARIA slot: the table it lives in, and the kind of value GTK collects for it.
+ *
+ * WHY THIS EXISTS AT ALL, and why it is not a ParamSpec. An ARIA slot is not a GObject
+ * property and never can be: `gtk_accessible_update_property()` takes a `GValue` the
+ * CALLER builds, and GTK reads it back with a fixed `g_value_get_*` per slot. There is
+ * nothing on the object to interrogate — so the type this table carries is the only
+ * thing standing between an authored value and the measured failure below.
+ *
+ * MEASURED on gjs 1.88.1 / GTK 4.22.5, one process per line. GJS guesses a GValue type
+ * from the JS value, and the guess is made on the value's INTEGRALITY:
+ *
+ *     update_property([VALUE_NOW], [3])       g_value_get_double: G_VALUE_HOLDS_DOUBLE failed
+ *     update_property([LEVEL], [3.5])         g_value_get_int:    G_VALUE_HOLDS_INT failed
+ *     update_property([SORT], ['ascending'])  g_value_get_int:    G_VALUE_HOLDS_INT failed
+ *     update_state([CHECKED], [true])         g_value_get_int:    G_VALUE_HOLDS_INT failed
+ *
+ * Every one of those is a CRITICAL at exit 0 with the slot left unset — the silent
+ * mis-store this package exists to refuse — and the last is the one a DOM author writes
+ * first, because `checked` is a `GtkAccessibleTristate` and not a boolean.
+ */
+export interface AriaSlot {
+    /**
+     * The table this name lives in. The NAME itself is the key the slot is stored under —
+     * kebab, as GTK spells the enum nick (`has-popup`, `row-index`) — and is deliberately
+     * not repeated in the row: a second copy of a map key is a second thing to keep in step.
+     */
+    readonly table: AriaTable;
+    readonly kind: AriaValueType;
+    /** `kind: 'enum'` only — the GType whose nicks the value takes. */
+    readonly enumGType?: string;
 }

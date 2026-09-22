@@ -105,6 +105,88 @@ export const err = {
                 `is a property of its own on every widget that takes an adjustment, so ${prop}={3} and ` +
                 `value={3} would be two spellings of one write.`,
         ),
+    /**
+     * The `accessibility` prop given something that is not an object of ARIA names.
+     *
+     * One grouped prop, so the shape of the value is the first thing that can be wrong —
+     * and a string or an array would reach `Object.entries` and produce refusals about
+     * index names rather than about the prop.
+     */
+    badAccessibility: (tag: string, got: string) =>
+        new GtkHostError(
+            'bad-accessibility',
+            `<${tag}> accessibility takes an object of ARIA names and got ${got}. Write ` +
+                `accessibility={{ label: "Save", "row-index": 3 }} — one object, the names GTK's own ` +
+                `accessibility block uses — or null to clear everything it set.`,
+        ),
+    unknownAria: (tag: string, name: string) =>
+        new GtkHostError(
+            'unknown-aria',
+            `<${tag}> accessibility has no name "${name}". The names are GTK's three ARIA tables — the ` +
+                `members of GtkAccessibleProperty, GtkAccessibleState and GtkAccessibleRelation, kebab-spelled ` +
+                `(label, has-popup, checked, row-index) — and they are NOT the widget's properties: ` +
+                `"orientation" is settable on a GtkLabel that implements no GtkOrientable at all.`,
+        ),
+    /**
+     * An ARIA name the SHIPPED table has and the INSTALLED GTK does not.
+     *
+     * The same version-gap question the generated widget table answers with `SINCE`, on the
+     * one axis where GTK's own failure is worst: `update_property` with an out-of-range
+     * member emits `gtk_accessible_value_collect_for_property_value: assertion failed`, then
+     * `gtk_accessible_attribute_set_remove: assertion failed`, and exits 0 (measured).
+     */
+    ariaNotInstalled: (tag: string, name: string, table: string) =>
+        new GtkHostError(
+            'aria-not-installed',
+            `<${tag}> accessibility names "${name}", which this package's table has and the installed GTK's ` +
+                `${table} does not — it arrived in a newer release. Upgrade GTK, or drop the name: writing it ` +
+                `anyway is two criticals and an unset slot at exit 0.`,
+        ),
+    badAriaValue: (tag: string, name: string, wants: string, got: string) =>
+        new GtkHostError(
+            'bad-aria-value',
+            `<${tag}> accessibility "${name}" is typed ${wants} in GTK's ARIA table and got ${got}. GTK builds no ` +
+                `GValue of its own here — it reads back the one the caller passed with a fixed g_value_get_* — so a ` +
+                `wrong type is a critical at exit 0 and nothing readable in the slot; measured, the slot still ` +
+                `reports as SET afterwards for two of the three types it was tried on, which is why presence is not ` +
+                `an oracle here. GJS guesses the GValue type from a NUMBER's integrality: 3 is an int and 3.5 a ` +
+                `double, so a double slot written 3 goes missing and an integer slot written 3.5 does too.`,
+        ),
+    badAriaEnum: (tag: string, name: string, nick: string, gtypeName: string) =>
+        new GtkHostError(
+            'bad-aria-enum',
+            `<${tag}> accessibility "${name}" expects ${gtypeName}, and "${nick}" is not one of its values. ` +
+                `The ARIA tables type these slots themselves and disagree with the widget where it matters: ` +
+                `checked is a GtkAccessibleTristate, so "true" is a nick and the boolean true is a wrong GValue ` +
+                `GTK drops without a word.`,
+        ),
+    /**
+     * A relation whose value is another widget — the one part of GTK's ARIA surface this
+     * host cannot express, named rather than half-built.
+     *
+     * `Gtk.AccessibleList.new_from_list([widget])` builds exactly the value GTK wants, so
+     * the MARSHALLING is not what is missing: the ADDRESSING is. This host has no `id` prop,
+     * and `ref` is resolved by each framework AFTER the props of the element that names it
+     * are applied — so a ref read at this point is null on the render that authored it, and
+     * GTK takes a null reference at exit 0.
+     */
+    ariaReference: (tag: string, name: string) =>
+        new GtkHostError(
+            'aria-reference',
+            `<${tag}> accessibility "${name}" points at ANOTHER widget, and this host has no way to name one: ` +
+                `there is no id prop, and a framework ref is resolved after these props are applied. Set the ` +
+                `relation imperatively for now — ref={(w) => w.update_relation([Gtk.AccessibleRelation.` +
+                `${name.toUpperCase().replace(/-/g, '_')}], [Gtk.AccessibleList.new_from_list([other])])} — ` +
+                `where you already hold both widgets.`,
+        ),
+    notAccessible: (tag: string) =>
+        new GtkHostError(
+            'not-accessible',
+            `<${tag}> is not a Gtk.Accessible, so accessibility has nowhere to go on it. Not every row of the ` +
+                `generated table is a widget — the list carriers are plain GObjects that HOLD one — and those ` +
+                `have no update_property at all (measured on Gtk.StringList). Put the accessibility on the ` +
+                `widget that renders.`,
+        ),
     badEnum: (tag: string, prop: string, nick: string, gtypeName: string) =>
         new GtkHostError(
             'bad-enum',

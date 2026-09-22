@@ -332,6 +332,87 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             handle.unmount();
         });
 
+        // --- accessibility: the ARIA axis no ParamSpec carries ----------------
+
+        // THE PRESENCE ORACLE IS NOT ENOUGH ON ITS OWN, and that is the reason every
+        // vector below lives inside `gated(...)`. `Gtk.test_accessible_has_*` says a slot
+        // is SET, never what is in it — and MEASURED on GTK 4.22.5, a write with the wrong
+        // GValue type still SETS two of the three slots it was tried on:
+        //
+        //     update_property([VALUE_NOW], [3])      critical, has_property -> TRUE
+        //     update_state([CHECKED], [true])        critical, has_state    -> TRUE
+        //     update_property([DESCRIPTION], [5])    critical, has_property -> FALSE
+        //
+        // So presence alone passes the exact defect this surface exists to refuse. What
+        // separates a correct write from a mis-typed one is the SILENCE, which the
+        // diagnostics gate around this whole block asserts.
+
+        await it('a PROPERTY slot GTK collects as a double takes an integral number', async () => {
+            // `3` is the trap in one character: GJS guesses a GValue type from the
+            // number's integrality, so an authored 3 in a double slot is `g_value_get_double`
+            // failing on a G_TYPE_INT — a critical, and the slot set to nothing readable.
+            const container = new Gtk.Box();
+            const handle = await mount(container, h('GtkLabel', { accessibility: { 'value-now': 3 } }));
+            const label = onlyChild(container) as Gtk.Label;
+            expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.VALUE_NOW)).toBe(true);
+            handle.unmount();
+        });
+
+        await it('a STATE slot typed by ARIA and not by the widget takes its nick', async () => {
+            // `checked` is a `GtkAccessibleTristate`, so the DOM spelling `checked: true` is
+            // an int slot handed a boolean. The ARIA table is the only thing that knows —
+            // `GtkLabel` has no `checked` property to infer it from, and the two vocabularies
+            // disagree here on purpose.
+            const container = new Gtk.Box();
+            const handle = await mount(container, h('GtkLabel', { accessibility: { checked: 'mixed' } }));
+            const label = onlyChild(container) as Gtk.Label;
+            expect(Gtk.test_accessible_has_state(label, Gtk.AccessibleState.CHECKED)).toBe(true);
+            handle.unmount();
+        });
+
+        await it('a name the patch drops is RESET, not left behind', async () => {
+            // The half a write-only implementation gets wrong and no presence assertion on
+            // the writes would notice: GTK keeps an attribute set per widget, so a slot
+            // nobody resets survives every later render of the element that stopped
+            // authoring it.
+            const container = new Gtk.Box();
+            const handle = await mount(container, h('GtkLabel', { accessibility: { description: 'a row', level: 2 } }));
+            const label = onlyChild(container) as Gtk.Label;
+            expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.LEVEL)).toBe(true);
+            await handle.patch(h('GtkLabel', { accessibility: { description: 'a row' } }));
+            expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.LEVEL)).toBe(false);
+            expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.DESCRIPTION)).toBe(true);
+            handle.unmount();
+        });
+
+        await it('an unknown accessibility name is refused BY NAME', async () => {
+            const container = new Gtk.Box();
+            const said = await refusalOf(() => mount(container, h('GtkLabel', { accessibility: { labell: 'typo' } })));
+            expect(said).toContain('has no name "labell"');
+            expect(said).toContain('GtkLabel');
+        });
+
+        await it('a wrong value type is refused instead of dropped at exit 0', async () => {
+            const container = new Gtk.Box();
+            const said = await refusalOf(() =>
+                mount(container, h('GtkLabel', { accessibility: { 'value-now': 'three' } })),
+            );
+            expect(said).toContain('is typed double');
+            expect(said).toContain('GtkLabel');
+            // Not vacuous: the same slot takes a number, which the first vector asserts.
+        });
+
+        await it('a relation pointing at another widget is refused as the named gap', async () => {
+            // GTK has `labelled-by`; this host has no way to NAME the other widget. Declared
+            // and refused rather than absent, so the message says whose gap it is.
+            const container = new Gtk.Box();
+            const said = await refusalOf(() =>
+                mount(container, h('GtkLabel', { accessibility: { 'labelled-by': 'other' } })),
+            );
+            expect(said).toContain('points at ANOTHER widget');
+            expect(said).toContain('labelled-by');
+        });
+
         // --- the uncurated refusal, through a framework ----------------------
 
         await it('an uncurated container refuses a child by name', async () => {

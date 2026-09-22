@@ -24,6 +24,7 @@
  *    typed handlers loosely would break every handler that names its parameter.
  */
 
+import type { AriaSlot } from '../types.js';
 import type { Declaration, SurfaceModel } from './model.mjs';
 import { tagOf } from '../tags.js';
 
@@ -218,6 +219,173 @@ export type WidgetTag = keyof WidgetPropsByTag;
 export type WidgetGType = keyof WidgetPropsByGType;
 `;
     return { path: 'props.ts', text };
+}
+
+/** A key an object literal may carry unquoted. Same rule the props emitter applies to kebab spellings. */
+const bareKey = (name: string): string => (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : `'${name}'`);
+
+/** The scalar TypeScript spelling of a non-enum, non-reference ARIA value kind. */
+const ARIA_SCALAR_TS: Readonly<Record<string, string>> = {
+    string: 'string',
+    integer: 'number',
+    double: 'number',
+    boolean: 'boolean',
+};
+
+/**
+ * `GtkAccessibleTristate` -> `Gtk.AccessibleTristate`, using the namespaces the surface
+ * already imports.
+ *
+ * LONGEST PREFIX FIRST, the same rule and the same reason as `splitGType`: a one-letter
+ * namespace examined before `Gtk` would split `GtkOrientation` into a namespace that
+ * renders, compiles and is wrong everywhere it appears. A GType no namespace claims is a
+ * hard error rather than a guess, because the alternative is an emitted `undefined.`.
+ */
+function qualifyEnum(gtype: string, namespaces: readonly string[]): { ns: string; ts: string } {
+    for (const ns of [...namespaces].sort((a, b) => b.length - a.length)) {
+        if (gtype.startsWith(ns) && gtype.length > ns.length) return { ns, ts: `${ns}.${gtype.slice(ns.length)}` };
+    }
+    throw new Error(`the ARIA enum ${gtype} starts with none of the surface namespaces (${namespaces.join(', ')})`);
+}
+
+/**
+ * Emit GTK's ARIA surface: the slot table the runtime reads, and the props interface.
+ *
+ * WHY THIS FILE EXISTS AND `props.ts` COULD NOT CARRY IT. Every other name a renderer can
+ * write on a widget is a GObject property, and the host resolves those through the
+ * ParamSpec of the INSTALLED class — the table travels with the package, the coercion
+ * travels with the user's GTK. An ARIA slot has no ParamSpec. `GtkAccessible` installs
+ * exactly one property, `accessible-role`; the other 53 names live in three ENUMS and are
+ * written through three calls, and the value type of each is stated only in that enum
+ * member's GIR DOCUMENTATION. So the type has to SHIP, and this is the one generated file
+ * whose data the runtime cannot re-derive from the object in front of it.
+ *
+ * WHY THE TABLE AND THE INTERFACE ARE IN ONE FILE. They are the two halves of one answer
+ * and they are keyed identically; split, the day a GTK release adds a name is the day the
+ * type surface and the runtime refusal disagree about whether it exists.
+ *
+ * THE FLOOR IS THE LOAD-BEARING GATE, as it is in `emit.mts`: a reader that silently
+ * yields three rows and a generator reporting success over it look identical, and here
+ * an under-read does not fail loudly downstream — it emits a smaller vocabulary, and
+ * every name it dropped becomes `unknown-aria` at a user's call site.
+ */
+export function emitAccessibility(model: SurfaceModel, provenance: string, floor = 40): EmittedFile {
+    const slots = [...model.aria].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    if (slots.length < floor) {
+        throw new Error(
+            `only ${slots.length} ARIA slot(s) read from the vocabularies, below the floor of ${floor} — ` +
+                `the vocabulary's ARIA tables are probably not being read`,
+        );
+    }
+
+    const namespaces = [...model.namespacesUsed];
+    const nickImports = new Set<string>();
+    const nsImports = new Set<string>();
+    const rows: string[] = [];
+    const members: string[] = [];
+    for (const [name, slot] of slots) {
+        const fields = [`table: '${slot.table}'`, `kind: '${slot.kind}'`];
+        if (slot.enumGType) fields.push(`enumGType: '${slot.enumGType}'`);
+        rows.push(`    ${bareKey(name)}: { ${fields.join(', ')} },`);
+        members.push(renderAriaMember(name, slot, namespaces, nickImports, nsImports));
+    }
+
+    const imports = [...nsImports].sort().map((ns) => `import type ${ns} from '${model.packages[ns]}';`);
+    const nicks = [...nickImports].sort();
+
+    const text = `${HEADER(
+        `GTK's ARIA surface: ${slots.length} slots over three tables, and the props interface
+// that types them. The one generated table the runtime CANNOT re-derive from the object
+// in front of it — see \`emitAccessibility\` in src/generator/emit-types.mts.`,
+        provenance,
+    )}
+
+${imports.join('\n')}
+
+import type { AriaSlot } from '../types.js';
+import type { ${nicks.join(', ')} } from './props.js';
+
+/**
+ * ARIA name -> the table it belongs to and the kind of value GTK collects for it.
+ *
+ * Keyed by the NAME alone: across the three tables of this GTK the names are distinct,
+ * and \`girs-vocabulary.mts\` fails the generation rather than emit a map that silently
+ * kept one of two. The table name is what the runtime derives its GTK call from.
+ */
+export const ARIA_SLOTS: Readonly<Record<string, AriaSlot>> = {
+${rows.join('\n')}
+};
+
+/**
+ * What \`accessibility={{ … }}\` accepts.
+ *
+ * ONE OBJECT PROP, NOT ${slots.length} FLAT ONES, and the decision is measured rather than
+ * stylistic. Measured in this repo's own type surface: TypeScript exempts every
+ * hyphen-containing JSX attribute from excess-property checking, so a flat \`aria-labell\`
+ * would be accepted in silence, while a key inside a FRESH object literal is checked —
+ * \`accessibility={{ labell: 'x' }}\` is TS2561, naming the key and suggesting \`label\`. A grouped
+ * prop is also the spelling the other surface over this same vocabulary has: a \`.blp\` author
+ * writes \`accessibility { label: "…"; }\`, and ADR 0034 exists so two surfaces over one
+ * vocabulary do not invent two spellings for one name.
+ *
+ * KEBAB, THE SPELLING GTK ITSELF USES. A second camelCase spelling would double the
+ * surface for nothing: unlike a JSX attribute, a quoted key in an object literal IS
+ * excess-property checked, so the one spelling already catches the typo.
+ *
+ * \`null\` clears a slot, as it does for every property on this host — \`gtk_accessible_reset_*\`
+ * is what GTK offers and what the host calls.
+ */
+export interface AccessibilityAttributes {
+${members.join('\n')}
+}
+`;
+    return { path: 'accessibility.ts', text };
+}
+
+/**
+ * One member of {@link emitAccessibility}'s interface.
+ *
+ * A `reference` slot is declared `never` ON PURPOSE rather than omitted. Omitting it
+ * makes the excess-property check say the name is unknown, which is false — GTK has it,
+ * this host cannot yet express it. Declared, the name is in the surface where a reader
+ * looks it up, hover carries the reason, and writing anything at all is still an error.
+ */
+function renderAriaMember(
+    name: string,
+    slot: AriaSlot,
+    namespaces: readonly string[],
+    nickImports: Set<string>,
+    nsImports: Set<string>,
+): string {
+    const key = bareKey(name);
+    if (slot.kind === 'reference') {
+        return (
+            `    /**\n` +
+            `     * \`${slot.table}.${name}\` — a REFERENCE to another widget, and this host has no way\n` +
+            `     * to name one. There is no \`id\` prop and \`ref\` is resolved by the framework after the\n` +
+            `     * props are applied, so the value would be \`null\` on the render that authors it. Declared\n` +
+            `     * and unwritable rather than absent: GTK has this name, the gap is ours.\n` +
+            `     */\n` +
+            `    ${key}?: never;\n`
+        );
+    }
+    if (slot.kind === 'enum') {
+        const gtype = slot.enumGType as string;
+        const { ns, ts } = qualifyEnum(gtype, namespaces);
+        nickImports.add(`${gtype}Nick`);
+        nsImports.add(ns);
+        return (
+            `    /** \`${slot.table}.${name}\` — a ${gtype}, which GTK collects as an int: the nick or the constant. */\n` +
+            `    ${key}?: ${gtype}Nick | ${ts} | null;\n`
+        );
+    }
+    const ts = ARIA_SCALAR_TS[slot.kind];
+    if (!ts) throw new Error(`no TypeScript spelling for the ARIA value kind ${slot.kind} (${name})`);
+    const article = 'aeiou'.includes(slot.kind[0] as string) ? 'an' : 'a';
+    return (
+        `    /** \`${slot.table}.${name}\` — GTK collects it as ${article} ${slot.kind}. */\n` +
+        `    ${key}?: ${ts} | null;\n`
+    );
 }
 
 /**

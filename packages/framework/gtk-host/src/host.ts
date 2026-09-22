@@ -29,6 +29,7 @@ import {
 } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
 import { reconcileStringList } from './list-model.js';
+import { applyAccessibilityPlan, isAccessibleClass, planAccessibility } from './accessibility.js';
 import { coerce, isConstructOnly, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
@@ -54,6 +55,7 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         listeners: new Map(),
         props: {},
         layout: null,
+        accessibility: null,
         textFromChildren: false,
         attached: false,
         destroyed: false,
@@ -179,6 +181,17 @@ export function materialize(el: HostElement): GObject.Object {
 function replayInto(el: HostElement): void {
     for (const [prop, callback] of el.listeners) setHandler(el, prop, callback);
 
+    // Accessibility authored before the widget existed, and re-authored after a rebuild:
+    // `el.accessibility` is the last value `setAccessibility` accepted, so replaying it
+    // against a null previous state restates exactly what was authored and nothing else.
+    // It is NOT in `el.props`, so construction did not carry it — see `HostElement`.
+    if (el.accessibility) {
+        applyAccessibilityPlan(
+            el.widget as GObject.Object,
+            planAccessibility(el.descriptor.gtype, null, el.accessibility),
+        );
+    }
+
     // Children inserted BEFORE this element had a widget are still only in the
     // shadow tree — `attach` cannot place a child into a parent that does not
     // exist yet. Placing them now is what makes bottom-up construction work, and
@@ -197,6 +210,7 @@ function replayInto(el: HostElement): void {
 export function setProp(el: HostElement, key: string, next: unknown, _prev?: unknown): void {
     if (isEventProp(key)) return setEventHandler(el, key, next as never);
     if (key === 'slot') return setSlot(el, next as string | null);
+    if (key === 'accessibility') return setAccessibility(el, next);
     if (key === 'layout') {
         // Position data is read at PLACEMENT time only, so a reactive binding that
         // moves a grid cell or renames a stack page did nothing at all — silently,
@@ -441,6 +455,41 @@ function assertSignalExists(el: HostElement, prop: string): void {
     if (GObject.signal_lookup(base, gtype) === 0) {
         throw err.unknownSignal(el.descriptor.gtype, prop, base);
     }
+}
+
+/**
+ * The ARIA object, diffed against the one it replaces.
+ *
+ * ONE GROUPED PROP RATHER THAN 53 FLAT `aria*` ONES, and the reasons are measured rather
+ * than aesthetic. (1) TypeScript exempts every hyphen-containing JSX attribute from
+ * excess-property checking — the measurement `emit-types.mts` already records for the
+ * kebab property spellings — so a flat `aria-labell` would be accepted in silence, while a
+ * key inside a fresh object literal IS checked. (2) The ARIA names are not the widget's
+ * properties and collide with them: `label`, `orientation`, `checked`, `expanded` and
+ * `selected` are all both, and `orientation` is settable on a `GtkLabel` that implements no
+ * `GtkOrientable` at all — one object keeps the two vocabularies apart by construction
+ * instead of by prefix. (3) The other surface over this same vocabulary already spells it
+ * this way: a `.blp` author writes `accessibility { label: "…"; }` (ADR 0034). (4) `setProp`
+ * already has this shape for `layout` — a structured, non-ParamSpec prop routed to its own
+ * mechanism — so this adds one reserved key to the host, not 53.
+ *
+ * REFUSED ON THE CLASS, not on the widget: every framework builds bottom-up, so props are
+ * authored long before materialisation, and asking the instance would report
+ * `<gtk-string-list accessibility={…}>` from inside a later `materialize` rather than at the
+ * call that wrote it.
+ *
+ * The plan is built BEFORE anything is recorded, for the reason the property path states:
+ * `el.accessibility` is replayed verbatim by `replayInto`, so a refused value kept there
+ * would poison the next rebuild.
+ */
+export function setAccessibility(el: HostElement, next: unknown): void {
+    const requested = (next ?? null) as Record<string, unknown> | null;
+    const plan = planAccessibility(el.descriptor.gtype, el.accessibility, requested);
+    if (requested !== null && !isAccessibleClass(el.descriptor.ctor())) {
+        throw err.notAccessible(el.descriptor.gtype);
+    }
+    if (el.widget) applyAccessibilityPlan(el.widget, plan);
+    el.accessibility = requested;
 }
 
 export function setSlot(el: HostElement, slot: string | null): void {
@@ -1188,6 +1237,7 @@ export function destroy(node: HostNode): void {
         // rebuild. Leaving them made a destroyed element look re-materialisable.
         node.props = {};
         node.layout = null;
+        node.accessibility = null;
         node.textFromChildren = false;
         node.destroyed = true;
     }
@@ -1275,6 +1325,7 @@ export function adopt(container: GObject.Object): HostElement {
         listeners: new Map(),
         props: {},
         layout: null,
+        accessibility: null,
         textFromChildren: false,
         attached: true,
         destroyed: false,

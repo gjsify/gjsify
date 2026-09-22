@@ -89,6 +89,7 @@ the TODO records the *what's left*.
 | [0066](0066-composition-gets-a-spelling-template-and-object-id.md) | Composition gets a spelling: `template` and `object-id` become fields | Proposed |
 | [0067](0067-the-translatable-marking-becomes-a-field.md) | The translatable marking becomes a field, on ADR 0058's own spelling | Proposed |
 | [0068](0068-style-classes-get-a-field-both-spellings.md) | Style classes get a field, and it carries both of Blueprint's spellings for them | Proposed |
+| [0069](0069-accessibility-is-a-grouped-prop-relations-are-a-gap.md) | Accessibility is ONE grouped prop, and relations are a declared gap | Proposed |
 | [0070](0070-a-blp-reaches-a-renderer-through-a-second-specifier.md) | A `.blp` reaches a non-GTK renderer through a second SPECIFIER, and a lossy one is refused | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)

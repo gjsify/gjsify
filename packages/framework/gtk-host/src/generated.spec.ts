@@ -36,6 +36,7 @@ import {
     METHODS_UNAVAILABLE,
     OWN_METHODS,
 } from './generated/methods.mjs';
+import { ARIA_SLOTS } from './generated/accessibility.js';
 import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
@@ -1175,6 +1176,70 @@ export default async () => {
                 expect(isEventProp(camelOf('orientation'))).toBe(false);
             });
 
+            await it('names an ARIA slot the installed GTK registers, in all three tables', async () => {
+                // The ARIA table is the one generated artefact whose data the runtime cannot
+                // re-derive: there is no ParamSpec behind any of these names, so nothing at
+                // the call site would notice a name this GTK has never had. `update_property`
+                // with an out-of-range member is `gtk_accessible_value_collect_for_property_value:
+                // assertion failed` and exit 0 (measured), which is why the host resolves the
+                // member through the SAME lookup `coerce()` uses and this asserts it can.
+                const problems: string[] = [];
+                for (const [name, slot] of Object.entries(ARIA_SLOTS)) {
+                    if (lookupEnumNick(slot.table, name) === undefined) problems.push(`${slot.table}.${name}`);
+                }
+                expect(problems).toStrictEqual([]);
+                // The floor the emitter enforces, restated against the installed host: a
+                // vocabulary read that silently yielded nothing would pass every loop above.
+                expect(Object.keys(ARIA_SLOTS).length > 40).toBe(true);
+            });
+
+            await it('installs the six calls the ARIA table names are derived into', async () => {
+                // `applyAccessibilityPlan` builds `update_state` out of `GtkAccessibleState`,
+                // so a table this generator did not expect would be a TypeError inside a
+                // render rather than a refusal. The generator refuses an unknown table; this
+                // is the other half — that the three it does know really do derive into
+                // methods the installed GTK has.
+                const probe = new Gtk.Label({});
+                const missing: string[] = [];
+                for (const table of new Set(Object.values(ARIA_SLOTS).map((slot) => slot.table))) {
+                    const verb = table.slice('GtkAccessible'.length).toLowerCase();
+                    for (const call of [`update_${verb}`, `reset_${verb}`]) {
+                        if (typeof (probe as unknown as Record<string, unknown>)[call] !== 'function') {
+                            missing.push(`${table} -> ${call}`);
+                        }
+                    }
+                }
+                expect(missing).toStrictEqual([]);
+                // Not vacuous: the same derivation over a table GTK has not got.
+                expect('update_quality' in probe).toBe(false);
+            });
+
+            await it('joins every ARIA enum row to a nick list this host resolves', async () => {
+                // The two-table split `@girs` ships — `kind === 'enum'` then the GType — only
+                // pays off if the second lookup lands. A row whose enum is absent from
+                // ENUM_NICKS would type as a nick union of `never` and refuse every value.
+                const problems: string[] = [];
+                for (const [name, slot] of Object.entries(ARIA_SLOTS)) {
+                    if (slot.kind !== 'enum') {
+                        if (slot.enumGType) problems.push(`${name} is ${slot.kind} and still names an enum`);
+                        continue;
+                    }
+                    const gtype = slot.enumGType;
+                    if (!gtype) {
+                        problems.push(`${name} is an enum row with no GType`);
+                        continue;
+                    }
+                    if (!ENUM_NICKS[gtype]) problems.push(`${name}: ${gtype} is not in ENUM_NICKS`);
+                    for (const nick of ENUM_NICKS[gtype] ?? []) {
+                        if (lookupEnumNick(gtype, nick) === undefined) problems.push(`${gtype}.${nick}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: the enum rows are a real, non-empty minority of the table.
+                const enumRows = Object.values(ARIA_SLOTS).filter((slot) => slot.kind === 'enum').length;
+                expect(enumRows > 0 && enumRows < Object.keys(ARIA_SLOTS).length).toBe(true);
+            });
+
             await it('reports a fabricated name — none of the above is vacuous', async () => {
                 // Each check above walks real data and would report `[]` just as
                 // happily over an empty table. These run the same lookups against
@@ -1187,6 +1252,10 @@ export default async () => {
                 expect(lookupEnumNick('GtkOrientation', 'sideways')).toBe(undefined);
                 expect(toSignalName(eventPropOf('row-activated'))).toBe('row-activated');
                 expect(toSignalName('onNotifyNoSuchThing')).toBe('notify::no-such-thing');
+                expect(ARIA_SLOTS['checked']?.table).toBe('GtkAccessibleState');
+                expect(ARIA_SLOTS['no-such-aria-name']).toBe(undefined);
+                expect(lookupEnumNick('GtkAccessibleState', 'checked')).toBe(Gtk.AccessibleState.CHECKED);
+                expect(lookupEnumNick('GtkAccessibleState', 'chequed')).toBe(undefined);
             });
         });
     });

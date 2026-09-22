@@ -37,7 +37,13 @@ import { jsxDEV as reactJsxDEV } from 'react/jsx-dev-runtime';
 import type { Key, ReactElement, ReactNode, Ref } from 'react';
 
 import type { WidgetClassByTag, WidgetPropsByTag } from './generated/props.js';
-import type { RawSignalAttributes, SlotAttribute, WithOnce, WithPortableValues } from './attrs.js';
+import type {
+    AccessibilityAttribute,
+    RawSignalAttributes,
+    SlotAttribute,
+    WithOnce,
+    WithPortableValues,
+} from './attrs.js';
 
 export { Fragment } from 'react/jsx-runtime';
 
@@ -83,7 +89,7 @@ type GtkJsxDevFactory = (
  * element TS2559. `children` must also be optional, or a self-closing tag is
  * TS2741.
  */
-export interface ReactWidgetAttributes<T> extends SlotAttribute, RawSignalAttributes {
+export interface ReactWidgetAttributes<T> extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {
     children?: ReactNode;
     ref?: Ref<T> | undefined;
     key?: Key | null | undefined;

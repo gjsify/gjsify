@@ -23,6 +23,7 @@
 import GIRepository from 'gi://GIRepository?version=3.0';
 import GLib from 'gi://GLib?version=2.0';
 
+import type { AriaSlot, AriaTable } from '../types.js';
 import type { Declaration, PropMember, SignalMember, SurfaceModel } from './model.mjs';
 // The SAME two transforms `generated.spec.ts` runs against the host's inverse. A
 // second copy here would leave that round-trip check measuring a rule the artefact
@@ -55,6 +56,14 @@ interface VocabularyModule {
     readonly FLAG_VALUES: Record<string, number>;
     /** `<declaration GType>.<property>` -> the GType of that property's enum or bitfield. */
     readonly PROP_ENUMS: Record<string, string>;
+    /**
+     * `<enum GType>.<nick>` -> the kind of value that ARIA slot takes; `@girs` 5.1.0 and
+     * later. The one table in a vocabulary that is not about a ParamSpec, which is exactly
+     * why it has to be read: an ARIA slot has no ParamSpec to read it off at runtime.
+     */
+    readonly ARIA_VALUE_TYPES: Record<string, AriaSlot['kind']>;
+    /** The same keys, `'enum'` rows only -> the GType whose nicks the value takes. */
+    readonly ARIA_VALUE_ENUMS: Record<string, string>;
     readonly CHILD_HOLDERS: readonly string[];
     readonly SINCE: Record<string, string>;
     readonly PROVENANCE: {
@@ -215,6 +224,56 @@ function foreignDeclaration(
     };
 }
 
+/** The three tables `ARIA_VALUE_TYPES` keys on, and the only ones this generator emits for. */
+const ARIA_TABLES: readonly AriaTable[] = ['GtkAccessibleProperty', 'GtkAccessibleRelation', 'GtkAccessibleState'];
+
+/**
+ * Merge one vocabulary's ARIA rows into the shared map, keyed by the NAME alone.
+ *
+ * `@girs` keys them `<enum GType>.<nick>` because the ARIA names ARE enum members, and
+ * that key is what tells a `label` property from a `label-for` relation. Re-keying on the
+ * name is what lets an author write ONE object — `accessibility={{ label, 'row-index' }}`
+ * — instead of three, and the collision check below is what makes the re-key safe rather
+ * than lucky: it is a fact about gtk4 4.23.3 that the 53 names are distinct, not a
+ * guarantee GTK made, so the day one arrives twice the generator says so by name.
+ *
+ * A table this generator does not know is refused rather than skipped. The runtime derives
+ * `update_property`/`update_state`/`update_relation` from the table name, so an unknown
+ * fourth table would emit a call into a method GTK never installed — and a skip would
+ * emit the ARIA names of that table as unknown, which reads as a GTK that does not have
+ * them.
+ */
+function mergeAriaRows(
+    runtime: VocabularyModule,
+    into: Map<string, AriaSlot>,
+    seenTable: Map<string, AriaTable>,
+): void {
+    for (const [key, kind] of Object.entries(runtime.ARIA_VALUE_TYPES)) {
+        const dot = key.indexOf('.');
+        const table = key.slice(0, dot) as AriaTable;
+        const name = key.slice(dot + 1);
+        if (!ARIA_TABLES.includes(table)) {
+            throw new Error(
+                `ARIA_VALUE_TYPES names the table ${table} (in ${key}), which this generator does not know — ` +
+                    `the runtime derives its GTK call from the table name, so it would emit a call GTK has not got`,
+            );
+        }
+        const already = seenTable.get(name);
+        if (already !== undefined && already !== table) {
+            throw new Error(
+                `the ARIA name "${name}" is a member of both ${already} and ${table}; the emitted table is keyed ` +
+                    `on the name alone and would silently keep one of the two`,
+            );
+        }
+        seenTable.set(name, table);
+        const enumGType = runtime.ARIA_VALUE_ENUMS[key];
+        if (kind === 'enum' && !enumGType) {
+            throw new Error(`ARIA_VALUE_TYPES calls ${key} an enum and ARIA_VALUE_ENUMS names no GType for it`);
+        }
+        into.set(name, enumGType ? { table, kind, enumGType } : { table, kind });
+    }
+}
+
 export interface VocabularySource {
     /** Import name, e.g. `gtk-4.0`. */
     readonly pkg: string;
@@ -317,6 +376,8 @@ export async function buildFromVocabulary(
         }
         for (const [key, gtype] of Object.entries(runtime.PROP_ENUMS ?? {})) propEnums.set(key, gtype);
     };
+    const aria = new Map<string, AriaSlot>();
+    const ariaTableOf = new Map<string, AriaTable>();
     const namespacesUsed = new Set<string>();
     const widgets: WidgetRef[] = [];
     const allRendered = new Map<string, DeclaredInterface>();
@@ -361,6 +422,7 @@ export async function buildFromVocabulary(
 
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) enumNicks.set(gtype, nicks);
         absorbFlags(runtime);
+        mergeAriaRows(runtime, aria, ariaTableOf);
         namespacesUsed.add(source.prefix);
 
         // A TAG IS A WIDGET, OR A NON-WIDGET THAT HOLDS ONE — which is the rule
@@ -644,6 +706,7 @@ export async function buildFromVocabulary(
             closure,
             enumNicks,
             flagNicks,
+            aria,
             namespacesUsed,
             packages,
             omissions: computeOmissions(declarations),

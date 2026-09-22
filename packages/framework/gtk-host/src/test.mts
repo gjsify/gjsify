@@ -1,5 +1,6 @@
 import { run } from '@gjsify/unit';
 
+import accessibilitySuite from './accessibility.spec.js';
 import reactSuite from './adapters/react.spec.js';
 import adjustmentSuite from './adjustment.spec.js';
 import buildableSuite from './buildable.spec.js';
@@ -38,6 +39,7 @@ run({
     gtkPropsSuite,
     buildableSuite,
     propsSuite,
+    accessibilitySuite,
     placementSuite,
     probeSuite,
     fontDirSuite,
