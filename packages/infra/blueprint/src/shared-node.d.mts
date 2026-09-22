@@ -51,6 +51,14 @@ export interface SharedNode {
     /** The parent property this child was written at, or the bracket it was written under. */
     slot?: string;
     props?: Record<string, string | number | boolean>;
+    /**
+     * The `_()` / `C_()` markings on this node's `props`, keyed by the prop name it marks.
+     *
+     * One entry per marked property, `context` where the source wrote `C_("noun", …)`. It is
+     * `StringValue['translatable']` from `./ast.d.mts` per key, so the projection COPIES what
+     * the parser read rather than inventing a second value language for it.
+     */
+    translatable?: Record<string, { context?: string }>;
     children?: SharedNode[];
 }
 

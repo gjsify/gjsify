@@ -124,9 +124,10 @@ const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectat
 // a JSDoc union is not readable at runtime. A kind used there and missing here fails
 // stage A, which is the direction that matters: an unnamed loss is the defect.
 const LOSS_KINDS = new Set([
-    // NO `template` and NO `object-id`: ADR 0066 gave each a field on the node, so declaring
-    // either as a loss here is now the defect rather than the bookkeeping.
-    'translatable',
+    // NO `template`, NO `object-id` and NO `translatable`: ADR 0066 gave the first two a field
+    // on the node and ADR 0067 the third, so declaring any of them as a loss here is now the
+    // defect rather than the bookkeeping. `translation-domain` stayed, and is listed below: it
+    // is a fact about the FILE and this shape is a tree, so ADR 0067 § 4 keeps it a loss.
     'signal',
     'binding',
     'breakpoint',
@@ -152,7 +153,7 @@ const LOSS_KINDS = new Set([
     'action-widget',
 ]);
 
-const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'children']);
+const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'translatable', 'children']);
 
 const problems = [];
 
@@ -163,7 +164,7 @@ const fail = () => {
     process.exit(1);
 };
 
-/** A `SharedNode` is six optional-ish fields and three value kinds; hold it to that. */
+/** A `SharedNode` is seven optional-ish fields and three value kinds; hold it to that. */
 const validateNode = (node, where, isRoot = true) => {
     if (node === null || typeof node !== 'object' || Array.isArray(node)) {
         problems.push(`${where}: expected a SharedNode object, got ${JSON.stringify(node)}.`);
@@ -171,7 +172,7 @@ const validateNode = (node, where, isRoot = true) => {
     }
     for (const key of Object.keys(node)) {
         if (!NODE_FIELDS.has(key)) {
-            problems.push(`${where}: "${key}" is not a SharedNode field (tag, id, template, slot, props, children).`);
+            problems.push(`${where}: "${key}" is not a SharedNode field (${[...NODE_FIELDS].join(', ')}).`);
         }
     }
     if (typeof node.tag !== 'string' || node.tag.length === 0) {
@@ -208,6 +209,32 @@ const validateNode = (node, where, isRoot = true) => {
                 problems.push(
                     `${where}: prop "${key}" is a ${Array.isArray(value) ? 'list' : kind}. SharedNode props ` +
                         'hold string, number or boolean only — a richer value is a LOSS to declare, not a prop.',
+                );
+            }
+        }
+    }
+    // A marking is ABOUT a prop, so one that names no prop marks nothing — and that is the
+    // shape of the mistake worth catching here: a tree that says `translatable: { titel: {} }`
+    // beside `props: { title: … }` is a claim about a property this node does not have, and
+    // stage D would then report it as a whole-tree mismatch rather than as the typo it is.
+    if (node.translatable !== undefined) {
+        for (const [key, marking] of Object.entries(node.translatable)) {
+            if (node.props?.[key] === undefined) {
+                problems.push(
+                    `${where}: "translatable" marks "${key}", which is not one of this node's props. ` +
+                        'A marking sits beside the value it marks.',
+                );
+            } else if (typeof node.props[key] !== 'string') {
+                problems.push(
+                    `${where}: "translatable" marks "${key}", whose value is a ${typeof node.props[key]}. ` +
+                        'Only a string is translatable.',
+                );
+            }
+            const extra = Object.keys(marking ?? {}).filter((field) => field !== 'context');
+            if (marking === null || typeof marking !== 'object' || extra.length > 0) {
+                problems.push(
+                    `${where}: the marking on "${key}" is ${JSON.stringify(marking)}. It holds an optional ` +
+                        '"context" and nothing else — `{}` is `_()`, `{ context }` is `C_()`.',
                 );
             }
         }
@@ -930,6 +957,65 @@ const checkAddressing = (job, result) => {
     }
 };
 
+/**
+ * The `_()` markings, held against the GOLDEN for the same reason the addressing is — ADR
+ * 0067 § 5.
+ *
+ * WHAT IS COMPARED. GtkBuilder writes a marking as `translatable="yes"` plus an optional
+ * `context="…"` on the element carrying the value, so the golden states, per file, exactly
+ * which properties are marked and with which context. This collects those pairs and holds
+ * them against the ones the projection carries, both directions: a marking the projection
+ * invents is a failure, and one the golden writes that the tree does not carry is a failure.
+ * No escape hatch, deliberately — every marking the goldens write on a `<property>` today is
+ * one the projection reaches, so a hatch would be a hole nobody has ever walked through,
+ * silently passing the first file that needs it instead of making someone decide.
+ *
+ * WHY A MULTISET AND NOT A POSITION. The emitter re-orders: properties and children are
+ * written in GtkBuilder's order, not the source's, so pairing the nth marking in the golden
+ * with the nth in the tree would be a second implementation of that ordering. WHERE each
+ * marking sits is what the hand-written tree above pins, node by node; how many there are and
+ * with which contexts is what the oracle pins here. Neither arm can cover for the other, which
+ * is the point of having both.
+ *
+ * TWO SUBTREES ARE REMOVED FIRST, each because it is a second document or a second namespace:
+ * CDATA, for the reason `checkAddressing` gives one screen up, and `<accessibility>`, which is
+ * the ONLY other element GtkBuilder writes a `<property>` inside — measured, 1 of the 27 the
+ * corpus holds — and whose whole block the projection loses by its own kind.
+ */
+const checkMarkings = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    const golden = readFileSync(job.golden, 'utf8')
+        .replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+        .replaceAll(/<accessibility>[\s\S]*?<\/accessibility>/g, '');
+    const spell = (name, context) => (context === undefined ? name : `${name} (context "${context}")`);
+    const wanted = [...golden.matchAll(/<property\s+([^>]*\btranslatable="yes"[^>]*)>/g)].map((match) =>
+        spell(/\bname="([^"]+)"/.exec(match[1])?.[1] ?? '?', /\bcontext="([^"]+)"/.exec(match[1])?.[1]),
+    );
+    const carried = [];
+    const walk = (node) => {
+        for (const [name, marking] of Object.entries(node.translatable ?? {}))
+            carried.push(spell(name, marking.context));
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(result.node);
+    marked += carried.length;
+    const a = [...wanted].sort();
+    const b = [...carried].sort();
+    if (a.join('\n') === b.join('\n')) return;
+    const missing = [...a];
+    const invented = [];
+    for (const one of b) {
+        const at = missing.indexOf(one);
+        if (at === -1) invented.push(one);
+        else missing.splice(at, 1);
+    }
+    problems.push(
+        `${job.key}: the golden and the projection disagree about which properties are marked ` +
+            `for translation — written by the oracle and not carried: [${missing.join(', ')}]; ` +
+            `carried and not written: [${invented.join(', ')}].`,
+    );
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -955,6 +1041,9 @@ let projected = 0;
 // whether it compared two fields or none, which is the shape `--require-oracle` exists for.
 let addressed = 0;
 let addressedIds = 0;
+// The marking arm's own denominator, beside the two the addressing arm keeps, and for the
+// same reason: a count that grows with the corpus is what says the arm RAN.
+let marked = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -1013,6 +1102,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
             );
         }
         checkAddressing(job, result);
+        checkMarkings(job, result);
     }
 }
 
@@ -1208,7 +1298,8 @@ const stageC =
 
 const stageD =
     `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
-    `composite class(es) and ${addressedIds} object id(s) against the golden the oracle wrote`;
+    `composite class(es), ${addressedIds} object id(s) and ${marked} translatable marking(s) against the ` +
+    'golden the oracle wrote';
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 

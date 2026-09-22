@@ -242,14 +242,19 @@ const entryFor = (widget) => {
 //
 // EVERY FIELD IS COPIED BY NAME, so this is the first place a new one is lost — ADR 0058 §
 // Implementation named it before there was a second field to lose, and ADR 0066 added two.
-// `id` and `template` are unreached by today's corpus and copied anyway: a block that grows
-// one must not have it dropped by a function that is silent about what it does not know.
+// `id`, `template` and `translatable` (ADR 0067) are unreached by today's corpus and copied
+// anyway: a block that grows one must not have it dropped by a function that is silent about
+// what it does not know. The marking's copy is one level deeper than the others' — a shallow
+// spread would hand both renderers the SAME `{ context }` object.
 const rebuild = (node, tagOf) => ({
     tag: tagOf(node.tag),
     ...(node.id === undefined ? {} : { id: node.id }),
     ...(node.template === undefined ? {} : { template: node.template }),
     ...(node.slot === undefined ? {} : { slot: node.slot }),
     ...(node.props === undefined ? {} : { props: { ...node.props } }),
+    ...(node.translatable === undefined
+        ? {}
+        : { translatable: Object.fromEntries(Object.entries(node.translatable).map(([k, v]) => [k, { ...v }])) }),
     ...(node.children === undefined ? {} : { children: node.children.map((child) => rebuild(child, tagOf)) }),
 });
 

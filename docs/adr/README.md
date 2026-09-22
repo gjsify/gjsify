@@ -87,6 +87,7 @@ the TODO records the *what's left*.
 | [0064](0064-the-vocabulary-resolves-the-gir-it-does-not-cache-it.md) | The vocabulary RESOLVES the GIR; it does not cache it | Accepted |
 | [0065](0065-a-development-link-is-an-override-not-a-manifest.md) | A development link is an OVERRIDE the installer reads, not a manifest edit | Accepted |
 | [0066](0066-composition-gets-a-spelling-template-and-object-id.md) | Composition gets a spelling: `template` and `object-id` become fields | Proposed |
+| [0067](0067-the-translatable-marking-becomes-a-field.md) | The translatable marking becomes a field, on ADR 0058's own spelling | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
