@@ -21,21 +21,38 @@
 // to the trouble of carrying. Two classes and not one, because the parse half has a column and
 // the emit half has no such thing to give.
 //
-// WHAT IS DELIBERATELY NOT HERE: `src/project.mjs`
+// THE SECOND EXIT IS HERE NOW, AND THE REASON IT WAS NOT IS WHY IT IS
 //
-// The `SharedNode` projection is ADR 0053 clause 1's SECOND exit, and a declared lossy one.
-// Nothing outside this repository asks for it — its only caller is stage D of
-// `scripts/check-blueprint-corpus.mjs`, one directory over — and it is not what makes the
-// parser a build dependency. Exporting it would promise a shape whose whole point is that it
-// drops things, to consumers that have not asked. It stays internal, and the gate keeps
-// reaching it by path, which is also what lets that stage still say "the file is missing".
+// `projectToSharedNode` was deliberately absent, and the argument was recorded here:
+//
+//   > The `SharedNode` projection is ADR 0053 clause 1's SECOND exit, and a declared lossy
+//   > one. Nothing outside this repository asks for it — its only caller is stage D of
+//   > `scripts/check-blueprint-corpus.mjs`, one directory over — and it is not what makes the
+//   > parser a build dependency. Exporting it would promise a shape whose whole point is that
+//   > it drops things, to consumers that have not asked.
+//
+// Both halves of that have since been paid off, and neither was refuted — a justification
+// goes stale with its technique, and one left standing beside the thing it no longer
+// describes is read as a decision nobody has revisited.
+//
+// A CONSUMER EXISTS. `@gjsify/vite-plugin-blueprint` serves `<file>.blp?shared-tree`, the
+// exit the non-GTK app targets read; that import is how a `.blp` reaches `adwaita-web`'s
+// `mountSharedTree` and the NativeScript port's `build`. The gate's dynamic import by path
+// remains, and on purpose — stage D must still be able to say "the file is missing", which a
+// specifier resolved through `exports` cannot report.
+//
+// AND THE DROPPING IS NO LONGER SILENT. The objection was never to the shape but to handing
+// out a lossy one unannounced. `SharedNodeProjection` carries `lost` beside `node`, and the
+// plugin refuses a `.blp` whose projection lost anything rather than emitting a tree that is
+// whole on GTK and quietly partial everywhere else. A consumer that asks for this exit gets
+// the tree or the list of what it would have cost — never half a template.
 //
 // WHY A BARREL AND NOT ONE SUBPATH PER MODULE
 //
 // Every export is a promise, and a subpath promises the FILE LAYOUT on top of the names:
 // `./parser`, `./emit-xml` and `./resolve-ident` would make merging or splitting a module a
-// breaking change for a consumer that only ever wanted nine names. One door promises the
-// nine — and the move of `BlueprintSyntaxError` out of `parser.mjs` and into `errors.mjs`,
+// breaking change for a consumer that only ever wanted the names. One door promises them —
+// and the move of `BlueprintSyntaxError` out of `parser.mjs` and into `errors.mjs`,
 // which this barrel absorbed without a consumer noticing, is the property being bought.
 //
 // There is no build step, and that is load-bearing: `tree-checks` installs the workspace and
@@ -47,6 +64,7 @@
 export { BlueprintEmitError, BlueprintSyntaxError } from './errors.mjs';
 export { parseBlueprint } from './parser.mjs';
 export { emitGtkBuilderXml } from './emit-xml.mjs';
+export { projectToSharedNode } from './project.mjs';
 export {
     accessibilityElement,
     accessibilityValue,

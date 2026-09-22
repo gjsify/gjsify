@@ -219,6 +219,11 @@ const SNAPSHOTS = [
         claims: 'e5bfbd579c5d9937',
         why: 'the same shape one decision later, and for the same reason: its tables are two readings of one tree taken before and after the change, and its § How the numbers here were obtained says to read every count as a date',
     },
+    {
+        file: 'docs/adr/0070-a-blp-reaches-a-renderer-through-a-second-specifier.md',
+        claims: 'c2342e6834c38840',
+        why: "its § How the numbers here were obtained names the revision, the oracle version and the `@girs` pin it was taken under, and says in as many words to read every count as a date — the table is a re-derivation of ADR 0067's, cited as the evidence the decision was taken on rather than as a claim about any later tree",
+    },
 ];
 
 /**

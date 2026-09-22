@@ -135,6 +135,12 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         ...(giRenderer ? [giRendererPlugin({ app: 'browser', ...giRenderer })] : []),
         gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }),
         aliasPlugin({ entries: aliasEntries }),
+        // Blueprint has been registered here since it was registered anywhere, and until the
+        // `?shared-tree` exit existed the XML string it emitted had no reader on this target:
+        // a browser has no `Gtk.Builder`, so `import Template from './x.blp'` compiled, shipped
+        // its bytes and was never parsed by anything. It stays — a `--app browser` build of a
+        // GJS app's sources must not start failing on an import that used to resolve — and the
+        // exit a browser can actually use is now beside it.
         blueprintPlugin() as RolldownPluginOption,
         cssAsStringPlugin(),
         // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to

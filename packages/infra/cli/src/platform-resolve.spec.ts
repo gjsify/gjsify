@@ -219,6 +219,26 @@ export default async () => {
             expect(ctx.asked).toStrictEqual([]);
         });
 
+        // A QUERY IS NOT A FILE TO FORK, and this row is not tidiness — the probe it
+        // refuses FAILS THE BUILD. Measured on `--app nativescript` against
+        // `./window.blp?shared-tree`: the chain appended its suffix to the whole
+        // specifier, `this.resolve('./window.blp?shared-tree.native')` missed, and the
+        // miss surfaced as `UNLOADABLE_DEPENDENCY … No such file or directory` pointing
+        // at the original, correct import — while the plugin that serves the query was
+        // never asked. `expect(asked)` empty is the whole assertion: a probe that happens
+        // is the defect, not a probe that answers wrongly.
+        await it('asks nothing for a specifier carrying a query, on either chain', async () => {
+            const desktopCtx = mockCtx(['./card.gtk']);
+            expect(await handlerOf(desktop()).call(desktopCtx, './card.blp?shared-tree', IMPORTER)).toBe(null);
+            expect(desktopCtx.asked).toStrictEqual([]);
+
+            const nsCtx = mockCtx([]);
+            const ns = platformResolvePlugin({ suffixes: nativescriptSuffixChain('android') });
+            expect(await handlerOf(ns).call(nsCtx, './card.blp?shared-tree', IMPORTER)).toBe(null);
+            expect(nsCtx.asked).toStrictEqual([]);
+            expect(nsCtx.warnings.length).toBe(0);
+        });
+
         // A variant on disk that comes back external is not a miss to walk past:
         // the author wrote the fork and expects it in the bundle.
         await it('throws when a variant resolves EXTERNAL instead of skipping it', async () => {

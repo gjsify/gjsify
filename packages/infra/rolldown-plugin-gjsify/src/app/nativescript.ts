@@ -33,9 +33,13 @@
 // PACKAGE NAME still routes per its declared slot in a single hop.
 //
 // No `cssAsStringPlugin` (NativeScript ships its own CSS pipeline as part
-// of `@nativescript/core`) and no `blueprintPlugin` (Blueprint is GTK-only).
+// of `@nativescript/core`). `blueprintPlugin` IS here: a bare `.blp` import
+// still compiles to GtkBuilder XML that nothing on this target reads, but
+// `./x.blp?shared-tree` projects the same file into the node shape
+// `@gjsify/adwaita-nativescript`'s `build` consumes.
 
 import { aliasPlugin } from '../plugins/alias.js';
+import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -183,7 +187,15 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // alias routing so a platform fork of a portable module is honored.
         platformResolvePlugin({ suffixes: nativescriptSuffixChain(platform) }),
         aliasPlugin({ entries: aliasEntries }),
-        // NO blueprintPlugin — Blueprint is a GTK-specific UI DSL
+        // Blueprint: `./x.blp?shared-tree` is how ONE authored template reaches this
+        // target. The comment this replaced read "NO blueprintPlugin — Blueprint is a
+        // GTK-specific UI DSL", and that was true of the only exit the plugin had: a
+        // GtkBuilder-XML string, which no NativeScript runtime can load. It is the
+        // NOTATION that was never GTK-specific — ADR 0053 clause 1 made `.blp` a second
+        // READER of the shared node shape, and the projection is what this target
+        // consumes. A `.blp` whose projection loses anything is refused at build time
+        // rather than rendered partially; see `SHARED_TREE_QUERY` in the plugin.
+        blueprintPlugin() as RolldownPluginOption,
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming
         // @nativescript/webpack or @nativescript/vite build

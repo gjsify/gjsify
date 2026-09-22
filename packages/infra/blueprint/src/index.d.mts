@@ -5,7 +5,7 @@
  * AND NOT A `.ts` says why, and `@gjsify/manifest-conformance` ships the same arrangement for
  * the same reason. The cost is this file, kept in sync by hand; what keeps the cost honest is
  * that the VALUES are proven elsewhere: `scripts/check-blueprint-corpus.mjs` imports this
- * package by specifier and names any of the nine that stops being a function, on every run.
+ * package by specifier and names any of the eleven that stops being a function, on every run.
  *
  * `ast.d.mts` carries the AST and nothing about what it MEANS. The seams below are the other
  * half: what a bare identifier means, which element an ARIA entry becomes, what GType name a
@@ -34,8 +34,16 @@
  */
 
 import type { BlueprintFile, SourceLocation, TypeRef } from './ast.mjs';
+import type { SharedNodeProjection } from './shared-node.mjs';
 
 export type * from './ast.mjs';
+
+/**
+ * The projection's node shape and its loss list, on the surface because the exit that
+ * produces them is. `shared-node.d.mts` § WHERE THE ORIGINAL IS says why this spelling exists
+ * beside `SharedTreeNode` and what holds the two together.
+ */
+export type * from './shared-node.mjs';
 
 export { BlueprintEmitError, BlueprintSyntaxError } from './ast.mjs';
 
@@ -63,6 +71,31 @@ export declare function parseBlueprint(source: string, file: string): BlueprintF
 
 /** The AST into GtkBuilder XML, including the trailing newline. */
 export declare function emitGtkBuilderXml(file: BlueprintFile, options?: EmitOptions): string;
+
+/**
+ * The one seam the LOSSY exit reaches introspection through.
+ *
+ * One and not five: a tag is the only thing the projection must spell right and the syntax
+ * does not say how — `Gio.ListStore` is `GListStore`. `project.mjs` § `ProjectOptions` has the
+ * rest, including why this exit defaults `position` the other way from `resolveIdent`'s seam.
+ */
+export interface ProjectOptions {
+    gtypeName?: (type: TypeRef, where: SourceLocation, position?: 'object' | 'reference') => string;
+}
+
+/**
+ * The AST into ADR 0051's authored-tree node, with everything the projection dropped beside it.
+ *
+ * READ `lost` BEFORE THE TREE. This exit is lossy by construction — ADR 0053 clause 1 — and a
+ * non-empty `lost` means the returned tree is a smaller UI than the `.blp` describes, not a
+ * warning about one. `@gjsify/vite-plugin-blueprint`'s `?shared-tree` exit refuses rather than
+ * hand such a tree to a renderer; a caller reaching this function directly owes itself the
+ * same decision, because nothing further downstream can tell the two apart.
+ *
+ * Throws where the file declares no widget root at all, naming that as the reason: a file of
+ * nothing but menus has no projection and `SharedNode` has no empty form.
+ */
+export declare function projectToSharedNode(file: BlueprintFile, options?: ProjectOptions): SharedNodeProjection;
 
 /** The enum member's number or the flag set's nicks, or `null` where the name is an object id. */
 export declare function resolveIdent(

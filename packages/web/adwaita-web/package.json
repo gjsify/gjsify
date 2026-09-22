@@ -51,8 +51,10 @@
         "@lezer/highlight": "^1.2.3"
     },
     "devDependencies": {
+        "@gjsify/blueprint": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
         "sass": "^1.101.0",
         "typescript": "^6.0.3"
     },

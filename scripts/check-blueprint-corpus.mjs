@@ -709,7 +709,7 @@ const SURFACE = '@gjsify/blueprint';
 // The WHOLE surface and not the six names this file happens to call: an export nothing here
 // reads is still a promise the flip's consumer will hold the package to, and a gate that only
 // asserts its own diet is how `BlueprintSyntaxError` disappears with every stage still green.
-// A class is a function, so one test holds all nine.
+// A class is a function, so one test holds them all.
 const SURFACE_NAMES = [
     'BlueprintEmitError',
     'BlueprintSyntaxError',
@@ -719,6 +719,7 @@ const SURFACE_NAMES = [
     'enumOrFlagsTypeOf',
     'gtypeName',
     'parseBlueprint',
+    'projectToSharedNode',
     'propertyGType',
     'resolveIdent',
 ];

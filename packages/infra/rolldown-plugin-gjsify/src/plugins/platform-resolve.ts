@@ -263,6 +263,22 @@ export function platformResolvePlugin(options: PlatformResolvePluginOptions): Pl
                 // Only relative source imports get platform variants.
                 if (!importer) return null;
                 if (!source.startsWith('./') && !source.startsWith('../')) return null;
+                // A QUERY NAMES A TRANSFORM OF ONE FILE, NOT A FILE TO FORK.
+                //
+                // `./x.blp?shared-tree`, `?raw`, `?url`: the plugin serving the query owns the
+                // resolution, and there is no second FILE for a platform chain to prefer —
+                // whatever the suffix is appended to, `./x.blp?shared-tree.native` is a
+                // specifier no convention gives a meaning to.
+                //
+                // Standing down is not merely tidier here, it is required. A probe that misses
+                // is normally free: `this.resolve('./x.native')` on a path that is not there
+                // returns null and the loop walks on. With a query in the specifier it is NOT
+                // — measured on `--app nativescript`, the missed probe surfaced as
+                // `UNLOADABLE_DEPENDENCY … No such file or directory (os error 2)` against the
+                // ORIGINAL import, and the chain never reached the plugin that would have
+                // resolved it. So the blind probe does not waste a lookup, it fails the build,
+                // and it does so pointing at a line that is correct.
+                if (source.includes('?')) return null;
 
                 const extMatch = KNOWN_EXT_RE.exec(source);
                 const origExt = extMatch ? extMatch[0] : '';

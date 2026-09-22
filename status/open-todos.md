@@ -4,6 +4,50 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `SharedTreeNode.slot` is carried by three restatements and read by no renderer
+
+Measured 2026-09-22 at `95198adaf6`, on the working checkout. All three ADR 0051 tree builders
+read `tag`, `props` and `children` and nothing else:
+
+    packages/framework/gtk-host/src/conformance/shared-tree-builder.ts   createElement/materialize/insert
+    packages/nativescript-bridge/adwaita/src/builder/index.ts            elementFor + _addChildFromBuilder
+    packages/web/adwaita-web/src/shared-tree-builder.ts                  createElement/setAttribute/append
+
+Nothing could see it, because ADR 0051's corpus — the only source of shared trees there was —
+authors **zero** `slot`s across its seven blocks. ADR 0053's `.blp` projection is the first source
+that authors any, and `showcases/gtk/effect-adw-services/src/window.blp` authors seven of them
+over fourteen nodes.
+
+WHAT IT COSTS, measured on `adwaita-web` in a real browser
+(`packages/web/adwaita-web/src/blueprint-tree.spec.ts`, two `it.failing` cases): the header bar
+authored `[top]` lands in `adw-toolbar-view-content` rather than the top bar, and the
+`title-widget:` window title then reaches `adw-header-bar` as a plain child and is DISCARDED by
+the build that derives a title element of its own. Both of its `_()` captions are absent from the
+rendered document — a caption that looks finished and is not there, which is ADR 0033's own reason
+for preferring a declarative template.
+
+WHY IT IS NOT A ONE-LINE FIX. The names differ: `content:` / `[top]` / `title-widget:` are
+GtkBuilder's, and this renderer's are the unnamed slot, `top` and `center`. A table inside one
+renderer is the per-surface translator ADR 0051 § Alternatives rejected refused on a measurement.
+The shape that would be right is a `slotOf(tag, slot)` beside `hostTagOf`/`attributeOf` in
+`@gjsify/adwaita-core/tags` — shared, gated by `check-tag-case-rules.mjs`'s mechanism, read by all
+three builders — and it is a vocabulary decision with its own evidence to bring (ADR 0034 owns the
+vocabulary; ADR 0070 § 7 names the gap and says why it did not take it).
+
+### The NativeScript `xmlns` barrels cannot spell a window, so no shipped `.blp` builds there
+
+Measured 2026-09-22 at `95198adaf6`: among the shipped templates whose projection declares no
+loss, **not one** has every tag in `packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts`.
+Every one of them roots at `AdwApplicationWindow`, for which the Adw barrel has no member; two
+also name `GtkScrolledWindow` and one `GtkSeparator`. ADR 0070 § How the numbers here were
+obtained carries the denominator, dated. `elementFor` refuses a missing member by design, so
+this is a clean refusal and not a wrong widget.
+
+ADR 0070 wired `blueprintPlugin()` onto the `nativescript` target and retired the
+"Blueprint is a GTK-specific UI DSL" comment, so the BUILD no longer stands between that port and
+a `.blp`. What is left is widget coverage in the port, which is ADR 0034's ledger — the window
+class first.
+
 ### `statusCheckRollup.state` answers twice, and nothing here knows which answer merges
 
 Measured 2026-09-19 on acca841ff1…0830 and c0629ff751…b5b1, deterministically and in the same
