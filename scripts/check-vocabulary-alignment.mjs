@@ -63,8 +63,8 @@
 //     settable property of a NativeScript widget that its GIR counterpart's props
 //     interface has no key for — `GtkEntry.placeholder` against
 //     `Gtk.Entry:placeholder-text` — and each one is a different SPELLING for the same
-//     control (it should converge), a control the counterpart's writable surface cannot
-//     express (declared and left), or undecided, which is what fails. Collapsing those
+//     control (it should converge), a control whose counterpart name this port cannot
+//     take (declared and left), or undecided, which is what fails. Collapsing those
 //     into one bucket would leave a number nobody can act on.
 //
 //     The comparison target is `packages/framework/gtk-host/src/generated/props.ts`,
@@ -464,11 +464,14 @@ const RN_WIDGET_ALIGNMENT = {};
  *                           SHOULD converge; the `why` says what differs — spelling,
  *                           value type, or shape — and why it has not. The count of these
  *                           is the printed property distance.
- *   { own: '<reason>' }     the counterpart's WRITABLE surface has no key for it. Four
- *                           situations, and the reason says which: GTK has no such
- *                           concept; GTK expresses it as a method; GTK exposes it
+ *   { own: '<reason>' }     the counterpart's writable surface offers this port no name it
+ *                           can take. Five situations, and the reason says which: GTK has
+ *                           no such concept; GTK expresses it as a method; GTK exposes it
  *                           read-only (this file compares against writable slots only);
- *                           or GTK expresses it on a DIFFERENT type. Declared and left.
+ *                           GTK expresses it on a DIFFERENT type; or the key exists and
+ *                           its NAME is owned by `@nativescript/core`, which is the
+ *                           platform's divergence and not a decision this port took.
+ *                           Declared and left.
  *   { gap: '#NNNN' }        nobody has decided. Not a reason — a pointer.
  *
  * NO `composes` KIND, and the reason is not that the case does not arise. It does:
@@ -497,6 +500,18 @@ const RN_WIDGET_ALIGNMENT = {};
  * port holds an index. Taking those names would put a GTK word on a value that is not the GTK
  * thing — the flattening this ADR undoes, one level down. Some are additionally structural:
  * `AdwHeaderBar`'s two strings collapse into ONE key, and one name cannot be two.
+ *
+ * AND THE `gir` COLUMN IS NOW EMPTY, which is a verdict and not a milestone. The six that
+ * were left — four `styleClasses` and the header bar's `title`/`subtitle` — were filed as
+ * "should converge" while each one's own `why` already said the target could not be taken:
+ * `cssClasses` is a live `Set<string>` `@nativescript/core`'s `ViewBase` owns and rebuilds
+ * (measured fatal, and `ns-core.d.ts` now answers TS2611 to anyone who reaches for it), and
+ * `titleWidget` holds a WIDGET where these hold a string that belongs to `Adw.WindowTitle`,
+ * the child type the port does ship. A `gir` entry whose reason ends in "declared and left"
+ * is an `own` entry filed in the wrong column, and the cost of leaving it there is that the
+ * printed distance counts work nobody can do — so the number stops meaning what it says.
+ * They are `own` now, with the same measurements. What would move them back is a change on
+ * the PORT side, not a rename: `ViewBase` giving up the name, or the bar taking a widget.
  *
  * WHICH KEYS THOSE ARE IS NOT WRITTEN HERE, only which KINDS — the entries are below, and a
  * list of them up here is a second copy that drifts. It did: this paragraph went on naming
@@ -527,39 +542,34 @@ const RN_WIDGET_ALIGNMENT = {};
  * file's header already refuses elsewhere.
  */
 const NS_PROPERTY_ALIGNMENT = {
-    // ── The same control under another spelling. This is the printed distance. ────────
+    // ── The counterpart names the control; the port cannot take that name. ────────────
+    // No longer the printed distance — see the header. The measurement is in each reason.
     'gtk-button.styleClasses': {
-        gir: 'cssClasses',
-        why: "`GtkWidget:css-classes` is the slot and `cssClasses` is the name, but on this surface that name is TAKEN and taking it is fatal: `@nativescript/core`'s `ViewBase` declares `readonly cssClasses: Set<string>` (ui/core/view-base/index.d.ts:366), assigns it in its constructor (index.js:226), and `classNameProperty.valueChanged` clears and repopulates that Set on every `className` write (index.js:1140-1154). A subclass accessor SHADOWS the constructor's assignment, so the Set never exists and the first `className` write — the one in the widget's own constructor — dies on `cssClasses.has is not a function`; measured against 9.1.0-alpha.11 by running those two bodies verbatim. `styleClasses` is libadwaita's own word for the same thing and is free in the whole of `@nativescript/core`. Declared and left: the divergence is the PLATFORM's, and `ns-core.d.ts` now declares the member so `gjsify tsc` answers TS2611 to anyone who reaches for the convergent spelling again.",
+        own: "`GtkWidget:css-classes` is the slot and `cssClasses` is the name, but on this surface that name is TAKEN and taking it is fatal: `@nativescript/core`'s `ViewBase` declares `readonly cssClasses: Set<string>` (ui/core/view-base/index.d.ts:366), assigns it in its constructor (index.js:226), and `classNameProperty.valueChanged` clears and repopulates that Set on every `className` write (index.js:1140-1154). A subclass accessor SHADOWS the constructor's assignment, so the Set never exists and the first `className` write — the one in the widget's own constructor — dies on `cssClasses.has is not a function`; measured against 9.1.0-alpha.11 by running those two bodies verbatim. `styleClasses` is libadwaita's own word for the same thing and is free in the whole of `@nativescript/core`. Declared and left: the divergence is the PLATFORM's, and `ns-core.d.ts` now declares the member so `gjsify tsc` answers TS2611 to anyone who reaches for the convergent spelling again.",
     },
     'gtk-box.styleClasses': {
-        gir: 'cssClasses',
-        why: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
+        own: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
     },
     'gtk-label.styleClasses': {
-        gir: 'cssClasses',
-        why: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
+        own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
     },
     'adw-header-bar.styleClasses': {
-        gir: 'cssClasses',
-        why: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.HeaderBar:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write.',
+        own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.HeaderBar:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write.',
     },
     'adw-header-bar.title': {
-        gir: 'titleWidget',
-        why: 'GTK puts no string on the header bar: `Adw.HeaderBar:title-widget` holds a widget, conventionally an `Adw.WindowTitle`, whose own `title` carries the text. The port forwards to exactly that default (adw-header-bar.ts:81-85), so the slot is `title-widget` and the string is the shortcut into it.',
+        own: 'GTK puts no string on the header bar: `Adw.HeaderBar:title-widget` holds a widget, conventionally an `Adw.WindowTitle`, whose own `title` carries the text. The port forwards to exactly that default (adw-header-bar.ts:81-85), so the slot is `title-widget` and the string is the shortcut into it.',
     },
     'adw-header-bar.subtitle': {
-        gir: 'titleWidget',
-        why: "The second half of the same slot: `Adw.WindowTitle:subtitle` inside the header bar's `title-widget`, which the port forwards to (adw-header-bar.ts:92-96). Two NativeScript names reaching one GIR key is the many-to-one the web table already carries for `adw-checkbox`/`adw-radio`.",
+        own: "The second half of the same slot: `Adw.WindowTitle:subtitle` inside the header bar's `title-widget`, which the port forwards to (adw-header-bar.ts:92-96). Two NativeScript names reaching one GIR key is the many-to-one the web table already carries for `adw-checkbox`/`adw-radio`.",
     },
+
+    // ── The counterpart's writable surface has no key for it. Declared and left. ──────
     'gtk-menu-button.actions': {
         own: "`AdwMenuActions` is the portable stand-in for a `GActionGroup` (ADR 0042 § 2): the map a surface with no action group consults for a menu item's enabled and checked state, which `GMenuModel` does not carry — measured in gtkmenutrackeritem.c, where `sensitive` is the action's `enabled` (c:332) and `role`/`toggled` come from its STATE (c:336-346). GTK needs no counterpart property: a `GtkWidget` reaches its action group through the widget hierarchy (`gtk_widget_insert_action_group` on an ancestor, `gtk_widget_get_action_group`), so there is no GIR key to converge on. Declared and left.",
     },
     'adw-split-button.actions': {
         own: 'The same map as `GtkMenuButton.actions` above, on the widget whose dropdown half IS a `GtkMenuButton` — `adw_split_button_set_menu_model` passes straight through to one (adw-split-button.c:376-378). `Adw.SplitButton` declares no action-group property either, for the same reason: on GTK the group is INHERITED through the hierarchy, never assigned per widget (ADR 0042 § 2). Declared and left.',
     },
-
-    // ── The counterpart's writable surface has no key for it. Declared and left. ──────
     'adw-about-dialog.open': {
         own: 'GTK presents and dismisses a dialog with METHODS — `adw_dialog_present()` / `adw_dialog_close()` — and AdwAboutDialogProps carries no `open`. The port keeps both methods and adds this boolean on top of them (adw-about-dialog.ts:222-226) because an XML builder assigns attributes and calls nothing.',
     },
@@ -647,8 +657,6 @@ const NS_PROPERTY_ALIGNMENT = {
  * The reasons a FAMILY of method entries share, written once. Each names what the port
  * holds, what GTK holds, and where the difference lives.
  */
-const TAB_PAGE_HANDLE =
-    "The GIR verb takes the `Adw.TabPage`; this takes the page-id STRING that ADR 0048 made the port's handle for `selectedPage`, because the port has no page GObject to pass. Converging means accepting the port's own `AdwTabPage` record — `set_selected_page` already does — and it has not been done here.";
 const TAB_PAGE_PROPERTY =
     'A property of `Adw.TabPage` — `title`, `icon`, `loading`, `needs-attention` — which is a GObject the port does not have; it keeps the page as a headless record (tab-view-state.ts) and sets the field through the view, keyed on the page id.';
 const NAVIGATION_PAGE_PROPERTY =
@@ -683,13 +691,30 @@ const PREFERENCES_SEARCH =
  * a method converges when both sides take the same KIND of argument and differ only in
  * spelling. `addTopBar(view)` beside `add_top_bar(child)` is a rename and was renamed —
  * forty-odd of them were, in the change that introduced this table, so the entries left
- * are not a backlog with that shape. What stays is:
+ * are not a backlog with that shape.
+ *
+ * THE TWENTY `gir` ENTRIES ARE GONE AND THE COLUMN IS EMPTY. They were the ones the rule
+ * said to defer: eighteen `Adw.TabView` page verbs taking the port's page-id STRING where
+ * the GIR verb takes an `Adw.TabPage`, plus `scrollToPage` taking an index where
+ * `adw_carousel_scroll_to` takes the page and `removePage` taking a name where
+ * `adw_view_stack_remove` takes the child. The argument kind was the whole objection, and
+ * the port already had the answer in `set_selected_page`, which takes EITHER spelling and
+ * narrows: so each verb took the GIR name and the widening with it — `close_page(page)`
+ * resolves an `AdwTabPage` down to the id its model keys on, `scroll_to(view)` through the
+ * same `_idOf` its `remove` and `reorder` siblings already used, `remove(child)` through
+ * the page list it already walks. The ordinal doors that survived are PRIVATE (the
+ * carousel's `_scrollToIndex`, which its dots and its `position` setter call), because a
+ * public ordinal beside a GIR verb is the false friend the exercise removes. What that
+ * leaves is:
  *
  *   { gir: '<method>', why }  the counterpart has the method; the port's takes a different
  *                            KIND — a page id where GTK passes the `Adw.TabPage`, an index
  *                            where GTK passes the widget. It should converge, and the
  *                            `why` says what would have to change. The count of these is
- *                            the printed method distance.
+ *                            the printed method distance, and it is zero: the kind stays
+ *                            because the next verb added under a port spelling lands in it
+ *                            on the day it is added, which is the whole point of a ledger
+ *                            that can be empty.
  *   { own: '<reason>' }       the counterpart has no such method. The reason says which of
  *                            the shapes it is: a PROPERTY of a type the port flattens (the
  *                            page's `title`); an ACTION rather than a method
@@ -711,37 +736,6 @@ const PREFERENCES_SEARCH =
  * ONE SURFACE, DELIBERATELY, for the reason the property ledger gives.
  */
 const NS_METHOD_ALIGNMENT = {
-    // ── The counterpart has the method; the argument KIND differs. The printed distance. ──
-    'adw-carousel.scrollToPage': {
-        gir: 'scroll_to',
-        why: "`adw_carousel_scroll_to(widget, animate)` takes the PAGE and this takes its INDEX, because the port's own indicator dots resolve an index at tap time from the id the model tracks (adw-carousel.ts). Converging means accepting the `View` and looking its index up in `_views`, which the port can do; it has not, and until it does an index is not the kind of value the GIR verb takes.",
-    },
-    'adw-view-stack.removePage': {
-        gir: 'remove',
-        why: "`adw_view_stack_remove(child)` takes the page's CHILD widget; this takes the page NAME, because the port keeps its pages in a headless list keyed on the name it also selects by (view-stack-state.ts). A caller off GJS holds the view, not the name.",
-    },
-    // `Adw.TabView` passes an `Adw.TabPage` to every page method; this port identifies a
-    // page by the id string ADR 0048 chose for `selectedPage`, so every one of these takes
-    // a string where the GIR verb takes the page object. One reason, stated once.
-    'adw-tab-view.addPage': { gir: 'add_page', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.insertPage': { gir: 'insert', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.prependPage': { gir: 'prepend', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.appendPage': { gir: 'append', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.insertPinnedPage': { gir: 'insert_pinned', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.prependPinnedPage': { gir: 'prepend_pinned', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.appendPinnedPage': { gir: 'append_pinned', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.setPagePinned': { gir: 'set_page_pinned', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.closePage': { gir: 'close_page', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.closePageFinish': { gir: 'close_page_finish', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.closeOtherPages': { gir: 'close_other_pages', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.closePagesBefore': { gir: 'close_pages_before', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.closePagesAfter': { gir: 'close_pages_after', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.reorderPage': { gir: 'reorder_page', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.reorderBackward': { gir: 'reorder_backward', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.reorderForward': { gir: 'reorder_forward', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.reorderFirst': { gir: 'reorder_first', why: TAB_PAGE_HANDLE },
-    'adw-tab-view.reorderLast': { gir: 'reorder_last', why: TAB_PAGE_HANDLE },
-
     // ── A property of a type the port flattens. ───────────────────────────────────────
     'adw-tab-view.setPageTitle': { own: TAB_PAGE_PROPERTY },
     'adw-tab-view.setPageIcon': { own: TAB_PAGE_PROPERTY },

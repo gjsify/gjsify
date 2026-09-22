@@ -89,12 +89,17 @@ export class AdwViewStack extends withSignals(GridLayout) {
     }
 
     /**
-     * Remove the first page named `name` and detach its content view. Returns
+     * Remove a page and detach its content view — `adw_view_stack_remove`. Returns
      * whether anything was removed. When the removed page was the visible one the
      * stack ends up showing NOTHING and emits no event — `stack_remove` clears
      * `visible_child` without re-picking (adw-view-stack.c:1202-1203).
+     *
+     * Takes the CHILD, as the GIR verb does, or the page name the port's headless list
+     * keys on (view-stack-state.ts) — a caller ported off GJS holds the view, and one
+     * that came through {@link visibleChildName} or an XML attribute holds the name.
      */
-    removePage(name: string): boolean {
+    remove(child: View | string): boolean {
+        const name = typeof child === 'string' ? child : (this._nameOf(child) ?? '');
         const content = this._state.pages[this._state.indexOfName(name)]?.content;
         if (!this._state.removePage(name)) return false;
         if (content) this.removeChild(content);
@@ -112,6 +117,12 @@ export class AdwViewStack extends withSignals(GridLayout) {
         const moved = this._state.setPageVisible(name, visible);
         applyViewStackVisibility(this._state);
         return moved;
+    }
+
+    /** The name of the page holding `child`, or `null` when it is not one of ours. */
+    private _nameOf(child: View): string | null {
+        for (const page of this._state.pages) if (page.content === child) return page.name;
+        return null;
     }
 
     /** All registered pages, in add order (a bound switcher reads this). */
