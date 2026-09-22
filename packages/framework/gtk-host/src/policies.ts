@@ -57,7 +57,14 @@ export function slotPropertyOf(method: string): string | null {
     return method.startsWith('set_') ? method.slice(4).replace(/_/g, '-') : null;
 }
 
-/** Every name a policy answers to, declared keys first — what a refusal lists. */
+/**
+ * Every name a policy answers to — what a refusal lists.
+ *
+ * Each declared key is followed by the property spelling it also answers to, so the order is
+ * `['start', 'title', 'title-widget', 'end']` and not the keys first. That is deliberate: a
+ * reader matching their own `slot="title-widget"` against the list finds it beside the key it
+ * resolves to, rather than in a second group they have to pair up themselves.
+ */
 export function slotNames(policy: ChildPolicy): string[] {
     if (policy.kind === 'single') {
         const property = slotPropertyOf(policy.set);
@@ -80,13 +87,24 @@ export function slotNames(policy: ChildPolicy): string[] {
  * {@link slotPropertyOf} admits is canonical everywhere at once: a placement resolved
  * through `title-widget` and a detach resolved through `title` would otherwise be two
  * different keys to `policy.slots[…]`, and the child would leak at unmount.
+ *
+ * THE DEFAULT IS CHECKED LIKE ANY OTHER NAME, and it is the one that has no author to
+ * blame. `defaultSlot` and `slots` are two fields of a descriptor, and an application
+ * registers descriptors of its own — nothing else in this package holds the two together.
+ * An unchecked default reaches `policy.slots[slot]` as `undefined` and the caller calls it:
+ * `TypeError: host[undefined] is not a function`, which is exactly the shape
+ * {@link errors.unknownSlot} exists to replace. Returning only keys that are IN `slots` is
+ * what makes the lookup at every call site total.
  */
 export function slottedSlot(
     policy: Extract<ChildPolicy, { kind: 'slotted' }>,
     authored: string | null | undefined,
     gtype: string,
 ): string {
-    if (authored === null || authored === undefined) return policy.defaultSlot;
+    if (authored === null || authored === undefined) {
+        if (policy.defaultSlot in policy.slots) return policy.defaultSlot;
+        throw err.unknownSlot(gtype, policy.defaultSlot, slotNames(policy));
+    }
     if (authored in policy.slots) return authored;
     for (const [slot, method] of Object.entries(policy.slots)) {
         if (slotPropertyOf(method) === authored) return slot;
@@ -812,6 +830,9 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             host[policy.append](address);
             return;
         case 'slotted': {
+            // `slottedSlot` returns a key of `policy.slots` or throws, INCLUDING for the
+            // default — so this lookup is total and the assertion states that, rather than
+            // silencing the check the way an unguarded `defaultSlot` once did.
             const slot = slottedSlot(policy, child.slot, parent.descriptor.gtype);
             host[policy.slots[slot]!](address);
             return;

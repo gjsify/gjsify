@@ -432,6 +432,9 @@ measured above, which is the first time it has had one.
   pays for a distinction the GIR already carries, measured free of collisions over 169
   widgets. It would also make every authored tree choose between two fields where today it
   chooses nothing, and 0 of the 14 authored shared nodes carry a slot at all.
+  (Amended 2026-09-22, ADR 0071: that count is now 1 of 15 — a row `prefix`. The reason
+  above is left as written because it is what was decided on; the count is no longer a
+  reason not to revisit it.)
 - **Add `styleClasses` now and let the vocabulary catch up.** It would put a fourth spelling
   of a property that already has three into the one artifact whose admission rule is "no
   alias at all", and make the shared corpus the place the vocabulary disagreement is

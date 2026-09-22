@@ -70,8 +70,10 @@
  *                                         yet (`start`/`title`/`end` against
  *                                         `startBox`/`titleWidget`/`endBox` in
  *                                         {@link ADWAITA_GALLERY_TREE_DIVERGENCES}); a row's
- *                                         `prefix`/`suffix` do, which is why the first one
- *                                         here is a suffix.
+ *                                         `prefix` does, which is why the one authored here
+ *                                         is a PREFIX — the suffix of an expander row is
+ *                                         held by its disclosure chevron and refused, see
+ *                                         `adw-expander-row.ts`.
  * @property {Record<string, string|number|boolean>} [props]
  * @property {SharedNode[]} [children]
  */
