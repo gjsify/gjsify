@@ -56,7 +56,14 @@ gir-export/
 
 *.tsbuildinfo
 
-node_modules/
+# NO TRAILING SLASH, and that is the whole point. `node_modules/` matches a
+# DIRECTORY only, so a `node_modules` SYMLINK — which is what `gjsify link` and a
+# hand-linked consumer checkout create — stays untracked-and-visible and can be
+# committed. Measured: with `node_modules/` a symlink shows up in `git status` as
+# `?? node_modules`; without the slash it does not. That is how one landed in the
+# #1745 branch, where the lint-visibility gate then walked through it into another
+# checkout's tree.
+node_modules
 tmp/
 dist/
 dist-templates/
