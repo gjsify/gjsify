@@ -514,4 +514,99 @@ export default async () => {
             expect(true).toBe(true);
         });
     });
+
+    // THE INDEX'S FRESHNESS, which is what makes it safe to switch on at all.
+    // The listing is cached for the plugin instance's life; in a one-shot build
+    // the process ends first, but a Vite dev server and `gjsify build --watch`
+    // keep one instance across rebuilds. Without invalidation the filter answers
+    // from a directory that no longer looks like that, and the author's brand-new
+    // `foo.web.ts` is invisible until they restart the watcher.
+    //
+    // These vectors run against a REAL directory and CREATE a file mid-suite,
+    // because that is the whole event under test: a mock cannot distinguish
+    // "the listing was refreshed" from "there was never a listing".
+    await describe('platform-resolve: watchChange refreshes the sibling index', async () => {
+        const indexed = () =>
+            platformResolvePlugin({
+                suffixes: browserSuffixChain(),
+                refusedSuffixes: BROWSER_REFUSED_SUFFIXES,
+                siblingIndex: true,
+            });
+
+        function tracker() {
+            const asked: string[] = [];
+            return {
+                asked,
+                async resolve(id: string) {
+                    asked.push(id);
+                    return { id: `${id}#resolved` };
+                },
+                warn() {},
+            };
+        }
+
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-platform-watch-'));
+        const importer = join(dir, 'screen.tsx');
+        writeFileSync(importer, '');
+        writeFileSync(join(dir, 'late.tsx'), '');
+
+        // One plugin instance for all three rows: the staleness only exists
+        // because the instance outlives the listing.
+        const plugin = indexed();
+
+        await it('answers from the base file while no variant exists', async () => {
+            const ctx = tracker();
+            const resolved = await handlerOf(plugin).call(ctx, './late', importer);
+            expect(resolved).toBe(null);
+            expect(ctx.asked).toStrictEqual([]);
+        });
+
+        // The file appears. WITHOUT the hook this row is the bug: the cached
+        // listing still says there is no sibling, so the resolver is never asked.
+        await it('still answers from the stale listing until the watcher reports it', async () => {
+            writeFileSync(join(dir, 'late.web.tsx'), '');
+            const ctx = tracker();
+            const resolved = await handlerOf(plugin).call(ctx, './late', importer);
+            expect(resolved).toBe(null);
+            expect(ctx.asked).toStrictEqual([]);
+        });
+
+        await it('finds the new variant once watchChange drops that directory', async () => {
+            const watchChange = (plugin as { watchChange?: (id: string) => void }).watchChange;
+            expect(typeof watchChange).toBe('function');
+            watchChange?.call(plugin, join(dir, 'late.web.tsx'));
+            const ctx = tracker();
+            const resolved = await handlerOf(plugin).call(ctx, './late', importer);
+            expect(resolved?.id).toBe('./late.web#resolved');
+            expect(ctx.asked).toStrictEqual(['./late.web']);
+        });
+
+        // Only the changed path's directory, not the whole map — a blanket clear
+        // would re-list every directory the next rebuild touches for one save.
+        await it('drops only the directory the changed path is in', async () => {
+            const other = mkdtempSync(join(tmpdir(), 'gjsify-platform-watch-other-'));
+            const otherImporter = join(other, 'screen.tsx');
+            writeFileSync(otherImporter, '');
+            writeFileSync(join(other, 'kept.tsx'), '');
+            const warm = tracker();
+            await handlerOf(plugin).call(warm, './kept', otherImporter);
+            expect(warm.asked).toStrictEqual([]);
+
+            writeFileSync(join(other, 'kept.web.tsx'), '');
+            const watchChange = (plugin as { watchChange?: (id: string) => void }).watchChange;
+            // A change in the FIRST directory must not refresh this one.
+            watchChange?.call(plugin, join(dir, 'late.web.tsx'));
+            const stale = tracker();
+            await handlerOf(plugin).call(stale, './kept', otherImporter);
+            expect(stale.asked).toStrictEqual([]);
+
+            watchChange?.call(plugin, join(other, 'kept.web.tsx'));
+            const fresh = tracker();
+            const resolved = await handlerOf(plugin).call(fresh, './kept', otherImporter);
+            expect(resolved?.id).toBe('./kept.web#resolved');
+
+            rmSync(other, { recursive: true, force: true });
+            rmSync(dir, { recursive: true, force: true });
+        });
+    });
 };

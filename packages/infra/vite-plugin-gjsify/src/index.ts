@@ -158,18 +158,34 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
     };
 
     return [
-        // The browser platform-file chain, matching `app/browser.ts`.
+        // The browser platform-file chain, matching `app/browser.ts` — INDEX AND
+        // ALL, which the first draft of this line got wrong.
         //
-        // WITHOUT `siblingIndex`, and that is the one deliberate difference from
-        // the Rolldown side. The index is a per-directory `readdirSync` cached for
-        // the life of the plugin instance; a Vite dev server IS long-lived, so an
-        // author creating `foo.web.ts` while it runs would keep being served
-        // `foo.ts` until restart — a stale-cache correctness bug traded for a
-        // saving that was measured on a ~1400-module cold bundle, which a dev
-        // server resolving lazily per request is not.
+        // It shipped without `siblingIndex` to keep a long-lived dev server from
+        // answering out of a stale listing. The freshness worry was real; turning
+        // the filter off was the wrong answer to it, and the e2e said so within
+        // one CI run. Without the index every relative import costs four real
+        // `this.resolve` calls (one rung + three refusals), and under Vite each
+        // one re-enters the whole plugin container. MEASURED on this package's own
+        // e2e fixture, `node --max-old-space-size=4096`:
+        //
+        //   index off → 293 hook calls, 1172 probes, FATAL ERROR: Reached heap
+        //               limit — heap out of memory (CI: 212 s, 3993 MB, job
+        //               106660035901). RSS passed 16 GB on a 64 GB host before
+        //               the cap ended it.
+        //   index on  → 293 hook calls, 0 probes, 0.25 s wall, 191 MB peak RSS.
+        //
+        // The listing answers all four suffixes for a whole directory with one
+        // `readdirSync`, so on a variant-less tree the probe count is zero rather
+        // than four per import. The staleness that motivated leaving it off is
+        // handled where it belongs — the plugin's own `watchChange` hook drops a
+        // directory's listing when the watcher reports a change in it — which
+        // also closes the same hole on `gjsify build --watch`, where the desktop
+        // chain has run with this index and no invalidation all along.
         platformResolvePlugin({
             suffixes: browserSuffixChain(),
             refusedSuffixes: BROWSER_REFUSED_SUFFIXES,
+            siblingIndex: true,
         }) as unknown as Plugin,
         gjsImportsEmptyPlugin() as unknown as Plugin,
         blueprintPlugin(),

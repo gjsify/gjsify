@@ -267,6 +267,20 @@ export interface PlatformResolvePluginOptions {
      * that chain is byte-identical behaviour — a filter that another plugin's
      * virtual `resolveId` could see past is not something to switch on there
      * without a measurement of that tree.
+     *
+     * ON WHEREVER THE CHAIN CARRIES A REFUSAL LIST, and that is not a preference.
+     * A refused suffix is probed on every miss, so a chain with refusals pays its
+     * probes on the MAJORITY of imports rather than the few that have a variant.
+     * Measured on `tests/e2e/vite-plugin-gjsify`'s fixture with the browser chain
+     * (one rung, three refusals) under `--max-old-space-size=4096`: index off is
+     * 1172 probes and `FATAL ERROR: Reached heap limit`; index on is 0 probes,
+     * 0.25 s and 191 MB. Under Vite each probe re-enters the whole plugin
+     * container, which is where the memory goes. Leaving the index off is
+     * therefore a choice only a chain with NO refusal list can afford.
+     *
+     * Kept fresh by {@link platformResolvePlugin}'s `watchChange` hook, so a
+     * long-lived host (a Vite dev server, `gjsify build --watch`) does not answer
+     * from a directory listing taken before the author added the variant.
      */
     siblingIndex?: boolean;
 }
@@ -310,6 +324,14 @@ export function platformResolvePlugin(options: PlatformResolvePluginOptions): Pl
     const useIndex = options.siblingIndex ?? false;
     // Per-directory listing cache, lowercased. `null` marks a directory that
     // could not be read, which means "no opinion" — the resolver decides.
+    //
+    // CACHED FOR THE PLUGIN INSTANCE'S LIFE, so it needs the `watchChange` hook
+    // below: in a one-shot build the process ends before a listing can go stale,
+    // but `gjsify build --watch` and a Vite dev server both keep one plugin
+    // instance across rebuilds. Without invalidation an author who ADDS
+    // `foo.web.ts` beside `foo.ts` while the watcher runs keeps being served
+    // `foo.ts` until restart — the filter would be answering from a directory
+    // that no longer exists in that shape.
     const listings = new Map<string, ReadonlySet<string> | null>();
     const listingFor = (dir: string): ReadonlySet<string> | null => {
         const cached = listings.get(dir);
@@ -341,6 +363,19 @@ export function platformResolvePlugin(options: PlatformResolvePluginOptions): Pl
 
     return {
         name: 'gjsify-platform-resolve',
+        // The sibling index's invalidation. Both hosts call this for every path
+        // the watcher reports (`create` / `update` / `delete`), which is exactly
+        // the event that can make a cached listing wrong — a NEW `foo.web.ts` is
+        // a `create` in the directory the filter already answered for.
+        //
+        // Only the CHANGED path's directory is dropped, not the whole map: the
+        // map is refilled lazily, so a blanket clear would re-`readdirSync` every
+        // directory the next rebuild touches for one unrelated save. `dirname`
+        // of a virtual or `\0`-prefixed id is a directory that was never cached,
+        // and deleting an absent key is a no-op — no guard needed for that.
+        watchChange(id: string) {
+            listings.delete(dirname(id));
+        },
         resolveId: {
             order: 'pre' as const,
             async handler(source, importer, extraOptions) {
