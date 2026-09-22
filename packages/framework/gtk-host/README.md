@@ -186,6 +186,18 @@ diagnostics gate: `Gtk.test_accessible_has_*` alone passes the defect, and it is
 that separates a correct write from a mis-typed one. `accessibility.spec.ts` keeps the
 witness — the three raw calls, outside the gate, asserting what GTK really does with them.
 
+**And the oracle itself has a precondition.** `gtk_accessible_update_*` writes into the
+widget's `GtkATContext`, and `gtk_test_accessible_has_*` reads back out of it — so under
+`GTK_A11Y=none` there is no context, every write records nothing, every read answers false,
+and nothing is logged. Measured on GTK 4.22.5: gjs and node-gi agree in every cell
+(`unset`/`test` set the slots, `none` sets none of them), which is how six vectors red on
+three node-gi CI legs turned out to be an env var rather than a marshalling defect.
+`@gjsify/gtk-host/conformance` exports the two halves: `installAccessibilityBackend()` for a
+test entry point — GTK's in-process `test` backend, no a11y bus, which is what `none` was
+chosen for — and `withAtContext(widget)`, which throws a sentence instead of letting a vector
+read `false` off an absent layer, including the vectors that EXPECT false and would otherwise
+pass vacuously.
+
 **Relations that point at another widget are a NAMED GAP.** Fourteen of the 53 slots take a
 reference (`labelled-by`, `described-by`, `controls`, …), and marshalling one is not what is
 missing — `Gtk.AccessibleList.new_from_list([widget])` builds exactly the value GTK wants.

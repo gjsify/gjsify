@@ -38,6 +38,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 
 import { gated } from '../testing/gate.mjs';
 import type { DiagnosticsGate } from './diagnostics.js';
+import { withAtContext } from './at-context.js';
 import { findDescendant, gtkChildren } from './index.js';
 
 /** A tree in the one shape all three adapters can build: tag, props, children. */
@@ -347,13 +348,19 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
         // separates a correct write from a mis-typed one is the SILENCE, which the
         // diagnostics gate around this whole block asserts.
 
+        // …AND THE ORACLE HAS A PRECONDITION, which is the other half of the same point:
+        // `has_*` reads the widget's `GtkATContext`, and under `GTK_A11Y=none` there is
+        // none — so every write records nothing, every `has_*` answers false, and nothing
+        // is logged. `withAtContext` is what makes that say so instead of reading as a
+        // marshalling defect in whichever runtime the affected legs share.
+
         await it('a PROPERTY slot GTK collects as a double takes an integral number', async () => {
             // `3` is the trap in one character: GJS guesses a GValue type from the
             // number's integrality, so an authored 3 in a double slot is `g_value_get_double`
             // failing on a G_TYPE_INT — a critical, and the slot set to nothing readable.
             const container = new Gtk.Box();
             const handle = await mount(container, h('GtkLabel', { accessibility: { 'value-now': 3 } }));
-            const label = onlyChild(container) as Gtk.Label;
+            const label = withAtContext(onlyChild(container) as Gtk.Label);
             expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.VALUE_NOW)).toBe(true);
             handle.unmount();
         });
@@ -365,7 +372,7 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             // disagree here on purpose.
             const container = new Gtk.Box();
             const handle = await mount(container, h('GtkLabel', { accessibility: { checked: 'mixed' } }));
-            const label = onlyChild(container) as Gtk.Label;
+            const label = withAtContext(onlyChild(container) as Gtk.Label);
             expect(Gtk.test_accessible_has_state(label, Gtk.AccessibleState.CHECKED)).toBe(true);
             handle.unmount();
         });
@@ -377,7 +384,7 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             // authoring it.
             const container = new Gtk.Box();
             const handle = await mount(container, h('GtkLabel', { accessibility: { description: 'a row', level: 2 } }));
-            const label = onlyChild(container) as Gtk.Label;
+            const label = withAtContext(onlyChild(container) as Gtk.Label);
             expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.LEVEL)).toBe(true);
             await handle.patch(h('GtkLabel', { accessibility: { description: 'a row' } }));
             expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.LEVEL)).toBe(false);

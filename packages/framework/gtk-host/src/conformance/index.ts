@@ -6,6 +6,7 @@ export {
 } from './diagnostics.js';
 export { windowChromeCensus, windowChromeProblems, type WindowChromeCensus } from './window-chrome.js';
 export { buildSharedTree } from './shared-tree-builder.js';
+export { installAccessibilityBackend, withAtContext } from './at-context.js';
 // Conformance surface: the checks that keep the widget table honest, and the
 // GTK-side readers every vector asserts against.
 //

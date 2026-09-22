@@ -117,6 +117,18 @@ VALUE KIND, which the table states, and not by which of the three GTK calls is i
   this surface runs inside the diagnostics gate: it is the SILENCE that separates a correct
   write from a mis-typed one. `accessibility.spec.ts` keeps the witness — the raw calls,
   outside the gate, asserting what GTK really does.
+- **The oracle has a PRECONDITION, and it is an env var.** `gtk_accessible_update_*` writes
+  into the widget's `GtkATContext` and `gtk_test_accessible_has_*` reads back out of it; with
+  `GTK_A11Y=none` there is no context, so every write records nothing, every read answers
+  false, and nothing is logged. Measured on GTK 4.22.5, four raw-GTK vectors, one process per
+  cell: `gjs 1.88.1` and `node-gi on Node 24` agree in every cell — `unset` and `test` set the
+  slots, `none` sets none of them, silently. So a red that appears only on the node-gi legs
+  was a claim about their ENV, not about the bridge: those legs set `GTK_A11Y=none` and the
+  gjs legs set nothing. `conformance/at-context.ts` holds both halves —
+  `installAccessibilityBackend()`, which the test entry point calls (GTK's in-process `test`
+  backend needs no bus, which is what `none` was chosen for), and `withAtContext()`, which
+  throws a sentence at any call site whose widget has no context. The guard also covers the
+  assertions that expect FALSE: without a context those pass VACUOUSLY.
 - A future addressing model (an `id` prop, or a ref resolved before props) turns the
   fourteen `never` members into real types and deletes one runtime branch. Nothing else has
   to move, because the kind already comes from the table.

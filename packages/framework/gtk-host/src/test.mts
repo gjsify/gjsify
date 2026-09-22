@@ -1,5 +1,7 @@
 import { run } from '@gjsify/unit';
 
+import { installAccessibilityBackend } from './conformance/at-context.js';
+
 import accessibilitySuite from './accessibility.spec.js';
 import reactSuite from './adapters/react.spec.js';
 import adjustmentSuite from './adjustment.spec.js';
@@ -28,6 +30,14 @@ import paintSuite from './style/paint.spec.js';
 import sheetSuite from './style/sheet.spec.js';
 import themeSuite from './style/theme.spec.js';
 import tokensSuite from './style/tokens.spec.js';
+
+// GIVE THIS PROCESS AN ACCESSIBILITY BACKEND before `run()` builds the first widget.
+// The ARIA vectors measure GTK's AT context, and `GTK_A11Y=none` — which every headless
+// CI leg sets to stay off the a11y bus — means there is no context to measure: the
+// writes record nothing and every `test_accessible_has_*` answers false, at exit 0.
+// The reasoning, the cross-runtime measurement and the ordering hazard are all in
+// `conformance/at-context.ts`; this call is the one thing an entry point has to do.
+installAccessibilityBackend();
 
 run({
     tokensSuite,
