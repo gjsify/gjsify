@@ -155,3 +155,22 @@ export const values = (
         <gtk-scrolled-window hadjustment={{ upper: 1000, pageSize: 200 }} vadjustment={{}} />
     </adw-preferences-group>
 );
+
+/**
+ * GTK's ARIA surface: one grouped prop over the three tables.
+ *
+ * `label` is a `GtkAccessibleProperty`, `checked` a `GtkAccessibleState` whose value is a
+ * `GtkAccessibleTristate` and not a boolean, `row-index` a `GtkAccessibleRelation` that
+ * carries an integer. None of the three is a GObject property of `GtkLabel`, and
+ * `orientation` here is the ARIA one — settable on a widget that implements no
+ * `GtkOrientable`.
+ */
+export const accessible = (
+    <gtk-label
+        label="Total"
+        accessibility={{ label: 'Total for the year', checked: 'mixed', 'row-index': 3, orientation: 'vertical' }}
+    />
+);
+
+/** `null` clears one slot, as it removes any other property on this host. */
+export const accessibleCleared = <gtk-label accessibility={{ label: null }} />;

@@ -51,6 +51,7 @@ export {
     type ShotEvidence,
 } from './probe.js';
 export type {
+    AccessibilityAttribute,
     ElementChild,
     ElementChildren,
     JsxAttributes,

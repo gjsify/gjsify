@@ -35,7 +35,7 @@ import system from 'system';
 
 import { CURATED_DESCRIPTORS } from '../descriptors/index.js';
 import { emitWidgets } from './emit.mjs';
-import { emitProps, emitSurfaceData, type EmittedFile } from './emit-types.mjs';
+import { emitAccessibility, emitProps, emitSurfaceData, type EmittedFile } from './emit-types.mjs';
 import { buildFromVocabulary, type VocabularySource } from './girs-vocabulary.mjs';
 
 interface Options {
@@ -138,6 +138,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const files: EmittedFile[] = [
         { path: 'widgets.ts', text: table.text },
         emitProps(model, provenance),
+        emitAccessibility(model, provenance),
         emitSurfaceData(model, provenance),
     ];
 
@@ -146,6 +147,7 @@ async function main(argv: readonly string[]): Promise<number> {
         `widgets: ${table.count}, declarations: ${model.declarations.size}, ` +
             `enums: ${model.enumNicks.size}, bitfields: ${model.flagNicks.size}`,
     );
+    console.log(`aria slots: ${model.aria.size}`);
     console.log(`namespaces referenced by the surface: ${[...model.namespacesUsed].sort().join(' ')}`);
 
     for (const file of files) {

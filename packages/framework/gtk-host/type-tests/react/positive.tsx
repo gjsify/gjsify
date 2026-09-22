@@ -69,3 +69,12 @@ export const childrenAsProp = <gtk-box children={<gtk-label label="x" />} />;
 
 /** A widget whose GType carries adjacent capitals, in its JSX (kebab) spelling. */
 export const glArea = <gtk-gl-area hasStencilBuffer={true} />;
+
+/**
+ * The ARIA surface reaches the React dialect through `ReactWidgetAttributes`.
+ *
+ * React's per-element attributes are deliberately NOT `JsxAttributes` (its `ref` spelling
+ * differs), so the accessibility axis is one of the things that would silently be present
+ * in two dialects and absent from this one.
+ */
+export const accessible = <gtk-label label="Total" accessibility={{ label: 'Total for the year', level: 2 }} />;

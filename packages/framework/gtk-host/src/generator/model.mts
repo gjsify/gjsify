@@ -15,6 +15,7 @@
  * `model.mts` and no longer `surface.mts`: `surface` now names the `@girs` subpath.
  */
 
+import type { AriaSlot } from '../types.js';
 import type { WidgetRow } from './emit.mjs';
 
 export interface PropMember {
@@ -92,6 +93,16 @@ export interface SurfaceModel {
     readonly namespacesUsed: ReadonlySet<string>;
     /** Namespace -> the `@girs` package that types it, so the emitter needs no second source. */
     readonly packages: Readonly<Record<string, string>>;
+    /**
+     * ARIA name -> its table, value kind and enum, merged over every vocabulary read.
+     *
+     * Keyed by the NAME alone, not by `<table>.<name>` the way `@girs` keys it, and that
+     * is a measured property rather than a convenience: across the three tables of gtk4
+     * 4.23.3 the 53 names are distinct, so one authored key can only ever mean one slot.
+     * `girs-vocabulary.mts` re-checks it on every run, because the day GTK adds a name a
+     * second table already carries, a map would silently keep one of the two.
+     */
+    readonly aria: ReadonlyMap<string, AriaSlot>;
     /**
      * Base -> members it must not contribute, because a nearer declaration disagrees.
      *

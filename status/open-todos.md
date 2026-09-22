@@ -4,6 +4,27 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### An ARIA relation has no way to name the other widget
+
+`@gjsify/gtk-host` expresses 39 of GTK's 53 ARIA slots through `accessibility={{ … }}` (ADR 0067).
+The other 14 are `kind: 'reference'` — `labelled-by`, `described-by`, `controls`,
+`active-descendant`, `flow-to`, `owns` and eight more — and they are DECLARED in the type surface
+as `?: never` with a runtime `aria-reference` refusal, not omitted.
+
+Marshalling is not what is missing. `Gtk.AccessibleList.new_from_list([widget])` builds exactly
+the value GTK wants, measured on GTK 4.22.5; its sibling `new_from_array` is unusable from GJS
+(`gtk_accessible_list_new_from_array: assertion 'accessibles == NULL || n_accessibles == 0'
+failed`, returns null) and is worth an upstream look of its own.
+
+ADDRESSING is missing: the host has no `id` prop, and a framework `ref` is resolved AFTER the
+props of the element that names it are applied — so a ref read where `setAccessibility` runs is
+`null` on the render that authored it, and GTK takes a null reference at exit 0. Closing it needs
+a decision, not an implementation: either an addressing model on the element model (an `id` the
+host resolves within a render root, which is what a `.blp` gets from GtkBuilder's object table),
+or a documented two-phase seam where relations are applied after the whole tree is materialised.
+Whichever it is, the VALUE KIND already comes from the generated table, so only one runtime branch
+and fourteen `never`s change.
+
 ### `SharedTreeNode.slot` is carried by three restatements and read by no renderer
 
 Measured 2026-09-22 at `95198adaf6`, on the working checkout. All three ADR 0051 tree builders

@@ -141,6 +141,74 @@ widen the same properties by the same rule — `WithPortableValues<T>` in `attrs
 `<gtk-list-view model={[…]}>` is a compile error for the reason it is a runtime refusal:
 `Gtk.ListView:model` is a `Gtk.SelectionModel`, which a string list is not.
 
+## Accessibility — the axis no ParamSpec carries
+
+Everything else a renderer writes is a GObject property, resolved through the ParamSpec of
+the class that is INSTALLED. GTK's ARIA surface is not: `GtkAccessible` installs exactly
+one property, `accessible-role`, and the other 53 names are members of three ENUMS —
+`GtkAccessibleProperty`, `GtkAccessibleState`, `GtkAccessibleRelation` — written through
+`update_property`, `update_state` and `update_relation`. There is nothing on the object to
+interrogate, so **the value types have to ship**: `@girs`' `ARIA_VALUE_TYPES` /
+`ARIA_VALUE_ENUMS` (read from each member's own GIR documentation, because
+`gtk_accessible_property_init_value()` is not introspectable) become
+`src/generated/accessibility.ts`, which is the one generated table the runtime cannot
+re-derive.
+
+```tsx
+<gtk-label label="Total" accessibility={{ label: 'Total for the year', checked: 'mixed', 'row-index': 3 }} />
+```
+
+**One grouped prop, not 53 flat `aria*` ones**, for four measured reasons. TypeScript
+exempts every hyphen-containing JSX attribute from excess-property checking, so a flat
+`aria-labell` would be accepted in silence while a key inside a fresh object literal is
+checked (`type-tests/jsx/negative-props.tsx`). The ARIA names are not the widget's
+properties and COLLIDE with them — `label`, `orientation`, `checked`, `expanded` and
+`selected` are all both, and `orientation` is settable on a `GtkLabel` that implements no
+`GtkOrientable` at all. A `.blp` author already writes `accessibility { label: "…"; }` over
+the same vocabulary (ADR 0034). And `setProp` already has this shape for `layout`, so this
+adds ONE reserved key to the host rather than 53.
+
+**Why the table is load-bearing**, measured on gjs 1.88.1 / GTK 4.22.5, one process per
+row. GJS guesses a GValue type from the JS value's INTEGRALITY, and GTK reads it back with
+a fixed `g_value_get_*`:
+
+| What you write | What GTK does | What this host does |
+|---|---|---|
+| `{ 'value-now': 3 }` | `g_value_get_double` assertion fails on a `G_TYPE_INT`; **the slot still reads as SET** | boxes a `G_TYPE_DOUBLE` and writes it |
+| `{ level: 3.5 }` | `g_value_get_int` fails; nothing stored | truncates, as an `int` property does |
+| `{ checked: true }` | `checked` is a `GtkAccessibleTristate`: `g_value_get_int` fails, slot reads as SET | takes `'mixed'`/`'true'`/`'false'`, or the constant |
+| `{ sort: 'ascending' }` as a bare string | `g_value_get_int` fails | resolves the nick against `GtkAccessibleSort` |
+| a name GTK has not got | two `Gtk-CRITICAL`s, exit 0 | throws `unknown-aria` / `aria-not-installed` |
+| a name the next render drops | keeps it for the life of the widget | `reset_property` / `_state` / `_relation` |
+
+That two of those still report the slot as SET is why the conformance vectors run inside the
+diagnostics gate: `Gtk.test_accessible_has_*` alone passes the defect, and it is the SILENCE
+that separates a correct write from a mis-typed one. `accessibility.spec.ts` keeps the
+witness — the three raw calls, outside the gate, asserting what GTK really does with them.
+
+**And the oracle itself has a precondition.** `gtk_accessible_update_*` writes into the
+widget's `GtkATContext`, and `gtk_test_accessible_has_*` reads back out of it — so under
+`GTK_A11Y=none` there is no context, every write records nothing, every read answers false,
+and nothing is logged. Measured on GTK 4.22.5: gjs and node-gi agree in every cell
+(`unset`/`test` set the slots, `none` sets none of them), which is how six vectors red on
+three node-gi CI legs turned out to be an env var rather than a marshalling defect.
+`@gjsify/gtk-host/conformance` exports the two halves: `installAccessibilityBackend()` for a
+test entry point — GTK's in-process `test` backend, no a11y bus, which is what `none` was
+chosen for — and `withAtContext(widget)`, which throws a sentence instead of letting a vector
+read `false` off an absent layer, including the vectors that EXPECT false and would otherwise
+pass vacuously.
+
+**Relations that point at another widget are a NAMED GAP.** Fourteen of the 53 slots take a
+reference (`labelled-by`, `described-by`, `controls`, …), and marshalling one is not what is
+missing — `Gtk.AccessibleList.new_from_list([widget])` builds exactly the value GTK wants.
+ADDRESSING is: this host has no `id` prop, and a framework `ref` is resolved AFTER the props
+of the element that names it are applied, so a ref read at that point is `null` on the render
+that authored it. The names are therefore **declared and unwritable** (`?: never`) rather than
+omitted — omitting them would make the excess-property check say GTK has no such name, which
+is false — and the runtime refuses them with `aria-reference`, which names the imperative
+`ref={…}` spelling that does work today. The other ten relation slots carry integers or
+strings (`row-index`, `col-count`, `pos-in-set`) and are expressible now.
+
 ## The node tree
 
 Three node kinds — `element`, `text`, `anchor` — linked by the host's own

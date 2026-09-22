@@ -9,6 +9,7 @@ import type GObject from '@girs/gobject-2.0';
 import type Gtk from '@girs/gtk-4.0';
 import type { AdwAdjustmentInput, AdwListModelInput, AdwMenuInput } from '@gjsify/adwaita-core';
 
+import type { AccessibilityAttributes } from './generated/accessibility.js';
 import type { HostNode } from './types.js';
 
 /**
@@ -81,6 +82,19 @@ export interface SlotAttribute {
 }
 
 /**
+ * GTK's ARIA surface, on every element of every dialect. Read by `setAccessibility()`.
+ *
+ * ONE OBJECT, not 53 flat `aria*` props, and the four reasons are in `setAccessibility`'s
+ * own header — the load-bearing one being that TypeScript exempts a hyphenated JSX
+ * attribute from excess-property checking while a key in a fresh object literal is
+ * checked. `AccessibilityAttributes` is GENERATED, because the names and their value
+ * types are GTK's and are stated nowhere a ParamSpec can be read from.
+ */
+export interface AccessibilityAttribute {
+    accessibility?: AccessibilityAttributes | null;
+}
+
+/**
  * The `on:<raw-signal-name>` escape hatch, typed.
  *
  * `parseEventProp` takes `on:` + a signal name verbatim, which is how a signal
@@ -107,7 +121,7 @@ export interface RawSignalAttributes {
  * `T` is the widget's own instance type, so `ref={(el) => …}` infers `el` as
  * `Gtk.Box` rather than the `unknown` a DOM renderer settles for.
  */
-export interface JsxAttributes<T> extends SlotAttribute, RawSignalAttributes {
+export interface JsxAttributes<T> extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {
     children?: ElementChild;
     ref?: T | ((el: T) => void) | undefined;
 }
@@ -121,7 +135,7 @@ export interface JsxAttributes<T> extends SlotAttribute, RawSignalAttributes {
  * leave the property unusable, so the Vue surface adds only what Vue does not —
  * and `children` is a SLOT in Vue, never a prop.
  */
-export interface VueAttributes extends SlotAttribute, RawSignalAttributes {}
+export interface VueAttributes extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {}
 
 /**
  * The properties whose GObject type is a `GMenuModel`, in both spellings.
