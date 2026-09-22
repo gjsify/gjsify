@@ -234,6 +234,7 @@ const MODULE_REASONS = {
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },
     'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
     scrolling: { gap: NO_TABLE_LEDGER },
+    source: { gap: NO_TABLE_LEDGER },
     swipe: { gap: NO_TABLE_LEDGER },
     toast: { gap: NO_TABLE_LEDGER },
     // Generated data, not behaviour: the token names and values ARE the source of truth,

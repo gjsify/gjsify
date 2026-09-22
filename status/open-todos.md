@@ -5371,13 +5371,22 @@ what is missing is a reason to take the platform's gesture away from it.
 
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `swipe.ts` and `toast.ts`
-export shared behaviour and are covered by nothing in
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `source.ts`, `swipe.ts` and
+`toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no
 conformance file imports them. Three of them are what `packages/web/AGENTS.md`
 advertises as the core's flagship shared behaviour ("Breakpoints
 (grammar/parser/evaluator + transition-only `AdwBreakpoint`), color-scheme
 observable, toast queue").
+
+`source.ts` is the 6502 tokenizer, syntax palette and gutter formatters moved
+out of `@gjsify/adwaita-web/source-view` so a second renderer could reach them
+without pulling in CodeMirror. Today exactly one renderer does —
+`adwaita-web`'s `source-view/asm6502.ts` and `theme.ts` import it for value —
+and the GNOME native arm inherits the system Adwaita scheme instead of
+consuming the palette table at all, so a vector table now would assert
+adwaita-web's own derivation against itself. It earns one the moment a second
+renderer needs the same tokenizer or palette.
 
 `swipe.ts` is the newest and the one with the clearest trigger: it is
 `AdwSwipeTracker`'s velocity, projection and snap-point choice, and exactly ONE
