@@ -11,45 +11,15 @@
 //   spacing 0, three children      no gap anywhere — the default is 0 in C
 //   spacing 12, vertical           child 0 at the top edge, 1 and 2 offset by 12
 //   spacing 12, one child          no gap at all: N children means N-1 gaps
-//   spacing -4                     0, the property's minimum
 //
-// The last row is the one a port gets wrong quietly: `gtk_box_set_spacing` takes an `int`
-// whose minimum is 0, so a negative write CLAMPS rather than throwing, and a box that
-// pulled its children together by 4 DIPs would look like a theme bug.
+// How an authored spacing becomes the property (the negative clamp included) is shared
+// with the web box and asserted in `@gjsify/adwaita-core`'s `box.spec.ts`.
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import {
-    boxChildMargin,
-    boxSpacingChanges,
-    DEFAULT_BOX_SPACING,
-    normalizeBoxSpacing,
-    resolveBoxChildOrder,
-} from './widgets/box-layout.js';
+import { boxChildMargin, boxSpacingChanges, DEFAULT_BOX_SPACING, resolveBoxChildOrder } from './widgets/box-layout.js';
 
 export default async () => {
-    await describe('normalizeBoxSpacing (the XML door: an attribute hands over a string)', async () => {
-        await it('takes the number, and the string an attribute carries', () => {
-            expect(normalizeBoxSpacing(12)).toBe(12);
-            expect(normalizeBoxSpacing('12')).toBe(12);
-        });
-
-        await it('clamps a negative to 0, which is the property minimum in C', () => {
-            expect(normalizeBoxSpacing(-4)).toBe(0);
-            expect(normalizeBoxSpacing('-4')).toBe(0);
-        });
-
-        await it('falls back to the default rather than NaN, for anything unparseable', () => {
-            expect(normalizeBoxSpacing('wide')).toBe(DEFAULT_BOX_SPACING);
-            expect(normalizeBoxSpacing(undefined)).toBe(DEFAULT_BOX_SPACING);
-            expect(normalizeBoxSpacing(null)).toBe(DEFAULT_BOX_SPACING);
-        });
-
-        await it('defaults to 0, as `Gtk.Box:spacing` does', () => {
-            expect(DEFAULT_BOX_SPACING).toBe(0);
-        });
-    });
-
     await describe('boxSpacingChanges — the early return the setter takes', async () => {
         await it('is false for the same value in either spelling', () => {
             expect(boxSpacingChanges(12, 12)).toBe(false);

@@ -32,29 +32,17 @@
 // Reference: refs/gtk gtk/gtkbox.c (gtk_box_set_spacing, gtk_box_insert_child_after)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
-import { resolveWrapBoxChildOrder } from '@gjsify/adwaita-core';
+import {
+    DEFAULT_BOX_SPACING,
+    normalizeBoxSpacing,
+    resolveWrapBoxChildOrder,
+    type BoxOrientation,
+} from '@gjsify/adwaita-core';
 
-/**
- * `Gtk.Box:spacing`'s default, in DIPs. `0` in C (`gtkbox.c`, the property's default
- * value), which is also what makes the margin write invisible until a caller asks.
- */
-export const DEFAULT_BOX_SPACING = 0;
-
-/** Which axis a box stacks along — NativeScript's two words, and `Gtk.Orientation`'s nicks. */
-export type BoxOrientation = 'horizontal' | 'vertical';
-
-/**
- * A spacing value as the box will hold it: a finite, non-negative number of DIPs.
- *
- * `gtk_box_set_spacing` takes an `int` and the property's minimum is 0, so a negative
- * value is clamped rather than refused — the same clamp `normalizeWrapBoxSpacing` applies
- * one widget over, restated here because that one carries the wrap box's UNIT machinery
- * (`Adw.LengthUnit`) and a `Gtk.Box` has no unit to convert from.
- */
-export function normalizeBoxSpacing(value: unknown): number {
-    const spacing = typeof value === 'number' ? value : Number.parseFloat(String(value));
-    return Number.isFinite(spacing) && spacing > 0 ? spacing : DEFAULT_BOX_SPACING;
-}
+// The property readings are `@gjsify/adwaita-core`'s (`box.ts`), because the web box reads
+// the same authored values; only the margin distribution below is this platform's.
+export { DEFAULT_BOX_SPACING, normalizeBoxSpacing };
+export type { BoxOrientation };
 
 /** Whether writing `next` over `current` is a change the box must push to its children. */
 export function boxSpacingChanges(current: number, next: unknown): boolean {

@@ -288,6 +288,19 @@ export type {
     ToggleGroupStateListener,
 } from './rows.js';
 
+// --- Gtk.Box / Gtk.Label property readings and the label's text reduction ---
+export { DEFAULT_BOX_SPACING, normalizeBoxOrientation, normalizeBoxSpacing } from './box.js';
+export type { BoxOrientation } from './box.js';
+export {
+    DEFAULT_LABEL_XALIGN,
+    LABEL_JUSTIFICATIONS,
+    labelDisplayText,
+    labelMarkupIsUnparseable,
+    normalizeLabelJustify,
+    normalizeLabelXalign,
+} from './label.js';
+export type { LabelJustification } from './label.js';
+
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
 

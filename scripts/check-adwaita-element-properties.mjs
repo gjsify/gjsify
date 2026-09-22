@@ -151,6 +151,9 @@ const KNOWN_GAPS = {
     // the property distance ADR 0034 § Amendment 2 measures for NativeScript, and it
     // is a rename of a published attribute — out of scope for the tag rename that
     // exposed it, and listed rather than quietly done.
+    // Baselines have no counterpart in a flex row that aligns BOXES, the same absence the
+    // NativeScript box declares.
+    'gtk-box': ['baseline-child', 'baseline-position'],
     'gtk-button': ['can-shrink', 'has-frame', 'icon-name', 'use-underline'],
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
@@ -185,6 +188,19 @@ const KNOWN_GAPS = {
         'visibility',
     ],
     'gtk-image': ['file', 'icon-size', 'pixel-size', 'resource', 'use-fallback'],
+    // Pango's layout knobs. Text is laid out by the browser here; each of these needs a
+    // measured mapping (`ellipsize` → `text-overflow` needs a clipped box, `*-chars` a
+    // font-relative width) rather than a CSS property of the same name.
+    'gtk-label': [
+        'ellipsize',
+        'lines',
+        'max-width-chars',
+        'natural-wrap-mode',
+        'single-line-mode',
+        'width-chars',
+        'wrap-mode',
+        'yalign',
+    ],
     'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
     'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
     'gtk-progress-bar': ['ellipsize', 'pulse-step'],

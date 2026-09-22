@@ -21,11 +21,13 @@
 // are the same write and nothing in this package had to learn a second input shape.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
+export { GtkBox as Box } from '../elements/gtk-box.js';
 export { GtkButton as Button } from '../elements/gtk-button.js';
 export { GtkCheckButton as CheckButton } from '../elements/checks.js';
 export { GtkDropDown as DropDown } from '../elements/gtk-drop-down.js';
 export { GtkEntry as Entry } from '../elements/gtk-entry.js';
 export { GtkImage as Image } from '../elements/gtk-image.js';
+export { GtkLabel as Label } from '../elements/gtk-label.js';
 export { GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';
 export { GtkPopover as Popover } from '../elements/gtk-popover.js';
 export { GtkProgressBar as ProgressBar } from '../elements/gtk-progress-bar.js';

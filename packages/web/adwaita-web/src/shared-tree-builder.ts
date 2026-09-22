@@ -48,7 +48,7 @@ interface PlacedChild {
 
 /**
  * A `SharedTreeNode`, realised as a DETACHED element tree: a tag, its authored properties as
- * attributes, its placement as `slot=`, its children, in that order — recursive and total,
+ * attributes, its style classes as classes, its placement as `slot=`, its children, in that order — recursive and total,
  * no tag list, no per-block case. A boolean authored property is the ATTRIBUTE'S PRESENCE
  * (`toggleAttribute`), which is what every element in the corpus reads
  * (`hasAttribute('revealed')`, `hasAttribute('expanded')`); spelling `"true"` would set a
@@ -76,6 +76,10 @@ export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []
         if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));
     }
+    // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
+    // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a
+    // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
+    if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
     for (const child of node.children ?? []) {
         const childEl = buildSharedTree(child, placed);
         if (child.slot !== undefined) {
