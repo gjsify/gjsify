@@ -156,6 +156,32 @@ export const AdwSharedTreesTest = async () => {
             ).toThrow('has no slot "middle"');
         });
 
+        // `child: Gtk.Label {…}` in a `.blp` authors `slot: 'child'` — the widget's own
+        // GObject property name — for every single-child widget the corpus never places
+        // one on. `<adw-clamp>` has no separate box to route into (every child is already
+        // the placement, clamped in place), which is why it took no `bindSlottedChildren`
+        // call at all until this slot needed one — and why it stayed unnoticed: the corpus
+        // above authors zero placements on it.
+        await it("AdwClamp accepts its GIR child property, 'child', as a named slot", () => {
+            mounted(
+                { tag: 'AdwClamp', children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'Clamped' } }] },
+                (root) => {
+                    expect(root.querySelector('gtk-label')?.getAttribute('label')).toBe('Clamped');
+                },
+            );
+        });
+
+        await it("AdwStatusPage accepts its GIR child property, 'child', as a named slot", () => {
+            mounted(
+                { tag: 'AdwStatusPage', children: [{ tag: 'GtkButton', slot: 'child', props: { label: 'Retry' } }] },
+                (root) => {
+                    expect(root.querySelector('.adw-status-page-child gtk-button')?.getAttribute('label')).toBe(
+                        'Retry',
+                    );
+                },
+            );
+        });
+
         await it('the PROPERTY spelling of the title slot reaches the centre', () => {
             // `title-widget:` is what a Blueprint source writes the centre at, and this
             // element spells its own centre `center`; naming both is the element's own

@@ -27,12 +27,21 @@ import {
     defaultClampProps,
     normalizeClampProp,
 } from './chrome.js';
+import { builderSlotsOf } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 export { DEFAULT_CLAMP_MAX_SIZE, DEFAULT_CLAMP_TIGHTENING_THRESHOLD };
 
 export class AdwClamp extends withSignals(GridLayout) {
+    /**
+     * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
+     * `Adw.Clamp:child` is this widget's own property name, and its fallback: an authored
+     * `child: …` and a bare child mean the same thing, the shape `_addChildFromBuilder`
+     * below already has.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
+
     private _props: ClampProps = defaultClampProps();
     private _child: View | null = null;
     /** The container width the child was last clamped against, in DIPs. */

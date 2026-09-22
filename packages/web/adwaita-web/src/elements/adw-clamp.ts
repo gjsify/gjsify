@@ -26,6 +26,8 @@
 
 import { ADW_CLAMP_DEFAULTS, ADW_CLAMP_SIZE_CLASSES, clampAllocate, normalizeClampSize } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 export class AdwClamp extends HTMLElement {
     private _resize: ResizeObserver | null = null;
     private _mutations: MutationObserver | null = null;
@@ -35,6 +37,16 @@ export class AdwClamp extends HTMLElement {
     }
 
     connectedCallback() {
+        // `Adw.Clamp:child` is a widget PROPERTY, so an authored `child: …` names the
+        // slot by that name (`shared-tree-builder.ts`'s `refuseUnknownSlots`) — and without
+        // a declaration for it, the placement was refused sight unseen. There is nowhere to
+        // ROUTE it to: every child here is already the placement, clamped in place, so this
+        // only enrols the NAME — `.install()` is never called, and nothing is moved. Calling
+        // it would be actively wrong: `into: this` would make the routed append a same-
+        // parent move, which the DOM still fires as a childList mutation, re-triggering the
+        // very MutationObserver that routes it.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
+
         // ResizeObserver delivers an initial observation on observe(), so the
         // first allocation lands before paint without a separate seeding pass.
         this._resize = new ResizeObserver(() => this._allocate());
