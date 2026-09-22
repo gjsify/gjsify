@@ -595,6 +595,13 @@ export {
     authoredTags,
     reachedTables,
     sharedTreeExpectations,
+    sharedTreePlacements,
     subjectIndexOf,
+    withoutPlacements,
 } from './shared-trees.js';
-export type { SharedTreeExpectation, SharedTreeNode, SharedTreeObservable } from './shared-trees.js';
+export type {
+    SharedTreeExpectation,
+    SharedTreeNode,
+    SharedTreeObservable,
+    SharedTreePlacement,
+} from './shared-trees.js';

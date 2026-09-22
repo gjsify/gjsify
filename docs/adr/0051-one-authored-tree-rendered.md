@@ -424,7 +424,9 @@ that render identically, which is a worse failure than the missing entity it rea
 
 **What this does not decide.** Whether the corpus should GROW to carry slots and
 portable values is untouched and stays a corpus question, with the ledger as its
-backlog. And the containment claim is made only over the shared corpus; the framework
+backlog. (The slot half is decided in [ADR 0071](0071-a-slot-is-a-placement-a-renderer-answers-to.md):
+a placement joins the corpus under this file's own no-alias rule, and arm 13's refusal of a
+slotted node became a comparison. The portable values are still open.) And the containment claim is made only over the shared corpus; the framework
 tree of a ledgered block is not held against its fence by anything, which is a wider
 arm and a separate measurement.
 
@@ -472,7 +474,11 @@ boxed list instead of inside it, and an `AdwExpanderRow`'s rows placed in its he
 of its disclosure, each keep every authored node in every authored position — both mutations
 were applied to the port and both stayed GREEN. Door 2 of `docs/nativescript-xml.md` is where
 that class of defect comes from and `check-nativescript-xml-doors.mjs` is still its only
-guard. The coercion half is bounded by the CORPUS rather than by the driver: every boolean the
+guard. (Closed for an AUTHORED placement by
+[ADR 0071](0071-a-slot-is-a-placement-a-renderer-answers-to.md) § 5, which builds each block a
+second time with every `slot` dropped and asserts the two realised trees differ — the filtered
+walk is still blind, so the control is what sees it. A placement the corpus does not author is
+still outside every driver.) The coercion half is bounded by the CORPUS rather than by the driver: every boolean the
 seven blocks author is `true`, which `Boolean('true')` also gets right, so the `'false'` case
 `widgets/xml-values.ts` exists for is not exercised — dropping `xmlBoolean` from
 `AdwSwitchRow.active` stays green. Both are recorded here rather than in a backlog, because a

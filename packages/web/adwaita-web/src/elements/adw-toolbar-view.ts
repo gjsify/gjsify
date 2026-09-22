@@ -85,9 +85,18 @@ export class AdwToolbarView extends HTMLElement {
             // reach the same box whenever it is written — including after connect, which a
             // snapshot here cannot see. The unnamed slot is the content, the
             // Adw.ToolbarView buildable default. `src/slotted-children.ts` has the incident.
+            //
+            // `content` IS NAMED BESIDE THAT DEFAULT, and it is the same destination rather
+            // than a fourth one: `Adw.ToolbarView:content` is the property a source that
+            // spells the placement writes it at, and GTK reaches this box through either —
+            // the buildable default for a bare child, `adw_toolbar_view_set_content` for a
+            // named one. A tree authored at the property position (a Blueprint
+            // `content: …`) carried a name this element had no destination for, so the
+            // child stayed a stray sibling of all three boxes.
             bindSlottedChildren(this, [
                 { name: 'top', into: this._topEl },
                 { name: 'bottom', into: this._bottomEl },
+                { name: 'content', into: this._contentEl },
                 { into: this._contentEl },
             ]).install(this._topEl, this._contentEl, this._bottomEl);
 

@@ -325,6 +325,47 @@ export default async () => {
                 }
             });
 
+            await it('a defaultSlot that is not a slot refuses BY NAME, not by TypeError', async () => {
+                // `defaultSlot` and `slots` are two fields of one descriptor and nothing
+                // in this package holds them together. The child that lands on the
+                // default is the one that authored NOTHING — the common case — so an
+                // application descriptor with a typo here fails on the plainest tree it
+                // has, through `host[undefined] is not a function`: no slot name, no
+                // gtype, nothing to fix. This is the same rule as the vector above, one
+                // field over, and it is the one the slot refusals were written for.
+                registerWidget({
+                    gtype: 'AdwToolbarView',
+                    ctor: () => Adw.ToolbarView,
+                    children: {
+                        kind: 'slotted',
+                        slots: { top: 'add_top_bar', content: 'set_content' },
+                        // The typo. Every other field is the real descriptor's.
+                        defaultSlot: 'contents',
+                    },
+                });
+                try {
+                    const view = createElement('AdwToolbarView');
+                    materialize(view);
+                    const bar = createElement('AdwHeaderBar');
+                    // NO slot authored: this is the default path, and the default is
+                    // exactly what nothing else checks.
+                    let said = '';
+                    try {
+                        insert(bar, view);
+                    } catch (error) {
+                        said = String((error as Error).message);
+                    }
+                    expect(said).toContain('"contents"');
+                    expect(said).toContain('AdwToolbarView');
+                    // The names it DOES answer to, or the reader cannot see the typo.
+                    expect(said).toContain('top');
+                    expect(said).toContain('content');
+                    expect(said.includes('is not a function')).toBe(false);
+                } finally {
+                    registerBuiltinWidgets();
+                }
+            });
+
             await it('stays clean on an all-setter slotted policy with no remove', async () => {
                 // The other direction, and the one that is easy to skip. Making a
                 // field optional can turn a check into one that passes on

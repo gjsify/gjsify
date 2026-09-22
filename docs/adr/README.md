@@ -91,6 +91,7 @@ the TODO records the *what's left*.
 | [0068](0068-style-classes-get-a-field-both-spellings.md) | Style classes get a field, and it carries both of Blueprint's spellings for them | Proposed |
 | [0069](0069-accessibility-is-a-grouped-prop-relations-are-a-gap.md) | Accessibility is ONE grouped prop, and relations are a declared gap | Proposed |
 | [0070](0070-a-blp-reaches-a-renderer-through-a-second-specifier.md) | A `.blp` reaches a non-GTK renderer through a second SPECIFIER, and a lossy one is refused | Accepted |
+| [0071](0071-a-slot-is-a-placement-a-renderer-answers-to.md) | A slot is a placement, and a renderer either answers to its name or refuses it | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

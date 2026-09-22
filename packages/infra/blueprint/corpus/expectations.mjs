@@ -174,7 +174,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'No tree in `ADWAITA_GALLERY_SHARED_TREES` uses `slot` yet — its header says the two renderers spell slots differently — so these are the BLUEPRINT spellings and what a renderer does with them is not decided here.',
+        note: 'These are the BLUEPRINT spellings, and a header bar is the case where they are NOT yet a renderer\u2019s: `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`, listed in `ADWAITA_GALLERY_TREE_DIVERGENCES`. A gallery tree does author one slot now (a row `prefix`) \u2014 the names that all three renderers already share are the ones that got in.',
     },
     {
         file: '06-property-object-valued.blp',

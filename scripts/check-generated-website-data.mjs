@@ -1330,22 +1330,28 @@ for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
         const element = elements[cursor];
         cursor += 1;
         containedNodes += 1;
-        // A SLOT IS NOT COMPARED HERE, so a shared node carrying one has to be loud
-        // rather than quietly unheld — the shape a rule falls out of its own check by.
-        // No shared tree has one: the two renderers spell slots differently
-        // (`start`/`title`/`end` against `startBox`/`titleWidget`/`endBox` in the
-        // divergence ledger), which is why a slotted block does not meet the no-alias
-        // admission rule to begin with. Comparing `node.slot` to the fence's `slot=`
-        // would bless the gtk-host spelling as the corpus's, which is the one thing
-        // this corpus exists to refuse; so the day a block is admitted with a slot, it
-        // came with a decision about what a shared slot SPELLS, and this arm is taught
-        // that rather than guessing it.
+        // A SLOT IS COMPARED VERBATIM, and the decision behind that is the corpus's own
+        // admission rule rather than a choice made here. This arm used to REFUSE a
+        // slotted node, because comparing `node.slot` to the fence's `slot=` would have
+        // blessed one renderer's spelling as the corpus's — `start`/`title`/`end`
+        // against `startBox`/`titleWidget`/`endBox`, still in the divergence ledger. The
+        // rule that settles it is the one the shared source already states for tags and
+        // properties: a block joins only when it needs NO ALIAS, so a placement enters
+        // the corpus only when all three renderers spell it the same, and then there is
+        // exactly one spelling for the fence to carry. A slot that needs a translation
+        // keeps its block in the ledger, which is where it says something.
         if (node.slot !== undefined) {
-            failures.push(
-                `${tree.widget}: authored node ${index} <${wanted}> carries slot="${node.slot}", and arm 13 does ` +
-                    'not hold a slot against the fence. The two renderers spell slots differently, so there is no ' +
-                    'shared spelling to compare against — teach this arm the one the corpus settled on.',
-            );
+            comparedValues += 1;
+            const documented = element.values.get('slot');
+            if (documented !== node.slot) {
+                failures.push(
+                    `${tree.widget}: authored node ${index} <${wanted}> is placed at slot="${node.slot}" and the ` +
+                        `${fence.slot} fence of ${fence.rel} ` +
+                        `${documented === undefined ? 'places it nowhere' : `places it at slot="${documented}"`}. ` +
+                        'A corpus slot is spelled the same by every renderer that admits the block, so the fence ' +
+                        'carries that one spelling or the two have drifted.',
+                );
+            }
         }
         for (const [prop, value] of Object.entries(node.props ?? {})) {
             const attribute = attributeOf(prop);

@@ -67,7 +67,9 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     authoredTags,
     sharedTreeExpectations,
+    sharedTreePlacements,
     subjectIndexOf,
+    withoutPlacements,
     type SharedTreeExpectation,
 } from '@gjsify/adwaita-core/conformance';
 // The core's OWN character count, applied to text taken off the tree. Counting here
@@ -232,6 +234,61 @@ export const AdwSharedTreesNsTest = async () => {
                 expect(realised(root, wanted).map(({ tag }) => tag)).toStrictEqual(wanted);
             });
         }
+    });
+
+    await describe('the shared corpus is placed where it says', async () => {
+        // THE BOUND THIS CLOSES, named where ADR 0051 § Amendment 3 recorded it: this
+        // driver's walks filter the realised tree down to the authored classes, so a child
+        // placed in the wrong slot of the right parent keeps every authored node in every
+        // authored position — two deliberate mis-placements were applied to this port and
+        // both stayed GREEN. A CONTROL closes it without a table: `withoutPlacements` is the
+        // tree a builder that never read `slot` hands this renderer, and it is what this
+        // builder handed it until now, so the two realised trees being identical IS the
+        // regression. Nesting and class name only — nothing the authored slot itself writes.
+        const structure = (node: TreeNode): string => {
+            const children: string[] = [];
+            if (node instanceof LayoutBase) {
+                for (let index = 0; index < node.getChildrenCount(); index++) {
+                    children.push(structure(node.getChildAt(index)));
+                }
+            }
+            return `${node.constructor.name}[${children.join(',')}]`;
+        };
+
+        for (const block of blocks) {
+            const placements = sharedTreePlacements(block.authored);
+            if (placements.length === 0) continue;
+            const named = placements.map(({ path, slot }) => `${path} -> ${slot}`).join(', ');
+            await it(`${block.widget} — ${named}: the built tree is not the unplaced one`, () => {
+                const placed = structure(build(block.ns));
+                const unplaced = structure(build(withoutPlacements(block.ns)));
+
+                expect(placed === unplaced).toBe(false);
+            });
+        }
+
+        // Otherwise the loop above is green from emptiness — the corpus authored no slot at
+        // all until a `.blp` forced the question.
+        await it('the corpus authors a placement at all', () => {
+            expect(blocks.some((block) => sharedTreePlacements(block.authored).length > 0)).toBe(true);
+        });
+
+        // THE OTHER HALF OF READING A SLOT, and the corpus cannot carry it: `top` is the
+        // name GTK and the web both spell, and this port spells `topBar` — the `vocabulary`
+        // divergence the gallery ledger already records, now LOUD instead of a header bar
+        // quietly landing in the content cell.
+        await it('a placement this dialect does not spell is refused BY NAME', () => {
+            expect(() => build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot: 'top' }] })).toThrow(
+                'declares no such builder slot',
+            );
+        });
+
+        await it('the name this dialect DOES spell places the child', () => {
+            const placed = build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot: 'topBar' }] });
+            const unplaced = build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar' }] });
+
+            expect(structure(placed) === structure(unplaced)).toBe(false);
+        });
     });
 
     await describe('the shared corpus against the adwaita-core vectors it reaches', async () => {

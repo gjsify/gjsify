@@ -542,6 +542,7 @@ whole section.
     ```html
     <adw-preferences-group>
       <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
+        <gtk-button slot="prefix" label="Test"></gtk-button>
         <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
         <adw-switch-row title="Use authentication"></adw-switch-row>
       </adw-expander-row>
@@ -551,6 +552,7 @@ whole section.
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const row = new Adw.ExpanderRow({
         title: 'Proxy settings',
@@ -558,6 +560,7 @@ whole section.
         expanded: true,
     });
 
+    row.add_prefix(new Gtk.Button({ label: 'Test' }));
     row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
     row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```
@@ -572,6 +575,11 @@ whole section.
         title: _("Proxy settings");
         subtitle: _("Route traffic through a custom proxy");
         expanded: true;
+
+        [prefix]
+        Gtk.Button {
+          label: _("Test");
+        }
 
         Adw.EntryRow {
           title: _("Host");
@@ -588,6 +596,7 @@ whole section.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const row = new Adw.ExpanderRow({
         title: 'Proxy settings',
@@ -595,6 +604,7 @@ whole section.
         expanded: true,
     });
 
+    row.add_prefix(new Gtk.Button({ label: 'Test' }));
     row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
     row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```

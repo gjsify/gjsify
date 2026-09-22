@@ -19,16 +19,15 @@
 // for the corpus module (`packages/nativescript-bridge/adwaita/src/shared-trees.spec.ts`), for
 // the same reason: the thing under test lives outside the package that renders it.
 //
-// WHAT THIS MEASURED THAT NOTHING HAD: SLOT PLACEMENT IS NOT CARRIED, AND IT COSTS CAPTIONS.
-// `SharedTreeNode.slot` is on the node shape and read by NONE of the three tree builders. That
-// went unnoticed because ADR 0051's seven-block corpus authors zero slots — a `.blp` is the
-// first source that authors any, and this one authors four. The two `it.failing` cases below
-// are what it costs on this renderer, and they are `it.failing` rather than a note so they go
-// red the day placement lands: the header bar authored `[top]` lands in the toolbar view's
-// CONTENT, and the `title-widget:` window title is then discarded by `adw-header-bar`'s own
-// build, which derives a title element of its own when its centre is empty. Both captions in it
-// — marked `_()` in the source — are simply absent from the rendered document, which is exactly
-// the defect ADR 0033 gives as its reason for preferring a declarative template.
+// WHAT THIS MEASURED THAT NOTHING HAD, AND WHAT CLOSED IT: SLOT PLACEMENT WAS NOT CARRIED, AND
+// IT COST CAPTIONS. `SharedTreeNode.slot` was on the node shape and read by none of the three
+// tree builders. That went unnoticed because ADR 0051's seven-block corpus authors zero slots —
+// a `.blp` is the first source that authors any, and this one authors four. The two cases below
+// were `it.failing` markers for exactly this gap — the header bar authored `[top]` landing in the
+// toolbar view's CONTENT instead, and the `title-widget:` window title then discarded by
+// `adw-header-bar`'s own build, which derives a title element of its own when its centre is
+// empty — until the builders were given a slot reader (`shared-tree-builder.ts`,
+// `adw-header-bar.ts`, `adw-toolbar-view.ts`); both are plain `it()` now that placement holds.
 //
 // Giving `slot` a reader is a SHARED-VOCABULARY decision and not wiring: `content:`, `[top]` and
 // `title-widget:` are GtkBuilder's names, this renderer's are the unnamed slot, `top` and
@@ -84,7 +83,7 @@ export const AdwBlueprintTreeTest = async () => {
             // GtkBuilder spell the same way. Asserting the whole tree here would PASS and prove
             // nothing — `adw-header-bar` derives a title element of its own, so the filtered
             // sequence has one `adw-window-title` either way and the authored one can vanish
-            // with the count intact. That node is held by the `it.failing` below instead.
+            // with the count intact. That node is held by the caption case below instead.
             const { root, unmount } = mountSharedTree(windowTree);
             try {
                 const authored = new Set(authoredTags(windowTree).map(hostTagOf));
@@ -127,38 +126,25 @@ export const AdwBlueprintTreeTest = async () => {
             }
         });
 
-        await it.failing(
-            'places a [top] child in the bar the .blp named',
-            async () => {
-                const { root, unmount } = mountSharedTree(windowTree);
-                try {
-                    const headerBar = root.querySelector('adw-header-bar');
-                    expect(headerBar?.parentElement?.className).toBe('adw-toolbar-view-top');
-                } finally {
-                    unmount();
-                }
-            },
-            'no tree builder reads `SharedTreeNode.slot` — see this file’s header. The bar ' +
-                'lands in `adw-toolbar-view-content` instead, and a per-renderer slot table is ' +
-                'the translator ADR 0051 refuses.',
-        );
+        await it('places a [top] child in the bar the .blp named', async () => {
+            const { root, unmount } = mountSharedTree(windowTree);
+            try {
+                const headerBar = root.querySelector('adw-header-bar');
+                expect(headerBar?.parentElement?.className).toBe('adw-toolbar-view-top');
+            } finally {
+                unmount();
+            }
+        });
 
-        await it.failing(
-            'renders every caption the .blp marks for translation',
-            async () => {
-                const { root, unmount } = mountSharedTree(windowTree);
-                try {
-                    const text = root.textContent ?? '';
-                    const missing = markedCaptions(windowTree).filter((caption) => !text.includes(caption));
-                    expect(missing.join(' | ')).toBe('');
-                } finally {
-                    unmount();
-                }
-            },
-            'the `title-widget:` window title is placed by slot, so it reaches `adw-header-bar` ' +
-                'as a plain child and is discarded by the build that derives a title of its own. ' +
-                'Its two `_()` captions are absent from the document — ADR 0033’s own reason ' +
-                'for preferring a template, arriving through the slot gap.',
-        );
+        await it('renders every caption the .blp marks for translation', async () => {
+            const { root, unmount } = mountSharedTree(windowTree);
+            try {
+                const text = root.textContent ?? '';
+                const missing = markedCaptions(windowTree).filter((caption) => !text.includes(caption));
+                expect(missing.join(' | ')).toBe('');
+            } finally {
+                unmount();
+            }
+        });
     });
 };

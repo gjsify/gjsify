@@ -38,8 +38,11 @@ import Gtk from 'gi://Gtk?version=4.0';
 import {
     authoredTags,
     sharedTreeExpectations,
+    sharedTreePlacements,
     subjectIndexOf,
+    withoutPlacements,
     type SharedTreeExpectation,
+    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 
 import { ADWAITA_GALLERY_SHARED_TREES, gtkHostTree } from '../../../../scripts/adwaita-gallery-shared-trees.mjs';
@@ -109,37 +112,125 @@ export default async () => {
         }));
 
         /**
-         * Depth-first over the real tree, filtered to the authored classes: the libadwaita
-         * internals between them (a revealer, a listbox, a gizmo) are not the renderer's
-         * promise, the ORDER and the NESTING of what was authored is. Exact type names, so a
-         * subclass cannot stand in.
+         * Build a block, and read back the real tree filtered to the widgets THIS BUILD made.
+         *
+         * Depth-first over the real tree: the libadwaita internals between the authored nodes
+         * (a revealer, a listbox, a gizmo) are not the renderer's promise, the ORDER and the
+         * NESTING of what was authored is.
+         *
+         * BY IDENTITY, NOT BY CLASS NAME, and that changed when the corpus first authored a
+         * `GtkButton`: `AdwEntryRow`'s own apply button is a `GtkButton` too, so a name filter
+         * read one node too many and the order assertion failed on a tree that was right. The
+         * builder hands back what it created, which is the only answer that stays true however
+         * far the corpus grows into libadwaita's own vocabulary.
          */
-        const realised = (root: Gtk.Widget, wanted: readonly string[]) => {
-            const set = new Set(wanted);
-            return descendants(root).filter((candidate) => set.has(typeName(candidate)));
+        const build = (block: { host: SharedTreeNode }) => {
+            const built: HostElement[] = [];
+            const root = widgetOf(buildSharedTree(block.host, built));
+            const ours = new Set(built.map(widgetOf));
+            return { root, realised: descendants(root).filter((candidate) => ours.has(candidate)) };
         };
 
         await gated(diagnostics, 'the shared corpus builds through gtk-host', async () => {
             for (const block of blocks) {
                 await it(`${block.widget} builds, and the REAL tree carries the authored nodes in order`, () => {
-                    const root = widgetOf(buildSharedTree(block.host));
-                    const wanted = authoredTags(block.authored);
-
-                    expect(realised(root, wanted).map(typeName)).toStrictEqual(wanted);
+                    expect(build(block).realised.map(typeName)).toStrictEqual(authoredTags(block.authored));
                 });
             }
+        });
+
+        /**
+         * The realised tree as NESTING AND TYPE ONLY — no property, no attribute, and in
+         * particular nothing derived from the authored slot itself.
+         *
+         * That exclusion is what makes the comparison below mean something: an `adw-*` tree
+         * carrying its own `slot=` would differ between the two builds on the attribute
+         * alone, and the arm would pass while the widget sat in the wrong container.
+         */
+        const structure = (widget: Gtk.Widget): string => {
+            const children: string[] = [];
+            for (let child = widget.get_first_child(); child; child = child.get_next_sibling()) {
+                children.push(structure(child));
+            }
+            return `${typeName(widget)}[${children.join(',')}]`;
+        };
+
+        await gated(diagnostics, 'the shared corpus is placed where it says', async () => {
+            // A CONTROL, not a table of where each slot lands. `withoutPlacements` is the
+            // tree a builder that never read `slot` hands this renderer — which is what all
+            // three builders did — so the two realised trees being IDENTICAL is exactly that
+            // regression, and no per-widget knowledge enters the driver to catch it. What it
+            // proves is narrow on purpose: the placement was HONOURED, not that libadwaita
+            // put it where libadwaita should.
+            for (const block of blocks) {
+                const placements = sharedTreePlacements(block.authored);
+                if (placements.length === 0) continue;
+                const named = placements.map(({ path, slot }) => `${path} -> ${slot}`).join(', ');
+                await it(`${block.widget} — ${named}: the built tree is not the unplaced one`, () => {
+                    const placed = structure(build(block).root);
+                    const unplaced = structure(build({ host: withoutPlacements(block.host) }).root);
+
+                    expect(placed === unplaced).toBe(false);
+                });
+            }
+
+            // Otherwise the loop above is green from emptiness, which is the one way this
+            // arm can lie: the corpus authored no slot at all until a `.blp` forced the
+            // question, and a suite that says nothing about its own denominator would have
+            // read the same either way.
+            await it('the corpus authors a placement at all', () => {
+                expect(blocks.some((block) => sharedTreePlacements(block.authored).length > 0)).toBe(true);
+            });
+
+            // THE OTHER HALF OF READING A SLOT, and the corpus cannot carry it: a name this
+            // renderer has no destination for. Authored here rather than admitted to the
+            // shared source, because a tree no renderer can build is not a shared tree.
+            await it('a slot the parent has no destination for is refused BY NAME', () => {
+                expect(() =>
+                    buildSharedTree({
+                        tag: 'adw-expander-row',
+                        children: [{ tag: 'gtk-button', slot: 'middle' }],
+                    }),
+                ).toThrow('has no slot "middle"');
+            });
+
+            await it('a slot on a parent with no slots at all is refused too', () => {
+                // `AdwPreferencesGroup` is `ordered`, so this used to be read as no slot at
+                // all and the row landed in the list — the silent half of the same defect.
+                expect(() =>
+                    buildSharedTree({
+                        tag: 'adw-preferences-group',
+                        children: [{ tag: 'adw-entry-row', slot: 'header-suffix' }],
+                    }),
+                ).toThrow('has no slot "header-suffix"');
+            });
+
+            await it('the PROPERTY spelling of a slot reaches the same widget as its bracket', () => {
+                // `[title]` and `title-widget:` are one placement written two ways, and GTK
+                // accepts both: the buildable branch calls the setter. A `.blp` authoring the
+                // second carried a name the descriptor's key alone would have refused.
+                const bar = widgetOf(
+                    buildSharedTree({
+                        tag: 'adw-header-bar',
+                        children: [{ tag: 'adw-window-title', slot: 'title-widget', props: { title: 'Placed' } }],
+                    }),
+                ) as unknown as Adw.HeaderBar;
+                const title = bar.get_title_widget();
+
+                expect(title === null ? 'nothing at all' : typeName(title as unknown as Gtk.Widget)).toBe(
+                    'AdwWindowTitle',
+                );
+            });
         });
 
         await gated(diagnostics, 'the shared corpus against the adwaita-core vectors it reaches', async () => {
             for (const block of blocks) {
                 for (const expectation of sharedTreeExpectations(block.authored)) {
                     await it(`${block.widget} — ${expectation.path}: ${expectation.table} — ${expectation.rule}`, () => {
-                        const root = widgetOf(buildSharedTree(block.host));
                         // The SAME filtered walk the shape test asserts, so the widget an
                         // expectation is read off is the one at the authored ADDRESS rather
                         // than the first of its class the tree happens to contain.
-                        const built = realised(root, authoredTags(block.authored));
-                        const subject = built[subjectIndexOf(block.authored, expectation.path)]!;
+                        const subject = build(block).realised[subjectIndexOf(block.authored, expectation.path)]!;
                         expect(typeName(subject)).toBe(expectation.gtype);
 
                         expect(read(expectation, subject)).toBe(expectation.expected);

@@ -38,7 +38,7 @@ import {
 import { splitViewColumns } from './split-view-state.js';
 import type { AdwPackType, NsShowSidebarNotification, NsSplitViewState } from './split-view-state.js';
 import type { AdwTextDirection } from '@gjsify/adwaita-core';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { withSignals } from './signals.js';
 
@@ -58,6 +58,9 @@ const SPLIT_VIEW_SLOTS = ['sidebar', 'content'] as const;
 export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends withSignals(
     GridLayout,
 ) {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(SPLIT_VIEW_SLOTS, 'content');
+
     protected _sidebar: View | null = null;
     protected _content: View | null = null;
     /** The three width PROPERTIES; the drawn width is derived from them. */

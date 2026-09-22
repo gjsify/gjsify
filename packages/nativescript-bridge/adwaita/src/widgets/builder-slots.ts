@@ -24,6 +24,45 @@
 // `@nativescript/core` at module scope).
 
 /**
+ * Every name a widget's `_addChildFromBuilder` answers to — its own slots and the
+ * fallback, in one list.
+ *
+ * WHY A WIDGET DECLARES THEM AT ALL, when {@link resolveBuilderSlot} already routes:
+ * routing is total by design, so an XML child naming a slot this widget does not have
+ * takes the fallback and lands somewhere plausible, silently — which is exactly right
+ * for a bare `<AdwHeaderBar>` child arriving under its ELEMENT name, and exactly wrong
+ * for a tree that AUTHORED a placement. A builder realising an authored tree has to be
+ * able to ask, before the write, whether the name means anything here; the answer is
+ * the widget's own, so it lives on the widget rather than in a table beside it.
+ *
+ * The fallback is IN the list: it is a name this widget honours — `content` on a
+ * toolbar view, `row` on an expander — and a caller that spells it deliberately gets
+ * the placement it asked for rather than a refusal.
+ */
+export function builderSlotsOf<Slot extends string, Fallback extends string>(
+    slots: readonly Slot[],
+    fallback: Fallback,
+): readonly (Slot | Fallback)[] {
+    return (slots as readonly (Slot | Fallback)[]).includes(fallback) ? slots : [...slots, fallback];
+}
+
+/** A widget class that declares {@link builderSlotsOf} — read by the shared-tree builder. */
+export interface BuilderSlotDeclaring {
+    readonly builderSlots: readonly string[];
+}
+
+/**
+ * The slots a widget CLASS declares, or `null` when it declares none.
+ *
+ * `null` and an empty list are different answers: a class with no declaration cannot be
+ * asked, so the builder refuses every authored slot for it rather than inventing one.
+ */
+export function declaredBuilderSlots(ctor: unknown): readonly string[] | null {
+    const slots = (ctor as Partial<BuilderSlotDeclaring> | undefined)?.builderSlots;
+    return Array.isArray(slots) ? slots : null;
+}
+
+/**
  * The slot an XML child asks for, or `fallback` when it asks for nothing this
  * widget knows.
  *

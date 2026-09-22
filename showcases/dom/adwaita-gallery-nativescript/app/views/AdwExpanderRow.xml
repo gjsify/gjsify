@@ -1,12 +1,16 @@
 <adw:PreferencesGroup
   xmlns="http://schemas.nativescript.org/tns.xsd"
   xmlns:adw="~/adw"
+  xmlns:gtk="~/gtk"
 >
   <adw:ExpanderRow
     title="Proxy settings"
     subtitle="Route traffic through a custom proxy"
     expanded="true"
   >
+    <adw:ExpanderRow.prefix>
+      <gtk:Button label="Test" />
+    </adw:ExpanderRow.prefix>
     <adw:EntryRow
       title="Host"
       text="proxy.example.com"

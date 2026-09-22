@@ -30,7 +30,7 @@ import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
@@ -51,7 +51,29 @@ export interface NotifyExpandedEventData extends EventData {
 /** What an XML child of an expander row can ask for; anything else is a disclosure row. */
 const EXPANDER_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
+/**
+ * What an AUTHORED TREE may ask for, which is `suffix` short of what XML may.
+ *
+ * The suffix of an expander row is not free: the constructor puts the disclosure chevron
+ * there with `add_suffix`, and `AdwActionRow.add_suffix` holds ONE view — a second call
+ * runs `this.remove(this._suffix)` first. On this class `remove()` is overridden to
+ * `this._disclosure.removeChild(view)`, and the chevron was never in the disclosure
+ * container, so an authored `slot: "suffix"` evicts the chevron through a container that
+ * never held it. libadwaita's own `adw_expander_row_add_suffix` coexists with the arrow;
+ * this port's one-slot rule is what cannot, and widening it is a layout change, not a
+ * builder change.
+ *
+ * So the tree builder is told the truth: `suffix` is REFUSED BY NAME here rather than
+ * accepted and quietly destroying the affordance — which is the whole rule this change
+ * exists to state. Hand-written XML is unaffected: {@link resolveBuilderSlot} below still
+ * routes both names, because that path has always been "land somewhere plausible".
+ */
+const EXPANDER_ROW_AUTHORED_SLOTS = ['prefix'] as const;
+
 export class AdwExpanderRow extends AdwActionRow {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(EXPANDER_ROW_AUTHORED_SLOTS, 'row');
+
     /** `AdwExpanderRow` derives from `AdwPreferencesRow` in C
      *  (adw-expander-row.c:72), so the search does not consult a subtitle here. */
     override readonly isActionRow: boolean = false;

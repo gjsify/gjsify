@@ -64,10 +64,16 @@
 /**
  * @typedef {Object} SharedNode
  * @property {string} tag                  a GIR class name, e.g. 'AdwPreferencesGroup'
- * @property {string} [slot]               placement in the parent — see the note in
- *                                         {@link ADWAITA_GALLERY_TREE_DIVERGENCES}: the two
- *                                         renderers spell slots differently, so no shared
- *                                         tree uses one yet
+ * @property {string} [slot]               placement in the parent, spelled the way ALL THREE
+ *                                         renderers spell it — the no-alias admission rule
+ *                                         applied to a placement. Most slots do not qualify
+ *                                         yet (`start`/`title`/`end` against
+ *                                         `startBox`/`titleWidget`/`endBox` in
+ *                                         {@link ADWAITA_GALLERY_TREE_DIVERGENCES}); a row's
+ *                                         `prefix` does, which is why the one authored here
+ *                                         is a PREFIX — the suffix of an expander row is
+ *                                         held by its disclosure chevron and refused, see
+ *                                         `adw-expander-row.ts`.
  * @property {Record<string, string|number|boolean>} [props]
  * @property {SharedNode[]} [children]
  */
@@ -153,6 +159,23 @@ export const ADWAITA_GALLERY_SHARED_TREES = [
                         expanded: true,
                     },
                     children: [
+                        // THE FIRST AUTHORED PLACEMENT IN THIS FILE, and the reason it is a
+                        // prefix: `prefix` is spelled the same by all three renderers
+                        // (`add_prefix` in `gtk-host`'s descriptor, `{ name: 'prefix' }` in
+                        // `adwaita-web`'s slot binding, `ACTION_ROW_SLOTS` in the port's
+                        // `_addChildFromBuilder`), so it meets the no-alias admission rule
+                        // this file states above — and it is NOT any renderer's default, so
+                        // a builder that drops `slot` puts it in the disclosure instead of
+                        // the header and the drivers say so. Every builder read only
+                        // `tag`/`props`/`children` until a real `.blp` authored a placement
+                        // and nothing in this corpus could see it.
+                        //
+                        // NOT the suffix, measured rather than chosen: an expander row's
+                        // suffix already HOLDS the disclosure chevron on the NativeScript
+                        // port, whose one-slot `add_suffix` then tries to remove a view it
+                        // never parented and throws. A shared block may not need a renderer
+                        // to change to build it.
+                        { tag: 'GtkButton', slot: 'prefix', props: { label: 'Test' } },
                         { tag: 'AdwEntryRow', props: { title: 'Host', text: 'proxy.example.com' } },
                         { tag: 'AdwSwitchRow', props: { title: 'Use authentication' } },
                     ],

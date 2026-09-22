@@ -84,6 +84,26 @@ export interface SharedTreeNode {
      * projection can be held against each other on it — and are, by stage D's addressing arm.
      */
     template?: string;
+    /**
+     * Where in the parent this child goes — the placement, spelled as the GTK side spells it.
+     *
+     * ONE FIELD FOR TWO GtkBuilder CONSTRUCTS, and the conflation is the projection's, not a
+     * choice made here: `[start]` is `<child type="start">` and `content: …` is a
+     * property-valued child, and both land on this field, so it cannot be inverted (the
+     * Blueprint corpus's `expectations.mjs` states it as finding 1). A renderer therefore has
+     * to answer to both spellings of a placement it has — `gtk-host` derives the property name
+     * from its own `set_`-prefixed slot method, `<adw-header-bar>` names `title-widget` beside
+     * its own `center`.
+     *
+     * A SHARED TREE MAY CARRY ONE ONLY WHERE EVERY RENDERER SPELLS IT THE SAME. That is the
+     * corpus's no-alias admission rule applied to a placement, and it is narrow: a row's
+     * `prefix`/`suffix` qualify, a header bar's `start`/`title`/`end` do not
+     * (`startBox`/`titleWidget`/`endBox` on the NativeScript port), which is why those blocks
+     * are ledgered as `vocabulary` divergences. A renderer handed a name it has no destination
+     * for REFUSES and says which — the alternative was measured on a shipped `.blp`, where a
+     * `[top]` header bar landed in the content and the window title was then discarded by the
+     * bar's own construction, at exit 0.
+     */
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     /**
@@ -263,6 +283,50 @@ export function authoredNodes(root: SharedTreeNode): { node: SharedTreeNode; pat
  */
 export function authoredTags(root: SharedTreeNode, tagOf: (gtype: string) => string = (gtype) => gtype): string[] {
     return authoredNodes(root).map(({ node }) => tagOf(node.tag));
+}
+
+/** One authored placement: the node's address, and the slot it named. */
+export interface SharedTreePlacement {
+    /** The pre-order address {@link subjectIndexOf} reads, so a failure names a node. */
+    path: string;
+    /** The slot the tree authored, spelled the way every renderer admitting the block spells it. */
+    slot: string;
+}
+
+/**
+ * Every node of `root` that names a placement.
+ *
+ * WHAT THIS IS FOR. A driver comparing only the authored classes IN ORDER cannot see a
+ * slot at all: a child placed in the wrong slot of the right parent keeps every authored
+ * node in every authored position. ADR 0051 § Amendment 3 measured exactly that on the
+ * NativeScript port — two deliberate mis-placements, both GREEN — and the corpus authored
+ * no slot to catch it with until one did. This is the renderer-free half of the answer;
+ * what a driver DOES with it is its own, because "the child ended up in slot X" has no
+ * shared observable.
+ */
+export function sharedTreePlacements(root: SharedTreeNode): SharedTreePlacement[] {
+    return authoredNodes(root)
+        .filter(({ node }) => node.slot !== undefined)
+        .map(({ node, path }) => ({ path, slot: node.slot as string }));
+}
+
+/**
+ * The same tree with every placement dropped — what a renderer that never read `slot`
+ * builds.
+ *
+ * THE CONTROL, and it is why a placement assertion can be made without a per-widget table
+ * of where each slot lands. A driver builds the tree twice and asserts the two REALISED
+ * trees differ: with the slots honoured a suffix sits in its row's header, without them it
+ * sits wherever that parent's default placement puts it. Every builder here read only
+ * `tag`, `props` and `children`, so the two builds were byte-identical — which is the
+ * regression this control turns red.
+ *
+ * Fresh nodes all the way down, never the authored ones: a driver handed the corpus's own
+ * objects could edit what the next block builds.
+ */
+export function withoutPlacements(root: SharedTreeNode): SharedTreeNode {
+    const { slot: _dropped, children, ...rest } = root;
+    return { ...rest, ...(children === undefined ? {} : { children: children.map(withoutPlacements) }) };
 }
 
 /**

@@ -1020,9 +1020,12 @@ as agreement.
 
 *The `vocabulary` ones close for free when the convergence that gate already counts down
 lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
-slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
-why no shared tree uses one yet: the shared source admits a block only when it needs no
-alias, and every slotted pair still needs three. `Adw.Spinner` sat here until its `spinning`
+slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. The shared
+source admits a block only when it needs no alias, and that rule applies to a PLACEMENT the
+same way (ADR 0071): a row's `prefix`/`suffix` are spelled identically by all three
+renderers and the corpus authors one, a header bar's three still need three names and its
+block stays here. A renderer handed a name it does not have refuses by name rather than
+placing the child somewhere close by, so the remaining gaps are loud. `Adw.Spinner` sat here until its `spinning`
 half was read: a `vocabulary` entry PROMISES the block lands in the shared source for free
 when the renames land, so a missing property filed under it is a promise nothing can keep.
 
@@ -1094,9 +1097,9 @@ other way.** ADR 0051's last open stage asked for exactly that, and the measurem
 overturned it — ADR 0051 § Amendment 2 carries it block by block, and the count is left
 there with its commit rather than copied here. Some shared blocks already read as the
 corpus would emit them; the rest each document something a `SharedNode` cannot author, and
-not one of those is an accident: a `slot=` child and a
-`Gio.ListModel` row (the corpus uses no slot at all, and ADRs 0042/0046/0047's portable
-values have no shared spelling), four further examples of one widget beside a flex wrapper
+not one of those is an accident: a `slot=` child on a header bar and a
+`Gio.ListModel` row (the corpus carries only placements every renderer spells the same, and
+ADRs 0042/0046/0047's portable values have no shared spelling), four further examples of one widget beside a flex wrapper
 (a tree driver builds ONE tree), and a generated gloss line that
 `generate-adwaita-attribute-comments.mjs` owns and arm 12 holds. The corpus is SELECTED for
 agreement between two renderers, so what it drops is exactly what they disagree about —

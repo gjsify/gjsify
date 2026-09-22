@@ -282,8 +282,16 @@ export class LayoutBase extends View {
      * ALREADY HAS A PARENT (`ui/core/view-base/index.ts`: "View already has a parent"),
      * because a view lives in exactly one native hierarchy. A port that parents a view twice
      * ships a tree no device can hold, and without this it composes it quietly.
+     *
+     * A HARD-PRIVATE `#` METHOD, and that is not style. This was `private _adopt`, which
+     * TypeScript erases: a widget declaring its own `_adopt` SHADOWS it on the prototype, so
+     * `addChild` below called the SUBCLASS's method instead — measured, `GtkButton._adopt`
+     * (which ends in `this.addChild`) recursed until the stack ran out, the moment a corpus
+     * block first put a button in a row's suffix. Upstream's own name is `_addView` and is
+     * not in the ambient slice, so the double may not take an underscored name at all: `#`
+     * is unreachable from a subclass by construction and cannot be collided with.
      */
-    private _adopt(view: View): void {
+    #adopt(view: View): void {
         if (!view) throw new Error('Expecting a valid View instance.');
         if (!(view instanceof View)) throw new Error(`${String(view)} is not a valid View instance.`);
         const parent = PARENTS.get(view);
@@ -296,12 +304,12 @@ export class LayoutBase extends View {
     }
 
     addChild(view: View): void {
-        this._adopt(view);
+        this.#adopt(view);
         this._childViews.push(view);
     }
 
     insertChild(view: View, atIndex: number): void {
-        this._adopt(view);
+        this.#adopt(view);
         this._childViews.splice(atIndex, 0, view);
     }
 
@@ -339,7 +347,7 @@ export class LayoutBase extends View {
      *
      * ONE DELIBERATE DIVERGENCE, so it is not read later as an oversight. Upstream guards
      * `if (value instanceof View)` and DROPS anything else, silently; here the non-view
-     * reaches `_adopt` and throws. Stricter than the platform on purpose: a child door
+     * reaches `#adopt` and throws. Stricter than the platform on purpose: a child door
      * handed a non-view is a port defect either way, and this surface's whole problem is
      * that its two doors fail without saying anything.
      */

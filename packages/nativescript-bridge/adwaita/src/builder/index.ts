@@ -31,6 +31,8 @@
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import type { View } from '@nativescript/core';
 
+import { declaredBuilderSlots } from '../widgets/builder-slots.js';
+
 // The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
 // Imported as MODULE NAMESPACES because that is literally what this door is:
 // `component-builder`'s `createComponentInstance` ends in `instanceModule[elementName]`, and
@@ -101,7 +103,8 @@ interface BuilderParent {
 
 /**
  * Build one authored node the way NativeScript's XML builder does: construct with no
- * arguments, write the attributes, then hand each child to the parent's own child door.
+ * arguments, write the attributes, then hand each child to the parent's own child door
+ * under the name its placement asks for ({@link builderNameFor}).
  *
  * AN ATTRIBUTE IS ALWAYS A STRING, and that is the door rather than a choice of this
  * builder: `setPropertyValue` ends in `instance[name] = value` with no conversion at all for
@@ -135,7 +138,44 @@ export function build(node: SharedTreeNode): View {
                     'the corpus nests a node this element cannot hold.',
             );
         }
-        parent._addChildFromBuilder(elementFor(child.tag).xmlName, build(child));
+        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), build(child));
     }
     return view;
+}
+
+/**
+ * The name this child arrives under — its authored SLOT, or its element name when it
+ * authored none.
+ *
+ * THE NAME IS THE WHOLE PLACEMENT HERE. `_addChildFromBuilder(name, view)` is NativeScript's
+ * one child door, and `name` is the complex-property name for `<AdwToolbarView.topBar>` and
+ * the plain element name for a bare child — which is never a slot name and so takes the
+ * widget's fallback, exactly as GtkBuildable's untyped `<child>` does. This builder passed
+ * the element name ALWAYS, so every authored placement in a tree it built took the fallback:
+ * measured on the shipped `.blp` this path was written for, a `[top]` header bar and the
+ * content landed in the same cell.
+ *
+ * AN UNKNOWN SLOT IS REFUSED, and it has to be refused HERE rather than inside the widget:
+ * `resolveBuilderSlot` is total by design — a name the widget does not have takes the
+ * fallback and lands somewhere plausible — and that totality is what makes a bare child
+ * work. So the question "is this name one you have" is asked of the class's own
+ * `builderSlots` declaration before the write, the same shape as the attribute door's
+ * membership test one loop up, and for the same reason: afterwards there is nothing left to
+ * report. A widget whose slot vocabulary does not yet spell what the corpus authored is a
+ * ledgered `vocabulary` divergence, not a child to place somewhere close by.
+ */
+function builderNameFor(element: Element, tag: string, child: SharedTreeNode): string {
+    const childElement = elementFor(child.tag);
+    if (child.slot === undefined) return childElement.xmlName;
+    const known = declaredBuilderSlots(element.ctor);
+    if (known === null || !known.includes(child.slot)) {
+        throw new Error(
+            `<${element.xmlName}.${child.slot}> reaches nothing: \`${tag}\` declares no such builder slot, so ` +
+                `NativeScript would hand <${childElement.xmlName}> to its fallback placement instead — at exit 0, ` +
+                `in a cell the tree never asked for. Known slots: ${
+                    known === null || known.length === 0 ? 'none' : known.join(', ')
+                }.`,
+        );
+    }
+    return child.slot;
 }

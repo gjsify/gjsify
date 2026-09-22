@@ -286,8 +286,21 @@ export const err = {
                 `Fix one of three things: give the parent a child policy, wrap the child in a container, ` +
                 `or set the child on a property (e.g. a "child" or "content" property).`,
         ),
+    /**
+     * A placement the parent has no destination for.
+     *
+     * The EMPTY case is the common one and it used to print `Known slots: .` — `ordered`,
+     * `indexed` and `none` parents declare no slot names at all, and those are exactly the
+     * parents a stray `slot=` lands on. A reader needs "this parent has none" to act; a
+     * trailing full stop after nothing reads like the message was cut off. Both other
+     * renderers already spell it out, so this is also what makes the three agree.
+     */
     unknownSlot: (parentTag: string, slot: string, known: string[]) =>
-        new GtkHostError('unknown-slot', `<${parentTag}> has no slot "${slot}". Known slots: ${known.join(', ')}.`),
+        new GtkHostError(
+            'unknown-slot',
+            `<${parentTag}> has no slot "${slot}". ` +
+                `Known slots: ${known.length > 0 ? known.join(', ') : 'none — it declares no slot names'}.`,
+        ),
     /**
      * An adder-backed slot with nothing that takes the child back out.
      *

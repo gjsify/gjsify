@@ -20,6 +20,7 @@ import {
     closeOutsideParent,
     detachOutsideParent,
     placeOutsideParent,
+    refuseUnknownSlot,
     refuseUnparentable,
     removeChild,
     setterSlotOf,
@@ -835,6 +836,10 @@ function attach(parent: HostElement, child: HostElement): void {
     // down": the append is `g_error()` and the process is gone.
     refuseUnparentable(parent, child);
 
+    // BEFORE the wrapper too, and for the same reason: a slot the parent cannot honour
+    // decides nothing further down, and every step after this one reads it.
+    refuseUnknownSlot(parent, child);
+
     ensureWrapper(parent, child);
 
     refuseOccupiedSlot(parent, child);
@@ -947,7 +952,7 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
     if (child.wrapper) return;
     let wrapper: Gtk.Widget | null;
     try {
-        wrapper = makeWrapper(parent.descriptor.children, child.widget as unknown as Gtk.Widget, child.slot);
+        wrapper = makeWrapper(parent.descriptor, child.widget as unknown as Gtk.Widget, child.slot);
     } catch (e) {
         if (e instanceof GtkHostError) throw e;
         throw err.rejectedChild(parent.descriptor.gtype, child.descriptor.gtype, (e as Error).message);
