@@ -574,6 +574,8 @@ export default async () => {
                 // host would refuse.
                 const problems: string[] = [];
                 const ahead: string[] = [];
+                /** Excused by the vocabulary-wide version and nothing finer — the blanket's real reach. */
+                const blanketed: string[] = [];
                 for (const [gtype, nicks] of Object.entries(ENUM_NICKS)) {
                     for (const nick of nicks) {
                         if (lookupEnumNick(gtype, nick) !== undefined) continue;
@@ -600,17 +602,41 @@ export default async () => {
                         // numbers were read from a TYPELIB, so a nick in it EXISTS, and
                         // the only excuse left is a running library older than the one
                         // it was read from.
-                        const excused = valued.has(`${gtype}.${nick}`) ? behindValues(gtype) : predatesHost(gtype);
-                        (excused ? ahead : problems).push(`${gtype}.${nick}`);
+                        const key = `${gtype}.${nick}`;
+                        if (valued.has(key)) {
+                            (behindValues(gtype) ? ahead : problems).push(key);
+                        } else if (excuseFor(gtype) === 'blanket') {
+                            blanketed.push(key);
+                        } else {
+                            (predatesHost(gtype) ? ahead : problems).push(key);
+                        }
                     }
                 }
                 if (ahead.length > 0)
                     console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
-                if (blunted.length > 0) {
+                // WHAT THE BLANKET ACTUALLY REACHED, not what it could reach. The note
+                // here used to read "every unresolvable nick is excused" whenever the
+                // vocabulary was ahead, which by then was already false — the line above
+                // it holds every nick the values artifact carries against `behindValues`,
+                // so the blanket only ever gets the remainder. Measured on this
+                // workstation: 2 nicks, both `GtkEditableProperties.prop-*`, against a
+                // sentence claiming all 778. That overstatement is its own defect: a
+                // reader who believes the check asserts nothing dismisses a red it really
+                // did produce, which is the "excused in bulk" habit that cost a day. So
+                // the count and the names are printed, and a run where the blanket caught
+                // nothing says THAT instead of confessing to blindness it does not have.
+                const versions = blunted
+                    .map((library) => `${library} ${generatedAgainst[library]} > running ${running[library]}`)
+                    .join(', ');
+                if (blanketed.length > 0) {
                     console.error(
-                        `  (this check is BLUNTED: ${blunted
-                            .map((library) => `${library} ${generatedAgainst[library]} > running ${running[library]}`)
-                            .join(', ')} — every unresolvable nick is excused)`,
+                        `  (BLUNTED for ${blanketed.length} nick(s) — excused by the vocabulary-wide version ` +
+                            `alone (${versions}), no per-member fact: ${blanketed.join(', ')})`,
+                    );
+                } else if (blunted.length > 0) {
+                    console.error(
+                        `  (the vocabulary is ahead (${versions}) and the blanket excused NOTHING: every ` +
+                            `unresolvable nick was answered by the values artifact)`,
                     );
                 }
                 expect(problems).toStrictEqual([]);
@@ -750,9 +776,26 @@ export default async () => {
                 // a version gap can only ADD members, and the one member in the corpus
                 // that legitimately MOVES is a count sentinel —
                 // `GtkEditableProperties.num-properties`, 8 on a GTK with eight editable
-                // properties and 10 on one with ten. That is why a mismatch is excused
-                // only where the host is NEWER than the artifact, and is named even then.
+                // properties and 10 on one with ten.
+                //
+                // AND THE EXCUSE IS THAT MEMBER, NOT THE VERSION. "Host is newer" alone
+                // read GREEN over a real defect, measured: `GtkLicense.0bsd` resolved to 0
+                // where the artifact says 18, because GTK's `.ui` parser truncates a
+                // digit-leading nick — and this workstation runs GTK 4.22.5 against an
+                // artifact read from 4.22.4, so a PATCH bump excused it. The darwin-arm64
+                // leg, whose GTK matched the artifact exactly, had no excuse available and
+                // went red on the same defect. A version comparison cannot tell a moved
+                // sentinel from a mis-resolved nick; naming the sentinel can, and a value
+                // that moves for some other reason is then a red with a name on it.
                 const values = Object.entries(ENUM_VALUES);
+                /**
+                 * The members a newer library may legitimately RENUMBER: counts, not values.
+                 *
+                 * Adding one costs an argument for why the library is allowed to move it —
+                 * `num-properties` is the number of editable properties, so it moves by
+                 * construction whenever GTK adds one. Nothing else in the corpus may.
+                 */
+                const COUNT_SENTINELS: ReadonlySet<string> = new Set(['GtkEditableProperties.num-properties']);
                 /** True where the RUNNING library is newer than the one the values came from. */
                 const hostIsAhead = (gtype: string): boolean => {
                     const library = libraryOf(gtype);
@@ -778,7 +821,8 @@ export default async () => {
                         continue;
                     }
                     if (here === value) continue;
-                    (hostIsAhead(gtype) ? moved : problems).push(`${key} is ${value} in the artifact and ${here} here`);
+                    const excused = COUNT_SENTINELS.has(key) && hostIsAhead(gtype);
+                    (excused ? moved : problems).push(`${key} is ${value} in the artifact and ${here} here`);
                 }
                 if (absent.length > 0)
                     console.error(`  (${absent.length} valued nick(s) this host does not have: ${absent.join(', ')})`);

@@ -140,13 +140,80 @@ function gtypeOfName(gtypeName: string): GObject.GType | undefined {
 }
 
 /**
- * One lazily built `Gtk.Builder`, the parser every nick in this file goes through.
+ * One lazily built `Gtk.Builder`, the parser almost every nick in this file goes through.
  *
  * Constructing one costs nothing and needs no `Gtk.init()` (measured), and 10 000
  * parses take 12 ms — so the ONE parser is affordable on the property path, which is
- * what keeps a second nick-resolution rule from existing in this package at all.
+ * what keeps a second nick-resolution rule out of everything but the one input the
+ * parser provably cannot answer (see {@link startsNumeric}).
  */
 let nickParser: Gtk.Builder | undefined;
+
+/** A flags value is a `|`-joined set, exactly as GObject and Blueprint spell one. */
+const FLAG_SEPARATOR = '|';
+
+/**
+ * `g_ascii_strtoull(text, …, 0)` would consume the WHOLE string.
+ *
+ * The one input whose NUMERIC reading is what the author wrote: `inputHints="5"` and
+ * `licenseType="18"`. Base 0, so `0x12` is 18 — the parser's own base, and a vector
+ * pins it, because a narrower `/^\d+$/` here would turn a hex literal GTK accepts into
+ * a refusal.
+ */
+const isWholeNumber = (text: string): boolean => /^[+-]?(?:0[xX][0-9a-fA-F]+|[0-9]+)$/.test(text.trim());
+
+/**
+ * `g_ascii_strtoull` would consume a PREFIX of this member and GTK would drop the rest.
+ *
+ * THE SILENT-WRONG NUMBER, and the reason the parser is not asked at all below.
+ * `_gtk_builder_enum_value_from_string` and its flags twin both try the number first and
+ * accept it on `endptr != string` — one consumed character is enough, and what follows
+ * is discarded without a diagnostic. Measured on GTK 4.22.5:
+ *
+ *   - `GtkLicense` `"0bsd"` -> `[true, 0]`, and the member is 18. `0` is `unknown`, so
+ *     an `<AdwAboutDialog licenseType="0bsd">` shows the wrong licence at exit 0.
+ *   - `GskTransformCategory` `"3d"` -> 3 (the member is 2), `"2d"` -> 2 (it is 3),
+ *     `"2d-affine"` -> 2 (it is 4), `"2d-translate"` -> 2 (it is 5) — four wrong
+ *     answers that are each ANOTHER VALID MEMBER, so nothing downstream can notice.
+ *   - `GtkInputHints` `"0nope"` -> `[true, 0]` and `"0|spellcheck"` -> `[true, 0]`,
+ *     i.e. every flag cleared with the rest of the set thrown away.
+ *
+ * This is the same class as {@link hasBlankMember}: GTK's parser answers, and the
+ * answer is wrong. Reach across the installed libraries: 1 of 1366 enum members and 0
+ * of 406 bitfield members over the six namespaces {@link GI_NAMESPACES} reaches, and in
+ * the shipped surface exactly one nick — `GtkLicense.0bsd`. No nick anywhere is made of
+ * digits ALONE, so `isWholeNumber` and this predicate never both want the same string;
+ * if one ever arrives, the NICK wins, which is what `parseNickText` orders below.
+ */
+const startsNumeric = (member: string): boolean => /^[+-]?[0-9]/.test(member.trim());
+
+/**
+ * The number an enum or bitfield member nick names, read off the INSTALLED type itself.
+ *
+ * The second resolution route, and it stays confined to `startsNumeric` members on
+ * purpose — the parser is authoritative for everything else and is MEASURED to be:
+ * swept over the six namespaces, `value_from_string_type(nick)` agrees with the
+ * member's own number on 1365 of 1366 enum members and 406 of 406 bitfield members, the
+ * single exception being the `0bsd` the parser truncates. Replacing the parser wholesale
+ * with this transform would trade a resolver that matches GTK's `.ui` dialect exactly
+ * for one that only derives it, and a GObject type that registers an explicit nick
+ * differing from its member name would then resolve here and nowhere else.
+ *
+ * NOT the generated nick table. `generated.spec.ts` validates that table by resolving
+ * every nick in it through {@link lookupEnumNick}; consulting it here would make the
+ * check validate itself. The installed type's members are a fact about the running
+ * library, which is what that check needs on the other side of the comparison.
+ *
+ * A namespace missing from {@link GI_NAMESPACES} answers `undefined`, and that is the
+ * safe direction: `Gsk` is absent and carries the four `GskTransformCategory` nicks
+ * above, so a property of that type entering the surface is REFUSED by name rather than
+ * silently given another member's value.
+ */
+function memberNickValue(valueType: GObject.GType, nick: string): number | undefined {
+    const members = giTypeObject(GObject.type_name(valueType));
+    const value = members?.[nick.trim().toUpperCase().replace(/-/g, '_')];
+    return typeof value === 'number' ? value : undefined;
+}
 
 /**
  * The number GTK's own `.ui` parser reads out of `text` for an enum or flags GType.
@@ -155,11 +222,25 @@ let nickParser: Gtk.Builder | undefined;
  * `flags_get_value_by_nick` are both present on the GJS namespace and both unusable
  * from it: the only way to reach a class is `GObject.type_class_ref`, which hands back
  * a `GObject.TypeClass` that GJS refuses to convert to `GObject.EnumClass`
- * ("Object is of type GObject.TypeClass - cannot convert"). That is the fact the old
- * refusal here was written against, and it is still true. What IS reachable is
- * `gtk_builder_value_from_string_type`, the parser a `.ui` file's every enum and flags
- * attribute goes through — so the spellings this host accepts are now GTK's own,
- * including the `|`-joined SET that GObject will not resolve.
+ * ("Object is of type GObject.TypeClass - cannot convert"). Re-measured on gjs 1.88.1,
+ * still true. What IS reachable is `gtk_builder_value_from_string_type`, the parser a
+ * `.ui` file's every enum and flags attribute goes through — so the spellings this host
+ * accepts are now GTK's own, including the `|`-joined SET that GObject will not resolve.
+ *
+ * WHERE THE CUT IS. The parser's numeric reading is only ever what the AUTHOR wrote
+ * when the whole string is a number, so that is the only shape allowed to reach it with
+ * a digit in front: a member that merely STARTS numeric would come back truncated and
+ * silent ({@link startsNumeric}). Such a member is a nick, and it is resolved off the
+ * installed type's members instead. The gate is in front of the parser rather than
+ * behind it because the parser's answer is indistinguishable from a real one — `0` is
+ * `GTK_LICENSE_UNKNOWN`, a legal value — so there is nothing to check afterwards.
+ *
+ * A `startsNumeric` member inside a SET is refused rather than resolved. No bitfield in
+ * any installed vocabulary has a digit-leading nick (0 of 874), so the shape only
+ * arises from a mistake — `"0|spellcheck"`, which GTK reads as plain `0` — and
+ * resolving half a set off one route and half off the other is a second dialect for a
+ * case that does not exist. If a digit-leading FLAG nick ever ships, this refuses it
+ * loudly and the vector that pins it turns red, which is the order we want.
  *
  * The `catch` is not defensive: the call is `throws="1"` and raises a GError for an
  * unparseable value ("Unknown flag: 'nope'", "Could not parse enum: 'sideways'").
@@ -167,6 +248,12 @@ let nickParser: Gtk.Builder | undefined;
  * which a GError out of GTK cannot.
  */
 function parseNickText(valueType: GObject.GType, text: string): number | undefined {
+    if (!isWholeNumber(text)) {
+        const members = text.split(FLAG_SEPARATOR);
+        if (members.some(startsNumeric)) {
+            return members.length === 1 ? memberNickValue(valueType, text) : undefined;
+        }
+    }
     nickParser ??= new Gtk.Builder();
     try {
         const [ok, value] = nickParser.value_from_string_type(valueType, text);
@@ -175,9 +262,6 @@ function parseNickText(valueType: GObject.GType, text: string): number | undefin
         return undefined;
     }
 }
-
-/** A flags value is a `|`-joined set, exactly as GObject and Blueprint spell one. */
-const FLAG_SEPARATOR = '|';
 
 /**
  * A member of a nick SET that names nothing — `""`, `"a|"`, `"|"`, `"a||b"`.

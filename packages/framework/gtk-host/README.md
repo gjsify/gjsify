@@ -55,6 +55,8 @@ gjs 1.88.1:
 | `input-hints: 'spellcheck|lowercase'` | dropped silently | resolves the nick SET through GTK's own `.ui` parser |
 | `input-hints: 'spellchek'` | same silence | throws `bad-flags`, naming the set and the GType |
 | `input-hints: ''` or `'spellcheck|'` | reads as 0 — every flag cleared, no diagnostic | throws `blank-flags` |
+| `licenseType: '0bsd'` | GTK's parser reads the leading `0` and drops `bsd` — 0 is `unknown`, no diagnostic | resolves the nick off the installed type: 18 |
+| `input-hints: '0nope'` or `'0|spellcheck'` | the same truncation on the flags side — plain 0 | throws `bad-flags` |
 | `model: 'Blue'` on a `Gio.ListModel` property | a CRITICAL and an EMPTY list | throws `bad-list-model`, naming the tag and the kind it got |
 | `model: ['a']` on `Gtk.ListView`, whose model is a `Gtk.SelectionModel` | `set_property` turns it into NULL and logs NOTHING — an empty view, and even the diagnostics gate is quiet; constructed with it, GJS throws from inside `materialize` | throws `list-model-mismatch` at the authoring call, naming the type GTK wants |
 | `adjustment: 5` on a `Gtk.Adjustment` property | guesses a GType, stores nothing | throws `bad-adjustment`: a number would be the `value`, which is its own property |
@@ -80,6 +82,19 @@ member is dropped without a word. Zero is a legal flags value, so a stray separa
 would be a widget with every flag cleared at exit 0 — the exact silent-wrong value
 this host exists to refuse. `blank-flags` covers all of them; `bad-flags` is the member
 that names nothing.
+
+**A nick with a leading DIGIT does not reach the parser.** `_gtk_builder_enum_value_from_string`
+and its flags twin try the number first and keep it as soon as one character parses as
+one, discarding the rest in silence. Measured on GTK 4.22.5: `GtkLicense` `"0bsd"` comes
+back `[true, 0]` where the member is 18, and `0` is `GTK_LICENSE_UNKNOWN` — a legal
+value, so there is nothing to detect afterwards. `GskTransformCategory` is worse: all
+four of `3d`, `2d`, `2d-affine`, `2d-translate` resolve to some OTHER valid member. So
+the numeric reading is allowed only where the WHOLE string is a number (`"18"`, `"0x12"`,
+`18` — base 0, as the parser reads it), and a member that merely starts numeric is
+resolved off the installed type's own members. One nick in the shipped surface has that
+shape (1 of 778 enum nicks, 0 of 95 bitfield ones) and none anywhere is made of digits
+alone; a digit-leading member inside a `|` set is refused rather than resolved, because
+no bitfield in any installed vocabulary has one.
 
 **The type surface takes both spellings.** A bitfield property is `<GType>NickSet |
 number`, where the set alias pins the FIRST member exactly and leaves the rest to the

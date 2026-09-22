@@ -53,6 +53,27 @@ export const hints = (
     </gtk-box>
 );
 
+/**
+ * The one nick in the surface that BEGINS WITH A DIGIT, and the number beside it.
+ *
+ * `GtkLicenseNick` has always offered `'0bsd'`, which is why this row matters: the type
+ * surface accepted the spelling while GTK's `.ui` parser read the leading `0` and
+ * dropped the rest, so it COMPILED and then stored `GTK_LICENSE_UNKNOWN`. Both rows are
+ * here because the fix divides exactly between them — a whole number keeps the parser's
+ * numeric reading, a nick does not.
+ *
+ * The numeric STRING `"18"` is deliberately absent: an enum property renders as
+ * `<GType>Nick | <Ns>.<Enum>`, so a numeric string is a runtime spelling this surface
+ * does not offer, and `nick-vectors.mts` is where it is held. A bitfield differs —
+ * `hints` above writes `0x9` against `<GType>NickSet | number`.
+ */
+export const licences = (
+    <gtk-box>
+        <adw-about-dialog licenseType="0bsd" />
+        <adw-about-dialog license-type={0x12} />
+    </gtk-box>
+);
+
 /** `ref` carries the widget's own instance type, not `unknown`. */
 export const boxRef = <gtk-box ref={(el) => el.set_spacing(12)} />;
 

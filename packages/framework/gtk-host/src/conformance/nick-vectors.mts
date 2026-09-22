@@ -219,4 +219,66 @@ export const NICK_VECTORS: readonly NickVector[] = [
         authored: '',
         outcome: { refuses: 'bad-enum' },
     },
+    // ── THE DIGIT-LEADING NICK, which the darwin-arm64 leg found and Fedora did not.
+    //
+    // `GtkLicense.0bsd` begins with a digit, and GTK's parser reads a value NUMERICALLY
+    // as soon as ONE character parses as one: `"0bsd"` comes back `[true, 0]`, `0` is
+    // `GTK_LICENSE_UNKNOWN`, and the dialog showed the wrong licence at exit 0. Same
+    // class as the blank flags member above — the parser answers, and the answer is
+    // wrong — and the only nick in the shipped surface with that shape (1 of 778 enum
+    // nicks, 0 of 95 bitfield ones).
+    //
+    // There is NO row for a nick made of digits alone, because none exists: 0 of 2483
+    // enum nicks and 0 of 874 bitfield nicks across every installed `@girs` vocabulary.
+    // The rows below are the edge instead — the nick, the numeric string, the number,
+    // and the base-0 spelling GTK also takes.
+    {
+        what: 'a nick with a LEADING DIGIT, which GTK truncates to 0',
+        tag: 'AdwAboutDialog',
+        prop: 'license-type',
+        authored: '0bsd',
+        outcome: { holds: 18 },
+    },
+    {
+        what: 'a purely numeric string on the same property keeps its numeric reading',
+        tag: 'AdwAboutDialog',
+        prop: 'license-type',
+        authored: '18',
+        outcome: { holds: 18 },
+    },
+    {
+        what: 'the number itself, the spelling every renderer could already write',
+        tag: 'AdwAboutDialog',
+        prop: 'license-type',
+        authored: 18,
+        outcome: { holds: 18 },
+    },
+    {
+        what: 'a hex literal — the parser reads base 0, so the gate in front of it must',
+        tag: 'AdwAboutDialog',
+        prop: 'license-type',
+        authored: '0x12',
+        outcome: { holds: 18 },
+    },
+    {
+        what: 'a digit-leading string that names NO member is still loud',
+        tag: 'AdwAboutDialog',
+        prop: 'license-type',
+        authored: '0bsdd',
+        outcome: { refuses: 'bad-enum' },
+    },
+    {
+        what: 'a digit-leading flags member, which GTK reads as 0 without a word',
+        tag: 'GtkEntry',
+        prop: 'input-hints',
+        authored: '0nope',
+        outcome: { refuses: 'bad-flags' },
+    },
+    {
+        what: 'a number INSIDE a set, where GTK keeps the number and drops the rest',
+        tag: 'GtkEntry',
+        prop: 'input-hints',
+        authored: '0|spellcheck',
+        outcome: { refuses: 'bad-flags' },
+    },
 ];
