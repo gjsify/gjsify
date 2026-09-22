@@ -59,6 +59,17 @@ export interface SharedNode {
      * the parser read rather than inventing a second value language for it.
      */
     translatable?: Record<string, { context?: string }>;
+    /**
+     * The style classes the source wrote, as a list and in source order.
+     *
+     * Filled from BOTH Blueprint spellings of one GTK property — the `styles [ ]` block and a
+     * `css-classes: [ ]` property value — because `GtkWidget:css-classes` is what each of them
+     * sets. A list and not a joined string: the oracle joins them differently per spelling,
+     * `<class name=…/>` per element against a NEWLINE-separated `<property>` text, so a string
+     * would have to pick one join and stop being comparable where the oracle picked the other
+     * (ADR 0068 § 2).
+     */
+    styleClasses?: string[];
     children?: SharedNode[];
 }
 

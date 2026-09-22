@@ -242,10 +242,11 @@ const entryFor = (widget) => {
 //
 // EVERY FIELD IS COPIED BY NAME, so this is the first place a new one is lost — ADR 0058 §
 // Implementation named it before there was a second field to lose, and ADR 0066 added two.
-// `id`, `template` and `translatable` (ADR 0067) are unreached by today's corpus and copied
-// anyway: a block that grows one must not have it dropped by a function that is silent about
-// what it does not know. The marking's copy is one level deeper than the others' — a shallow
-// spread would hand both renderers the SAME `{ context }` object.
+// `id`, `template`, `translatable` (ADR 0067) and `styleClasses` (ADR 0068) are unreached by
+// today's corpus and copied anyway: a block that grows one must not have it dropped by a
+// function that is silent about what it does not know. Two of them are copied one level deeper
+// than the rest — a shallow spread would hand both renderers the same `{ context }` object and
+// the same class ARRAY, which is the aliasing this function exists to prevent.
 const rebuild = (node, tagOf) => ({
     tag: tagOf(node.tag),
     ...(node.id === undefined ? {} : { id: node.id }),
@@ -255,6 +256,7 @@ const rebuild = (node, tagOf) => ({
     ...(node.translatable === undefined
         ? {}
         : { translatable: Object.fromEntries(Object.entries(node.translatable).map(([k, v]) => [k, { ...v }])) }),
+    ...(node.styleClasses === undefined ? {} : { styleClasses: [...node.styleClasses] }),
     ...(node.children === undefined ? {} : { children: node.children.map((child) => rebuild(child, tagOf)) }),
 });
 

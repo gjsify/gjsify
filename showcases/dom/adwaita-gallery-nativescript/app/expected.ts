@@ -27,6 +27,8 @@ export interface ExpectNode {
     props?: Record<string, string | number | boolean>;
     /** Which of those props the source marked for translation. No gallery block marks one. */
     translatable?: Record<string, { context?: string }>;
+    /** The style classes the node carries. No gallery block authors one. */
+    styleClasses?: string[];
     children?: ExpectNode[];
 }
 

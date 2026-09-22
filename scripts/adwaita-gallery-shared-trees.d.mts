@@ -37,6 +37,8 @@ export interface SharedNode {
     props?: Record<string, string | number | boolean>;
     /** Which of `props` carry an `_()` marking, with `C_()`'s context where there is one. */
     translatable?: Record<string, { context?: string }>;
+    /** The style classes the node carries, as a list and in source order — ADR 0068. */
+    styleClasses?: string[];
     children?: SharedNode[];
 }
 

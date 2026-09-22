@@ -124,15 +124,18 @@ const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectat
 // a JSDoc union is not readable at runtime. A kind used there and missing here fails
 // stage A, which is the direction that matters: an unnamed loss is the defect.
 const LOSS_KINDS = new Set([
-    // NO `template`, NO `object-id` and NO `translatable`: ADR 0066 gave the first two a field
-    // on the node and ADR 0067 the third, so declaring any of them as a loss here is now the
-    // defect rather than the bookkeeping. `translation-domain` stayed, and is listed below: it
-    // is a fact about the FILE and this shape is a tree, so ADR 0067 § 4 keeps it a loss.
+    // NO `template`, NO `object-id`, NO `translatable` and NO `styles`: ADR 0066 gave the first
+    // two a field on the node, ADR 0067 the third and ADR 0068 the fourth, so declaring any of
+    // them as a loss here is now the defect rather than the bookkeeping. `value-list` STAYED
+    // and is the one to read carefully: it is where a bracketed value that is NOT a style class
+    // still leaves — `widgets [ ]` is object references, `strings [ ]` emits as `<items>` — and
+    // where an ident inside either style-class spelling leaves too, since the reference compiler
+    // refuses that construct and there is no oracle for it. `translation-domain` stayed because
+    // it is a fact about the FILE and this shape is a tree, ADR 0067 § 4.
     'signal',
     'binding',
     'breakpoint',
     'menu',
-    'styles',
     'layout',
     'accessibility',
     'comment',
@@ -153,7 +156,7 @@ const LOSS_KINDS = new Set([
     'action-widget',
 ]);
 
-const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'translatable', 'children']);
+const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'translatable', 'styleClasses', 'children']);
 
 const problems = [];
 
@@ -164,7 +167,7 @@ const fail = () => {
     process.exit(1);
 };
 
-/** A `SharedNode` is seven optional-ish fields and three value kinds; hold it to that. */
+/** A `SharedNode` is eight optional-ish fields and three value kinds; hold it to that. */
 const validateNode = (node, where, isRoot = true) => {
     if (node === null || typeof node !== 'object' || Array.isArray(node)) {
         problems.push(`${where}: expected a SharedNode object, got ${JSON.stringify(node)}.`);
@@ -236,6 +239,28 @@ const validateNode = (node, where, isRoot = true) => {
                     `${where}: the marking on "${key}" is ${JSON.stringify(marking)}. It holds an optional ` +
                         '"context" and nothing else — `{}` is `_()`, `{ context }` is `C_()`.',
                 );
+            }
+        }
+    }
+    // A style class is a NAME, and the two things worth catching here are an empty list and a
+    // name with whitespace in it. The first is a claim that says nothing — absence is what says
+    // "no style classes" — and the second cannot survive ADR 0049 § 3's space-joined write door,
+    // so a tree carrying one would be authoring something no surface can set.
+    if (node.styleClasses !== undefined) {
+        if (!Array.isArray(node.styleClasses) || node.styleClasses.length === 0) {
+            problems.push(
+                `${where}: "styleClasses" is ${JSON.stringify(node.styleClasses)}. It is a non-empty list of ` +
+                    'class names; absence is what says a node carries none.',
+            );
+        } else {
+            for (const name of node.styleClasses) {
+                if (typeof name !== 'string' || name.length === 0 || /\s/.test(name)) {
+                    problems.push(
+                        `${where}: "styleClasses" holds ${JSON.stringify(name)}. A style class is one name with ` +
+                            "no whitespace — ADR 0049 § 3's door is space-separated, so a name with a space in " +
+                            'it is two classes on every surface that writes it.',
+                    );
+                }
             }
         }
     }
@@ -1016,6 +1041,61 @@ const checkMarkings = (job, result) => {
     );
 };
 
+/**
+ * The style classes, held against the GOLDEN — ADR 0068 § 5, built like the marking arm.
+ *
+ * WHAT IS COMPARED, AND WHY IT TAKES TWO PATTERNS. The oracle writes ONE GTK property two ways,
+ * because Blueprint gave it two spellings: a `styles [ ]` block becomes
+ * `<style><class name="flat"/></style>`, and a `css-classes: [ ]` property value becomes a
+ * `<property name="css-classes">` whose text is NEWLINE-joined. So the golden's own answer for a
+ * file is the union of both, and that union is what the projection's `styleClasses` is held
+ * against — both directions: a class the projection invents is a failure, and one the golden
+ * writes that no node carries is a failure.
+ *
+ * THE NEWLINE JOIN IS THE MEASUREMENT THAT DECIDED THE FIELD. ADR 0058 § 4 recorded that a
+ * space-joined string in `props` would do, on ADR 0049 § 3's write door. The oracle joins with
+ * `\n`, not with a space — so a string would have had to pick one of the two joins and could then
+ * not be compared against the other golden at all. A list can be compared against both, which is
+ * the whole reason this arm exists rather than a prop-key equality.
+ *
+ * WHY A MULTISET AND NOT A POSITION, and CDATA removed first: the reasons `checkMarkings` gives
+ * one screen up, unchanged. `<accessibility>` is NOT removed here, because GtkBuilder writes no
+ * `<style>` and no `css-classes` inside one — measured, 0 of the corpus's goldens — and removing
+ * a subtree that can hold nothing would be an exemption with no subject.
+ */
+const checkStyleClasses = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    const golden = readFileSync(job.golden, 'utf8').replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    const wanted = [
+        ...[...golden.matchAll(/<class\s+name="([^"]+)"\s*\/>/g)].map((match) => match[1]),
+        ...[...golden.matchAll(/<property\s+name="css-classes"\s*>([\s\S]*?)<\/property>/g)].flatMap((match) =>
+            match[1].split('\n').filter((one) => one.length > 0),
+        ),
+    ];
+    const carried = [];
+    const walk = (node) => {
+        carried.push(...(node.styleClasses ?? []));
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(result.node);
+    styled += carried.length;
+    const a = [...wanted].sort();
+    const b = [...carried].sort();
+    if (a.join('\n') === b.join('\n')) return;
+    const missing = [...a];
+    const invented = [];
+    for (const one of b) {
+        const at = missing.indexOf(one);
+        if (at === -1) invented.push(one);
+        else missing.splice(at, 1);
+    }
+    problems.push(
+        `${job.key}: the golden and the projection disagree about the style classes on this file — ` +
+            `written by the oracle and not carried: [${missing.join(', ')}]; ` +
+            `carried and not written: [${invented.join(', ')}].`,
+    );
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -1044,6 +1124,7 @@ let addressedIds = 0;
 // The marking arm's own denominator, beside the two the addressing arm keeps, and for the
 // same reason: a count that grows with the corpus is what says the arm RAN.
 let marked = 0;
+let styled = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -1103,6 +1184,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
         }
         checkAddressing(job, result);
         checkMarkings(job, result);
+        checkStyleClasses(job, result);
     }
 }
 
@@ -1298,8 +1380,8 @@ const stageC =
 
 const stageD =
     `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
-    `composite class(es), ${addressedIds} object id(s) and ${marked} translatable marking(s) against the ` +
-    'golden the oracle wrote';
+    `composite class(es), ${addressedIds} object id(s), ${marked} translatable marking(s) and ${styled} ` +
+    'style class(es) against the golden the oracle wrote';
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 
