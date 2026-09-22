@@ -57,9 +57,16 @@
   --error-color: oklab(from var(--error-bg-color) max(l, 0.85) a b);
   --switch-off-bg: rgba(255, 255, 255, 0.2);
   --switch-knob-bg: #deddda;
-  // The active toggle is a raised near-white chip in both themes, so its text
-  // must be dark in dark mode (the default token is the light window-fg).
-  --active-toggle-fg-color: rgba(0, 0, 6, 0.8);
+  // The active toggle chip is NOT near-white in both themes — that premise was
+  // wrong, and it is what made the selected toggle a solid white pill on a dark
+  // window while GTK draws a grey one. libadwaita's own _colors.scss:247-248 says
+  // dark takes a TRANSLUCENT white over the dark background, with white text:
+  //   --active-toggle-bg-color: rgb(255 255 255 / 20%);
+  //   --active-toggle-fg-color: #ffffff;
+  // The foreground needs no entry at all — _toggle_group.scss defaults it to
+  // var(--window-fg-color), which is already #ffffff here. Only the background
+  // was ever missing; the old dark override forced dark text to compensate for it.
+  --active-toggle-bg-color: rgb(255 255 255 / 20%);
 }
 
 // Auto dark theme via prefers-color-scheme — opt out with .theme-light

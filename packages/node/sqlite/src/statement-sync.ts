@@ -28,8 +28,18 @@ function isNamedArgObject(arg: unknown): boolean {
     return arg !== null && typeof arg === 'object' && !(arg instanceof Uint8Array) && !ArrayBuffer.isView(arg);
 }
 
+/**
+ * Refuse a value SQLite has no storage class for, before it reaches the SQL.
+ *
+ * `undefined` passes, and binds NULL. node:sqlite refused it until v26.10.0, where
+ * nodejs/node#65709 made it bind NULL so that an explicitly-passed `undefined` agrees with
+ * an omitted parameter — which bound NULL all along, there and in `#buildStatement` below.
+ * That release also dropped `undefined` from the "unsupported data types" list this package's
+ * spec is ported from, and wrote the rule into `doc/api/sqlite.md`: NULL is written from
+ * `null` or `undefined`, and always reads back as `null`.
+ */
 function validateBindValue(value: unknown, paramIndex: number): void {
-    if (value === null) return;
+    if (value === null || value === undefined) return;
     const t = typeof value;
     if (t === 'number' || t === 'bigint' || t === 'string' || t === 'boolean') return;
     if (value instanceof Uint8Array || value instanceof ArrayBuffer) return;

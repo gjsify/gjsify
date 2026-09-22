@@ -193,6 +193,15 @@ export class AdwStatusPage extends withSignals(GridLayout) {
     }
 
     /**
+     * `Adw.StatusPage:child` — {@link set_child} under the property spelling the
+     * counterpart declares, so the one slot a status page has can arrive in the
+     * construct-props bag instead of a second statement after it.
+     */
+    set child(view: View | null) {
+        this.set_child(view);
+    }
+
+    /**
      * The one destination an XML child can have: the slot under the description,
      * where `AdwStatusPage:child` goes. The name is ignored because
      * `<AdwStatusPage.child>` and a bare child mean the same thing — the shape

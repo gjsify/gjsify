@@ -165,9 +165,19 @@ export class AdwToolbarView extends withSignals(GridLayout) {
         }
     }
 
-    /** The currently-installed content view, or `null`. */
+    /**
+     * The currently-installed content view, or `null` — `Adw.ToolbarView:content`.
+     *
+     * The setter is {@link set_content} under the property spelling the counterpart
+     * declares, so a construct-props bag can carry the slot and a pane ported off GJS
+     * keeps `view.content = …` rather than growing a second verb.
+     */
     get content(): View | null {
         return this._content;
+    }
+
+    set content(view: View | null) {
+        this.set_content(view);
     }
 
     /** The top-bar slot container. */

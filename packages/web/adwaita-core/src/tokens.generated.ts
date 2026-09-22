@@ -271,7 +271,7 @@ export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = {
  * Visible rather than merged away: a consumer reading only `light` would otherwise
  * miss them with no signal.
  */
-export const ADWAITA_DARK_ONLY_TOKENS: readonly string[] = ['--active-toggle-fg-color'];
+export const ADWAITA_DARK_ONLY_TOKENS: readonly string[] = ['--active-toggle-bg-color'];
 
 /**
  * Tokens whose value is a CSS expression, not a literal.
