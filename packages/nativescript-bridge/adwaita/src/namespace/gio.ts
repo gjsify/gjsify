@@ -3,6 +3,11 @@
 // the namespace, the same shape `./adw.ts` and `./gtk.ts` take and for the same reason
 // (one list carrying the value AND the type meaning — see the header of `./adw.ts`).
 //
+// RE-EXPORTED, NOT DEFINED. The classes live in `@gjsify/adwaita-core` beside the
+// portable model they build, because they held no `@nativescript/core` and the web port
+// carried a byte-identical copy of them. This barrel is the port's DOOR onto them, and
+// `gio-menu.spec.ts` drives the whole suite through it.
+//
 // WHY THIS BARREL IS SHORT, AND WILL STAY SHORT. The other two hold WIDGETS, and
 // `check-vocabulary-alignment.mjs` derives their members from the widget files on disk.
 // GIO has no widgets: what lands here is the handful of GObject types an Adwaita author
@@ -11,4 +16,4 @@
 // package's business; a namespace that grows past what the widgets consume is a second,
 // unheld vocabulary.
 
-export { Menu, MenuItem } from '../gio/menu.js';
+export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';

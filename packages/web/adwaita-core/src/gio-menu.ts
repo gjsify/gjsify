@@ -2,15 +2,27 @@
 //
 // WHAT WAS MISSING, AND WHERE IT SHOWED. The VALUE has been shared since ADR 0042: every
 // surface's `menuModel` takes `AdwMenuInput` and `normalizeMenuModel` reduces it. What no
-// surface had was the name an author reaches for, so a menu written for GJS
-// (`new Gio.Menu()` + `menu.append(label, action)`) had to be RETYPED as an array to reach
-// this port, and the array spelling cannot carry an action name at all.
+// surface had was the name an author reaches for, so the website gallery wrote the same
+// menu twice:
 //
-// THIS FILE IS THE SECOND COPY, and it says so rather than pretending otherwise:
-// `@gjsify/adwaita-nativescript` carries the identical class. Pure data with no DOM in it
-// belongs in `@gjsify/adwaita-core` beside `menu.ts`, which is the model's own home and the
-// one place both ports already import — the lift is a file move plus two re-export lines,
-// and it is the fix, not a nicety.
+//   gjs           const menu = new Gio.Menu();
+//                 menu.append('Save as…', 'app.save-as');
+//                 new Adw.SplitButton({ label: 'Save', menuModel: menu })
+//   nativescript  new Adw.SplitButton({ menuModel: ['Save as…', 'Export', 'Print'] })
+//
+// Two programs for one widget, and the second one cannot carry an action name at all.
+//
+// WHY IT LIVES HERE, beside the model it builds. The class landed on `@gjsify/adwaita-web`
+// and `@gjsify/adwaita-nativescript` at once and was IDENTICAL on both — the second copy
+// said so in its own header and named the lift as the fix it was leaving out of scope. It
+// holds no DOM and no `@nativescript/core`: it is `menu.ts`'s own value wearing the GIR
+// spelling, so a third renderer gets it by re-exporting rather than by retyping it.
+//
+// THE GIR SPELLING IS THE POINT, AND `menu.ts` DELIBERATELY HAS NONE. That module is the
+// portable model — `AdwMenuEntryInput`, `normalizeMenuModel` — and it is written in no
+// library's vocabulary. This one is written in exactly one: the four `g_menu_append*`
+// entry points, under their own names. Keeping them in separate files keeps that line
+// visible, which is what stopped the class landing here the first time.
 //
 // WHY IT IS AN `Array` SUBCLASS rather than a builder with a `toModel()`. `menuModel`
 // already accepts an array, and `normalizeMenuModel` gates on `Array.isArray` — which is
@@ -24,11 +36,17 @@
 // deliberately not a stand-in for it. It is the four `g_menu_append*` entry points, which
 // is what BUILDING a menu takes.
 //
+// WHERE IT IS HELD: `gio-menu.spec.ts` on BOTH ports, each importing through its own
+// `Gio` namespace door. That is the claim worth asserting — the door resolves AND the
+// class produces the model a `menuModel` property takes — and it runs the whole suite
+// against this implementation twice rather than moving it here and leaving the doors
+// untested.
+//
 // Reference: @girs/gio-2.0 — `Gio.Menu.append`, `.append_item`, `.append_section`,
 // `.append_submenu`; `Gio.MenuItem.new(label, detailed_action)`.
 // Copyright (c) GNOME contributors (GLib). LGPLv2.1+.
 
-import type { AdwMenuEntryInput, AdwMenuItemInput, AdwMenuSectionInput } from '@gjsify/adwaita-core';
+import type { AdwMenuEntryInput, AdwMenuItemInput, AdwMenuSectionInput } from './menu.js';
 
 /**
  * One menu item, built the way `g_menu_item_new` builds one.
@@ -41,7 +59,7 @@ import type { AdwMenuEntryInput, AdwMenuItemInput, AdwMenuSectionInput } from '@
  * produces an item carrying neither, which {@link normalizeMenuModel} drops rather than
  * drawing an empty, unactionable row.
  */
-export class MenuItem implements AdwMenuItemInput {
+export class GioMenuItem implements AdwMenuItemInput {
     /** The user-visible string; ABSENT rather than `undefined` when the item has none. */
     label?: string;
 
@@ -69,17 +87,17 @@ export class MenuItem implements AdwMenuItemInput {
 /**
  * A menu under construction — `Gio.Menu`'s four append entry points over the portable model.
  *
- * `new Menu()` is empty, as `g_menu_new()` is. Every `append*` puts one entry on the end,
+ * `new GioMenu()` is empty, as `g_menu_new()` is. Every `append*` puts one entry on the end,
  * and the instance IS the value a `menuModel` property takes.
  */
-export class Menu extends Array<AdwMenuEntryInput> {
+export class GioMenu extends Array<AdwMenuEntryInput> {
     /** `g_menu_append` — the convenience C implements as `menu_item_new` + `append_item`. */
     append(label: string | null, detailedAction: string | null = null): void {
-        this.append_item(new MenuItem(label, detailedAction));
+        this.append_item(new GioMenuItem(label, detailedAction));
     }
 
     /** `g_menu_append_item`. */
-    append_item(item: MenuItem): void {
+    append_item(item: GioMenuItem): void {
         this.push(item);
     }
 

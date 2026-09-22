@@ -472,6 +472,11 @@ export type {
     SplitButtonStyleClass,
 } from './split-button.js';
 
+// --- The GIR authoring door onto that model (Gio.Menu — ADR 0034 § Amendment 19) ---
+// Prefixed here, as clause 1 prefixes every class: the ports re-export them as
+// `Gio.Menu` / `Gio.MenuItem`, which is the name an author writes.
+export { GioMenu, GioMenuItem } from './gio-menu.js';
+
 // --- The portable menu model (GMenuModel as plain data — ADR 0042) ---
 export {
     ADW_MENU_SURFACE_NATIVESCRIPT,
