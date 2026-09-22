@@ -130,7 +130,7 @@ and the vocabulary ledger compares property NAMES, so nothing measures this eith
 | | reads | writes | why |
 |---|---|---|---|
 | `@gjsify/adwaita-web` | the page | the page | its DOM has a page ELEMENT, and its markup door carries the id separately as `selected-page` |
-| `@gjsify/adwaita-nativescript` | the page | the page's **id** | an id already IS the page handle on that port (`isClosing`, `closePage`, `setPagePinned` all take one) and an XML attribute can carry nothing else — § 3 |
+| `@gjsify/adwaita-nativescript` | the page | the page's **id** | an id already IS the page handle on that port (`isClosing`, `close_page`, `set_page_pinned` all accept one) and an XML attribute can carry nothing else — § 3, and see Amendment 1: since #1746 they accept a page as well |
 
 The cost is on the NativeScript half and is deliberate: the two accessors have unrelated
 types, which TypeScript has allowed since 5.1, so `view.selectedPage = view.selectedPage`
@@ -247,3 +247,21 @@ surface where it is a promise about a page. So the two switcher bars translate t
   diagnostic. The remaining id-taking methods — `isClosing`, `closePage`, `setPagePinned` —
   are unchanged and stay in `status/open-todos.md`; libadwaita takes an `AdwTabPage *` in
   every one, and settling them together is a decision this ADR does not need to make.
+
+## Amendment 1 — the rest followed, 2026-09-22
+
+The decision this ADR declined to make was taken by the vocabulary convergence (#1746), and
+the paragraph above is now history rather than a description of the port.
+
+Eighteen `AdwTabView` page verbs took the GIR spelling AND the GIR argument kind, through
+one handle helper: `closePage` is `close_page`, `setPagePinned` is `set_page_pinned`, and
+each takes `AdwTabPage | string` on this ADR's own "takes either, narrows" precedent rather
+than an id alone. `isClosing` kept its name; it was not among the eighteen, and the reason
+belongs to whoever reads the vocabulary gate's own ledger rather than to this amendment.
+
+What this ADR settled did not move: an id is still a legal handle everywhere, because an XML
+attribute can carry nothing else. What changed is that it is no longer the ONLY one, which
+is what made the `status/open-todos.md` entry closable.
+
+The measurement the convergence ran on: distance to one vocabulary went 1 widget / 6
+property / 20 method names to 1 / 0 / 0.
