@@ -170,9 +170,16 @@ export const STORYBOOK_WEB_CSS = `
     background-color: var(--button-bg-color);
 }
 
+/* NEUTRAL, never accent. The list carries .navigation-sidebar, and libadwaita's
+   selection for it is currentColor 10% over the INHERITED foreground — the GTK
+   storybook gets that from the stylesheet and the NativeScript one spells it out.
+   This surface asked for an accent selection instead, and the two idioms collided:
+   adwaita-web's .navigation-sidebar > .selected won the background (equal
+   specificity, later in the cascade) while --accent-fg-color survived on the
+   foreground. Measured in light mode: white text on srgb 1 1 1 / 0.13 over a light
+   window — unreadable. Dark mode hid it, because white was right there anyway. */
 .sb-story-row.selected {
-    background-color: var(--accent-bg-color);
-    color: var(--accent-fg-color);
+    background-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 /* --- Preview area --- */
