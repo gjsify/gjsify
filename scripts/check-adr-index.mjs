@@ -16,10 +16,37 @@
 //   2. an index row whose file does not exist             → FAIL (stale row)
 //   3. a row whose Status disagrees with the file's own   → FAIL (second copy drifting)
 //   4. a Status outside the vocabulary README declares    → FAIL
+//   5. two ADR FILES claiming the same number             → FAIL (the second incident)
+//   6. two index ROWS claiming the same number            → FAIL
+//   7. an ADR whose own `# NN.` heading is not its number → FAIL
 //
 // (3) pays off repeatedly: the index Status column copies each ADR's own
 // `- **Status:**` line, so promoting Proposed → Accepted touches two files and
 // forgetting the second is silent today.
+//
+// THE SECOND INCIDENT — why (5), (6) and (7) exist
+//
+// The ADR number is a COUNTER SHARED ACROSS OPEN BRANCHES, and nothing hands it out.
+// Four parallel branches each read `docs/adr/` on the day they were cut, each took the
+// next free number, and every one of them was right at the time. The collision is created
+// by the first MERGE, not by the branch: on 2026-09-22 three landed at once — 0067 twice,
+// 0068 twice, 0069 twice — and every one was found by a human reading a rebase conflict in
+// this index. Two of them would have merged clean had the conflict fallen elsewhere.
+//
+// This check cannot prevent that: it sees one branch, and the other number does not exist
+// yet in this tree. What it CAN do is refuse the state that results — two files, or two
+// rows, wearing one number — so a rebase that merges the table without noticing is caught
+// before the push rather than by the next reader.
+//
+// (6) needed a shape change. The rows were parsed into a `Map` keyed by number, which made
+// a duplicate row OVERWRITE the first and disappear; the check that was supposed to see the
+// collision was the thing hiding it. Rows are collected as a list now and the Map is built
+// afterwards, from a list that has been checked for duplicates.
+//
+// (7) is the renaming half. A number is carried in three places — the FILENAME, the index
+// ROW, and the document's own `# NN. Title` heading — and `git mv` moves exactly one of
+// them. Renumbering a branch to resolve a collision is precisely when the heading is left
+// behind, so the check that guards the collision also guards its repair.
 //
 // Usage: node scripts/check-adr-index.mjs [--root <dir>]
 
@@ -60,13 +87,21 @@ try {
 }
 if (onDisk.length === 0) fail([`no ADR files under ${ADR_DIR} — the check is measuring nothing.`]);
 
-/** Index rows: | [NNNN](file.md) | Title | Status | */
-const rows = new Map();
+/**
+ * Index rows: | [NNNN](file.md) | Title | Status |
+ *
+ * Collected as a LIST first. Keying a Map by the number while parsing is what let a
+ * duplicate row overwrite its twin and vanish — see (6) in the header.
+ */
+const parsedRows = [];
 for (const line of indexText.split('\n')) {
     const match = line.match(/^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|(.+)\|([^|]+)\|\s*$/);
-    if (match) rows.set(match[1], { file: match[2].trim(), status: match[4].trim() });
+    if (match) parsedRows.push({ number: match[1], file: match[2].trim(), status: match[4].trim() });
 }
-if (rows.size === 0) fail([`no ADR rows parsed from ${INDEX} — the table shape changed, so this check is blind.`]);
+if (parsedRows.length === 0) {
+    fail([`no ADR rows parsed from ${INDEX} — the table shape changed, so this check is blind.`]);
+}
+const rows = new Map(parsedRows.map((row) => [row.number, row]));
 
 /**
  * The status an ADR declares about ITSELF. Three header shapes exist in the tree and all
@@ -90,7 +125,63 @@ function declaredStatus(file) {
     return leading ? leading[1] : raw.replace(/\*\*/g, '').trim();
 }
 
+/**
+ * The number an ADR gives ITSELF, in its title heading.
+ *
+ * Three shapes exist in the tree and all three are in use: `# ADR 0001 — Title`,
+ * `# 0064 — Title` and `# 68. Title`. Like {@link declaredStatus}, this compares the CLAIM
+ * and not the formatting — measured on the 68 ADRs present, 28 would fail a check written
+ * for the newest shape alone, and normalising 28 settled documents to satisfy a numbering
+ * check would be a second decision smuggled in behind the first.
+ *
+ * Returned without leading zeroes: the headings are written `# 7.` and `# 0064 —` while the
+ * filenames are always padded to four.
+ */
+function headingNumber(file) {
+    const text = readFileSync(join(ADR_DIR, file), 'utf8');
+    const match = text.match(/^#\s*(?:ADR\s+)?(\d{1,4})\s*(?:\.|—|–|-)\s/m);
+    return match ? String(Number(match[1])) : null;
+}
+
 const problems = [];
+
+// 5. Two FILES wearing one number. Listed together so the message names both — the whole
+//    point is that neither is obviously the intruder, and picking one is the author's call.
+const byNumber = new Map();
+for (const file of onDisk) {
+    const number = file.slice(0, 4);
+    const seen = byNumber.get(number);
+    if (seen) seen.push(file);
+    else byNumber.set(number, [file]);
+}
+for (const [number, files] of [...byNumber].sort()) {
+    if (files.length > 1) {
+        problems.push(
+            `ADR number ${number} is claimed by ${files.length} files: ${files.join(', ')}. ` +
+                'The number is a counter shared across open branches and nothing hands it out, so ' +
+                'two branches that were each right on the day they were cut collide on the first ' +
+                'merge. Renumber the one that has not landed to the next free number, and carry it ' +
+                "into the index row and the document's own heading.",
+        );
+    }
+}
+
+// 6. Two ROWS wearing one number — the index half of the same collision, and reachable on
+//    its own: a rebase that keeps both table lines leaves the files correct and the index not.
+const rowsByNumber = new Map();
+for (const row of parsedRows) {
+    const seen = rowsByNumber.get(row.number);
+    if (seen) seen.push(row.file);
+    else rowsByNumber.set(row.number, [row.file]);
+}
+for (const [number, files] of [...rowsByNumber].sort()) {
+    if (files.length > 1) {
+        problems.push(
+            `docs/adr/README.md has ${files.length} rows for ADR ${number}: ${files.join(', ')}. ` +
+                'A merged index table kept both — renumber one and fix its row.',
+        );
+    }
+}
 
 // 1. On disk, no row.
 for (const file of onDisk) {
@@ -115,6 +206,18 @@ for (const [number, row] of [...rows].sort()) {
     if (!row.file.startsWith(number)) {
         problems.push(`docs/adr/README.md row ${number} links to "${row.file}", whose number differs.`);
     }
+    // 7. The document's own heading. `git mv` renames the file and nothing else, so a
+    //    renumbering leaves this behind — exactly when a collision is being repaired.
+    const heading = headingNumber(row.file);
+    if (heading === null) {
+        problems.push(`docs/adr/${row.file} has no "# NN. Title" heading, so its own number cannot be verified.`);
+    } else if (heading !== String(Number(number))) {
+        problems.push(
+            `docs/adr/${row.file} calls itself ADR ${heading} in its "# " heading, but its filename ` +
+                `and index row say ${number}. Renumbering touches three places: the filename, the ` +
+                'index row and the heading.',
+        );
+    }
     // 4. Status vocabulary.
     if (!STATUS_PATTERN.test(row.status)) {
         problems.push(
@@ -136,4 +239,8 @@ for (const [number, row] of [...rows].sort()) {
 
 if (problems.length > 0) fail(problems);
 
-console.log(`check-adr-index: ${onDisk.length} ADR(s) indexed, statuses agree.`);
+console.log(
+    `check-adr-index: ${onDisk.length} ADR(s) indexed, statuses agree; ${byNumber.size} distinct ` +
+        `number(s) across ${onDisk.length} file(s) and ${parsedRows.length} row(s), none claimed twice; ` +
+        `${onDisk.length} heading(s) name their own number.`,
+);
