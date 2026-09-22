@@ -252,6 +252,21 @@ export const AdwSharedTreesNsTest = async () => {
         });
     });
 
+    await describe('authored style classes reach the view', async () => {
+        await it('a label carries the classes the tree gave it', () => {
+            const root = build({ tag: 'GtkLabel', styleClasses: ['title-1', 'dim-label'] });
+
+            expect((root as unknown as { styleClasses: string[] }).styleClasses).toStrictEqual([
+                'title-1',
+                'dim-label',
+            ]);
+        });
+
+        await it('a widget without a class list refuses them BY NAME', () => {
+            expect(() => build({ tag: 'AdwClamp', styleClasses: ['card'] })).toThrow('takes no style classes');
+        });
+    });
+
     await describe('the shared corpus is placed where it says', async () => {
         // THE BOUND THIS CLOSES, named where ADR 0051 § Amendment 3 recorded it: this
         // driver's walks filter the realised tree down to the authored classes, so a child

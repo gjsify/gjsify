@@ -135,6 +135,18 @@ export function build(node: SharedTreeNode): View {
         }
         (view as unknown as Record<string, unknown>)[prop] = String(value);
     }
+    // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
+    // `styleClasses` setter: writing `className` instead would bypass the class list the
+    // widget keeps for `add_css_class`, and dropping it would render the tree unstyled.
+    if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
+        if (!('styleClasses' in view)) {
+            throw new Error(
+                `<${element.xmlName}> takes no style classes: \`${node.tag}\` declares no 'styleClasses', so ` +
+                    `[${node.styleClasses.join(', ')}] would be dropped.`,
+            );
+        }
+        (view as unknown as Record<string, unknown>).styleClasses = node.styleClasses.join(' ');
+    }
     for (const child of node.children ?? []) {
         const parent = view as unknown as Partial<BuilderParent>;
         if (typeof parent._addChildFromBuilder !== 'function') {

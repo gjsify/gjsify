@@ -147,6 +147,19 @@ export const AdwBlueprintTreeTest = async () => {
             }
         });
 
+        // This `.blp` authors no `styles [ ]`, so the tree is written out here.
+        await it('carries the style classes a tree authors', async () => {
+            const { root, unmount } = mountSharedTree({ tag: 'AdwClamp', styleClasses: ['card', 'dim-label'] });
+            try {
+                expect([...root.classList].filter((name) => name === 'card' || name === 'dim-label')).toStrictEqual([
+                    'card',
+                    'dim-label',
+                ]);
+            } finally {
+                unmount();
+            }
+        });
+
         await it('renders every caption the .blp marks for translation', async () => {
             const { root, unmount } = mountSharedTree(windowTree);
             try {
