@@ -18,6 +18,10 @@
             "types": "./lib/types/namespace/gtk.d.ts",
             "default": "./lib/esm/namespace/gtk.js"
         },
+        "./builder": {
+            "types": "./lib/types/builder/index.d.ts",
+            "default": "./lib/esm/builder/index.js"
+        },
         "./theme/adwaita.css": "./src/theme/adwaita.css",
         "./fonts": {
             "types": "./lib/types/fonts.d.ts",

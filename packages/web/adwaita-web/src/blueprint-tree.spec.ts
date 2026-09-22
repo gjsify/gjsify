@@ -136,6 +136,30 @@ export const AdwBlueprintTreeTest = async () => {
             }
         });
 
+        // The TypeScript beside a `.blp` addresses a widget by its Blueprint id, as GTK's
+        // `InternalChildren` does. An id the builder dropped would leave that code nothing to find.
+        await it('reaches a widget by the id the .blp gave it', async () => {
+            const { root, unmount } = mountSharedTree(windowTree);
+            try {
+                expect(root.querySelector('#pathRow')?.localName).toBe('adw-entry-row');
+            } finally {
+                unmount();
+            }
+        });
+
+        // This `.blp` authors no `styles [ ]`, so the tree is written out here.
+        await it('carries the style classes a tree authors', async () => {
+            const { root, unmount } = mountSharedTree({ tag: 'AdwClamp', styleClasses: ['card', 'dim-label'] });
+            try {
+                expect([...root.classList].filter((name) => name === 'card' || name === 'dim-label')).toStrictEqual([
+                    'card',
+                    'dim-label',
+                ]);
+            } finally {
+                unmount();
+            }
+        });
+
         await it('renders every caption the .blp marks for translation', async () => {
             const { root, unmount } = mountSharedTree(windowTree);
             try {
