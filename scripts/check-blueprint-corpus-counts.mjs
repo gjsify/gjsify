@@ -219,6 +219,11 @@ const SNAPSHOTS = [
         claims: 'e5bfbd579c5d9937',
         why: 'the same shape one decision later, and for the same reason: its tables are two readings of one tree taken before and after the change, and its § How the numbers here were obtained says to read every count as a date',
     },
+    {
+        file: 'docs/adr/0070-a-blp-reaches-a-renderer-through-a-second-specifier.md',
+        claims: '5c593c2f58611385',
+        why: 'its § How the numbers here were obtained names the revision, the oracle version and the `@girs` pin it was taken under, and says in as many words to read every count as a date. The digest moved once already, and that is the whole value of the entry: the table was carried through a rebase still reading 6 / 25 / 125 with a sentence saying nothing had moved, while ADR 0068 had made it 9 / 30 / 115 — this gate is what refused the stale copy',
+    },
 ];
 
 /**

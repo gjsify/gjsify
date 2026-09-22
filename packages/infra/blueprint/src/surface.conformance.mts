@@ -2,7 +2,7 @@
 //
 // WHY THIS IS A FILE AND NOT A PARAGRAPH IN A PULL REQUEST
 //
-// `scripts/check-blueprint-corpus.mjs` holds the nine runtime names on every run, and that is
+// `scripts/check-blueprint-corpus.mjs` holds the eleven runtime names on every run, and that is
 // the half a type cannot do: it proves the values exist. This is the other half, and nothing
 // held it. A consumer narrowing a `Value` or an `Expression` must be able to NAME the arm it
 // handles; one dropped re-export and it writes that arm as a structural literal, which keeps
@@ -32,7 +32,7 @@
 // Nothing about the IMPLEMENTATION. It reads the `types` condition of `exports`, so it holds
 // what `index.d.mts` DECLARES; `index.mjs` is not in the program, and dropping an `export` from
 // it leaves this file green — measured. That half belongs to `check-blueprint-corpus.mjs`,
-// which imports the package at run time and names any of the TEN that stops being a
+// which imports the package at run time and names any of the ELEVEN that stops being a
 // function. Two lists, in two files, held by two mechanisms, because neither can see what the
 // other does.
 
@@ -65,7 +65,7 @@ import type {
     Value,
 } from '@gjsify/blueprint';
 
-/** The module's VALUE exports — the nine names, not the types beside them. */
+/** The module's VALUE exports — the declared names, not the types beside them. */
 type SurfaceModule = typeof Surface;
 
 /** Compiles only for `true`; every assertion below is one of these. */
@@ -80,7 +80,7 @@ type Assert<T extends true> = T;
  */
 type Same<Union, Named> = [Exclude<Union, Named>, Exclude<Named, Union>] extends [never, never] ? true : false;
 
-/** The nine the flip consumes. `check-blueprint-corpus.mjs` holds the same list at run time. */
+/** What the flip consumes. `check-blueprint-corpus.mjs` holds the same list at run time. */
 export type SurfaceIsExactlyThese = Assert<
     Same<
         keyof SurfaceModule,
@@ -92,6 +92,7 @@ export type SurfaceIsExactlyThese = Assert<
         | 'enumOrFlagsTypeOf'
         | 'gtypeName'
         | 'parseBlueprint'
+        | 'projectToSharedNode'
         | 'resolveIdent'
     >
 >;
