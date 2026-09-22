@@ -127,6 +127,20 @@ export class AdwToastOverlay extends withSignals(GridLayout) {
         }
     }
 
+    /** The always-visible content layer, or `null` — `Adw.ToastOverlay:child`. */
+    get child(): View | null {
+        return this._content;
+    }
+
+    /**
+     * `Adw.ToastOverlay:child` — {@link set_child} under the property spelling the
+     * counterpart declares, so the overlay's one slot can arrive in a construct-props
+     * bag instead of a second statement.
+     */
+    set child(view: View | null) {
+        this.set_child(view);
+    }
+
     /** Enqueue a {@link AdwToast} descriptor (shows now, or after the current one) — `adw_toast_overlay_add_toast`. */
     add_toast(toast: AdwToast): void {
         this._queue.add(toast);

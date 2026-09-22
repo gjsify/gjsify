@@ -184,9 +184,9 @@ the sidebar and the content each their own navigation page and header bar.
     sidebarList.setItems(['All Mail', 'Starred', 'Drafts', 'Archive']);
     sidebarList.selected = 0;
 
-    const sidebar = new Adw.ToolbarView();
-    sidebar.add_top_bar(new Adw.HeaderBar({ title: 'Mailboxes' }));
-    sidebar.set_content(sidebarList);
+    const sidebarToolbar = new Adw.ToolbarView();
+    sidebarToolbar.add_top_bar(new Adw.HeaderBar({ title: 'Mailboxes' }));
+    sidebarToolbar.content = sidebarList;
 
     // Content: a status page inside a toolbar view.
     const status = new Adw.StatusPage({
@@ -194,14 +194,11 @@ the sidebar and the content each their own navigation page and header bar.
         title: 'All Mail',
         description: 'Select a conversation from the list to read it here.',
     });
-    const content = new Adw.ToolbarView();
-    content.add_top_bar(new Adw.HeaderBar({ title: 'All Mail' }));
-    content.set_content(status);
+    const contentToolbar = new Adw.ToolbarView();
+    contentToolbar.add_top_bar(new Adw.HeaderBar({ title: 'All Mail' }));
+    contentToolbar.content = status;
 
-    const view = new Adw.NavigationSplitView();
-    view.set_sidebar(sidebar);
-    view.set_content(content);
-    view.showSidebar = true;
+    const view = new Adw.NavigationSplitView({ sidebar: sidebarToolbar, content: contentToolbar, showContent: true });
     ```
   </Fragment>
 </AdwWidget>
@@ -337,7 +334,7 @@ navigation pane that should not push the main content aside on a narrow window.
 
     const sidebar = new Adw.ToolbarView();
     sidebar.add_top_bar(new Adw.HeaderBar({ styleClasses: 'flat' }));
-    sidebar.set_content(sidebarList);
+    sidebar.content = sidebarList;
 
     const status = new Adw.StatusPage({
         iconName: 'folder-music-symbolic',
@@ -346,13 +343,9 @@ navigation pane that should not push the main content aside on a narrow window.
     });
     const content = new Adw.ToolbarView();
     content.add_top_bar(new Adw.HeaderBar());
-    content.set_content(status);
+    content.content = status;
 
-    const view = new Adw.OverlaySplitView();
-    view.set_sidebar(sidebar);
-    view.set_content(content);
-    view.showSidebar = true;
-    view.collapsed = false;
+    const view = new Adw.OverlaySplitView({ sidebar, content, showSidebar: true, collapsed: false });
     ```
   </Fragment>
 </AdwWidget>
@@ -479,19 +472,21 @@ the detail page and watch the back button appear.
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const view = new Adw.NavigationView();
+    const page = (title: string, body: Adw.StatusPage | Gtk.Button) => {
+        const toolbar = new Adw.ToolbarView();
+        toolbar.add_top_bar(new Adw.HeaderBar({ title }));
+        toolbar.content = body;
+        return toolbar;
+    };
 
-    // Detail page.
-    const detailStatus = new Adw.StatusPage({
+    const view = new Adw.NavigationView({ animateTransitions: true });
+
+    const detail = page('Ada Lovelace', new Adw.StatusPage({
         iconName: 'avatar-default-symbolic',
         title: 'Ada Lovelace',
         description: 'Mathematician and writer, the first computer programmer.',
-    });
-    const detail = new Adw.ToolbarView();
-    detail.add_top_bar(new Adw.HeaderBar({ title: 'Ada Lovelace' }));
-    detail.set_content(detailStatus);
+    }));
 
-    // Root page: a pill button that pushes the detail page by tag.
     const open = new Gtk.Button({
         label: 'Open contact',
         horizontalAlignment: 'center',
@@ -499,13 +494,10 @@ the detail page and watch the back button appear.
     });
     open.add_css_class('pill');
     open.add_css_class('suggested-action');
-    open.connect('clicked', () => view.push('detail'));
-    const root = new Adw.ToolbarView();
-    root.add_top_bar(new Adw.HeaderBar({ title: 'Contacts' }));
-    root.set_content(open);
+    open.connect('clicked', () => view.push(detail));
 
-    view.add(root, 'root');
-    view.add(detail, 'detail');
+    view.add(page('Contacts', open));
+    view.add(detail);
     ```
   </Fragment>
 </AdwWidget>
@@ -816,7 +808,7 @@ content pane, not to work.
     toggle.add_css_class('pill');
     toggle.add_css_class('suggested-action');
     toggle.connect('clicked', () => { sheet.open = !sheet.open; });
-    sheet.set_content(toggle);
+    sheet.content = toggle;
 
     // The sheet: a title above a boxed list of share actions.
     const box = new Gtk.Box({
@@ -841,7 +833,7 @@ content pane, not to work.
         group.add(row);
     }
     box.append(group);
-    sheet.set_sheet(box);
+    sheet.sheet = box;
     ```
   </Fragment>
 </AdwWidget>

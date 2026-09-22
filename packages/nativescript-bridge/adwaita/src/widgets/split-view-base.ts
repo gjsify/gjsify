@@ -368,13 +368,29 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         this._applyLayout();
     }
 
-    /** The sidebar pane, or `null`. */
+    /**
+     * The sidebar pane, or `null` — `Adw.NavigationSplitView:sidebar` /
+     * `Adw.OverlaySplitView:sidebar`.
+     *
+     * The SETTER is what lets a construct-props bag carry the pane, so a caller ported
+     * off GJS writes the one `new Adw.OverlaySplitView({ sidebar, content })` the GIR
+     * takes instead of three statements. It is {@link set_sidebar} under the property
+     * spelling the counterpart declares, never a second code path.
+     */
     get sidebar(): View | null {
         return this._sidebar;
     }
 
-    /** The content pane, or `null`. */
+    set sidebar(view: View | null) {
+        this.set_sidebar(view);
+    }
+
+    /** The content pane, or `null` — the `content` property of both split views. */
     get content(): View | null {
         return this._content;
+    }
+
+    set content(view: View | null) {
+        this.set_content(view);
     }
 }
