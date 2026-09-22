@@ -3160,3 +3160,46 @@ resolves. The alternative was parity bought by making both panes worse, which is
   are held against the port's source, and the resolution they depend on is covered by 40
   new assertions in `icon-theme.spec.ts` on GJS and Node. That a converged pane renders the
   same tree on a device is still the open question § Amendment 14 left, in the same words.
+
+## Amendment 19, 2026-09-22 — a clause-2 namespace carries values too, and `Gio` joins it
+
+Clause 2 says a surface "exports its widgets through a namespace object (`Gtk`, `Adw`)".
+That sentence was written when a namespace held widgets and nothing else, and it made the
+tooling around it read the same way: `NAMESPACE_NAMES` in `scripts/adwaita-elements.mjs` was
+`['Adw', 'Gtk']`, and `namespaceProblems` rejected any member with no widget behind it —
+"drop it, or ship the widget it promises". That rejection is right for what it was written
+for: a member that outlives the widget it named reads as coverage that is gone.
+
+**THE REFERENCE SURFACE IS GJS, AND THIS IS WHAT THAT COSTS.** Everything else here exists
+so a GNOME author's spelling carries to the other platforms. On GJS a menu is written
+
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    new Adw.SplitButton({ label: 'Save', menuModel: menu });
+
+and until now the other ports had nothing for that text to bind to: measured across the 40
+storybook blocks, both ports exported an `Adw` and a `Gtk` namespace and NEITHER exported
+`Gio`, and no port class existed for `Gio.Menu`, `Gtk.StringList` or `Gtk.Adjustment`. The
+VALUES behind all three were already portable — ADR 0042 the menu, 0046 the list, 0047 the
+adjustment — so what was missing was never the capability. It was the door under the GIR
+name, and its absence is what forced every such pane to be written twice.
+
+**The decision.** A clause-2 namespace carries the constructible non-widget GObject types an
+author writes, alongside its widgets, under the name the GIR gives them. `Gio` is a clause-2
+namespace for this reason and no other: it owns no widget and never will.
+
+**What keeps this from being a hole.** `CONSTRUCTIBLE_VALUES` in
+`check-vocabulary-alignment.mjs` names each such member with the GIR type it is, held
+against the installed `@girs`. Three directions, each able to fail alone: a member that is
+neither a widget nor declared; a declared origin naming a type that namespace does not have;
+and a member the ports ship as a WIDGET sitting in the value table, which would make it the
+second place a widget is declared.
+
+**The measurement that produced this, and a caution with it.** Adding `Gio` to
+`NAMESPACE_NAMES` was not cosmetic: before it, a bogus `Gio.Ghost` in a port's barrel passed
+the gate at exit 0 and was never mentioned — a namespace the tooling cannot see is worse
+than one it refuses, because the refusal is a sentence and the blindness is a green run.
+The caution: the FIRST probe of that hole used `export const Ghost = class {}`, a shape the
+barrel reader does not parse, and its silence meant nothing. The claim only holds with a
+probe written in the barrel's own `export { … } from` form, and it was re-measured that way
+before this amendment was written.

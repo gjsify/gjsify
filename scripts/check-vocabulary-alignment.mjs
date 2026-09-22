@@ -206,7 +206,7 @@
 // synthetic input that must FAIL before the real data is read. A check that cannot show
 // its own red is asserting its own configuration.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -1204,6 +1204,48 @@ function rendererWidgetProblems(surface) {
 }
 
 /** The tag prefixes that name a library, and the namespace object each one becomes. */
+/**
+ * Namespace members that are NOT widgets, with the GIR type each one is.
+ *
+ * THE THIRD CASE the loop below could not express. Its rule — a member with no widget is a
+ * member that "outlives the widget it named" — was written when a namespace carried widgets
+ * and nothing else, and it is still right for that. `Gio.Menu` is neither a widget nor a
+ * stale entry: it is a value an author CONSTRUCTS, and the reason it exists on a port at all
+ * is that the reference surface is GJS, where `new Gio.Menu(); menu.append(…)` is simply how
+ * a menu is written. ADR 0034 § Amendment 19 is that decision; this table is what keeps it
+ * from becoming a hole.
+ *
+ * Each entry is held against the INSTALLED GIR, so a member cannot be excused by naming a
+ * type that does not exist, and a member libadwaita/GTK/Gio really does ship as a WIDGET
+ * cannot hide here — that is the stale-entry direction, and it is the one this whole rule
+ * was written for.
+ */
+const CONSTRUCTIBLE_VALUES = [
+    {
+        member: 'Gio.Menu',
+        gir: 'Menu',
+        girPackage: 'gio-2.0',
+        why: "GJS writes `new Gio.Menu(); menu.append('Save as…', 'app.save-as')`, and ADR 0042 already made the VALUE behind it portable. The ports carry the constructor so the two dialects are one text rather than two — the gallery's `Adw.SplitButton` pair went 9 lines to 2 on it.",
+    },
+    {
+        member: 'Gio.MenuItem',
+        gir: 'MenuItem',
+        girPackage: 'gio-2.0',
+        why: "`Gio.Menu`'s item half — `set_label` / `set_detailed_action` — for the same reason, and unreachable without it the moment a pane writes anything past a bare `append`.",
+    },
+];
+
+/** Every class/enum/interface an installed `@girs` declaration file declares. */
+function girDeclares(girPackage, type) {
+    const file = join(ROOT, 'node_modules', '@girs', girPackage, `${girPackage}.d.ts`);
+    if (!existsSync(file)) return null;
+    const text = readFileSync(file, 'utf8');
+    return new RegExp(
+        `^\\s*(?:export\\s+)?(?:declare\\s+)?(?:abstract\\s+)?(?:class|enum|interface)\\s+${type}\\b`,
+        'm',
+    ).test(text);
+}
+
 const NAMESPACE_PREFIXES = ['adw', 'gtk'];
 
 /**
@@ -1351,10 +1393,38 @@ function namespaceProblems(surface) {
     for (const [name, actual] of namespace) {
         const members = expected.get(name);
         for (const member of actual.keys()) {
-            if (members?.has(member)) continue;
+            const value = CONSTRUCTIBLE_VALUES.find((entry) => entry.member === `${name}.${member}`);
+            if (members?.has(member)) {
+                // The stale-entry direction: a member the ports ship as a WIDGET may not sit
+                // in the value table, or the table becomes the second place a widget is
+                // declared and the rule above stops meaning anything.
+                if (value !== undefined) {
+                    problems.push(
+                        `\`${name}.${member}\` is in CONSTRUCTIBLE_VALUES and ${pkg} ships it as a WIDGET. ` +
+                            'Drop the entry — the rule above already covers it.',
+                    );
+                }
+                continue;
+            }
+            if (value !== undefined) {
+                const declared = girDeclares(value.girPackage, value.gir);
+                if (declared === null) {
+                    problems.push(
+                        `\`${value.member}\` is declared a constructible value, but @girs/${value.girPackage} ` +
+                            'is not installed, so nothing here can hold it against the GIR.',
+                    );
+                } else if (!declared) {
+                    problems.push(
+                        `\`${value.member}\` is declared a constructible value of \`${value.girPackage}\`, ` +
+                            `which declares no \`${value.gir}\`.`,
+                    );
+                }
+                continue;
+            }
             problems.push(
                 `${source} names \`${name}.${member}\`, which no ${pkg} widget corresponds to — drop it, ` +
-                    'or ship the widget it promises',
+                    'ship the widget it promises, or declare it a constructible value in ' +
+                    'CONSTRUCTIBLE_VALUES with the GIR type it is (ADR 0034 § Amendment 19)',
             );
         }
     }
