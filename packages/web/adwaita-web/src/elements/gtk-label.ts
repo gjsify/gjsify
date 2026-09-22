@@ -64,6 +64,7 @@ export class GtkLabel extends HTMLElement {
      * asserts on (`gtk-label.spec.ts`'s XSS note: "the DOM gets one text node").
      */
     private _wrapSpan: HTMLSpanElement | null = null;
+    private _resizes: ResizeObserver | null = null;
 
     static get observedAttributes() {
         return [...PROPERTY_ATTRIBUTES];
@@ -139,6 +140,21 @@ export class GtkLabel extends HTMLElement {
 
     connectedCallback() {
         this._render();
+        this._resizes = new ResizeObserver(() => this._remeasure());
+        this._resizes.observe(this);
+        void document.fonts?.ready.then(() => this._remeasure());
+    }
+
+    disconnectedCallback() {
+        this._resizes?.disconnect();
+        this._resizes = null;
+    }
+
+    private _remeasure(): void {
+        if (!this._wrapSpan || !this.isConnected) return;
+        this._wrapSpan.style.width = '';
+        const width = measuredWrapWidth(this._wrapSpan);
+        this._wrapSpan.style.width = width !== null ? `${width}px` : '';
     }
 
     attributeChangedCallback(name: string, old: string | null, value: string | null) {
@@ -189,9 +205,10 @@ export class GtkLabel extends HTMLElement {
      * (`width: ''`, the same collapse above, which is exactly the width GTK's own
      * allocation wraps against), then pin the span to its widest resulting line via
      * `Range.getClientRects()`, which gives the pseudo spacers real free space to split.
-     * Approximate on purpose, and cheap: one synchronous reflow per render, no
-     * `ResizeObserver` — a later resize of the label's own container is not re-measured,
-     * matching how a mounted Blueprint tree is not expected to change width live either.
+     * Approximate on purpose, and cheap: one synchronous reflow per render. The pinned
+     * width goes stale whenever the available width or the font changes, and a page does
+     * both (a rotated phone, an opened sidebar, a web font arriving late), so
+     * {@link connectedCallback} re-measures on each resize and once the fonts have loaded.
      */
     private _renderWrapped(text: string): void {
         if (!this._wrapSpan) {
@@ -201,9 +218,7 @@ export class GtkLabel extends HTMLElement {
             this.appendChild(this._wrapSpan);
         }
         if (this._wrapSpan.textContent !== text) this._wrapSpan.textContent = text;
-        this._wrapSpan.style.width = '';
-        const width = this.isConnected ? measuredWrapWidth(this._wrapSpan) : null;
-        this._wrapSpan.style.width = width !== null ? `${width}px` : '';
+        this._remeasure();
     }
 }
 

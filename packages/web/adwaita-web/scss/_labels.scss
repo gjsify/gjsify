@@ -88,6 +88,8 @@ gtk-label {
   // block` is spelled out rather than relied on implicitly).
   .adw-label-text {
     display: block;
+    // A pinned width may never push the label wider than its container.
+    max-width: 100%;
   }
 
   &[selectable] {

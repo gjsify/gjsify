@@ -169,6 +169,25 @@ export const GtkLabelTest = async () => {
             host.remove();
         });
 
+        // The block's width is measured, so it has to be measured again when the space
+        // changes. Widening is the direction that proves it: narrowing is also caught by
+        // the span's `max-width: 100%`, but a block pinned at 200px stays 200px wide in a
+        // 400px container until something measures it again.
+        await it('re-measures a wrapped block when its container widens', async () => {
+            const long = 'word '.repeat(60).trim();
+            const { el, host } = mount(long);
+            host.style.width = '200px';
+            el.wrap = true;
+            // Settle the one-off font re-measure first, or it would widen the block on its own.
+            await document.fonts.ready;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            host.style.width = '400px';
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const span = el.querySelector('.adw-label-text')!.getBoundingClientRect();
+            expect(span.width > 300).toBe(true);
+            host.remove();
+        });
+
         await it('is not selectable unless asked, as GtkLabel', () => {
             const { el, host } = mount('Hi');
             expect(getComputedStyle(el).userSelect).toBe('none');
