@@ -338,6 +338,12 @@ And one that writing the expectations found: `SharedNode.slot` carries both `[st
 (a `<child type="start">`) and `content:` (a `<property name="content">`), so the projection
 cannot be inverted. The header of `corpus/expectations.mjs` has that and the rest.
 
+The two constructs beside it — the class a `template` DEFINES and the `id` a node is addressed
+by — were losses until ADR 0066 gave each a field, which is why shipped `.blp` files project
+without loss at all now and none did before. Both are held against the oracle's own bytes:
+stage D compares `node.template` to the golden's `<template class="…">` and every `node.id` to
+the golden's `id="…"`, so the two exits cannot describe one file's addressing differently.
+
 ### An earlier version of this file got item 2 wrong, and how
 
 It claimed the published types already carried positional enum values — measured on

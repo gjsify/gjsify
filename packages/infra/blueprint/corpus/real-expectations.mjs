@@ -49,6 +49,11 @@
 //     template parent. The widget each file is about sits one level down at
 //     `slot: 'child'`, so the root tag is a GTK restriction showing through.
 //
+//     WHAT THE FILE IS ABOUT IS NOW SAID OUT LOUD, and this finding is why ADR 0066 made
+//     `template` a field rather than leaving the class to be inferred from the tag. The
+//     root here is `{ tag: 'AdwBin', template: 'GalleryHeaderBar' }`: the restriction is
+//     still visible in the tag, and the subject is no longer missing beside it.
+//
 //  4. DROPPING BOTH ENDS OF A MUTUAL BINDING LEAVES A TREE THAT IS WHOLE AND INERT.
 //     `13-binding.blp` loses a PROPERTY, so its projection is visibly short of the
 //     source. In the three split-view files the two bindings are each other's mirror —
@@ -59,11 +64,13 @@
 //
 // AND ONE NUMBER OF ADR 0053'S CENSUS IS OFF
 //
-// Its § Context row for object ids reads "41 of those". The `object-id` losses declared
-// below are 47, counted one per `Type id {` line plus the three ids written on a
-// property-assigned object (`content: Gtk.Box canvasContainer {`, which a grep for a
-// leading type token misses). 47 is the number to carry: it is the one an entry here
-// names line by line, so it is the one that fails loudly when a file changes.
+// Its § Context row for object ids reads "41 of those". The ids declared below are 48,
+// counted one per `Type id {` line plus the ids written on a property-assigned object
+// (`content: Gtk.Box canvasContainer {`, which a grep for a leading type token misses). 48
+// is the number to carry: it is the one an entry here names node by node, so it is the one
+// that fails loudly when a file changes. They were 47 `object-id` LOSSES until ADR 0066 made
+// them `id` fields, and the count moved by one because the twelfth file arrived with the
+// same PR that stopped them being losses.
 //
 // The two conventions both files follow — which line a loss names, and that `children`
 // is in source order — are stated once, in the header of `expectations.mjs`.
@@ -76,6 +83,7 @@ export const REAL_EXPECTATIONS = [
         file: 'showcases/dom/canvas2d-fireworks/src/gjs/fireworks-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'FireworksWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Fireworks — Canvas 2D' },
             children: [
                 {
@@ -88,11 +96,13 @@ export const REAL_EXPECTATIONS = [
                             children: [
                                 {
                                     tag: 'GtkToggleButton',
+                                    id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
                                 },
                                 {
                                     tag: 'GtkButton',
+                                    id: 'pauseButton',
                                     slot: 'end',
                                     props: {
                                         'icon-name': 'media-playback-pause-symbolic',
@@ -103,6 +113,7 @@ export const REAL_EXPECTATIONS = [
                         },
                         {
                             tag: 'AdwOverlaySplitView',
+                            id: 'splitView',
                             props: {
                                 'sidebar-width-fraction': 0.3,
                                 'min-sidebar-width': 280,
@@ -129,11 +140,24 @@ export const REAL_EXPECTATIONS = [
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Fireworks' },
                                                     children: [
-                                                        { tag: 'AdwSpinRow', props: { title: 'Particle Count' } },
-                                                        { tag: 'AdwSpinRow', props: { title: 'Auto Interval (ms)' } },
-                                                        { tag: 'AdwSpinRow', props: { title: 'Max Burst Radius' } },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'particleCountRow',
+                                                            props: { title: 'Particle Count' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'autoIntervalRow',
+                                                            props: { title: 'Auto Interval (ms)' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'maxBurstRadiusRow',
+                                                            props: { title: 'Max Burst Radius' },
+                                                        },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'autoFireworksRow',
                                                             props: { title: 'Auto Fireworks', active: true },
                                                         },
                                                     ],
@@ -142,7 +166,12 @@ export const REAL_EXPECTATIONS = [
                                         },
                                     ],
                                 },
-                                { tag: 'GtkBox', slot: 'content', props: { hexpand: true, vexpand: true } },
+                                {
+                                    tag: 'GtkBox',
+                                    id: 'canvasContainer',
+                                    slot: 'content',
+                                    props: { hexpand: true, vexpand: true },
+                                },
                             ],
                         },
                     ],
@@ -150,11 +179,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$FireworksWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
             {
                 kind: 'breakpoint',
                 line: 10,
@@ -165,35 +189,15 @@ export const REAL_EXPECTATIONS = [
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
             },
-            { kind: 'object-id', line: 32, detail: 'the id `sidebarToggleButton`, which the binding on line 49 needs' },
             {
                 kind: 'binding',
                 line: 35,
                 detail: '`active: bind splitView.show-sidebar` — the property is dropped entirely, not defaulted',
             },
             {
-                kind: 'object-id',
-                line: 39,
-                detail: 'the id `pauseButton`, which the TypeScript half looks up on the template',
-            },
-            {
-                kind: 'object-id',
-                line: 45,
-                detail: 'the id `splitView`, which the binding on line 35 and both breakpoints need',
-            },
-            {
                 kind: 'binding',
                 line: 49,
                 detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
-            },
-            { kind: 'object-id', line: 65, detail: 'the id `particleCountRow`' },
-            { kind: 'object-id', line: 69, detail: 'the id `autoIntervalRow`' },
-            { kind: 'object-id', line: 73, detail: 'the id `maxBurstRadiusRow`' },
-            { kind: 'object-id', line: 77, detail: 'the id `autoFireworksRow`' },
-            {
-                kind: 'object-id',
-                line: 85,
-                detail: 'the id `canvasContainer`, the one id the whole showcase is built around',
             },
         ],
         note: 'Line 32 writes `ToggleButton` with no namespace and this says `GtkToggleButton` — see finding 1 in the header of this file. `sidebar-width-fraction: 0.30` says `0.3` for the reason `17-numeric-forms.blp` gives.',
@@ -202,6 +206,7 @@ export const REAL_EXPECTATIONS = [
         file: 'showcases/dom/excalibur-jelly-jumper/src/gjs/jelly-jumper-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'JellyJumperWindow',
             props: { 'default-width': 1280, 'default-height': 720, title: 'Jelly Jumper — Excalibur.js' },
             children: [
                 {
@@ -214,6 +219,7 @@ export const REAL_EXPECTATIONS = [
                             children: [
                                 {
                                     tag: 'GtkButton',
+                                    id: 'pauseButton',
                                     slot: 'end',
                                     props: {
                                         'icon-name': 'media-playback-pause-symbolic',
@@ -222,32 +228,25 @@ export const REAL_EXPECTATIONS = [
                                 },
                                 {
                                     tag: 'GtkButton',
+                                    id: 'audioButton',
                                     slot: 'end',
                                     props: { 'icon-name': 'audio-volume-high-symbolic', 'tooltip-text': 'Mute Audio' },
                                 },
                             ],
                         },
-                        { tag: 'GtkBox', props: { hexpand: true, vexpand: true } },
+                        { tag: 'GtkBox', id: 'canvasContainer', props: { hexpand: true, vexpand: true } },
                     ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$JellyJumperWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
-            { kind: 'object-id', line: 14, detail: 'the id `pauseButton`' },
-            { kind: 'object-id', line: 19, detail: 'the id `audioButton`' },
-            { kind: 'object-id', line: 25, detail: 'the id `canvasContainer`' },
-        ],
+        lost: [],
         note: 'The two buttons both carry `slot: end` and their ORDER is load-bearing — measured on libadwaita 1.9, `AdwHeaderBar` PREPENDS into its end box, so the second `[end]` child (audio) sits LEFT of the first (pause). See finding 2 in the header of this file.',
     },
     {
         file: 'showcases/dom/three-geometry-teapot/src/gjs/teapot-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'TeapotWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Three.js Teapot' },
             children: [
                 {
@@ -260,11 +259,13 @@ export const REAL_EXPECTATIONS = [
                             children: [
                                 {
                                     tag: 'GtkToggleButton',
+                                    id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
                                 },
                                 {
                                     tag: 'GtkButton',
+                                    id: 'pauseButton',
                                     slot: 'end',
                                     props: {
                                         'icon-name': 'media-playback-pause-symbolic',
@@ -275,6 +276,7 @@ export const REAL_EXPECTATIONS = [
                         },
                         {
                             tag: 'AdwOverlaySplitView',
+                            id: 'splitView',
                             props: {
                                 'sidebar-width-fraction': 0.3,
                                 'min-sidebar-width': 280,
@@ -301,25 +303,34 @@ export const REAL_EXPECTATIONS = [
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Geometry' },
                                                     children: [
-                                                        { tag: 'AdwComboRow', props: { title: 'Tessellation Level' } },
+                                                        {
+                                                            tag: 'AdwComboRow',
+                                                            id: 'tessRow',
+                                                            props: { title: 'Tessellation Level' },
+                                                        },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'lidRow',
                                                             props: { title: 'Display Lid', active: true },
                                                         },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'bodyRow',
                                                             props: { title: 'Display Body', active: true },
                                                         },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'bottomRow',
                                                             props: { title: 'Display Bottom', active: true },
                                                         },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'fitLidRow',
                                                             props: { title: 'Snug Lid', active: false },
                                                         },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'nonblinnRow',
                                                             props: { title: 'Original Scale', active: false },
                                                         },
                                                     ],
@@ -327,13 +338,24 @@ export const REAL_EXPECTATIONS = [
                                                 {
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Material' },
-                                                    children: [{ tag: 'AdwComboRow', props: { title: 'Shading' } }],
+                                                    children: [
+                                                        {
+                                                            tag: 'AdwComboRow',
+                                                            id: 'shadingRow',
+                                                            props: { title: 'Shading' },
+                                                        },
+                                                    ],
                                                 },
                                             ],
                                         },
                                     ],
                                 },
-                                { tag: 'GtkBox', slot: 'content', props: { hexpand: true, vexpand: true } },
+                                {
+                                    tag: 'GtkBox',
+                                    id: 'glAreaContainer',
+                                    slot: 'content',
+                                    props: { hexpand: true, vexpand: true },
+                                },
                             ],
                         },
                     ],
@@ -341,11 +363,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$TeapotWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
             {
                 kind: 'breakpoint',
                 line: 10,
@@ -356,33 +373,19 @@ export const REAL_EXPECTATIONS = [
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
             },
-            { kind: 'object-id', line: 32, detail: 'the id `sidebarToggleButton`, which the binding on line 49 needs' },
             { kind: 'binding', line: 35, detail: '`active: bind splitView.show-sidebar`' },
-            { kind: 'object-id', line: 39, detail: 'the id `pauseButton`' },
-            {
-                kind: 'object-id',
-                line: 45,
-                detail: 'the id `splitView`, which the binding on line 35 and both breakpoints need',
-            },
             {
                 kind: 'binding',
                 line: 49,
                 detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
             },
-            { kind: 'object-id', line: 65, detail: 'the id `tessRow`' },
-            { kind: 'object-id', line: 69, detail: 'the id `lidRow`' },
-            { kind: 'object-id', line: 74, detail: 'the id `bodyRow`' },
-            { kind: 'object-id', line: 79, detail: 'the id `bottomRow`' },
-            { kind: 'object-id', line: 84, detail: 'the id `fitLidRow`' },
-            { kind: 'object-id', line: 89, detail: 'the id `nonblinnRow`' },
-            { kind: 'object-id', line: 98, detail: 'the id `shadingRow`' },
-            { kind: 'object-id', line: 105, detail: 'the id `glAreaContainer`' },
         ],
     },
     {
         file: 'showcases/dom/three-loader-ldraw/src/gjs/ldraw-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'LDrawWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'LDraw Loader' },
             children: [
                 {
@@ -413,16 +416,31 @@ export const REAL_EXPECTATIONS = [
                                                 {
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Model' },
-                                                    children: [{ tag: 'AdwComboRow', props: { title: 'Model' } }],
+                                                    children: [
+                                                        {
+                                                            tag: 'AdwComboRow',
+                                                            id: 'modelRow',
+                                                            props: { title: 'Model' },
+                                                        },
+                                                    ],
                                                 },
                                                 {
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Rendering' },
                                                     children: [
-                                                        { tag: 'AdwSwitchRow', props: { title: 'Flat Colors' } },
-                                                        { tag: 'AdwSwitchRow', props: { title: 'Merge Model' } },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'flatColorsRow',
+                                                            props: { title: 'Flat Colors' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSwitchRow',
+                                                            id: 'mergeModelRow',
+                                                            props: { title: 'Merge Model' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSwitchRow',
+                                                            id: 'smoothNormalsRow',
                                                             props: { title: 'Smooth Normals', active: true },
                                                         },
                                                     ],
@@ -431,13 +449,19 @@ export const REAL_EXPECTATIONS = [
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Display' },
                                                     children: [
-                                                        { tag: 'AdwSpinRow', props: { title: 'Building Step' } },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'buildingStepRow',
+                                                            props: { title: 'Building Step' },
+                                                        },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'displayLinesRow',
                                                             props: { title: 'Display Lines', active: true },
                                                         },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'conditionalLinesRow',
                                                             props: { title: 'Conditional Lines', active: true },
                                                         },
                                                     ],
@@ -447,34 +471,21 @@ export const REAL_EXPECTATIONS = [
                                     ],
                                 },
                                 { tag: 'GtkSeparator', props: { orientation: 'vertical' } },
-                                { tag: 'GtkBox', props: { hexpand: true, vexpand: true } },
+                                { tag: 'GtkBox', id: 'glAreaContainer', props: { hexpand: true, vexpand: true } },
                             ],
                         },
                     ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$LDrawWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
-            { kind: 'object-id', line: 35, detail: 'the id `modelRow`' },
-            { kind: 'object-id', line: 43, detail: 'the id `flatColorsRow`' },
-            { kind: 'object-id', line: 47, detail: 'the id `mergeModelRow`' },
-            { kind: 'object-id', line: 51, detail: 'the id `smoothNormalsRow`' },
-            { kind: 'object-id', line: 60, detail: 'the id `buildingStepRow`' },
-            { kind: 'object-id', line: 64, detail: 'the id `displayLinesRow`' },
-            { kind: 'object-id', line: 69, detail: 'the id `conditionalLinesRow`' },
-            { kind: 'object-id', line: 81, detail: 'the id `glAreaContainer`' },
-        ],
+        lost: [],
         note: 'The one sidebar showcase that builds its sidebar from a `Gtk.Box` rather than `Adw.OverlaySplitView`, so it carries no breakpoint and no binding at all: near enough the same UI as the other three, and a projection that loses far less of it.',
     },
     {
         file: 'showcases/dom/three-postprocessing-pixel/src/gjs/pixel-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'PixelWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Pixel Post-Processing' },
             children: [
                 {
@@ -487,11 +498,13 @@ export const REAL_EXPECTATIONS = [
                             children: [
                                 {
                                     tag: 'GtkToggleButton',
+                                    id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
                                 },
                                 {
                                     tag: 'GtkButton',
+                                    id: 'pauseButton',
                                     slot: 'end',
                                     props: {
                                         'icon-name': 'media-playback-pause-symbolic',
@@ -502,6 +515,7 @@ export const REAL_EXPECTATIONS = [
                         },
                         {
                             tag: 'AdwOverlaySplitView',
+                            id: 'splitView',
                             props: {
                                 'sidebar-width-fraction': 0.3,
                                 'min-sidebar-width': 280,
@@ -528,11 +542,24 @@ export const REAL_EXPECTATIONS = [
                                                     tag: 'AdwPreferencesGroup',
                                                     props: { title: 'Post-Processing' },
                                                     children: [
-                                                        { tag: 'AdwSpinRow', props: { title: 'Pixel Size' } },
-                                                        { tag: 'AdwSpinRow', props: { title: 'Normal Edge' } },
-                                                        { tag: 'AdwSpinRow', props: { title: 'Depth Edge' } },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'pixelSizeRow',
+                                                            props: { title: 'Pixel Size' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'normalEdgeRow',
+                                                            props: { title: 'Normal Edge' },
+                                                        },
+                                                        {
+                                                            tag: 'AdwSpinRow',
+                                                            id: 'depthEdgeRow',
+                                                            props: { title: 'Depth Edge' },
+                                                        },
                                                         {
                                                             tag: 'AdwSwitchRow',
+                                                            id: 'pixelAlignRow',
                                                             props: { title: 'Pixel-Aligned Panning', active: true },
                                                         },
                                                     ],
@@ -541,7 +568,12 @@ export const REAL_EXPECTATIONS = [
                                         },
                                     ],
                                 },
-                                { tag: 'GtkBox', slot: 'content', props: { hexpand: true, vexpand: true } },
+                                {
+                                    tag: 'GtkBox',
+                                    id: 'glAreaContainer',
+                                    slot: 'content',
+                                    props: { hexpand: true, vexpand: true },
+                                },
                             ],
                         },
                     ],
@@ -549,11 +581,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$PixelWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
             {
                 kind: 'breakpoint',
                 line: 10,
@@ -564,30 +591,19 @@ export const REAL_EXPECTATIONS = [
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
             },
-            { kind: 'object-id', line: 32, detail: 'the id `sidebarToggleButton`, which the binding on line 49 needs' },
             { kind: 'binding', line: 35, detail: '`active: bind splitView.show-sidebar`' },
-            { kind: 'object-id', line: 39, detail: 'the id `pauseButton`' },
-            {
-                kind: 'object-id',
-                line: 45,
-                detail: 'the id `splitView`, which the binding on line 35 and both breakpoints need',
-            },
             {
                 kind: 'binding',
                 line: 49,
                 detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
             },
-            { kind: 'object-id', line: 65, detail: 'the id `pixelSizeRow`' },
-            { kind: 'object-id', line: 69, detail: 'the id `normalEdgeRow`' },
-            { kind: 'object-id', line: 73, detail: 'the id `depthEdgeRow`' },
-            { kind: 'object-id', line: 77, detail: 'the id `pixelAlignRow`' },
-            { kind: 'object-id', line: 85, detail: 'the id `glAreaContainer`' },
         ],
     },
     {
         file: 'showcases/gtk/adw-blueprint-layout/src/header-bar.blp',
         node: {
             tag: 'AdwBin',
+            template: 'GalleryHeaderBar',
             children: [
                 {
                     tag: 'AdwHeaderBar',
@@ -605,6 +621,7 @@ export const REAL_EXPECTATIONS = [
                         },
                         {
                             tag: 'GtkMenuButton',
+                            id: 'menuButton',
                             slot: 'end',
                             props: { 'icon-name': 'open-menu-symbolic', 'tooltip-text': 'Main Menu' },
                         },
@@ -613,11 +630,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 6,
-                detail: 'the template class `$GalleryHeaderBar`; only its parent type `Adw.Bin` survives, as the root tag',
-            },
             {
                 kind: 'translatable',
                 line: 9,
@@ -629,7 +641,6 @@ export const REAL_EXPECTATIONS = [
                 line: 18,
                 detail: 'the style class `flat` on the back button — a list, and `props` holds no lists (ADR 0049)',
             },
-            { kind: 'object-id', line: 22, detail: 'the id `menuButton`' },
             { kind: 'translatable', line: 24, detail: 'the `_()` marking on `Main Menu`' },
             { kind: 'styles', line: 26, detail: 'the style class `flat` on the menu button' },
         ],
@@ -639,6 +650,7 @@ export const REAL_EXPECTATIONS = [
         file: 'showcases/gtk/adw-blueprint-layout/src/toolbar-view.blp',
         node: {
             tag: 'AdwBin',
+            template: 'GalleryToolbarView',
             children: [
                 {
                     tag: 'AdwToolbarView',
@@ -691,11 +703,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 6,
-                detail: 'the template class `$GalleryToolbarView`; only its parent type `Adw.Bin` survives, as the root tag',
-            },
             { kind: 'translatable', line: 11, detail: 'the `_()` marking on `Documents`' },
             { kind: 'translatable', line: 12, detail: 'the `_()` marking on `12 items`' },
             { kind: 'translatable', line: 18, detail: 'the `_()` marking on `Your library`' },
@@ -714,6 +721,7 @@ export const REAL_EXPECTATIONS = [
         file: 'showcases/gtk/effect-adw-services/src/window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'EffectServicesWindow',
             props: { title: 'Effect services', 'default-width': 620, 'default-height': 640 },
             children: [
                 {
@@ -758,14 +766,18 @@ export const REAL_EXPECTATIONS = [
                                                         description:
                                                             'Every keystroke is a Stream element; the read runs as a fiber owned by this window.',
                                                     },
-                                                    children: [{ tag: 'AdwEntryRow', props: { title: 'Path' } }],
+                                                    children: [
+                                                        { tag: 'AdwEntryRow', id: 'pathRow', props: { title: 'Path' } },
+                                                    ],
                                                 },
                                                 {
                                                     tag: 'AdwPreferencesGroup',
+                                                    id: 'resultGroup',
                                                     props: { title: 'Entries' },
                                                     children: [
                                                         {
                                                             tag: 'AdwActionRow',
+                                                            id: 'statusRow',
                                                             props: { title: 'Waiting', subtitle: 'Type a path above.' },
                                                         },
                                                     ],
@@ -776,10 +788,12 @@ export const REAL_EXPECTATIONS = [
                                                     children: [
                                                         {
                                                             tag: 'AdwActionRow',
+                                                            id: 'fibersRow',
                                                             props: { title: 'Reads started', subtitle: '0' },
                                                         },
                                                         {
                                                             tag: 'AdwActionRow',
+                                                            id: 'interruptedRow',
                                                             props: {
                                                                 title: 'Superseded and interrupted',
                                                                 subtitle: '0',
@@ -798,11 +812,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 11,
-                detail: 'the template class `$EffectServicesWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
             { kind: 'translatable', line: 12, detail: 'the `_()` marking on the window title `Effect services`' },
             {
                 kind: 'translatable',
@@ -812,21 +821,12 @@ export const REAL_EXPECTATIONS = [
             { kind: 'translatable', line: 21, detail: 'the `_()` marking on `effect/FileSystem over Gio.File`' },
             { kind: 'translatable', line: 40, detail: 'the `_()` marking on `Read a directory`' },
             { kind: 'translatable', line: 41, detail: 'the `_()` marking on the group description' },
-            { kind: 'object-id', line: 43, detail: 'the id `pathRow`' },
             { kind: 'translatable', line: 44, detail: 'the `_()` marking on `Path`' },
-            {
-                kind: 'object-id',
-                line: 48,
-                detail: 'the id `resultGroup`, which the TypeScript half adds rows to at runtime',
-            },
             { kind: 'translatable', line: 49, detail: 'the `_()` marking on `Entries`' },
-            { kind: 'object-id', line: 51, detail: 'the id `statusRow`' },
             { kind: 'translatable', line: 52, detail: 'the `_()` marking on `Waiting`' },
             { kind: 'translatable', line: 53, detail: 'the `_()` marking on `Type a path above.`' },
             { kind: 'translatable', line: 58, detail: 'the `_()` marking on `Fiber activity`' },
-            { kind: 'object-id', line: 60, detail: 'the id `fibersRow`' },
             { kind: 'translatable', line: 61, detail: 'the `_()` marking on `Reads started`' },
-            { kind: 'object-id', line: 65, detail: 'the id `interruptedRow`' },
             { kind: 'translatable', line: 66, detail: 'the `_()` marking on `Superseded and interrupted`' },
         ],
         note: 'The file states in its own header that it exists so that every caption is reachable by xgettext. Twelve `_()` markings, and this projection is where all twelve stop being reachable — the loss `09-translatable.blp` isolates, at the size a real interface reaches.',
@@ -835,80 +835,68 @@ export const REAL_EXPECTATIONS = [
         file: 'templates/adw-canvas2d/src/main-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'MainWindow',
             props: { 'default-width': 800, 'default-height': 600, title: 'new-gjsify-app — Canvas 2D' },
             children: [
                 {
                     tag: 'GtkBox',
                     slot: 'content',
                     props: { orientation: 'vertical' },
-                    children: [{ tag: 'AdwHeaderBar' }, { tag: 'GtkBox', props: { hexpand: true, vexpand: true } }],
+                    children: [
+                        { tag: 'AdwHeaderBar' },
+                        { tag: 'GtkBox', id: 'canvasContainer', props: { hexpand: true, vexpand: true } },
+                    ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$MainWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
-            {
-                kind: 'object-id',
-                line: 14,
-                detail: 'the id `canvasContainer`, which the scaffolded TypeScript looks up',
-            },
-        ],
+        lost: [],
         note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the twelve probes are fewer than twelve distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'MainWindow',
             props: { 'default-width': 800, 'default-height': 600, title: 'new-gjsify-app — Game' },
             children: [
                 {
                     tag: 'GtkBox',
                     slot: 'content',
                     props: { orientation: 'vertical' },
-                    children: [{ tag: 'AdwHeaderBar' }, { tag: 'GtkBox', props: { hexpand: true, vexpand: true } }],
+                    children: [
+                        { tag: 'AdwHeaderBar' },
+                        { tag: 'GtkBox', id: 'canvasContainer', props: { hexpand: true, vexpand: true } },
+                    ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$MainWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
-            { kind: 'object-id', line: 14, detail: 'the id `canvasContainer`' },
-        ],
+        lost: [],
     },
     {
         file: 'templates/adw-webgl/src/main-window.blp',
         node: {
             tag: 'AdwApplicationWindow',
+            template: 'MainWindow',
             props: { 'default-width': 800, 'default-height': 600, title: 'new-gjsify-app — WebGL' },
             children: [
                 {
                     tag: 'GtkBox',
                     slot: 'content',
                     props: { orientation: 'vertical' },
-                    children: [{ tag: 'AdwHeaderBar' }, { tag: 'GtkBox', props: { hexpand: true, vexpand: true } }],
+                    children: [
+                        { tag: 'AdwHeaderBar' },
+                        { tag: 'GtkBox', id: 'canvasContainer', props: { hexpand: true, vexpand: true } },
+                    ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'template',
-                line: 4,
-                detail: 'the template class `$MainWindow`; only its parent type `Adw.ApplicationWindow` survives, as the root tag',
-            },
-            { kind: 'object-id', line: 14, detail: 'the id `canvasContainer`' },
-        ],
+        lost: [],
     },
     {
         file: 'templates/gtk-minimal/src/main-window.blp',
         node: {
             tag: 'GtkApplicationWindow',
+            template: 'MainWindow',
             props: { title: 'new-gjsify-app', 'default-width': 480, 'default-height': 280 },
             children: [
                 {
@@ -924,17 +912,12 @@ export const REAL_EXPECTATIONS = [
                     },
                     children: [
                         { tag: 'GtkLabel', props: { label: 'Hello from gjsify!' } },
-                        { tag: 'GtkLabel', props: { xalign: 0.5 } },
+                        { tag: 'GtkLabel', id: 'hint', props: { xalign: 0.5 } },
                     ],
                 },
             ],
         },
         lost: [
-            {
-                kind: 'template',
-                line: 3,
-                detail: 'the template class `$MainWindow`; only its parent type `Gtk.ApplicationWindow` survives, as the root tag',
-            },
             {
                 kind: 'comment',
                 line: 17,
@@ -949,11 +932,6 @@ export const REAL_EXPECTATIONS = [
                 kind: 'styles',
                 line: 22,
                 detail: 'the style class `title-2` — a list, and `props` holds no lists (ADR 0049)',
-            },
-            {
-                kind: 'object-id',
-                line: 29,
-                detail: 'the id `hint`, which the scaffolded TypeScript reaches through `InternalChildren`',
             },
         ],
         note: 'The first probe that is neither Adwaita nor a showcase: plain `Gtk.ApplicationWindow`, `child:` rather than `content:`, and the only real file whose caption is the POINT — it was converted from a TypeScript `new Gtk.Label({ label: ... })` that xgettext could not see. So the `translatable` loss here is not incidental: a projection that drops it turns the conversion back into the thing it replaced.',

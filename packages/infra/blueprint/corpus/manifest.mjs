@@ -39,9 +39,11 @@
 // WHAT THE TWELVE REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "twelve real
-// files" as coverage would be wrong twice over. They exercise six of the fifteen loss
-// kinds — `template`, `object-id`, `translatable`, `binding`, `breakpoint`, `styles`.
-// The other nine (`signal`, `menu`, `layout`, `accessibility`, `comment`, `value-list`,
+// files" as coverage would be wrong twice over. They exercise four loss kinds —
+// `translatable`, `binding`, `breakpoint`, `styles`. It was six until ADR 0066 gave
+// `template` and `object-id` a field each, which is also why the twelve now include files
+// that project with NO loss at all, where before the change not one of them did. The other kinds (`signal`, `menu`,
+// `layout`, `accessibility`, `comment`, `value-list`,
 // `sibling-object`, `responses`, `extern`) are declared by no real expectation and are held only by the rules
 // above — the half of the corpus written by whoever writes the parser. (`comment` is the
 // one to read carefully: four of them DO carry comments, and the convention in

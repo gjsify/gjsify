@@ -239,8 +239,15 @@ const entryFor = (widget) => {
 
 // Fresh nodes on both sides rather than the authored ones: two arrays handing out the
 // same objects would let a consumer's edit reach the other renderer.
+//
+// EVERY FIELD IS COPIED BY NAME, so this is the first place a new one is lost — ADR 0058 §
+// Implementation named it before there was a second field to lose, and ADR 0066 added two.
+// `id` and `template` are unreached by today's corpus and copied anyway: a block that grows
+// one must not have it dropped by a function that is silent about what it does not know.
 const rebuild = (node, tagOf) => ({
     tag: tagOf(node.tag),
+    ...(node.id === undefined ? {} : { id: node.id }),
+    ...(node.template === undefined ? {} : { template: node.template }),
     ...(node.slot === undefined ? {} : { slot: node.slot }),
     ...(node.props === undefined ? {} : { props: { ...node.props } }),
     ...(node.children === undefined ? {} : { children: node.children.map((child) => rebuild(child, tagOf)) }),

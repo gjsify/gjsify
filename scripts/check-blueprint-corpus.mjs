@@ -124,8 +124,8 @@ const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectat
 // a JSDoc union is not readable at runtime. A kind used there and missing here fails
 // stage A, which is the direction that matters: an unnamed loss is the defect.
 const LOSS_KINDS = new Set([
-    'template',
-    'object-id',
+    // NO `template` and NO `object-id`: ADR 0066 gave each a field on the node, so declaring
+    // either as a loss here is now the defect rather than the bookkeeping.
     'translatable',
     'signal',
     'binding',
@@ -152,7 +152,7 @@ const LOSS_KINDS = new Set([
     'action-widget',
 ]);
 
-const NODE_FIELDS = new Set(['tag', 'slot', 'props', 'children']);
+const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'children']);
 
 const problems = [];
 
@@ -163,15 +163,15 @@ const fail = () => {
     process.exit(1);
 };
 
-/** A `SharedNode` is four optional-ish fields and three value kinds; hold it to that. */
-const validateNode = (node, where) => {
+/** A `SharedNode` is six optional-ish fields and three value kinds; hold it to that. */
+const validateNode = (node, where, isRoot = true) => {
     if (node === null || typeof node !== 'object' || Array.isArray(node)) {
         problems.push(`${where}: expected a SharedNode object, got ${JSON.stringify(node)}.`);
         return;
     }
     for (const key of Object.keys(node)) {
         if (!NODE_FIELDS.has(key)) {
-            problems.push(`${where}: "${key}" is not a SharedNode field (tag, slot, props, children).`);
+            problems.push(`${where}: "${key}" is not a SharedNode field (tag, id, template, slot, props, children).`);
         }
     }
     if (typeof node.tag !== 'string' || node.tag.length === 0) {
@@ -184,6 +184,22 @@ const validateNode = (node, where) => {
     }
     if (node.slot !== undefined && (typeof node.slot !== 'string' || node.slot.length === 0)) {
         problems.push(`${where}: "slot" must be a non-empty string when present.`);
+    }
+    if (node.id !== undefined && (typeof node.id !== 'string' || node.id.length === 0)) {
+        problems.push(`${where}: "id" must be a non-empty string when present.`);
+    }
+    // `template` says what the TREE defines, so a second one inside it would be a second
+    // document — which is `inline-template`, and that is a declared loss with its own id
+    // scope. A nested `template` is therefore not a smaller claim, it is the wrong one.
+    if (node.template !== undefined) {
+        if (typeof node.template !== 'string' || node.template.length === 0) {
+            problems.push(`${where}: "template" must be a non-empty class name when present.`);
+        } else if (!isRoot) {
+            problems.push(
+                `${where}: "template" is on a CHILD node. It names the class the whole tree defines, ` +
+                    'so only the root may carry one.',
+            );
+        }
     }
     if (node.props !== undefined) {
         for (const [key, value] of Object.entries(node.props)) {
@@ -201,7 +217,7 @@ const validateNode = (node, where) => {
             problems.push(`${where}: "children" must be an array.`);
             return;
         }
-        node.children.forEach((child, i) => validateNode(child, `${where} > children[${i}]`));
+        node.children.forEach((child, i) => validateNode(child, `${where} > children[${i}]`, false));
     }
 };
 
@@ -848,6 +864,72 @@ if (surface !== undefined) {
 
 // ---------------------------------------------------------------- stage D
 
+/**
+ * The two ADDRESSING fields, held against the GOLDEN rather than against a second
+ * hand-written copy of them — ADR 0066 clause 4.
+ *
+ * WHY THE GOLDEN AND NOT THE EXPECTATION. The expectations above already pin which NODE
+ * carries which id, and a mistake there is a mistake in two files at once: the tree and the
+ * projection can agree and both be wrong about the file, which is the failure mode ADR 0053
+ * clause 2 wrote the hand-written trees to avoid and cannot itself detect. `<template class>`
+ * and `id=` are attributes the reference compiler WRITES, so the oracle's own bytes are
+ * available as the third opinion — and the two exits from one AST then cannot disagree about
+ * one file's addressing without this saying so.
+ *
+ * CDATA IS STRIPPED FIRST, for the reason `goldenObjects` already states one screen up: an
+ * inline `template` embeds a second, complete document with its own id scope, and
+ * `51-inline-template.ui` carries `corpusFactory` and `<template class="GtkListItem">` twice
+ * because of it. Counting the inner document here would demand ids of a projection that was
+ * never handed that document.
+ *
+ * AN ID MAY BE MISSING ONLY WHERE THE OBJECT IS. `<menu>`, `<section>` and `<submenu>` ids
+ * are GMenuModel and never a node, so they are not read at all. An `<object>` id the
+ * projection does not carry has to belong to an object a declared loss took away — and the
+ * loss has to NAME it, which is the one thing a `detail` is asked to do here: three files
+ * drop a top-level sibling with an id, and "the whole `Gtk.Label labelA`" is what tells a
+ * reader where the name went. An id that vanishes with nothing saying so is the defect.
+ */
+const checkAddressing = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    addressed += result.node.template === undefined ? 0 : 1;
+    const golden = readFileSync(job.golden, 'utf8').replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    const wantTemplate = golden.match(/<template\s+class="([^"]+)"/)?.[1];
+    if (result.node.template !== wantTemplate) {
+        problems.push(
+            `${job.key}: the golden writes ${wantTemplate === undefined ? 'no <template>' : `<template class="${wantTemplate}">`} ` +
+                `and the projection says template=${JSON.stringify(result.node.template)}. The two exits from one AST ` +
+                'must spell the composite class the same way.',
+        );
+    }
+    const goldenIds = [...golden.matchAll(/<object\s+[^>]*\bid="([^"]+)"/g)].map((m) => m[1]);
+    const carried = [];
+    const walk = (node) => {
+        if (node.id !== undefined) carried.push(node.id);
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(result.node);
+    addressedIds += carried.length;
+    const invented = carried.filter((id) => !goldenIds.includes(id));
+    if (invented.length > 0) {
+        problems.push(
+            `${job.key}: the projection carries id(s) [${invented.join(', ')}] that the golden does not write. ` +
+                'A name no GtkBuilder document declares addresses nothing.',
+        );
+    }
+    const details = (job.expectation.lost ?? []).map((loss) => loss.detail ?? '').join(' ');
+    for (const id of goldenIds) {
+        if (carried.includes(id)) continue;
+        // The NAME anywhere in a detail, not a fixed phrasing around it: the three files that
+        // reach this write it as "the whole `Gtk.Label labelA`" and as "its id `objectOne`",
+        // and demanding one of those two shapes would be grading prose rather than reading it.
+        if (new RegExp(`\\b${id.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(details)) continue;
+        problems.push(
+            `${job.key}: the golden writes id="${id}" and the projection carries no such node, and no declared ` +
+                'loss names it. Either the id was swallowed, or the loss that took its object has to say so.',
+        );
+    }
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -868,6 +950,11 @@ if (surface !== undefined) {
 // `PROJECTOR` is declared beside the parser above and is REQUIRED there — deleting it used to
 // print "stage D SKIPPED — no projection in this tree yet" and exit 0.
 let projected = 0;
+// The addressing arm's own denominator. A count that only ever goes up with the corpus is
+// what tells a reader the arm RAN — printing "stage D held 68 trees" would read the same
+// whether it compared two fields or none, which is the shape `--require-oracle` exists for.
+let addressed = 0;
+let addressedIds = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -876,8 +963,18 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
     const { projectToSharedNode } = await import(`file://${PROJECTOR}`);
 
     const jobs = [
-        ...RULE_EXPECTATIONS.map((e) => ({ key: `rules/${e.file}`, source: join(RULES_DIR, e.file), expectation: e })),
-        ...REAL_EXPECTATIONS.map((e) => ({ key: e.file, source: join(root, e.file), expectation: e })),
+        ...RULE_EXPECTATIONS.map((e) => ({
+            key: `rules/${e.file}`,
+            source: join(RULES_DIR, e.file),
+            golden: join(RULES_DIR, e.file.replace(/\.blp$/, '.ui')),
+            expectation: e,
+        })),
+        ...REAL_EXPECTATIONS.map((e) => ({
+            key: e.file,
+            source: join(root, e.file),
+            golden: join(REAL_DIR, `${slugFor.get(e.file)}.ui`),
+            expectation: e,
+        })),
     ];
     for (const job of jobs) {
         if (!existsSync(job.source)) continue;
@@ -915,6 +1012,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
                     `declared and not taken: [${missing.join(', ')}]; taken and not declared: [${extra.join(', ')}].`,
             );
         }
+        checkAddressing(job, result);
     }
 }
 
@@ -1108,7 +1206,9 @@ const stageC =
           `${byteEqual} byte-equal, ${ledgered} ledgered across ${kinds.size} cause(s) and ` +
           `${tolerated} named line(s) — every other line held to the golden`;
 
-const stageD = `stage D held ${projected} hand-written SharedNode tree(s) against the projection`;
+const stageD =
+    `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
+    `composite class(es) and ${addressedIds} object id(s) against the golden the oracle wrote`;
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 

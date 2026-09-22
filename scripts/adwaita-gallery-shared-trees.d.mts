@@ -29,6 +29,10 @@
  */
 export interface SharedNode {
     tag: string;
+    /** What the node is addressed by from outside the tree. */
+    id?: string;
+    /** Root only: the composite class the tree defines, where `tag` is the type it extends. */
+    template?: string;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     children?: SharedNode[];

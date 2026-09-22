@@ -6587,7 +6587,13 @@ preference: neither notation contains the other.
 **0 of the 11 real `.blp` files this repo builds round-trip through `SharedNode`**, and the
 constructs that stop them are `template` (11 of 11), a `slot` (11 of 11) and object ids (10
 of 11) — GtkBuilder's ADDRESSING model, which the other two surfaces have no use for at all,
-a web custom element having neither a composite template nor a builder id. Emitting `.blp`
+a web custom element having neither a composite template nor a builder id.
+
+**The last clause of that sentence was re-measured and is wrong for two of the three** — ADR
+0066. A custom element HAS a registered name and an `id`; so does a NativeScript view. Only
+`bind` is GtkBuilder-only, and it stays a refusal. The two that are not now have a field
+each, the price of moving the authored form is that much lower, and the move is still not
+proposed: ADR 0051 Decision 1 stands and `slot` is still 12 of 12. Emitting `.blp`
 is the cheap one: **6 of the 7 shared blocks lose the translatable marking and nothing
 else**, and closing that one loss moves 0 of the 11 real files, so the two directions do not
 share a step. Read the 6 as a statement about the PROJECTION: held the other way — each
@@ -6836,6 +6842,15 @@ So one loss is left needing a field, and ADR 0058 proposes it (**Proposed** — 
 translatable marking, spelled as `StringValue['translatable']` already is in the AST and
 landing with the `.blp` emitter that reads it, never before. And where `SharedNode` must
 live is still open, deliberately.
+
+**TWO OTHER LOSSES GOT A FIELD FIRST, and ADR 0066 is why.** `template` and `object-id` are
+not shape questions the way `slot` is, and they are not waiting on a consumer the way the
+marking is: they are GtkBuilder's ADDRESSING model, they are what stopped every shipped `.blp`
+from projecting without loss, and all three surfaces have a native form for each (a composite
+class and a node name; only `bind` is GTK-only). The projection now carries `id` on a node and
+`template` on a root, spelled as `<template class=…>` writes it, and the shipped `.blp` that
+project with no loss went from none to five of twelve. Every other loss kind stays refused,
+`translatable` among them, and ADR 0058's other four clauses are untouched.
 `scripts/adwaita-gallery-shared-trees.d.mts` is a hand-written declaration whose own header refuses
 a second transcript, and the corpus reads it the way every other consumer does. The question
 becomes forced — not sooner — by the first PR that PUBLISHES a package producing the projection:
