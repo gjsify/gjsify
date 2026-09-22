@@ -107,6 +107,14 @@ declare module '@nativescript/core' {
          */
         className: string | undefined;
         /**
+         * The name `getViewById` finds this view by. `undefined` until written, for the same
+         * reason as `className`: `idProperty` carries no `defaultValue`
+         * (`ui/core/view-base/index.ts:1620`).
+         */
+        id: string | undefined;
+        /** This view or the first descendant whose `id` matches, depth first. */
+        getViewById<T extends View = View>(id: string): T | undefined;
+        /**
          * The LIVE set of classes the CSS engine matches against, rebuilt from
          * `className` on every write (`ui/core/view-base/index.js:1140-1154`), and
          * assigned once in the `ViewBase` constructor (`:226`).

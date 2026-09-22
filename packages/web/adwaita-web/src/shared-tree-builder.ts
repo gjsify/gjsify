@@ -67,6 +67,9 @@ interface PlacedChild {
  */
 export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []): HTMLElement {
     const el = document.createElement(hostTagOf(node.tag));
+    // The id is how the TypeScript beside a `.blp` reaches this element
+    // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
+    if (node.id !== undefined) el.id = node.id;
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));

@@ -35,6 +35,12 @@
         },
         {
             "class": "View",
+            "property": "id",
+            "registeredOn": "ViewBase",
+            "source": "ui/core/view-base/index.ts:1620"
+        },
+        {
+            "class": "View",
             "property": "backgroundColor",
             "registeredOn": "Style",
             "source": "ui/styling/style-properties.ts"

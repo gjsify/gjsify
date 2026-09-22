@@ -196,6 +196,8 @@ export class View extends Observable {
      * `status/nativescript-undefined-defaults.json`.
      */
     backgroundColor: string | undefined;
+    /** Unset like {@link View.className}: `idProperty` carries no `defaultValue` either. */
+    id: string | undefined;
     opacity = 1;
     paddingTop = 0;
     paddingBottom = 0;
@@ -256,6 +258,23 @@ export class View extends Observable {
     /** No layout pass ran, so there is no size to report. */
     getActualSize(): { width: number; height: number } {
         return { width: 0, height: 0 };
+    }
+
+    /** Upstream's `eachChildView`: a leaf has none. Return `false` from the callback to stop. */
+    eachChildView(_callback: (child: View) => boolean): void {}
+
+    /**
+     * `getViewById` as `ui/core/view-base/index.ts:134` walks it: this view first, then its
+     * descendants depth first through `eachChildView`, the first match wins.
+     */
+    getViewById<T extends View = View>(id: string): T | undefined {
+        if (this.id === id) return this as unknown as T;
+        let found: View | undefined;
+        this.eachChildView((child) => {
+            found = child.getViewById(id);
+            return found === undefined;
+        });
+        return found as T | undefined;
     }
 
     addPseudoClass(name: string): void {
@@ -333,6 +352,10 @@ export class LayoutBase extends View {
 
     getChildrenCount(): number {
         return this._childViews.length;
+    }
+
+    eachChildView(callback: (child: View) => boolean): void {
+        for (const view of this._childViews) if (callback(view) === false) return;
     }
 
     /**
@@ -491,6 +514,10 @@ export class ScrollView extends View {
     scrollToHorizontalOffset(_value: number, _animated: boolean): void {}
 
     scrollToVerticalOffset(_value: number, _animated: boolean): void {}
+
+    eachChildView(callback: (child: View) => boolean): void {
+        if (this.content) callback(this.content);
+    }
 }
 
 export class ContentView extends LayoutBase {

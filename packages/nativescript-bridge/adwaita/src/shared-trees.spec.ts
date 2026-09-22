@@ -236,6 +236,22 @@ export const AdwSharedTreesNsTest = async () => {
         }
     });
 
+    // The TypeScript beside a `.blp` addresses a view by its Blueprint id, as GTK's
+    // `InternalChildren` does; a nested one proves the lookup walks the composed tree.
+    await describe('an authored id is how code reaches a view', async () => {
+        await it('getViewById finds a nested view by the id the tree gave it', () => {
+            const root = build({
+                tag: 'AdwToolbarView',
+                children: [{ tag: 'AdwHeaderBar', slot: 'topBar', children: [{ tag: 'GtkButton', id: 'save' }] }],
+            });
+            const found = root.getViewById('save');
+
+            expect(found === undefined).toBe(false);
+            expect(found?.id).toBe('save');
+            expect(root.getViewById('missing')).toBe(undefined);
+        });
+    });
+
     await describe('the shared corpus is placed where it says', async () => {
         // THE BOUND THIS CLOSES, named where ADR 0051 § Amendment 3 recorded it: this
         // driver's walks filter the realised tree down to the authored classes, so a child

@@ -6,7 +6,9 @@
 // REACHABILITY IS THE RULE THIS FILE MUST NOT BREAK. The namespace barrels below
 // (`../namespace/adw.js`, `../namespace/gtk.js`) evaluate EVERY widget class in this package
 // at module scope, and every widget module opens with a value import from `@nativescript/core`
-// — unresolvable off a device unless aliased. This module may be imported ONLY from
+// — unresolvable off a device unless aliased. An app reaches this module through the package's
+// `./builder` subpath export, on a device where `@nativescript/core` is real, and builds the
+// `?shared-tree` projection of a `.blp` with it. Inside this package it may be imported ONLY from
 // `src/test.trees.mts`, whose two builds supply `--alias @nativescript/core=../testing/ns-core.mjs`
 // (`package.json` `build:test:trees:{gjs,node}`). It must NEVER be reachable from `src/index.ts`
 // (that entry already reaches every widget on its own terms, but re-exporting this from there
@@ -120,6 +122,9 @@ interface BuilderParent {
 export function build(node: SharedTreeNode): View {
     const element = elementFor(node.tag);
     const view = new element.ctor();
+    // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
+    // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
+    if (node.id !== undefined) view.id = node.id;
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         if (!(prop in view)) {
             throw new Error(
