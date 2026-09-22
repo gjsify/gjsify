@@ -158,17 +158,38 @@ export const err = {
                 `"false" mean TRUE — the exact silent-wrong-value this host exists to refuse. ` +
                 `Pass a real boolean.`,
         ),
+    /**
+     * A MEMBER of a flags value that names nothing — not the value as a whole.
+     *
+     * This used to refuse every string on a flags property, because resolving a nick
+     * set was nothing GObject exposed. GTK's `.ui` parser does resolve one, so what is
+     * left to refuse is the typo inside a set that otherwise reads fine, and the
+     * message has to name the SET as well as the type: `"spellcheck|lowecase"` fails
+     * on one member, and reporting only the type sends a reader looking at the wrong
+     * half of their own string.
+     */
     badFlags: (tag: string, prop: string, value: string, gtypeName: string) =>
         new GtkHostError(
             'bad-flags',
-            `<${tag}>.${prop} expects the flags type ${gtypeName}, and a string ("${value}") cannot be resolved to one. ` +
-                `Pass the numeric value (bitwise-or the members). GObject would have dropped the string silently.`,
+            `<${tag}>.${prop} is the flags type ${gtypeName}, and "${value}" names a member it does not have. ` +
+                `Join the member nicks with "|" ("spellcheck|lowercase"), or pass the numeric value. ` +
+                `GObject would have dropped the string silently.`,
         ),
-    unresolvableEnum: (gtypeName: string) =>
+    /**
+     * The one flags input GTK's own parser answers SILENTLY, so this host does not.
+     *
+     * Measured on GTK 4.22.4: `""` and `" "` both parse to `[true, 0]`, and a leading
+     * empty member is dropped without a word. Zero is a legal flags value, so the
+     * caller gets every flag cleared, no diagnostic and exit 0 — while `"a||b"` and
+     * `"a|"` do raise. Refusing all of them by one name keeps the stray separator a
+     * spelling mistake rather than a value.
+     */
+    blankFlags: (tag: string, prop: string, value: string, gtypeName: string) =>
         new GtkHostError(
-            'unresolvable-enum',
-            `Cannot resolve the enum type ${gtypeName} to a GI namespace. Pass the numeric value instead, ` +
-                `or extend ENUM_NAMESPACES in props.ts.`,
+            'blank-flags',
+            `<${tag}>.${prop} is the flags type ${gtypeName}, and "${value}" has an empty member. ` +
+                `GTK reads an empty flags string as 0 — every flag cleared, no diagnostic — so this host ` +
+                `refuses it. Drop the stray "|", or write the members you mean.`,
         ),
     textNotAccepted: (tag: string, text: string) =>
         new GtkHostError(

@@ -563,6 +563,111 @@ export type PangoVariantNick =
     | 'title-caps';
 export type PangoWrapModeNick = 'word' | 'char' | 'word-char' | 'none';
 
+// Bitfield nicks. `…Nick` is one member, `…NickSet` is what a property takes: one
+// member, or several joined with "|" as GObject spells a flags value. The set form
+// checks its first member and leaves the rest to the host — see the emitter.
+export type AdwTabViewShortcutsNick =
+    | 'all-shortcuts'
+    | 'alt-digits'
+    | 'alt-zero'
+    | 'control-end'
+    | 'control-home'
+    | 'control-page-down'
+    | 'control-page-up'
+    | 'control-shift-end'
+    | 'control-shift-home'
+    | 'control-shift-page-down'
+    | 'control-shift-page-up'
+    | 'control-shift-tab'
+    | 'control-tab'
+    | 'none';
+export type AdwTabViewShortcutsNickSet = AdwTabViewShortcutsNick | `${AdwTabViewShortcutsNick}|${string}`;
+export type GApplicationFlagsNick =
+    | 'allow-replacement'
+    | 'can-override-app-id'
+    | 'default-flags'
+    | 'flags-none'
+    | 'handles-command-line'
+    | 'handles-open'
+    | 'is-launcher'
+    | 'is-service'
+    | 'non-unique'
+    | 'replace'
+    | 'send-environment';
+export type GApplicationFlagsNickSet = GApplicationFlagsNick | `${GApplicationFlagsNick}|${string}`;
+export type GBindingFlagsNick = 'bidirectional' | 'default' | 'invert-boolean' | 'sync-create';
+export type GBindingFlagsNickSet = GBindingFlagsNick | `${GBindingFlagsNick}|${string}`;
+export type GdkDragActionNick = 'ask' | 'copy' | 'link' | 'move' | 'none';
+export type GdkDragActionNickSet = GdkDragActionNick | `${GdkDragActionNick}|${string}`;
+export type GdkGLAPINick = 'gl' | 'gles';
+export type GdkGLAPINickSet = GdkGLAPINick | `${GdkGLAPINick}|${string}`;
+export type GdkModifierTypeNick =
+    | 'alt-mask'
+    | 'button1-mask'
+    | 'button2-mask'
+    | 'button3-mask'
+    | 'button4-mask'
+    | 'button5-mask'
+    | 'control-mask'
+    | 'hyper-mask'
+    | 'lock-mask'
+    | 'meta-mask'
+    | 'no-modifier-mask'
+    | 'shift-mask'
+    | 'super-mask';
+export type GdkModifierTypeNickSet = GdkModifierTypeNick | `${GdkModifierTypeNick}|${string}`;
+export type GtkEventControllerScrollFlagsNick =
+    | 'both-axes'
+    | 'discrete'
+    | 'horizontal'
+    | 'kinetic'
+    | 'none'
+    | 'physical-direction'
+    | 'vertical';
+export type GtkEventControllerScrollFlagsNickSet =
+    | GtkEventControllerScrollFlagsNick
+    | `${GtkEventControllerScrollFlagsNick}|${string}`;
+export type GtkFontChooserLevelNick = 'family' | 'features' | 'size' | 'style' | 'variations';
+export type GtkFontChooserLevelNickSet = GtkFontChooserLevelNick | `${GtkFontChooserLevelNick}|${string}`;
+export type GtkInputHintsNick =
+    | 'emoji'
+    | 'inhibit-osk'
+    | 'lowercase'
+    | 'no-emoji'
+    | 'no-spellcheck'
+    | 'none'
+    | 'private'
+    | 'spellcheck'
+    | 'uppercase-chars'
+    | 'uppercase-sentences'
+    | 'uppercase-words'
+    | 'vertical-writing'
+    | 'word-completion';
+export type GtkInputHintsNickSet = GtkInputHintsNick | `${GtkInputHintsNick}|${string}`;
+export type GtkPopoverMenuFlagsNick = 'nested' | 'sliding';
+export type GtkPopoverMenuFlagsNickSet = GtkPopoverMenuFlagsNick | `${GtkPopoverMenuFlagsNick}|${string}`;
+export type GtkPrintCapabilitiesNick =
+    | 'collate'
+    | 'copies'
+    | 'generate-pdf'
+    | 'generate-ps'
+    | 'number-up'
+    | 'number-up-layout'
+    | 'page-set'
+    | 'preview'
+    | 'reverse'
+    | 'scale';
+export type GtkPrintCapabilitiesNickSet = GtkPrintCapabilitiesNick | `${GtkPrintCapabilitiesNick}|${string}`;
+export type GtkSvgFeaturesNick =
+    | 'animations'
+    | 'extensions'
+    | 'external-resources'
+    | 'system-resources'
+    | 'traditional-symbolic';
+export type GtkSvgFeaturesNickSet = GtkSvgFeaturesNick | `${GtkSvgFeaturesNick}|${string}`;
+export type PangoShowFlagsNick = 'ignorables' | 'line-breaks' | 'none' | 'spaces';
+export type PangoShowFlagsNickSet = PangoShowFlagsNick | `${PangoShowFlagsNick}|${string}`;
+
 /** A dialog showing information about the application. */
 export interface AdwAboutDialogProps
     extends
@@ -1325,7 +1430,7 @@ export interface AdwComboRowProps
 /** A binding between a [class@GObject.Object] property and a CSS class on a [class@Gtk.Widget]. */
 export interface AdwCssClassBindingProps extends GObjectProps {
     /** Flags to be used to control the binding. */
-    flags?: number;
+    flags?: GBindingFlagsNickSet | number;
     /** The object to use as the source of the CSS class binding. */
     source?: GObject.Object | null;
     /** The name of the property that shoudl be used as the source of the binding. */
@@ -1413,8 +1518,8 @@ export interface AdwEntryRowProps
     enableEmojiCompletion?: boolean;
     'enable-emoji-completion'?: boolean;
     /** Additional input hints for the entry row. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The input purpose of the entry row. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
@@ -2859,7 +2964,7 @@ export interface AdwTabViewProps
     selectedPage?: Adw.TabPage | null;
     'selected-page'?: Adw.TabPage | null;
     /** The enabled shortcuts. */
-    shortcuts?: number;
+    shortcuts?: AdwTabViewShortcutsNickSet | number;
     onClosePage?: Adw.TabView.SignalSignatures['close-page'];
     onCreateWindow?: Adw.TabView.SignalSignatures['create-window'];
     onIndicatorActivated?: Adw.TabView.SignalSignatures['indicator-activated'];
@@ -3403,7 +3508,7 @@ export interface GApplicationProps {
     applicationId?: string | null;
     'application-id'?: string | null;
     /** Flags specifying the behaviour of the application. */
-    flags?: number;
+    flags?: GApplicationFlagsNickSet | number;
     /** Time (in milliseconds) to stay alive after becoming idle. */
     inactivityTimeout?: number;
     'inactivity-timeout'?: number;
@@ -4149,8 +4254,8 @@ export interface GtkCellRendererAccelProps
     accelMode?: GtkCellRendererAccelModeNick | Gtk.CellRendererAccelMode;
     'accel-mode'?: GtkCellRendererAccelModeNick | Gtk.CellRendererAccelMode;
     /** The modifier mask of the accelerator. */
-    accelMods?: number;
-    'accel-mods'?: number;
+    accelMods?: GdkModifierTypeNickSet | number;
+    'accel-mods'?: GdkModifierTypeNickSet | number;
     /** The hardware keycode of the accelerator. */
     keycode?: number;
     onAccelCleared?: Gtk.CellRendererAccel.SignalSignatures['accel-cleared'];
@@ -5006,7 +5111,7 @@ export interface GtkDragIconProps
 export interface GtkDragSourceProps
     extends GtkGestureSingleProps, GtkGestureProps, GtkEventControllerProps, GObjectProps {
     /** The actions that are supported by drag operations from the source. */
-    actions?: number;
+    actions?: GdkDragActionNickSet | number;
     /** The data that is offered by drag operations from this source. */
     content?: Gdk.ContentProvider | null;
     onDragBegin?: Gtk.DragSource.SignalSignatures['drag-begin'];
@@ -5091,7 +5196,7 @@ export interface GtkDropDownProps
 /** An event controller to receive Drag-and-Drop operations, asynchronously. */
 export interface GtkDropTargetAsyncProps extends GtkEventControllerProps, GObjectProps {
     /** The `GdkDragActions` that this drop target supports. */
-    actions?: number;
+    actions?: GdkDragActionNickSet | number;
     /** The `GdkContentFormats` that determines the supported data formats. */
     formats?: Gdk.ContentFormats | null;
     onAccept?: Gtk.DropTargetAsync.SignalSignatures['accept'];
@@ -5106,7 +5211,7 @@ export interface GtkDropTargetAsyncProps extends GtkEventControllerProps, GObjec
 /** An event controller to receive Drag-and-Drop operations. */
 export interface GtkDropTargetProps extends GtkEventControllerProps, GObjectProps {
     /** The `GdkDragActions` that this drop target supports. */
-    actions?: number;
+    actions?: GdkDragActionNickSet | number;
     /** The `GdkContentFormats` that determine the supported data formats. */
     formats?: Gdk.ContentFormats | null;
     /** Whether the drop data should be preloaded when the pointer is only hovering over the widget but has not been released. */
@@ -5276,8 +5381,8 @@ export interface GtkEntryProps
     imModule?: string;
     'im-module'?: string;
     /** Additional hints that allow input methods to fine-tune their behavior. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The purpose of this text field. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
@@ -5457,7 +5562,7 @@ export interface GtkEventControllerProps {
 /** Handles scroll events. */
 export interface GtkEventControllerScrollProps extends GtkEventControllerProps, GObjectProps {
     /** The flags affecting event controller behavior. */
-    flags?: number;
+    flags?: GtkEventControllerScrollFlagsNickSet | number;
     onDecelerate?: Gtk.EventControllerScroll.SignalSignatures['decelerate'];
     onScroll?: Gtk.EventControllerScroll.SignalSignatures['scroll'];
     onScrollBegin?: Gtk.EventControllerScroll.SignalSignatures['scroll-begin'];
@@ -5839,7 +5944,7 @@ export interface GtkFontChooserProps {
      * The level of granularity to offer for selecting fonts.
      * @deprecated
      */
-    level?: number;
+    level?: GtkFontChooserLevelNickSet | number;
     /**
      * The string with which to preview the font.
      * @deprecated
@@ -5964,8 +6069,8 @@ export interface GtkGLAreaProps
         GtkBuildableProps,
         GtkConstraintTargetProps {
     /** The allowed APIs. */
-    allowedApis?: number;
-    'allowed-apis'?: number;
+    allowedApis?: GdkGLAPINickSet | number;
+    'allowed-apis'?: GdkGLAPINickSet | number;
     /** If set to %TRUE the ::render signal will be emitted every time the widget draws. */
     autoRender?: boolean;
     'auto-render'?: boolean;
@@ -6250,8 +6355,8 @@ export interface GtkHeaderBarProps
 /** The interface for GTK input methods. */
 export interface GtkIMContextProps {
     /** Additional hints that allow input methods to fine-tune their behaviour. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The purpose of the text field that the `GtkIMContext is connected to. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
@@ -6520,7 +6625,7 @@ export interface GtkKeyvalTriggerProps extends GtkShortcutTriggerProps, GObjectP
     /** The key value for the trigger. */
     keyval?: number;
     /** The key modifiers for the trigger. */
-    modifiers?: number;
+    modifiers?: GdkModifierTypeNickSet | number;
     onNotifyKeyval?: NotifyHandler;
     onNotifyModifiers?: NotifyHandler;
 }
@@ -7418,7 +7523,7 @@ export interface GtkPopoverMenuProps
         GtkNativeProps,
         GtkShortcutManagerProps {
     /** The flags that @popover uses to create/display a menu from its model. */
-    flags?: number;
+    flags?: GtkPopoverMenuFlagsNickSet | number;
     /** The model from which the menu is made. */
     menuModel?: Gio.MenuModel | null;
     'menu-model'?: Gio.MenuModel | null;
@@ -7628,8 +7733,8 @@ export interface GtkPrintUnixDialogProps
     hasSelection?: boolean;
     'has-selection'?: boolean;
     /** Capabilities the application can handle. */
-    manualCapabilities?: number;
-    'manual-capabilities'?: number;
+    manualCapabilities?: GtkPrintCapabilitiesNickSet | number;
+    'manual-capabilities'?: GtkPrintCapabilitiesNickSet | number;
     /** The `GtkPageSetup` object to use. */
     pageSetup?: Gtk.PageSetup;
     'page-setup'?: Gtk.PageSetup;
@@ -7984,8 +8089,8 @@ export interface GtkSearchEntryProps
     activatesDefault?: boolean;
     'activates-default'?: boolean;
     /** The hints about input for the `GtkSearchEntry` used to alter the behaviour of input methods. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The purpose for the `GtkSearchEntry` input used to alter the behaviour of input methods. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
@@ -8287,8 +8392,8 @@ export interface GtkShortcutActionProps {}
 export interface GtkShortcutControllerProps
     extends GtkEventControllerProps, GObjectProps, GListModelProps, GtkBuildableProps {
     /** The modifiers that need to be pressed to allow mnemonics activation. */
-    mnemonicModifiers?: number;
-    'mnemonic-modifiers'?: number;
+    mnemonicModifiers?: GdkModifierTypeNickSet | number;
+    'mnemonic-modifiers'?: GdkModifierTypeNickSet | number;
     /** A list model to take shortcuts from. */
     model?: Gio.ListModel;
     /** What scope the shortcuts will be handled in. */
@@ -8844,7 +8949,7 @@ export interface GtkStyleProviderProps {
 /** A paintable implementation that renders SVG, with animations. */
 export interface GtkSvgProps extends GObjectProps, GdkPaintableProps, GtkSymbolicPaintableProps {
     /** Enabled features for this paintable. */
-    features?: number;
+    features?: GtkSvgFeaturesNickSet | number;
     /** Whether the rendering will be clipped to the bounds. */
     overflow?: GtkOverflowNick | Gtk.Overflow;
     /** Whether the paintable is currently animating its content. */
@@ -8984,8 +9089,8 @@ export interface GtkTextProps
     imModule?: string;
     'im-module'?: string;
     /** Additional hints that allow input methods to fine-tune their behaviour. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The purpose of this text field. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;
@@ -9211,8 +9316,8 @@ export interface GtkTextTagProps extends GObjectProps {
     sentenceSet?: boolean;
     'sentence-set'?: boolean;
     /** How to render invisible characters. */
-    showSpaces?: number;
-    'show-spaces'?: number;
+    showSpaces?: PangoShowFlagsNickSet | number;
+    'show-spaces'?: PangoShowFlagsNickSet | number;
     /** Whether the `show-spaces` property is set. */
     showSpacesSet?: boolean;
     'show-spaces-set'?: boolean;
@@ -9419,8 +9524,8 @@ export interface GtkTextViewProps
     /** Amount to indent the paragraph, in pixels. */
     indent?: number;
     /** Additional hints (beyond [property@Gtk.TextView:input-purpose]) that allow input methods to fine-tune their behaviour. */
-    inputHints?: number;
-    'input-hints'?: number;
+    inputHints?: GtkInputHintsNickSet | number;
+    'input-hints'?: GtkInputHintsNickSet | number;
     /** The purpose of this text field. */
     inputPurpose?: GtkInputPurposeNick | Gtk.InputPurpose;
     'input-purpose'?: GtkInputPurposeNick | Gtk.InputPurpose;

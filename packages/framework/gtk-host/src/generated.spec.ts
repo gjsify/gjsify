@@ -36,7 +36,7 @@ import {
     METHODS_UNAVAILABLE,
     OWN_METHODS,
 } from './generated/methods.mjs';
-import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
+import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
@@ -179,6 +179,40 @@ export default async () => {
                 generatedAgainst[library] !== undefined &&
                 newerThan(generatedAgainst[library] as string, running[library] as string),
         );
+
+        /**
+         * The libraries `generated/enum-values.mts` was read from, in the same grammar.
+         *
+         * Lifted out of the one case that used to compute it, because it is what makes
+         * the blanket excuse ANSWERABLE. `excuseFor` can only ever say `blanket` for an
+         * enum — no enum type states a version — so while the vocabulary is ahead, which
+         * is the normal state here and in CI, every unresolvable nick is excused and the
+         * two cases below assert nothing at all. The values artifact ends that: it was
+         * read from a TYPELIB, so a nick in it is a member that really exists, and the
+         * only honest excuse for failing to resolve one is a running library OLDER than
+         * the one it was read from.
+         */
+        const valuesAgainst: Readonly<Record<string, string>> = Object.fromEntries(
+            VALUES_PROVENANCE.split(' ')
+                .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
+                .filter((m): m is RegExpExecArray => m !== null)
+                .map((m) => [m[1] as string, m[2] as string]),
+        );
+        /**
+         * True where the RUNNING library predates the one the values were read from.
+         *
+         * `libraryOf` calls everything that is not Adw "Gtk", and for `GPasswordSave` —
+         * a Gio type — that is not its library. The answer stays the conservative one,
+         * deliberately: a Gio nick is excused only where the running GTK is older than
+         * the artifact's, which on a host that produced the artifact is never. An excuse
+         * that over-applies is the exact defect this block exists to repair.
+         */
+        const behindValues = (gtype: string): boolean => {
+            const read = valuesAgainst[libraryOf(gtype)];
+            return read !== undefined && newerThan(read, running[libraryOf(gtype)] as string);
+        };
+        /** The nicks a typelib really registered — what `behindValues` alone may excuse. */
+        const valued = new Set(Object.keys(ENUM_VALUES));
 
         const unreleased = (key: string, declaration: string): boolean => {
             const library = declaration.startsWith('Adw') ? 'Adw' : declaration.startsWith('Gtk') ? 'Gtk' : null;
@@ -540,6 +574,8 @@ export default async () => {
                 // host would refuse.
                 const problems: string[] = [];
                 const ahead: string[] = [];
+                /** Excused by the vocabulary-wide version and nothing finer — the blanket's real reach. */
+                const blanketed: string[] = [];
                 for (const [gtype, nicks] of Object.entries(ENUM_NICKS)) {
                     for (const nick of nicks) {
                         if (lookupEnumNick(gtype, nick) !== undefined) continue;
@@ -549,25 +585,58 @@ export default async () => {
                         // `prop-complete-text` is simply not here yet, and there is no
                         // per-member SINCE to be finer than the library version.
                         //
-                        // MEASURED, and worse than the earlier note here admitted:
-                        // NONE of the 129 enum types carries a stated version, so
-                        // `excuseFor` can only ever answer `blanket` for one of them —
-                        // and while the vocabulary is ahead, that answer is yes for
-                        // every nick at once. `problems` is then structurally empty,
-                        // in CI too (same Fedora release as the workstation, GTK
-                        // 4.22.4). The forward direction is therefore a REPORT while
-                        // that holds, and the assertion that still bites is the
-                        // reverse one below.
-                        (predatesHost(gtype) ? ahead : problems).push(`${gtype}.${nick}`);
+                        // AND THE BLANKET IS NOT ALLOWED TO REACH A NICK THE VALUES
+                        // ARTIFACT CARRIES. NONE of the enum types states a version, so
+                        // `excuseFor` can only ever answer `blanket` here — and while
+                        // the vocabulary is ahead, which is the normal state on this
+                        // workstation and in CI (same Fedora release, GTK 4.22.4 against
+                        // a 4.23.3 vocabulary), that answer is yes for every nick at
+                        // once and `problems` is structurally empty. This case was a
+                        // REPORT wearing an assertion, and it read green over a real
+                        // defect for as long as it existed: `GPasswordSave` is a Gio
+                        // enum whose three nicks the surface offers and the host
+                        // refused, and being excused as "newer than the library" was
+                        // false about every one of them.
+                        //
+                        // `generated/enum-values.mts` is the fact that ends it. Its
+                        // numbers were read from a TYPELIB, so a nick in it EXISTS, and
+                        // the only excuse left is a running library older than the one
+                        // it was read from.
+                        const key = `${gtype}.${nick}`;
+                        if (valued.has(key)) {
+                            (behindValues(gtype) ? ahead : problems).push(key);
+                        } else if (excuseFor(gtype) === 'blanket') {
+                            blanketed.push(key);
+                        } else {
+                            (predatesHost(gtype) ? ahead : problems).push(key);
+                        }
                     }
                 }
                 if (ahead.length > 0)
                     console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
-                if (blunted.length > 0) {
+                // WHAT THE BLANKET ACTUALLY REACHED, not what it could reach. The note
+                // here used to read "every unresolvable nick is excused" whenever the
+                // vocabulary was ahead, which by then was already false — the line above
+                // it holds every nick the values artifact carries against `behindValues`,
+                // so the blanket only ever gets the remainder. Measured on this
+                // workstation: 2 nicks, both `GtkEditableProperties.prop-*`, against a
+                // sentence claiming all 778. That overstatement is its own defect: a
+                // reader who believes the check asserts nothing dismisses a red it really
+                // did produce, which is the "excused in bulk" habit that cost a day. So
+                // the count and the names are printed, and a run where the blanket caught
+                // nothing says THAT instead of confessing to blindness it does not have.
+                const versions = blunted
+                    .map((library) => `${library} ${generatedAgainst[library]} > running ${running[library]}`)
+                    .join(', ');
+                if (blanketed.length > 0) {
                     console.error(
-                        `  (this check is BLUNTED: ${blunted
-                            .map((library) => `${library} ${generatedAgainst[library]} > running ${running[library]}`)
-                            .join(', ')} — every unresolvable nick is excused)`,
+                        `  (BLUNTED for ${blanketed.length} nick(s) — excused by the vocabulary-wide version ` +
+                            `alone (${versions}), no per-member fact: ${blanketed.join(', ')})`,
+                    );
+                } else if (blunted.length > 0) {
+                    console.error(
+                        `  (the vocabulary is ahead (${versions}) and the blanket excused NOTHING: every ` +
+                            `unresolvable nick was answered by the values artifact)`,
                     );
                 }
                 expect(problems).toStrictEqual([]);
@@ -606,6 +675,90 @@ export default async () => {
                 expect(checked > 100).toBe(true);
             });
 
+            await it('names every enum type the surface offers, in some GI namespace', async () => {
+                // THE GUARD THE NAMESPACE LIST NEEDS, and the one it did not have.
+                // `props.ts` reaches an enum object through a hand-written list of
+                // places to look; a type whose namespace is missing from it resolves
+                // to nothing, and every check that asks "does this nick resolve" then
+                // reads the absence as a version gap. Measured on the surface as it
+                // shipped: 1 of the 129 enum types fell out — `GPasswordSave`, a Gio
+                // enum whose three nicks the type surface offered and the host refused
+                // at the call, with `err.unresolvableEnum` telling the caller to go and
+                // edit `ENUM_NAMESPACES` themselves.
+                //
+                // Keyed on a nick the VALUES artifact carries, so "this host has no
+                // such type" is not available as an excuse: the numbers were read from
+                // a typelib.
+                // TWO INDEPENDENT WITNESSES that this host really has the type, both
+                // outside the list under test: the ParamSpecs of the installed widget
+                // classes, which carry the GType itself, and the values artifact, which
+                // was read from a typelib and reaches the types no widget property
+                // names (`GPasswordSave` is `GMountOperation:password-save`).
+                const carriedBySpecs = new Set<string>();
+                for (const gtype of Object.keys(TAGS)) {
+                    const ctor = installedCtor(lookupWidget(gtype));
+                    if (!ctor) continue;
+                    for (const [, spec] of paramSpecs(ctor, gtype)) {
+                        const kind = spec.value_type;
+                        if (!GObject.type_is_a(kind, GObject.TYPE_ENUM) && !GObject.type_is_a(kind, GObject.TYPE_FLAGS))
+                            continue;
+                        carriedBySpecs.add(GObject.type_name(kind));
+                    }
+                }
+                const valuedTypes = new Set(Object.keys(ENUM_VALUES).map((key) => key.slice(0, key.indexOf('.'))));
+                const unreachable: string[] = [];
+                for (const gtype of [...Object.keys(ENUM_NICKS), ...Object.keys(FLAG_NICKS)]) {
+                    if (enumMembers(gtype) !== undefined) continue;
+                    if (!carriedBySpecs.has(gtype) && !valuedTypes.has(gtype)) continue;
+                    unreachable.push(gtype);
+                }
+                // Not vacuous in the other direction either: the witnesses found things.
+                expect(carriedBySpecs.size > 50).toBe(true);
+                expect(unreachable).toStrictEqual([]);
+                // Not vacuous: the list really does reach most of the surface.
+                expect(enumMembers('GPasswordSave')?.includes('FOR_SESSION')).toBe(true);
+                expect(lookupEnumNick('GPasswordSave', 'for-session')).toBe(Gio.PasswordSave.FOR_SESSION);
+            });
+
+            await it('offers only bitfield nicks this host can resolve', async () => {
+                // The flags half of the two enum cases above, and SHARPER than either,
+                // because it needs no version rule: it asks only about members the
+                // installed library really registers. A nick the vocabulary offers for
+                // a member this GTK has must resolve — there is no release in which
+                // that is legitimately false.
+                const problems: string[] = [];
+                let checked = 0;
+                for (const [gtype, nicks] of Object.entries(FLAG_NICKS)) {
+                    const members = enumMembers(gtype);
+                    if (!members) continue; // the host has no such bitfield
+                    for (const nick of nicks) {
+                        if (!members.includes(nick.toUpperCase().replace(/-/g, '_'))) continue;
+                        checked++;
+                        if (lookupEnumNick(gtype, nick) === undefined) problems.push(`${gtype}.${nick}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: an empty table, or a member spelling that matched
+                // nothing, would satisfy the line above having resolved no nick.
+                expect(checked > 30).toBe(true);
+            });
+
+            await it('lists every bitfield member the installed host registers', async () => {
+                // The direction no version gap can excuse, the same way the enum case
+                // below states it: being ahead cannot explain a MISSING nick, and a
+                // member dropped in extraction is absent from `FLAG_NICKS` altogether,
+                // so no loop over that table could see it.
+                const uncovered: string[] = [];
+                for (const [gtype, nicks] of Object.entries(FLAG_NICKS)) {
+                    const members = enumMembers(gtype);
+                    if (!members) continue;
+                    const covered = new Set(nicks.map((nick) => nick.toUpperCase().replace(/-/g, '_')));
+                    for (const member of members) if (!covered.has(member)) uncovered.push(`${gtype}.${member}`);
+                }
+                expect(uncovered).toStrictEqual([]);
+                expect(Object.keys(FLAG_NICKS).length > 0).toBe(true);
+            });
+
             await it('gives every enum nick the number the installed typelib registers', async () => {
                 // THE VALUE HALF, and the reason `generated/enum-values.mts` exists at
                 // all: `ENUM_NICKS` says what a member is CALLED and nothing here said
@@ -623,15 +776,26 @@ export default async () => {
                 // a version gap can only ADD members, and the one member in the corpus
                 // that legitimately MOVES is a count sentinel —
                 // `GtkEditableProperties.num-properties`, 8 on a GTK with eight editable
-                // properties and 10 on one with ten. That is why a mismatch is excused
-                // only where the host is NEWER than the artifact, and is named even then.
+                // properties and 10 on one with ten.
+                //
+                // AND THE EXCUSE IS THAT MEMBER, NOT THE VERSION. "Host is newer" alone
+                // read GREEN over a real defect, measured: `GtkLicense.0bsd` resolved to 0
+                // where the artifact says 18, because GTK's `.ui` parser truncates a
+                // digit-leading nick — and this workstation runs GTK 4.22.5 against an
+                // artifact read from 4.22.4, so a PATCH bump excused it. The darwin-arm64
+                // leg, whose GTK matched the artifact exactly, had no excuse available and
+                // went red on the same defect. A version comparison cannot tell a moved
+                // sentinel from a mis-resolved nick; naming the sentinel can, and a value
+                // that moves for some other reason is then a red with a name on it.
                 const values = Object.entries(ENUM_VALUES);
-                const valuesAgainst: Readonly<Record<string, string>> = Object.fromEntries(
-                    VALUES_PROVENANCE.split(' ')
-                        .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
-                        .filter((m): m is RegExpExecArray => m !== null)
-                        .map((m) => [m[1] as string, m[2] as string]),
-                );
+                /**
+                 * The members a newer library may legitimately RENUMBER: counts, not values.
+                 *
+                 * Adding one costs an argument for why the library is allowed to move it —
+                 * `num-properties` is the number of editable properties, so it moves by
+                 * construction whenever GTK adds one. Nothing else in the corpus may.
+                 */
+                const COUNT_SENTINELS: ReadonlySet<string> = new Set(['GtkEditableProperties.num-properties']);
                 /** True where the RUNNING library is newer than the one the values came from. */
                 const hostIsAhead = (gtype: string): boolean => {
                     const library = libraryOf(gtype);
@@ -647,14 +811,18 @@ export default async () => {
                     const nick = key.slice(at + 1);
                     const here = lookupEnumNick(gtype, nick);
                     if (here === undefined) {
-                        // The artifact was generated against a NEWER library than this
-                        // one. Same shape as the nick check above, excused the same way:
-                        // a member that does not exist here cannot carry a number.
-                        (predatesHost(gtype) ? absent : problems).push(`${key} has no member on this host`);
+                        // NOT the blanket excuse, and this is where it was worst: every
+                        // key in this loop is a nick the artifact READ OFF A TYPELIB, so
+                        // "this host has no such member" can only be true where the
+                        // running library predates the one it was read from. Excusing it
+                        // by "the vocabulary is newer" reported three real refusals
+                        // (`GPasswordSave.*`) as a version gap and exited 0.
+                        (behindValues(gtype) ? absent : problems).push(`${key} has no member on this host`);
                         continue;
                     }
                     if (here === value) continue;
-                    (hostIsAhead(gtype) ? moved : problems).push(`${key} is ${value} in the artifact and ${here} here`);
+                    const excused = COUNT_SENTINELS.has(key) && hostIsAhead(gtype);
+                    (excused ? moved : problems).push(`${key} is ${value} in the artifact and ${here} here`);
                 }
                 if (absent.length > 0)
                     console.error(`  (${absent.length} valued nick(s) this host does not have: ${absent.join(', ')})`);

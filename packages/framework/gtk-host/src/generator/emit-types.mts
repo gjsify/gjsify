@@ -112,12 +112,25 @@ export function emitProps(model: SurfaceModel, provenance: string): EmittedFile 
         return `import type ${ns} from '${pkg}';`;
     });
 
+    const unionOf = (members: readonly string[]): string =>
+        members.length === 0 ? 'never' : members.map((m) => `'${m}'`).join(' | ');
     const nicks = [...model.enumNicks]
         .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-        .map(([gtype, members]) => {
-            const union = members.length === 0 ? 'never' : members.map((m) => `'${m}'`).join(' | ');
-            return `export type ${gtype}Nick = ${union};`;
-        });
+        .map(([gtype, members]) => `export type ${gtype}Nick = ${unionOf(members)};`);
+    // TWO aliases per bitfield, because a SET is not a member. The members are a union
+    // like an enum's; what a PROPERTY takes is that union or a `|`-joined string, and
+    // the join is where TypeScript runs out — checking every member of a set of
+    // arbitrary length means enumerating its permutations, n! terms for an n-member
+    // bitfield and 26 members on the largest one this surface carries. So the template
+    // pins the FIRST member exactly and the host checks the rest, which it can: it
+    // resolves the whole set through GTK's own `.ui` parser and names any member that
+    // resolves to nothing.
+    const flagNicks = [...model.flagNicks]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .flatMap(([gtype, members]) => [
+            `export type ${gtype}Nick = ${unionOf(members)};`,
+            `export type ${gtype}NickSet = ${gtype}Nick | \`\${${gtype}Nick}|\${string}\`;`,
+        ]);
 
     const decls = [...model.declarations.values()].sort((a, b) => (a.iface < b.iface ? -1 : 1));
     // `OutParam` is no longer emitted, and the condition that used to decide it was
@@ -161,6 +174,11 @@ import type { ${hostTypes} } from '../attrs.js';
 // takes the constant only, because GJS hands the marshalled number and a nick
 // comparison there would always be false.
 ${nicks.join('\n')}
+
+// Bitfield nicks. \`…Nick\` is one member, \`…NickSet\` is what a property takes: one
+// member, or several joined with "|" as GObject spells a flags value. The set form
+// checks its first member and leaves the rest to the host — see the emitter.
+${flagNicks.join('\n')}
 
 ${decls.map((d) => renderDeclaration(d, model)).join('\n')}
 /** Props by JSX tag — kebab, the only spelling \`JSX.IntrinsicElements\` consults. */
@@ -269,6 +287,9 @@ export function emitSurfaceData(model: SurfaceModel, provenance: string): Emitte
     const nicks = [...model.enumNicks]
         .sort((a, b) => (a[0] < b[0] ? -1 : 1))
         .map(([gtype, members]) => `    ${gtype}: [${members.map((m) => `'${m}'`).join(', ')}],`);
+    const flagNicks = [...model.flagNicks]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([gtype, members]) => `    ${gtype}: [${members.map((m) => `'${m}'`).join(', ')}],`);
     const tags = model.widgets.map((w) => `    ${w.gtype}: '${tagOf(w.gtype)}',`);
     const since: string[] = [];
     for (const d of [...model.declarations.values()].sort((a, b) => (a.gtype < b.gtype ? -1 : 1))) {
@@ -295,6 +316,17 @@ export const DECLS: Readonly<Record<string, readonly string[]>> = ${record(decls
 
 /** Enum GType -> the nicks the surface offers. */
 export const ENUM_NICKS: Readonly<Record<string, readonly string[]>> = ${record(nicks)};
+
+/**
+ * Bitfield GType -> the member nicks the surface offers, for the bitfields a property
+ * of this surface carries.
+ *
+ * Derived from \`FLAG_VALUES\`' KEYS rather than from a nick list, because \`@girs\`
+ * publishes none for a bitfield — GObject resolves no nick SET, so the vocabulary says
+ * nothing about sets and the members keep their names in the value table. Held against
+ * the installed library the same way \`ENUM_NICKS\` is.
+ */
+export const FLAG_NICKS: Readonly<Record<string, readonly string[]>> = ${record(flagNicks)};
 
 /** Widget GType -> its kebab tag. */
 export const TAGS: Readonly<Record<string, string>> = ${record(tags)};

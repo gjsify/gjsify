@@ -142,7 +142,10 @@ async function main(argv: readonly string[]): Promise<number> {
     ];
 
     console.log(`read ${sources.length} vocabularies in ${readMs.toFixed(0)} ms — ${provenance}`);
-    console.log(`widgets: ${table.count}, declarations: ${model.declarations.size}, enums: ${model.enumNicks.size}`);
+    console.log(
+        `widgets: ${table.count}, declarations: ${model.declarations.size}, ` +
+            `enums: ${model.enumNicks.size}, bitfields: ${model.flagNicks.size}`,
+    );
     console.log(`namespaces referenced by the surface: ${[...model.namespacesUsed].sort().join(' ')}`);
 
     for (const file of files) {

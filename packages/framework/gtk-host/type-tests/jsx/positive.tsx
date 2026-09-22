@@ -38,6 +38,42 @@ export const layout = (
  */
 export const rows = <gtk-list-box onRowActivated={(row: Gtk.ListBoxRow) => row.set_selectable(false)} />;
 
+/**
+ * A bitfield property in all three legal spellings: one member nick, a `|`-joined
+ * SET, and the number every renderer could always write.
+ *
+ * The set is the one that was a compile error for exactly as long as it was a runtime
+ * refusal — see `negative-props.tsx` for how far the check on it reaches.
+ */
+export const hints = (
+    <gtk-box>
+        <gtk-entry input-hints="spellcheck" />
+        <gtk-entry inputHints="spellcheck|lowercase" />
+        <gtk-entry input-hints={0x9} />
+    </gtk-box>
+);
+
+/**
+ * The one nick in the surface that BEGINS WITH A DIGIT, and the number beside it.
+ *
+ * `GtkLicenseNick` has always offered `'0bsd'`, which is why this row matters: the type
+ * surface accepted the spelling while GTK's `.ui` parser read the leading `0` and
+ * dropped the rest, so it COMPILED and then stored `GTK_LICENSE_UNKNOWN`. Both rows are
+ * here because the fix divides exactly between them — a whole number keeps the parser's
+ * numeric reading, a nick does not.
+ *
+ * The numeric STRING `"18"` is deliberately absent: an enum property renders as
+ * `<GType>Nick | <Ns>.<Enum>`, so a numeric string is a runtime spelling this surface
+ * does not offer, and `nick-vectors.mts` is where it is held. A bitfield differs —
+ * `hints` above writes `0x9` against `<GType>NickSet | number`.
+ */
+export const licences = (
+    <gtk-box>
+        <adw-about-dialog licenseType="0bsd" />
+        <adw-about-dialog license-type={0x12} />
+    </gtk-box>
+);
+
 /** `ref` carries the widget's own instance type, not `unknown`. */
 export const boxRef = <gtk-box ref={(el) => el.set_spacing(12)} />;
 
