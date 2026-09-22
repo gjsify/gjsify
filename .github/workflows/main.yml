@@ -434,6 +434,19 @@ jobs:
       - name: Check every Adwaita doc sample is one that runs
         run: node scripts/check-doc-fences.mjs
 
+      # `@gjsify/adwaita-core` borrows shapes from Gtk and Gio — an adjustment, a list
+      # model, a menu — and names them with its own package prefix, which ADR 0034 § 1
+      # permits because that clause binds WIDGET-bearing surfaces. What it does not
+      # permit is leaving the correspondence in a doc comment: a `.blp` authors
+      # `Gtk.Adjustment` by that name, and the projection needs the link somewhere a
+      # program can read it. Self-testing, on a fixture table of its own, before the
+      # sweep against the installed `@girs` tree — its oracle, and the reason it lives
+      # HERE and not in `audit-runtimes.yml`: that job installs nothing, and this needs
+      # the pinned `@girs/*` `.d.ts` files from `node_modules`, same as the doc-fences
+      # check above.
+      - name: Check the core says what it borrowed and from where (self-testing)
+        run: node scripts/check-core-namespace-claims.mjs
+
       # …and that every attribute IN those fences still carries the gloss the GIR gives
       # it. The generator writes an inline HTML comment per attribute whose meaning its
       # name does not carry, read from the GObject property the custom element mirrors,
