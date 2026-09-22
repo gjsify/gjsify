@@ -31,7 +31,7 @@ import {
     defaultToolbarViewProps,
     toolbarViewClassNames,
 } from './chrome.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
@@ -53,6 +53,9 @@ const BASE_CLASSES = {
 const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content'] as const;
 
 export class AdwToolbarView extends withSignals(GridLayout) {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(TOOLBAR_VIEW_SLOTS, 'content');
+
     /** The top-bar slot (row 0) — stack of header bars / toolbars. */
     protected readonly _topBox: StackLayout;
     /** The bottom-bar slot (row 2) — stack of bottom toolbars. */

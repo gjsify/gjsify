@@ -19,22 +19,41 @@
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 
-import { createElement, insert, materialize } from '../host.js';
+import { createElement, insert, materialize, setProp } from '../host.js';
 import type { HostElement } from '../types.js';
 
 /**
- * A `SharedTreeNode`, realised: a tag, its authored properties, its children, in that order.
+ * A `SharedTreeNode`, realised: a tag, its authored properties, its placement, its children,
+ * in that order.
  *
  * Recursive and total — no tag list, no property list, no per-block case. The authored
  * property NAMES go to `setProp` verbatim (through `createElement`), which is the point:
  * `buttonLabel` reaching `button-label` is the host's own coercion, and a caller spelling the
  * GObject name itself would be testing its own translation table instead of this one's.
+ *
+ * `built` COLLECTS THE ELEMENTS THIS CALL CREATED, in authored order, for a caller that has to
+ * tell them from the widgets libadwaita built AROUND them. Filtering a realised tree by CLASS
+ * cannot: the moment a corpus block authored a `GtkButton`, `AdwEntryRow`'s own apply button
+ * answered to the same name and the walk read one node too many. Identity is the only filter
+ * that stays right as the corpus grows, and only the builder knows it.
+ *
+ * THE SLOT GOES THROUGH THE SAME DOOR, and it is not a table here either. `setProp(el,
+ * 'slot', …)` is `setSlot`, and every framework adapter in this package already writes a
+ * `slot=` attribute through it; placement is then the parent descriptor's `ChildPolicy`,
+ * which refuses a name the parent has no destination for BY NAME. This builder read `tag`,
+ * `props` and `children` and dropped `slot` silently until a real `.blp` authored one — a
+ * `[top]` header bar landed in the content and the window title was then discarded by the
+ * bar's own construction, at exit 0.
  */
-export function buildSharedTree(node: SharedTreeNode): HostElement {
+export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = []): HostElement {
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
+    built.push(el);
     // Before the children: `insert` parents a REALISED widget, and a construct-only
     // property that never arrives reaches `g_error()` rather than failing cleanly.
     materialize(el);
-    for (const child of node.children ?? []) insert(buildSharedTree(child), el);
+    // And before `insert`, which is where the slot is READ: writing it afterwards is a move
+    // — correct, and it would place the child twice, the first time in the wrong slot.
+    if (node.slot !== undefined) setProp(el, 'slot', node.slot);
+    for (const child of node.children ?? []) insert(buildSharedTree(child, built), el);
     return el;
 }

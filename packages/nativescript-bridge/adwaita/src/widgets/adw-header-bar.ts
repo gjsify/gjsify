@@ -26,7 +26,7 @@
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -38,6 +38,9 @@ import { withSignals } from './signals.js';
 const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox'] as const;
 
 export class AdwHeaderBar extends withSignals(GridLayout) {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(HEADER_BAR_SLOTS, 'startBox');
+
     /** The start (left) slot — a horizontal stack. */
     protected readonly _startBox: StackLayout;
     /** The end (right) slot — a horizontal stack. */

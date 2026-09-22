@@ -21,7 +21,7 @@ import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativescript/core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
 import { xmlBoolean } from './xml-values.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
@@ -32,6 +32,9 @@ export const ACTIVATED = 'activated';
 const ACTION_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 export class AdwActionRow extends withSignals(GridLayout) {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(ACTION_ROW_SLOTS, 'suffix');
+
     /**
      * Whether libadwaita would answer `ADW_IS_ACTION_ROW` for this row, which decides
      * whether the preferences SEARCH consults its subtitle.
@@ -101,12 +104,20 @@ export class AdwActionRow extends withSignals(GridLayout) {
      * cardinality is the declared remainder — the method ledger in
      * `scripts/check-vocabulary-alignment.mjs` compares names, and ADR 0034 § Amendment 14
      * names this as the divergence a name cannot carry. `remove()` clears the slot.
+     *
+     * INSERTED FIRST, NOT APPENDED, and on a `GridLayout` that is about the COMPOSED TREE
+     * rather than the layout: the column decides where it draws either way, so appending
+     * looked free — until an authored tree put a prefix on a row and the port realised it
+     * AFTER the disclosure's own rows, where `gtk_widget_get_first_child` and
+     * `<div class="adw-entry-row-prefixes">` both put it first. `adwaita-web`'s own slot
+     * binding already records the rule ("`addPrefix` PREPENDS, mirroring `gtk_box_prepend`");
+     * this is the third renderer joining it.
      */
     add_prefix(view: View): void {
         if (this._prefix) this.remove(this._prefix);
         view.className = `${view.className ?? ''} adw-row-prefix`.trim();
         GridLayout.setColumn(view, 0);
-        this.addChild(view);
+        this.insertChild(view, 0);
         this._prefix = view;
     }
 

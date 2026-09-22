@@ -38,6 +38,87 @@ export function addressOf(el: HostElement): Gtk.Widget {
 }
 
 /**
+ * The property a one-child slot method writes — `set_title_widget` -> `title-widget`.
+ *
+ * GTK SPELLS ONE PLACEMENT TWICE and both spellings reach the same widget:
+ * `adw_header_bar_buildable_add_child`'s `<child type="title">` branch calls
+ * `adw_header_bar_set_title_widget`, i.e. writes the `title-widget` property. An authored
+ * tree carries whichever spelling its SOURCE had — a Blueprint `[title]` bracket is the
+ * first, a `title-widget:` property-valued child the second — and `SharedTreeNode.slot`
+ * conflates the two by construction (the projection's own header records that, and that it
+ * cannot be inverted). A descriptor declaring only the buildable type would therefore refuse
+ * a placement GTK itself accepts.
+ *
+ * A CASE RULE OVER THE SETTER'S OWN NAME, never a table: an ADDER (`pack_start`,
+ * `add_top_bar`, `add_prefix`) writes no property, so such a slot answers to its buildable
+ * type alone — which is why `[start]` has no second spelling to admit.
+ */
+export function slotPropertyOf(method: string): string | null {
+    return method.startsWith('set_') ? method.slice(4).replace(/_/g, '-') : null;
+}
+
+/** Every name a policy answers to, declared keys first — what a refusal lists. */
+export function slotNames(policy: ChildPolicy): string[] {
+    if (policy.kind === 'single') {
+        const property = slotPropertyOf(policy.set);
+        return property === null ? [] : [property];
+    }
+    if (policy.kind !== 'slotted') return [];
+    const names: string[] = [];
+    for (const [slot, method] of Object.entries(policy.slots)) {
+        names.push(slot);
+        const property = slotPropertyOf(method);
+        if (property !== null && property !== slot) names.push(property);
+    }
+    return names;
+}
+
+/**
+ * The DECLARED slot key an authored name asks for, or the default when it asks for nothing.
+ *
+ * EVERY read of `child.slot` in this file goes through here, so the property spelling
+ * {@link slotPropertyOf} admits is canonical everywhere at once: a placement resolved
+ * through `title-widget` and a detach resolved through `title` would otherwise be two
+ * different keys to `policy.slots[…]`, and the child would leak at unmount.
+ */
+export function slottedSlot(
+    policy: Extract<ChildPolicy, { kind: 'slotted' }>,
+    authored: string | null | undefined,
+    gtype: string,
+): string {
+    if (authored === null || authored === undefined) return policy.defaultSlot;
+    if (authored in policy.slots) return authored;
+    for (const [slot, method] of Object.entries(policy.slots)) {
+        if (slotPropertyOf(method) === authored) return slot;
+    }
+    throw err.unknownSlot(gtype, authored, slotNames(policy));
+}
+
+/**
+ * A slot the parent cannot honour is refused BY NAME, whatever its policy kind.
+ *
+ * `slotted` already refused an unknown slot; every OTHER kind read `child.slot` as nothing
+ * at all, so a name it has no destination for put the widget in the one place it does have
+ * and said nothing. That is the defect measured on a real `.blp`: an authored placement
+ * dropped, the widget on screen in the wrong container, exit 0. A `single` parent accepts
+ * the property its own setter writes (`AdwApplicationWindow` + `set_content` accepts
+ * `content`) and nothing else; `keyed` reads the slot as its page NAME, which is a
+ * destination, so it is left alone.
+ */
+export function refuseUnknownSlot(parent: HostElement, child: HostElement): void {
+    const authored = child.slot;
+    if (authored === null || authored === undefined) return;
+    const policy = parent.descriptor.children;
+    if (policy.kind === 'slotted') {
+        slottedSlot(policy, authored, parent.descriptor.gtype);
+        return;
+    }
+    if (policy.kind === 'keyed') return;
+    if (policy.kind === 'single' && slotPropertyOf(policy.set) === authored) return;
+    throw err.unknownSlot(parent.descriptor.gtype, authored, slotNames(policy));
+}
+
+/**
  * `Gtk.ListBox` and `Gtk.FlowBox` wrap arbitrary children; the wrap is the host's job.
  *
  * Unless the author already wrote the row themselves — `<GtkListBox><GtkListBoxRow>`
@@ -51,12 +132,13 @@ export function addressOf(el: HostElement): Gtk.Widget {
  * is that `gtk_list_box_remove` does not unwrap, so without this the child leaks behind
  * one `Gtk-WARNING` at unmount.
  */
-export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget, slot: string | null): Gtk.Widget | null {
+export function makeWrapper(descriptor: WidgetDescriptor, child: Gtk.Widget, slot: string | null): Gtk.Widget | null {
+    const policy = descriptor.children;
     const wrap =
         policy.kind === 'indexed'
             ? policy.wrap
             : policy.kind === 'slotted'
-              ? (policy.wrapSlots?.[slot ?? policy.defaultSlot] ?? null)
+              ? (policy.wrapSlots?.[slottedSlot(policy, slot, descriptor.gtype)] ?? null)
               : null;
     if (!wrap) return null;
     if (wrap === 'list-box-row') {
@@ -119,7 +201,7 @@ export function setterSlotOf(parent: HostElement, child: HostElement): string | 
     const policy = parent.descriptor.children;
     if (policy.kind === 'single') return policy.set;
     if (policy.kind !== 'slotted') return null;
-    const method = policy.slots[child.slot ?? policy.defaultSlot];
+    const method = policy.slots[slottedSlot(policy, child.slot, parent.descriptor.gtype)];
     return method?.startsWith('set_') === true ? method : null;
 }
 
@@ -730,10 +812,8 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             host[policy.append](address);
             return;
         case 'slotted': {
-            const slot = child.slot ?? policy.defaultSlot;
-            const method = policy.slots[slot];
-            if (!method) throw err.unknownSlot(parent.descriptor.gtype, slot, Object.keys(policy.slots));
-            host[method](address);
+            const slot = slottedSlot(policy, child.slot, parent.descriptor.gtype);
+            host[policy.slots[slot]!](address);
             return;
         }
         case 'keyed': {
@@ -780,7 +860,7 @@ function rotateTail(parent: HostElement, child: HostElement, following: readonly
     let tail = following;
     if (policy.kind === 'slotted') {
         if (setterSlotOf(parent, child)) return; // one child, no order
-        const slotOf = (el: HostElement) => el.slot ?? policy.defaultSlot;
+        const slotOf = (el: HostElement) => slottedSlot(policy, el.slot, parent.descriptor.gtype);
         const mine = slotOf(child);
         tail = following.filter((el) => slotOf(el) === mine);
     }
@@ -818,7 +898,7 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             // `policyProblems()` rejects a descriptor that reaches here without
             // one; an application-registered descriptor is checked by nobody, so
             // the refusal is named rather than left as a TypeError on undefined.
-            const slot = child.slot ?? policy.defaultSlot;
+            const slot = slottedSlot(policy, child.slot, parent.descriptor.gtype);
             if (!policy.remove) throw err.slotNeedsRemove(parent.descriptor.gtype, slot, policy.slots[slot] ?? '?');
             host[policy.remove](address);
             return;

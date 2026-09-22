@@ -92,10 +92,19 @@ export class AdwHeaderBar extends HTMLElement {
             [
                 { name: 'start', into: this._startEl },
                 { name: 'center', into: this._centerEl },
+                // The SAME destination under the name GTK writes it at. This section has
+                // always documented itself as "the equivalent of Adw.HeaderBar's
+                // title-widget"; a tree authored at the property position (a Blueprint
+                // `title-widget: …`) carried exactly that name, found no destination for it
+                // and stayed a stray sibling — after which this element derived its own
+                // title into the centre, so the authored one was gone from the document.
+                // `center` stays because it is what this package published and what the
+                // gallery's own fences are written in.
+                { name: 'title-widget', into: this._centerEl },
                 { name: 'end', into: this._endEl },
             ],
             (_node, slot) => {
-                if (slot.name === 'center') this._dropDerivedTitle();
+                if ('into' in slot && slot.into === this._centerEl) this._dropDerivedTitle();
             },
         ).install(this._startEl, this._centerEl, this._endEl);
 

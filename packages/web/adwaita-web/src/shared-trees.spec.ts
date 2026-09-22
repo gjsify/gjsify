@@ -36,7 +36,9 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     authoredTags,
     sharedTreeExpectations,
+    sharedTreePlacements,
     subjectIndexOf,
+    withoutPlacements,
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
@@ -113,6 +115,64 @@ export const AdwSharedTreesTest = async () => {
                 });
             });
         }
+    });
+
+    await describe('the shared corpus is placed where it says', async () => {
+        // A CONTROL, not a table of where each slot lands. `withoutPlacements` is the tree a
+        // builder that never read `slot` hands this renderer — which is what all three
+        // builders did — so the two realised DOMs being identical is exactly that
+        // regression. NESTING AND ELEMENT NAME ONLY, because the `slot=` attribute is itself
+        // part of what the placed build writes: comparing markup would differ on the
+        // attribute alone and pass while the widget sat beside its destination.
+        const structure = (el: Element): string => `${el.localName}[${Array.from(el.children, structure).join(',')}]`;
+
+        for (const block of ADWAITA_GALLERY_SHARED_TREES) {
+            const placements = sharedTreePlacements(block.root);
+            if (placements.length === 0) continue;
+            const named = placements.map(({ path, slot }) => `${path} -> ${slot}`).join(', ');
+            await it(`${block.widget} — ${named}: the mounted DOM is not the unplaced one`, () => {
+                const placed = mounted(block.root, structure);
+                const unplaced = mounted(withoutPlacements(block.root), structure);
+
+                expect(placed === unplaced).toBe(false);
+            });
+        }
+
+        // Otherwise the loop above is green from emptiness — the corpus authored no slot at
+        // all until a `.blp` forced the question.
+        await it('the corpus authors a placement at all', () => {
+            expect(ADWAITA_GALLERY_SHARED_TREES.some((block) => sharedTreePlacements(block.root).length > 0)).toBe(
+                true,
+            );
+        });
+
+        // THE OTHER HALF OF READING A SLOT, and the corpus cannot carry it: a name this
+        // renderer has no destination for. `bindSlottedChildren` copies the NATIVE rule — an
+        // unmatched name is assigned nowhere and the child stays put — which is right for
+        // hand-written markup and says nothing to a builder realising an authored tree.
+        await it('a placement this renderer has no destination for is refused BY NAME', () => {
+            expect(() =>
+                mountSharedTree({ tag: 'AdwToolbarView', children: [{ tag: 'AdwBanner', slot: 'middle' }] }),
+            ).toThrow('has no slot "middle"');
+        });
+
+        await it('the PROPERTY spelling of the title slot reaches the centre', () => {
+            // `title-widget:` is what a Blueprint source writes the centre at, and this
+            // element spells its own centre `center`; naming both is the element's own
+            // declaration, not a table in the builder.
+            //
+            // READ BY THE AUTHORED VALUE, not by the tag: an unrouted child is destroyed by
+            // the bar's own `replaceChildren`, and the bar then DERIVES an `<adw-window-title>`
+            // into the same centre — so a test asking only where an `<adw-window-title>` sits
+            // passed against the derived one with the authored one gone. Measured, by dropping
+            // the builder's `slot=` write: green.
+            const authored = { tag: 'AdwWindowTitle', slot: 'title-widget', props: { title: 'Placed' } };
+            mounted({ tag: 'AdwHeaderBar', children: [authored] }, (root) => {
+                const title = root.querySelector('adw-window-title[title="Placed"]');
+
+                expect(title?.parentElement?.className).toBe('adw-header-bar-center');
+            });
+        });
     });
 
     await describe('the shared corpus against the adwaita-core vectors it reaches', async () => {

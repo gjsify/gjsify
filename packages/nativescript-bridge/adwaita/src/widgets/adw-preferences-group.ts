@@ -21,7 +21,7 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { PREFERENCES_GROUP_HEADER_CLASS, preferencesGroupVisuals } from './preferences-group-state.js';
 import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -31,6 +31,9 @@ import { withSignals } from './signals.js';
 const PREFERENCES_GROUP_SLOTS = ['headerSuffix'] as const;
 
 export class AdwPreferencesGroup extends withSignals(StackLayout) implements NsSearchableGroup {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(PREFERENCES_GROUP_SLOTS, 'row');
+
     /** The header box: labels on the leading edge, suffix on the trailing one. */
     protected readonly _header: GridLayout;
     /** The group header label. */

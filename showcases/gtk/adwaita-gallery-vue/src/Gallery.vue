@@ -62,6 +62,10 @@
                 subtitle="Route traffic through a custom proxy"
                 :expanded="true"
             >
+                <gtk-button
+                    slot="prefix"
+                    label="Test"
+                />
                 <adw-entry-row
                     title="Host"
                     text="proxy.example.com"

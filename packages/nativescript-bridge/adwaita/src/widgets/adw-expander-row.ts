@@ -30,7 +30,7 @@ import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
@@ -52,6 +52,9 @@ export interface NotifyExpandedEventData extends EventData {
 const EXPANDER_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 export class AdwExpanderRow extends AdwActionRow {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(EXPANDER_ROW_SLOTS, 'row');
+
     /** `AdwExpanderRow` derives from `AdwPreferencesRow` in C
      *  (adw-expander-row.c:72), so the search does not consult a subtitle here. */
     override readonly isActionRow: boolean = false;

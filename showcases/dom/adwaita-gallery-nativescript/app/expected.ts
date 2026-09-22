@@ -182,6 +182,7 @@ export const EXPECTED: readonly ExpectView[] = [
     { widget: 'Adw.ExpanderRow', view: 'AdwExpanderRow', root:
         { tag: 'adw:PreferencesGroup', children: [
                 { tag: 'adw:ExpanderRow', props: {"title":"Proxy settings","subtitle":"Route traffic through a custom proxy","expanded":true}, children: [
+                        { tag: 'gtk:Button', slot: 'prefix', props: {"label":"Test"} },
                         { tag: 'adw:EntryRow', props: {"title":"Host","text":"proxy.example.com"} },
                         { tag: 'adw:SwitchRow', props: {"title":"Use authentication"} }
                     ] }

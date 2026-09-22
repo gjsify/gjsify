@@ -59,7 +59,7 @@ import {
     type BottomSheetPanes,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
-import { resolveBuilderSlot } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -77,6 +77,9 @@ const SHEET_CLASS = 'adw-bottom-sheet-sheet';
 const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'content'] as const;
 
 export class AdwBottomSheet extends withSignals(GridLayout) {
+    /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(BOTTOM_SHEET_SLOTS, 'content');
+
     /** The always-visible content layer. */
     private _content: View | null = null;
     /** The bottom-anchored bin holding both layers — libadwaita's `sheet_bin`. */

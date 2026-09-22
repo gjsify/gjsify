@@ -37,25 +37,84 @@
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { attributeOf, hostTagOf } from '@gjsify/adwaita-core/tags';
 
+import { slottedChildrenOf } from './slotted-children.js';
+
+/** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
+interface PlacedChild {
+    parent: HTMLElement;
+    child: HTMLElement;
+    slot: string;
+}
+
 /**
  * A `SharedTreeNode`, realised as a DETACHED element tree: a tag, its authored properties as
- * attributes, its children, in that order — recursive and total, no tag list, no per-block
- * case. A boolean authored property is the ATTRIBUTE'S PRESENCE (`toggleAttribute`), which is
- * what every element in the corpus reads (`hasAttribute('revealed')`, `hasAttribute('expanded')`);
- * spelling `"true"` would set a present attribute for `false` as well.
+ * attributes, its placement as `slot=`, its children, in that order — recursive and total,
+ * no tag list, no per-block case. A boolean authored property is the ATTRIBUTE'S PRESENCE
+ * (`toggleAttribute`), which is what every element in the corpus reads
+ * (`hasAttribute('revealed')`, `hasAttribute('expanded')`); spelling `"true"` would set a
+ * present attribute for `false` as well.
+ *
+ * THE SLOT IS WRITTEN AS THE ATTRIBUTE THIS RENDERER ALREADY ROUTES ON, not translated:
+ * `src/slotted-children.ts` reads `slot=` off every light-DOM child and keeps the routing
+ * live. This builder read `tag`, `props` and `children` and dropped `slot` silently until a
+ * real `.blp` authored one — the `[top]` header bar landed in `adw-toolbar-view-content` and
+ * the window title was then discarded by `<adw-header-bar>`'s own build, at exit 0.
  *
  * NOT YET LIVE — see the file header. Nothing here has run `connectedCallback` until
  * something connects it: {@link mountSharedTree} for the common case, or a caller's own
- * container.
+ * container. A DETACHED build therefore cannot check a slot either: an element that has not
+ * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
-export function buildSharedTree(node: SharedTreeNode): HTMLElement {
+export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []): HTMLElement {
     const el = document.createElement(hostTagOf(node.tag));
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));
     }
-    for (const child of node.children ?? []) el.append(buildSharedTree(child));
+    for (const child of node.children ?? []) {
+        const childEl = buildSharedTree(child, placed);
+        if (child.slot !== undefined) {
+            childEl.setAttribute('slot', child.slot);
+            placed.push({ parent: el, child: childEl, slot: child.slot });
+        }
+        el.append(childEl);
+    }
     return el;
+}
+
+/**
+ * A placement the element has no destination for is refused BY NAME, after connect.
+ *
+ * `bindSlottedChildren` copies the NATIVE assignment algorithm — an unmatched `slot=` name
+ * is assigned nowhere and the child visibly stays put — which is right for hand-written
+ * markup and is not a report. An authored tree is a claim about where a widget goes, so the
+ * builder that realises one has to say when the renderer could not honour it; a widget
+ * silently left beside its destination is the defect this whole path was measured on.
+ *
+ * The element's own `slots` declaration is the answer, never a list kept here: an element
+ * that binds a slot enrols itself in this refusal, and one that stops binding drops out of
+ * it visibly.
+ *
+ * AN ELEMENT THIS PACKAGE DOES NOT DEFINE IS NOT REFUSED, and that exemption is narrow on
+ * purpose. An undefined element has exactly ONE destination — itself — so a placement
+ * cannot land anywhere but where the tree authored it; what such a tree is really missing
+ * is the WIDGET, which is a wider gap than a slot and not this refusal's claim to make.
+ * (`AdwApplicationWindow` is the live case: a real `.blp` roots at one and this package has
+ * no element for it.) A DEFINED element that routes no named slot is refused like any
+ * other: it built a structure and chose not to route into it, so a name it does not have
+ * would leave the child beside that structure.
+ */
+function refuseUnknownSlots(placed: readonly PlacedChild[]): void {
+    for (const { parent, child, slot } of placed) {
+        if (customElements.get(parent.localName) === undefined) continue;
+        const binding = slottedChildrenOf(parent);
+        const known = (binding?.slots ?? []).map((declared) => declared.name).filter((name) => name !== undefined);
+        if (known.includes(slot)) continue;
+        throw new Error(
+            `<${parent.localName}> has no slot "${slot}", so the authored <${child.localName}> has nowhere ` +
+                `to go. Known slots: ${known.length > 0 ? known.join(', ') : 'none — it routes no named slot'}.`,
+        );
+    }
 }
 
 /** A tree {@link mountSharedTree} built and connected. */
@@ -74,7 +133,17 @@ export interface MountedSharedTree {
  */
 export function mountSharedTree(node: SharedTreeNode): MountedSharedTree {
     const host = document.createElement('div');
-    host.append(buildSharedTree(node));
+    const placed: PlacedChild[] = [];
+    host.append(buildSharedTree(node, placed));
     document.body.append(host);
+    // After the append, because that is what upgrades the elements and runs the binds the
+    // refusal reads; before the return, because a caller handed a tree back has no way left
+    // to tell a placement that was honoured from one that was dropped.
+    try {
+        refuseUnknownSlots(placed);
+    } catch (error) {
+        host.remove();
+        throw error;
+    }
     return { root: host.firstElementChild as HTMLElement, unmount: () => host.remove() };
 }

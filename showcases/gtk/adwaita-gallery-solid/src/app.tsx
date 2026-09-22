@@ -92,6 +92,10 @@ const AdwExpanderRow = () => (
             subtitle="Route traffic through a custom proxy"
             expanded
         >
+            <gtk-button
+                slot="prefix"
+                label="Test"
+            />
             <adw-entry-row
                 title="Host"
                 text="proxy.example.com"
@@ -598,6 +602,7 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Adw.ExpanderRow', root:
         { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
                 { tag: 'adw-expander-row', gtype: 'AdwExpanderRow', props: {"title":"Proxy settings","subtitle":"Route traffic through a custom proxy","expanded":true}, children: [
+                        { tag: 'gtk-button', gtype: 'GtkButton', slot: 'prefix', props: {"label":"Test"} },
                         { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Host","text":"proxy.example.com"} },
                         { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Use authentication"} }
                     ] }
