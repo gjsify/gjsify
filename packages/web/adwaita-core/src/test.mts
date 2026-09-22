@@ -38,6 +38,7 @@ import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import scrollingTestSuite from './scrolling.spec.js';
 import swipeTestSuite from './swipe.spec.js';
 import tagsTestSuite from './tags.spec.js';
+import sourceTestSuite from './source.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -78,4 +79,5 @@ run({
     shortcutLabelTestSuite,
     scrollingTestSuite,
     tagsTestSuite,
+    sourceTestSuite,
 });
