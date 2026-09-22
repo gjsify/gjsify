@@ -1,5 +1,9 @@
 // `--app browser` Rolldown configuration factory.
 //
+// Platform-file forks resolve through `plugins/platform-resolve.ts` on the
+// BROWSER chain (ADR 0032 § 9): `./foo.web.<ext>` ahead of `./foo.<ext>`, one
+// rung, with `.gtk` / `.desktop` / `.native` refused and warned about.
+//
 // Browser builds redirect `@girs/*` and `gi://*` to an empty virtual module
 // (they appear transitively via `@gjsify/unit` and similar packages with
 // GJS-specific code paths) — unless `--gi-renderer` composes the ADR 0034
@@ -27,6 +31,7 @@ import { ALIASES_NODE_FOR_BROWSER, GI_RENDERERS, getDerivedAliasesSync } from '@
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
+import { platformResolvePlugin, browserSuffixChain, BROWSER_REFUSED_SUFFIXES } from '../plugins/platform-resolve.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
@@ -127,6 +132,22 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
 
     const plugins: RolldownPluginOption[] = [
+        // Platform-file forks for the browser, ADR 0032 § 9: `.web` → base. One
+        // rung, and `browserSuffixChain`'s doc comment carries why each candidate
+        // second rung is absent. FIRST in the array for the reason `app/gjs.ts`
+        // states: the plugin claims RELATIVE imports only, and a platform fork of
+        // a module that also has a Node-builtin substitution must win over the
+        // substitution, because the fork is the more specific statement. `.gtk`,
+        // `.desktop` and `.native` are deliberately not rungs here and are warned
+        // about when present; `BROWSER_REFUSED_SUFFIXES` carries the reason.
+        // `siblingIndex: true` as on the desktop chain — same population (first-
+        // party relative imports), same directory-listing filter, and without it
+        // a one-rung chain plus three refusals is four failed resolves per import.
+        platformResolvePlugin({
+            suffixes: browserSuffixChain(),
+            refusedSuffixes: BROWSER_REFUSED_SUFFIXES,
+            siblingIndex: true,
+        }),
         // ADR 0034 stage 9 — the `gi://` arm, ahead of the empty redirect so it
         // claims the specifier first, exactly as `gjsGiNodePlugin` does on the node
         // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must
