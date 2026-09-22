@@ -178,12 +178,21 @@ does not appear.
     <!-- `stack` takes the id of the <adw-view-stack> to bind to. -->
     <adw-toolbar-view style="flex: 1; width: 100%;">
       <adw-view-stack id="gallery-switcher-bar-stack" style="flex: 1;">
+        <!-- name: The name of the child page. -->
+        <!-- title: The title of the child page. -->
+        <!-- icon-name: The icon name of the child page. -->
         <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
           <adw-status-page icon="mail-unread" title="Inbox" description="The inbox page."></adw-status-page>
         </adw-view-stack-page>
+        <!-- name: The name of the child page. -->
+        <!-- title: The title of the child page. -->
+        <!-- icon-name: The icon name of the child page. -->
         <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
           <adw-status-page icon="starred" title="Starred" description="The starred page."></adw-status-page>
         </adw-view-stack-page>
+        <!-- name: The name of the child page. -->
+        <!-- title: The title of the child page. -->
+        <!-- icon-name: The icon name of the child page. -->
         <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
           <adw-status-page icon="folder" title="Archive" description="The archive page."></adw-status-page>
         </adw-view-stack-page>
@@ -396,12 +405,18 @@ makes it fit a header bar or a tight toolbar.
   <Fragment slot="preview">
     ```html
     <adw-inline-view-switcher display-mode="both" style="flex: 1; width: 100%;">
+      <!-- title: The title of the child page. -->
+      <!-- icon-name: The icon name of the child page. -->
       <adw-view-stack-page title="Overview" icon-name="view-grid">
         <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
       </adw-view-stack-page>
+      <!-- title: The title of the child page. -->
+      <!-- icon-name: The icon name of the child page. -->
       <adw-view-stack-page title="Activity" icon-name="document-edit">
         <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
       </adw-view-stack-page>
+      <!-- title: The title of the child page. -->
+      <!-- icon-name: The icon name of the child page. -->
       <adw-view-stack-page title="Settings" icon-name="emblem-system">
         <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
       </adw-view-stack-page>

@@ -66,73 +66,49 @@ stays centred in anything wider. As the window shrinks, the clamp starts
 tightening the child once it passes the **tightening threshold**. That keeps text
 at a comfortable measure on a large display without wasting room on a small one.
 
-<AdwWidget title="Adw.Clamp">
-  <Fragment slot="preview">
-    ```html
-    <!-- maximum-size: The maximum size allocated to the child. -->
-    <adw-clamp maximum-size="400">
-      <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
-        This content is clamped: it stops growing past the maximum size and stays centred.
-      </adw-card>
-    </adw-clamp>
-    ```
-  </Fragment>
+This block is written in a different shape from the others on the page. The layout
+exists once, as a Blueprint file, and every surface builds that file: GTK compiles it
+to GtkBuilder XML, and the web and NativeScript ports build its `?shared-tree`
+projection. The preview is that projection, built by `@gjsify/adwaita-web`. So the
+tabs below do not restate the layout. Each one shows how its platform loads the file
+and reaches an element by its Blueprint id, which is where the platforms differ: the
+web clamp takes its size as an attribute, the other two as a property.
+
+<AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './clamp.blp';
 
-    const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, widthRequest: 520 });
-    inner.add_css_class('card');
-
-    const label = new Gtk.Label({
-        label: 'This content is clamped: it stops growing past the maximum size and stays centred.',
-        wrap: true,
-        xalign: 0,
-        hexpand: true,
-        marginTop: 18,
-        marginBottom: 18,
-        marginStart: 18,
-        marginEnd: 18,
-    });
-    inner.append(label);
-
-    const clamp = new Adw.Clamp({
-        maximumSize: 400,
-        tighteningThreshold: 300,
-        child: inner,
-    });
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const clamp = builder.get_object('clamp') as Adw.Clamp;
+    const label = builder.get_object('label') as Gtk.Label;
+    label.label = 'Reached by its Blueprint id.';
+    clamp.maximumSize = 560;
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.Clamp {
-      maximum-size: 400;
-
-      child: Gtk.Label {
-        label: _("This content is clamped: it stops growing past the maximum size and stays centred.");
-        wrap: true;
-
-        styles ["card"]
-      };
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    // app/adw.ts — the module the template's `xmlns:adw="~/adw"` resolves to.
-    // NativeScript reads `Clamp` off THIS module's exports; a bare package
-    // specifier in the xmlns does not resolve.
-    export { Clamp } from '@gjsify/adwaita-nativescript/adw';
+    import { mountSharedTree, type Gtk } from '@gjsify/adwaita-web';
+    import tree from './clamp.blp?shared-tree';
 
-    // app/views/clamp.ts — the loader. The template holds the tree; this holds the
-    // wiring, and here there is none beyond mounting it.
-    import { Builder } from '@nativescript/core';
+    const { root: clamp } = mountSharedTree(tree);
+    const label = clamp.querySelector<Gtk.Label>('#label')!;
+    label.label = 'Reached by its Blueprint id.';
+    clamp.setAttribute('maximum-size', '560');
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './clamp.blp?shared-tree';
 
-    export const clamp = Builder.load({ path: '~/views', name: 'clamp' });
+    const clamp = build(tree) as Adw.Clamp;
+    const label = clamp.getViewById<Gtk.Label>('label')!;
+    label.label = 'Reached by its Blueprint id.';
+    clamp.maximumSize = 560;
     ```
   </Fragment>
 </AdwWidget>

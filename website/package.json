@@ -27,6 +27,7 @@
         "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
         "@gjsify/example-dom-webrtc-loopback": "workspace:^",
         "@gjsify/example-gtk-adwaita-storybook": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
         "astro": "^6.4.5",
         "excalibur": "0.32.0",
         "three": "0.185.1"

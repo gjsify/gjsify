@@ -55,9 +55,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'start-icon-name': 'The icon name to show before the title.',
         'title': null,
     },
-    'adw-clamp': {
-        'maximum-size': 'The maximum size allocated to the child.',
-    },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
         'selected': 'The position of the selected item.',
@@ -150,9 +147,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'active': 'The index of the active toggle.',
     },
     'adw-view-stack-page': {
-        'icon-name': null,
-        'name': null,
-        'title': null,
+        'icon-name': 'The icon name of the child page.',
+        'name': 'The name of the child page.',
+        'title': 'The title of the child page.',
     },
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
@@ -217,12 +214,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 107,
-    glossed: 27,
-    nameSuffices: 58,
+    set: 106,
+    glossed: 29,
+    nameSuffices: 55,
     divergent: 20,
     authored: 2,
-    commentLines: 27,
+    commentLines: 41,
 };
 
 /**

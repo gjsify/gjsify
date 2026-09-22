@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the thirteen probes are fewer than thirteen distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fourteen probes are fewer than fourteen distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -1089,5 +1089,27 @@ export const REAL_EXPECTATIONS = [
             },
         ],
         note: "The first real file from `packages/framework` rather than a showcase or a template — the storybook's own chrome, split out of `window.ts` by this PR. Its own header comment says captions are deliberately not marked translatable, and the projection shows that literally: this is the largest real file so far (20 nodes) with NO `translatable` field on any of them. Two siblings share `slot: 'end'` under one `AdwHeaderBar`, the same cardinality finding 2 above already names. `top-bar-style: flat` on both toolbar views is source spelling, not the `0` the golden resolves it to — finding 4 in `expectations.mjs`'s header. Unlike the three showcases that reach `breakpoint`, this one writes `Adw.Breakpoint` bare, with no `[breakpoint]` slot annotation — `14-breakpoint.blp` already proved that slot optional, and this is the first real file to take that path.",
+    },
+    {
+        file: 'website/src/blueprints/adwaita/clamp.blp',
+        node: {
+            tag: 'AdwClamp',
+            id: 'clamp',
+            props: { 'maximum-size': 400, 'tightening-threshold': 300 },
+            children: [
+                {
+                    tag: 'GtkLabel',
+                    id: 'label',
+                    props: {
+                        label: 'This content is clamped: it stops growing past the maximum size and stays centred.',
+                        wrap: true,
+                    },
+                    translatable: { label: {} },
+                    styleClasses: ['card'],
+                },
+            ],
+        },
+        lost: [],
+        note: "The first probe that is a documentation block rather than a program: the website gallery builds the clamp from this one file on GTK, on the web and on NativeScript, and each pane reaches the label by its id. The label is a BARE child, not `child:`, and that is load-bearing: `child:` projects as `slot: 'child'`, which neither the web clamp nor the NativeScript one declares as a placement, so both builders refuse it by name.",
     },
 ];
