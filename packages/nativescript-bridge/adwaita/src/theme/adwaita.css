@@ -2036,6 +2036,18 @@ Page.ns-dark.adw-window {
     color: #ffffff;
 }
 
+/* The destructive content label needs the DARK scheme's red, and it needs its own rule
+ * because the light one out-specifies the block above: `.adw-button.destructive-action
+ * .adw-button-content-label` is three classes to that selector's two, so `#c01c28` — a
+ * colour picked to sit on the light scheme's `rgba(224, 27, 36, 0.12)` — was winning on
+ * the dark scheme's `rgba(192, 28, 40, 0.18)`. `.adw-button-label` got this override
+ * (above); `.adw-button-content-label` was left behind, which is the asymmetry the
+ * comment on `.adw-button-label` warns about read from the other side. The suggested
+ * variant needs none: its `#ffffff` is right on `#3584e4` in both schemes. */
+.ns-dark .adw-button.destructive-action .adw-button-content-label {
+    color: #ff7b80;
+}
+
 /* ===== Dark: split button ===== */
 
 .ns-dark .adw-split-button-action,
