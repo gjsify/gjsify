@@ -494,9 +494,30 @@ Page.adw-window {
     color: rgba(0, 0, 0, 0.8);
 }
 
+/* `%pill_button` — `padding: 10px 32px; border-radius: 9999px` (_buttons.scss:322-326,
+ * pin 42f647ff). The padding is the whole variant, and it is why this rule HAS to
+ * restate the height.
+ *
+ * `.adw-button` above pins `height: 38`, and a NativeScript `height` is an EXACT box
+ * where GTK's `min-height` is a floor — the same non-equivalence ADR 0034 measured for
+ * `adw-spinner.size`. So a variant that doubles the vertical padding cannot grow the
+ * box it sits in: the base budgets 38 − (5 + 5) = 28 for the label, and this one left
+ * 38 − (10 + 10) = 18 for a `.adw-button-label` at `font-size: 15`, whose line box does
+ * not fit in 18. The pill was clipped, and every consumer that wanted one had to
+ * override the height itself — which is how the defect surfaced, in Learn6502.
+ *
+ * 48 is 28 + (10 + 10): the base's own content box under this variant's padding. GTK
+ * derives the same direction from the same numbers — `min-height: 24px` + 5px twice is
+ * 34, + 10px twice is 44 — so the pill is taller than the plain button there too.
+ *
+ * THE RULE THIS VARIANT BROKE, stated because the next variant will meet it: in this
+ * stylesheet a class that changes vertical padding on a widget whose base pins an exact
+ * `height` must restate that height. `.adw-button.circular` does (34), and both split
+ * button halves do (38) beside their own padding. This one did not, and nothing said so. */
 .adw-button.pill {
     border-radius: 9999;
     padding: 10 32 10 32;
+    height: 48;
 }
 
 /* `%circular_button` — the explicit exception to the 9px rounded square: a full
@@ -2013,6 +2034,18 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-button-content-icon,
 .ns-dark .adw-button-content-label {
     color: #ffffff;
+}
+
+/* The destructive content label needs the DARK scheme's red, and it needs its own rule
+ * because the light one out-specifies the block above: `.adw-button.destructive-action
+ * .adw-button-content-label` is three classes to that selector's two, so `#c01c28` — a
+ * colour picked to sit on the light scheme's `rgba(224, 27, 36, 0.12)` — was winning on
+ * the dark scheme's `rgba(192, 28, 40, 0.18)`. `.adw-button-label` got this override
+ * (above); `.adw-button-content-label` was left behind, which is the asymmetry the
+ * comment on `.adw-button-label` warns about read from the other side. The suggested
+ * variant needs none: its `#ffffff` is right on `#3584e4` in both schemes. */
+.ns-dark .adw-button.destructive-action .adw-button-content-label {
+    color: #ff7b80;
 }
 
 /* ===== Dark: split button ===== */

@@ -3,7 +3,7 @@
 // Renders a REAL NativeScript `GridLayout` (rows `*, auto`): a horizontal
 // `ScrollView` of full-width pages (row 0) and a row of page-indicator dots
 // (row 1). Mirrors `Adw.Carousel`: `insert`/`remove`/`reorder`,
-// `position`, `scrollToPage()`, `nPages`, `notify::position` and `page-changed`.
+// `position`, `scroll_to()`, `nPages`, `notify::position` and `page-changed`.
 //
 // The BEHAVIOUR is headless in `@gjsify/adwaita-core` (ADR 0004) as `CarouselState`,
 // shared with the `@gjsify/adwaita-web` twin and pinned by the conformance vectors;
@@ -14,7 +14,7 @@
 // integer compare.
 //
 // FIDELITY: compromised. NS has no native carousel and no paging-snap on `ScrollView`,
-// so pages are fixed-width children of a horizontal `ScrollView` and `scrollToPage(i)`
+// so pages are fixed-width children of a horizontal `ScrollView` and a scroll to a page
 // calls `scrollToHorizontalOffset`. (1) No snap-to-page: a free flick can rest between
 // pages and nothing pulls it to a snap point. (2) The page width must be known to
 // compute offsets — set `pageWidth` to the carousel's on-screen width (default 320
@@ -175,7 +175,7 @@ export class AdwCarousel extends withSignals(GridLayout) {
         // Resolve the index at TAP time from the id: an insert or a reorder
         // renumbers every page after it, and a captured index would tap the
         // wrong one — which is what the old `const index = length` did.
-        dot.addEventListener('tap', () => this.scrollToPage(this._state.indexOf(id)));
+        dot.addEventListener('tap', () => this._scrollToIndex(this._state.indexOf(id)));
 
         // Registered BEFORE the model knows about the page: `insert` notifies
         // synchronously, and the subscription projects the dots by walking the
@@ -221,13 +221,18 @@ export class AdwCarousel extends withSignals(GridLayout) {
     }
 
     /**
-     * Scroll to a page by index. Out-of-range, fractional and NaN indices are
-     * refused rather than clamped, matching `adw_carousel_get_nth_page`'s
-     * precondition (adw-carousel.c:1616) — `scrollToPage(NaN)` used to set the
-     * position to NaN and leave no dot selected.
+     * Scroll to a page — `adw_carousel_scroll_to` (adw-carousel.c:1600-1640).
+     *
+     * Takes the PAGE, as its siblings `insert`, `remove` and `reorder` already do, and
+     * resolves it through the same `_idOf` they use; a view this carousel does not hold
+     * is refused, which is C's precondition. The INDEX door is {@link position}, and the
+     * two internal index callers — the indicator dots and that setter — go through
+     * `_scrollToIndex` below rather than through a public ordinal.
      */
-    scrollToPage(index: number): void {
-        this._state.scrollTo(index, { interactive: true });
+    scroll_to(page: View): void {
+        const id = this._idOf(page);
+        if (id === null) return;
+        this._scrollToIndex(this._state.indexOf(id));
     }
 
     /** One keynav step — `navigate_to_direction` (adw-carousel.c:475-508). */
@@ -264,7 +269,7 @@ export class AdwCarousel extends withSignals(GridLayout) {
         const value = xmlNumber(raw, this.position);
         if (!Number.isFinite(value)) return;
         const page = this._state.pageAt(value);
-        if (page >= 0) this.scrollToPage(page);
+        if (page >= 0) this._scrollToIndex(page);
     }
 
     /** The page the current position settles on, `-1` when the carousel is empty. */
@@ -284,7 +289,7 @@ export class AdwCarousel extends withSignals(GridLayout) {
 
     /**
      * The per-page width in DIPs used for scroll-offset math. Set this to the
-     * carousel's on-screen width so `scrollToPage` lands cleanly. Re-applies to
+     * carousel's on-screen width so `scroll_to` lands cleanly. Re-applies to
      * all existing pages.
      */
     get pageWidth(): number {
@@ -300,6 +305,16 @@ export class AdwCarousel extends withSignals(GridLayout) {
     /** The px pitch between two page origins — `self->distance` (adw-carousel.c:767). */
     private _distance(): number {
         return this._state.pageDistance(this._pageWidth);
+    }
+
+    /**
+     * Scroll to a page by index. Out-of-range, fractional and NaN indices are
+     * refused rather than clamped, matching `adw_carousel_get_nth_page`'s
+     * precondition (adw-carousel.c:1616) — an index of NaN used to set the
+     * position to NaN and leave no dot selected.
+     */
+    private _scrollToIndex(index: number): void {
+        this._state.scrollTo(index, { interactive: true });
     }
 
     /** The state's id for a page view, or `null` when it is not one of ours. */

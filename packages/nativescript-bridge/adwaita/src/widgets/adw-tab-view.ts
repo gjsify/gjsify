@@ -55,6 +55,16 @@ import { withSignals } from './signals.js';
 // as `widgets/index.ts` and every consumer already expect.
 export type { AdwTabPage };
 
+/**
+ * The id behind either spelling of a page handle.
+ *
+ * The GIR page verbs all take an `Adw.TabPage`; this port's page is a headless record
+ * (`tab-view-state.ts`) whose `id` the model keys on, and an XML attribute can only carry
+ * that string. So every converged verb takes both and narrows here, exactly as the core's
+ * own `setSelectedPage` does — the name is the GIR's, and the shape stays the port's.
+ */
+const pageHandle = (page: AdwTabPage | string): string => (typeof page === 'string' ? page : page.id);
+
 /** Event name emitted when the selected page changes. Mirrors `notify::selected-page`. */
 export const NOTIFY_SELECTED_PAGE = 'notify::selected-page';
 
@@ -99,7 +109,7 @@ export class AdwTabView extends withSignals(GridLayout) {
 
     /**
      * The `close-page` decision seam. Return `true` to confirm, `false` to deny,
-     * `'defer'` to hold the page until {@link closePageFinish} — which is how an
+     * `'defer'` to hold the page until {@link close_page_finish} — which is how an
      * app shows a "save before closing?" dialog. Unset takes libadwaita's own
      * default, `!page.pinned` (adw-tab-view.c:1990-1991).
      *
@@ -191,12 +201,13 @@ export class AdwTabView extends withSignals(GridLayout) {
     }
 
     set selectedPage(id: string | null) {
-        // THE ID, BECAUSE ON THIS PORT AN ID IS WHAT A PAGE HANDLE IS. Every other page
-        // call here takes one — `isClosing`, `closePage`, `setPagePinned` — and a
-        // NativeScript XML attribute can carry nothing else, so `<AdwTabView
-        // selectedPage="inbox">` is the only way markup can declare a starting tab. The web
-        // twin takes the page OBJECT because its DOM has one and its attribute carries the
-        // id separately; ADR 0034 § 1 converges the NAME and never the shape.
+        // THE ID, BECAUSE AN XML ATTRIBUTE CAN CARRY NOTHING ELSE: `<AdwTabView
+        // selectedPage="inbox">` is the only way markup can declare a starting tab. The page
+        // METHODS take either spelling — `close_page(page)` and `set_page_pinned(page, …)`
+        // resolve an `AdwTabPage` down to its id — so a caller holding the page object never
+        // has to go through the id; a setter has one parameter and this is the one markup
+        // needs. The web twin takes the page OBJECT because its DOM has one and its
+        // attribute carries the id separately; ADR 0034 § 1 converges the NAME, not the shape.
         //
         // The core refuses an id this view does not hold, with the diagnostic C raises —
         // and because a caller here cannot hand over another view's page object, the
@@ -245,59 +256,69 @@ export class AdwTabView extends withSignals(GridLayout) {
         return this._state.cyclePreviousPage();
     }
 
-    /** Add a page opened FROM `parentId`, deriving its position (Adw.TabView.add_page). */
-    addPage(spec: AdwTabPageSpec<View>, parentId: string | null = null): number {
-        return this._state.addPage(spec, parentId);
+    /** Add a page opened FROM `parent`, deriving its position — `adw_tab_view_add_page`. */
+    add_page(spec: AdwTabPageSpec<View>, parent: AdwTabPage | string | null = null): number {
+        return this._state.addPage(spec, parent === null ? null : pageHandle(parent));
     }
 
-    insertPage(spec: AdwTabPageSpec<View>, position: number): number {
+    /** `adw_tab_view_insert`. */
+    insert(spec: AdwTabPageSpec<View>, position: number): number {
         return this._state.insertPage(spec, position);
     }
 
-    prependPage(spec: AdwTabPageSpec<View>): number {
+    /** `adw_tab_view_prepend`. */
+    prepend(spec: AdwTabPageSpec<View>): number {
         return this._state.prependPage(spec);
     }
 
-    appendPage(spec: AdwTabPageSpec<View>): number {
+    /** `adw_tab_view_append`. */
+    append(spec: AdwTabPageSpec<View>): number {
         return this._state.appendPage(spec);
     }
 
-    insertPinnedPage(spec: AdwTabPageSpec<View>, position: number): number {
+    /** `adw_tab_view_insert_pinned`. */
+    insert_pinned(spec: AdwTabPageSpec<View>, position: number): number {
         return this._state.insertPinnedPage(spec, position);
     }
 
-    prependPinnedPage(spec: AdwTabPageSpec<View>): number {
+    /** `adw_tab_view_prepend_pinned`. */
+    prepend_pinned(spec: AdwTabPageSpec<View>): number {
         return this._state.prependPinnedPage(spec);
     }
 
-    appendPinnedPage(spec: AdwTabPageSpec<View>): number {
+    /** `adw_tab_view_append_pinned`. */
+    append_pinned(spec: AdwTabPageSpec<View>): number {
         return this._state.appendPinnedPage(spec);
     }
 
     /** Pin or unpin a page, re-ordering it in the same step. Returns its new position. */
-    setPagePinned(id: string, pinned: boolean): number {
-        return this._state.setPagePinned(id, pinned);
+    set_page_pinned(page: AdwTabPage | string, pinned: boolean): number {
+        return this._state.setPagePinned(pageHandle(page), pinned);
     }
 
     /** Request a close. Fires {@link CLOSE_PAGE}, then applies {@link closeHandler}'s verdict. */
-    closePage(id: string): boolean {
-        return this._state.closePage(id);
+    close_page(page: AdwTabPage | string): boolean {
+        return this._state.closePage(pageHandle(page));
     }
 
-    closePageFinish(id: string, confirm: boolean): boolean {
-        return this._state.closePageFinish(id, confirm);
+    /** Settle a close {@link closeHandler} deferred — `adw_tab_view_close_page_finish`. */
+    close_page_finish(page: AdwTabPage | string, confirm: boolean): boolean {
+        return this._state.closePageFinish(pageHandle(page), confirm);
     }
 
-    closeOtherPages(id: string): void {
-        this._state.closeOtherPages(id);
+    /** `adw_tab_view_close_other_pages`. */
+    close_other_pages(page: AdwTabPage | string): void {
+        this._state.closeOtherPages(pageHandle(page));
     }
 
-    closePagesBefore(id: string): void {
-        this._state.closePagesBefore(id);
+    /** `adw_tab_view_close_pages_before`. */
+    close_pages_before(page: AdwTabPage | string): void {
+        this._state.closePagesBefore(pageHandle(page));
     }
 
-    closePagesAfter(id: string): void {
-        this._state.closePagesAfter(id);
+    /** `adw_tab_view_close_pages_after`. */
+    close_pages_after(page: AdwTabPage | string): void {
+        this._state.closePagesAfter(pageHandle(page));
     }
 
     /** Remove a page unconditionally, running the successor rule first. */
@@ -305,24 +326,29 @@ export class AdwTabView extends withSignals(GridLayout) {
         return this._state.detachPage(id);
     }
 
-    reorderPage(id: string, position: number): boolean {
-        return this._state.reorderPage(id, position);
+    /** `adw_tab_view_reorder_page`. */
+    reorder_page(page: AdwTabPage | string, position: number): boolean {
+        return this._state.reorderPage(pageHandle(page), position);
     }
 
-    reorderBackward(id: string): boolean {
-        return this._state.reorderBackward(id);
+    /** `adw_tab_view_reorder_backward`. */
+    reorder_backward(page: AdwTabPage | string): boolean {
+        return this._state.reorderBackward(pageHandle(page));
     }
 
-    reorderForward(id: string): boolean {
-        return this._state.reorderForward(id);
+    /** `adw_tab_view_reorder_forward`. */
+    reorder_forward(page: AdwTabPage | string): boolean {
+        return this._state.reorderForward(pageHandle(page));
     }
 
-    reorderFirst(id: string): boolean {
-        return this._state.reorderFirst(id);
+    /** `adw_tab_view_reorder_first`. */
+    reorder_first(page: AdwTabPage | string): boolean {
+        return this._state.reorderFirst(pageHandle(page));
     }
 
-    reorderLast(id: string): boolean {
-        return this._state.reorderLast(id);
+    /** `adw_tab_view_reorder_last`. */
+    reorder_last(page: AdwTabPage | string): boolean {
+        return this._state.reorderLast(pageHandle(page));
     }
 
     setPageTitle(id: string, title: string | null): boolean {

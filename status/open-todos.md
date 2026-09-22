@@ -6226,14 +6226,22 @@ ids are unique within ONE view (`_nextId` counts per view), so `a.setSelectedPag
 read as an id selected `a`'s own page of that id. The core refuses it now, with the
 diagnostic C raises.
 
-What is left is the rest of the family: `isClosing(id)`, `closePage(id)`,
-`closePageFinish(id, …)` and `setPagePinned(id, …)` all take an ID where libadwaita takes an
+What was left was the rest of the family: `isClosing(id)`, `closePage(id)`,
+`closePageFinish(id, …)` and `setPagePinned(id, …)` all took an ID where libadwaita takes an
 `AdwTabPage *` (`refs/libadwaita/src/adw-tab-view.h:150#adw_tab_view_set_selected_page` is
-the shape for all of them). Each carries the same latent confusion the selection one did,
-and none has produced a measured defect yet — which is exactly why they are here rather than
-in that ADR. Settle them together or not at all: an id-taking `closePage` beside a
-page-taking `setSelectedPage` is already the asymmetry, and fixing half of it twice is worse
-than either consistent answer.
+the shape for all of them). Each carried the same latent confusion the selection one did,
+and none produced a measured defect — which is why they were here rather than in that ADR.
+The entry said to settle them together or not at all, because an id-taking `closePage`
+beside a page-taking `setSelectedPage` is itself the asymmetry.
+
+**Settled on `@gjsify/adwaita-nativescript`**, together, in the pass that emptied the
+vocabulary gate's method column: the eighteen page verbs took their GIR names and the
+widening with them, so `close_page`, `close_page_finish` and `set_page_pinned` take an
+`AdwTabPage` or the id, narrowing through one `pageHandle` helper exactly as the core's
+`setSelectedPage` narrows. `isClosing` stayed under its own ledger entry: the state between
+`close_page` and `close_page_finish` is internal to `Adw.TabView` and observable only
+through the `close-page` signal, so there is no counterpart method to converge to. What remains is the same family on `<adw-tab-view>`, where the element's own
+methods still take the id alone.
 
 
 ### A tab page with no `page-id` cannot be named from markup, and the reflection then leaks a generated id
