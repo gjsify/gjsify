@@ -138,6 +138,37 @@ export const GtkLabelTest = async () => {
             host.remove();
         });
 
+        await it('centres a WRAPPED label by xalign too, not just a one-line one', () => {
+            // GTK centres the wrapped BLOCK (gtk_label_get_layout_location), not each line
+            // independently — the defect this vector was written for: the block used to
+            // fill the full width with no inset at all once it needed more than one line.
+            //
+            // Measured on the wrap SPAN's own box, not `textRect()`'s `Range` (every other
+            // vector in this file uses it): `white-space: pre-wrap` lets a wrapped line's
+            // trailing separator space HANG past its line box (CSS Text 3 § white-space-
+            // phase-2, a real browser behaviour and not a bug here), which widens a
+            // `Range`'s bounding rect on the side a line wrapped without moving anything a
+            // viewer can see — the span's own layout box is what is actually centred.
+            const long = 'word '.repeat(60).trim();
+            const { el, host } = mount(long);
+            el.wrap = true;
+            const box = el.getBoundingClientRect();
+            const span = el.querySelector('.adw-label-text')!.getBoundingClientRect();
+            expect(span.width < box.width).toBe(true);
+            expect(Math.abs(span.left - box.left - (box.right - span.right)) <= 1).toBe(true);
+            host.remove();
+        });
+
+        await it('keeps a wrapped block flush with the edge at xalign 0, no inset', () => {
+            const long = 'word '.repeat(60).trim();
+            const { el, host } = mount(long);
+            el.wrap = true;
+            el.xalign = 0;
+            const span = el.querySelector('.adw-label-text')!.getBoundingClientRect();
+            expect(Math.round(span.left)).toBe(Math.round(el.getBoundingClientRect().left));
+            host.remove();
+        });
+
         await it('is not selectable unless asked, as GtkLabel', () => {
             const { el, host } = mount('Hi');
             expect(getComputedStyle(el).userSelect).toBe('none');

@@ -83,6 +83,13 @@ gtk-label {
     white-space: pre-wrap;
   }
 
+  // `gtk-label.ts`'s wrapped-render path: the text moves into this span so it can be
+  // pinned to its measured wrap width (a flex item is blockified by spec, but `display:
+  // block` is spelled out rather than relied on implicitly).
+  .adw-label-text {
+    display: block;
+  }
+
   &[selectable] {
     user-select: text;
     cursor: text;
