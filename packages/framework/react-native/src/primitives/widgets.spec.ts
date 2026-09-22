@@ -48,7 +48,13 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-host';
-import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
+import {
+    descriptorProblems,
+    dumpTree,
+    gtkChildren,
+    installDiagnosticsGate,
+    withAtContext,
+} from '@gjsify/gtk-host/conformance';
 import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } from '@gjsify/gtk-host/style';
 import { createRoot, flushSync } from '@gjsify/gtk-host/react';
 import { createElement, Fragment, useState, type ReactNode } from 'react';
@@ -312,30 +318,6 @@ function expectFileIsSource(file: Gio.File | null): void {
  */
 const generatedClasses = (widget: Gtk.Widget): string[] =>
     [...widget.cssClasses].filter((name) => name.startsWith('gjsify-'));
-
-/**
- * The widget, having asserted it HAS an accessibility context to record into.
- *
- * Without this the accessibility vectors fail as "expected true, got false" and say
- * nothing about the cause, which is what happened: `GTK_A11Y=none` gives a NULL AT
- * context, so `update_property()` records nothing and every
- * `Gtk.test_accessible_has_*` answers false. `test.mts` installs the backend; this
- * names it the day something unsets it again.
- */
-const withAtContext = (widget: Gtk.Widget): Gtk.Widget => {
-    // A THROW rather than an `expect`, because the sentence is the whole value: the
-    // generic "expected values to match using ===" is what sent three OS legs
-    // looking for a marshalling bug that was never there.
-    if (widget.get_at_context() === null) {
-        throw new Error(
-            'this widget has no GtkATContext, so update_property()/update_state() record nothing and every ' +
-                'Gtk.test_accessible_has_* answers false — these vectors would be measuring an absent ' +
-                'accessibility layer, not this package. GTK_A11Y=none does exactly that; src/test.mts installs ' +
-                'GTK’s in-process `test` backend to prevent it, so something has unset it again.',
-        );
-    }
-    return widget;
-};
 
 /** First strict descendant of a GType, breadth-first over the REAL tree. */
 function find(root: Gtk.Widget, gtype: string): Gtk.Widget {

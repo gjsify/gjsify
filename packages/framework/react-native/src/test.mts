@@ -1,5 +1,5 @@
-import GLib from 'gi://GLib?version=2.0';
 import { run } from '@gjsify/unit';
+import { installAccessibilityBackend } from '@gjsify/gtk-host/conformance';
 
 import animatedSuite from './animated/animated.spec.js';
 import easingSuite from './animated/easing.spec.js';
@@ -43,8 +43,9 @@ import unsupportedSuite from './unsupported.spec.js';
 // answers these vectors through `GtkAtSpiContext` and now every leg answers them
 // through a real context too.
 //
-// OVERWRITE is deliberate (`g_setenv(..., true)`): CI sets `none` explicitly, so
-// honouring it would keep the suite measuring nothing.
+// OVERWRITE is deliberate, and it is what `installAccessibilityBackend()` does
+// (`g_setenv(..., true)`, in `@gjsify/gtk-host/conformance`): CI sets `none`
+// explicitly, so honouring it would keep the suite measuring nothing.
 //
 // AND THE ORDER IS LOAD-BEARING, which is why this sits at the entry point rather
 // than beside `Gtk.init()`. GTK reads the variable lazily — but exactly ONCE, at the
@@ -53,11 +54,11 @@ import unsupportedSuite from './unsupported.spec.js';
 // widget is asked for its context yields a `GtkTestATContext`; setting it after ONE
 // widget has been asked yields `null` forever. A module body runs after every
 // `import` above it, so this is early enough only for as long as nothing those
-// modules import touches an AT context at import time. The `withAtContext` guards in
-// `primitives/widgets.spec.ts` and `solid/solid.spec.ts` are what NAME it the day
-// that stops being true — without them the symptom is six vectors reading
-// "expected values to match using ===".
-GLib.setenv('GTK_A11Y', 'test', true);
+// modules import touches an AT context at import time. The `withAtContext` guards
+// that `primitives/widgets.spec.ts` and `solid/solid.spec.ts` import from the same
+// place are what NAME it the day that stops being true — without them the symptom is
+// six vectors reading "expected values to match using ===".
+installAccessibilityBackend();
 
 run({
     supportTableSuite,
