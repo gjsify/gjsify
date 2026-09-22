@@ -269,6 +269,14 @@ export type {
     SpinStateRangeListener,
 } from './adjustment.js';
 
+// --- The GIR authoring doors onto the two values above (ADR 0034 § Amendment 19) ---
+// Prefixed here, as clause 1 prefixes every class: the ports re-export them as
+// `Gtk.StringList` / `Gtk.Adjustment`, which is the name an author writes.
+export { GtkAdjustment } from './gtk-adjustment.js';
+export type { GtkAdjustmentProps } from './gtk-adjustment.js';
+export { GtkStringList } from './gtk-string-list.js';
+export type { GtkStringListProps } from './gtk-string-list.js';
+
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---
 export { ComboState, ExpanderState, ToggleGroupState } from './rows.js';
 export type {
