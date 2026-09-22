@@ -89,6 +89,20 @@ export class AdwViewStack extends withSignals(GridLayout) {
     }
 
     /**
+     * Register a titled page carrying an icon — `Adw.ViewStack.add_titled_with_icon`.
+     *
+     * The same call {@link add} already is, under the name the counterpart gives it. It
+     * exists because the ARGUMENT ORDER is the thing a reader has to get right and this
+     * port had no spelling that matched: `add(child, name, title, icon)` and
+     * `adw_view_stack_add_titled_with_icon (stack, child, name, title, icon_name)` take
+     * the same four values in the same order, so the alias is a rename and cannot drift
+     * from the method it forwards to.
+     */
+    add_titled_with_icon(content: View, name: string, title: string, iconName: string): AdwViewStackPage {
+        return this.add(content, name, title, iconName);
+    }
+
+    /**
      * Remove a page and detach its content view — `adw_view_stack_remove`. Returns
      * whether anything was removed. When the removed page was the visible one the
      * stack ends up showing NOTHING and emits no event — `stack_remove` clears

@@ -239,14 +239,33 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         return this._content;
     }
 
+    /**
+     * `Adw.BottomSheet:content` — {@link set_content} under the property spelling the
+     * counterpart declares, so a construct-props bag can carry the pane and a snippet
+     * ported off GJS keeps the assignment it was written as.
+     */
+    set content(view: View | null) {
+        this.set_content(view);
+    }
+
     /** The sheet panel's child, or `null` — the read-back for `set_sheet`. */
     get sheet(): View | null {
         return this._sheetChild;
     }
 
+    /** `Adw.BottomSheet:sheet` — {@link set_sheet} under the counterpart's spelling. */
+    set sheet(view: View | null) {
+        this.set_sheet(view);
+    }
+
     /** The bottom bar's child, or `null` — the read-back for `set_bottom_bar`. */
     get bottomBar(): View | null {
         return this._bottomBar;
+    }
+
+    /** `Adw.BottomSheet:bottom-bar` — {@link set_bottom_bar} under the counterpart's spelling. */
+    set bottomBar(view: View | null) {
+        this.set_bottom_bar(view);
     }
 
     /**

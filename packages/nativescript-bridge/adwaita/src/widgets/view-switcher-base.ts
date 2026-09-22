@@ -30,6 +30,8 @@ import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativ
 import { buildViewSwitcherButtons } from '@gjsify/adwaita-core';
 import type { AdwInlineViewSwitcherDisplayMode, AdwViewSwitcherPolicy, ViewSwitcherState } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
+import type { AdwViewStack } from './adw-view-stack.js';
+import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
 import {
     applyViewSwitcherVisibility,
@@ -66,6 +68,35 @@ interface ButtonNodes {
 }
 
 /**
+ * A bound stack's pages as switcher pages.
+ *
+ * `''` becomes ABSENT on the icon, because the two records spell "no icon" differently:
+ * `AdwViewStackPage` normalises it to the empty string and {@link AdwViewPage} uses the
+ * missing key — and the button-visibility rule of `AdwViewSwitcher` reads "has an icon",
+ * so passing `''` through would give a title-less page a button libadwaita does not draw.
+ *
+ * A page with no `content` is skipped: the shared record allows a headless one, and every
+ * page an `AdwViewStack` registers came through `add(view, …)` with a real view.
+ */
+function viewPagesOfStack(stack: AdwViewStack): AdwViewPage[] {
+    const pages: AdwViewPage[] = [];
+    for (const page of stack.pages) {
+        if (page.content === undefined) continue;
+        pages.push({
+            name: page.name,
+            title: page.title,
+            icon: page.icon.length > 0 ? page.icon : undefined,
+            visible: page.visible,
+            badgeNumber: page.badgeNumber,
+            needsAttention: page.needsAttention,
+            useUnderline: page.useUnderline,
+            content: page.content,
+        });
+    }
+    return pages;
+}
+
+/**
  * Shared base: a switcher bar (row 0) + a content area (row 1), one page visible.
  * Subclasses set the bar/button CSS classes for their look.
  */
@@ -81,6 +112,20 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
     /** The headless selection + page model every derivation reads. */
     protected readonly _state: ViewSwitcherState = createViewSwitcherState();
     private _nodes: ButtonNodes[] = [];
+    /** The bound `Adw.ViewSwitcher:stack`, or `null` when this switcher carries its own pages. */
+    private _stack: AdwViewStack | null = null;
+    private _stackListener: (() => void) | null = null;
+    /**
+     * Whether the CONTENT views are this widget's children.
+     *
+     * `false` once a stack is bound: an `AdwViewStack` is itself the `GridLayout` its
+     * pages live in, so re-parenting them here would empty the stack the consumer just
+     * put in the window. The switcher is then the button bar alone, which is what
+     * `Adw.ViewSwitcher` is on GTK.
+     */
+    private _ownsContent = true;
+    /** Guards the round trip switcher -> stack -> `notify::visible-child` -> switcher. */
+    private _syncingFromStack = false;
 
     /** CSS class applied to the switcher bar — subclass-specific. */
     protected abstract get barClass(): string;
@@ -162,18 +207,35 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
      * first VISIBLE page otherwise.
      */
     setViews(pages: AdwViewPage[]): void {
+        // Carrying its own pages and driving a bound stack are EXCLUSIVE, and whichever
+        // arrives last wins. Without the unbind a switcher would take its buttons from
+        // the argument and send its selection to a stack that no longer describes them.
+        if (this._stack !== null) {
+            this._unbindStack();
+            this._contentArea.visibility = 'visible';
+        }
+        this._installPages(pages, true);
+    }
+
+    /**
+     * The half of {@link setViews} a bound stack shares: rebuild the bar, and take the
+     * content views only when `ownsContent`.
+     */
+    private _installPages(pages: AdwViewPage[], ownsContent: boolean): void {
         for (const nodes of this._nodes) this._bar.removeChild(nodes.button);
         this._nodes = [];
         // The columns go with the buttons: a child whose column index exceeds the
         // declared columns is clamped into the last one, so a shrinking switcher
         // would stack its buttons on top of each other.
         this._bar.removeColumns();
-        for (const page of this._pages) this._contentArea.removeChild(page.content);
+        if (this._ownsContent) for (const page of this._pages) this._contentArea.removeChild(page.content);
+        this._ownsContent = ownsContent;
         this._pages.length = 0;
         this._pages.push(...pages);
 
         for (const [index, page] of this._pages.entries()) {
             this._nodes.push(this._buildButton(index));
+            if (!ownsContent) continue;
             GridLayout.setColumn(page.content, 0);
             GridLayout.setRow(page.content, 0);
             this._contentArea.addChild(page.content);
@@ -183,6 +245,73 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
         // set changed, the user did not tap.
         this._state.setPages(viewSwitcherPageSpecs(this._pages));
         this._applySelection();
+    }
+
+    /**
+     * Bind the switcher to an `AdwViewStack` — `adw_view_switcher_set_stack`.
+     *
+     * THE POINT OF IT is that on GTK the switcher and the stack are two widgets: the
+     * bar goes in a header bar, the stack fills the window body, and one property joins
+     * them. This surface only had the bundled form — `setViews()` with the content
+     * inlined — so a pane ported off GJS had to be rewritten around it. Bound, this
+     * widget renders its BUTTONS only: the stack keeps its pages and stays the thing
+     * that shows them, exactly as {@link AdwViewSwitcherBar} already does.
+     *
+     * The page list is read once here. It is re-read when the stack's page COUNT moves,
+     * which reaches us through `notify::visible-child` — `AdwViewStack.add` notifies on
+     * the auto-pick, and libadwaita rebuilds on the pages model's `items-changed`, which
+     * this surface has no counterpart for.
+     */
+    set_stack(stack: AdwViewStack | null): void {
+        this._unbindStack();
+        this._stack = stack;
+        // A bar-only switcher must not keep an empty content row taking layout space.
+        this._contentArea.visibility = stack === null ? 'visible' : 'collapse';
+        if (stack === null) {
+            this._installPages([], true);
+            return;
+        }
+        const listener = () => this._syncFromStack();
+        stack.addEventListener(NOTIFY_VISIBLE_CHILD, listener);
+        this._stackListener = listener;
+        this._syncFromStack();
+    }
+
+    /** The bound stack, or `null` — `Adw.ViewSwitcher:stack`. */
+    get stack(): AdwViewStack | null {
+        return this._stack;
+    }
+
+    set stack(value: AdwViewStack | null) {
+        this.set_stack(value);
+    }
+
+    private _unbindStack(): void {
+        if (this._stack !== null && this._stackListener !== null) {
+            this._stack.removeEventListener(NOTIFY_VISIBLE_CHILD, this._stackListener);
+        }
+        this._stackListener = null;
+        this._stack = null;
+    }
+
+    /**
+     * Take the bound stack's pages and selection.
+     *
+     * The buttons are rebuilt only when the page COUNT moved: a selection change must
+     * not replace the button under the user's finger, the same rule
+     * `selection_changed_cb` follows (adw-view-switcher.c:265-295).
+     */
+    private _syncFromStack(): void {
+        const stack = this._stack;
+        if (stack === null || this._syncingFromStack) return;
+        this._syncingFromStack = true;
+        try {
+            if (stack.pages.length !== this._pages.length) this._installPages(viewPagesOfStack(stack), false);
+            this._state.setSelected(stack.visibleChildIndex);
+            this._applySelection();
+        } finally {
+            this._syncingFromStack = false;
+        }
     }
 
     /** Build one button's NS nodes. Painted by {@link _applySelection}. */
@@ -234,7 +363,10 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
 
     /** Paint the derived models: show only the selected page, mark its button active. */
     protected _applySelection(): void {
-        applyViewSwitcherVisibility(this._pages, this._state.selected);
+        // Bound to a stack, the STACK decides which page shows — writing visibility
+        // here would fight `applyViewStackVisibility` over the same views.
+        if (this._ownsContent) applyViewSwitcherVisibility(this._pages, this._state.selected);
+        else if (!this._syncingFromStack) this._stack?.selectNthPage(this._state.selected);
 
         const showIcon = this.buttonDisplayMode !== 'labels';
         const showLabel = this.buttonDisplayMode !== 'icons';

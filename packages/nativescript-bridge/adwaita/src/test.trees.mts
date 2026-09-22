@@ -15,8 +15,10 @@ import { run } from '@gjsify/unit';
 
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
+import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 
 run({
     AdwSharedTreesNsTest,
     AdwClampClasslessChildNsTest,
+    AdwViewSwitcherStackNsTest,
 });

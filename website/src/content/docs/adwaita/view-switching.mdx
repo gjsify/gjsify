@@ -152,21 +152,32 @@ swaps between the two on a breakpoint.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
-    // namespace and keeps the package import.
-    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const page = (icon: string, title: string, description: string): Adw.StatusPage =>
-        new Adw.StatusPage({ iconName: icon, title, description });
+    // The view stack holds the pages; each is added with a name, title and icon.
+    const stack = new Adw.ViewStack();
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'mail-unread-symbolic', title: 'Inbox', description: 'You have three unread conversations.' }),
+        'inbox', 'Inbox', 'mail-unread-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'starred-symbolic', title: 'Starred', description: 'Messages you have marked as important.' }),
+        'starred', 'Starred', 'starred-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'folder-symbolic', title: 'Archive', description: 'Older conversations kept for reference.' }),
+        'archive', 'Archive', 'folder-symbolic',
+    );
 
-    const switcher = new Adw.ViewSwitcher();
-    // There is no Adw.ViewStack page API behind the switcher here: each view carries its
-    // title, icon and content together.
-    switcher.setViews([
-        { title: 'Inbox', icon: 'mail-unread-symbolic', content: page('mail-unread-symbolic', 'Inbox', 'You have three unread conversations.') },
-        { title: 'Starred', icon: 'starred-symbolic', content: page('starred-symbolic', 'Starred', 'Messages you have marked as important.') },
-        { title: 'Archive', icon: 'folder-symbolic', content: page('folder-symbolic', 'Archive', 'Older conversations kept for reference.') },
-    ] satisfies AdwViewPage[]);
+    // The switcher drives the stack; switcherPolicy is the 'wide' | 'narrow' nick.
+    const switcher = new Adw.ViewSwitcher({
+        stack,
+        switcherPolicy: 'wide',
+    });
+
+    const box = new Gtk.Box({ orientation: 'vertical', spacing: 12 });
+    box.append(switcher);
+    box.append(stack);
     ```
   </Fragment>
 </AdwWidget>
@@ -221,6 +232,9 @@ does not appear.
 
     // `reveal` ASKS for the bar; the widget still hides it below two pages.
     const bar = new Adw.ViewSwitcherBar({ stack, reveal: true });
+    // The NativeScript stack has no `items-changed`, so a bar bound BEFORE its pages
+    // exist renders nothing. `refresh()` is that missing signal, by hand.
+    bar.refresh();
 
     const view = new Adw.ToolbarView({ content: stack });
     view.add_bottom_bar(bar);
@@ -283,24 +297,23 @@ does not appear.
     import Adw from 'gi://Adw?version=1';
 
     const stack = new Adw.ViewStack();
-    for (const page of [
-        { name: 'inbox', title: 'Inbox', icon: 'mail-unread-symbolic' },
-        { name: 'starred', title: 'Starred', icon: 'starred-symbolic' },
-        { name: 'archive', title: 'Archive', icon: 'folder-symbolic' },
-    ]) {
-        const status = new Adw.StatusPage({ iconName: page.icon, title: page.title });
-        stack.add(status, page.name, page.title, page.icon);
-    }
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'mail-unread-symbolic', title: 'Inbox', description: 'The inbox page.' }),
+        'inbox', 'Inbox', 'mail-unread-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'starred-symbolic', title: 'Starred', description: 'The starred page.' }),
+        'starred', 'Starred', 'starred-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'folder-symbolic', title: 'Archive', description: 'The archive page.' }),
+        'archive', 'Archive', 'folder-symbolic',
+    );
 
-    const bar = new Adw.ViewSwitcherBar();
-    bar.stack = stack;
-    // The NativeScript stack has no `items-changed`, so a bar bound before the pages
-    // exist would render no buttons. `refresh()` is that missing signal, by hand.
-    bar.refresh();
-    bar.reveal = true;
+    // `reveal` ASKS for the bar; the widget still hides it below two pages.
+    const bar = new Adw.ViewSwitcherBar({ stack, reveal: true });
 
-    const view = new Adw.ToolbarView();
-    view.set_content(stack);
+    const view = new Adw.ToolbarView({ content: stack });
     view.add_bottom_bar(bar);
     ```
   </Fragment>
@@ -502,21 +515,31 @@ makes it fit a header bar or a tight toolbar.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
-    // namespace and keeps the package import.
-    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import Gtk from 'gi://Gtk?version=4.0';
 
-    const page = (icon: string, title: string, body: string): Adw.StatusPage =>
-        new Adw.StatusPage({ iconName: icon, title, description: body });
+    const stack = new Adw.ViewStack();
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'view-grid-symbolic', title: 'Overview', description: 'A quick summary of your project.' }),
+        'overview', 'Overview', 'view-grid-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'document-edit-symbolic', title: 'Activity', description: 'Recent edits and changes.' }),
+        'activity', 'Activity', 'document-edit-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'emblem-system-symbolic', title: 'Settings', description: 'Configure how things behave.' }),
+        'settings', 'Settings', 'emblem-system-symbolic',
+    );
 
-    const switcher = new Adw.InlineViewSwitcher();
-    // There is no displayMode enum: pass '' as the title for icons-only, omit the icon
-    // for labels-only.
-    switcher.setViews([
-        { title: 'Overview', icon: 'view-grid-symbolic', content: page('view-grid-symbolic', 'Overview', 'A quick summary of your project.') },
-        { title: 'Activity', icon: 'document-edit-symbolic', content: page('document-edit-symbolic', 'Activity', 'Recent edits and changes.') },
-        { title: 'Settings', icon: 'emblem-system-symbolic', content: page('emblem-system-symbolic', 'Settings', 'Configure how things behave.') },
-    ] satisfies AdwViewPage[]);
+    // displayMode is the 'labels' | 'icons' | 'both' nick.
+    const switcher = new Adw.InlineViewSwitcher({
+        stack,
+        displayMode: 'both',
+    });
+
+    const box = new Gtk.Box({ orientation: 'vertical', spacing: 12 });
+    box.append(switcher);
+    box.append(stack);
     ```
   </Fragment>
 </AdwWidget>
