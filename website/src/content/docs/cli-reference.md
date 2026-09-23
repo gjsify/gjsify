@@ -32,7 +32,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 |---|---|
 | Start a project | [`create`](#gjsify-create) |
 | Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
-| Dependencies | [`install`](#gjsify-install) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
+| Dependencies | [`install`](#gjsify-install) · [`link`](#gjsify-link) · [`unlink`](#gjsify-unlink) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
 | Monorepos | [`foreach`](#gjsify-foreach) · [`workspace`](#gjsify-workspace) · [`affected`](#gjsify-affected) |
 | Code quality | [`check`](#gjsify-check) · [`tsc`](#gjsify-tsc) · [`format`](#gjsify-format) · [`lint`](#gjsify-lint) · [`fix`](#gjsify-fix) · [`barrels`](#gjsify-barrels) |
 | GNOME assets | [`gresource`](#gjsify-gresource) · [`gsettings`](#gjsify-gsettings) · [`gettext`](#gjsify-gettext) |
@@ -632,6 +632,39 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 
 The resolver follows npm v3 and later semantics, and honours npm-style `overrides` and yarn-style `resolutions` in `package.json`. The lockfile is `gjsify-lock.json`, a path-keyed `packages` map at `lockfileVersion` 4. [How It Works](/gjsify/how-it-works/#how-gjsify-install-resolves-a-tree) has more on how the tree is built.
 
+### `gjsify link`
+
+Link this project against a local gjsify checkout for development, so it builds against workspace sources instead of a published release.
+
+```bash
+gjsify link ../gjsify                          # link every workspace package this project depends on
+gjsify link ../gjsify --packages '@gjsify/cli'  # only this one
+gjsify link ../gjsify --dry-run                 # print the plan, write nothing
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<checkout>` | required | Path to the gjsify checkout to link from (a repo whose `package.json` declares `workspaces`). |
+| `--packages <glob>` | all | Name glob selecting which of the checkout's workspace packages take part. Repeatable. Matched against the package name with the same single-segment dialect as [`gjsify foreach --include`](#gjsify-foreach), so a whole scope is `@gjsify/*` — a bare `*` matches no scoped name. Only packages this project actually depends on are ever linked. |
+| `--dry-run` | `false` | Print the links that would be made and write nothing. |
+
+The pointer is a git-ignored `.gjsify-link.json`, and every later `gjsify install` re-applies it and prints that it did. `gjsify install --immutable` refuses a project with an active link instead of silently ignoring it, because CI and release builds must build only what is committed.
+
+### `gjsify unlink`
+
+Undo `gjsify link`: remove the development links and the `.gjsify-link.json` override, then reinstall the registry copies.
+
+```bash
+gjsify unlink
+gjsify unlink --dry-run       # print what would be removed
+gjsify unlink --no-install    # leave the holes for a later `gjsify install`
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--dry-run` | `false` | Print what would be removed and change nothing. |
+| `--install` | `true` | Reinstall after unlinking, to put the registry copies back where the links were. `--no-install` leaves the holes for a later `gjsify install`. |
+
 ### `gjsify uninstall`
 
 The inverse of `gjsify install -g`. Removes the package tree from `~/.local/share/gjsify/global/node_modules/<pkg>/` and any bin shims under `~/.local/bin/` pointing into it.
@@ -983,7 +1016,19 @@ gjsify lint --fix        # apply safe fixes
 | `--config-path <path>` | nearest one | `.oxlintrc.json` override. |
 | `--verbose` | `false` | Echo the resolved oxlint launcher and args. |
 
-oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`, wired in through `jsPlugins` in the workspace `.oxlintrc.json`. Its one rule, `gjsify/register-class-order`, catches static GObject metadata (`GTypeName`, `Properties`, `Signals`, `InternalChildren`, `Template`, `CssName` and their siblings) declared after a `static { GObject.registerClass(…) }` block. There `registerClass` runs before the field is assigned, and the metadata is silently ignored. The rule autofixes it by hoisting the fields above the static block. Name the rule when you need to configure or silence it. [GObject classes](/gjsify/patterns/gobject-classes/) explains the trap and the forms that avoid it.
+oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`, wired in through `jsPlugins` in the workspace `.oxlintrc.json`. Its seven rules:
+
+| Rule | Catches |
+|---|---|
+| `gjsify/register-class-order` | Static GObject metadata (`GTypeName`, `Properties`, `Signals`, `InternalChildren`, `Template`, `CssName` and siblings) declared after a `static { GObject.registerClass(…) }` block, where `registerClass` runs before the field is assigned and the metadata is silently ignored. Autofixes by hoisting the fields above the block. |
+| `gjsify/deferred-process-exit` | A bare `process.exit()`. GJS has no atexit hook, so the call does not halt: code after it keeps running and the requested exit code can be lost. |
+| `gjsify/no-css-side-effect-import` | A bare `import '<something>.css'`. The build's CSS loader turns it into `export default "<css>"`, which has no side effect, so the import tree-shakes away and the build exits 0 with the styles never applied. |
+| `gjsify/no-literal-widget-label` | User-visible text handed to a widget as a bare string literal instead of `_("…")` or a Blueprint `translatable="yes"` attribute, invisible to `xgettext` extraction. |
+| `gjsify/prefer-blueprint-template` | A widget tree assembled in TypeScript (`new Gtk.Box()`, `.append()`, …) instead of declared in a Blueprint template. |
+| `gjsify/spawn-node-binary` | Spawning `process.execPath` to relaunch the current runtime. Under the GJS bundle that resolves to `gjs-console`, not Node, so handing it a Node script starts the wrong interpreter. |
+| `gjsify/todo-needs-anchor` | A bare `// TODO` with no tracking reference, so nothing fails when the deferred work is abandoned. |
+
+Name the rule when you need to configure or silence it. [GObject classes](/gjsify/patterns/gobject-classes/) explains the `register-class-order` trap and the forms that avoid it.
 
 Use [`gjsify fix`](#gjsify-fix) for format plus safe lint fixes in one pass.
 
@@ -1333,6 +1378,7 @@ Turn a built application into something a stranger can install. The payload is s
 gjsify ship                     # this host's layout; on Linux, a .deb and an .rpm
 gjsify ship linux               # the same two, from a Mac or from Windows
 gjsify ship linux --target flatpak         # a single-file Flatpak bundle (needs flatpak-builder)
+gjsify ship linux --target appimage        # a self-contained .AppImage (needs appimagetool)
 gjsify ship darwin --arch arm64            # a macOS <App>.app and a zip around it
 gjsify ship darwin --target macos-app-dmg  # a .dmg, on macOS only
 gjsify ship windows                        # a program directory and its zip
@@ -1378,6 +1424,7 @@ ship/out/              the artifacts
 | `deb` | linux | yes | any host | nothing |
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | linux | `flatpak-builder`, `flatpak` |
+| `appimage` | linux | no | linux | `appimagetool`, `glib-compile-schemas` |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | darwin | `hdiutil`, part of macOS |
@@ -1447,7 +1494,7 @@ Packing the same build twice gives byte-identical files. [How It Works](/gjsify/
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
-| `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. One payload path, three different readers: Linux gets a fontconfig directory, macOS an `ATSApplicationFontsPath` entry in the `Info.plist`, and **Windows only a handed-over directory**. The app must register them itself, see below. |
+| `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. See [Fonts](#fonts) below. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
@@ -1723,6 +1770,7 @@ gjsify flatpak sync-flathub --version v0.6.6 --no-pr         # clone, commit, pu
 | `--flathub-repo <owner/name>` | `gjsify.flatpak.flathubRepo`, else `flathub/<app-id>` | Tracking repo. |
 | `--commit <sha>` | `git rev-list -n 1 <version>` | Commit to pin. |
 | `--branch <name>` | `update-to-<version>` | Branch in the tracking repo. |
+| `--sources-file <path>` | `gjsify-sources.json` | Offline tarball list generated by [`flatpak sources`](#gjsify-flatpak-sources) to carry into the Flathub repo and name in the manifest. Skipped when the tag does not carry it. |
 | `--source-index <n>` | first `type: git` source | Which `modules[0].sources[]` entry to update. |
 | `--pr` | `true` | Open a PR with `gh pr create` after commit and push. `--no-pr` stops after the push. |
 | `--dry-run` | `false` | Report the resolution, branch and commit, touching no files. |
@@ -1965,6 +2013,7 @@ gjsify onboard --yes                 # non-interactive
 | `--registry <url>` | scope-aware `.npmrc` lookup | Registry override. |
 | `--otp <code>` | prompted once on demand | The initial shared 2FA code. |
 | `--concurrency <n>` | `4` | How many packages to read state for in parallel. Kept small so one token does not burst npm. The first read is always serial, to prompt for the shared code once. |
+| `--write-concurrency <n>` | `4` | How many Trusted-Publisher writes to issue in parallel. Publishes always stay serial, because publish order is a correctness property; see below. |
 | `-v, --verbose` | `false` | List every package in the plan, not just the rows that need work. The counts always cover all of them. |
 | `--dry-run` | `false` | Report the plan without changing anything. |
 | `--json` | `false` | Emit a summary object as the final stdout line. |
