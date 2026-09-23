@@ -574,6 +574,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-header-bar.styleClasses': {
         own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.HeaderBar:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write.',
     },
+    'adw-button-row.styleClasses': {
+        own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.ButtonRow:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `styles ["suggested-action"]` on a button row reaches this door.',
+    },
+    'gtk-menu-button.styleClasses': {
+        own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Gtk.MenuButton:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `styles ["flat"]` on a menu button reaches this door.',
+    },
     'adw-header-bar.title': {
         own: 'GTK puts no string on the header bar: `Adw.HeaderBar:title-widget` holds a widget, conventionally an `Adw.WindowTitle`, whose own `title` carries the text. The port forwards to exactly that default (adw-header-bar.ts:81-85), so the slot is `title-widget` and the string is the shortcut into it.',
     },

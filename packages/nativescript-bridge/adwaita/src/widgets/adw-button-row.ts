@@ -31,6 +31,10 @@ import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { ButtonRowState, buttonRowIconColor, buttonRowIconVisuals } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
+
+/** The classes every button row carries, which a `styleClasses` write keeps. */
+const BUTTON_ROW_BASE_CLASS_NAME = 'adw-row adw-action-row adw-button-row';
 
 /** Event name emitted when the row is tapped. Mirrors `Adw.ButtonRow::activated`. */
 export { ACTIVATED } from './adw-action-row.js';
@@ -59,11 +63,12 @@ export class AdwButtonRow extends AdwActionRow {
      * second state object would give one label two sources of truth.
      */
     private readonly _buttonState = new ButtonRowState();
+    private _styleClasses: string[] = [];
 
     constructor(props?: ConstructProps<AdwButtonRow>) {
         super();
 
-        this.className = 'adw-row adw-action-row adw-button-row';
+        this.className = BUTTON_ROW_BASE_CLASS_NAME;
 
         // Replace the inherited title stack content presentation: present a
         // centered content box in place of the plain title label. We reuse the
@@ -115,6 +120,51 @@ export class AdwButtonRow extends AdwActionRow {
         attachRowPressFeedback(this);
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * `GtkWidget:css-classes`, spelled `styleClasses` for the reason `style-classes.ts`
+     * gives. The Adwaita page documents a button row by its style classes
+     * (`.suggested-action`, `.destructive-action`), and a `.blp` writes them as
+     * `styles [...]`; the shared-tree builder refuses a style class the widget has no door
+     * for, so without this the gallery's button-row `.blp` did not build here.
+     */
+    get styleClasses(): string[] {
+        return [...this._styleClasses];
+    }
+
+    set styleClasses(value: string | null | undefined) {
+        this._setClasses(normalizeStyleClasses(value));
+    }
+
+    /** `gtk_widget_add_css_class`. A class the row already carries is a no-op. */
+    add_css_class(name: string): void {
+        this._setClasses(withCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_remove_css_class`. A class it does not carry is a no-op. */
+    remove_css_class(name: string): void {
+        this._setClasses(withoutCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_has_css_class`. */
+    has_css_class(name: string): boolean {
+        return this._styleClasses.includes((name ?? '').trim());
+    }
+
+    /** `gtk_widget_get_css_classes` — the list, without the row's own classes. */
+    get_css_classes(): string[] {
+        return [...this._styleClasses];
+    }
+
+    /** `gtk_widget_set_css_classes` — REPLACES the list, as in C. */
+    set_css_classes(names: readonly string[]): void {
+        this._setClasses(normalizeStyleClasses([...names].join(' ')));
+    }
+
+    private _setClasses(classes: string[]): void {
+        this._styleClasses = classes;
+        this.className = classNameWith(BUTTON_ROW_BASE_CLASS_NAME, classes);
     }
 
     /** A centered symbolic icon, collapsed until it has content. Its fill is set by

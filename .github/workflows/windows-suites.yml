@@ -58,6 +58,20 @@
 # the checkout. So both triggers here are unfiltered — which is also the parity
 # `scripts/manifest-conformance/rules/pr-trigger-parity.mjs` now holds them to.
 #
+# WHAT A PR MAY SKIP, AND WHY THAT IS NOT #1183 AGAIN
+#
+# The trigger stays unfiltered; the `scope` job decides per PR whether the suite job
+# runs (`.github/actions/suite-scope`, rules in `scripts/decide-suite-scope.mjs`). It
+# skips only when the affected closure holds none of the packages this file names AND
+# no changed file is one of its inputs — a path a step names, the workflow itself, or
+# anything that shapes the build or the audit (every manifest, tsconfig, package-local
+# build script, prebuild, `audit-runtimes.mjs`, the manifest-conformance code). #1183
+# skipped a whole-tree check on a PR that changed what that check reads; here every
+# file the audit reads is an input, and the audit itself still runs on every PR in
+# `audit-runtimes.yml`, on Linux and on this same `windows-latest` image. Measured over
+# the 60 PRs before the change: 25 would have skipped this job, none of them touching a
+# package listed below. `main`, the nightly and a dispatch always run it.
+#
 # WHY cmd.exe, AND WHY THE PATH IS STRIPPED
 #
 # `status/open-todos.md` records the measurement: Git for Windows puts
@@ -110,8 +124,27 @@ permissions:
   contents: read
 
 jobs:
+  # A pull request runs the suite below only when it can reach it: the reasoning, and what a
+  # skip has to prove, is in `.github/actions/suite-scope`. `main`, the nightly and a
+  # dispatch always answer `run=true`. The gate is `!= 'false'`, so a scope job that fails
+  # or never reports runs the suite rather than skipping it.
+  scope:
+    name: Scope the suite to this change
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        uses: ./.github/actions/suite-scope
+
   node-suites:
     name: Node-pillar suites (win32-x64 / cmd.exe)
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
     runs-on: windows-latest
     timeout-minutes: 60
 

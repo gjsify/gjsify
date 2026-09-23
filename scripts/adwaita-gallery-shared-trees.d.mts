@@ -39,6 +39,17 @@ export interface SharedNode {
     translatable?: Record<string, { context?: string }>;
     /** The style classes the node carries, as a list and in source order — ADR 0068. */
     styleClasses?: string[];
+    /** Value-carrying extension blocks, one key per kind — ADR 0072. */
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: SharedNode[];
 }
 

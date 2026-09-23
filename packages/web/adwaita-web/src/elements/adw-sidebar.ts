@@ -72,6 +72,28 @@ export class AdwSidebarItem extends HTMLElement {
         return ['title', 'subtitle', 'icon-name', 'disabled', 'hidden'];
     }
 
+    /**
+     * `AdwSidebarItem:enabled`, under the GIR name — the `disabled` attribute inverted. The
+     * property is what lets an authored `enabled: false` reach this item through the
+     * shared-tree builder, which writes a `false` through the element's own property.
+     */
+    get enabled(): boolean {
+        return !this.hasAttribute('disabled');
+    }
+
+    set enabled(value: boolean) {
+        this.toggleAttribute('disabled', !value);
+    }
+
+    /** `AdwSidebarItem:visible` — the `hidden` attribute inverted, for the same reason. */
+    get visible(): boolean {
+        return !this.hasAttribute('hidden');
+    }
+
+    set visible(value: boolean) {
+        this.toggleAttribute('hidden', !value);
+    }
+
     attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
         const binding = itemBindings.get(this);
         if (!binding) return;

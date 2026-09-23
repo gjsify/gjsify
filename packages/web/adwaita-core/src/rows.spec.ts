@@ -7,9 +7,17 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { ADW_COMBO_NO_SELECTION, ComboState, ExpanderState, ToggleGroupState, normalizeComboOptions } from './rows.js';
+import {
+    ADW_COMBO_NO_SELECTION,
+    ComboState,
+    ExpanderState,
+    ToggleGroupState,
+    keptToggles,
+    normalizeComboOptions,
+    toggleIndexOfName,
+} from './rows.js';
 import type { ComboStateChange, ToggleGroupStateChange } from './rows.js';
-import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './conformance/rows.js';
+import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS, TOGGLE_ACTIVE_NAME_VECTORS } from './conformance/rows.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
 import { LIST_MODEL_OWNERSHIP_VECTORS, applyListReadback } from './conformance/list.js';
 import type { AdwComboOption, AdwListItemsChanged } from './list.js';
@@ -244,6 +252,21 @@ export default async () => {
             expect(state.setSelectedIndex(Number.NaN)).toBe(true);
             expect(state.selectedIndex).toBe(0);
         });
+    });
+
+    await describe('keptToggles + toggleIndexOfName (Adw.ToggleGroup:active-name)', async () => {
+        for (const vector of TOGGLE_ACTIVE_NAME_VECTORS) {
+            await it(vector.rule, () => {
+                const kept = keptToggles(vector.names.map((name) => ({ name })));
+                expect(kept.length).toBe(vector.kept);
+                expect(
+                    toggleIndexOfName(
+                        kept.map((toggle) => toggle.name),
+                        vector.activeName,
+                    ),
+                ).toBe(vector.index);
+            });
+        }
     });
 
     await describe('ToggleGroupState segmented selection (Adw.ToggleGroup)', async () => {

@@ -96,16 +96,17 @@
  *
  * `styles` left it under ADR 0068, which found the two spellings of `GtkWidget:css-classes` and
  * gave them one field. `value-list` STAYED and is now the kind to read carefully: it is where a
- * bracketed value that is not a style class leaves — `widgets [ ]` holds object REFERENCES and
- * `strings [ ]` emits as `<items>` rather than as a property — and where an ident inside either
- * style-class spelling leaves too, because the reference compiler refuses that construct.
+ * bracketed value that is neither a style class nor a string-list item leaves — `widgets [ ]`
+ * holds object REFERENCES — and where an ident inside any of those lists leaves too, because
+ * the reference compiler refuses that construct. `strings [ ]` left it under ADR 0072, and
+ * `responses` left the list with it: both fill `extensions`.
  *
  * `translation-domain` stays, and is the marking's remainder: `translation-domain "app";` is a
  * fact about the FILE, and this shape is a tree — ADR 0067 § 4.
  *
  * @typedef {'signal'|'binding'|'breakpoint'
  *          |'menu'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'|'responses'|'extern'} LossKind
+ *          |'sibling-object'|'extern'} LossKind
  */
 
 /**
@@ -219,7 +220,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The file that isolates the marking, and the ONE place in this corpus where a context reaches the tree: six other `C_()` contexts sit inside a menu, a value list, a `responses` block, a closure and a `marks` list, each lost with the construct around it. `_()` is `{}` and `C_("noun", …)` is `{ context: "noun" }` — the empty object is "marked, nothing more", not "unmarked".',
+        note: 'The file that isolates the marking, and the ONE place in this corpus where a context reaches the tree: six other `C_()` contexts sit inside a menu, a value list, a `responses` block, a closure and a `marks` list. The value list and the `responses` block carry theirs in `extensions` since ADR 0072; the other three are lost with the construct around them. `_()` is `{}` and `C_("noun", …)` is `{ context: "noun" }` — the empty object is "marked, nothing more", not "unmarked".',
     },
     {
         file: '10-styles.blp',
@@ -402,16 +403,22 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'GtkDropDown',
             styleClasses: ['flat', 'narrow'],
-            children: [{ tag: 'GtkStringList', slot: 'model' }],
+            children: [
+                {
+                    tag: 'GtkStringList',
+                    slot: 'model',
+                    extensions: {
+                        strings: [
+                            { value: 'first' },
+                            { value: 'second', translatable: {} },
+                            { value: 'third', translatable: { context: 'ordinal' } },
+                        ],
+                    },
+                },
+            ],
         },
-        lost: [
-            {
-                kind: 'value-list',
-                line: 7,
-                detail: 'the three strings of the model, two of them marked translatable, because `props` holds no lists — so what projects is a StringList with nothing in it',
-            },
-        ],
-        note: 'The one projection here that is worse than lossy: an empty model reads as a legitimate tree and renders an empty dropdown, where every other loss at least leaves the node visibly incomplete. The `_()` on two of the items is inside the dropped list, so it is not a separate `translatable` loss.',
+        lost: [],
+        note: 'Until ADR 0072 this was the one projection worse than lossy: the three strings were a `value-list` loss, so an EMPTY model projected, which reads as a legitimate tree and renders an empty dropdown. The items now sit in `extensions.strings` with their markings beside them, and stage D holds them against the `<item>` elements the oracle writes.',
     },
     {
         file: '22-menu-nested.blp',
@@ -457,7 +464,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'Three of the seventeen real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
+        note: 'Three of the thirty-three real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
     },
     {
         file: '25-bracket-breakpoint.blp',
@@ -548,14 +555,18 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '31-responses.blp',
-        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
-        lost: [
-            {
-                kind: 'responses',
-                line: 7,
-                detail: "the whole `responses [ ]` block — three responses, two of them translatable; `SharedNode` has no field for a dialog's responses",
+        node: {
+            tag: 'AdwAlertDialog',
+            props: { heading: 'confirm' },
+            extensions: {
+                responses: [
+                    { id: 'cancel', label: 'Cancel', translatable: {} },
+                    { id: 'discard', label: 'Discard', translatable: { context: 'verb' } },
+                    { id: 'save', label: 'Save' },
+                ],
             },
-        ],
+        },
+        lost: [],
     },
     {
         file: '32-extern-nested.blp',
@@ -918,9 +929,26 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '52-response-flags.blp',
-        node: { tag: 'AdwAlertDialog', props: { heading: 'confirm' } },
-        lost: [{ kind: 'responses', line: 7, detail: 'all four responses, flags and all' }],
-        note: 'The flags share the fate of the block they sit in: `SharedNode` has no form for a dialog response, so `appearance` and `enabled` are lost with it rather than beside it. One loss for the block, which is what `31-responses.blp` already records — this file adds no new exit, only new attributes on the XML side of the same one.',
+        node: {
+            tag: 'AdwAlertDialog',
+            props: { heading: 'confirm' },
+            extensions: {
+                responses: [
+                    { id: 'plain', label: 'Plain' },
+                    { id: 'discard', label: 'Discard', translatable: {}, appearance: 'destructive' },
+                    {
+                        id: 'save',
+                        label: 'Save',
+                        translatable: { context: 'verb' },
+                        appearance: 'suggested',
+                        enabled: false,
+                    },
+                    { id: 'later', label: 'Later', enabled: false },
+                ],
+            },
+        },
+        lost: [],
+        note: 'The flags become what the oracle writes for them: `destructive` and `suggested` the `appearance`, `disabled` an `enabled` of false. `suggested disabled` is both at once, which is why they are two fields rather than one state.',
     },
     {
         file: '53-extension-lists.blp',

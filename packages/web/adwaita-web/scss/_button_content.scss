@@ -23,7 +23,12 @@
 // below. It lives in this file rather than in `_button.scss` because the class
 // belongs to this widget, and `.adw-button.image-text-button` beats `.adw-button`
 // on specificity regardless of order.
-.adw-button.image-text-button {
+//
+// `:not(.pill)` because upstream states `.pill` (:322-323) AFTER this block at the same
+// specificity, so a pill keeps its `10px 32px` whatever it holds. This file is emitted
+// after `_button.scss`, so without the exclusion the order flipped: a pill button with
+// button content was drawn 9px from its label, 47px narrower than GTK.
+.adw-button.image-text-button:not(.pill) {
   padding-left: 9px;
   padding-right: 9px;
 }

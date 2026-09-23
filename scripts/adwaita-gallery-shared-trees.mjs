@@ -39,7 +39,8 @@
 // authors must be CONTAINED in the fence its block shows a reader — same elements,
 // attributes and values, in the same order — which arm 13 of
 // `check-generated-website-data.mjs` holds, because a corpus two renderers are tested
-// against proves nothing about a UI the page stopped showing.
+// against proves nothing about a UI the page stopped showing. A one-Blueprint block
+// shows its `.blp` instead of a fence, and arm 13 holds the tree against that file.
 //
 // CONTAINMENT, and in that direction. The fence is the authority (see the `content`
 // kind in {@link ADWAITA_GALLERY_TREE_DIVERGENCES}) and is free to teach more than a
@@ -265,11 +266,12 @@ const entryFor = (widget) => {
 //
 // EVERY FIELD IS COPIED BY NAME, so this is the first place a new one is lost — ADR 0058 §
 // Implementation named it before there was a second field to lose, and ADR 0066 added two.
-// `id`, `template`, `translatable` (ADR 0067) and `styleClasses` (ADR 0068) are unreached by
-// today's corpus and copied anyway: a block that grows one must not have it dropped by a
-// function that is silent about what it does not know. Two of them are copied one level deeper
-// than the rest — a shallow spread would hand both renderers the same `{ context }` object and
-// the same class ARRAY, which is the aliasing this function exists to prevent.
+// `id`, `template`, `translatable` (ADR 0067), `styleClasses` (ADR 0068) and `extensions` (ADR
+// 0072) are unreached by today's corpus and copied anyway: a block that grows one must not have
+// it dropped by a function that is silent about what it does not know. The last three are
+// copied deep — a shallow spread would hand both renderers the same `{ context }` object, the
+// same class ARRAY or the same response list, which is the aliasing this function exists to
+// prevent.
 const rebuild = (node, tagOf) => ({
     tag: tagOf(node.tag),
     ...(node.id === undefined ? {} : { id: node.id }),
@@ -280,6 +282,7 @@ const rebuild = (node, tagOf) => ({
         ? {}
         : { translatable: Object.fromEntries(Object.entries(node.translatable).map(([k, v]) => [k, { ...v }])) }),
     ...(node.styleClasses === undefined ? {} : { styleClasses: [...node.styleClasses] }),
+    ...(node.extensions === undefined ? {} : { extensions: structuredClone(node.extensions) }),
     ...(node.children === undefined ? {} : { children: node.children.map((child) => rebuild(child, tagOf)) }),
 });
 

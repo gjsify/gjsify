@@ -212,4 +212,21 @@ export const AdwHeaderBarTest = async () => {
             unmountAll();
         });
     });
+
+    // `windowtitle .title, .subtitle { padding: 0 12px }` (_header-bar.scss:214-227).
+    // Measured beside a GTK render of the gallery's window-title `.blp`: 27px narrower here.
+    await describe('adw-window-title label sides', async () => {
+        await it('pads its title and subtitle 12px on each side', () => {
+            const title = document.createElement('adw-window-title');
+            title.setAttribute('title', 'Inbox');
+            title.setAttribute('subtitle', '3 unread messages');
+            document.body.appendChild(title);
+            const sides = ['.adw-window-title-title', '.adw-window-title-subtitle'].map((selector) => {
+                const style = getComputedStyle(title.querySelector(selector) as HTMLElement);
+                return `${style.paddingLeft} ${style.paddingRight}`;
+            });
+            title.remove();
+            expect(sides).toStrictEqual(['12px 12px', '12px 12px']);
+        });
+    });
 };

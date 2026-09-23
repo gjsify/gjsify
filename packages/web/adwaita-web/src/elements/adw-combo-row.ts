@@ -58,6 +58,9 @@
 import { ComboState, deriveRowLabels, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+import { stringListSlot } from '../string-list-slot.js';
+
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
     private _valueEl!: HTMLSpanElement;
@@ -136,9 +139,6 @@ export class AdwComboRow extends HTMLElement {
         // Only when the PROPERTY was not already set, the rule `<adw-data-grid>` and
         // `<gtk-drop-down>` both follow: a model assigned to a detached element must
         // survive being attached, and an absent attribute must not blank it.
-        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
-        this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
-
         const text = document.createElement('div');
         text.className = 'adw-row-text';
         this._titleEl = document.createElement('span');
@@ -152,7 +152,16 @@ export class AdwComboRow extends HTMLElement {
 
         this._select = document.createElement('select');
 
-        this.replaceChildren(text, this._valueEl, this._select);
+        // A `<gtk-string-list slot="model">` child is the list a `.blp` authored (ADR 0072),
+        // consumed here BEFORE the attribute seed below, so the seed sees a model and leaves
+        // it alone, and before the selection, so an authored index lands on the real list.
+        bindSlottedChildren(this, [stringListSlot((model) => this._state.setModel(model))]).install(
+            text,
+            this._valueEl,
+            this._select,
+        );
+        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
+        this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
 
         // WHERE the model changed — applied before the selection change below, which is
         // the ordering that lets that subscriber's index write land on the new list.

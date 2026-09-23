@@ -1,0 +1,28 @@
+using Gtk 4.0;
+using Adw 1;
+
+Gtk.Box shortcuts {
+  orientation: horizontal;
+  spacing: 24;
+
+  Adw.ShortcutLabel copy_shortcut {
+    accelerator: "<Control>C";
+  }
+
+  Adw.ShortcutLabel {
+    accelerator: "<Shift>A Home";
+  }
+
+  Adw.ShortcutLabel {
+    accelerator: "<Alt>1...9";
+  }
+
+  Adw.ShortcutLabel {
+    accelerator: "Control_L&Control_R";
+  }
+
+  Adw.ShortcutLabel {
+    accelerator: "";
+    disabled-text: _("Disabled");
+  }
+}

@@ -25,49 +25,34 @@ Stand in for a person, account or entity. Ask for **initials** and give it a
 name; with either missing it falls back to a symbolic **icon**. **Size** scales
 it from an inline list glyph up to a full profile header.
 
-<AdwWidget title="Adw.Avatar">
-  <Fragment slot="preview">
-    ```html
-    <!-- text: Sets the text used to generate the fallback initials and color. -->
-    <!-- show-initials: Whether initials are used instead of an icon on the fallback avatar. -->
-    <adw-avatar text="Ada Lovelace" size="96" show-initials icon="avatar-default"></adw-avatar>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.Avatar" blueprint="adwaita/avatar.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './avatar.blp';
 
-    const avatar = new Adw.Avatar({
-        size: 96,
-        text: 'Ada Lovelace',
-        showInitials: true,
-        iconName: 'avatar-default-symbolic',
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const avatar = builder.get_object('avatar') as Adw.Avatar;
+    avatar.text = 'Grace Hopper';
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.Avatar {
-      text: "Ada Lovelace";
-      size: 96;
-      show-initials: true;
-      icon-name: "avatar-default-symbolic";
-    }
+    const avatar = document.querySelector('#avatar');
+    avatar.setAttribute('text', 'Grace Hopper');
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const avatar = new Adw.Avatar({
-        size: 96,
-        text: 'Ada Lovelace',
-        showInitials: true,
-        iconName: 'avatar-default-symbolic',
-    });
+    const avatar = Builder.load({ path: '~/views', name: 'avatar' }) as Adw.Avatar;
+    avatar.text = 'Grace Hopper';
     ```
   </Fragment>
 </AdwWidget>
@@ -79,54 +64,34 @@ connection, an offline state, a pending action. A banner takes a **title** and a
 optional action **button**, and it reveals and hides itself, so it only occupies
 space while the message applies.
 
-<AdwWidget title="Adw.Banner">
-  <Fragment slot="preview">
-    ```html
-    <adw-banner title="Metered connection: updates paused" button-label="Resume" revealed></adw-banner>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.Banner" blueprint="adwaita/banner.blp" stage="flex-direction: column; align-items: stretch;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './banner.blp';
 
-    const banner = new Adw.Banner({
-        title: 'Metered connection: updates paused',
-        buttonLabel: 'Resume',
-        revealed: true,
-    });
-
-    // The banner is full-width; a sized container gives it a width to fill.
-    const container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, widthRequest: 460 });
-    container.append(banner);
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const banner = builder.get_object('banner') as Adw.Banner;
+    banner.title = 'Metered connection: 2 updates paused';
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.Banner {
-      title: _("Metered connection: updates paused");
-      button-label: _("Resume");
-      revealed: true;
-    }
+    const banner = document.querySelector('#banner');
+    banner.setAttribute('title', 'Metered connection: 2 updates paused');
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const banner = new Adw.Banner({
-        title: 'Metered connection: updates paused',
-        buttonLabel: 'Resume',
-        revealed: true,
-    });
-
-    // The banner is full-width; a sized container gives it a width to fill.
-    const container = new Gtk.Box({ orientation: 'vertical', width: 460 });
-    container.append(banner);
+    const banner = Builder.load({ path: '~/views', name: 'banner' }) as Adw.Banner;
+    banner.title = 'Metered connection: 2 updates paused';
     ```
   </Fragment>
 </AdwWidget>
@@ -140,83 +105,35 @@ lists **alternatives**, `...` is a **range**, `+` means the shortcuts are presse
 **in sequence**, and `&` means they are held **together**. An empty accelerator
 shows the **disabled-text** placeholder instead.
 
-<AdwWidget title="Adw.ShortcutLabel">
-  <Fragment slot="preview">
-    ```html
-    <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:center;">
-      <adw-shortcut-label accelerator="&lt;Control&gt;C"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
-      <!-- disabled-text: The text displayed when no accelerator is set. -->
-      <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
-    </div>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ShortcutLabel" blueprint="adwaita/shortcut-label.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './shortcut-label.blp';
 
-    // Ctrl+C. The keycap order is GTK's, not the string's: `<Shift><Control>a`
-    // renders as Ctrl Shift A.
-    const shortcut = new Adw.ShortcutLabel({ accelerator: '<Control>C' });
-
-    // A space lists alternatives, `...` a range, `+` a sequence, `&` keys held together.
-    const alternatives = new Adw.ShortcutLabel({ accelerator: '<Shift>A Home' });
-    const range = new Adw.ShortcutLabel({ accelerator: '<Alt>1...9' });
-    const together = new Adw.ShortcutLabel({ accelerator: 'Control_L&Control_R' });
-
-    // With no accelerator the placeholder is shown instead.
-    const unset = new Adw.ShortcutLabel({ accelerator: '', disabledText: 'Disabled' });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const copy = builder.get_object('copy_shortcut') as Adw.ShortcutLabel;
+    copy.accelerator = '<Control><Shift>C';
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Gtk.Box {
-      orientation: horizontal;
-      spacing: 24;
-
-      Adw.ShortcutLabel {
-        accelerator: "<Control>C";
-      }
-
-      Adw.ShortcutLabel {
-        accelerator: "<Shift>A Home";
-      }
-
-      Adw.ShortcutLabel {
-        accelerator: "<Alt>1...9";
-      }
-
-      Adw.ShortcutLabel {
-        accelerator: "Control_L&Control_R";
-      }
-
-      Adw.ShortcutLabel {
-        accelerator: "";
-        disabled-text: _("Disabled");
-      }
-    }
+    const copy = document.querySelector('#copy_shortcut');
+    copy.setAttribute('accelerator', '<Control><Shift>C');
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    // Ctrl+C. The keycap order is GTK's, not the string's: `<Shift><Control>a`
-    // renders as Ctrl Shift A.
-    const shortcut = new Adw.ShortcutLabel({ accelerator: '<Control>C' });
-
-    // A space lists alternatives, `...` a range, `+` a sequence, `&` keys held together.
-    const alternatives = new Adw.ShortcutLabel({ accelerator: '<Shift>A Home' });
-    const range = new Adw.ShortcutLabel({ accelerator: '<Alt>1...9' });
-    const together = new Adw.ShortcutLabel({ accelerator: 'Control_L&Control_R' });
-
-    // With no accelerator the placeholder is shown instead.
-    const unset = new Adw.ShortcutLabel({ accelerator: '', disabledText: 'Disabled' });
+    const box = Builder.load({ path: '~/views', name: 'shortcut-label' }) as Gtk.Box;
+    const copy = box.getViewById<Adw.ShortcutLabel>('copy_shortcut')!;
+    copy.accelerator = '<Control><Shift>C';
     ```
   </Fragment>
 </AdwWidget>
@@ -347,41 +264,34 @@ The title widget a header bar expects: a **title** with an optional **subtitle**
 already sized and styled for that spot. Leave the subtitle empty and it collapses,
 so a single-line title stays vertically centred.
 
-<AdwWidget title="Adw.WindowTitle">
-  <Fragment slot="preview">
-    ```html
-    <adw-window-title title="Inbox" subtitle="3 unread messages"></adw-window-title>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.WindowTitle" blueprint="adwaita/window-title.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './window-title.blp';
 
-    const windowTitle = new Adw.WindowTitle({
-        title: 'Inbox',
-        subtitle: '3 unread messages',
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const windowTitle = builder.get_object('window_title') as Adw.WindowTitle;
+    windowTitle.subtitle = '4 unread messages';
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.WindowTitle {
-      title: _("Inbox");
-      subtitle: _("3 unread messages");
-    }
+    const windowTitle = document.querySelector('#window_title');
+    windowTitle.setAttribute('subtitle', '4 unread messages');
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const windowTitle = new Adw.WindowTitle({
-        title: 'Inbox',
-        subtitle: '3 unread messages',
-    });
+    const windowTitle = Builder.load({ path: '~/views', name: 'window-title' }) as Adw.WindowTitle;
+    windowTitle.subtitle = '4 unread messages';
     ```
   </Fragment>
 </AdwWidget>

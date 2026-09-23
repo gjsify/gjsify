@@ -26,11 +26,11 @@ refused by name, held by a corpus of its own.
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
-| `corpus/real/*.ui` | the same, for the 17 `.blp` files this repo already builds |
+| `corpus/real/*.ui` | the same, for the 33 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/manifest.d.mts` | its types, hand-written like `src/index.d.mts` — what lets a TypeScript consumer read a refusal's line rather than copy it |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
-| `corpus/real-expectations.mjs` | the same for the 17 real files |
+| `corpus/real-expectations.mjs` | the same for the 33 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
 | `src/index.mjs` | the package's whole surface: one compile, the five seams it needs, and what it throws |
 | `src/errors.mjs` | both error classes — the refusal is part of the contract, so it is not two homes |
@@ -359,6 +359,14 @@ now, through one reader the projection and the loss census both ask. The arm rea
 two patterns — `<class name="…"/>` inside a `<style>` block, and the NEWLINE-separated text of a
 `<property name="css-classes">` — and that newline is what decided the field is a list: a joined
 string would have to pick one join and could not be held where the oracle picked the other.
+
+Two value-carrying extensions joined them under ADR 0072, in one field, `extensions`: a
+`Gtk.StringList`'s `strings [ ]` and an `Adw.AlertDialog`'s `responses [ ]`. Until then the
+first projected an EMPTY list model, which renders as a legitimate empty dropdown. Each item
+keeps its `_()` marking beside it, and a response carries the `appearance` and `enabled` its
+flags stand for. The arm reads the golden's `<item>` elements inside a `GtkStringList` (only
+there: `Gtk.ComboBoxText`'s `items [ ]` writes the same elements and stays a loss) and its
+`<response>` elements, with every attribute the oracle writes on them.
 
 ### An earlier version of this file got item 2 wrong, and how
 

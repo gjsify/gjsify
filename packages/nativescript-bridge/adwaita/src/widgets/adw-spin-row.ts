@@ -26,12 +26,13 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Label, StackLayout } from '@nativescript/core';
-import type { EventData } from '@nativescript/core';
+import type { EventData, View } from '@nativescript/core';
 import { valueDecreaseSymbolic, valueIncreaseSymbolic } from '@gjsify/adwaita-icons/actions';
 import { SpinState, parseAdjustment } from '@gjsify/adwaita-core';
 import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwImageButton } from './adw-image-button.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
@@ -50,6 +51,15 @@ export interface NotifyValueEventData extends EventData {
 }
 
 export class AdwSpinRow extends AdwActionRow {
+    /**
+     * The action row's edges, plus `adjustment`: `adjustment: Adjustment { … }` in a `.blp`
+     * places a `Gtk.Adjustment` at the property it sets.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(
+        [...AdwActionRow.builderSlots, 'adjustment'],
+        'suffix',
+    );
+
     /** The `−` decrement button (circular icon button, value-decrease symbolic). */
     protected readonly _minusButton: AdwImageButton;
     /** The `+` increment button (circular icon button, value-increase symbolic). */
@@ -110,6 +120,19 @@ export class AdwSpinRow extends AdwActionRow {
         plus.addEventListener('tap', () => this._state.increment());
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * XML inflation: a child at `adjustment` is the row's range, written through the same
+     * setter as the property — a `Gtk.Adjustment` is already an `AdwAdjustmentInput`.
+     * Everything else is a row edge, as on any action row.
+     */
+    _addChildFromBuilder(name: string, child: View): void {
+        if (resolveBuilderSlot(name, ['adjustment'], 'edge') === 'adjustment') {
+            this.adjustment = child as unknown as AdwAdjustmentInput;
+            return;
+        }
+        super._addChildFromBuilder(name, child);
     }
 
     /** The current numeric value (always within the adjustment's range). */

@@ -21,7 +21,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { build } from './builder/index.js';
-import { LayoutBase } from './testing/ns-core.mjs';
+import { ViewStackPage } from './namespace/adw.js';
+import { Label, LayoutBase } from './testing/ns-core.mjs';
 
 import sheetTree from '../../../web/adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp?shared-tree';
 import stackTree from '../../../web/adwaita-core/src/conformance/blueprints/view-stack-pages.blp?shared-tree';
@@ -195,7 +196,10 @@ export const AdwBlueprintTreesNsTest = async () => {
 
         await it('a record is read at adoption, so a later title write is refused by name', () => {
             const stack = byId(built(stackTree), 'stack');
-            const record = built({ tag: 'AdwViewStackPage', props: { name: 'late' }, children: [{ tag: 'GtkLabel' }] });
+            // Constructed directly: a page record is a value object, and a tree may not root at
+            // one (`build` refuses it), so the record the stack adopts comes from its own class.
+            const record = new ViewStackPage({ name: 'late' }) as unknown as Built;
+            (record._addChildFromBuilder as (name: string, view: unknown) => void).call(record, 'child', new Label());
             (stack._addChildFromBuilder as (name: string, view: unknown) => void).call(
                 stack,
                 'adw:ViewStackPage',

@@ -146,8 +146,8 @@ export { RADIO_GROUP_VECTORS } from './checks.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
-export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './rows.js';
-export type { ComboChooserVector, ComboSelectionStep, ComboSelectionVector } from './rows.js';
+export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS, TOGGLE_ACTIVE_NAME_VECTORS } from './rows.js';
+export type { ComboChooserVector, ComboSelectionStep, ComboSelectionVector, ToggleActiveNameVector } from './rows.js';
 
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
@@ -616,6 +616,10 @@ export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWid
 // --- The two tag-case rules (`@gjsify/adwaita-core/tags`) ---
 export { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS, PROPERTY_OF_VECTORS } from './tags.js';
 export type { AttributeOfVector, HostTagVector, PropertyOfVector } from './tags.js';
+
+// --- What a `.blp`'s string lists and dialog responses build into (ADR 0072) ---
+export { VALUE_LIST_VECTORS } from './value-lists.js';
+export type { ValueListResponse, ValueListVector } from './value-lists.js';
 
 // --- Which vectors an AUTHORED WIDGET TREE reaches (ADR 0051) — no table of its own ---
 export {

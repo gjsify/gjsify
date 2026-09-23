@@ -34,6 +34,7 @@ import {
     navigationPageClassName,
 } from './navigation-stack.js';
 import type { NsNavigationEvent } from './navigation-stack.js';
+import { AdwNavigationPage } from './adw-navigation-page.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -101,13 +102,19 @@ export class AdwNavigationView extends withSignals(GridLayout) {
      * An XML child is a PAGE, registered in document order — so the first one is
      * pushed and the rest wait behind it, exactly as `add` already promises.
      *
-     * Registered with NO TAG: `add(view)` defaults it to `null`, and nothing in the
-     * markup can supply one, because a `tag` is this widget's own idea rather than a
-     * property of the child. `push_by_tag` is therefore not reachable for a page that
-     * came from a template; a loader that wants it registers the page itself, or
-     * calls `setPageTag` on one it looked up. What XML contributes is the tree.
+     * An {@link AdwNavigationPage} brings its own `tag`, `title` and `can-pop`, which is
+     * what `adw_navigation_view_add` reads off an `AdwNavigationPage` in C
+     * (adw-navigation-view.c:2192), and it keeps a handle on this view so a later write
+     * to one of them reaches the stack. Any other view is still accepted and registered
+     * untagged: this port let a bare view be a page before the page class existed, and
+     * dropping it — the C's `g_warning` — would empty every template written that way.
      */
     _addChildFromBuilder(_name: string, view: View): void {
+        if (view instanceof AdwNavigationPage) {
+            this.add(view, view.tag, { title: view.title, canPop: view.canPop });
+            view._setOwner(this);
+            return;
+        }
         this.add(view);
     }
 

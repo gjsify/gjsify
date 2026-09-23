@@ -48,6 +48,7 @@
 import { TabViewState, tabCloseVisible, tabIconState, tabTooltip, tabsRevealed } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelectionChange } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
@@ -69,6 +70,13 @@ const TAB_SPACING = 5;
 export class AdwTabPage extends HTMLElement {
     static get observedAttributes() {
         return PAGE_ATTRIBUTES;
+    }
+
+    connectedCallback(): void {
+        // `AdwTabPage:child` is a PROPERTY, so a `.blp`'s `child: …` authors `slot="child"`.
+        // The page's children already ARE its panel content, so this only enrols the
+        // name, for the reason `adw-clamp.ts` gives for not calling `.install()`.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
@@ -194,10 +202,19 @@ export class AdwTabView extends HTMLElement {
         const declaredSelection = this.getAttribute('selected-page');
 
         // Snapshot the declared pages, then take over the subtree. The elements
-        // themselves become the panels, so they must survive replaceChildren.
-        const declared = Array.from(this.querySelectorAll(':scope > adw-tab-page')) as AdwTabPage[];
+        // themselves become the panels, so they must survive replaceChildren. A child
+        // that is not an `<adw-tab-page>` is a page too, untitled and around itself, as
+        // `adw_tab_view_append` makes one of a bare widget (adw-tab-view.c:2884) — it was
+        // dropped by the `replaceChildren` before.
+        const declared = Array.from(this.children) as HTMLElement[];
         this.replaceChildren(this._barEl, this._pagesEl);
-        for (const pageEl of declared) this._adoptDeclaredPage(pageEl);
+        for (const el of declared) {
+            // By NAME, not `instanceof`: this view is defined before `<adw-tab-page>`, so
+            // markup parsed before the module loaded reaches here with its pages not yet
+            // upgraded — and `_adoptDeclaredPage` reads only attributes, which they have.
+            if (el.localName === 'adw-tab-page') this._adoptDeclaredPage(el as AdwTabPage);
+            else this.appendPage({ id: this._nextId(), content: el });
+        }
 
         if (declaredSelection !== null) this._applySelectedAttribute(declaredSelection);
         this._applyBarVisibility();

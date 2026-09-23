@@ -12,8 +12,11 @@ adw-button-row {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 50px;
-  padding: var(--spacing-xs) var(--spacing-m);
+  // libadwaita: `row.button > box { min-height: 40px; margin: 0 12px }` (_lists.scss:458-462),
+  // and the row around it measures 44 in a GTK render of the gallery's button-row `.blp`.
+  // It was a plain row's 50 here, so the button row stood 6px taller than GTK's.
+  min-height: 44px;
+  padding: 0 var(--spacing-m);
   border-bottom: 1px solid var(--card-shade-color);
   color: var(--card-fg-color);
   cursor: pointer;

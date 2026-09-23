@@ -25,35 +25,16 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'adw-action-row': {
         'activatable': 'Determines whether the ::row-activated signal will be emitted for this row.',
-        'subtitle': null,
         'title': null,
     },
     'adw-alert-dialog': {
         'body': null,
         'heading': null,
     },
-    'adw-avatar': {
-        'show-initials': 'Whether initials are used instead of an icon on the fallback avatar.',
-        'size': null,
-        'text': 'Sets the text used to generate the fallback initials and color.',
-    },
-    'adw-banner': {
-        'button-label': null,
-        'revealed': null,
-        'title': null,
-    },
     'adw-bottom-sheet': {
         'can-close': 'Whether the bottom sheet can be closed by user.',
         'modal': null,
         'open': null,
-    },
-    'adw-button-content': {
-        'icon-name': null,
-        'label': null,
-    },
-    'adw-button-row': {
-        'start-icon-name': 'The icon name to show before the title.',
-        'title': null,
     },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
@@ -63,11 +44,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'adw-entry-row': {
         'text': 'The contents of the entry.',
-        'title': null,
-    },
-    'adw-expander-row': {
-        'expanded': null,
-        'subtitle': null,
         'title': null,
     },
     'adw-inline-view-switcher': {
@@ -86,10 +62,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-overlay-split-view': {
         'show-sidebar': null,
     },
-    'adw-password-entry-row': {
-        'text': 'The contents of the entry.',
-        'title': null,
-    },
     'adw-preferences-dialog': {
         'title': null,
     },
@@ -100,10 +72,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-preferences-page': {
         'icon-name': null,
         'title': null,
-    },
-    'adw-shortcut-label': {
-        'accelerator': null,
-        'disabled-text': 'The text displayed when no accelerator is set.',
     },
     'adw-sidebar': {
         'mode': 'Determines the sidebar\'s look and behavior.',
@@ -121,11 +89,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'adjustment': 'The adjustment that holds the value of the spin row.',
         'title': null,
         'value': null,
-    },
-    'adw-split-button': {
-        'icon-name': 'The name of the icon used to automatically populate the button.',
-        'label': null,
-        'menu-model': 'The `GMenuModel` from which the popup will be created.',
     },
     'adw-status-page': {
         'description': 'The description markup to be displayed below the title.',
@@ -161,19 +124,11 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'subtitle': null,
         'title': null,
     },
-    'adw-wrap-box': {
-        'child-spacing': 'The spacing between widgets on the same line.',
-        'line-spacing': null,
-    },
     'gtk-button': {
         'label': null,
     },
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
-    },
-    'gtk-menu-button': {
-        'icon-name': 'The name of the icon used to automatically populate the button.',
-        'menu-model': 'The `GMenuModel` from which the popup will be created.',
     },
 };
 
@@ -188,13 +143,10 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-alert-dialog open': 'declarative-state',
     'adw-alert-response appearance': 'not-a-widget',
     'adw-alert-response id': 'not-a-widget',
-    'adw-avatar icon': 'renamed',
     'adw-carousel-indicator-dots for': 'id-reference',
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
-    'gtk-button circular': 'style-class',
-    'gtk-button destructive': 'style-class',
     'gtk-button flat': 'style-class',
     'gtk-button icon': 'renamed',
     'gtk-button pill': 'style-class',
@@ -203,7 +155,6 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
-    'gtk-menu-button menu-title': 'port-only',
 };
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
@@ -214,12 +165,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 106,
-    glossed: 26,
-    nameSuffices: 58,
-    divergent: 20,
+    set: 77,
+    glossed: 16,
+    nameSuffices: 43,
+    divergent: 16,
     authored: 2,
-    commentLines: 26,
+    commentLines: 19,
 };
 
 /**

@@ -132,7 +132,7 @@ const KNOWN_GAPS = {
         'tooltip',
         'use-underline',
     ],
-    'adw-toggle-group': ['active-name', 'can-shrink', 'homogeneous'],
+    'adw-toggle-group': ['can-shrink', 'homogeneous'],
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],
@@ -154,7 +154,7 @@ const KNOWN_GAPS = {
     // Baselines have no counterpart in a flex row that aligns BOXES, the same absence the
     // NativeScript box declares.
     'gtk-box': ['baseline-child', 'baseline-position'],
-    'gtk-button': ['can-shrink', 'has-frame', 'icon-name', 'use-underline'],
+    'gtk-button': ['can-shrink', 'has-frame', 'use-underline'],
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
     'gtk-entry': [

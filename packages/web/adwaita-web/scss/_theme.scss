@@ -45,6 +45,7 @@
   --entry-border-hover-color: rgba(255, 255, 255, 0.26);
   --destructive-bg-color: #c01c28;
   --destructive-fg-color: #ffffff;
+  --destructive-color: oklab(from var(--destructive-bg-color) max(l, 0.85) a b);
   // Semantic states — libadwaita's dark overrides (_colors.scss:83-92): the
   // backgrounds darken (green_5 / a hand-picked amber / red_4) and the
   // standalone colour LIGHTENS instead of darkening, so it stays readable on a

@@ -438,6 +438,17 @@ export interface ExpectNode {
     translatable?: Record<string, { context?: string }>;
     /** The style classes the node carries. No gallery block authors one. */
     styleClasses?: string[];
+    /** String-list items and dialog responses. No gallery block authors one. */
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: ExpectNode[];
 }
 

@@ -111,21 +111,30 @@ const ELEMENT_BINDING =
     /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=|\sof\s)[^;]*?\b(?:querySelector(?:All)?|createElement)\s*(?:<[^;()]*>)?\s*\(\s*['"`]\s*([a-z][\w-]*)/g;
 
 function scriptedAttributeWrites(text) {
-    const bindings = new Map();
-    for (const [, name, tag] of text.matchAll(ELEMENT_BINDING)) {
-        // A custom element, i.e. a tag with a hyphen — `div`, `button` and the rest carry
-        // no widget vocabulary and are not this rule's business.
-        if (tag.includes('-')) bindings.set(name, tag);
-    }
+    const receivers = new Map();
     const writes = [];
-    for (const [name, tag] of bindings) {
-        const call = new RegExp(
-            `(?<![\\w$.])${name.replaceAll('$', '\\$')}\\s*[?!]?\\.\\s*(?:set|get|has|remove)Attribute\\s*\\(\\s*(['"\`])([^'"\`]+)\\1`,
-            'g',
-        );
-        for (const [, , attr] of text.matchAll(call)) writes.push({ name, tag, attr });
+    // A binding's scope is the code fence it is written in. An `.mdx` page carries one
+    // program per fence, and reading the page as one scope bound a `row` from one fence's
+    // `querySelector('adw-combo-row')` to every other fence's `row` — measured when the
+    // gallery's row blocks gained loader tabs that each name their own `row`. A source file
+    // with no fence is one segment, as before.
+    for (const segment of text.split(/^[ \t]*```.*$/m)) {
+        const bindings = new Map();
+        for (const [, name, tag] of segment.matchAll(ELEMENT_BINDING)) {
+            // A custom element, i.e. a tag with a hyphen — `div`, `button` and the rest carry
+            // no widget vocabulary and are not this rule's business.
+            if (tag.includes('-')) bindings.set(name, tag);
+        }
+        for (const [name, tag] of bindings) {
+            receivers.set(`${receivers.size}:${name}`, tag);
+            const call = new RegExp(
+                `(?<![\\w$.])${name.replaceAll('$', '\\$')}\\s*[?!]?\\.\\s*(?:set|get|has|remove)Attribute\\s*\\(\\s*(['"\`])([^'"\`]+)\\1`,
+                'g',
+            );
+            for (const [, , attr] of segment.matchAll(call)) writes.push({ name, tag, attr });
+        }
     }
-    return { receivers: bindings, writes };
+    return { receivers, writes };
 }
 
 // ---------------------------------------------------------------- 1. fixtures
@@ -260,6 +269,12 @@ const SCRIPTED_FIXTURES = [
         "const view = el.querySelector('adw-tab-view');\nconst viewBar = el.querySelector('adw-view-switcher-bar');\n" +
             "viewBar.setAttribute('reveal', '');",
         ['adw-view-switcher-bar reveal'],
+    ],
+    [
+        'a binding does not reach past its own code fence',
+        "```ts\nconst row = document.querySelector('adw-combo-row');\nrow.setAttribute('items', '[]');\n```\n" +
+            "```ts\nconst row = group.querySelector<Adw.EntryRow>('#row')!;\nrow.getAttribute('text');\n```",
+        ['adw-combo-row items'],
     ],
     [
         'a member access that merely ENDS in the binding name',

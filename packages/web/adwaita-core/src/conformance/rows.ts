@@ -330,3 +330,77 @@ export const COMBO_CHOOSER_VECTORS: ReadonlyArray<ComboChooserVector> = [
     { count: 2, presentsChooser: true, rule: 'two is the smallest real choice — the predicate is > 1, not >= 1' },
     { count: 5, presentsChooser: true, rule: 'and anything above it' },
 ];
+
+// --- Adw.ToggleGroup:active-name --------------------
+
+/** One authored `active-name`, over toggles carrying these names. */
+export interface ToggleActiveNameVector {
+    /** Each authored toggle's `name`, in document order; `null` is unnamed. */
+    names: readonly (string | null)[];
+    /** The authored `Adw.ToggleGroup:active-name`. */
+    activeName: string;
+    /** How many toggles the group keeps — `keptToggles`, the buttons a built group draws. */
+    kept: number;
+    /** What `toggleIndexOfName` answers over the kept names — `-1` for none. */
+    index: number;
+    /** The button a BUILT group shows active afterwards. */
+    active: number;
+    rule: string;
+}
+
+/**
+ * `adw_toggle_group_set_active_name` (adw-toggle-group.c:1989) resolves the name through
+ * the table `add_toggle` fills (:898), and a `.blp` writes it BEFORE the toggles exist —
+ * GtkBuilder sets properties first and children after, which is why the C holds the name
+ * back in `delayed_active_name` until `parser_finished` (:1247). `active` is therefore a
+ * row about the built tree, not about the lookup: a renderer that resolves the name the
+ * moment it is written finds no toggles and drops it.
+ *
+ * The first toggle is active before the name is applied, because `add_toggle` activates
+ * the first toggle it is given (:903). Every row was measured against libadwaita 1.9.3
+ * through `Gtk.Builder`, and the shared-name row is the one the source reading got wrong
+ * first: the table insert at :898 looks like "last one wins", but :849 refuses the second
+ * toggle before it is ever reached.
+ */
+export const TOGGLE_ACTIVE_NAME_VECTORS: ReadonlyArray<ToggleActiveNameVector> = [
+    {
+        names: ['list', 'grid', 'columns'],
+        activeName: 'grid',
+        kept: 3,
+        index: 1,
+        active: 1,
+        rule: 'selects the toggle carrying the name',
+    },
+    {
+        names: ['list', 'grid', 'columns'],
+        activeName: 'columns',
+        kept: 3,
+        index: 2,
+        active: 2,
+        rule: 'the last toggle is reachable — the name is applied after every toggle is in',
+    },
+    {
+        names: ['list', 'grid', 'list'],
+        activeName: 'list',
+        kept: 2,
+        index: 0,
+        active: 0,
+        rule: 'a name already taken is refused WITH its toggle — the group keeps two, and the name means the first',
+    },
+    {
+        names: [null, 'grid'],
+        activeName: 'grid',
+        kept: 2,
+        index: 1,
+        active: 1,
+        rule: 'an unnamed toggle is kept and takes no part in the lookup',
+    },
+    {
+        names: ['list', 'grid'],
+        activeName: 'missing',
+        kept: 2,
+        index: -1,
+        active: 0,
+        rule: 'a name no toggle carries changes nothing — the first toggle, which add made active, stays',
+    },
+];
