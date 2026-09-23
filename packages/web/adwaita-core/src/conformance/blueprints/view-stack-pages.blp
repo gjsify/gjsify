@@ -1,0 +1,43 @@
+using Gtk 4.0;
+using Adw 1;
+
+// A titled stack authored with Adw.ViewStackPage records, and two switchers that name it
+// by id — one ABOVE the stack, so the reference points forward, one below it.
+Gtk.Box {
+  orientation: vertical;
+
+  Adw.InlineViewSwitcher inline {
+    stack: stack;
+    halign: center;
+  }
+
+  Adw.ViewStack stack {
+    vexpand: true;
+
+    Adw.ViewStackPage {
+      name: "inbox";
+      title: _("Inbox");
+      icon-name: "mail-unread-symbolic";
+
+      child: Adw.StatusPage {
+        title: _("Inbox");
+      };
+    }
+
+    Adw.ViewStackPage {
+      name: "starred";
+      title: _("Starred");
+      icon-name: "starred-symbolic";
+      badge-number: 3;
+
+      child: Adw.StatusPage {
+        title: _("Starred");
+      };
+    }
+  }
+
+  Adw.ViewSwitcherBar bar {
+    stack: stack;
+    reveal: true;
+  }
+}
