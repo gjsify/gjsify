@@ -1,0 +1,55 @@
+// _widget.scss — the GtkWidget layout properties an element carries as attributes.
+//
+// Every GTK widget inherits `halign`, `valign`, `hexpand` and `vexpand` from GtkWidget, and a
+// projected `.blp` hands them to `buildSharedTree` as attributes (`halign="center"`). Until
+// this partial nothing read them, so the gallery's bottom sheet stretched the button its
+// Blueprint centres. The margins are not here: an attribute cannot carry a length into CSS
+// portably, so `shared-tree-builder.ts` writes them as inline style.
+//
+// ALIGNMENT IS AN AUTO MARGIN, because that is the one CSS placement that means the same on
+// both axes of a flex container and of a grid: GTK allocates a non-FILL child its natural
+// size and places it inside the space its parent gave it, and an auto margin shrinks a flex
+// or grid item to its content and puts the leftover on the named side. It does NOT place a
+// child of a BLOCK container on the vertical axis, where CSS resolves an auto block margin to
+// zero — so a GTK bin that lays its child out by alignment is a grid or a flex box here
+// (`.adw-bottom-sheet-content`, `gtk-box`). And it takes the side it pushes from: a centred
+// child cannot also keep a `margin-start`, where GTK would centre it inside the remaining
+// space.
+//
+// EXPAND IS FLEX-GROW ALONG THE BOX'S OWN AXIS, which is why it lives with the box rules
+// below and not on the attribute alone: `vexpand` in a horizontal box asks for the cross
+// axis, which `align-items: stretch` already fills, and a `flex-grow` there would widen the
+// child instead.
+//
+// Reference: refs/gtk/gtk/gtkwidget.c (halign, valign, hexpand, vexpand)
+// Reference: refs/gtk/gtk/gtkboxlayout.c (spare space shared among expanding children)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+
+[halign='start'] {
+  margin-inline-end: auto;
+}
+
+[halign='end'] {
+  margin-inline-start: auto;
+}
+
+[halign='center'] {
+  margin-inline: auto;
+}
+
+[valign='start'] {
+  margin-block-end: auto;
+}
+
+[valign='end'] {
+  margin-block-start: auto;
+}
+
+[valign='center'] {
+  margin-block: auto;
+}
+
+gtk-box:not([orientation='vertical']) > [hexpand],
+gtk-box[orientation='vertical'] > [vexpand] {
+  flex-grow: 1;
+}

@@ -25,15 +25,16 @@ import {
     applyViewStackVisibility,
     createViewStackState,
     viewStackNotifyPayload,
-    type AdwViewStackPage,
+    type AdwViewStackPageInfo,
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
+import { AdwViewStackPage } from './view-stack-page.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
-export type { AdwViewStackPage };
+export type { AdwViewStackPageInfo };
 
 /** Event name emitted when the visible child changes. Mirrors GObject `notify::visible-child`. */
 export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
@@ -46,6 +47,13 @@ export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
 export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
 export class AdwViewStack extends withSignals(GridLayout) {
+    /**
+     * No named placement: a stack's XML children are its pages, in order, as GtkBuildable's
+     * untyped `<child>` is (`adw_view_stack_buildable_add_child`). An empty list, not an absent
+     * one, so the builder refuses an authored slot by name instead of guessing one.
+     */
+    static readonly builderSlots: readonly string[] = [];
+
     private readonly _state = createViewStackState();
 
     constructor(props?: ConstructProps<AdwViewStack>) {
@@ -74,17 +82,54 @@ export class AdwViewStack extends withSignals(GridLayout) {
      * initial page without a manual `refresh()` (`add_page`,
      * adw-view-stack.c:1149-1151 → the notify at :1038-1039). Returns the page handle.
      */
-    add(content: View, name: string, title?: string, icon?: string): AdwViewStackPage {
+    add(content: View, name: string, title?: string, icon?: string): AdwViewStackPageInfo {
         const page = this._state.addPage({ name, title, icon, content });
+        this._placePage(content);
+        return page;
+    }
+
+    /** Put a page's view into the one cell and let the selection decide what shows. */
+    private _placePage(content: View): void {
         GridLayout.setColumn(content, 0);
         GridLayout.setRow(content, 0);
         this.addChild(content);
         applyViewStackVisibility(this._state);
-        return page;
+    }
+
+    /**
+     * An XML child — `adw_view_stack_buildable_add_child`: an {@link AdwViewStackPage} record
+     * adds its child under the record's name, title, icon and badge state; any other view is
+     * a page with no name, which is `adw_view_stack_add` (`name` NULL). Before this there was no
+     * child door at all, and `LayoutBase`'s inherited one put every child into the grid
+     * beside the pages, shown whatever the selection said.
+     */
+    _addChildFromBuilder(_name: string, view: View | AdwViewStackPage): void {
+        if (!(view instanceof AdwViewStackPage)) {
+            this.add(view, '');
+            return;
+        }
+        const content = view.child;
+        if (content === null) {
+            // `add_page` takes the child from the record and `g_return_val_if_fail`s without
+            // one; a page with nothing to show would be a switcher button that selects nothing.
+            throw new Error(`AdwViewStackPage '${view.name}' has no child, so the stack has nothing to show for it.`);
+        }
+        view._adoptBy(this);
+        this._state.addPage({
+            name: view.name,
+            title: view.title,
+            icon: view.iconName,
+            content,
+            visible: view.visible,
+            badgeNumber: view.badgeNumber,
+            needsAttention: view.needsAttention,
+            useUnderline: view.useUnderline,
+        });
+        this._placePage(content);
     }
 
     /** Convenience alias matching `Adw.ViewStack.add_titled`. */
-    add_titled(content: View, name: string, title: string): AdwViewStackPage {
+    add_titled(content: View, name: string, title: string): AdwViewStackPageInfo {
         return this.add(content, name, title);
     }
 
@@ -98,7 +143,7 @@ export class AdwViewStack extends withSignals(GridLayout) {
      * the same four values in the same order, so the alias is a rename and cannot drift
      * from the method it forwards to.
      */
-    add_titled_with_icon(content: View, name: string, title: string, iconName: string): AdwViewStackPage {
+    add_titled_with_icon(content: View, name: string, title: string, iconName: string): AdwViewStackPageInfo {
         return this.add(content, name, title, iconName);
     }
 
@@ -140,7 +185,7 @@ export class AdwViewStack extends withSignals(GridLayout) {
     }
 
     /** All registered pages, in add order (a bound switcher reads this). */
-    get pages(): readonly AdwViewStackPage[] {
+    get pages(): readonly AdwViewStackPageInfo[] {
         return this._state.pages;
     }
 

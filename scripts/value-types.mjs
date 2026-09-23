@@ -72,6 +72,11 @@ export const CONSTRUCTIBLE_VALUES = [
         why: 'GJS writes `adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 })`, and ADR 0047 already made the VALUE behind it portable — the class IS `AdwAdjustment` wearing the GIR spelling. It closed the `Adw.SpinRow` pane divergence down to the one property the port has no counterpart for.',
     },
     {
+        member: 'Adw.ViewStackPage',
+        gir: 'ViewStackPage',
+        why: 'Blueprint writes a titled stack as `Adw.ViewStack { Adw.ViewStackPage { name: …; title: …; child: … } }`, and GtkBuilder constructs each record as the GObject it is — not a widget. The NativeScript builder needs a class to construct for the same node, so the record is a value the port carries (`view-stack-page.ts`), read by the stack when it adopts it. The web spells the same record as the `<adw-view-stack-page>` element.',
+    },
+    {
         member: 'Gtk.StringList',
         gir: 'StringList',
         why: 'GJS writes `model: new Gtk.StringList({ strings: [...] })`, and ADR 0046 already made the VALUE behind it portable. An `Array` subclass like `Gio.Menu`, so the array spelling and this one are the same write — it closed the `Adw.ComboRow` pane divergence outright.',

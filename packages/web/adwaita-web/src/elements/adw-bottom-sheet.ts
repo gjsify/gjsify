@@ -63,6 +63,8 @@ import type {
     BottomSheetOpenSource,
 } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
+
 /** The persistent content. Child of <adw-bottom-sheet>; consumed at connect time. */
 export class AdwBottomSheetContent extends HTMLElement {}
 
@@ -99,8 +101,9 @@ export class AdwBottomSheet extends HTMLElement {
         this._setOpen(!!value);
     }
 
+    /** Whether the content is dimmed and blocked while the sheet is open (`AdwBottomSheet:modal`). */
     get modal(): boolean {
-        return this._boolAttr('modal', true);
+        return this._state.modal;
     }
 
     set modal(value: boolean) {
@@ -197,18 +200,8 @@ export class AdwBottomSheet extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // The sheet and content are placed by slot; anything unslotted falls back to the
-        // content (the AdwBottomSheet GtkBuildable default).
-        const claimed = new Set<Node>();
-        const sheetChildren = this._collectSlot('adw-bottom-sheet-sheet', 'sheet', claimed);
-        const barChildren = this._collectSlot('adw-bottom-sheet-bottom-bar', 'bottom-bar', claimed);
-        const contentChildren = this._collectSlot('adw-bottom-sheet-content', 'content', claimed);
-        const unslotted = Array.from(this.childNodes).filter((n) => !claimed.has(n));
-
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-bottom-sheet-content';
-        for (const child of contentChildren) this._contentEl.appendChild(child);
-        for (const child of unslotted) this._contentEl.appendChild(child);
 
         this._dimmingEl = document.createElement('div');
         this._dimmingEl.className = 'adw-bottom-sheet-dimming';
@@ -228,7 +221,6 @@ export class AdwBottomSheet extends HTMLElement {
 
         this._sheetBodyEl = document.createElement('div');
         this._sheetBodyEl.className = 'adw-bottom-sheet-sheet-body';
-        for (const child of sheetChildren) this._sheetBodyEl.appendChild(child);
 
         // A real <button>: the bin upstream is `gtk_button_new ()`
         // (adw-bottom-sheet.c:1203), which is where its keyboard activation comes from
@@ -242,14 +234,42 @@ export class AdwBottomSheet extends HTMLElement {
 
         this._sheetEl.append(this._bottomBarEl, this._dragHandleEl, this._sheetBodyEl);
 
-        // A bar handed to `setBottomBar` before the upgrade is adopted here; otherwise the
-        // declared slot fills the bin. `hasBottomBar` is re-seeded from the bin below, so
-        // the two cannot start out disagreeing about whether there is a bar.
-        if (this._pendingBottomBar) this._bottomBarEl.replaceChildren(this._pendingBottomBar);
-        else for (const child of barChildren) this._bottomBarEl.appendChild(child);
-        this._pendingBottomBar = null;
+        // The three layers are SLOTS, bound live (`slotted-children.ts`), under the names
+        // GtkBuilder gives the properties — `content`, `sheet`, `bottom-bar` — so a projected
+        // `.blp` places its children here, and the mount's refusal of an unknown slot can
+        // ask this element which names it has. The wrapper elements are the markup spelling
+        // of the same three: each is consumed and its children land in the layer. Anything
+        // unslotted is content, the AdwBottomSheet GtkBuildable default.
+        const layer = (tag: string, into: HTMLElement): AdwSlot => ({
+            claims: (node) => node instanceof Element && node.localName === tag,
+            consume: (node) => {
+                for (const child of Array.from(node.childNodes)) into.appendChild(child);
+            },
+        });
+        bindSlottedChildren(
+            this,
+            [
+                { name: 'sheet', into: this._sheetBodyEl },
+                { name: 'bottom-bar', into: this._bottomBarEl },
+                { name: 'content', into: this._contentEl },
+                layer('adw-bottom-sheet-sheet', this._sheetBodyEl),
+                layer('adw-bottom-sheet-bottom-bar', this._bottomBarEl),
+                layer('adw-bottom-sheet-content', this._contentEl),
+                { into: this._contentEl },
+            ],
+            (_node, slot) => {
+                // A bar adopted after connect is presence, which the open gate reads.
+                if (!('into' in slot) || slot.into !== this._bottomBarEl) return;
+                this._state.setHasBottomBar(true);
+                this._render();
+            },
+        ).install(this._contentEl, this._dimmingEl, this._sheetEl);
 
-        this.replaceChildren(this._contentEl, this._dimmingEl, this._sheetEl);
+        // A bar handed to `setBottomBar` before the upgrade wins over a declared one, as the
+        // later write does in GTK. `hasBottomBar` is re-seeded from the bin below, so the two
+        // cannot start out disagreeing about whether there is a bar.
+        if (this._pendingBottomBar) this._bottomBarEl.replaceChildren(this._pendingBottomBar);
+        this._pendingBottomBar = null;
 
         // Escape → `maybe_close_cb`. In GTK the shortcut sits on the sheet itself, so it
         // fires exactly while the sheet has focus — INCLUDING while the sheet is closed,
@@ -292,6 +312,7 @@ export class AdwBottomSheet extends HTMLElement {
             this._state.setOpen(this._boolAttr('open', false));
             return;
         }
+        if (name === 'modal') this._state.setModal(this._boolAttr('modal', true));
         if (name === 'can-close') this._state.setCanClose(this._boolAttr('can-close', true));
         if (name === 'can-open') this._state.setCanOpen(this._boolAttr('can-open', true));
         if (name === 'reveal-bottom-bar') this._state.setRevealBottomBar(this._boolAttr('reveal-bottom-bar', true));
@@ -313,14 +334,14 @@ export class AdwBottomSheet extends HTMLElement {
         const showsBar = chrome.layer === 'bottom-bar';
         this._reflectOpen(open);
         this.classList.toggle('open', open);
-        this.classList.toggle('modal', this.modal);
+        this.classList.toggle('modal', this._state.modal);
         this.classList.toggle('has-drag-handle', this.showDragHandle);
         // `showing-bottom-bar` is what holds the sheet at translateY(0) with only the bar
         // exposed; the CSS transform IS this port's `gtk_widget_set_child_visible`, so the
         // bar being hidden and the sheet being off screen are two different states.
         this.classList.toggle('showing-bottom-bar', showsBar && chrome.surfaceVisible);
 
-        this._dimmingEl.classList.toggle('visible', open && this.modal);
+        this._dimmingEl.classList.toggle('visible', chrome.dimmed);
         this._bottomBarEl.hidden = !showsBar;
         // `inert` only paints. The button stays enabled and focusable exactly as upstream
         // leaves it (adw-bottom-sheet.c:2033-2036); the gate is what refuses the click, and
@@ -346,31 +367,6 @@ export class AdwBottomSheet extends HTMLElement {
     private _setBoolAttr(name: string, value: boolean): void {
         if (value) this.setAttribute(name, '');
         else this.setAttribute(name, 'false');
-    }
-
-    /**
-     * Collect the nodes declared for one slot, in DOCUMENT order, marking every
-     * consumed child in `claimed`.
-     *
-     * The `<adw-bottom-sheet-sheet>` / `<adw-bottom-sheet-content>` wrappers are
-     * markup, not widgets — GtkBuilder's `<child type="sheet">` leaves nothing in
-     * the tree — so the wrapper itself is claimed
-     * too. It used to fall through to `unslotted` and be appended to the content
-     * layer, leaving an empty custom element behind after its children were
-     * pulled out.
-     */
-    private _collectSlot(tag: string, slot: string, claimed: Set<Node>): Node[] {
-        const nodes: Node[] = [];
-        for (const child of Array.from(this.children)) {
-            if (child.tagName.toLowerCase() === tag) {
-                claimed.add(child);
-                nodes.push(...Array.from(child.childNodes));
-            } else if (child.getAttribute('slot') === slot) {
-                claimed.add(child);
-                nodes.push(child);
-            }
-        }
-        return nodes;
     }
 }
 

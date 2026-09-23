@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fourteen probes are fewer than fourteen distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the sixteen probes are fewer than sixteen distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -1112,5 +1112,118 @@ export const REAL_EXPECTATIONS = [
         },
         lost: [],
         note: "The first probe that is a documentation block rather than a program: the website gallery builds the clamp from this one file on GTK, on the web and on NativeScript, and each pane reaches the label by its id. The label goes in as `child:`, which projects as `slot: 'child'`: both the web clamp and the NativeScript one declare that placement, so all three builders take the file as GTK spells it.",
+    },
+    {
+        file: 'packages/web/adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp',
+        node: {
+            tag: 'AdwBottomSheet',
+            id: 'sheet',
+            props: { open: true, modal: true, 'can-close': true },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'toggle',
+                    slot: 'content',
+                    props: { label: 'Toggle sheet', halign: 'center', valign: 'center', vexpand: true },
+                    translatable: { label: {} },
+                    styleClasses: ['pill', 'suggested-action'],
+                },
+                {
+                    tag: 'GtkBox',
+                    id: 'box',
+                    slot: 'sheet',
+                    props: {
+                        orientation: 'vertical',
+                        spacing: 12,
+                        'margin-start': 18,
+                        'margin-end': 12,
+                        'margin-top': 18,
+                        'margin-bottom': 24,
+                    },
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            id: 'title',
+                            props: { label: 'Share track', xalign: 0, halign: 'start' },
+                            translatable: { label: {} },
+                            styleClasses: ['title-2'],
+                        },
+                        {
+                            tag: 'GtkLabel',
+                            id: 'caption',
+                            props: { label: 'Pick where it goes', hexpand: true },
+                            translatable: { label: {} },
+                        },
+                        {
+                            tag: 'GtkLabel',
+                            id: 'body',
+                            props: { label: 'The link stays valid for a week.', wrap: true, vexpand: true },
+                            translatable: { label: {} },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+        note: "A renderer fixture rather than a program: both the web and the NativeScript builder mount it to hold the GtkWidget layout properties — `halign`, `valign`, `hexpand`, `vexpand` and the four `margin-*` — plus `Gtk.Label:xalign` and a modal `Adw.BottomSheet`, in the shape the gallery's bottom-sheet block writes them. Every one of them is a plain scalar on the node; the enum nicks stay strings (`center`, not the `3` the golden writes), which is what each builder has to translate.",
+    },
+    {
+        file: 'packages/web/adwaita-core/src/conformance/blueprints/view-stack-pages.blp',
+        node: {
+            tag: 'GtkBox',
+            props: { orientation: 'vertical' },
+            children: [
+                {
+                    tag: 'AdwInlineViewSwitcher',
+                    id: 'inline',
+                    props: { stack: 'stack', halign: 'center' },
+                },
+                {
+                    tag: 'AdwViewStack',
+                    id: 'stack',
+                    props: { vexpand: true },
+                    children: [
+                        {
+                            tag: 'AdwViewStackPage',
+                            props: { name: 'inbox', title: 'Inbox', 'icon-name': 'mail-unread-symbolic' },
+                            translatable: { title: {} },
+                            children: [
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'child',
+                                    props: { title: 'Inbox' },
+                                    translatable: { title: {} },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'AdwViewStackPage',
+                            props: {
+                                name: 'starred',
+                                title: 'Starred',
+                                'icon-name': 'starred-symbolic',
+                                'badge-number': 3,
+                            },
+                            translatable: { title: {} },
+                            children: [
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'child',
+                                    props: { title: 'Starred' },
+                                    translatable: { title: {} },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwViewSwitcherBar',
+                    id: 'bar',
+                    props: { stack: 'stack', reveal: true },
+                },
+            ],
+        },
+        lost: [],
+        note: 'The first probe with an OBJECT REFERENCE a renderer has to resolve: `stack: stack` projects as the prop `stack` holding the string `\'stack\'`, indistinguishable on the node from `name: "inbox"`, so a builder has to know from the widget which properties name another object. The switcher above the stack names it forward, which GtkBuilder allows because it resolves ids after the parse. `Adw.ViewStackPage` is a GObject record, not a widget, and places its page with `child:`. Built by the NativeScript port; the web switchers bundle their own pages and do not bind a stack by id yet.',
     },
 ];

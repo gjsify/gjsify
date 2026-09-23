@@ -26,13 +26,25 @@
 // containing a `<` in ordinary prose. Nothing here parses unless asked, and when asked it
 // strips.
 //
-// WHAT IT DOES NOT DO: everything Pango. `attributes`, `ellipsize`, `justify`,
+// `xalign` REACHES `textAlignment` AT ITS THREE EXACT POINTS AND NOWHERE ELSE. GTK's
+// `xalign` is a continuum in [0, 1] — `xalign * (width − text width)` — and NativeScript's
+// `textAlignment` has three positions. So `0`, `0.5` and `1` map to the start, the centre and
+// the end, mirrored in RTL as `gtk_label_get_layout_location` mirrors them, and every other
+// value is REFUSED rather than snapped to the nearest: a label written at `0.25` that renders
+// at `0` would report a snap as agreement. The reading is `@gjsify/adwaita-core`'s
+// (`normalizeLabelXalign`), the one `<gtk-label>` applies, so an out-of-range `3` clamps to
+// `1` on both before either renders it. Two edges stay: an UNWRITTEN label keeps the
+// platform's start-aligned text where GTK centres it (the pspec default is read back, not
+// painted, because repainting every label in the port is its own change), and a label of
+// several lines aligns each line where GTK aligns the block and leaves the lines to
+// `justify`.
+//
+// WHAT IT DOES NOT DO: everything else Pango. `attributes`, `ellipsize`, `justify`,
 // `natural-wrap-mode`, `wrap-mode`, `lines`, `width-chars`, `max-width-chars`, `tabs`,
-// `xalign`/`yalign`, `selectable` and the mnemonic-widget link are declared gaps in
+// `yalign`, `selectable` and the mnemonic-widget link are declared gaps in
 // `check-nativescript-widget-coverage.mjs`. A NativeScript `Label` exposes `text`,
 // `textWrap` and `textAlignment` and no text-layout engine behind them, so most of those
-// have nothing to reach; `xalign` is a continuum where `textAlignment` has three positions,
-// and `horizontalAlignment` is the property a caller actually has here.
+// have nothing to reach.
 //
 // Reference: refs/gtk gtk/gtklabel.c (GtkLabel)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss
@@ -40,18 +52,26 @@
 
 import { Label } from '@nativescript/core';
 
-import { labelDisplayText } from '@gjsify/adwaita-core';
+import { DEFAULT_LABEL_XALIGN, labelDisplayText, normalizeLabelXalign } from '@gjsify/adwaita-core';
 
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
-import { xmlBoolean } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+
+/** The three `xalign` values `textAlignment` can state exactly, and the edge each one is. */
+const XALIGN_EDGES: ReadonlyMap<number, 'start' | 'center' | 'end'> = new Map([
+    [0, 'start'],
+    [0.5, 'center'],
+    [1, 'end'],
+]);
 
 export class GtkLabel extends withSignals(Label) {
     private _label = '';
     private _useMarkup = false;
     private _useUnderline = false;
     private _styleClasses: string[] = [];
+    private _xalign = DEFAULT_LABEL_XALIGN;
 
     constructor(props?: ConstructProps<GtkLabel>) {
         super();
@@ -124,6 +144,31 @@ export class GtkLabel extends withSignals(Label) {
 
     set wrap(raw: boolean | string) {
         this.textWrap = xmlBoolean(raw, this.textWrap);
+    }
+
+    /**
+     * `Gtk.Label:xalign` — where the text sits in the label's box, `0` the start and `1` the
+     * end. Clamped to that range as `gtk_label_set_xalign` clamps it, and painted only at the
+     * three points `textAlignment` can say exactly; any other value throws (see the header).
+     */
+    get xalign(): number {
+        return this._xalign;
+    }
+
+    set xalign(raw: number | string) {
+        const xalign = normalizeLabelXalign(xmlNumber(raw, DEFAULT_LABEL_XALIGN));
+        const edge = XALIGN_EDGES.get(xalign);
+        if (edge === undefined) {
+            throw new TypeError(
+                `Gtk.Label xalign ${xalign} has no NativeScript counterpart: textAlignment places text at the ` +
+                    'start, the centre or the end, so only 0, 0.5 and 1 render as written. Snapping it would ' +
+                    'show a different label than GTK does with no sign of the difference.',
+            );
+        }
+        this._xalign = xalign;
+        const rtl = this.style?.direction === 'rtl';
+        this.textAlignment =
+            edge === 'start' ? (rtl ? 'right' : 'left') : edge === 'end' ? (rtl ? 'left' : 'right') : 'center';
     }
 
     /**

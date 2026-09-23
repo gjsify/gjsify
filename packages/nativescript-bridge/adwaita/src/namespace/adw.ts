@@ -84,6 +84,7 @@ export { AdwToastOverlay as ToastOverlay } from '../widgets/adw-toast-overlay.js
 export { AdwToggleGroup as ToggleGroup } from '../widgets/adw-toggle-group.js';
 export { AdwToolbarView as ToolbarView } from '../widgets/adw-toolbar-view.js';
 export { AdwViewStack as ViewStack } from '../widgets/adw-view-stack.js';
+export { AdwViewStackPage as ViewStackPage } from '../widgets/view-stack-page.js';
 export { AdwViewSwitcher as ViewSwitcher } from '../widgets/adw-view-switcher.js';
 export { AdwViewSwitcherBar as ViewSwitcherBar } from '../widgets/adw-view-switcher-bar.js';
 export { AdwWindowTitle as WindowTitle } from '../widgets/adw-window-title.js';

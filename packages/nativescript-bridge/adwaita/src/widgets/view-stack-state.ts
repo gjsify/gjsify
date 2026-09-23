@@ -23,10 +23,14 @@
 
 import type { View } from '@nativescript/core';
 import { ViewStackState } from '@gjsify/adwaita-core';
-import type { AdwViewStackPageInfo, ViewStackStateChange } from '@gjsify/adwaita-core';
+import type { AdwViewStackPageInfo as CorePageInfo, ViewStackStateChange } from '@gjsify/adwaita-core';
 
-/** One page registered with an `AdwViewStack`, as a bound switcher reads it. */
-export type AdwViewStackPage = AdwViewStackPageInfo<View>;
+/**
+ * One page registered with an `AdwViewStack`, as a bound switcher reads it — the stack's
+ * resolved descriptor. `AdwViewStackPage` is the class a stack is AUTHORED with
+ * (`adw-view-stack-page.ts`); this is what the stack keeps after reading one.
+ */
+export type AdwViewStackPageInfo = CorePageInfo<View>;
 
 /** The two `View.visibility` values a stacked page ever takes. */
 export type NsPageVisibility = 'visible' | 'collapse';

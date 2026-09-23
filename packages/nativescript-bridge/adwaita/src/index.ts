@@ -174,7 +174,7 @@ export type {
     ShortcutLabelRenderPlan,
     ShortcutLabelViewSpec,
     // View switching
-    AdwViewStackPage,
+    AdwViewStackPageInfo,
     NotifyVisibleChildEventData,
     AdwViewPage,
     NotifyViewSelectedEventData,

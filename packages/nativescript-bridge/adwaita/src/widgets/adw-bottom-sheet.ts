@@ -25,12 +25,18 @@
 // shipped, and what left easy6502's quick help unreachable on Android while its GNOME
 // original (whose `editor.blp` declares `bottom-bar` and writes `open` nowhere) worked.
 //
-// FIDELITY: compromised on the slide + scrim. This CSS subset has no z-index,
-// box-shadow or translate transition, so the sheet is bottom-aligned in the grid and
-// toggled by `visibility`: instant show/hide, no upward slide, no dimming
-// scrim/backdrop-blur. The look and the state machine are faithful; an app wanting the
-// slide wraps the `open` write in `view.animate({ translate })`. (A `modal` sheet on a
-// phone is more naturally a native `Dialogs`/modal Page — this targets the in-page form.)
+// MODAL IS THE DEFAULT, AS UPSTREAM. A modal sheet lays libadwaita's `dimming` layer over
+// the content while it is open: a view painted between the content and the panel, so a tap
+// on the dimmed area reaches the scrim — which routes it through the dismissal gate as the
+// `'dimming'` source — and never the content the sheet blocks. When the scrim is on screen
+// is `@gjsify/adwaita-core`'s answer (`BottomSheetChrome.dimmed`), the same one the web
+// sheet paints.
+//
+// FIDELITY: compromised on the slide. This CSS subset has no z-index, box-shadow or
+// translate transition, so the sheet is bottom-aligned in the grid and toggled by
+// `visibility`: instant show/hide, no upward slide, and the scrim appears at full strength
+// rather than fading in with the sheet's progress. The look and the state machine are
+// faithful; an app wanting the slide wraps the `open` write in `view.animate({ translate })`.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-bottom-sheet`.
 // Reference: refs/libadwaita/src/adw-bottom-sheet.c
@@ -49,6 +55,7 @@ import type {
 import {
     BOTTOM_BAR_CLASS,
     CLOSE_ATTEMPT,
+    DIMMING_CLASS,
     NOTIFY_OPEN,
     SHEET_CLOSE,
     addMarkerClass,
@@ -82,6 +89,8 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
 
     /** The always-visible content layer. */
     private _content: View | null = null;
+    /** The scrim over the content while a modal sheet is open — libadwaita's `dimming`. */
+    private readonly _dimming: GridLayout;
     /** The bottom-anchored bin holding both layers — libadwaita's `sheet_bin`. */
     protected readonly _sheetPanel: StackLayout;
     /** The sheet page inside the bin: drag handle + sheet child. */
@@ -99,6 +108,17 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         this.className = 'adw-bottom-sheet';
         this.addColumn(new ItemSpec(1, 'star'));
         this.addRow(new ItemSpec(1, 'star'));
+
+        // Painted after the content and before the panel, which is the whole of its
+        // placement: NativeScript stacks a cell's children in child order. The tap is the
+        // `'dimming'` source, and the gate decides — a locked sheet signals instead.
+        const dimming = new GridLayout();
+        dimming.className = DIMMING_CLASS;
+        GridLayout.setColumn(dimming, 0);
+        GridLayout.setRow(dimming, 0);
+        dimming.addEventListener('tap', () => this.requestClose('dimming'));
+        this.addChild(dimming);
+        this._dimming = dimming;
 
         // The sheet panel is bottom-anchored within the (single-cell) grid and
         // painted last so it sits on top of the content.
@@ -152,6 +172,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     /** Push the current chrome onto the three views — the widget's whole rendering step. */
     private _paintChrome(): void {
         const panes: BottomSheetPanes = {
+            dimming: this._dimming,
             panel: this._sheetPanel,
             page: this._sheetPage,
             bottomBar: this._bottomBarBin,
@@ -286,6 +307,20 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
 
     set open(value: boolean | string) {
         this._state.setOpen(xmlBoolean(value, false));
+    }
+
+    /**
+     * Whether the sheet dims the content and blocks it while open (`AdwBottomSheet:modal`,
+     * default `true`). Changing it on an open sheet adds or removes the scrim at once, as
+     * `adw_bottom_sheet_set_modal` does; `open` does not move.
+     */
+    get modal(): boolean {
+        return this._state.modal;
+    }
+
+    set modal(raw: boolean | string) {
+        if (!this._state.setModal(xmlBoolean(raw, this.modal))) return;
+        this._paintChrome();
     }
 
     /**

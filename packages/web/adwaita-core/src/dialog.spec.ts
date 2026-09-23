@@ -252,6 +252,9 @@ export default async () => {
                         setRevealBottomBar: (reveal) => {
                             state.setRevealBottomBar(reveal);
                         },
+                        setModal: (modal) => {
+                            state.setModal(modal);
+                        },
                         setOpen: (open) => {
                             state.setOpen(open);
                         },

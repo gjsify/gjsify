@@ -94,7 +94,14 @@ export type ValueProp = keyof ValueProps;
  * nowhere else. ADR 0034 § 4's second spelling: a nick is what an XML attribute can carry,
  * and the constant is what a snippet ported off GJS carries.
  */
-export type EnumProp = AlignmentProp | IconSizeProp;
+export type EnumProp = AlignmentProp | GtkAlignProp | IconSizeProp;
+
+/**
+ * `GtkWidget:halign` / `valign` under GTK's own names (`widget-layout.ts`). Their setters read a
+ * nick or a constant themselves, so unlike {@link AlignmentProp} the bag translates nothing
+ * for them — the widening is the type half alone.
+ */
+export type GtkAlignProp = 'halign' | 'valign';
 
 /**
  * The NativeScript properties whose value this package reads as a `Gtk.Align`.
@@ -115,8 +122,10 @@ export type EnumProp = AlignmentProp | IconSizeProp;
  * to `stretch`, which is also what the `default:` arm does with it. Nothing here closes the
  * vertical three — the attribute door has no coercer to hang this on and a per-widget
  * `set verticalAlignment` would shadow `View`'s, which is the hazard arm 2 of
- * `check-nativescript-xml-doors.mjs` exists for — so it is a declared divergence and the same
- * § 1 convergence question ADR 0034 § Amendment 12 leaves open for `halign` / `valign`.
+ * `check-nativescript-xml-doors.mjs` exists for — so it stays a declared divergence on
+ * NativeScript's OWN name. The door that agrees everywhere is GTK's: `valign="center"` and
+ * `halign` are accessors on every widget (`widget-layout.ts`), so the attribute, the bag and a
+ * projected `.blp` all translate the same way through them.
  */
 const ALIGNMENT_AXES = {
     horizontalAlignment: 'horizontal',

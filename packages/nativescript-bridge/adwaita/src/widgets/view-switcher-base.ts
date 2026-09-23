@@ -101,6 +101,9 @@ function viewPagesOfStack(stack: AdwViewStack): AdwViewPage[] {
  * Subclasses set the bar/button CSS classes for their look.
  */
 export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
+    /** `stack` names an `AdwViewStack` of the same tree — see `./builder-slots.ts`. */
+    static readonly builderReferences: readonly string[] = ['stack'];
+
     /** The horizontal switcher bar holding the buttons. */
     protected readonly _bar: GridLayout;
     /** `Adw.ViewSwitcher:policy`, default NARROW as in C. */

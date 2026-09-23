@@ -682,6 +682,8 @@ export type BottomSheetBottomBarStep =
     | { readonly kind: 'setCanOpen'; readonly canOpen: boolean }
     /** `adw_bottom_sheet_set_reveal_bottom_bar`. */
     | { readonly kind: 'setRevealBottomBar'; readonly reveal: boolean }
+    /** `adw_bottom_sheet_set_modal`. */
+    | { readonly kind: 'setModal'; readonly modal: boolean }
     /** The programmatic path — `adw_bottom_sheet_set_open`, ignores `can-open`. */
     | { readonly kind: 'setOpen'; readonly open: boolean }
     /** The interactive path — runs the {@link BOTTOM_SHEET_OPEN_VECTORS} gate. */
@@ -722,6 +724,8 @@ export interface BottomSheetBottomBarAdapter {
     setCanOpen(canOpen: boolean): void;
     /** `AdwBottomSheet:reveal-bottom-bar`. */
     setRevealBottomBar(reveal: boolean): void;
+    /** `AdwBottomSheet:modal`. */
+    setModal(modal: boolean): void;
     /** The programmatic path (`AdwBottomSheet:open`). */
     setOpen(open: boolean): void;
     /** The interactive path — returns what the gate decided. */
@@ -748,6 +752,9 @@ export function runBottomSheetBottomBarSteps(
             case 'setRevealBottomBar':
                 adapter.setRevealBottomBar(step.reveal);
                 break;
+            case 'setModal':
+                adapter.setModal(step.modal);
+                break;
             case 'setOpen':
                 adapter.setOpen(step.open);
                 break;
@@ -766,7 +773,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: [],
         notifications: [],
         open: false,
-        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false, dimmed: false },
         rule: 'a fresh sheet has NO bottom bar and is off screen — but can-open already defaults TRUE, so the gate is open and only the bar is missing',
         derivedFrom: 'adw_bottom_sheet_init adw-bottom-sheet.c:1129-1132 + the can-open pspec default at :940-943',
     },
@@ -775,7 +782,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: [],
         notifications: [],
         open: false,
-        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: false, dimmed: false },
         rule: 'adopting a bar puts the sheet bin on screen showing the BAR, without opening anything and without notifying',
         derivedFrom: 'adw_bottom_sheet_set_bottom_bar adw-bottom-sheet.c:1613-1627',
     },
@@ -787,7 +794,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['open'],
         notifications: [true],
         open: true,
-        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: true },
         rule: 'THE WHOLE POINT: the bar is clicked, the sheet opens, and the bin morphs from bar to sheet',
         derivedFrom: 'bottom_bar_released_cb adw-bottom-sheet.c:279-280 -> set_open:1701-1702',
     },
@@ -796,7 +803,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored'],
         notifications: [],
         open: false,
-        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false, dimmed: false },
         rule: 'REGRESSION PIN: with no bar there is no affordance, and the sheet stays unreachable. This is the state both ports shipped in, and the reason a consumer reached for `open = true` beside the widget',
         derivedFrom: 'adw-bottom-sheet.c:294-295 + the can-open doc at :2013',
     },
@@ -810,7 +817,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored', 'ignored'],
         notifications: [],
         open: false,
-        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: true },
+        chrome: { layer: 'bottom-bar', surfaceVisible: true, bottomBarInert: true, dimmed: false },
         rule: 'a locked-open bar STAYS ON SCREEN and merely looks inert — unlike can-close, which has a signal, can-open just refuses',
         derivedFrom: 'adw_bottom_sheet_set_can_open adw-bottom-sheet.c:2031-2038',
     },
@@ -825,7 +832,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored', 'open'],
         notifications: [true],
         open: true,
-        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: true },
         rule: 'unlocking mid-life makes the same affordance start working, and drops the inert class with it',
         derivedFrom: 'adw-bottom-sheet.c:2028-2040',
     },
@@ -838,7 +845,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored'],
         notifications: [],
         open: false,
-        chrome: { layer: 'bottom-bar', surfaceVisible: false, bottomBarInert: false },
+        chrome: { layer: 'bottom-bar', surfaceVisible: false, bottomBarInert: false, dimmed: false },
         rule: 'hiding the bar hides the whole bin, so the click cannot land — note the layer is still `bottom-bar`: it is the SURFACE that is gone, not the choice of child',
         derivedFrom:
             'adw_bottom_sheet_set_reveal_bottom_bar adw-bottom-sheet.c:2177-2191 + reveal_animation_done_cb:362-364',
@@ -852,7 +859,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: [],
         notifications: [true],
         open: true,
-        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: true },
         rule: 'reveal-bottom-bar governs the BAR, never the sheet: an owner opens a sheet whose bar is hidden and the sheet still shows',
         derivedFrom: 'adw_bottom_sheet_set_open adw-bottom-sheet.c:1686 (child_visible TRUE unconditionally on open)',
     },
@@ -866,7 +873,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['open', 'open'],
         notifications: [true, false, true],
         open: true,
-        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: true },
         rule: 'the bar comes BACK when the sheet closes and opens it again — a port that switched to the sheet page once and never switched back would leave every row above green and the second click dead',
         derivedFrom:
             'adw_bottom_sheet_set_open adw-bottom-sheet.c:1701-1705 (show_bottom_bar TRUE on the closing side)',
@@ -880,7 +887,7 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored'],
         notifications: [],
         open: false,
-        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false, dimmed: false },
         rule: 'taking the bar away takes the affordance with it — presence is state, not a one-way latch',
         derivedFrom: 'adw_bottom_sheet_set_bottom_bar adw-bottom-sheet.c:1610-1629',
     },
@@ -893,8 +900,44 @@ export const BOTTOM_SHEET_BOTTOM_BAR_VECTORS: ReadonlyArray<BottomSheetBottomBar
         outcomes: ['ignored', 'open'],
         notifications: [true],
         open: true,
-        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false },
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: true },
         rule: 'the handle stays inert even where an open affordance exists beside it, and the swipe is that affordance',
         derivedFrom: 'adw-bottom-sheet.c:1197-1198 + prepare_cb:1052-1053',
+    },
+    {
+        steps: [
+            { kind: 'setModal', modal: false },
+            { kind: 'setOpen', open: true },
+        ],
+        outcomes: [],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: false },
+        rule: 'a non-modal sheet opens over content that stays undimmed and reachable — there is no scrim to click',
+        derivedFrom: 'adw_bottom_sheet_set_open adw-bottom-sheet.c:1686-1687 (child_visible = modal)',
+    },
+    {
+        steps: [
+            { kind: 'setOpen', open: true },
+            { kind: 'setModal', modal: false },
+        ],
+        outcomes: [],
+        notifications: [true],
+        open: true,
+        chrome: { layer: 'sheet', surfaceVisible: true, bottomBarInert: false, dimmed: false },
+        rule: 'turning modal off while the sheet is up takes the dimming away at once, without closing or notifying',
+        derivedFrom: 'adw_bottom_sheet_set_modal adw-bottom-sheet.c:1981-1982',
+    },
+    {
+        steps: [
+            { kind: 'setModal', modal: false },
+            { kind: 'setModal', modal: true },
+        ],
+        outcomes: [],
+        notifications: [],
+        open: false,
+        chrome: { layer: 'sheet', surfaceVisible: false, bottomBarInert: false, dimmed: false },
+        rule: 'modal alone never dims: a closed sheet has nothing to dim for, whatever modal says',
+        derivedFrom: 'adw-bottom-sheet.c:1981 (only while progress is not 0) + open_animation_done_cb:338-339',
     },
 ];
