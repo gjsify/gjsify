@@ -39,7 +39,8 @@
 // authors must be CONTAINED in the fence its block shows a reader — same elements,
 // attributes and values, in the same order — which arm 13 of
 // `check-generated-website-data.mjs` holds, because a corpus two renderers are tested
-// against proves nothing about a UI the page stopped showing.
+// against proves nothing about a UI the page stopped showing. A one-Blueprint block
+// shows its `.blp` instead of a fence, and arm 13 holds the tree against that file.
 //
 // CONTAINMENT, and in that direction. The fence is the authority (see the `content`
 // kind in {@link ADWAITA_GALLERY_TREE_DIVERGENCES}) and is free to teach more than a

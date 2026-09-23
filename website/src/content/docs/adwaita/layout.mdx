@@ -130,6 +130,7 @@ the trailing one.
     import Gtk from 'gi://Gtk?version=4.0';
     import ui from './header-bar.blp';
 
+    Adw.init();
     const builder = Gtk.Builder.new_from_string(ui, -1);
     const title = builder.get_object('window_title') as Adw.WindowTitle;
     const menuButton = builder.get_object('menu_button') as Gtk.MenuButton;
@@ -340,6 +341,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
     import Gtk from 'gi://Gtk?version=4.0';
     import ui from './wrap-box.blp';
 
+    Adw.init();
     const builder = Gtk.Builder.new_from_string(ui, -1);
     const wrap = builder.get_object('wrap_box') as Adw.WrapBox;
 

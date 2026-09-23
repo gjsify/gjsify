@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the sixteen probes are fewer than sixteen distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the thirty probes are fewer than thirty distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -1204,5 +1204,257 @@ export const REAL_EXPECTATIONS = [
         },
         lost: [],
         note: "Eight unnamed children and one named root: the gallery panes reach only the box, so the chips need no ids. Building it on the NativeScript double is what exposed the double's own `_childViews` field shadowing the method of the same name on `AdwWrapBox` and `GtkBox`.",
+    },
+    {
+        file: 'website/src/blueprints/gtk/button.blp',
+        node: {
+            tag: 'AdwWrapBox',
+            id: 'button_box',
+            props: { 'child-spacing': 12, 'line-spacing': 12 },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'pill_button',
+                    props: { label: 'Pill' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    id: 'add_button',
+                    props: { 'icon-name': 'list-add-symbolic' },
+                    styleClasses: ['circular'],
+                },
+                {
+                    tag: 'GtkButton',
+                    id: 'suggested_button',
+                    props: { label: 'Suggested' },
+                    translatable: { label: {} },
+                    styleClasses: ['suggested-action'],
+                },
+                {
+                    tag: 'GtkButton',
+                    id: 'delete_button',
+                    props: { label: 'Delete' },
+                    translatable: { label: {} },
+                    styleClasses: ['destructive-action'],
+                },
+                {
+                    tag: 'GtkButton',
+                    id: 'flat_button',
+                    props: { label: 'Flat' },
+                    translatable: { label: {} },
+                    styleClasses: ['flat'],
+                },
+            ],
+        },
+        lost: [],
+        note: "The GTK buttons page's block, and the first gallery probe outside `adwaita/`. Five buttons in a wrap box, each styled by one class; the circular one is the only child with no label, so it is the only one the web element renders `icon-only`. The old block centred the box with `halign: center`, which the NativeScript builder cannot write yet, so the file leaves it out and the gallery stage centres the box instead.",
+    },
+    {
+        file: 'website/src/blueprints/gtk/menu-button.blp',
+        node: {
+            tag: 'GtkMenuButton',
+            id: 'menu_button',
+            props: { 'icon-name': 'open-menu-symbolic' },
+            styleClasses: ['flat'],
+        },
+        lost: [],
+        note: 'The file holds only the button. The menu and `primary` stay out: the subset has no `menu` block, and NativeScript has no F10 key to bind `primary` to, so each pane sets the model after building and the GJS pane also sets `primary`.',
+    },
+    {
+        file: 'website/src/blueprints/adwaita/button-content.blp',
+        node: {
+            tag: 'GtkButton',
+            id: 'download_button',
+            styleClasses: ['suggested-action', 'pill'],
+            children: [
+                {
+                    tag: 'AdwButtonContent',
+                    id: 'content',
+                    slot: 'child',
+                    props: { label: 'Download', 'icon-name': 'folder-download-symbolic' },
+                    translatable: { label: {} },
+                },
+            ],
+        },
+        lost: [],
+        note: "`child:` on a `Gtk.Button` projects as `slot: 'child'`. Neither the web button nor the NativeScript one declared that placement before this file: the web element wiped its children on connect, and the NativeScript builder refused the slot.",
+    },
+    {
+        file: 'website/src/blueprints/adwaita/split-button.blp',
+        node: {
+            tag: 'AdwSplitButton',
+            id: 'split_button',
+            props: { label: 'Save', 'icon-name': 'document-save-symbolic' },
+            translatable: { label: {} },
+        },
+        lost: [],
+        note: 'Like the header bar, the menu model stays out of the file, since the subset has no `menu` block; each pane sets it on `split_button` after building.',
+    },
+    {
+        file: 'website/src/blueprints/adwaita/action-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwActionRow',
+                    id: 'row',
+                    props: { title: 'Wi-Fi', subtitle: 'Connected to Highgarden 5GHz', activatable: true },
+                    translatable: { title: {}, subtitle: {} },
+                    children: [
+                        { tag: 'GtkImage', slot: 'prefix', props: { 'icon-name': 'network-wireless-symbolic' } },
+                        { tag: 'GtkImage', slot: 'suffix', props: { 'icon-name': 'go-next-symbolic' } },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/switch-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwSwitchRow',
+                    id: 'row',
+                    props: {
+                        title: 'Automatic updates',
+                        subtitle: 'Download and install updates without asking',
+                        active: true,
+                    },
+                    translatable: { title: {}, subtitle: {} },
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/entry-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwEntryRow',
+                    id: 'row',
+                    props: { title: 'Display name', text: 'Ada Lovelace' },
+                    translatable: { title: {} },
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/password-entry-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwPasswordEntryRow',
+                    id: 'row',
+                    props: { title: 'Password', text: 'correct-horse-battery' },
+                    translatable: { title: {} },
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/expander-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwExpanderRow',
+                    id: 'row',
+                    props: {
+                        title: 'Proxy settings',
+                        subtitle: 'Route traffic through a custom proxy',
+                        expanded: true,
+                    },
+                    translatable: { title: {}, subtitle: {} },
+                    children: [
+                        { tag: 'GtkButton', slot: 'prefix', props: { label: 'Test' }, translatable: { label: {} } },
+                        {
+                            tag: 'AdwEntryRow',
+                            id: 'host_row',
+                            props: { title: 'Host', text: 'proxy.example.com' },
+                            translatable: { title: {} },
+                        },
+                        { tag: 'AdwSwitchRow', props: { title: 'Use authentication' }, translatable: { title: {} } },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+        note: 'The only gallery probe that mixes a bracket slot (`[prefix]`) with unslotted children, which the expander row takes as its nested rows.',
+    },
+    {
+        file: 'website/src/blueprints/adwaita/button-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwButtonRow',
+                    id: 'row',
+                    props: { title: 'Add account', 'start-icon-name': 'list-add-symbolic' },
+                    translatable: { title: {} },
+                    styleClasses: ['suggested-action'],
+                },
+            ],
+        },
+        lost: [],
+        note: 'The row takes its appearance from `styles ["suggested-action"]`, and the NativeScript row had no style-class door, so the builder refused it until this file.',
+    },
+    {
+        file: 'website/src/blueprints/adwaita/avatar.blp',
+        node: {
+            tag: 'AdwAvatar',
+            id: 'avatar',
+            props: { text: 'Ada Lovelace', size: 96, 'show-initials': true, 'icon-name': 'avatar-default-symbolic' },
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/banner.blp',
+        node: {
+            tag: 'AdwBanner',
+            id: 'banner',
+            props: { title: 'Metered connection: updates paused', 'button-label': 'Resume', revealed: true },
+            translatable: { title: {}, 'button-label': {} },
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/shortcut-label.blp',
+        node: {
+            tag: 'GtkBox',
+            id: 'shortcuts',
+            props: { orientation: 'horizontal', spacing: 24 },
+            children: [
+                { tag: 'AdwShortcutLabel', id: 'copy_shortcut', props: { accelerator: '<Control>C' } },
+                { tag: 'AdwShortcutLabel', props: { accelerator: '<Shift>A Home' } },
+                { tag: 'AdwShortcutLabel', props: { accelerator: '<Alt>1...9' } },
+                { tag: 'AdwShortcutLabel', props: { accelerator: 'Control_L&Control_R' } },
+                {
+                    tag: 'AdwShortcutLabel',
+                    props: { accelerator: '', 'disabled-text': 'Disabled' },
+                    translatable: { 'disabled-text': {} },
+                },
+            ],
+        },
+        lost: [],
+        note: "`orientation: horizontal` is source spelling, not the `0` the golden resolves it to, as finding 4 in `expectations.mjs`'s header records. The fifth label's empty `accelerator` is authored, not omitted: it is what makes the label show `disabled-text`.",
+    },
+    {
+        file: 'website/src/blueprints/adwaita/window-title.blp',
+        node: {
+            tag: 'AdwWindowTitle',
+            id: 'window_title',
+            props: { title: 'Inbox', subtitle: '3 unread messages' },
+            translatable: { title: {}, subtitle: {} },
+        },
+        lost: [],
     },
 ];

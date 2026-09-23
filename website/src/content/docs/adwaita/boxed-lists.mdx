@@ -28,7 +28,9 @@ preferences page.
     ```html
     <adw-preferences-group title="Account" description="Manage how this device signs in and syncs.">
       <button slot="header-suffix" class="adw-button flat">Sign out</button>
+      <!-- text: The contents of the entry. -->
       <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
+      <!-- active: Whether the switch row is in the "on" or "off" position. -->
       <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
       <adw-combo-row title="Region" model='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
     </adw-preferences-group>
@@ -116,80 +118,38 @@ The general-purpose row: a **title** with an optional **subtitle**, plus
 button or chevron on the trailing edge). Mark it **activatable** and the whole
 row responds to a click, which is how you open a detail page.
 
-<AdwWidget title="Adw.ActionRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- activatable: Determines whether the ::row-activated signal will be emitted for this row. -->
-      <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
-        <span slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
-        <gtk-button slot="suffix" icon="go-next" flat></gtk-button>
-      </adw-action-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ActionRow" blueprint="adwaita/action-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './action-row.blp';
 
-    const row = new Adw.ActionRow({
-        title: 'Wi-Fi',
-        subtitle: 'Connected to Highgarden 5GHz',
-    });
-
-    row.add_prefix(new Gtk.Image({ iconName: 'network-wireless-symbolic' }));
-
-    const next = new Gtk.Button({ iconName: 'go-next-symbolic', valign: Gtk.Align.CENTER });
-    next.add_css_class('flat');
-    row.add_suffix(next);
-
-    row.activatableWidget = next;
-    row.activatable = true;
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.ActionRow;
+    row.connect('activated', () => console.log('Open Wi-Fi settings'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.ActionRow {
-        title: _("Wi-Fi");
-        subtitle: _("Connected to Highgarden 5GHz");
-        activatable: true;
-
-        [prefix]
-        Gtk.Image {
-          icon-name: "network-wireless-symbolic";
-        }
-
-        [suffix]
-        Gtk.Image {
-          icon-name: "go-next-symbolic";
-        }
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './action-row.blp?shared-tree';
 
-    const row = new Adw.ActionRow({
-        title: 'Wi-Fi',
-        subtitle: 'Connected to Highgarden 5GHz',
-    });
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.ActionRow>('#row')!;
+    row.addEventListener('activated', () => console.log('Open Wi-Fi settings'));
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './action-row.blp?shared-tree';
 
-    row.add_prefix(new Gtk.Image({ iconName: 'network-wireless-symbolic' }));
-
-    const next = new Gtk.Button({ iconName: 'go-next-symbolic', verticalAlignment: 'middle' });
-    next.add_css_class('flat');
-    row.add_suffix(next);
-
-    row.activatableWidget = next;
-    row.activatable = true;
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.ActionRow>('row')!;
+    row.connect('activated', () => console.log('Open Wi-Fi settings'));
     ```
   </Fragment>
 </AdwWidget>
@@ -199,49 +159,38 @@ row responds to a click, which is how you open a detail page.
 An action row with a trailing **switch**, for a single on/off setting. This is
 the row you will use most in a preferences page.
 
-<AdwWidget title="Adw.SwitchRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- active: Whether the switch row is in the "on" or "off" position. -->
-      <adw-switch-row title="Automatic updates" subtitle="Download and install updates without asking" active></adw-switch-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.SwitchRow" blueprint="adwaita/switch-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './switch-row.blp';
 
-    const row = new Adw.SwitchRow({
-        title: 'Automatic updates',
-        subtitle: 'Download and install updates without asking',
-        active: true,
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.SwitchRow;
+    row.connect('notify::active', () => console.log('Automatic updates:', row.active));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.SwitchRow {
-        title: _("Automatic updates");
-        subtitle: _("Download and install updates without asking");
-        active: true;
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './switch-row.blp?shared-tree';
 
-    const row = new Adw.SwitchRow({
-        title: 'Automatic updates',
-        subtitle: 'Download and install updates without asking',
-        active: true,
-    });
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.SwitchRow>('#row')!;
+    row.addEventListener('notify::active', () => console.log('Automatic updates:', row.hasAttribute('active')));
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './switch-row.blp?shared-tree';
+
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.SwitchRow>('row')!;
+    row.connect('notify::active', () => console.log('Automatic updates:', row.active));
     ```
   </Fragment>
 </AdwWidget>
@@ -253,48 +202,38 @@ for an inline text field, which suits a name, a hostname or a nickname. Set
 `showApplyButton` if the change should be committed explicitly rather than as the
 user types.
 
-<AdwWidget title="Adw.EntryRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- text: The contents of the entry. -->
-      <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.EntryRow" blueprint="adwaita/entry-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './entry-row.blp';
 
-    const row = new Adw.EntryRow({
-        title: 'Display name',
-        text: 'Ada Lovelace',
-        showApplyButton: true,
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.EntryRow;
+    row.connect('notify::text', () => console.log('Display name:', row.text));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.EntryRow {
-        title: _("Display name");
-        text: "Ada Lovelace";
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './entry-row.blp?shared-tree';
 
-    const row = new Adw.EntryRow({
-        title: 'Display name',
-        text: 'Ada Lovelace',
-        showApplyButton: true,
-    });
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.EntryRow>('#row')!;
+    row.addEventListener('notify::text', () => console.log('Display name:', row.getAttribute('text')));
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './entry-row.blp?shared-tree';
+
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.EntryRow>('row')!;
+    row.connect('notify::text', () => console.log('Display name:', row.text));
     ```
   </Fragment>
 </AdwWidget>
@@ -304,46 +243,38 @@ user types.
 The same row for secrets: it **masks** what you type and offers a **peek** toggle
 to reveal it. Use it anywhere a password or key is edited inline.
 
-<AdwWidget title="Adw.PasswordEntryRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- text: The contents of the entry. -->
-      <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.PasswordEntryRow" blueprint="adwaita/password-entry-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './password-entry-row.blp';
 
-    const row = new Adw.PasswordEntryRow({
-        title: 'Password',
-        text: 'correct-horse-battery',
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.PasswordEntryRow;
+    row.connect('notify::text', () => console.log('Password length:', row.text.length));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.PasswordEntryRow {
-        title: _("Password");
-        text: "correct-horse-battery";
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './password-entry-row.blp?shared-tree';
 
-    const row = new Adw.PasswordEntryRow({
-        title: 'Password',
-        text: 'correct-horse-battery',
-    });
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.PasswordEntryRow>('#row')!;
+    row.addEventListener('notify::text', () => console.log('Password length:', row.getAttribute('text')?.length));
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './password-entry-row.blp?shared-tree';
+
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.PasswordEntryRow>('row')!;
+    row.connect('notify::text', () => console.log('Password length:', row.text.length));
     ```
   </Fragment>
 </AdwWidget>
@@ -526,76 +457,41 @@ Tuck advanced or grouped settings out of the way. The row **discloses** its
 nested rows when expanded, and it can carry an **enable switch** that gates the
 whole section.
 
-<AdwWidget title="Adw.ExpanderRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
-        <gtk-button slot="prefix" label="Test"></gtk-button>
-        <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
-        <adw-switch-row title="Use authentication"></adw-switch-row>
-      </adw-expander-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ExpanderRow" blueprint="adwaita/expander-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './expander-row.blp';
 
-    const row = new Adw.ExpanderRow({
-        title: 'Proxy settings',
-        subtitle: 'Route traffic through a custom proxy',
-        expanded: true,
-    });
-
-    row.add_prefix(new Gtk.Button({ label: 'Test' }));
-    row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
-    row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.ExpanderRow;
+    const host = builder.get_object('host_row') as Adw.EntryRow;
+    row.connect('notify::expanded', () => host.grab_focus());
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.ExpanderRow {
-        title: _("Proxy settings");
-        subtitle: _("Route traffic through a custom proxy");
-        expanded: true;
-
-        [prefix]
-        Gtk.Button {
-          label: _("Test");
-        }
-
-        Adw.EntryRow {
-          title: _("Host");
-          text: "proxy.example.com";
-        }
-
-        Adw.SwitchRow {
-          title: _("Use authentication");
-        }
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './expander-row.blp?shared-tree';
 
-    const row = new Adw.ExpanderRow({
-        title: 'Proxy settings',
-        subtitle: 'Route traffic through a custom proxy',
-        expanded: true,
-    });
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.ExpanderRow>('#row')!;
+    const host = row.querySelector<Adw.EntryRow>('#host_row')!;
+    row.addEventListener('notify::expanded', () => host.focus());
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './expander-row.blp?shared-tree';
 
-    row.add_prefix(new Gtk.Button({ label: 'Test' }));
-    row.add_row(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
-    row.add_row(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.ExpanderRow>('row')!;
+    const host = row.getViewById<Adw.EntryRow>('host_row')!;
+    row.connect('notify::expanded', () => host.focus());
     ```
   </Fragment>
 </AdwWidget>
@@ -606,50 +502,38 @@ Put an action at the end of a list, such as _Add account_ or _Remove_. The whole
 row behaves like a button. It takes an optional **start icon** and the usual
 Adwaita style classes (`.suggested-action`, `.destructive-action`).
 
-<AdwWidget title="Adw.ButtonRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- start-icon-name: The icon name to show before the title. -->
-      <adw-button-row title="Add account" start-icon-name="list-add" class="suggested-action"></adw-button-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ButtonRow" blueprint="adwaita/button-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './button-row.blp';
 
-    const row = new Adw.ButtonRow({
-        title: 'Add account',
-        startIconName: 'list-add-symbolic',
-    });
-    row.add_css_class('suggested-action');
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.ButtonRow;
+    row.connect('activated', () => console.log('Add an account'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.PreferencesGroup {
-      Adw.ButtonRow {
-        title: _("Add account");
-        start-icon-name: "list-add-symbolic";
-
-        styles ["suggested-action"]
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './button-row.blp?shared-tree';
 
-    const row = new Adw.ButtonRow({
-        title: 'Add account',
-        startIconName: 'list-add-symbolic',
-    });
-    row.className = 'adw-button-row suggested-action';
+    const { root: group } = mountSharedTree(tree);
+    const row = group.querySelector<Adw.ButtonRow>('#row')!;
+    row.addEventListener('activated', () => console.log('Add an account'));
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './button-row.blp?shared-tree';
+
+    const group = build(tree) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.ButtonRow>('row')!;
+    row.connect('activated', () => console.log('Add an account'));
     ```
   </Fragment>
 </AdwWidget>

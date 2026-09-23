@@ -1,0 +1,11 @@
+using Gtk 4.0;
+using Adw 1;
+
+Gtk.Button download_button {
+  child: Adw.ButtonContent content {
+    label: _("Download");
+    icon-name: "folder-download-symbolic";
+  };
+
+  styles ["suggested-action", "pill"]
+}
