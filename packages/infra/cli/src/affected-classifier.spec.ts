@@ -9,6 +9,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { classifyAndExpand } from './commands/affected-classify.js';
+import { buildScriptReferrers } from './commands/affected-script-refs.js';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -615,6 +616,152 @@ export default async (): Promise<void> => {
             const value = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
             expect(value.includes('@gjsify/fs')).toBe(true);
             expect(value.includes('@gjsify/example-')).toBe(false);
+        });
+
+        // ── Root scripts resolved to their readers ──────────────────────────
+        // `scripts/` is no workspace, so a script change used to force the full
+        // run unconditionally: 33 of the 60 PRs before this landed went full for
+        // that alone. The readers lookup replaces the script by what names it.
+        // Every case below pairs a narrowing with the reader that must still
+        // force the full run, so the suite cannot pass against a lookup that
+        // simply drops every script.
+
+        const gatedWorkflow = [
+            'jobs:',
+            // The real `setup` job's comments name `needs.changes.outputs.*`; counting
+            // a comment made `tree-checks` (which needs setup) look gated.
+            '  setup:',
+            '    # downstream jobs read `needs.changes.outputs.*` as empty on main',
+            '    runs-on: ubuntu-latest',
+            '  changes:',
+            '    runs-on: ubuntu-latest',
+            '  tree-checks:',
+            '    needs: [setup]',
+            '    steps:',
+            '      - run: node scripts/tree-only.mjs',
+            '      # node scripts/commented.mjs',
+            '  build:',
+            '    needs: [changes, setup]',
+            '    steps:',
+            '      - run: node scripts/built-by-ci.mjs',
+            '  e2e:',
+            '    needs: [setup, build]',
+            '    steps:',
+            '      - run: node scripts/run-after-build.mjs',
+        ].join('\n');
+        const manifest = JSON.stringify({
+            name: 'monorepo-root',
+            scripts: {
+                'build:infra': 'node scripts/bootstrap.mjs',
+                'check:gallery': 'node scripts/gallery-gate.mjs',
+            },
+        });
+        const readers = buildScriptReferrers(
+            new Map([
+                ['.github/workflows/main.yml', gatedWorkflow],
+                [
+                    '.github/workflows/audit-runtimes.yml',
+                    'jobs:\n  check:\n    steps:\n      - run: node scripts/gallery-gate.mjs\n',
+                ],
+                ['package.json', manifest],
+                [
+                    'packages/node/fs/src/trees.spec.ts',
+                    "import { trees } from '../../../../scripts/shared-trees.mjs';\n",
+                ],
+                ['packages/node/path/src/index.ts', '// scripts/commented.mjs is only mentioned here\nexport {};\n'],
+                ['packages/node/A/package.json', '{"scripts":{"build":"node ../../../scripts/codegen.mjs"}}'],
+                ['scripts/codegen.mjs', "import { table } from './fx-types.mjs';\n"],
+                ['scripts/generate-fx-types.mjs', 'export {};\n'],
+                ['packages/node/B/src/gen.ts', "spawnSync('node', ['scripts/generate-fx-types.mjs']);\n"],
+                ['scripts/audit-runtimes.mjs', "import './audited.mjs';\n"],
+                ['tests/e2e/gate/run.mjs', "const s = join(ROOT, 'scripts', 'e2e-read.mjs');\n"],
+            ]),
+        );
+        const withReaders = (files: string[]) =>
+            classifyAndExpand(discoverWorkspaces(root, { includeRoot: true }), files, readers);
+
+        await it('an OS-suite workflow edit → skipAll (that workflow runs on its own PR)', async () => {
+            const r = runClassify(root, [
+                '.github/workflows/windows-suites.yml',
+                '.github/workflows/gtk-os-suites.yml',
+            ]);
+            expect(r.skipAll).toBe(true);
+            // A dispatch-only workflow measures nothing on the PR, so it still counts.
+            expect(runClassify(root, ['.github/workflows/webview2-probe.yml']).global).toBe(true);
+        });
+
+        await it('root script read only by a sibling workflow → skipAll', async () => {
+            const r = withReaders(['scripts/gallery-gate.mjs', 'website/src/page.mdx']);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+            expect(r.reason.includes('resolved to their readers')).toBe(true);
+        });
+
+        await it('the same change WITHOUT the lookup still forces the full run', async () => {
+            // The fallback the command takes when git cannot list the tree.
+            const r = runClassify(root, ['scripts/gallery-gate.mjs']);
+            expect(r.global).toBe(true);
+        });
+
+        await it('root script a workspace spec imports → that workspace, not a full run', async () => {
+            const r = withReaders(['scripts/shared-trees.mjs']);
+            expect(r.global).toBe(false);
+            expect(r.workspaces).toStrictEqual(['@gjsify/fs']);
+        });
+
+        await it('a `.d.mts` change resolves through its `.mjs` readers', async () => {
+            const r = withReaders(['scripts/shared-trees.d.mts']);
+            expect(r.global).toBe(false);
+            expect(r.workspaces).toStrictEqual(['@gjsify/fs']);
+        });
+
+        await it('script → script → workspace build seeds that workspace', async () => {
+            // fx-types.mjs is read by codegen.mjs, which @gjsify/A's build runs.
+            const r = withReaders(['scripts/fx-types.mjs']);
+            expect(r.global).toBe(false);
+            expect(r.workspaces.includes('@gjsify/A')).toBe(true);
+        });
+
+        await it('a longer name ending in the same words is a different script', async () => {
+            // @gjsify/B runs generate-fx-types.mjs, which does not make it a reader
+            // of fx-types.mjs; its own script does reach it.
+            expect(withReaders(['scripts/fx-types.mjs']).workspaces.includes('@gjsify/B')).toBe(false);
+            expect(withReaders(['scripts/generate-fx-types.mjs']).workspaces).toStrictEqual(['@gjsify/B']);
+        });
+
+        await it('a comment naming the script is not a reader', async () => {
+            const r = withReaders(['scripts/commented.mjs']);
+            expect(r.skipAll).toBe(true);
+        });
+
+        await it('main.yml job outside the classifier (tree-checks) → no full run', async () => {
+            const r = withReaders(['scripts/tree-only.mjs']);
+            expect(r.skipAll).toBe(true);
+        });
+
+        await it('main.yml job gated on `changes` → full run', async () => {
+            expect(withReaders(['scripts/built-by-ci.mjs']).global).toBe(true);
+        });
+
+        await it('main.yml job gated only through `needs: build` → full run', async () => {
+            expect(withReaders(['scripts/run-after-build.mjs']).global).toBe(true);
+        });
+
+        await it('root manifest build entry → full run; a check:* convenience → not', async () => {
+            expect(withReaders(['scripts/bootstrap.mjs']).global).toBe(true);
+            // `check:gallery` is named by no other root script and no gated job.
+            expect(withReaders(['scripts/gallery-gate.mjs']).skipAll).toBe(true);
+        });
+
+        await it('a script a GLOBAL_TRIGGER imports → full run', async () => {
+            expect(withReaders(['scripts/audited.mjs']).global).toBe(true);
+        });
+
+        await it('a reader the classifier does not model (tests/e2e) → full run', async () => {
+            // The e2e suite builds the path from segments; the name alone is the read.
+            const r = withReaders(['scripts/e2e-read.mjs']);
+            expect(r.global).toBe(true);
+            expect(r.runE2E).toBe(true);
         });
 
         // Cleanup last so failing tests still surface the fixture state.
