@@ -1,7 +1,9 @@
 // <gtk-button> — Adwaita button.
-// Attributes: icon (symbolic name, e.g. "go-previous" / "view-refresh"),
-//   label, tooltip, disabled, and the boolean variant flags
-//   flat / suggested / destructive / circular / pill.
+// Attributes: icon (symbolic name, e.g. "go-previous" / "view-refresh"), or
+//   icon-name, the GObject spelling a projected `.blp` writes; label, tooltip,
+//   disabled, and the boolean variant flags flat / suggested / destructive /
+//   circular / pill. The GTK style classes on the host (`class="pill"`, which is
+//   what a `.blp`'s `styles ["pill"]` becomes) select the same classes.
 // Renders an inner <button class="adw-button …">; `click` bubbles to the host,
 // so `adwButton.addEventListener('click', …)` works.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
@@ -22,7 +24,19 @@ export class GtkButton extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['icon', 'label', 'tooltip', 'disabled', 'flat', 'suggested', 'destructive', 'circular', 'pill'];
+        return [
+            'icon',
+            'icon-name',
+            'label',
+            'tooltip',
+            'disabled',
+            'flat',
+            'suggested',
+            'destructive',
+            'circular',
+            'pill',
+            'class',
+        ];
     }
 
     /** The inner native button (for focus/imperative access). */
@@ -50,9 +64,13 @@ export class GtkButton extends HTMLElement {
         // The attribute → class mapping is `@gjsify/adwaita-core`'s, so this element
         // and the NativeScript one cannot disagree about which classes exist —
         // `circular` was in this table and missing from that one.
-        btn.classList.add(...buttonStyleClasses(STYLE_ATTRIBUTES.filter((attr) => this.hasAttribute(attr))));
+        // The host's own classes go through the same table: a built `.blp` spells the
+        // style as GTK does, a class on the widget, and reading only the attributes
+        // rendered its pill and flat buttons as plain ones.
+        const styles = [...STYLE_ATTRIBUTES.filter((attr) => this.hasAttribute(attr)), ...this.classList];
+        btn.classList.add(...buttonStyleClasses(styles));
 
-        const icon = this.getAttribute('icon');
+        const icon = this.getAttribute('icon') ?? this.getAttribute('icon-name');
         const label = (this.getAttribute('label') ?? this._label).trim();
         if (icon && !label) btn.classList.add('icon-only');
 

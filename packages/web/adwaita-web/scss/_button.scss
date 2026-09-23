@@ -107,9 +107,14 @@ gtk-button {
     border-radius: 9999px;
   }
 
-  // Pill — fully-rounded ends.
+  // Pill — fully-rounded ends, and libadwaita's `%pill_button` padding
+  // (_buttons.scss: `padding: 10px 32px`). It was 6px 20px, which drew every pill
+  // 10px shorter and 24px narrower than GTK beside a GTK render of the same `.blp`.
+  // GTK's height is `min-height: 24px` plus that padding, so 44; the floor is
+  // restated because the base's 34 would otherwise hold the box at the text height.
   &.pill {
-    padding: 6px 20px;
+    min-height: 44px;
+    padding: 10px 32px;
     border-radius: 9999px;
   }
 
