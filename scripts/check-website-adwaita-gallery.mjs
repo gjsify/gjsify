@@ -755,22 +755,9 @@ const PANE_TEXT_DIVERGENCES = {
         'vocabulary: one line, and it is the alignment. The header button takes verticalAlignment where GTK ' +
         'takes valign, which is the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open; everything ' +
         'else about these two panes is already one text.',
-    'Adw.ActionRow':
-        'vocabulary: one line, and it is the alignment. The trailing chevron is a flat Gtk.Button on both ' +
-        'sides now and both icons are theme names, so what is left is verticalAlignment against valign — ' +
-        'the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open.',
     'Adw.SpinRow':
         'property: one line, and it is `digits`. The adjustment is a Gtk.Adjustment on both sides now; what ' +
         'is left is that the port installs no `digits` — it renders the value the state machine holds.',
-    'Adw.ButtonRow': 'vocabulary: a style class is className rather than add_css_class(), and nothing else differs.',
-    'Adw.ButtonContent':
-        'property: the icon bitmap is PRE-COLOURED, so a suggested button pins iconColor where GTK inherits ' +
-        '`color` from the stylesheet — a property GTK has no counterpart for. The button around the content ' +
-        'is a Gtk.Button with a child on both sides now.',
-    'Adw.SplitButton':
-        'vocabulary: two lines, since #1751 gave both ports a real Gio.Menu. `gi://Gio` has no renderer arm, ' +
-        "so the import spells the port's package name instead, and the commented flat variant is " +
-        '`className` rather than `add_css_class()`.',
     'Adw.ToggleGroup':
         'property: the port has no Adw.Toggle widget, so setToggles() takes plain descriptors; and the third ' +
         'toggle names view-paged-symbolic, because view-columns-symbolic is in no icon theme and only the ' +
@@ -811,10 +798,6 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port has no `modal` — the sheet neither dims nor blocks what is behind it — and no ' +
         'expand flags or logical margins, so vexpand is absent and marginStart/End are marginLeft/Right; the ' +
         'content and sheet slots are set_content()/set_sheet() where GTK assigns the properties.',
-    'Adw.Banner':
-        'property: one line, and it is the size request. widthRequest is a MINIMUM in GTK and NativeScript’s ' +
-        'width is exact, so the container asks for the width rather than declining to go under it — there is ' +
-        'no size-negotiation protocol here to route a request to.',
     'Adw.Spinner':
         'property: the port sizes a spinner with `size`, where GTK asks for a width, a height and two ' +
         'alignments — the port has no layout surface to put a size request on.',
@@ -836,15 +819,6 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the indicator binds and the box holds both as on GTK; what is left is no swipe/scroll-wheel ' +
         'knobs, pageWidth sizing a page where GTK asks the child for its natural size, and cards placed with ' +
         'a fixed height and NativeScript alignment words.',
-    'Gtk.Button':
-        'vocabulary: one line, and it is the alignment. The circular icon-only variant has a counterpart now ' +
-        '— it had none while the button was the platform’s text-only one, and its icon is the same theme ' +
-        'name — so what is left is halign as horizontalAlignment.',
-    'Gtk.MenuButton':
-        'property: the menu is a real Gio.Menu on both sides since #1751; what is left is the Gio import ' +
-        '(`gi://Gio` has no renderer arm), no popover so `primary` has no counterpart and the menu opens as ' +
-        "the platform action sheet with `menuTitle` as its heading, and the port's button is unconditionally " +
-        "flat so there is no `add_css_class('flat')` call to mirror.",
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',

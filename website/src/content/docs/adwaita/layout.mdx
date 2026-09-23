@@ -151,13 +151,11 @@ the trailing one.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw, type Gtk } from '@gjsify/adwaita-web';
-    import tree from './header-bar.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: headerBar } = mountSharedTree(tree);
-    const title = headerBar.querySelector<Adw.WindowTitle>('#window_title')!;
-    const menuButton = headerBar.querySelector<Gtk.MenuButton>('#menu_button')!;
+    const title = document.querySelector('#window_title');
+    const menuButton = document.querySelector('#menu_button');
     title.setAttribute('subtitle', 'draft.md');
 
     menuButton.menuModel = [
@@ -170,10 +168,9 @@ the trailing one.
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './header-bar.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const headerBar = build(tree) as Adw.HeaderBar;
+    const headerBar = Builder.load({ path: '~/views', name: 'header-bar' }) as Adw.HeaderBar;
     const title = headerBar.getViewById<Adw.WindowTitle>('window_title')!;
     const menuButton = headerBar.getViewById<Gtk.MenuButton>('menu_button')!;
     title.subtitle = 'draft.md';
@@ -359,14 +356,12 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, Gtk, type Adw } from '@gjsify/adwaita-web';
-    import tree from './wrap-box.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const wrap = root as Adw.WrapBox;
+    const wrap = document.querySelector('#wrap_box');
 
-    const chip = new Gtk.Button();
+    const chip = document.createElement('gtk-button');
     chip.setAttribute('label', 'Blueprint');
     chip.classList.add('pill');
     wrap.append(chip);
@@ -376,10 +371,9 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   <Fragment slot="nativescriptloader">
     ```ts
     import { Gtk, type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './wrap-box.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const wrap = build(tree) as Adw.WrapBox;
+    const wrap = Builder.load({ path: '~/views', name: 'wrap-box' }) as Adw.WrapBox;
 
     const chip = new Gtk.Button({ label: 'Blueprint' });
     chip.add_css_class('pill');

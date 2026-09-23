@@ -44,12 +44,11 @@ short.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './button-content.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: button } = mountSharedTree(tree);
-    const content = button.querySelector<Adw.ButtonContent>('#content')!;
+    const button = document.querySelector('#download_button');
+    const content = document.querySelector('#content');
     button.addEventListener('click', () => {
         content.setAttribute('label', 'Downloading…');
     });
@@ -58,10 +57,9 @@ short.
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './button-content.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const button = build(tree) as Gtk.Button;
+    const button = Builder.load({ path: '~/views', name: 'button-content' }) as Gtk.Button;
     const content = button.getViewById<Adw.ButtonContent>('content')!;
     // The bitmap is pre-coloured, so a suggested button's white icon is pinned here
     // rather than inherited from the stylesheet the way GTK inherits `color`.
@@ -101,12 +99,10 @@ header bar or toolbar, where a raised button looks too heavy.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './split-button.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const button = root as Adw.SplitButton;
+    const button = document.querySelector('#split_button');
     // button.classList.add('flat'); // the header-bar / toolbar variant
 
     button.menuModel = [
@@ -119,10 +115,9 @@ header bar or toolbar, where a raised button looks too heavy.
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './split-button.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const button = build(tree) as Adw.SplitButton;
+    const button = Builder.load({ path: '~/views', name: 'split-button' }) as Adw.SplitButton;
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
 
     button.menuModel = [

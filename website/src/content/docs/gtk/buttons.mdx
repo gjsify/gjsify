@@ -43,22 +43,19 @@ each other and mean the same thing everywhere in the toolkit, so a
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Gtk } from '@gjsify/adwaita-web';
-    import tree from './button.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: box } = mountSharedTree(tree);
-    const deleteButton = box.querySelector<Gtk.Button>('#delete_button')!;
+    const deleteButton = document.querySelector('#delete_button');
     deleteButton.addEventListener('click', () => console.log('Delete pressed'));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './button.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const box = build(tree) as Adw.WrapBox;
+    const box = Builder.load({ path: '~/views', name: 'button' }) as Adw.WrapBox;
     const deleteButton = box.getViewById<Gtk.Button>('delete_button')!;
     deleteButton.connect('clicked', () => console.log('Delete pressed'));
     ```
@@ -93,12 +90,10 @@ no `menu` block, so each tab below sets the menu from code.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Gtk } from '@gjsify/adwaita-web';
-    import tree from './menu-button.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const menuButton = root as Gtk.MenuButton;
+    const menuButton = document.querySelector('#menu_button');
     menuButton.menuTitle = 'Document';
 
     menuButton.menuModel = [
@@ -111,10 +106,9 @@ no `menu` block, so each tab below sets the menu from code.
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './menu-button.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const menuButton = build(tree) as Gtk.MenuButton;
+    const menuButton = Builder.load({ path: '~/views', name: 'menu-button' }) as Gtk.MenuButton;
     menuButton.menuTitle = 'Document'; // the action sheet's heading: there is no popover to open
 
     menuButton.menuModel = [

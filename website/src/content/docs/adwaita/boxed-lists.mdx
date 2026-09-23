@@ -132,22 +132,19 @@ row responds to a click, which is how you open a detail page.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './action-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.ActionRow>('#row')!;
+    const row = document.querySelector('#row');
     row.addEventListener('activated', () => console.log('Open Wi-Fi settings'));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './action-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'action-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.ActionRow>('row')!;
     row.connect('activated', () => console.log('Open Wi-Fi settings'));
     ```
@@ -173,22 +170,19 @@ the row you will use most in a preferences page.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './switch-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.SwitchRow>('#row')!;
+    const row = document.querySelector('#row');
     row.addEventListener('notify::active', () => console.log('Automatic updates:', row.hasAttribute('active')));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './switch-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'switch-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.SwitchRow>('row')!;
     row.connect('notify::active', () => console.log('Automatic updates:', row.active));
     ```
@@ -216,22 +210,19 @@ user types.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './entry-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.EntryRow>('#row')!;
+    const row = document.querySelector('#row');
     row.addEventListener('notify::text', () => console.log('Display name:', row.getAttribute('text')));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './entry-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'entry-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.EntryRow>('row')!;
     row.connect('notify::text', () => console.log('Display name:', row.text));
     ```
@@ -257,22 +248,19 @@ to reveal it. Use it anywhere a password or key is edited inline.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './password-entry-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.PasswordEntryRow>('#row')!;
+    const row = document.querySelector('#row');
     row.addEventListener('notify::text', () => console.log('Password length:', row.getAttribute('text')?.length));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './password-entry-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'password-entry-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.PasswordEntryRow>('row')!;
     row.connect('notify::text', () => console.log('Password length:', row.text.length));
     ```
@@ -472,23 +460,20 @@ whole section.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './expander-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.ExpanderRow>('#row')!;
-    const host = row.querySelector<Adw.EntryRow>('#host_row')!;
+    const row = document.querySelector('#row');
+    const host = document.querySelector('#host_row');
     row.addEventListener('notify::expanded', () => host.focus());
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './expander-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'expander-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.ExpanderRow>('row')!;
     const host = row.getViewById<Adw.EntryRow>('host_row')!;
     row.connect('notify::expanded', () => host.focus());
@@ -516,22 +501,19 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './button-row.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: group } = mountSharedTree(tree);
-    const row = group.querySelector<Adw.ButtonRow>('#row')!;
+    const row = document.querySelector('#row');
     row.addEventListener('activated', () => console.log('Add an account'));
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './button-row.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const group = build(tree) as Adw.PreferencesGroup;
+    const group = Builder.load({ path: '~/views', name: 'button-row' }) as Adw.PreferencesGroup;
     const row = group.getViewById<Adw.ButtonRow>('row')!;
     row.connect('activated', () => console.log('Add an account'));
     ```

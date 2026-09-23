@@ -39,22 +39,19 @@ it from an inline list glyph up to a full profile header.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './avatar.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const avatar = root as Adw.Avatar;
+    const avatar = document.querySelector('#avatar');
     avatar.setAttribute('text', 'Grace Hopper');
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './avatar.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const avatar = build(tree) as Adw.Avatar;
+    const avatar = Builder.load({ path: '~/views', name: 'avatar' }) as Adw.Avatar;
     avatar.text = 'Grace Hopper';
     ```
   </Fragment>
@@ -81,22 +78,19 @@ space while the message applies.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './banner.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const banner = root as Adw.Banner;
+    const banner = document.querySelector('#banner');
     banner.setAttribute('title', 'Metered connection: 2 updates paused');
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './banner.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const banner = build(tree) as Adw.Banner;
+    const banner = Builder.load({ path: '~/views', name: 'banner' }) as Adw.Banner;
     banner.title = 'Metered connection: 2 updates paused';
     ```
   </Fragment>
@@ -125,22 +119,19 @@ shows the **disabled-text** placeholder instead.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './shortcut-label.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: box } = mountSharedTree(tree);
-    const copy = box.querySelector<Adw.ShortcutLabel>('#copy_shortcut')!;
+    const copy = document.querySelector('#copy_shortcut');
     copy.setAttribute('accelerator', '<Control><Shift>C');
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './shortcut-label.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const box = build(tree) as Gtk.Box;
+    const box = Builder.load({ path: '~/views', name: 'shortcut-label' }) as Gtk.Box;
     const copy = box.getViewById<Adw.ShortcutLabel>('copy_shortcut')!;
     copy.accelerator = '<Control><Shift>C';
     ```
@@ -287,22 +278,19 @@ so a single-line title stays vertically centred.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
-    import tree from './window-title.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root } = mountSharedTree(tree);
-    const windowTitle = root as Adw.WindowTitle;
+    const windowTitle = document.querySelector('#window_title');
     windowTitle.setAttribute('subtitle', '4 unread messages');
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './window-title.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const windowTitle = build(tree) as Adw.WindowTitle;
+    const windowTitle = Builder.load({ path: '~/views', name: 'window-title' }) as Adw.WindowTitle;
     windowTitle.subtitle = '4 unread messages';
     ```
   </Fragment>
