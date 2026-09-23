@@ -168,12 +168,12 @@ const ONE_RENDERER_ONLY = {
     'bottom-sheet-content': {
         only: 'web',
         decision:
-            '`adw_bottom_sheet_set_content()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:32), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="content">`, which leaves nothing in the tree. It is the markup form, not the only route: `_collectSlot` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts:252) accepts a plain `slot="content"` child too.',
+            '`adw_bottom_sheet_set_content()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:32), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="content">`, which leaves nothing in the tree. It is the markup form, not the only route: the element binds a plain `slot="content"` child too, through `bindSlottedChildren` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts).',
     },
     'bottom-sheet-sheet': {
         only: 'web',
         decision:
-            '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: `_collectSlot` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts:252) accepts a plain `slot="sheet"` child too.',
+            '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: the element binds a plain `slot="sheet"` child too, through `bindSlottedChildren` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts).',
     },
     card: {
         only: 'web',
