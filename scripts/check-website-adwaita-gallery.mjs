@@ -142,6 +142,8 @@
 //      component rather than restated here. That is not an exemption: a loader missing from
 //      one one-Blueprint block fails exactly as a `gjs` fence missing from one block does.
 //      A `blueprint="…"` naming no file under `website/src/blueprints/` fails too.
+//      So does the shape's ORDER: the `.blp` sits in a window of its own, directly
+//      under the live one, before any program that loads it.
 //   9. The reader meets the RUNNING WIDGET before any source, and the markup that
 //      paints it is shown. Read out of both component files, because the claim now
 //      spans them: the live pane and the markup tab are ONE source (the pane mounts the
@@ -510,12 +512,16 @@ function componentWindows(root) {
             // one or the other. That is what makes arm 10 able to decide, from the source
             // alone, that such a window is on a page.
             const groups = /\bgroups:\s*\[([^\]]*)\]/.exec(chunk);
+            // The block SHAPE the window is drawn for, null for a window every block draws.
+            // Spelled as {@link shapeOfBlock} spells it, so the two compare directly.
+            const shape = /\bshape:\s*'([^']*)'/.exec(chunk);
             windows.push({
                 id: parts[i],
                 slots,
                 title: title === null ? null : title[1],
                 groups: groups === null ? [] : [...groups[1].matchAll(/[A-Za-z_$][\w$]*/g)].map(([g]) => g),
                 live: /\blive:\s*true/.test(chunk),
+                shape: shape === null ? null : shape[1],
             });
         }
     }
@@ -1241,6 +1247,33 @@ if (blocks.length === 0) {
     process.exit(1);
 }
 
+/** The shape a block is written in — see arm 13. */
+const shapeOfBlock = (block) => (block.blueprint === undefined ? 'markup' : 'one-Blueprint');
+
+for (const window of windows) {
+    if (window.shape === null || window.shape === 'markup' || window.shape === 'one-Blueprint') continue;
+    console.error(
+        `check-website-adwaita-gallery: the window "${window.id}" in ${WIDGET_COMPONENT} declares the\n` +
+            `  shape "${window.shape}", and blocks come in two: 'markup' and 'one-Blueprint'. A window of a\n` +
+            '  third is drawn on no block, and arms 7 and 10 would read it as drawn on none.',
+    );
+    process.exit(1);
+}
+
+/**
+ * Whether a block DRAWS a window: the window is for the block's shape, and it puts a
+ * pane on it — the live preview, a data group (filled or refused, so on every block of
+ * the shape), a tab slot the block wrote, or a slot a one-Blueprint block fills from its
+ * `.blp` ({@link fromTheBlueprint}). Arms 7 and 10 both ask this, so it is asked once.
+ */
+const drawsOn = (window, block) => {
+    if (window.shape !== null && window.shape !== shapeOfBlock(block)) return false;
+    if (window.live || window.groups.length > 0) return true;
+    const written = new Set([...block.body.matchAll(/<Fragment slot="([^"]+)"/g)].map(([, slot]) => slot));
+    const fromFile = block.blueprint === undefined ? [] : fromTheBlueprint;
+    return window.slots.some((slot) => written.has(slot) || fromFile.includes(slot));
+};
+
 const provided = new Set();
 /** slot → the blocks that write it, by title. Arm 13 reads the SIZES. */
 const providedBy = new Map();
@@ -1314,10 +1347,9 @@ for (const slot of corpusSlots) {
 }
 
 for (const window of windows) {
-    // Every way a window can put a pane on some block: a tab slot a page filled, a data
-    // group (filled or refused, so on every block), or the live preview the component
-    // provides itself. A window with none of the three is a header bar over nothing.
-    if (window.live || window.groups.length > 0 || window.slots.some((slot) => provided.has(slot))) continue;
+    // Every way a window can put a pane on some block of its shape — see {@link drawsOn}.
+    // A window with none is a header bar over nothing.
+    if (blocks.some((block) => drawsOn(window, block))) continue;
     if (window.slots.length === 0) {
         failures.push(
             `${WIDGET_COMPONENT} declares the window "${window.id}" with no pane source at all: no tab, no\n` +
@@ -1363,7 +1395,42 @@ for (const window of windows) {
 /** Which shape a tab slot belongs to, or null for a slot every block writes. */
 const shapeOfSlot = (slot) =>
     oneBlueprintSlots.includes(slot) ? 'one-Blueprint' : fromTheBlueprint.includes(slot) ? 'markup' : null;
-const shapeOfBlock = (block) => (block.blueprint === undefined ? 'markup' : 'one-Blueprint');
+
+// The one-Blueprint shape's ORDER: the widget, then the `.blp` in a window of its own,
+// then the programs that load it. The file is what every pane after it refers to, so a
+// reader who meets a loader first reads `get_object('label')` before the file that says
+// what `label` is. And a window holding the file beside anything else puts a tab bar
+// over it, which offers the template as one choice among the programs that load it.
+// Read off WINDOWS in the order a one-Blueprint block draws them.
+const BLUEPRINT_SLOT = 'blueprint';
+const blueprintShapeWindows = windows.filter((window) => window.shape === null || window.shape === 'one-Blueprint');
+const fileAt = blueprintShapeWindows.findIndex((window) => window.slots.includes(BLUEPRINT_SLOT));
+const fileWindow = blueprintShapeWindows[fileAt];
+if (!fromTheBlueprint.includes(BLUEPRINT_SLOT)) {
+    failures.push(
+        `${WIDGET_COMPONENT} does not list "${BLUEPRINT_SLOT}" in FROM_THE_BLUEPRINT, so a one-Blueprint block\n` +
+            '    has no pane that shows the file it is built from, and the order read below holds nothing.',
+    );
+} else if (fileWindow === undefined) {
+    failures.push(
+        `${WIDGET_COMPONENT} draws no window with the "${BLUEPRINT_SLOT}" slot on a one-Blueprint block, so\n` +
+            '    the `.blp` every other pane of it loads is shown nowhere.',
+    );
+} else {
+    if (fileAt !== 1 || !blueprintShapeWindows[0].live) {
+        failures.push(
+            `${WIDGET_COMPONENT} draws the "${fileWindow.id}" window at position ${fileAt + 1} of a one-Blueprint\n` +
+                '    block. It goes directly under the live window, before any program that loads the file.',
+        );
+    }
+    if (fileWindow.slots.length !== 1 || fileWindow.groups.length > 0) {
+        failures.push(
+            `${WIDGET_COMPONENT} gives the "${fileWindow.id}" window ${fileWindow.slots.length} tab(s) and\n` +
+                `    ${fileWindow.groups.length} data group(s). On a one-Blueprint block it holds the \`.blp\` and\n` +
+                '    nothing else, so it draws no tab bar: the file is not one choice among its loaders.',
+        );
+    }
+}
 
 for (const slot of [...oneBlueprintSlots, ...fromTheBlueprint]) {
     if (ports.has(slot)) continue;
@@ -1488,7 +1555,9 @@ for (const problem of livePreviewDeclaration(windows, markupSlot, provided)) {
  * WHICH WINDOWS A PAGE SHOWS, from the source alone. A window is on a page if some
  * block there provides one of its tab slots, or if it declares DATA GROUPS — those are
  * looked up per block and, where a block has none, replaced by the recorded reason,
- * so such a window is on every block (see `componentWindows`).
+ * so such a window is on every block (see `componentWindows`). Both only count for a
+ * block of the window's SHAPE, and a one-Blueprint block also draws the window whose
+ * slot it fills from its `.blp` ({@link drawsOn}).
  *
  * A page with NO blocks is skipped, because it draws no window at all — with one
  * exception that is not a special case so much as the same rule at section scope: the
@@ -1546,11 +1615,8 @@ for (const window of windows) {
 /** page path → the titled windows its own blocks draw. */
 const shownBy = new Map(pages.map((page) => [page.path, new Set()]));
 for (const block of blocks) {
-    const slots = new Set([...block.body.matchAll(/<Fragment slot="([^"]+)"/g)].map(([, slot]) => slot));
     for (const window of titledWindows) {
-        if (window.groups.length > 0 || window.slots.some((slot) => slots.has(slot))) {
-            shownBy.get(block.page).add(window.title);
-        }
+        if (drawsOn(window, block)) shownBy.get(block.page).add(window.title);
     }
 }
 /** The one page whose prose enumerates the windows, for every gallery section. */

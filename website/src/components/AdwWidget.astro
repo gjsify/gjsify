@@ -14,6 +14,10 @@
 //      the GObject API: the markup the first window is painted from, the three
 //      `@gjsify/gtk-host` dialects, and the NativeScript XML template.
 //
+// That is the MARKUP shape. A one-Blueprint block (below) draws the widget, then
+// BLUEPRINT (the `.blp` it is built from, no tabs), then CODE (every program that loads
+// that file, one tab each).
+//
 // It used to be ONE window with all of those as sibling tabs, and siblings cannot
 // say any of it: `gjs`/`blueprint` ARE libadwaita, `preview` and `nativescript` are
 // REIMPLEMENTATIONS of it, and a framework tab drives the real one. A window can say
@@ -45,14 +49,22 @@
 // scanner it fed still runs: `check-website-attr-samples.mjs` holds every preview
 // fence against the element it names.
 //
-// ONE CLAIM THE CHROME NO LONGER MAKES, load-bearing, still said. The GJS window's
-// tab was once labelled "GJS · Node · Bun · Deno" and its window "Native TypeScript",
-// both to avoid naming one runtime: naming GJS made the pane read as "the GJS
-// variant", i.e. as if the other three needed a different program. They do not, and
+// ONE CLAIM THE MARKUP SHAPE'S CHROME NO LONGER MAKES, load-bearing, still said. The GJS
+// window's tab was once labelled "GJS · Node · Bun · Deno" and its window "Native
+// TypeScript", both to avoid naming one runtime: naming GJS made the pane read as "the
+// GJS variant", i.e. as if the other three needed a different program. They do not, and
 // that is the claim the whole site rests on. It is now made ONCE, on the pages that
 // are about runtimes (getting-started, runtimes, the frameworks index), instead of in
 // an intro paragraph under all 40 blocks and again in a window subtitle. So the window
 // can be titled for what it runs, which is the shortest true name it has.
+//
+// The one-Blueprint shape names the runtimes again, on its first code tab, and there it
+// is a label rather than a claim spread over forty blocks: that tab stands beside the
+// Web Components and NativeScript loaders, so "which runtimes load the file THIS way" is
+// the one thing that tells it apart from them. Each runtime in it was measured on the
+// snippet it labels — built with `--app gjs` and `--app node` and run on GJS, Node.js,
+// Deno and Bun, reading the label and the maximum size back through the API. Nothing
+// re-runs that by itself, so a change to that snippet repeats the measurement.
 //
 // THE `react-native` TAB IS GONE AND ITS REASONING IS NOT. It was filled on 3 blocks
 // of 40, all on `layout.mdx`, against 28 blocks carrying a `react` snippet: a footnote
@@ -119,11 +131,19 @@
 //
 // ONE `.blp` under `src/blueprints/` builds the widget on every surface, so the layout is
 // written once and each pane shows only what differs per platform: how the layout is
-// LOADED and how a named element is REACHED by its Blueprint id. The Blueprint tab renders
-// the file itself and the live window builds the file's `?shared-tree` projection with
-// `@gjsify/adwaita-web`'s own `buildSharedTree`, so neither is a copy a page can let drift.
+// LOADED and how a named element is REACHED by its Blueprint id. The live window builds
+// the file's `?shared-tree` projection with `@gjsify/adwaita-web`'s own `buildSharedTree`,
+// and the file itself is rendered, so neither is a copy a page can let drift.
 // {@link ONE_BLUEPRINT_SLOTS} and {@link FROM_THE_BLUEPRINT} say which slots each shape
 // writes, and arm 13 of `check-website-adwaita-gallery.mjs` holds each block to its shape.
+//
+// The shape has WINDOWS of its own, because what it has to say is ordered differently.
+// On the markup shape the Blueprint is one file of the GJS program, so it is a tab
+// beside the TypeScript. On this shape it is the template EVERY pane refers to, the web
+// and NativeScript loaders included, so it gets the window straight under the preview
+// with no tab bar, and every program that loads it (GJS, the two ports, then the three
+// host dialects) shares the one window after it. A window's `shape` says which blocks
+// draw it; arm 13 holds that the file's window follows the live one directly.
 
 interface Props {
     /** The widget, e.g. "Adw.SwitchRow". Titles the live-preview window. */
@@ -182,7 +202,7 @@ const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref,
 
 /**
  * Every `.blp` under `src/blueprints/`, read twice through Vite: as its SOURCE for the
- * Blueprint tab, and as `@gjsify/vite-plugin-blueprint`'s `?shared-tree` projection for the
+ * Blueprint window, and as `@gjsify/vite-plugin-blueprint`'s `?shared-tree` projection for the
  * live window. Keyed by the same glob, so a block names its file once and the two reads
  * cannot name two different files.
  *
@@ -281,11 +301,6 @@ type PaneGroup = {
     refusalOf: (widget: string) => string | undefined;
     /** The pane the reason renders as. Its `pane` id has to be unique across ALL windows. */
     refusal: { pane: string; label: string; missing: string; note: string };
-    /**
-     * Set on a group whose panes RESTATE the layout in another file, which a one-Blueprint
-     * block exists not to do. Such a block shows its loader slot instead.
-     */
-    replacedOnOneBlueprint?: true;
 };
 
 const FRAMEWORK_GROUP: PaneGroup = {
@@ -317,10 +332,6 @@ const NATIVESCRIPT_GROUP: PaneGroup = {
     // dialog) and `LayoutBase` adds a child a widget cannot place anyway (a header
     // bar painted over the content). Both at exit 0. Only a run says which.
     code: NATIVESCRIPT_PANES,
-    // The XML template is the layout written a second time. On a one-Blueprint block the
-    // `nativescriptloader` tab builds the `.blp`'s own tree instead, and two tabs both
-    // labelled "NativeScript" would leave the reader to guess which one is the program.
-    replacedOnOneBlueprint: true,
     codeOf: (widget) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
     refusalOf: (widget) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
     refusal: {
@@ -407,21 +418,26 @@ const ONE_BLUEPRINT_SLOTS: Record<string, string> = {
  * Both would be a second copy of the layout, which is the thing the shape removes.
  */
 const FROM_THE_BLUEPRINT: Record<string, string> = {
-    blueprint: 'the Blueprint tab renders the `.blp` file itself',
+    blueprint: 'the Blueprint window renders the `.blp` file itself',
     preview: 'the live window builds the `.blp`, so there is no markup to mount or to show',
 };
+
+/** The two block shapes — see the header. The spelling is the gate's as well. */
+type BlockShape = 'markup' | 'one-Blueprint';
 
 /**
  * The windows, in order, and every port this component renders.
  *
  * A window says what KIND it is in its TITLE, and nothing else: the claims that used
  * to sit under it as a subtitle are on the page (see the header). `live` marks the one
- * window that runs the widget.
+ * window that runs the widget. `shape` limits a window to the blocks of one shape; the
+ * live window has none, because every block runs its widget.
  */
 const WINDOWS: readonly {
     id: string;
     title: string | null;
     live?: boolean;
+    shape?: BlockShape;
     tabs: readonly { slot: string; label: string }[];
     groups: readonly PaneGroup[];
 }[] = [
@@ -456,12 +472,15 @@ const WINDOWS: readonly {
         // is what happened, and is what arm 10 of
         // `scripts/check-website-adwaita-gallery.mjs` now refuses.
         title: 'GJS',
+        shape: 'markup',
         tabs: [
             { slot: 'gjs', label: 'TypeScript' },
             // Blueprint is a FILE of the same program, which is why it is a tab here
             // and not a window of its own: a `.blp` is a widget tree and nothing
             // else, and the TypeScript beside it is the loader that mounts it.
             // Standing alone it read as a fourth complete program, which it is not.
+            // A one-Blueprint block does give the file a window, because there every
+            // program on the block loads it, not only this one.
             { slot: 'blueprint', label: 'Blueprint' },
         ],
         groups: [],
@@ -478,19 +497,48 @@ const WINDOWS: readonly {
         // only pane under this title that runs on a phone, which is why it is
         // labelled for the port.
         title: 'UI frameworks',
+        shape: 'markup',
         tabs: [
             // The markup the FIRST window is painted from, shown here because a
             // custom-element tree is an element model like the three below it. Its
             // fence is read for the mount whether or not this tab renders, so arm 9
             // holds that the fence a reader can copy is actually shown somewhere.
             { slot: MARKUP_SLOT, label: 'HTML Web Components' },
-            // The two loaders of a one-Blueprint block — see {@link ONE_BLUEPRINT_SLOTS}.
-            // `webloader` stands where the markup tab stands on the other shape.
+        ],
+        // Filled on every markup block, snippet or recorded reason — see {@link PaneGroup}.
+        groups: [FRAMEWORK_GROUP, NATIVESCRIPT_GROUP],
+    },
+    {
+        id: 'blueprint',
+        // The `.blp` alone, directly under the preview. One pane, so AdwWidgetWindow
+        // draws it with no tab bar: the file is not one choice among the programs
+        // below, it is what each of them loads.
+        title: 'Blueprint',
+        shape: 'one-Blueprint',
+        tabs: [{ slot: 'blueprint', label: 'Blueprint' }],
+        groups: [],
+    },
+    {
+        id: 'code',
+        // Every program that uses the file above, one tab each. "Code" because the
+        // window above holds the layout, and a longer title here ("load and reach the
+        // elements") says what the tabs already show.
+        title: 'Code',
+        shape: 'one-Blueprint',
+        tabs: [
+            // The same program on four runtimes, measured — see the header. This is the
+            // tab the markup shape labels "TypeScript" inside its "GJS" window.
+            { slot: 'gjs', label: 'GJS, Node.js, Deno, Bun' },
+            // The two loaders — see {@link ONE_BLUEPRINT_SLOTS}.
             { slot: 'webloader', label: 'Web Components' },
             { slot: 'nativescriptloader', label: 'NativeScript' },
         ],
-        // Filled on all 40 blocks, snippet or recorded reason — see {@link PaneGroup}.
-        groups: [FRAMEWORK_GROUP, NATIVESCRIPT_GROUP],
+        // The three host dialects restate the tree in their own markup, and they stay
+        // until a dialect can load a `.blp`. The NativeScript XML template does NOT: it is
+        // the layout written a second time, and the `nativescriptloader` tab builds the
+        // file's own tree, so two tabs labelled "NativeScript" would leave the reader to
+        // guess which one is the program.
+        groups: [FRAMEWORK_GROUP],
     },
 ];
 
@@ -535,8 +583,13 @@ const LIVE_PANE = 'live';
  * is sharper than it was: `data-impls` is looked up by NAME, and one shared `why-not`
  * would put two entries reading the same id in ONE list, where the first answers for
  * both.
+ *
+ * Collected per GROUP, not per window: the frameworks group sits in one window of each
+ * shape, and that is one pane under one id rather than two. The two windows never meet
+ * on a block, and the shared id is what carries a reader's pick of "Solid" or "Why not"
+ * from a block of one shape to a block of the other.
  */
-const REFUSAL_PANES = WINDOWS.flatMap((win) => win.groups.map((group) => group.refusal.pane));
+const REFUSAL_PANES = [...new Set(WINDOWS.flatMap((win) => win.groups))].map((group) => group.refusal.pane);
 
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
 // script below looks a pane up by name with `indexOf`, so a pane id equal to a slot
@@ -553,7 +606,8 @@ const OWN_PANES = [
     ...FRAMEWORK_PANES.map((pane) => pane.id),
     ...NATIVESCRIPT_PANES.map((pane) => pane.id),
 ];
-const RENDERED_SLOTS = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot));
+// A slot rendered by two windows (`gjs`, one per shape) is one slot here.
+const RENDERED_SLOTS = [...new Set(WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)))];
 const collidingSlot = RENDERED_SLOTS.find((slot) => OWN_PANES.includes(slot));
 if (collidingSlot !== undefined) {
     throw new Error(
@@ -642,7 +696,9 @@ if (markupHtml !== null && (previewMarkup === null || previewMarkup.trim() === '
  */
 const rendered: { id: string; title: string; panes: WidgetPane[] }[] = [];
 
+const shape: BlockShape = oneBlueprint ? 'one-Blueprint' : 'markup';
 for (const spec of WINDOWS) {
+    if (spec.shape !== undefined && spec.shape !== shape) continue;
     const panes: WidgetPane[] = [];
     if (spec.live === true && oneBlueprint) {
         panes.push({ id: LIVE_PANE, kind: 'live', tree: JSON.stringify(blueprintTree) });
@@ -673,7 +729,6 @@ for (const spec of WINDOWS) {
     // that group's pane absent, which arm 4 (frameworks) and arm 7 (NativeScript) of
     // `check-generated-website-data.mjs` are what refuse.
     for (const group of spec.groups) {
-        if (oneBlueprint && group.replacedOnOneBlueprint === true) continue;
         const code = group.code
             .map((pane) => ({
                 id: pane.id,
