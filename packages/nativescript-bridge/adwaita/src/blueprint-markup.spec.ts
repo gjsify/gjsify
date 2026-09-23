@@ -101,7 +101,10 @@ function loadXml(xml: string): View {
                 // namespace resolves to.
                 const library = LIBRARIES[event.namespace ?? ''];
                 if (library === undefined) throw new Error(`<${event.prefix}:${name}> names no barrel`);
-                const view = new (elementFor(`${library}${name}`).ctor)();
+                // Builder.parse treats every element it creates as a View; #1766 widened
+                // `ElementClass` to `object` for the non-view values the shared-tree builder
+                // makes, which this XML door never meets.
+                const view = new (elementFor(`${library}${name}`).ctor)() as View;
                 // `applyComponentAttributes`: `instance[attr] = value`. A prefixed attribute
                 // (`xmlns:adw`) is a platform filter there and never reaches the instance; the
                 // default `xmlns` is assigned like any other, so it is skipped here as dead.
