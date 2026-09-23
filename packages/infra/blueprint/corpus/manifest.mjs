@@ -758,4 +758,6 @@ export const CORPUS_REAL_FILES = [
         slug: 'packages_web_adwaita-core_src_conformance_blueprints_carousel-indicators',
         source: 'packages/web/adwaita-core/src/conformance/blueprints/carousel-indicators.blp',
     },
+    { slug: 'website_src_blueprints_adwaita_header_bar', source: 'website/src/blueprints/adwaita/header-bar.blp' },
+    { slug: 'website_src_blueprints_adwaita_wrap_box', source: 'website/src/blueprints/adwaita/wrap-box.blp' },
 ];

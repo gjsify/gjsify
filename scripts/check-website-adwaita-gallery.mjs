@@ -791,15 +791,10 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.PreferencesDialog':
         'property: the dialog takes its own title, and present() takes no parent. The combo model is a ' +
         'Gtk.StringList and the adjustment a Gtk.Adjustment on both sides now.',
-    'Adw.HeaderBar':
-        'composition: the NativeScript window splits into an XML template and a loader — two barrels ' +
-        '(`~/adw`, `~/gtk`) and the loader; the tree the gjs pane builds is the XML tab beside this one.',
     'Adw.ToolbarView':
-        'composition: the same template-plus-loader split as Adw.HeaderBar, and the bottom bar is a second header bar because the port has ' +
-        'no Gtk.ActionBar — so the loader reaches its buttons by the ids the template gave them.',
-    'Adw.WrapBox':
-        'composition: same split as Adw.HeaderBar — the chip run is a fixed tree, so it lives in the template and ' +
-        'this pane loads it.',
+        'composition: the NativeScript window splits into an XML template and a loader, and the bottom bar is a ' +
+        'second header bar because the port has no Gtk.ActionBar — so the loader reaches its buttons by the ids ' +
+        'the template gave them.',
     'Adw.NavigationSplitView':
         'property: the port has no Adw.NavigationPage, Adw.SidebarSection or Adw.SidebarItem, so the sidebar ' +
         'takes a flat label list and each pane is a toolbar view directly.',

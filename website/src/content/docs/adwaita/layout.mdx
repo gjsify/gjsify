@@ -127,78 +127,61 @@ centre, usually a window title with a subtitle, and **pack** controls to the
 start and end edges: navigation on the leading side, menu and action buttons on
 the trailing one.
 
-<AdwWidget title="Adw.HeaderBar">
-  <Fragment slot="preview">
-    ```html
-    <adw-header-bar style="width: 100%;">
-      <gtk-button slot="start" icon="go-previous" flat></gtk-button>
-      <adw-window-title slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
-      <gtk-button slot="end" icon="open-menu" flat></gtk-button>
-    </adw-header-bar>
-    ```
-  </Fragment>
+{/* A header bar is as wide as the window GTK gives it. The `.blp` cannot say that,
+    so the stage stretches it: without this it shrank to its three children. */}
+<AdwWidget title="Adw.HeaderBar" blueprint="adwaita/header-bar.blp" stage="flex-direction: column; align-items: stretch;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
     import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './header-bar.blp';
 
-    const title = new Adw.WindowTitle({ title: 'Text Editor', subtitle: 'notes.md' });
-
-    const headerBar = new Adw.HeaderBar({ titleWidget: title, showTitle: true });
-
-    const backButton = new Gtk.Button({ iconName: 'go-previous-symbolic' });
-    backButton.add_css_class('flat');
-    headerBar.pack_start(backButton);
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const title = builder.get_object('window_title') as Adw.WindowTitle;
+    const menuButton = builder.get_object('menu_button') as Gtk.MenuButton;
+    title.subtitle = 'draft.md';
 
     const menu = new Gio.Menu();
     menu.append('New Window', 'app.new-window');
     menu.append('Preferences', 'app.preferences');
     menu.append('About', 'app.about');
-
-    const menuButton = new Gtk.MenuButton({ iconName: 'open-menu-symbolic', menuModel: menu });
-    menuButton.add_css_class('flat');
-    headerBar.pack_end(menuButton);
+    menuButton.menuModel = menu;
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.HeaderBar {
-      title-widget: Adw.WindowTitle {
-        title: _("Text Editor");
-        subtitle: "notes.md";
-      };
-
-      [start]
-      Gtk.Button {
-        icon-name: "go-previous-symbolic";
-
-        styles ["flat"]
-      }
-
-      [end]
-      Gtk.MenuButton {
-        icon-name: "open-menu-symbolic";
-
-        styles ["flat"]
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    // app/adw.ts and app/gtk.ts — the modules `xmlns:adw="~/adw"` and
-    // `xmlns:gtk="~/gtk"` resolve to. One barrel per library, so the prefix says which.
-    export { HeaderBar, WindowTitle } from '@gjsify/adwaita-nativescript/adw';
-    export { Button } from '@gjsify/adwaita-nativescript/gtk';
+    import { mountSharedTree, type Adw, type Gtk } from '@gjsify/adwaita-web';
+    import tree from './header-bar.blp?shared-tree';
 
-    // app/views/header-bar.ts — the loader.
-    import { Builder } from '@nativescript/core';
+    const { root: headerBar } = mountSharedTree(tree);
+    const title = headerBar.querySelector<Adw.WindowTitle>('#window_title')!;
+    const menuButton = headerBar.querySelector<Gtk.MenuButton>('#menu_button')!;
+    title.setAttribute('subtitle', 'draft.md');
 
-    export const headerBar = Builder.load({ path: '~/views', name: 'header-bar' });
+    menuButton.menuModel = [
+        { label: 'New Window', action: 'app.new-window' },
+        { label: 'Preferences', action: 'app.preferences' },
+        { label: 'About', action: 'app.about' },
+    ];
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './header-bar.blp?shared-tree';
+
+    const headerBar = build(tree) as Adw.HeaderBar;
+    const title = headerBar.getViewById<Adw.WindowTitle>('window_title')!;
+    const menuButton = headerBar.getViewById<Gtk.MenuButton>('menu_button')!;
+    title.subtitle = 'draft.md';
+
+    menuButton.menuModel = [
+        { label: 'New Window', action: 'app.new-window' },
+        { label: 'Preferences', action: 'app.preferences' },
+        { label: 'About', action: 'app.about' },
+    ];
     ```
   </Fragment>
 </AdwWidget>
@@ -357,107 +340,49 @@ they run out of room. This is what you want for a variable-length run of tags,
 chips or filter pills. **Child spacing** sets the gap between items on a line,
 **line spacing** the gap between the lines.
 
-<AdwWidget title="Adw.WrapBox">
-  <Fragment slot="preview">
-    ```html
-    <!-- child-spacing: The spacing between widgets on the same line. -->
-    <adw-wrap-box child-spacing="8" line-spacing="8">
-      <gtk-button label="Design" pill></gtk-button>
-      <gtk-button label="Adwaita" pill></gtk-button>
-      <gtk-button label="GNOME" pill></gtk-button>
-      <gtk-button label="GTK" pill></gtk-button>
-      <gtk-button label="TypeScript" pill></gtk-button>
-      <gtk-button label="Storybook" pill></gtk-button>
-      <gtk-button label="Wrapping" pill></gtk-button>
-      <gtk-button label="Layout" pill></gtk-button>
-    </adw-wrap-box>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.WrapBox" blueprint="adwaita/wrap-box.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './wrap-box.blp';
 
-    const wrap = new Adw.WrapBox({ childSpacing: 8, lineSpacing: 8 });
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const wrap = builder.get_object('wrap_box') as Adw.WrapBox;
 
-    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'];
-    for (const tag of tags) {
-        const chip = new Gtk.Button({ label: tag });
-        chip.add_css_class('pill');
-        wrap.append(chip);
-    }
+    const chip = new Gtk.Button({ label: 'Blueprint' });
+    chip.add_css_class('pill');
+    wrap.append(chip);
+    wrap.childSpacing = 12;
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.WrapBox {
-      child-spacing: 8;
-      line-spacing: 8;
-
-      Gtk.Button {
-        label: _("Design");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("Adwaita");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("GNOME");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("GTK");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("TypeScript");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("Storybook");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("Wrapping");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        label: _("Layout");
-
-        styles ["pill"]
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    // app/adw.ts and app/gtk.ts — the modules the template's two `xmlns` resolve to.
-    export { WrapBox } from '@gjsify/adwaita-nativescript/adw';
-    export { Button } from '@gjsify/adwaita-nativescript/gtk';
+    import { mountSharedTree, Gtk, type Adw } from '@gjsify/adwaita-web';
+    import tree from './wrap-box.blp?shared-tree';
 
-    // app/views/wrap-box.ts — the loader. A fixed run of chips is a tree, so it is
-    // the template's; build the children here instead when the run comes from data.
-    import { Builder } from '@nativescript/core';
+    const { root } = mountSharedTree(tree);
+    const wrap = root as Adw.WrapBox;
 
-    export const wrapBox = Builder.load({ path: '~/views', name: 'wrap-box' });
+    const chip = new Gtk.Button();
+    chip.setAttribute('label', 'Blueprint');
+    chip.classList.add('pill');
+    wrap.append(chip);
+    wrap.childSpacing = 12;
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { Gtk, type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './wrap-box.blp?shared-tree';
+
+    const wrap = build(tree) as Adw.WrapBox;
+
+    const chip = new Gtk.Button({ label: 'Blueprint' });
+    chip.add_css_class('pill');
+    wrap.append(chip);
+    wrap.childSpacing = 12;
     ```
   </Fragment>
 </AdwWidget>

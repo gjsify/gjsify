@@ -1268,4 +1268,96 @@ export const REAL_EXPECTATIONS = [
         lost: [],
         note: "Two indicators naming one carousel by id — the same object-reference shape as `view-stack-pages.blp`, on a property both renderers now resolve: the NativeScript builder through the indicators' `builderReferences`, the web indicators through the `carousel` attribute GTK's property name projects to. The carousel itself draws no indicator, as upstream.",
     },
+    {
+        file: 'website/src/blueprints/adwaita/header-bar.blp',
+        node: {
+            tag: 'AdwHeaderBar',
+            id: 'header_bar',
+            children: [
+                {
+                    tag: 'AdwWindowTitle',
+                    id: 'window_title',
+                    slot: 'title-widget',
+                    props: { title: 'Text Editor', subtitle: 'notes.md' },
+                    translatable: { title: {} },
+                },
+                {
+                    tag: 'GtkButton',
+                    id: 'back_button',
+                    slot: 'start',
+                    props: { 'icon-name': 'go-previous-symbolic' },
+                    styleClasses: ['flat'],
+                },
+                {
+                    tag: 'GtkMenuButton',
+                    id: 'menu_button',
+                    slot: 'end',
+                    props: { 'icon-name': 'open-menu-symbolic' },
+                    styleClasses: ['flat'],
+                },
+            ],
+        },
+        lost: [],
+        note: "The second gallery block built from one file. It places children the three ways GTK has: a property slot (`title-widget:`, projected as `slot: 'title-widget'`) and two bracket slots (`[start]`, `[end]`). The NativeScript header bar spelled only its own names (`titleWidget`, `startBox`, `endBox`) until this file, so it refused all three; it now takes the GTK names too. The `Gio.Menu` the old block built stays out of the file, since the subset has no `menu` block: each pane sets the model on `menu_button` after building.",
+    },
+    {
+        file: 'website/src/blueprints/adwaita/wrap-box.blp',
+        node: {
+            tag: 'AdwWrapBox',
+            id: 'wrap_box',
+            props: { 'child-spacing': 8, 'line-spacing': 8 },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'Design' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'Adwaita' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'GNOME' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'GTK' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'TypeScript' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'Storybook' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'Wrapping' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'Layout' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill'],
+                },
+            ],
+        },
+        lost: [],
+        note: "Eight unnamed children and one named root: the gallery panes reach only the box, so the chips need no ids. Building it on the NativeScript double is what exposed the double's own `_childViews` field shadowing the method of the same name on `AdwWrapBox` and `GtkBox`.",
+    },
 ];

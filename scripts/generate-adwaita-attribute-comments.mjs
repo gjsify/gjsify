@@ -304,7 +304,7 @@ const FUNCTION_WORDS = stemmed(
  * comment is suppressed by hand.
  */
 const PRESENTATION_WORDS = stemmed(
-    'display show shown currently current information inside contain between below set url widget',
+    'display show shown currently current information inside contain below set url widget',
 );
 
 /**
