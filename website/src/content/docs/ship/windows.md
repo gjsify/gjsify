@@ -18,69 +18,29 @@ ship/out/my-app-1.2.3-1.windows.x64.zip
 ```
 
 The program directory is what an installer lays down and a user browses to. The
-zip is what a user downloads, so it carries the operating system, the version and
-the architecture in its filename. The `windows` token is there because `.zip` is
-the only suffix `ship` uses on more than one operating system: without it this
-artifact and the macOS one are two files a user cannot tell apart.
+zip is what a user downloads, so its filename carries the version and the
+architecture.
 
 `x64` is the only architecture. `gvsbuild`, the project that builds GTK for
 Windows, publishes no arm64 binaries, so there is no GTK for a Windows on ARM
 artifact to load. `--arch arm64` is refused by name rather than producing a
 directory that cannot start.
 
-## The windows target has to be a Node target
+## The runtime it carries
 
-There is no GJS host on Windows at all, so nothing on that operating system can
-run a `gjs` payload. Ship says so before it packs anything.
-
-Set it for **this target alone**, and a Linux package of the same project stays
-on GJS:
-
-```jsonc
-{
-  "gjsify": {
-    "app": "gjs",                       // the project default, Linux keeps it
-    "ship": { "app": { "win32": "node" } }  // and Windows does not
-  }
-}
-```
+There is no GJS on Windows, so nothing there can run a `gjs` payload, and ship
+says so before it packs anything. Set `gjsify.ship.app.win32` to `"node"`, as
+[Ship your app](/gjsify/ship/#what-macos-and-windows-carry) shows, and install
+`@gjsify/node-runtime-win32-x64`, `@gjsify/gtk-runtime-win32-x64` and
+`@gjsify/node-gi`.
 
 The key is `win32`, the `process.platform` spelling, not `windows`, which is what
 the command positional takes. A key nothing reads would leave the target on the
 project default with nothing to say so, so `gjsify ship` and the manifest audit
 both refuse it by name.
 
-Setting `gjsify.app` to `"node"` works too and moves every target with it,
-including the Linux `.deb`'s `Depends:`.
-
-## What your package.json declares
-
-The program directory carries its own interpreter and its own GTK closure. Both
-are resolved by name out of your `node_modules` when you run `gjsify ship`, so
-they have to be installed on the machine that packages the app, not on the
-machine that runs it.
-
-```jsonc
-{
-  "devDependencies": {
-    // The Node interpreter, plus Node's own LICENSE.
-    "@gjsify/node-runtime-win32-x64": "^0.44.0",
-    // The relocated GTK and GObject-Introspection closure.
-    "@gjsify/gtk-runtime-win32-x64": "^0.44.0"
-  },
-  "dependencies": {
-    // node-gi's JavaScript and its prebuilt addon. A dependency rather than a
-    // devDependency, because a --app node bundle keeps `@gjsify/node-gi/*`
-    // external and requires it at run time.
-    "@gjsify/node-gi": "^0.44.0"
-  }
-}
-```
-
-`GJSIFY_GTK_RUNTIME` overrides the GTK lookup with a directory holding `bin/`
-and `girepository-1.0/`. When either package is missing, ship names it and still
-produces a directory. That directory works on a machine that already has Node
-and GTK, which is a useful intermediate and not something to hand to a user.
+`GJSIFY_GTK_RUNTIME`, when set, names a directory holding `bin/` and
+`girepository-1.0/`.
 
 ## What lands inside the program directory
 
@@ -113,14 +73,6 @@ The directory is named after `gjsify.ship.name`. Windows reserves `< > : " / \
 trailing dot or space. Ship refuses a display name containing any of those
 rather than producing an archive that extracts under a different name than the
 launcher resolves against.
-
-Your GSettings schemas are compiled while the tree is assembled, which is why the
-windows formats need `glib-compile-schemas` on the packaging host. There is no
-install step to compile them later, and GSettings aborts on a schema directory
-that holds only sources.
-
-The `.desktop` entry and the AppStream component are carried and never read,
-because Windows reads neither. Ship lists every file in that state on each run.
 
 ## Build the installer
 
@@ -246,11 +198,6 @@ gjsify ship windows \
   --target windows-dir,windows-dir-zip,msi --verbose
 ```
 
-Step 1 is a `devDependency` because the packaging host needs those two, not the
-shipped app. To point the lookup at a patched interpreter, or at a build you
-produced yourself, set `GJSIFY_NODE_RUNTIME` to a directory holding `node.exe`
-and its `LICENSE`.
-
 To split the work instead, assemble here and pack on Windows:
 
 ```bash
@@ -277,10 +224,7 @@ process computes about itself. The positional accepts both `windows` and
 
 - [Ship your app](/gjsify/ship/) has the shared `package.json` fields and the
   table of which host packs which format.
-- [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
 - [macOS app bundles](/gjsify/ship/macos/) is the same shape one operating
   system over.
-- [Ship your own fonts](/gjsify/guides/bundled-fonts/) is the whole story behind
-  the `initFonts()` call above.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) lists
   every flag and configuration key.

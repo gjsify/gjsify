@@ -16,19 +16,16 @@ ship/out/My App.app
 ship/out/my-app-1.2.3-1.macos.arm64.zip
 ```
 
-The `.app` is the artifact a user drags into `/Applications`. The zip is the
-artifact a user downloads, so it carries the operating system, the version and
-the architecture in its filename, and avoids the spaces a display name may
-contain. `.zip` is the only suffix `ship` uses on more than one operating system
-— a `.dmg` or an `.msi` could be nothing else — so the macOS and Windows zips say
-which one they are, and a release page holding both stays readable.
+The `.app` is what a user drags into `/Applications`. The zip is what a user
+downloads, so its filename carries the version and the architecture and avoids
+the spaces a display name may contain.
 
 `--arch` takes `x64` or `arm64` and defaults to the architecture of the host you
 run it on. It labels the artifact and picks which runtime packages are staged.
 It does not cross-compile your payload, so pass the architecture your bundle was
 built for.
 
-## The darwin target has to be a Node target
+## The runtime it carries
 
 A target whose runtime resolves to `gjs` can stage the darwin layout and cannot
 pack it:
@@ -38,59 +35,18 @@ gjsify ship: macos-app and macos-app-zip wrap the darwin layout, and neither can
 run this project …
 ```
 
-macOS does ship GJS through Homebrew, and that is a fact about a developer's
-machine rather than about a `.app` a stranger downloads. There is no relocatable
-GJS to put inside a bundle, so a downloadable macOS artifact runs on Node.
+Homebrew's GJS exists on a developer's Mac, not in a `.app` a stranger
+downloads, and there is no relocatable GJS to put inside a bundle. Set
+`gjsify.ship.app.darwin` to `"node"`, as
+[Ship your app](/gjsify/ship/#what-macos-and-windows-carry) shows, and install
+the pair for each architecture you ship, plus `@gjsify/node-gi`:
 
-Say so for **this target alone**, which leaves a Linux package of the same
-project on GJS:
+- `@gjsify/node-runtime-darwin-arm64` and `@gjsify/gtk-runtime-darwin-arm64`
+- `@gjsify/node-runtime-darwin-x64` and `@gjsify/gtk-runtime-darwin-x64`
 
-```jsonc
-{
-  "gjsify": {
-    "app": "gjs",                        // the project default, Linux keeps it
-    "ship": { "app": { "darwin": "node" } }  // and macOS does not
-  }
-}
-```
-
-Setting `gjsify.app` to `"node"` works too and means something bigger: it moves
-every target, including the Linux `.deb`, from `Depends: gjs` to
-`Depends: nodejs`. Use the per-target key unless the whole application is a Node
-application.
-
-## What your package.json declares
-
-The bundle carries its own interpreter and its own GTK closure. Both are
-resolved by name out of your `node_modules` when you run `gjsify ship`, so they
-have to be installed on the machine that packages the app, not on the machine
-that runs it.
-
-```jsonc
-{
-  "devDependencies": {
-    // The Node interpreter, plus Node's own LICENSE.
-    "@gjsify/node-runtime-darwin-arm64": "^0.44.0",
-    "@gjsify/node-runtime-darwin-x64": "^0.44.0",
-    // The relocated GTK and GObject-Introspection closure, one per architecture.
-    "@gjsify/gtk-runtime-darwin-arm64": "^0.44.0",
-    "@gjsify/gtk-runtime-darwin-x64": "^0.44.0"
-  },
-  "dependencies": {
-    // node-gi's JavaScript and its prebuilt addon. A dependency rather than a
-    // devDependency, because a --app node bundle keeps `@gjsify/node-gi/*`
-    // external and requires it at run time.
-    "@gjsify/node-gi": "^0.44.0"
-  }
-}
-```
-
-Ship one architecture and you need only its two packages. `--arch arm64` looks
-for the `darwin-arm64` pair and nothing else.
-
-An interpreter package is large. `@gjsify/node-runtime-darwin-arm64` unpacks to
-122 MB and its x64 sibling to 124 MB, because each one is a whole Node build.
-Install only the architecture you ship.
+`--arch arm64` looks for the `darwin-arm64` pair and nothing else. Install only
+what you ship: the arm64 interpreter unpacks to 122 MB and the x64 one to
+124 MB, because each is a whole Node build.
 
 `gjsify ship` names what it staged and what it did not, one line each:
 
@@ -101,13 +57,7 @@ Install only the architecture you ship.
 [gjsify ship] carries its own node-gi addon from @gjsify/node-gi
 ```
 
-When a package is missing you get the name to install instead, and the run still
-produces a bundle. That bundle works on any machine that already has Node, which
-is a useful intermediate and not something to hand to a user.
-
-Two environment variables override the lookups, for a maintainer holding an
-unpublished or patched build. `GJSIFY_NODE_RUNTIME` names a directory holding
-`node` and its `LICENSE`. `GJSIFY_GTK_RUNTIME` names one holding `lib/` and
+`GJSIFY_GTK_RUNTIME`, when set, names a directory holding `lib/` and
 `girepository-1.0/`.
 
 ## What lands inside the bundle
@@ -133,16 +83,6 @@ becomes `CFBundleExecutable`, and your version becomes
 
 The launcher walks up from `Contents/MacOS` to find the bundle, so the `.app`
 works wherever it sits. `/Applications` is a convention, not a path it needs.
-
-Your GSettings schemas are compiled into the bundle while it is assembled, which
-is why the darwin formats need `glib-compile-schemas` on the packaging host. A
-`.app` has no install step to compile them later, and GSettings aborts on a
-schema directory that holds only sources.
-
-Some of what a Linux package needs its install step for has no macOS equivalent.
-The `.desktop` entry, the AppStream component and the shared MIME type document
-are carried and never read, because macOS reads none of them. `gjsify ship` lists
-every such file on each run, so the payload holds no surprise.
 
 **Your icon does not become the bundle icon.** The `Info.plist` carries no
 `CFBundleIconFile`, so the Finder and the Dock show the generic application
@@ -256,10 +196,7 @@ bundle will start on a Mac with neither Node nor Homebrew GTK installed.
 
 - [Ship your app](/gjsify/ship/) has the shared `package.json` fields and the
   table of which host packs which format.
-- [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
 - [Windows artifacts](/gjsify/ship/windows/) is the same shape one operating
   system over.
-- [Ship your own fonts](/gjsify/guides/bundled-fonts/) covers the payload key and
-  what your app does with it on the other two.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) lists
   every flag and configuration key.
