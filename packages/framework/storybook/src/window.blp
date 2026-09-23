@@ -1,0 +1,142 @@
+using Gtk 4.0;
+using Adw 1;
+
+// The storybook's static chrome: the stories sidebar, the preview pane and the
+// controls panel. Everything here exists once per window; what depends on the
+// discovered stories (the sidebar rows, the control rows, the previewed story
+// itself) is filled in by `window.ts` through the ids below.
+//
+// Captions are not marked translatable: the storybook is a developer tool and
+// ships no catalogue.
+template $StorybookWindow: Adw.ApplicationWindow {
+  default-width: 1200;
+  default-height: 800;
+  width-request: 360;
+  height-request: 320;
+  title: "Storybook";
+
+  content: Adw.NavigationSplitView main_split_view {
+    min-sidebar-width: 220;
+    max-sidebar-width: 320;
+
+    sidebar: Adw.NavigationPage {
+      title: "Stories";
+      tag: "stories";
+
+      // Flat top bar so the sidebar header shares the sidebar background
+      // (the left column reads as one distinct shade).
+      child: Adw.ToolbarView {
+        top-bar-style: flat;
+
+        [top]
+        Adw.HeaderBar {
+          show-end-title-buttons: false;
+
+          title-widget: Adw.WindowTitle {
+            title: "Stories";
+          };
+        }
+
+        content: Gtk.ScrolledWindow {
+          hexpand: true;
+          vexpand: true;
+
+          Gtk.ListBox sidebar_list {
+            selection-mode: single;
+            row-selected => $_onRowSelected();
+
+            styles [
+              "navigation-sidebar",
+            ]
+          }
+        };
+      };
+    };
+
+    content: Adw.NavigationPage {
+      title: "Preview";
+      tag: "preview";
+
+      // Flat top bar so the preview header shares the window (story)
+      // background instead of a distinct headerbar shade.
+      child: Adw.ToolbarView {
+        top-bar-style: flat;
+
+        [top]
+        Adw.HeaderBar {
+          title-widget: Adw.WindowTitle preview_title {
+            title: "Preview";
+          };
+
+          [end]
+          Gtk.ToggleButton show_controls_button {
+            icon-name: "sidebar-show-right-symbolic";
+            tooltip-text: "Toggle Controls";
+            active: true;
+            toggled => $_onToggleControls();
+          }
+
+          // Appearance is a property of the storybook, so it belongs in its
+          // chrome rather than in a story's controls — every story is
+          // previewed under it.
+          [end]
+          Gtk.Button {
+            icon-name: "applications-graphics-symbolic";
+            tooltip-text: "Appearance";
+            clicked => $_onAppearanceClicked();
+          }
+        }
+
+        // The controls panel shares the window (story) background — only the
+        // left navigation sidebar keeps a distinct shade (see STORYBOOK_CSS).
+        content: Adw.OverlaySplitView controls_split_view {
+          show-sidebar: true;
+          sidebar-position: end;
+          min-sidebar-width: 280;
+          max-sidebar-width: 360;
+
+          styles [
+            "storybook-controls",
+          ]
+
+          // The preview AREA owns the tinted surface (see `.sb-preview-area`).
+          // On the scroller rather than on the Bin inside it, so the tint
+          // spans the pane and stays put while a tall story scrolls.
+          content: Gtk.ScrolledWindow {
+            hexpand: true;
+            vexpand: true;
+
+            styles [
+              "sb-preview-area",
+            ]
+
+            Adw.Bin content_area {
+              hexpand: true;
+              vexpand: true;
+            }
+          };
+
+          sidebar: Gtk.ScrolledWindow {
+            vexpand: true;
+
+            Adw.PreferencesPage {
+              Adw.PreferencesGroup control_panel {
+                title: "Controls";
+              }
+            }
+          };
+        };
+      };
+    };
+  };
+
+  // Collapse both panes on narrow widths.
+  Adw.Breakpoint {
+    condition ("max-width: 720sp")
+
+    setters {
+      main_split_view.collapsed: true;
+      controls_split_view.collapsed: true;
+    }
+  }
+}
