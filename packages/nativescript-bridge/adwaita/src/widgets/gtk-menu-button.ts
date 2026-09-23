@@ -34,6 +34,7 @@ import { action, type EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
 import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 
 /** Event name emitted when a menu item is chosen. */
 export const MENU_ITEM_ACTIVATED = 'menuItemActivated';
@@ -57,11 +58,15 @@ export class GtkMenuButton extends AdwImageButton {
     private _model: AdwMenuModel = [];
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
+    /** The image button's own classes, which every `styleClasses` write keeps. */
+    private readonly _baseClassName: string;
+    private _styleClasses: string[] = [];
 
     constructor(props?: ConstructProps<GtkMenuButton>) {
         super();
         // Keep the AdwImageButton base styling; add a marker class for any tweaks.
-        this.className = `${this.className} adw-menu-button`.trim();
+        this._baseClassName = `${this.className} adw-menu-button`.trim();
+        this.className = this._baseClassName;
         this.addEventListener('tap', () => {
             void this._openMenu();
         });
@@ -108,6 +113,50 @@ export class GtkMenuButton extends AdwImageButton {
 
     set menuTitle(value: string) {
         this._menuTitle = value ?? '';
+    }
+
+    /**
+     * `GtkWidget:css-classes`, spelled `styleClasses` for the reason `style-classes.ts`
+     * gives. A `.blp` header bar writes `styles ["flat"]` on its menu button, and the
+     * shared-tree builder refuses a style class the widget has no door for, so without it
+     * that header bar did not build here at all.
+     */
+    get styleClasses(): string[] {
+        return [...this._styleClasses];
+    }
+
+    set styleClasses(value: string | null | undefined) {
+        this._setClasses(normalizeStyleClasses(value));
+    }
+
+    /** `gtk_widget_add_css_class`. A class the button already carries is a no-op. */
+    add_css_class(name: string): void {
+        this._setClasses(withCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_remove_css_class`. A class it does not carry is a no-op. */
+    remove_css_class(name: string): void {
+        this._setClasses(withoutCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_has_css_class`. */
+    has_css_class(name: string): boolean {
+        return this._styleClasses.includes((name ?? '').trim());
+    }
+
+    /** `gtk_widget_get_css_classes` — the list, without the widget's own CSS name. */
+    get_css_classes(): string[] {
+        return [...this._styleClasses];
+    }
+
+    /** `gtk_widget_set_css_classes` — REPLACES the list, as in C. */
+    set_css_classes(names: readonly string[]): void {
+        this._setClasses(normalizeStyleClasses([...names].join(' ')));
+    }
+
+    private _setClasses(classes: string[]): void {
+        this._styleClasses = classes;
+        this.className = classNameWith(this._baseClassName, classes);
     }
 
     private async _openMenu(): Promise<void> {
