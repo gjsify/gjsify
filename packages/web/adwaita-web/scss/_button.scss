@@ -80,18 +80,35 @@ gtk-button {
     }
   }
 
-  // Destructive action — red.
+  // Destructive action — libadwaita's `%destructive_button` (_buttons.scss:183-210):
+  // red TEXT on a 15% tint of it, not a filled red button. It was filled here, so the
+  // gallery's "Delete" read as a second primary action beside the GTK render of the
+  // same `.blp`. The accent tokens are rebound as upstream does, so anything accent-
+  // coloured inside the button (a focus ring) turns red with it.
   &.destructive-action {
-    background-color: var(--destructive-bg-color);
-    color: var(--destructive-fg-color);
+    --accent-bg-color: var(--destructive-bg-color);
+    --accent-fg-color: var(--destructive-fg-color);
+    --accent-color: var(--destructive-color);
+
+    color: var(--destructive-color);
+    background-color: color-mix(in srgb, currentColor 15%, transparent);
 
     &:hover {
-      filter: brightness(1.06);
+      background-color: color-mix(in srgb, currentColor 20%, transparent);
     }
 
     &:active {
-      filter: brightness(0.9);
+      background-color: color-mix(in srgb, currentColor 35%, transparent);
     }
+  }
+
+  // A label-only button — GTK's `.text-button`, which `gtk_button_set_label` puts on the
+  // button (_buttons.scss:72-75). 17px against the 14px every web button had, so each
+  // text button in the gallery's button row was 6px narrower than GTK's. Before the pill,
+  // circular and icon-only rules, which upstream also lets win.
+  &.text-button {
+    padding-left: 17px;
+    padding-right: 17px;
   }
 
   // Icon-only square button (no label).
@@ -107,9 +124,14 @@ gtk-button {
     border-radius: 9999px;
   }
 
-  // Pill — fully-rounded ends.
+  // Pill — fully-rounded ends, and libadwaita's `%pill_button` padding
+  // (_buttons.scss: `padding: 10px 32px`). It was 6px 20px, which drew every pill
+  // 10px shorter and 24px narrower than GTK beside a GTK render of the same `.blp`.
+  // GTK's height is `min-height: 24px` plus that padding, so 44; the floor is
+  // restated because the base's 34 would otherwise hold the box at the text height.
   &.pill {
-    padding: 6px 20px;
+    min-height: 44px;
+    padding: 10px 32px;
     border-radius: 9999px;
   }
 

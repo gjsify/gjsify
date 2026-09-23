@@ -29,114 +29,35 @@ dangerous action, and `.flat` drops the visible background. They compose with
 each other and mean the same thing everywhere in the toolkit, so a
 `.destructive-action` in a header bar reads like one in a dialog.
 
-<AdwWidget title="Gtk.Button">
-  <Fragment slot="preview">
-    ```html
-    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <gtk-button label="Pill" pill></gtk-button>
-      <gtk-button icon="list-add" circular></gtk-button>
-      <gtk-button label="Suggested" suggested></gtk-button>
-      <gtk-button label="Delete" destructive></gtk-button>
-      <gtk-button label="Flat" flat></gtk-button>
-    </div>
-    ```
-  </Fragment>
+<AdwWidget title="Gtk.Button" blueprint="gtk/button.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './button.blp';
 
-    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, halign: Gtk.Align.CENTER });
-
-    const pill = new Gtk.Button({ label: 'Pill' });
-    pill.add_css_class('pill');
-    box.append(pill);
-
-    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
-    circular.add_css_class('circular');
-    box.append(circular);
-
-    const suggested = new Gtk.Button({ label: 'Suggested' });
-    suggested.add_css_class('suggested-action');
-    box.append(suggested);
-
-    const destructive = new Gtk.Button({ label: 'Delete' });
-    destructive.add_css_class('destructive-action');
-    box.append(destructive);
-
-    const flat = new Gtk.Button({ label: 'Flat' });
-    flat.add_css_class('flat');
-    box.append(flat);
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const deleteButton = builder.get_object('delete_button') as Gtk.Button;
+    deleteButton.connect('clicked', () => console.log('Delete pressed'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.WrapBox {
-      child-spacing: 12;
-      line-spacing: 12;
-      halign: center;
-
-      Gtk.Button {
-        label: _("Pill");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        icon-name: "list-add-symbolic";
-
-        styles ["circular"]
-      }
-
-      Gtk.Button {
-        label: _("Suggested");
-
-        styles ["suggested-action"]
-      }
-
-      Gtk.Button {
-        label: _("Delete");
-
-        styles ["destructive-action"]
-      }
-
-      Gtk.Button {
-        label: _("Flat");
-
-        styles ["flat"]
-      }
-    }
+    const deleteButton = document.querySelector('#delete_button');
+    deleteButton.addEventListener('click', () => console.log('Delete pressed'));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, horizontalAlignment: 'center' });
-
-    const pill = new Gtk.Button({ label: 'Pill' });
-    pill.add_css_class('pill');
-    box.append(pill);
-
-    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
-    circular.add_css_class('circular');
-    box.append(circular);
-
-    const suggested = new Gtk.Button({ label: 'Suggested' });
-    suggested.add_css_class('suggested-action');
-    box.append(suggested);
-
-    const destructive = new Gtk.Button({ label: 'Delete' });
-    destructive.add_css_class('destructive-action');
-    box.append(destructive);
-
-    const flat = new Gtk.Button({ label: 'Flat' });
-    flat.add_css_class('flat');
-    box.append(flat);
+    const box = Builder.load({ path: '~/views', name: 'button' }) as Adw.WrapBox;
+    const deleteButton = box.getViewById<Gtk.Button>('delete_button')!;
+    deleteButton.connect('clicked', () => console.log('Delete pressed'));
     ```
   </Fragment>
 </AdwWidget>
@@ -147,84 +68,54 @@ When a button's only job is to open a menu, use a **menu button**. It is the
 hamburger at the end of a header bar, with no action of its own and every choice
 in the popover it opens. Libadwaita ships no menu button, so this is
 `Gtk.MenuButton`. The Adwaita stylesheet gives it the flat, rounded-square shape.
+The Blueprint holds only the button: the subset the gallery builds it with has
+no `menu` block, so each tab below sets the menu from code.
 
-<AdwWidget title="Gtk.MenuButton">
-  <Fragment slot="preview">
-    ```html
-    <!-- icon-name: The name of the icon used to automatically populate the button. -->
-    <!-- menu-model: The `GMenuModel` from which the popup will be created. -->
-    <gtk-menu-button
-      icon-name="open-menu"
-      menu-title="Document"
-      menu-model='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
-    ></gtk-menu-button>
-    ```
-  </Fragment>
+<AdwWidget title="Gtk.MenuButton" blueprint="gtk/menu-button.blp">
   <Fragment slot="gjs">
     ```ts
     import Gio from 'gi://Gio?version=2.0';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './menu-button.blp';
+
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const menuButton = builder.get_object('menu_button') as Gtk.MenuButton;
+    menuButton.primary = true; // opens on F10, the way an app menu should
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');
     menu.append('Export', 'app.export');
     menu.append('Print', 'app.print');
-
-    const button = new Gtk.MenuButton({
-        iconName: 'open-menu-symbolic',
-        menuModel: menu,
-        primary: true, // opens on F10, the way an app menu should
-    });
-    button.add_css_class('flat');
+    menuButton.menuModel = menu;
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Gtk.MenuButton {
-      icon-name: "open-menu-symbolic";
-      primary: true;
-      menu-model: primary-menu;
+    const menuButton = document.querySelector('#menu_button');
+    menuButton.menuTitle = 'Document';
 
-      styles ["flat"]
-    }
-
-    menu primary-menu {
-      section {
-        item {
-          label: _("Save as…");
-          action: "app.save-as";
-        }
-
-        item {
-          label: _("Export");
-          action: "app.export";
-        }
-
-        item {
-          label: _("Print");
-          action: "app.print";
-        }
-      }
-    }
+    menuButton.menuModel = [
+        { label: 'Save as…', action: 'app.save-as' },
+        { label: 'Export', action: 'app.export' },
+        { label: 'Print', action: 'app.print' },
+    ];
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import { Gio } from '@gjsify/adwaita-nativescript';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const menu = new Gio.Menu();
-    menu.append('Save as…', 'app.save-as');
-    menu.append('Export', 'app.export');
-    menu.append('Print', 'app.print');
+    const menuButton = Builder.load({ path: '~/views', name: 'menu-button' }) as Gtk.MenuButton;
+    menuButton.menuTitle = 'Document'; // the action sheet's heading: there is no popover to open
 
-    const button = new Gtk.MenuButton({
-        iconName: 'open-menu-symbolic',
-        menuModel: menu,
-        menuTitle: 'Document', // the action sheet's heading: there is no popover to open
-    });
+    menuButton.menuModel = [
+        { label: 'Save as…', action: 'app.save-as' },
+        { label: 'Export', action: 'app.export' },
+        { label: 'Print', action: 'app.print' },
+    ];
     ```
   </Fragment>
 </AdwWidget>

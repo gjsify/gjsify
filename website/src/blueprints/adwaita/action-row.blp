@@ -1,0 +1,20 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  Adw.ActionRow row {
+    title: _("Wi-Fi");
+    subtitle: _("Connected to Highgarden 5GHz");
+    activatable: true;
+
+    [prefix]
+    Gtk.Image {
+      icon-name: "network-wireless-symbolic";
+    }
+
+    [suffix]
+    Gtk.Image {
+      icon-name: "go-next-symbolic";
+    }
+  }
+}

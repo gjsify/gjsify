@@ -77,7 +77,11 @@ $adw-components:
 // its parent says. Nested in any component the floor already stops the host
 // page, so only the OUTERMOST one keeps it. `:where()` adds no specificity, so a
 // class on the element itself (`.title-1`, `.dimmed`) still wins.
-:where(#{$adw-components}) :is(gtk-box, gtk-label) {
+//
+// A button's content inherits for the same reason: `<adw-button-content>` is the child
+// of a `<gtk-button>`, and the floor painted its icon and label in the window colour on
+// a `.suggested-action` button, where GTK draws them in the accent foreground.
+:where(#{$adw-components}) :is(gtk-box, gtk-label, adw-button-content) {
   color: inherit;
   font-family: inherit;
   font-size: inherit;

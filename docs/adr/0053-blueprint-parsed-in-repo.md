@@ -21,9 +21,9 @@ NOTATIONS over that vocabulary. `adw-*` elements and GtkBuilder XML are the runt
 underneath them. Blueprint is not a runtime format: it compiles TO GtkBuilder XML, which
 puts it on `SharedNode`'s level rather than one below it.
 
-### What the 17 `.blp` files actually use
+### What the 33 `.blp` files actually use
 
-Measured over the 17 real `.blp` in this tree by
+Measured over the 33 real `.blp` in this tree by
 `node scripts/report-blueprint-census.mjs`, which derives its file list from `git ls-tree` at
 the revision it is given. This whole section is EMITTED by that script — heading, table and
 the two paragraphs below it — and `scripts/check-blueprint-census.mjs` fails when the ADR and
@@ -31,49 +31,35 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
-| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 33 | carried by the class name | yes — namespace and version |
-| `Adw.HeaderBar { }` — an object as its own statement | 110 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` — every property whose value is not an anonymous object | 295 | `props: { title: '…' }` | yes — a ParamSpec |
-| `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 27 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
+| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 64 | carried by the class name | yes — namespace and version |
+| `Adw.HeaderBar { }` — an object as its own statement | 157 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
+| `title: "…"` — every property whose value is not an anonymous object | 361 | `props: { title: '…' }` | yes — a ParamSpec |
+| `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 32 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
 | `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 30 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
-| `styles ["flat"]` | 12 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
+| `styles ["flat"]` | 30 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
 | `template $Foo: Adw.Bin` | 13 | — | **no** — a GtkBuilder composite-template declaration |
-| `Gtk.Box canvasContainer { }` | 57 of those 110 | — | **no** — a GtkBuilder object id |
-| `_("Back")` | 36 | — | **no** — a `translatable` attribute on the emitted XML |
+| `Gtk.Box canvasContainer { }` | 82 of those 157 | — | **no** — a GtkBuilder object id |
+| `_("Back")` | 68 | — | **no** — a `translatable` attribute on the emitted XML |
 | `bind …` | 7 | — | **no** — a GObject property binding, addressed by id |
 | `condition (…)` + `setters { }` | 7 + 7 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
 **3** signal handlers (`=>`), zero `menu` blocks and zero inline `Gtk.Adjustment` objects.
 
 Three labels say what they count, because the old ones undersold it. The `using` row counts
-EVERY import line — 16 `using Adw 1;` and 17 `using Gtk 4.0;`, since not every file
-imports both — where reading it as the Adw one alone gives 16. The object row is anchored at
+EVERY import line — 31 `using Adw 1;` and 33 `using Gtk 4.0;`, since not every file
+imports both — where reading it as the Adw one alone gives 31. The object row is anchored at
 the start of a line and so excludes an object in property-value position, which the row below
 it counts instead. The object-id row is the subset of that object row which names its object,
 which is what its "of those" means and what `bind` resolves against.
 
 The two property rows are a PARTITION, and that is the one thing to carry away from this
-table: 295 + 30 = 325, every property assignment in the tree. The 30 are the ones whose
-value is an ANONYMOUS object. The other 295 are not one thing: 286 have no object value at
-all, and nine have an object value that carries a GtkBuilder id — `content: Gtk.Box
+table: 361 + 30 = 391, every property assignment in the tree. The 30 are the ones whose
+value is an ANONYMOUS object. The other 361 are not one thing: 350 have no object value at
+all, and eleven have an object value that carries a GtkBuilder id — `content: Gtk.Box
 canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
 unreproducible during a recount, because both halves were measured against a guess instead of
-against their own total: 295 + 30 was sitting beside the 325 that was already known. Two orphan
+against their own total: 361 + 30 was sitting beside the 391 that was already known. Two orphan
 numbers that sum to a number you already have are a partition, not noise.
-
-Six construct classes stand outside `SharedNode`, and they are not all the same kind of
-outside. `template` is not even a tree construct: it is a file-level statement that this
-tree IS the template of a class. An object id is addressing, and it is what `bind` resolves
-against — a notation with no ids cannot express `bind` at all, which is why those two fall
-together. `_()` is the one that costs: the VALUE survives as a `SharedNode` string and the
-translatable MARKING does not, and that marking is the whole reason ADR 0033 prefers a
-template — a caption `xgettext` cannot see is untranslatABLE while merely looking
-untranslated.
-
-The gap runs the other way too. `SharedNode.props` admits `string | number | boolean` and
-nothing else, so none of the portable values ADRs 0042, 0046 and 0047 introduced — a menu
-model, a list model, an adjustment — can appear in a shared tree today. Blueprint writes
-all three as inline objects. Neither notation contains the other.
 
 ### What the external compiler costs
 

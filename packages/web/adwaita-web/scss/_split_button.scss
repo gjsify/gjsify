@@ -79,9 +79,12 @@
     align-items: center;
     justify-content: center;
     min-height: 34px;
-    width: 28px;
+    // libadwaita: `splitbutton > menubutton > button { padding: 0 4px }` over the button's
+    // 16px minimum (_buttons.scss:486-489), so the arrow half is 24px. It was 28, and the
+    // gallery's split button measured 5px wider than GTK's render of the same `.blp`.
+    width: 24px;
     margin: 0;
-    padding: 0 var(--spacing-xs);
+    padding: 0 4px;
     border: none;
     border-left: 1px solid var(--separator-color);
     border-radius: 0 var(--button-radius) var(--button-radius) 0;

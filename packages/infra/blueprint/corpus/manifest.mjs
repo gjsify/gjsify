@@ -36,13 +36,13 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE SEVENTEEN REAL FILES DO NOT REACH
+// WHAT THE THIRTY-THREE REAL FILES DO NOT REACH
 //
-// They are a probe against reality, not a measure of breadth, and citing "seventeen real
+// They are a probe against reality, not a measure of breadth, and citing "thirty-three real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
 // `breakpoint`, `comment` and `signal`. The first three were six kinds until ADR 0066 gave
 // `template` and `object-id` a field each, ADR 0067 the `_()` marking and ADR 0068 the style
-// classes — which is also why most of the fourteen now project with NO loss at all, where
+// classes — which is also why most of the thirty-three now project with NO loss at all, where
 // before those changes not one of them did, and why what is left on the three that do (the
 // binding/breakpoint pair) is a GRAMMAR rather than a construct. `signal` is a different
 // story: no real file reached it until the storybook's own chrome (`packages/framework/
@@ -54,7 +54,7 @@
 // only by the rules above — the half of the corpus written by whoever writes the parser.
 // (`comment` is the one to read carefully: five of them DO carry comments, and the
 // convention in `expectations.mjs` is that comments are never listed per entry.) And
-// fourteen files are about nine distinct SHAPES: the three `templates/adw-*/src/main-window.blp`
+// thirty-three files are about twenty-eight distinct SHAPES: the three `templates/adw-*/src/main-window.blp`
 // differ in one title string, and fireworks and pixel differ only in the template class
 // name, the window title, a group title, four row titles and five object ids.
 //
@@ -72,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The seventeen `.blp` files this repo already builds are the reality probe ADR 0053
+// The thirty-three `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -758,4 +758,29 @@ export const CORPUS_REAL_FILES = [
         slug: 'packages_web_adwaita-core_src_conformance_blueprints_carousel-indicators',
         source: 'packages/web/adwaita-core/src/conformance/blueprints/carousel-indicators.blp',
     },
+    { slug: 'website_src_blueprints_adwaita_header_bar', source: 'website/src/blueprints/adwaita/header-bar.blp' },
+    { slug: 'website_src_blueprints_adwaita_wrap_box', source: 'website/src/blueprints/adwaita/wrap-box.blp' },
+    { slug: 'website_src_blueprints_gtk_button', source: 'website/src/blueprints/gtk/button.blp' },
+    { slug: 'website_src_blueprints_gtk_menu_button', source: 'website/src/blueprints/gtk/menu-button.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_button_content',
+        source: 'website/src/blueprints/adwaita/button-content.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_split_button', source: 'website/src/blueprints/adwaita/split-button.blp' },
+    { slug: 'website_src_blueprints_adwaita_action_row', source: 'website/src/blueprints/adwaita/action-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_switch_row', source: 'website/src/blueprints/adwaita/switch-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_entry_row', source: 'website/src/blueprints/adwaita/entry-row.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_password_entry_row',
+        source: 'website/src/blueprints/adwaita/password-entry-row.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_expander_row', source: 'website/src/blueprints/adwaita/expander-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_button_row', source: 'website/src/blueprints/adwaita/button-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_avatar', source: 'website/src/blueprints/adwaita/avatar.blp' },
+    { slug: 'website_src_blueprints_adwaita_banner', source: 'website/src/blueprints/adwaita/banner.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_shortcut_label',
+        source: 'website/src/blueprints/adwaita/shortcut-label.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_window_title', source: 'website/src/blueprints/adwaita/window-title.blp' },
 ];
