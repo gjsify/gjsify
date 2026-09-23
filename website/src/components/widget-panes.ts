@@ -15,9 +15,18 @@
 export type LivePane = {
     id: string;
     kind: 'live';
-    /** The markup to clone into the stage — the `preview` fence's own bytes. */
-    markup: string;
-};
+} & (
+    | {
+          /** The markup to clone into the stage — the `preview` fence's own bytes. */
+          markup: string;
+          tree?: undefined;
+      }
+    | {
+          /** A one-Blueprint block's `?shared-tree` projection, as JSON, built in the stage. */
+          tree: string;
+          markup?: undefined;
+      }
+);
 
 /** A pane a PAGE filled, as one `<Fragment slot="…">` holding one fenced block. */
 export type SlotPane = { id: string; kind: 'slot'; label: string; html: string };

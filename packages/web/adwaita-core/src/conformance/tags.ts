@@ -149,3 +149,29 @@ export const ATTRIBUTE_OF_VECTORS: ReadonlyArray<AttributeOfVector> = [
         rule: 'an ALREADY-KEBAB name has no capital either, so it is idempotent — safe to call twice',
     },
 ];
+
+/** One `propertyOf` expectation. */
+export interface PropertyOfVector {
+    /** A property name as a projected `.blp` spells it, or as a hand-authored tree does. */
+    name: string;
+    /** The member `propertyOf` must return. */
+    expected: string;
+    rule: string;
+}
+
+/** `propertyOf` — a GIR property name to the camel-case member a NativeScript widget declares. */
+export const PROPERTY_OF_VECTORS: ReadonlyArray<PropertyOfVector> = [
+    { name: 'maximum-size', expected: 'maximumSize', rule: 'one hyphen, one capital' },
+    {
+        name: 'tightening-threshold',
+        expected: 'tighteningThreshold',
+        rule: 'the same rule on a second property of the same widget',
+    },
+    { name: 'icon_name', expected: 'iconName', rule: 'GObject reads `_` as `-`, so it closes a word too' },
+    { name: 'label', expected: 'label', rule: 'a single-word name passes through unchanged' },
+    {
+        name: 'maximumSize',
+        expected: 'maximumSize',
+        rule: 'an ALREADY-camel name has no separator, so it is idempotent, as the hand-authored trees need',
+    },
+];

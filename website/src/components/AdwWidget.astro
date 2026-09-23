@@ -108,6 +108,22 @@
 //     <Fragment slot="blueprint">```blueprint …```</Fragment>
 //     <Fragment slot="nativescript">```ts …```</Fragment>
 //   </AdwWidget>
+//
+// A ONE-BLUEPRINT block has a second shape, and the `blueprint` prop is what selects it:
+//
+//   <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
+//     <Fragment slot="gjs">```ts …```</Fragment>
+//     <Fragment slot="webloader">```ts …```</Fragment>
+//     <Fragment slot="nativescriptloader">```ts …```</Fragment>
+//   </AdwWidget>
+//
+// ONE `.blp` under `src/blueprints/` builds the widget on every surface, so the layout is
+// written once and each pane shows only what differs per platform: how the layout is
+// LOADED and how a named element is REACHED by its Blueprint id. The Blueprint tab renders
+// the file itself and the live window builds the file's `?shared-tree` projection with
+// `@gjsify/adwaita-web`'s own `buildSharedTree`, so neither is a copy a page can let drift.
+// {@link ONE_BLUEPRINT_SLOTS} and {@link FROM_THE_BLUEPRINT} say which slots each shape
+// writes, and arm 13 of `check-website-adwaita-gallery.mjs` holds each block to its shape.
 
 interface Props {
     /** The widget, e.g. "Adw.SwitchRow". Titles the live-preview window. */
@@ -143,6 +159,11 @@ interface Props {
      * title that isn't a single class, or `false` to suppress the link.
      */
     docHref?: string | false;
+    /**
+     * The `.blp` that builds this widget, relative to `src/blueprints/`
+     * (`"adwaita/clamp.blp"`). Setting it makes this a ONE-BLUEPRINT block — see the header.
+     */
+    blueprint?: string;
 }
 
 import {
@@ -157,7 +178,38 @@ import {
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 import type { WidgetPane } from './widget-panes';
 
-const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
+const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref, blueprint } = Astro.props;
+
+/**
+ * Every `.blp` under `src/blueprints/`, read twice through Vite: as its SOURCE for the
+ * Blueprint tab, and as `@gjsify/vite-plugin-blueprint`'s `?shared-tree` projection for the
+ * live window. Keyed by the same glob, so a block names its file once and the two reads
+ * cannot name two different files.
+ *
+ * `?raw` is Vite's own: its asset plugin answers that query before the Blueprint plugin
+ * (registered in `astro.config.mjs`) is asked, so the tab shows the file's bytes, not
+ * the GtkBuilder XML a bare `.blp` import compiles to.
+ */
+const BLUEPRINT_SOURCES = import.meta.glob<string>('../blueprints/**/*.blp', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+});
+const BLUEPRINT_TREES = import.meta.glob<unknown>('../blueprints/**/*.blp', {
+    query: '?shared-tree',
+    import: 'default',
+    eager: true,
+});
+const blueprintKey = blueprint === undefined ? undefined : `../blueprints/${blueprint}`;
+const blueprintSource = blueprintKey === undefined ? undefined : BLUEPRINT_SOURCES[blueprintKey];
+const blueprintTree = blueprintKey === undefined ? undefined : BLUEPRINT_TREES[blueprintKey];
+if (blueprint !== undefined && (blueprintSource === undefined || blueprintTree === undefined)) {
+    throw new Error(
+        `AdwWidget(${title}): blueprint="${blueprint}" names no file under src/blueprints/. ` +
+            `Known: ${Object.keys(BLUEPRINT_SOURCES).map((key) => key.replace('../blueprints/', '')).join(', ')}.`,
+    );
+}
+const oneBlueprint = blueprint !== undefined;
 
 // Derive the upstream class-reference URL from a `Namespace.ClassName` title, so
 // each widget links to its canonical docs (the sources this gallery documents).
@@ -229,6 +281,11 @@ type PaneGroup = {
     refusalOf: (widget: string) => string | undefined;
     /** The pane the reason renders as. Its `pane` id has to be unique across ALL windows. */
     refusal: { pane: string; label: string; missing: string; note: string };
+    /**
+     * Set on a group whose panes RESTATE the layout in another file, which a one-Blueprint
+     * block exists not to do. Such a block shows its loader slot instead.
+     */
+    replacedOnOneBlueprint?: true;
 };
 
 const FRAMEWORK_GROUP: PaneGroup = {
@@ -260,6 +317,10 @@ const NATIVESCRIPT_GROUP: PaneGroup = {
     // dialog) and `LayoutBase` adds a child a widget cannot place anyway (a header
     // bar painted over the content). Both at exit 0. Only a run says which.
     code: NATIVESCRIPT_PANES,
+    // The XML template is the layout written a second time. On a one-Blueprint block the
+    // `nativescriptloader` tab builds the `.blp`'s own tree instead, and two tabs both
+    // labelled "NativeScript" would leave the reader to guess which one is the program.
+    replacedOnOneBlueprint: true,
     codeOf: (widget) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
     refusalOf: (widget) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
     refusal: {
@@ -322,6 +383,32 @@ const CORPUS_SLOTS: Record<string, string> = {
     nativescript:
         'held against the `gjs` fence of the same block by arm 12 of ' +
         'scripts/check-website-adwaita-gallery.mjs, which prints how far apart the two are',
+};
+
+/**
+ * Tab slots only a ONE-BLUEPRINT block writes, with why each exists.
+ *
+ * A loader with no `.blp` behind it loads nothing, so the component refuses one on a block
+ * without the `blueprint` prop, and arm 13 of the gallery gate holds every one-Blueprint
+ * block to writing all of them.
+ */
+const ONE_BLUEPRINT_SLOTS: Record<string, string> = {
+    webloader:
+        'how a page mounts the `?shared-tree` projection with `@gjsify/adwaita-web` and reaches an ' +
+        'element by its Blueprint id — the pane the HTML markup tab holds on the other shape',
+    nativescriptloader:
+        'how a NativeScript app builds the same projection with `@gjsify/adwaita-nativescript/builder` ' +
+        'and reaches a view by its Blueprint id',
+};
+
+/**
+ * Tab slots a ONE-BLUEPRINT block must NOT write, with what fills that pane instead.
+ *
+ * Both would be a second copy of the layout, which is the thing the shape removes.
+ */
+const FROM_THE_BLUEPRINT: Record<string, string> = {
+    blueprint: 'the Blueprint tab renders the `.blp` file itself',
+    preview: 'the live window builds the `.blp`, so there is no markup to mount or to show',
 };
 
 /**
@@ -397,6 +484,10 @@ const WINDOWS: readonly {
             // fence is read for the mount whether or not this tab renders, so arm 9
             // holds that the fence a reader can copy is actually shown somewhere.
             { slot: MARKUP_SLOT, label: 'HTML Web Components' },
+            // The two loaders of a one-Blueprint block — see {@link ONE_BLUEPRINT_SLOTS}.
+            // `webloader` stands where the markup tab stands on the other shape.
+            { slot: 'webloader', label: 'Web Components' },
+            { slot: 'nativescriptloader', label: 'NativeScript' },
         ],
         // Filled on all 40 blocks, snippet or recorded reason — see {@link PaneGroup}.
         groups: [FRAMEWORK_GROUP, NATIVESCRIPT_GROUP],
@@ -502,6 +593,19 @@ if (renderedCorpusSlot !== undefined) {
     );
 }
 
+// A block of one shape writing a slot of the other is refused at build time, and by name:
+// Astro would render it, so nothing downstream would say that the block now carries the
+// layout twice (a `preview` fence beside its `.blp`) or a loader for a file it never named.
+for (const slot of Object.keys(oneBlueprint ? FROM_THE_BLUEPRINT : ONE_BLUEPRINT_SLOTS)) {
+    if (!Astro.slots.has(slot)) continue;
+    throw new Error(
+        oneBlueprint
+            ? `AdwWidget(${title}): a one-Blueprint block writes no "${slot}" fragment — ${FROM_THE_BLUEPRINT[slot]}.`
+            : `AdwWidget(${title}): the "${slot}" fragment loads a \`.blp\`, and this block names none. ` +
+                  'Give it a `blueprint="…"` prop, or drop the fragment.',
+    );
+}
+
 // The block's markup, read ONCE and before any window: it belongs to the BLOCK rather
 // than to a window now that the pane that mounts it and the tab that shows it are in
 // two different ones. It used to be read as a side effect of rendering the first
@@ -540,10 +644,16 @@ const rendered: { id: string; title: string; panes: WidgetPane[] }[] = [];
 
 for (const spec of WINDOWS) {
     const panes: WidgetPane[] = [];
-    if (spec.live === true && previewMarkup !== null) {
+    if (spec.live === true && oneBlueprint) {
+        panes.push({ id: LIVE_PANE, kind: 'live', tree: JSON.stringify(blueprintTree) });
+    } else if (spec.live === true && previewMarkup !== null) {
         panes.push({ id: LIVE_PANE, kind: 'live', markup: previewMarkup });
     }
     for (const tab of spec.tabs) {
+        if (oneBlueprint && tab.slot === 'blueprint') {
+            panes.push({ id: tab.slot, kind: 'code', label: tab.label, lang: 'blueprint', source: blueprintSource ?? '' });
+            continue;
+        }
         if (!Astro.slots.has(tab.slot)) continue;
         let html: string;
         if (tab.slot === MARKUP_SLOT) {
@@ -563,6 +673,7 @@ for (const spec of WINDOWS) {
     // that group's pane absent, which arm 4 (frameworks) and arm 7 (NativeScript) of
     // `check-generated-website-data.mjs` are what refuse.
     for (const group of spec.groups) {
+        if (oneBlueprint && group.replacedOnOneBlueprint === true) continue;
         const code = group.code
             .map((pane) => ({
                 id: pane.id,
@@ -618,8 +729,9 @@ for (const spec of WINDOWS) {
     // Registers every <adw-*> custom element — both the tab bar of this
     // component AND the live-preview widgets slotted into it. This static import
     // runs before the code below, so every element is defined by the time the
-    // previews mount.
-    import '@gjsify/adwaita-web';
+    // previews mount. `buildSharedTree` is what a one-Blueprint block's preview is
+    // realised with — see the mount below.
+    import { buildSharedTree } from '@gjsify/adwaita-web';
     // The element CLASS, for the ordinal door below. `<adw-tab-view>` has no settable
     // ordinal any more (ADR 0048) and an attribute is a string no type sees, so the
     // selection has to go through a method a type can miss.
@@ -633,7 +745,10 @@ for (const spec of WINDOWS) {
         const stage = tpl.parentElement?.querySelector<HTMLElement>('.adw-widget-preview-stage');
         if (!stage || stage.dataset.mounted) continue;
         stage.dataset.mounted = '1';
-        stage.append(tpl.content.cloneNode(true));
+        // A one-Blueprint block carries its `.blp`'s projected tree instead of markup, and
+        // the renderer's own builder realises it: the preview is the web render of the file.
+        const tree = tpl.dataset.sharedTree;
+        stage.append(tree === undefined ? tpl.content.cloneNode(true) : buildSharedTree(JSON.parse(tree)));
     }
 
     const KEY = 'gjsify-preferred-impl';

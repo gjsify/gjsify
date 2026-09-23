@@ -133,6 +133,15 @@
 //      GROUP with a refusal pane; the ledger is for a tab that is genuinely per-page,
 //      and it is empty. The coverage is PRINTED, because each of the three had to be
 //      measured by hand before anyone could see it.
+//
+//      "EVERY BLOCK" MEANS EVERY BLOCK OF THE SLOT'S SHAPE. A one-Blueprint block
+//      (`<AdwWidget blueprint="…">`) builds the widget from one `.blp`, so it writes the
+//      loader slots `AdwWidget` declares in `ONE_BLUEPRINT_SLOTS` and none of the slots in
+//      `FROM_THE_BLUEPRINT`, whose panes the component fills from the file. Each shape is
+//      held to its own slot set in both directions, and the two sets are read out of the
+//      component rather than restated here. That is not an exemption: a loader missing from
+//      one one-Blueprint block fails exactly as a `gjs` fence missing from one block does.
+//      A `blueprint="…"` naming no file under `website/src/blueprints/` fails too.
 //   9. The reader meets the RUNNING WIDGET before any source, and the markup that
 //      paints it is shown. Read out of both component files, because the claim now
 //      spans them: the live pane and the markup tab are ONE source (the pane mounts the
@@ -169,7 +178,7 @@
 //
 // Usage: node scripts/check-website-adwaita-gallery.mjs [--root <dir>]
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -276,9 +285,11 @@ function widgetBlocks(root, pages) {
     const blocks = [];
     for (const page of pages) {
         const text = readFileSync(join(root, page.path), 'utf8');
-        const shape = /<AdwWidget\b[^>]*?\btitle="([^"]+)"[^>]*>([\s\S]*?)<\/AdwWidget>/g;
-        for (const [, title, body] of text.matchAll(shape)) {
-            blocks.push({ page: page.path, dir: page.dir, title, body });
+        const shape = /<AdwWidget\b([^>]*?\btitle="([^"]+)"[^>]*)>([\s\S]*?)<\/AdwWidget>/g;
+        for (const [, attributes, title, body] of text.matchAll(shape)) {
+            // The prop that makes a block ONE-BLUEPRINT — see arm 13.
+            const blueprint = /\bblueprint="([^"]+)"/.exec(attributes)?.[1];
+            blocks.push({ page: page.path, dir: page.dir, title, body, blueprint });
         }
     }
     return blocks;
@@ -512,7 +523,14 @@ function componentWindows(root) {
     // an empty category — the empty category is `{}`, and it is what a component with
     // every fence rendered would declare.
     const corpus = /\bconst CORPUS_SLOTS(?::[^=]*)? = \{([\s\S]*?)\n\};/.exec(text);
+    // The two slot sets of the one-Blueprint shape (arm 13). Absent is a broken read, as above.
+    const keysOf = (name) => {
+        const decl = new RegExp(`\\bconst ${name}(?::[^=]*)? = \\{([\\s\\S]*?)\\n\\};`).exec(text);
+        return decl === null ? null : [...decl[1].matchAll(/^\s+([a-z][a-z0-9-]*):/gm)].map(([, slot]) => slot);
+    };
     return {
+        oneBlueprintSlots: keysOf('ONE_BLUEPRINT_SLOTS'),
+        fromTheBlueprint: keysOf('FROM_THE_BLUEPRINT'),
         windows,
         unresolved,
         markupSlot: constants.get('MARKUP_SLOT') ?? null,
@@ -767,17 +785,14 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.PreferencesDialog':
         'property: the dialog takes its own title, and present() takes no parent. The combo model is a ' +
         'Gtk.StringList and the adjustment a Gtk.Adjustment on both sides now.',
-    'Adw.Clamp':
-        'composition: the NativeScript window splits into an XML template and a loader, so this pane is the ' +
-        '`~/adw` barrel the template’s xmlns resolves to plus a Builder.load(), not a widget construction.',
     'Adw.HeaderBar':
-        'composition: same split as Adw.Clamp — two barrels (`~/adw`, `~/gtk`) and the loader; the tree the ' +
-        'gjs pane builds is the XML tab beside this one.',
+        'composition: the NativeScript window splits into an XML template and a loader — two barrels ' +
+        '(`~/adw`, `~/gtk`) and the loader; the tree the gjs pane builds is the XML tab beside this one.',
     'Adw.ToolbarView':
-        'composition: same split as Adw.Clamp, and the bottom bar is a second header bar because the port has ' +
+        'composition: the same template-plus-loader split as Adw.HeaderBar, and the bottom bar is a second header bar because the port has ' +
         'no Gtk.ActionBar — so the loader reaches its buttons by the ids the template gave them.',
     'Adw.WrapBox':
-        'composition: same split as Adw.Clamp — the chip run is a fixed tree, so it lives in the template and ' +
+        'composition: same split as Adw.HeaderBar — the chip run is a fixed tree, so it lives in the template and ' +
         'this pane loads it.',
     'Adw.NavigationSplitView':
         'property: the port has no Adw.NavigationPage, Adw.SidebarSection or Adw.SidebarItem, so the sidebar ' +
@@ -1173,7 +1188,8 @@ for (const page of pages) {
 
 // --- the window/tab arms: what a page provides against what the component renders ---
 
-const { windows, unresolved, markupSlot, override, corpus } = componentWindows(ROOT);
+const { windows, unresolved, markupSlot, override, corpus, oneBlueprintSlots, fromTheBlueprint } =
+    componentWindows(ROOT);
 const ports = new Set(windows.flatMap((w) => w.slots));
 if (windows.length === 0 || ports.size === 0) {
     console.error(
@@ -1207,6 +1223,14 @@ if (corpus === null) {
     process.exit(1);
 }
 const corpusSlots = new Set(corpus);
+if (oneBlueprintSlots === null || fromTheBlueprint === null || oneBlueprintSlots.length === 0) {
+    console.error(
+        `check-website-adwaita-gallery: ONE_BLUEPRINT_SLOTS or FROM_THE_BLUEPRINT is missing or empty in\n` +
+            `  ${WIDGET_COMPONENT}. Arm 13 holds each block to its shape's slots, and would hold a\n` +
+            '  one-Blueprint block to nothing on a broken read.',
+    );
+    process.exit(1);
+}
 
 const blocks = widgetBlocks(ROOT, pages);
 if (blocks.length === 0) {
@@ -1336,9 +1360,42 @@ for (const window of windows) {
 // SELF-RETIRING, like arm 12's: an entry naming a slot that has since reached every
 // block fails here, so a reason cannot outlive what it was recorded for.
 
+/** Which shape a tab slot belongs to, or null for a slot every block writes. */
+const shapeOfSlot = (slot) =>
+    oneBlueprintSlots.includes(slot) ? 'one-Blueprint' : fromTheBlueprint.includes(slot) ? 'markup' : null;
+const shapeOfBlock = (block) => (block.blueprint === undefined ? 'markup' : 'one-Blueprint');
+
+for (const slot of [...oneBlueprintSlots, ...fromTheBlueprint]) {
+    if (ports.has(slot)) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} names "${slot}" as a slot of one block shape, and no window renders a tab of\n` +
+            '    that name. The shape would hold its blocks to a pane nobody sees.',
+    );
+}
+for (const block of blocks) {
+    const shape = shapeOfBlock(block);
+    if (block.blueprint !== undefined && !existsSync(join(ROOT, 'website/src/blueprints', block.blueprint))) {
+        failures.push(
+            `${block.page}: <AdwWidget title="${block.title}" blueprint="${block.blueprint}"> names no file under\n` +
+                '    website/src/blueprints/, so the block has no layout to build.',
+        );
+    }
+    for (const [, slot] of block.body.matchAll(/<Fragment slot="([^"]+)"/g)) {
+        const owner = shapeOfSlot(slot);
+        if (owner === null || owner === shape) continue;
+        failures.push(
+            `${block.page}: <AdwWidget title="${block.title}"> is a ${shape} block and writes "${slot}", a slot of\n` +
+                `    the ${owner} shape. A one-Blueprint block writing its layout again, or a loader with no\n` +
+                '    `.blp` to load, is the second copy the shape exists to remove.',
+        );
+    }
+}
+
 for (const [slot, blocksWithIt] of providedBy) {
     const reason = PARTIAL_TAB_SLOTS[slot];
-    if (blocksWithIt.size === blocks.length) {
+    const shape = shapeOfSlot(slot);
+    const expected = shape === null ? blocks.length : blocks.filter((b) => shapeOfBlock(b) === shape).length;
+    if (blocksWithIt.size === expected) {
         if (reason === undefined) continue;
         failures.push(
             `${slot}: ledgered in PARTIAL_TAB_SLOTS as a tab that cannot be filled everywhere, and it is\n` +
@@ -1349,9 +1406,9 @@ for (const [slot, blocksWithIt] of providedBy) {
     }
     if (reason !== undefined) continue;
     failures.push(
-        `${WIDGET_COMPONENT} renders the tab "${slot}", and only ${blocksWithIt.size} of ${blocks.length}\n` +
-            `    <AdwWidget> blocks under ${GALLERY} write that fragment. The other ` +
-            `${blocks.length - blocksWithIt.size} draw the\n` +
+        `${WIDGET_COMPONENT} renders the tab "${slot}", and only ${blocksWithIt.size} of ${expected}\n` +
+            `    ${shape === null ? '' : `${shape} `}<AdwWidget> blocks under ${GALLERY} write that fragment. ` +
+            `The other ${expected - blocksWithIt.size} draw the\n` +
             '    window without it and say nothing, which is how a footnote comes to hold a window pane —\n' +
             '    three times so far. Fill it everywhere, give the port a data GROUP with a refusal pane so\n' +
             `    every block carries one, or add "${slot}" to PARTIAL_TAB_SLOTS in this script with the reason\n` +
@@ -1674,8 +1731,14 @@ console.log(
 const tabSlots = windows.flatMap((window) => window.slots);
 console.log(
     `check-website-adwaita-gallery: ${tabSlots.length} tab slot(s) — ` +
-        tabSlots.map((slot) => `${slot} ${providedBy.get(slot)?.size ?? 0}/${blocks.length}`).join(', ') +
-        ` — each on every block or ledgered as per-page, ${Object.keys(PARTIAL_TAB_SLOTS).length} ledgered.`,
+        tabSlots
+            .map((slot) => {
+                const shape = shapeOfSlot(slot);
+                const of = shape === null ? blocks.length : blocks.filter((b) => shapeOfBlock(b) === shape).length;
+                return `${slot} ${providedBy.get(slot)?.size ?? 0}/${of}${shape === null ? '' : ` ${shape}`}`;
+            })
+            .join(', ') +
+        ` — each on every block of its shape or ledgered as per-page, ${Object.keys(PARTIAL_TAB_SLOTS).length} ledgered.`,
 );
 
 /** The ledger's own partition, by kind, so a run says what the remaining work IS. */

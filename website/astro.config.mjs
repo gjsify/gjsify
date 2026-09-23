@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 
 const blueprintGrammar = JSON.parse(
     readFileSync(new URL('./src/grammars/blueprint.tmLanguage.json', import.meta.url), 'utf8'),
@@ -60,6 +61,11 @@ export default defineConfig({
         '/adwaita/controls': '/gjsify/gtk/controls/',
     },
     vite: {
+        // A one-Blueprint gallery block (`<AdwWidget blueprint="…">`) reads its `.blp` as a
+        // `?shared-tree` projection, which only this plugin answers. It is the plugin every
+        // `gjsify build` target registers, so the preview is built from the same projection
+        // the NativeScript and web loaders on the page import.
+        plugins: [blueprintPlugin()],
         resolve: {
             alias: {
                 // Both ship exports pointing at lib/esm, which this website never builds

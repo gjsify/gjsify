@@ -232,7 +232,7 @@ for (const pane of panes) {
                     module ended `</div>`}</div>`;` and esbuild refused it with
                     `Expected ")" but found "}"` pointing at a line that does not
                     exist in this file. */}
-                <template class="adw-widget-preview-tpl" set:html={single.markup}></template>
+                <template class="adw-widget-preview-tpl" data-shared-tree={single.tree} set:html={single.markup ?? ''}></template>
                 <div class="adw-widget-preview-stage" style={stage} />
             </div>
         )

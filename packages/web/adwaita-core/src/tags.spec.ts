@@ -7,8 +7,8 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS } from './conformance/tags.js';
-import { attributeOf, hostTagOf } from './tags.js';
+import { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS, PROPERTY_OF_VECTORS } from './conformance/tags.js';
+import { attributeOf, hostTagOf, propertyOf } from './tags.js';
 
 export default async () => {
     await describe('hostTagOf (conformance vectors)', async () => {
@@ -33,6 +33,14 @@ export default async () => {
         for (const vector of ATTRIBUTE_OF_VECTORS) {
             await it(`${vector.prop || '(empty)'} — ${vector.rule}`, () => {
                 expect(attributeOf(vector.prop)).toBe(vector.expected);
+            });
+        }
+    });
+
+    await describe('propertyOf (conformance vectors)', async () => {
+        for (const vector of PROPERTY_OF_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                expect(propertyOf(vector.name)).toBe(vector.expected);
             });
         }
     });

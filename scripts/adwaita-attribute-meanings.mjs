@@ -55,9 +55,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'start-icon-name': 'The icon name to show before the title.',
         'title': null,
     },
-    'adw-clamp': {
-        'maximum-size': 'The maximum size allocated to the child.',
-    },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
         'selected': 'The position of the selected item.',
@@ -217,12 +214,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 107,
-    glossed: 27,
+    set: 106,
+    glossed: 26,
     nameSuffices: 58,
     divergent: 20,
     authored: 2,
-    commentLines: 27,
+    commentLines: 26,
 };
 
 /**
