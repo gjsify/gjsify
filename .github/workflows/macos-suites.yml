@@ -67,7 +67,10 @@
 # WHY NO PATH FILTER: the run ends in a whole-tree conformance audit, and a path
 # filter on a job containing a whole-tree check is a measured way to be green
 # while `main` goes red (#1183). `scripts/manifest-conformance/rules/pr-trigger-parity.mjs`
-# holds the two triggers to each other.
+# holds the two triggers to each other. The `scope` job below still lets a PR skip the
+# suites when it provably cannot reach them — what that has to prove, and why it is
+# not #1183, is under WHAT A PR MAY SKIP in `windows-suites.yml`. It is how the macOS
+# concurrency caveat above is paid for without narrowing the matrix.
 #
 # WHY BOTH ARCHITECTURES
 #
@@ -109,8 +112,27 @@ permissions:
   contents: read
 
 jobs:
+  # A pull request runs the suite below only when it can reach it: the reasoning, and what a
+  # skip has to prove, is in `.github/actions/suite-scope`. `main`, the nightly and a
+  # dispatch always answer `run=true`. The gate is `!= 'false'`, so a scope job that fails
+  # or never reports runs the suite rather than skipping it.
+  scope:
+    name: Scope the suite to this change
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        uses: ./.github/actions/suite-scope
+
   node-and-gjs-suites:
     name: Node-pillar suites (darwin-${{ matrix.arch }} / gjs + node)
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
