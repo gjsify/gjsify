@@ -41,6 +41,7 @@ import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import scrollingTestSuite from './scrolling.spec.js';
 import swipeTestSuite from './swipe.spec.js';
+import markupTestSuite from './markup.spec.js';
 import tagsTestSuite from './tags.spec.js';
 import sourceTestSuite from './source.spec.js';
 
@@ -86,6 +87,7 @@ run({
     spinnerTestSuite,
     shortcutLabelTestSuite,
     scrollingTestSuite,
+    markupTestSuite,
     tagsTestSuite,
     sourceTestSuite,
 });

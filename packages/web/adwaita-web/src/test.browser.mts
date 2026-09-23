@@ -60,12 +60,14 @@ import { AdwFontsTest } from './adw-fonts.spec.js';
 import { AdwSharedTreesTest } from './shared-trees.spec.js';
 import { AdwBlueprintTreeTest } from './blueprint-tree.spec.js';
 import { AdwBlueprintLayoutTest } from './blueprint-layout.spec.js';
+import { AdwBlueprintMarkupTest } from './blueprint-markup.spec.js';
 import { AdwTagsTest } from './tags.spec.js';
 
 run({
     AdwSharedTreesTest,
     AdwBlueprintTreeTest,
     AdwBlueprintLayoutTest,
+    AdwBlueprintMarkupTest,
     AdwTagsTest,
     AdwKeyboardOperableTest,
     AdwConnectLifecycleTest,

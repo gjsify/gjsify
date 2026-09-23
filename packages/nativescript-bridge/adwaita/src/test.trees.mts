@@ -14,6 +14,7 @@
 import { run } from '@gjsify/unit';
 
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
+import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
@@ -25,4 +26,5 @@ run({
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwBlueprintTreesNsTest,
+    AdwBlueprintMarkupNsTest,
 });
