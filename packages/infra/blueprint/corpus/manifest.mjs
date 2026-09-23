@@ -36,24 +36,27 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE TWELVE REAL FILES DO NOT REACH
+// WHAT THE THIRTEEN REAL FILES DO NOT REACH
 //
-// They are a probe against reality, not a measure of breadth, and citing "twelve real
+// They are a probe against reality, not a measure of breadth, and citing "thirteen real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
-// `breakpoint` and `comment`. It was six kinds until ADR 0066 gave `template` and
-// `object-id` a field each, ADR 0067 the `_()` marking and ADR 0068 the style classes —
-// which is also why most of the twelve now project with NO loss at all, where before those
-// changes not one of them did, and why what is left on the three that do is a GRAMMAR rather
-// than a construct. Every other kind (`signal`, `menu`, `styles`-as-an-ident, `layout`,
-// `accessibility`, `value-list`, `sibling-object`, `responses`, `extern`, the six bracketed
-// lists, `internal-child`, `action-widget`, `inline-template`, `translation-domain`) is
-// declared by no real expectation and is held only by the rules above — the half of the
-// corpus written by whoever writes the parser. (`comment` is the one to read carefully: four
-// of them DO carry comments, and the convention in `expectations.mjs` is that comments are
-// never listed per entry.) And twelve files are
-// about seven distinct SHAPES: the three `templates/adw-*/src/main-window.blp` differ in one
-// title string, and fireworks and pixel differ only in the template class name, the
-// window title, a group title, four row titles and five object ids.
+// `breakpoint`, `comment` and `signal`. The first three were six kinds until ADR 0066 gave
+// `template` and `object-id` a field each, ADR 0067 the `_()` marking and ADR 0068 the style
+// classes — which is also why most of the thirteen now project with NO loss at all, where
+// before those changes not one of them did, and why what is left on the three that do (the
+// binding/breakpoint pair) is a GRAMMAR rather than a construct. `signal` is a different
+// story: no real file reached it until the storybook's own chrome (`packages/framework/
+// storybook/src/window.ts`) moved into a `.blp`, so it is the first real file this corpus has
+// ever held to a whole missing CONSTRUCT rather than a grammar detail. Every other kind
+// (`menu`, `styles`-as-an-ident, `layout`, `accessibility`, `value-list`, `sibling-object`,
+// `responses`, `extern`, the six bracketed lists, `internal-child`, `action-widget`,
+// `inline-template`, `translation-domain`) is declared by no real expectation and is held
+// only by the rules above — the half of the corpus written by whoever writes the parser.
+// (`comment` is the one to read carefully: five of them DO carry comments, and the
+// convention in `expectations.mjs` is that comments are never listed per entry.) And
+// thirteen files are about eight distinct SHAPES: the three `templates/adw-*/src/main-window.blp`
+// differ in one title string, and fireworks and pixel differ only in the template class
+// name, the window title, a group title, four row titles and five object ids.
 //
 // WHAT THE REFUSED FILES ARE FOR
 //
@@ -69,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The twelve `.blp` files this repo already builds are the reality probe ADR 0053
+// The thirteen `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -738,4 +741,8 @@ export const CORPUS_REAL_FILES = [
     { slug: 'templates_adw-game_src_main-window', source: 'templates/adw-game/src/main-window.blp' },
     { slug: 'templates_adw-webgl_src_main-window', source: 'templates/adw-webgl/src/main-window.blp' },
     { slug: 'templates_gtk-minimal_src_main-window', source: 'templates/gtk-minimal/src/main-window.blp' },
+    {
+        slug: 'packages_framework_storybook_src_window',
+        source: 'packages/framework/storybook/src/window.blp',
+    },
 ];

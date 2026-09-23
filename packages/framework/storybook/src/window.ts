@@ -2,17 +2,16 @@
 // by category, a preview pane, and a controls panel that renders live-bound
 // Adwaita rows from each story's controls.
 //
-// The window is the GTK adapter: it keeps ALL the GTK chrome construction
-// (NavigationSplitView + OverlaySplitView + Adw.Breakpoint + the Gtk.ListBox
-// sidebar + the controls PreferencesGroup) and the Adwaita control widgets, and
-// implements the renderer-agnostic StorybookView<StoryWidget> seams. A
+// The window is the GTK adapter: it owns the GTK chrome (NavigationSplitView +
+// OverlaySplitView + Adw.Breakpoint + the Gtk.ListBox sidebar + the controls
+// PreferencesGroup) and the Adwaita control widgets, and implements the renderer-agnostic StorybookView<StoryWidget> seams. A
 // StorybookController<StoryWidget> from @gjsify/storybook-core owns the state
 // machine (registration, instantiation, category grouping, selection, the
 // controls refresh cycle, and the MCP/devtools surface).
 //
-// The window tree is built programmatically rather than from a .blp template so
-// the package is self-contained — a published library cannot rely on the
-// blueprint build plugin (which only runs for `--app` bundles, not `--library`).
+// The static chrome is declared in window.blp; `--library` builds compile it
+// into the published module, so consumers need no Blueprint plugin of their
+// own. This file keeps what depends on the stories: rows and signal logic.
 
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
@@ -31,6 +30,7 @@ import {
 import { buildAppearanceDialog, StorybookAppearance } from './appearance.js';
 import type { StoryModule, StoryWidget } from './story-widget.js';
 import type { StoryRow } from './types.js';
+import Template from './window.blp';
 
 /**
  * Builds the Adwaita leaf control widgets — the single renderer-specific seam
@@ -278,15 +278,18 @@ function buildColorWidget(label: string, desc: string | undefined): ControlWidge
  * {@link StorybookController} drives it.
  */
 export class StorybookWindow extends Adw.ApplicationWindow implements StorybookView<StoryWidget> {
-    private _sidebar_list!: Gtk.ListBox;
-    private _content_area!: Adw.Bin;
-    private _control_panel!: Adw.PreferencesGroup;
-    private _preview_title!: Adw.WindowTitle;
-    private _show_controls_button!: Gtk.ToggleButton;
+    // Template children (window.blp). `declare`, not a field: a field
+    // initializer would run after `super()` and overwrite what the template
+    // just assigned.
+    declare private _sidebar_list: Gtk.ListBox;
+    declare private _content_area: Adw.Bin;
+    declare private _control_panel: Adw.PreferencesGroup;
+    declare private _preview_title: Adw.WindowTitle;
+    declare private _show_controls_button: Gtk.ToggleButton;
+    declare private _controls_split_view: Adw.OverlaySplitView;
+    declare private _main_split_view: Adw.NavigationSplitView;
     /** Colour scheme + accent for the whole storybook, not for one story. */
     private _appearance = new StorybookAppearance();
-    private _controls_split_view!: Adw.OverlaySplitView;
-    private _main_split_view!: Adw.NavigationSplitView;
 
     private _controlRows: Gtk.Widget[] = [];
     private _rowByTitle = new Map<string, StoryRow>();
@@ -296,29 +299,37 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
     private _suppressSelect = false;
 
     static {
-        GObject.registerClass({ GTypeName: 'StorybookWindow' }, StorybookWindow);
+        GObject.registerClass(
+            {
+                GTypeName: 'StorybookWindow',
+                Template,
+                InternalChildren: [
+                    'sidebar_list',
+                    'content_area',
+                    'control_panel',
+                    'preview_title',
+                    'show_controls_button',
+                    'controls_split_view',
+                    'main_split_view',
+                ],
+            },
+            StorybookWindow,
+        );
     }
 
     constructor(params: Partial<Adw.ApplicationWindow.ConstructorProps>) {
         super(params);
 
-        this.set_default_size(1200, 800);
-        this.set_size_request(360, 320);
-        this.set_title('Storybook');
-
-        this._buildUI();
-
         // The controller owns the app state machine; this window is its view.
         // `buildControls` maps each story's controls through bindControl with the
         // Adwaita widget factory.
         this._controller = new StorybookController<StoryWidget>(this, (instance) => this._buildControls(instance));
-
-        this._sidebar_list.connect('row-selected', this._onRowSelected.bind(this));
-        this._show_controls_button.connect('toggled', this._onToggleControls.bind(this));
-        this._controls_split_view.set_show_sidebar(true);
     }
 
-    private _onRowSelected(_listbox: Gtk.ListBox, row: Gtk.ListBoxRow | null): void {
+    // Template callbacks: window.blp connects these by name, which is why they
+    // are `protected` — TypeScript cannot see a read from the template, and a
+    // `private` one it considers unused.
+    protected _onRowSelected(_listbox: Gtk.ListBox, row: Gtk.ListBoxRow | null): void {
         if (this._suppressSelect || !row) return;
         const storyRow = row as StoryRow;
         if (storyRow.storyWidget) this._onSelect?.(storyRow.storyWidget);
@@ -345,105 +356,14 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
         return rows;
     }
 
-    private _buildUI(): void {
-        // --- Sidebar (story list) ---
-        this._sidebar_list = new Gtk.ListBox({ selection_mode: Gtk.SelectionMode.SINGLE });
-        this._sidebar_list.add_css_class('navigation-sidebar');
-        const sidebarScroll = new Gtk.ScrolledWindow({ hexpand: true, vexpand: true, child: this._sidebar_list });
-        const sidebarHeader = new Adw.HeaderBar({
-            title_widget: new Adw.WindowTitle({ title: 'Stories' }),
-            show_end_title_buttons: false,
-        });
-        // Flat top bar so the sidebar header shares the sidebar background
-        // (the left column reads as one distinct shade).
-        const sidebarToolbar = new Adw.ToolbarView({
-            content: sidebarScroll,
-            top_bar_style: Adw.ToolbarStyle.FLAT,
-        });
-        sidebarToolbar.add_top_bar(sidebarHeader);
-        const sidebarPage = new Adw.NavigationPage({ title: 'Stories', tag: 'stories', child: sidebarToolbar });
-
-        // --- Preview content + controls overlay ---
-        this._content_area = new Adw.Bin({ hexpand: true, vexpand: true });
-        const contentScroll = new Gtk.ScrolledWindow({ hexpand: true, vexpand: true, child: this._content_area });
-        // The preview AREA owns the tinted surface (see `.sb-preview-area`). On the
-        // scroller rather than on the Bin inside it, so the tint spans the pane and
-        // stays put while a tall story scrolls.
-        contentScroll.add_css_class('sb-preview-area');
-
-        this._control_panel = new Adw.PreferencesGroup({ title: 'Controls' });
-        const prefsPage = new Adw.PreferencesPage();
-        prefsPage.add(this._control_panel);
-        const controlsScroll = new Gtk.ScrolledWindow({ vexpand: true, child: prefsPage });
-
-        this._controls_split_view = new Adw.OverlaySplitView({
-            show_sidebar: true,
-            sidebar_position: Gtk.PackType.END,
-            min_sidebar_width: 280,
-            max_sidebar_width: 360,
-            content: contentScroll,
-            sidebar: controlsScroll,
-            // Controls panel shares the window (story) background — only the
-            // left navigation sidebar keeps a distinct shade (see STORYBOOK_CSS).
-            css_classes: ['storybook-controls'],
-        });
-
-        // --- Preview header ---
-        this._preview_title = new Adw.WindowTitle({ title: 'Preview' });
-        this._show_controls_button = new Gtk.ToggleButton({
-            icon_name: 'sidebar-show-right-symbolic',
-            tooltip_text: 'Toggle Controls',
-            active: true,
-        });
-        const previewHeader = new Adw.HeaderBar({ title_widget: this._preview_title });
-        previewHeader.pack_end(this._show_controls_button);
-        // Appearance is a property of the storybook, so it belongs in its chrome
-        // rather than in a story's controls — every story is previewed under it.
-        const appearanceButton = new Gtk.Button({
-            icon_name: 'applications-graphics-symbolic',
-            tooltip_text: 'Appearance',
-        });
-        // Built fresh per press rather than held: an Adw.Dialog is presented and
-        // closed, and a reused instance that was closed with the window manager
-        // refuses to present again.
-        appearanceButton.connect('clicked', () => buildAppearanceDialog(this._appearance).present(this));
-        previewHeader.pack_end(appearanceButton);
-        // Flat top bar so the preview header shares the window (story)
-        // background instead of a distinct headerbar shade.
-        const previewToolbar = new Adw.ToolbarView({
-            content: this._controls_split_view,
-            top_bar_style: Adw.ToolbarStyle.FLAT,
-        });
-        previewToolbar.add_top_bar(previewHeader);
-        const previewPage = new Adw.NavigationPage({ title: 'Preview', tag: 'preview', child: previewToolbar });
-
-        // --- Outer split view ---
-        this._main_split_view = new Adw.NavigationSplitView({
-            min_sidebar_width: 220,
-            max_sidebar_width: 320,
-            sidebar: sidebarPage,
-            content: previewPage,
-        });
-        this.set_content(this._main_split_view);
-
-        // Collapse both panes on narrow widths (the .blp `Adw.Breakpoint`,
-        // expressed via apply/unapply so no GObject.Value boxing is needed).
-        const condition = Adw.BreakpointCondition.parse('max-width: 720sp');
-        if (condition) {
-            const breakpoint = new Adw.Breakpoint({ condition });
-            breakpoint.connect('apply', () => {
-                this._main_split_view.collapsed = true;
-                this._controls_split_view.collapsed = true;
-            });
-            breakpoint.connect('unapply', () => {
-                this._main_split_view.collapsed = false;
-                this._controls_split_view.collapsed = false;
-            });
-            this.add_breakpoint(breakpoint);
-        }
+    // Built fresh per press rather than held: an Adw.Dialog is presented and
+    // closed, and a reused instance that was closed with the window manager
+    // refuses to present again.
+    protected _onAppearanceClicked(): void {
+        buildAppearanceDialog(this._appearance).present(this);
     }
 
-    private _onToggleControls(button: Gtk.ToggleButton): void {
+    protected _onToggleControls(button: Gtk.ToggleButton): void {
         this._controls_split_view.set_show_sidebar(button.get_active());
     }
 
