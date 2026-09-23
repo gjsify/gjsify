@@ -247,6 +247,12 @@ const MODULE_REASONS = {
     'gio-menu': { table: 'MENU_NORMALIZE_VECTORS' },
     'gtk-adjustment': { table: 'ADJUSTMENT_AUTHORED_VECTORS' },
     'gtk-string-list': { table: 'LIST_NORMALIZE_VECTORS' },
+    // Text, not a derivation: `markup.ts` prints a shared tree through the case rules in
+    // `tags.ts` (`attributeOf` for the HTML, `propertyOf` for the XML, both tabled and driven).
+    // What a table could not say is whether the text builds the same widget as the port's own
+    // builder, and each port's `blueprint-markup.spec.ts` asks exactly that against every
+    // gallery `.blp`.
+    markup: { table: 'ATTRIBUTE_OF_VECTORS' },
     scrolling: { gap: NO_TABLE_LEDGER },
     source: { gap: NO_TABLE_LEDGER },
     swipe: { gap: NO_TABLE_LEDGER },

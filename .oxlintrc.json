@@ -310,6 +310,9 @@
         "**/refs",
         "tests/e2e/*/out",
         "packages/infra/lightningcss-wasm/src/napi-wasm.mjs",
+        // NativeScript's XML parser, copied verbatim for the tree driver: see the header of
+        // either file. Findings would be NativeScript's, and editing them would end the copy.
+        "packages/nativescript-bridge/adwaita/src/testing/nativescript-xml",
         // The one `lib/` that is committed but NOT ours: 108 verbatim copies of
         // upstream TypeScript's default-library declarations, refreshed from
         // `node_modules/typescript/lib` by `scripts/build-bundle.mjs` and

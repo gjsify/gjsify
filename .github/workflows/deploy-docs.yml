@@ -125,6 +125,13 @@ jobs:
       - name: Build documentation site
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run docs:build'
 
+      # A one-Blueprint gallery block opens its Web Components and NativeScript tabs with the
+      # layout as each port's markup, rendered at build time from the block's `.blp`. That text
+      # exists only in the built pages, so it is checked HERE, straight after the build that
+      # made it: every such block carries it, and it is what the `.blp` renders to today.
+      - name: Check the gallery's generated markup
+        run: su testuser -c 'node scripts/check-website-blueprint-markup.mjs'
+
       # PR runs stop at "did it build?" — there is nothing to deploy, and
       # uploading a Pages artifact from a fork PR is neither useful nor free.
       - name: Upload artifact

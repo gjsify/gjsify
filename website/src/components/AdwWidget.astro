@@ -125,13 +125,17 @@
 //
 //   <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
 //     <Fragment slot="gjs">```ts …```</Fragment>
-//     <Fragment slot="webloader">```ts …```</Fragment>
+//     <Fragment slot="webloader">```js …```</Fragment>
 //     <Fragment slot="nativescriptloader">```ts …```</Fragment>
 //   </AdwWidget>
 //
 // ONE `.blp` under `src/blueprints/` builds the widget on every surface, so the layout is
 // written once and each pane shows only what differs per platform: how the layout is
-// LOADED and how a named element is REACHED by its Blueprint id. The live window builds
+// LOADED and how a named element is REACHED by its Blueprint id. The Web Components and
+// NativeScript tabs lead with the same layout in their port's own markup, GENERATED from the
+// file on every build ({@link PANE_MARKUP}), then the page's code that reaches the elements,
+// then the Blueprint route as a comment: a reader sees how a widget is written in that port,
+// and the page still holds no second copy of the layout. The live window builds
 // the file's `?shared-tree` projection with `@gjsify/adwaita-web`'s own `buildSharedTree`,
 // and the file itself is rendered, so neither is a copy a page can let drift.
 // {@link ONE_BLUEPRINT_SLOTS} and {@link FROM_THE_BLUEPRINT} say which slots each shape
@@ -195,7 +199,10 @@ import {
     ADWAITA_NATIVESCRIPT_REFUSALS,
     ADWAITA_NATIVESCRIPT_TEMPLATES,
 } from '../data/adwaita-nativescript-templates';
+import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { sharedTreeHtml, sharedTreeNativeScriptXml } from '@gjsify/adwaita-core/markup';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
+import { BLUEPRINT_PANE_SLOTS, nativeScriptPane, webComponentsPane } from './blueprint-panes.mjs';
 import type { WidgetPane } from './widget-panes';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref, blueprint } = Astro.props;
@@ -405,11 +412,10 @@ const CORPUS_SLOTS: Record<string, string> = {
  */
 const ONE_BLUEPRINT_SLOTS: Record<string, string> = {
     webloader:
-        'how a page mounts the `?shared-tree` projection with `@gjsify/adwaita-web` and reaches an ' +
-        'element by its Blueprint id — the pane the HTML markup tab holds on the other shape',
+        'the module script that reaches an element of the generated `<adw-*>` markup by its id — ' +
+        'the tab the HTML markup holds on the other shape',
     nativescriptloader:
-        'how a NativeScript app builds the same projection with `@gjsify/adwaita-nativescript/builder` ' +
-        'and reaches a view by its Blueprint id',
+        'the TypeScript that loads the generated XML template and reaches a view by its id',
 };
 
 /**
@@ -420,6 +426,19 @@ const ONE_BLUEPRINT_SLOTS: Record<string, string> = {
 const FROM_THE_BLUEPRINT: Record<string, string> = {
     blueprint: 'the Blueprint window renders the `.blp` file itself',
     preview: 'the live window builds the `.blp`, so there is no markup to mount or to show',
+};
+
+/**
+ * The Web Components and NativeScript tabs of a one-Blueprint block, composed by
+ * `blueprint-panes.mjs`: the layout in the port's own markup, GENERATED here on every build from
+ * the tree the preview mounts; the page's slot code that reaches the elements by id; and the
+ * Blueprint route, commented. `@gjsify/adwaita-core/markup` spells the markup the way each
+ * port's own builder builds the tree, each port's suite parses it back through its own door, and
+ * `scripts/check-website-blueprint-markup.mjs` holds the built pages to the same composition.
+ */
+const PANE_MARKUP: Record<string, (tree: SharedTreeNode) => string> = {
+    webloader: sharedTreeHtml,
+    nativescriptloader: sharedTreeNativeScriptXml,
 };
 
 /** The two block shapes — see the header. The spelling is the gate's as well. */
@@ -537,7 +556,8 @@ const WINDOWS: readonly {
         // until a dialect can load a `.blp`. The NativeScript XML template does NOT: it is
         // the layout written a second time, and the `nativescriptloader` tab builds the
         // file's own tree, so two tabs labelled "NativeScript" would leave the reader to
-        // guess which one is the program.
+        // guess which one is the program. That tab now leads with the XML itself, generated
+        // from the file ({@link PANE_MARKUP}), so the template is shown once, and not by hand.
         groups: [FRAMEWORK_GROUP],
     },
 ];
@@ -711,6 +731,28 @@ for (const spec of WINDOWS) {
             continue;
         }
         if (!Astro.slots.has(tab.slot)) continue;
+        const render = oneBlueprint ? PANE_MARKUP[tab.slot] : undefined;
+        if (render !== undefined) {
+            const html = await Astro.slots.render(tab.slot);
+            const access = decodeEcCode(html);
+            const lang = /data-language="([^"]+)"/.exec(html)?.[1];
+            const pane = BLUEPRINT_PANE_SLOTS[tab.slot as keyof typeof BLUEPRINT_PANE_SLOTS];
+            if (access === null || lang !== pane.accessLang) {
+                throw new Error(
+                    `AdwWidget(${title}): the "${tab.slot}" slot has to hold exactly one \`\`\`${pane.accessLang} ` +
+                        'fence: the code that reaches the elements of the generated markup by id.',
+                );
+            }
+            const tree = blueprintTree as SharedTreeNode;
+            const file = blueprint!.split('/').pop()!;
+            const markup = render(tree);
+            const source =
+                tab.slot === 'webloader'
+                    ? webComponentsPane({ markup, access, file })
+                    : nativeScriptPane({ markup, access, file, tree });
+            panes.push({ id: tab.slot, kind: 'code', label: tab.label, lang: pane.lang, source });
+            continue;
+        }
         let html: string;
         if (tab.slot === MARKUP_SLOT) {
             // The one override: the markup a reader should copy, where the fence that

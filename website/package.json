@@ -16,6 +16,7 @@
     "dependencies": {
         "@astrojs/starlight": "^0.40.0",
         "@fontsource/coming-soon": "^5.2.8",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-fonts": "workspace:^",
         "@gjsify/adwaita-icons": "workspace:^",
         "@gjsify/adwaita-web": "workspace:^",

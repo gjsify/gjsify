@@ -87,6 +87,9 @@
         // against this config, and reformatting them would rewrite Microsoft's
         // bytes into a diff the next refresh throws away.
         "packages/infra/tsc/lib",
+        // `@nativescript/core`'s XML parser, copied verbatim for the tree driver (see either
+        // file's header). Formatting it would make the next refresh a rewrite, not a copy.
+        "packages/nativescript-bridge/adwaita/src/testing/nativescript-xml",
         // A GENERATED map whose bytes already have an author:
         // `packages/infra/cli/scripts/generate-register-closure.mjs` emits it as
         // `JSON.stringify(closure, null, 4)` and its `--check` mode compares the

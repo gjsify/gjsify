@@ -31,7 +31,10 @@ export type LivePane = {
 /** A pane a PAGE filled, as one `<Fragment slot="…">` holding one fenced block. */
 export type SlotPane = { id: string; kind: 'slot'; label: string; html: string };
 
-/** A pane filled from a generated data file rather than from a page. */
+/**
+ * A pane whose code the component supplies: a generated data file's snippet, or a page's
+ * loader fence with the markup generated from its `.blp` appended.
+ */
 export type CodePane = { id: string; kind: 'code'; label: string; lang: string; source: string };
 
 /**

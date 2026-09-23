@@ -21,6 +21,10 @@
         "./tags": {
             "types": "./lib/types/tags.d.ts",
             "default": "./lib/esm/tags.js"
+        },
+        "./markup": {
+            "types": "./lib/types/markup.d.ts",
+            "default": "./lib/esm/markup.js"
         }
     },
     "files": [
