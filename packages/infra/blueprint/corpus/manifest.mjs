@@ -36,9 +36,9 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE SIXTEEN REAL FILES DO NOT REACH
+// WHAT THE SEVENTEEN REAL FILES DO NOT REACH
 //
-// They are a probe against reality, not a measure of breadth, and citing "sixteen real
+// They are a probe against reality, not a measure of breadth, and citing "seventeen real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
 // `breakpoint`, `comment` and `signal`. The first three were six kinds until ADR 0066 gave
 // `template` and `object-id` a field each, ADR 0067 the `_()` marking and ADR 0068 the style
@@ -72,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The sixteen `.blp` files this repo already builds are the reality probe ADR 0053
+// The seventeen `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -753,5 +753,9 @@ export const CORPUS_REAL_FILES = [
     {
         slug: 'packages_web_adwaita-core_src_conformance_blueprints_view-stack-pages',
         source: 'packages/web/adwaita-core/src/conformance/blueprints/view-stack-pages.blp',
+    },
+    {
+        slug: 'packages_web_adwaita-core_src_conformance_blueprints_carousel-indicators',
+        source: 'packages/web/adwaita-core/src/conformance/blueprints/carousel-indicators.blp',
     },
 ];

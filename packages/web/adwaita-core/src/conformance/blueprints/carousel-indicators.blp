@@ -1,0 +1,31 @@
+using Gtk 4.0;
+using Adw 1;
+
+// A carousel with no indicator of its own and the two indicators that bind to it by id,
+// as the gallery's carousel block writes one of them.
+Gtk.Box {
+  orientation: vertical;
+  spacing: 12;
+
+  Adw.Carousel carousel {
+    Gtk.Label {
+      label: _("Welcome");
+    }
+
+    Gtk.Label {
+      label: _("Discover");
+    }
+
+    Gtk.Label {
+      label: _("Get started");
+    }
+  }
+
+  Adw.CarouselIndicatorDots dots {
+    carousel: carousel;
+  }
+
+  Adw.CarouselIndicatorLines lines {
+    carousel: carousel;
+  }
+}

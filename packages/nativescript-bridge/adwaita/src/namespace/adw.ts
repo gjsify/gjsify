@@ -59,6 +59,8 @@ export { AdwBottomSheet as BottomSheet } from '../widgets/adw-bottom-sheet.js';
 export { AdwButtonContent as ButtonContent } from '../widgets/adw-button-content.js';
 export { AdwButtonRow as ButtonRow } from '../widgets/adw-button-row.js';
 export { AdwCarousel as Carousel } from '../widgets/adw-carousel.js';
+export { AdwCarouselIndicatorDots as CarouselIndicatorDots } from '../widgets/adw-carousel-indicator-dots.js';
+export { AdwCarouselIndicatorLines as CarouselIndicatorLines } from '../widgets/adw-carousel-indicator-lines.js';
 export { AdwClamp as Clamp } from '../widgets/adw-clamp.js';
 export { AdwComboRow as ComboRow } from '../widgets/adw-combo-row.js';
 export { AdwEntryRow as EntryRow } from '../widgets/adw-entry-row.js';

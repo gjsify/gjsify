@@ -1364,7 +1364,10 @@ Page.adw-window {
     background-color: transparent;
 }
 
-.adw-carousel-dots {
+/* The two indicators an app binds to a carousel (`Adw.CarouselIndicatorDots` /
+   `…Lines`): a centred row of markers, the current one `active`. */
+.adw-carousel-indicator-dots,
+.adw-carousel-indicator-lines {
     padding: 8 0 8 0;
 }
 
@@ -1376,6 +1379,20 @@ Page.adw-window {
 
 .adw-carousel-dot.active {
     color: #3584e4;
+}
+
+/* LINE_LENGTH 35, LINE_WIDTH 3, LINE_SPACING 5 (adw-carousel-indicator-lines.c); the
+   opacity ramp is reduced to the two ends it runs between, 0.3 and 0.9. */
+.adw-carousel-line {
+    width: 35;
+    height: 3;
+    border-radius: 1.5;
+    margin: 0 2.5 0 2.5;
+    background-color: rgba(0, 0, 6, 0.24);
+}
+
+.adw-carousel-line.active {
+    background-color: rgba(0, 0, 6, 0.72);
 }
 
 /* ===== Navigation view ===== */
@@ -2146,6 +2163,14 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-carousel-dot.active {
     color: #78aeed;
+}
+
+.ns-dark .adw-carousel-line {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.ns-dark .adw-carousel-line.active {
+    background-color: rgba(255, 255, 255, 0.9);
 }
 
 /* ===== Dark: navigation view ===== */

@@ -60,6 +60,7 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     'adw:ButtonContent': Adw.ButtonContent,
     'adw:ButtonRow': Adw.ButtonRow,
     'adw:Carousel': Adw.Carousel,
+    'adw:CarouselIndicatorDots': Adw.CarouselIndicatorDots,
     'adw:Clamp': Adw.Clamp,
     'adw:EntryRow': Adw.EntryRow,
     'adw:ExpanderRow': Adw.ExpanderRow,
@@ -200,10 +201,13 @@ export const EXPECTED: readonly ExpectView[] = [
             ] }
     },
     { widget: 'Adw.Carousel', view: 'AdwCarousel', root:
-        { tag: 'adw:Carousel', children: [
-                { tag: 'adw:StatusPage', props: {"iconText":"①","title":"Welcome"} },
-                { tag: 'adw:StatusPage', props: {"iconText":"②","title":"Sync"} },
-                { tag: 'adw:StatusPage', props: {"iconText":"③","title":"Done"} }
+        { tag: 'gtk:Box', props: {"orientation":"vertical"}, children: [
+                { tag: 'adw:Carousel', children: [
+                        { tag: 'adw:StatusPage', props: {"iconText":"①","title":"Welcome"} },
+                        { tag: 'adw:StatusPage', props: {"iconText":"②","title":"Sync"} },
+                        { tag: 'adw:StatusPage', props: {"iconText":"③","title":"Done"} }
+                    ] },
+                { tag: 'adw:CarouselIndicatorDots', props: {"carousel":"carousel"} }
             ] }
     },
     { widget: 'Adw.NavigationSplitView', view: 'AdwNavigationSplitView', root:

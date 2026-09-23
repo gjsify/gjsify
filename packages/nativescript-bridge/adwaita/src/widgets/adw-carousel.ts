@@ -1,39 +1,39 @@
 // AdwCarousel — a Libadwaita-style swipeable pager for NativeScript.
 //
-// Renders a REAL NativeScript `GridLayout` (rows `*, auto`): a horizontal
-// `ScrollView` of full-width pages (row 0) and a row of page-indicator dots
-// (row 1). Mirrors `Adw.Carousel`: `insert`/`remove`/`reorder`,
+// Renders a REAL NativeScript `GridLayout` holding a horizontal `ScrollView` of
+// full-width pages. Mirrors `Adw.Carousel`: `insert`/`remove`/`reorder`,
 // `position`, `scroll_to()`, `nPages`, `notify::position` and `page-changed`.
+//
+// NO INDICATOR OF ITS OWN, AS UPSTREAM. An `Adw.Carousel` draws no dots; the page
+// indicator is a separate widget bound through its `carousel` property —
+// `Adw.CarouselIndicatorDots` or `…Lines` (`adw-carousel-indicator-dots.ts`,
+// `adw-carousel-indicator-lines.ts`) — so an app places it where it wants, or picks the
+// lines, or has none. This port used to build a dot row into the carousel's own grid,
+// which put two rows of dots under a Blueprint that binds an indicator as GTK does.
 //
 // The BEHAVIOUR is headless in `@gjsify/adwaita-core` (ADR 0004) as `CarouselState`,
 // shared with the `@gjsify/adwaita-web` twin and pinned by the conformance vectors;
 // `carousel-state.ts` holds the NS projection onto scroll offsets and dot classes.
 // This class is the `GridLayout` wiring only. `position` is a FRACTIONAL double fed by
-// the `ScrollView` scroll listener, so a drag in progress is observable, and the dots
-// mark `get_page_at_position` (a half-way position resolves DOWN) rather than an
-// integer compare.
+// the `ScrollView` scroll listener, so a drag in progress is observable.
 //
 // FIDELITY: compromised. NS has no native carousel and no paging-snap on `ScrollView`,
 // so pages are fixed-width children of a horizontal `ScrollView` and a scroll to a page
 // calls `scrollToHorizontalOffset`. (1) No snap-to-page: a free flick can rest between
 // pages and nothing pulls it to a snap point. (2) The page width must be known to
 // compute offsets — set `pageWidth` to the carousel's on-screen width (default 320
-// DIP). (3) Dots are tappable `Label`s, not the animated libadwaita dots: the per-dot
-// radius/opacity ramp needs measurements this port does not take. (4) No scroll wheel
-// and no reveal animation, so `allow-scroll-wheel` and `reveal-duration` are absent
-// rather than present and inert.
+// DIP). (3) No scroll wheel and no reveal animation, so `allow-scroll-wheel` and
+// `reveal-duration` are absent rather than present and inert.
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (Adw.Carousel)
-// Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c (the animated dots)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { View } from '@nativescript/core';
-import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import type { CarouselScrollRequest } from '@gjsify/adwaita-core';
 import {
     CarouselScrollSync,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
-    applyCarouselDots,
     carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
@@ -78,14 +78,10 @@ export class AdwCarousel extends withSignals(GridLayout) {
     protected readonly _scroller: ScrollView;
     /** The horizontal track inside the scroller (holds fixed-width pages). */
     protected readonly _track: StackLayout;
-    /** The dot-indicator row. */
-    protected readonly _dots: StackLayout;
     private readonly _state = createCarouselState({ onScrollTo: (request) => this._performScroll(request) });
     private readonly _sync = new CarouselScrollSync();
     /** Page id → its content view, so a DOM-free model can still be projected. */
     private readonly _views = new Map<string, View>();
-    /** Page id → its dot. Keyed by ID, not by index: an insert or a reorder renumbers every page after it. */
-    private readonly _dotsById = new Map<string, Label>();
     private _nextPageId = 0;
     private _pageWidth = DEFAULT_CAROUSEL_PAGE_WIDTH;
 
@@ -94,8 +90,7 @@ export class AdwCarousel extends withSignals(GridLayout) {
 
         this.className = 'adw-carousel';
         this.addColumn(new ItemSpec(1, 'star'));
-        this.addRow(new ItemSpec(1, 'star')); // scroller
-        this.addRow(new ItemSpec(1, 'auto')); // dots
+        this.addRow(new ItemSpec(1, 'star'));
 
         const scroller = new ScrollView();
         scroller.orientation = 'horizontal';
@@ -110,14 +105,6 @@ export class AdwCarousel extends withSignals(GridLayout) {
         this._scroller = scroller;
         this._track = track;
 
-        const dots = new StackLayout();
-        dots.orientation = 'horizontal';
-        dots.className = 'adw-carousel-dots';
-        dots.horizontalAlignment = 'center';
-        GridLayout.setRow(dots, 1);
-        this.addChild(dots);
-        this._dots = dots;
-
         // A free swipe is the only scroll nobody declared, so it is the one that
         // drives the model — `update_swipe_cb` (adw-carousel.c:418-424).
         scroller.addEventListener('scroll', (data: EventData) => {
@@ -126,7 +113,6 @@ export class AdwCarousel extends withSignals(GridLayout) {
         });
 
         this._state.subscribe((change) => {
-            applyCarouselDots(this._state, this._orderedDots());
             const data: NotifyPositionEventData = {
                 eventName: change.reason === 'n-pages' ? NOTIFY_N_PAGES : NOTIFY_POSITION,
                 object: this,
@@ -152,8 +138,8 @@ export class AdwCarousel extends withSignals(GridLayout) {
      *
      * The name is ignored: a carousel has one kind of child. Without this,
      * `LayoutBase`'s default puts the view straight into the grid the carousel builds
-     * its scroller and dots in — on top of the track rather than on it, and the page
-     * never gets a width, a `adw-carousel-page` class or a dot.
+     * its scroller in — on top of the track rather than on it, and the page never gets
+     * a width or a `adw-carousel-page` class.
      */
     _addChildFromBuilder(_name: string, view: View): void {
         this.append(view);
@@ -169,24 +155,12 @@ export class AdwCarousel extends withSignals(GridLayout) {
         view.width = this._pageWidth;
         view.className = `${view.className ?? ''} adw-carousel-page`.trim();
 
-        const dot = new Label();
-        dot.text = '●';
-        dot.className = 'adw-carousel-dot';
-        // Resolve the index at TAP time from the id: an insert or a reorder
-        // renumbers every page after it, and a captured index would tap the
-        // wrong one — which is what the old `const index = length` did.
-        dot.addEventListener('tap', () => this._scrollToIndex(this._state.indexOf(id)));
-
         // Registered BEFORE the model knows about the page: `insert` notifies
-        // synchronously, and the subscription projects the dots by walking the
-        // model's page order — a page with no dot yet would shift every class
-        // after it onto the wrong marker.
+        // synchronously, and a bound indicator reads the pages back from the track.
         this._views.set(id, view);
-        this._dotsById.set(id, dot);
 
         if (!this._state.insertPage(id, position)) {
             this._views.delete(id);
-            this._dotsById.delete(id);
             return false;
         }
 
@@ -206,7 +180,6 @@ export class AdwCarousel extends withSignals(GridLayout) {
         // completes at once — `adw_animation_skip` (:331).
         this._state.skipReveal(id);
         this._views.delete(id);
-        this._dotsById.delete(id);
         this._syncTrack();
         return true;
     }
@@ -225,9 +198,9 @@ export class AdwCarousel extends withSignals(GridLayout) {
      *
      * Takes the PAGE, as its siblings `insert`, `remove` and `reorder` already do, and
      * resolves it through the same `_idOf` they use; a view this carousel does not hold
-     * is refused, which is C's precondition. The INDEX door is {@link position}, and the
-     * two internal index callers — the indicator dots and that setter — go through
-     * `_scrollToIndex` below rather than through a public ordinal.
+     * is refused, which is C's precondition — and it is what a bound indicator calls
+     * with `pages[i]` when a marker is tapped, as `adw-carousel-indicator-dots.c` does.
+     * The INDEX door is {@link position}.
      */
     scroll_to(page: View): void {
         const id = this._idOf(page);
@@ -329,18 +302,8 @@ export class AdwCarousel extends withSignals(GridLayout) {
         this._scroller.scrollToHorizontalOffset(carouselScrollOffset(request.position, this._distance()), true);
     }
 
-    /** The dots in page order — the order `applyCarouselDots` indexes by. */
-    private _orderedDots(): Label[] {
-        const dots: Label[] = [];
-        for (const id of this._state.ids) {
-            const dot = this._dotsById.get(id);
-            if (dot) dots.push(dot);
-        }
-        return dots;
-    }
-
     /**
-     * Make both native child lists match the model order.
+     * Make the track's child list match the model order.
      *
      * Detach-then-reattach rather than a positional patch: NS has no "move
      * child", `insertChild` on an already-parented view double-parents it, and
@@ -349,14 +312,9 @@ export class AdwCarousel extends withSignals(GridLayout) {
      */
     private _syncTrack(): void {
         while (this._track.getChildrenCount() > 0) this._track.removeChild(this._track.getChildAt(0));
-        while (this._dots.getChildrenCount() > 0) this._dots.removeChild(this._dots.getChildAt(0));
-
-        const dots = this._orderedDots();
         for (const id of this._state.ids) {
             const view = this._views.get(id);
             if (view) this._track.addChild(view);
         }
-        for (const dot of dots) this._dots.addChild(dot);
-        applyCarouselDots(this._state, dots);
     }
 }

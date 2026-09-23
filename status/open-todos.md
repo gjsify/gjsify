@@ -5606,9 +5606,6 @@ exactly why they must not be written as decisions.
   a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
   open decision.
-- **`adw-carousel-indicator-lines` on NativeScript.** `AdwCarouselIndicatorLines` is a
-  public widget upstream (`adw-carousel-indicator-lines.h`). The NativeScript carousel
-  builds a DOT row inline and has no lines variant in any form.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
@@ -6535,8 +6532,8 @@ the `@girs` 5.3.0 bump, and again on each of the
 eleven constructs that closed the subset, and once more against the PUBLISHED `@girs` 5.4.0
 rather than a local build — **95 of 95** in `tests/samples` and **272 of 273** wild, 0 silently
 wrong, the one remainder being a deliberately invalid fixture the oracle refuses too:
-56 rule files and 16
-reality probes, all 72 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
+56 rule files and 17
+reality probes, all 73 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
 naming their construct, their file and their line. The refusal count went DOWN by four and that
 is the shape of this change: a fixture pinning a construct the parser now reads is a fixture
 that has to be retired, and the corpus check is what says so. Those four are held to the tree by
@@ -6678,7 +6675,7 @@ the same shape and clause 7 already calls it a scoping decision rather than a de
 deletion list is a completion test: these two are the unchecked boxes.
 
 One thing the corpus settled that the ADR's mapping table did not have: more construct classes
-fall outside `SharedNode` than the census of the sixteen real files found, and the translatable
+fall outside `SharedNode` than the census of the seventeen real files found, and the translatable
 marker is the one that costs — a caption parsed into a plain string loses exactly the attribute
 ADR 0033 prefers a template for. The per-kind count is below, under "Inverting the Blueprint
 projection needs the GIR", and is not repeated here.

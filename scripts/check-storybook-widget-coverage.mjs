@@ -102,6 +102,10 @@ const NO_STORY_OF_ITS_OWN = {
     label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive, the verdict `image` gets above.",
     'action-bar':
         "GTK's bottom-bar primitive, not an Adwaita widget — libadwaita only styles it (`actionbar > revealer > box`, _toolbars.scss) — and like `box` and `label` both ports exist as TARGETS of an authored tree: a `.blp` built through `mountSharedTree` or the NativeScript builder names `Gtk.ActionBar`, and without the element or class that tag had nothing to realise. A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    'carousel-indicator-dots':
+        'View Switching/Carousel renders it: the carousel stories come as a pair, Dots and Lines, one per indicator, and each builds the carousel the indicator binds to — an indicator alone marks no pages.',
+    'carousel-indicator-lines':
+        'View Switching/Carousel renders it, as the Lines half of the pair the Dots entry above names — the same story tree with the other indicator bound.',
     'navigation-page':
         'Navigation/Navigation View renders pages — a page is the bin the view pushes and pops, and alone it is a blank preview with no stack to navigate. Both ports now build one from an authored tree (`Adw.NavigationPage` carrying tag/title/can-pop), which is why it left the one-renderer ledger.',
     toggle: 'Buttons/Toggle Group renders toggles — an `Adw.Toggle` is a GObject the group turns into a button, so it has no look of its own to show. Both ports now build one from an authored tree, which is why it left the one-renderer ledger.',
@@ -184,15 +188,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK was a separate gap and is closed: `.card, .adw-card` is now a rule in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, both spellings on one selector the way `.boxed-list` already carries the same surface. It rendered NOTHING until then, and scripts/check-nativescript-theme-classes.mjs could not see it either — that reader saw only the package's own widget sources, never an app's.",
-    },
-    'carousel-indicator-dots': {
-        only: 'web',
-        decision:
-            '`AdwCarouselIndicatorDots` is placeable anywhere in GTK, but the NativeScript carousel builds its own dot row (row 1 of its GridLayout) and projects the shared `CarouselState` onto it through `applyCarouselDots` in its carousel-state.ts. The indicator is present there, just not detachable — its FIDELITY note (3) records the look that costs.',
-    },
-    'carousel-indicator-lines': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'check-button': {
         only: 'web',

@@ -217,7 +217,12 @@ for (const tag of [...reachable].sort()) {
         // regression shipped in this file's first version and nothing could see it,
         // because "it calls a coercer" was all anything asked.
         const loose = Object.keys(STRING_TOLERANT).find((fn) => setter.executable.includes(`${fn}(`));
-        if (kind !== 'json' && loose !== undefined && setter.executable.includes(`${COERCERS[kind]}(`)) {
+        if (
+            kind !== 'json' &&
+            kind !== 'id' &&
+            loose !== undefined &&
+            setter.executable.includes(`${COERCERS[kind]}(`)
+        ) {
             failures.push(
                 `${file}: ${tag}.${name} passes its value through ${COERCERS[kind]}() AND ${loose}(). ` +
                     `${loose}() already takes a string and parses it with Number.parseFloat, so the wrapper ` +
