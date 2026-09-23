@@ -22,10 +22,11 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
-import { action, Label, StackLayout, type EventData } from '@nativescript/core';
+import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
 import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
@@ -48,6 +49,12 @@ export interface NotifySelectedEventData extends EventData {
 }
 
 export class AdwComboRow extends AdwActionRow {
+    /**
+     * The action row's edges, plus `model`: `model: Gtk.StringList { strings [ … ] }` in a
+     * `.blp` places the list at the property it sets (ADR 0072).
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf([...AdwActionRow.builderSlots, 'model'], 'suffix');
+
     /** The dim inline value label (selected option). */
     protected readonly _valueLabel: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
@@ -147,6 +154,19 @@ export class AdwComboRow extends AdwActionRow {
         // take descriptors only, so `model = ['a','b']` stored strings and every label
         // read back `undefined`.
         this._state.setModel(normalizeComboOptions(value));
+    }
+
+    /**
+     * XML inflation: a child at `model` is the row's list — a `Gtk.StringList` is already an
+     * `AdwListModelInput`, so it goes through the same setter as the property. Everything
+     * else is a row edge, as on any action row.
+     */
+    _addChildFromBuilder(name: string, child: View): void {
+        if (resolveBuilderSlot(name, ['model'], 'edge') === 'model') {
+            this.model = child as unknown as AdwListModelInput;
+            return;
+        }
+        super._addChildFromBuilder(name, child);
     }
 
     /** The selected option index. Updates the inline value label. */

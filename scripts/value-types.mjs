@@ -81,6 +81,21 @@ export const CONSTRUCTIBLE_VALUES = [
         gir: 'StringList',
         why: 'GJS writes `model: new Gtk.StringList({ strings: [...] })`, and ADR 0046 already made the VALUE behind it portable. An `Array` subclass like `Gio.Menu`, so the array spelling and this one are the same write — it closed the `Adw.ComboRow` pane divergence outright.',
     },
+    {
+        member: 'Adw.SidebarSection',
+        gir: 'SidebarSection',
+        why: 'A `.blp` writes `Adw.SidebarSection { … }` inside an `Adw.Sidebar`, and the NativeScript shared-tree builder has to build it: the sidebar model is sections of items, and `AdwSidebarSectionSpec` already made that VALUE portable. The class IS the spec wearing the GIR spelling, so `sections` takes it unchanged.',
+    },
+    {
+        member: 'Adw.SidebarItem',
+        gir: 'SidebarItem',
+        why: "`Adw.SidebarSection`'s item half, for the same reason: a section is empty without it, and `AdwSidebarItemSpec` is the portable value it IS.",
+    },
+    {
+        member: 'Adw.TabPage',
+        gir: 'TabPage',
+        why: 'A `.blp` writes `Adw.TabPage { title: "…"; child: … }` inside an `Adw.TabView`, and the NativeScript shared-tree builder has to build it: the page is a GObject around its child, which the view reads into its model as a titled page.',
+    },
 ];
 
 /** `Gio.Menu` -> `{ namespace: 'Gio', member: 'Menu' }`. A GIR namespace carries no dot. */

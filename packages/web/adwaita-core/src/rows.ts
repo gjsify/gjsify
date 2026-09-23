@@ -409,3 +409,35 @@ export class ToggleGroupState {
         return this._labels.length;
     }
 }
+
+/**
+ * The toggles a group keeps, in add order.
+ *
+ * A NAME IS UNIQUE, AND THE SECOND CLAIM IS REFUSED WHOLE. `add_toggle` looks the name up
+ * before adding and, when another toggle already carries it, prints a `g_critical` and
+ * drops the toggle — it is never added, so it draws no button and takes no index
+ * (adw-toggle-group.c:849). An unnamed toggle is always kept.
+ */
+export function keptToggles<T extends { readonly name?: string | null }>(toggles: readonly T[]): T[] {
+    const taken = new Set<string>();
+    const kept: T[] = [];
+    for (const toggle of toggles) {
+        const name = toggle.name ?? null;
+        if (name !== null && taken.has(name)) continue;
+        if (name !== null) taken.add(name);
+        kept.push(toggle);
+    }
+    return kept;
+}
+
+/**
+ * The toggle `adw_toggle_group_set_active_name` selects: its index among the names of the
+ * KEPT toggles ({@link keptToggles}), or `-1` when none carries `name`.
+ *
+ * `-1` is not a selection. The C answers a name nothing carries with a `g_critical` and
+ * returns (:2001) — the active toggle stays where it was — so a renderer leaves its
+ * selection alone on `-1` rather than clearing it.
+ */
+export function toggleIndexOfName(names: readonly (string | null | undefined)[], name: string): number {
+    return names.indexOf(name);
+}

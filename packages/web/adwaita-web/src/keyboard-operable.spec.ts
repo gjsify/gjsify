@@ -621,7 +621,8 @@ export const AdwKeyboardOperableTest = async () => {
             //
             // Prose cannot hold that: this line fails the commit that adds it.
             // `<adw-inline-view-switcher>` has the same gap (status/open-todos.md).
-            expect([...AdwToggleGroup.observedAttributes]).toStrictEqual(['active', 'flat', 'round']);
+            // `active-name` joined the list without touching the axis: it picks a toggle.
+            expect([...AdwToggleGroup.observedAttributes]).toStrictEqual(['active', 'active-name', 'flat', 'round']);
         });
 
         await it('adw-toggle has no state a roving walk would have to skip', async () => {

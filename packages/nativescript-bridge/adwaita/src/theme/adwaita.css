@@ -714,6 +714,23 @@ Page.adw-window {
     vertical-align: center;
 }
 
+/* ===== Action bar (Gtk.ActionBar) ===== */
+
+/* libadwaita `actionbar > revealer > box`: the headerbar surface with a TOP hairline
+   (an inset shadow there; the NS subset has none, so a border) and 7/6px padding. */
+.adw-action-bar {
+    background-color: #ffffff;
+    border-top-width: 1;
+    border-top-color: rgba(0, 0, 0, 0.1);
+    padding: 7 6 6 6;
+}
+
+.adw-action-bar-start,
+.adw-action-bar-end {
+    margin: 0;
+    vertical-align: center;
+}
+
 /* ===== Toolbar view ===== */
 
 .adw-toolbar-view {
@@ -1932,6 +1949,11 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-header-bar {
     background-color: #2e2e32;
     border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-action-bar {
+    background-color: #2e2e32;
+    border-top-color: rgba(255, 255, 255, 0.12);
 }
 
 .ns-dark .adw-header-bar.flat {

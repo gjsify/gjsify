@@ -49,7 +49,7 @@
 // storybook/src/window.ts`) moved into a `.blp`, so it is the first real file this corpus has
 // ever held to a whole missing CONSTRUCT rather than a grammar detail. Every other kind
 // (`menu`, `styles`-as-an-ident, `layout`, `accessibility`, `value-list`, `sibling-object`,
-// `responses`, `extern`, the six bracketed lists, `internal-child`, `action-widget`,
+// `extern`, the six bracketed lists, `internal-child`, `action-widget`,
 // `inline-template`, `translation-domain`) is declared by no real expectation and is held
 // only by the rules above — the half of the corpus written by whoever writes the parser.
 // (`comment` is the one to read carefully: five of them DO carry comments, and the

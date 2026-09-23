@@ -24,6 +24,9 @@ export const VALUE_TYPES_PROVENANCE = 'Adw-1/1.9.3 Gio-2.0 Gtk-4.0/4.22.5';
  * second place a widget is declared.
  */
 export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boolean }>> = {
+    'Adw.SidebarItem': { gtype: 'AdwSidebarItem', widget: false },
+    'Adw.SidebarSection': { gtype: 'AdwSidebarSection', widget: false },
+    'Adw.TabPage': { gtype: 'AdwTabPage', widget: false },
     'Adw.ViewStackPage': { gtype: 'AdwViewStackPage', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },

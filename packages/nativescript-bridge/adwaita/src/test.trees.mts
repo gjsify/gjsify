@@ -18,6 +18,7 @@ import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
+import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 
 run({
@@ -25,6 +26,7 @@ run({
     AdwClampClasslessChildNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
+    AdwValueListsNsTest,
     AdwBlueprintTreesNsTest,
     AdwBlueprintMarkupNsTest,
 });

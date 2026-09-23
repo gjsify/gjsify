@@ -1,0 +1,51 @@
+// _action_bar.scss — <gtk-action-bar>, GTK's bottom bar of packed widgets.
+//
+// libadwaita styles the bar's inner box (`actionbar > revealer > box`); this element has
+// no revealer, so the host carries that box's surface and the three sections are its
+// start box, centre and end box. `border-spacing: 6px` there is the gap between the
+// packed children here.
+//
+// `revealed` is applied by toggling the `hidden` attribute, and `[hidden]` is re-asserted
+// as an AUTHOR rule for the reason `_view_switcher_bar.scss` gives: the UA rule loses to
+// this block's own `display` by cascade origin.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss (GtkActionBar)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-action-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    background-color: var(--headerbar-bg-color);
+    color: var(--headerbar-fg-color);
+    box-shadow: inset 0 1px var(--headerbar-shade-color);
+    padding: 7px 6px 6px 6px;
+
+    &[hidden] {
+        display: none;
+    }
+
+    > .adw-action-bar-start,
+    > .adw-action-bar-end {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    > .adw-action-bar-start {
+        flex: 1 1 0;
+        justify-content: flex-start;
+    }
+
+    > .adw-action-bar-center {
+        display: flex;
+        align-items: center;
+    }
+
+    > .adw-action-bar-end {
+        flex: 1 1 0;
+        justify-content: flex-end;
+    }
+}

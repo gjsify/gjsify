@@ -13,8 +13,10 @@
 // `xgettext` can no longer see. ADR 0068 gave the STYLE CLASSES one, and closed the last
 // loss any shipped `.blp` here reaches that is not a grammar: `styles [ ]` and
 // `css-classes: [ ]` are two spellings of `GtkWidget:css-classes`, and both fill
-// `styleClasses`. `bind` and `breakpoint` stay losses and stay declared; ADR 0067 § 3 says
-// why each, and why the file-level `translation-domain` is not a node fact.
+// `styleClasses`. ADR 0072 gave the two value-carrying extensions one, `extensions`: a string
+// list's items and an alert dialog's responses. `bind` and `breakpoint` stay losses and stay
+// declared; ADR 0067 § 3 says why each, and why the file-level `translation-domain` is not a
+// node fact.
 //
 // WHAT THIS MAKES CHECKABLE, WHICH NOTHING WAS BEFORE
 //
@@ -149,8 +151,69 @@ const styleClassesOf = (property) => {
 };
 
 /**
+ * A string with its `_()` marking beside it — the shape `SharedNode.translatable` holds per prop,
+ * here per item. A fresh object, for the reason `projectBody` gives for a prop's marking.
+ *
+ * @param {import('./ast.d.mts').StringValue} value
+ * @returns {{ translatable?: { context?: string } }}
+ */
+const markingOf = (value) => {
+    if (value.translatable === undefined) return {};
+    const { context } = value.translatable;
+    return { translatable: context === undefined ? {} : { context } };
+};
+
+/**
+ * The items of a `Gtk.StringList`, or `undefined` where the property is not a list of them.
+ *
+ * `strings [ ]` emits as `<items>` — not a property at all — and GtkBuilder fills the list
+ * through `gtk_string_list_append`, one call per item. So the items are the list's CONTENT,
+ * and they go to `extensions.strings` (ADR 0072) rather than into `props`. A non-string item
+ * has no oracle behind it, as in `styleClassesOf`, and leaves as `value-list`.
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` asks this too.
+ *
+ * @param {ObjectBody['properties'][number]} property
+ * @returns {NonNullable<NonNullable<SharedNode['extensions']>['strings']> | undefined}
+ */
+const stringsOf = (property) => {
+    if (property.value.kind !== 'list' || property.name !== 'strings') return undefined;
+    const items = property.value.items;
+    if (!items.every((item) => item.kind === 'string')) return undefined;
+    return items.map((item) => {
+        const string = /** @type {import('./ast.d.mts').StringValue} */ (item);
+        return { value: string.value, ...markingOf(string) };
+    });
+};
+
+/**
+ * The responses of an `Adw.AlertDialog`, as `adw_alert_dialog_add_response` receives them.
+ *
+ * The flags become what the oracle writes for them: `destructive`/`suggested` the
+ * `appearance="…"` attribute, `disabled` `enabled="False"`. The parser already refuses a
+ * non-string label and the two appearances together, so every `responses` block is carried
+ * and the kind is no longer a loss.
+ *
+ * @param {import('./ast.d.mts').Extension} extension
+ * @returns {NonNullable<NonNullable<SharedNode['extensions']>['responses']>}
+ */
+const responsesOf = (extension) =>
+    extension.entries.map((entry) => {
+        const label = /** @type {import('./ast.d.mts').StringValue} */ (entry.value);
+        const flags = entry.flags ?? [];
+        const appearance = flags.find((flag) => flag === 'destructive' || flag === 'suggested');
+        return {
+            id: entry.name,
+            label: label.value,
+            ...markingOf(label),
+            ...(appearance === undefined ? {} : { appearance }),
+            ...(flags.includes('disabled') ? { enabled: false } : {}),
+        };
+    });
+
+/**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
- * @returns {Pick<SharedNode, 'props' | 'children'>}
+ * @returns {Omit<SharedNode, 'tag' | 'id' | 'template' | 'slot'>}
  */
 const projectBody = (body, tag) => {
     /** @type {Record<string, string | number | boolean>} */
@@ -159,6 +222,8 @@ const projectBody = (body, tag) => {
     const translatable = {};
     /** @type {string[]} */
     const styleClasses = [];
+    /** @type {NonNullable<SharedNode['extensions']>} */
+    const extensions = {};
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
@@ -181,6 +246,9 @@ const projectBody = (body, tag) => {
         // nothing holds.
         if (property.value.kind === 'list') {
             styleClasses.push(...(styleClassesOf(property) ?? []));
+            const strings = stringsOf(property);
+            // Concatenated like the style classes: two `<items>` blocks append to one list.
+            if (strings !== undefined) extensions.strings = [...(extensions.strings ?? []), ...strings];
             continue;
         }
         const scalar = scalarOf(property.value, tag);
@@ -195,6 +263,10 @@ const projectBody = (body, tag) => {
             const { context } = property.value.translatable;
             translatable[property.name] = context === undefined ? {} : { context };
         }
+    }
+    for (const extension of body.extensions) {
+        if (extension.name !== 'responses') continue;
+        extensions.responses = [...(extensions.responses ?? []), ...responsesOf(extension)];
     }
     for (const child of body.children) {
         placed.push({
@@ -219,6 +291,7 @@ const projectBody = (body, tag) => {
         ...(Object.keys(props).length > 0 ? { props } : {}),
         ...(Object.keys(translatable).length > 0 ? { translatable } : {}),
         ...(styleClasses.length > 0 ? { styleClasses } : {}),
+        ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -260,11 +333,10 @@ const lossesOf = (file) => {
             const value = property.value;
             if (value.kind === 'binding') lost.push({ kind: 'binding', line: property.line });
             else if (value.kind === 'list') {
-                // Style classes are carried now — ADR 0068 gave them `styleClasses`, through the
-                // one reader above. Everything else bracketed is still a loss: `widgets [ ]` is a
-                // list of object REFERENCES and `strings [ ]` emits as `<items>` rather than as a
-                // property at all, so neither is a value `props` could hold.
-                if (styleClassesOf(property) === undefined) {
+                // Style classes are carried since ADR 0068 and string-list items since ADR 0072,
+                // each through the one reader above. What is still a loss is `widgets [ ]`, a
+                // list of object REFERENCES, and a non-string item in either list.
+                if (styleClassesOf(property) === undefined && stringsOf(property) === undefined) {
                     lost.push({ kind: 'value-list', line: property.line });
                 }
             } else if (value.kind === 'menu') {
@@ -276,7 +348,10 @@ const lossesOf = (file) => {
             } else if (value.kind === 'object') walkObject(value.object);
         }
         for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
-        for (const extension of body.extensions) lost.push({ kind: extension.name, line: extension.line });
+        // `responses` is carried in `extensions` (ADR 0072); every other block is still lost.
+        for (const extension of body.extensions) {
+            if (extension.name !== 'responses') lost.push({ kind: extension.name, line: extension.line });
+        }
         // Each list by its own NAME, the way a block extension is, because that is the name a
         // reader of the loss goes looking for. Six kinds for one mechanism is the honest count:
         // a consumer told `marks` was dropped learns something a consumer told `extension-list`

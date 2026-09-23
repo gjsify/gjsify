@@ -139,6 +139,28 @@ export interface SharedTreeNode {
      * web writes `slot="start"`.
      */
     styleClasses?: readonly string[];
+    /**
+     * Blueprint's value-carrying extension blocks, one key per kind (ADR 0072).
+     *
+     * `strings` is `Gtk.StringList { strings [ … ] }`: GtkBuilder writes it as `<items>` and
+     * fills it through `gtk_string_list_append`. `responses` is `Adw.AlertDialog { responses
+     * [ … ] }`: filled through `adw_alert_dialog_add_response`, with `destructive`/`suggested`
+     * as the `appearance` and `disabled` as `enabled: false`. A string keeps its `_()` marking
+     * beside it, in the same `{ context? }` that `translatable` holds for a prop.
+     *
+     * A CLOSED SET. Every other extension (`menu`, `layout`, `marks`, `items`, …) stays a named
+     * loss of the projection, so no renderer meets a kind it has no door for.
+     */
+    extensions?: Readonly<{
+        strings?: readonly { readonly value: string; readonly translatable?: { readonly context?: string } }[];
+        responses?: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly translatable?: { readonly context?: string };
+            readonly appearance?: 'suggested' | 'destructive';
+            readonly enabled?: boolean;
+        }[];
+    }>;
     children?: readonly SharedTreeNode[];
 }
 

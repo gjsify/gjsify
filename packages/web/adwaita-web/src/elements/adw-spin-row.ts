@@ -16,6 +16,14 @@
 // the NativeScript row and the React Native widget take. The same markup door
 // `<adw-combo-row model=…>` opens for its list, on the same reasoning.
 //
+// A `.blp` writes the range as an OBJECT, `adjustment: Adjustment { upper: 20; }`, and the
+// shared-tree builder hands that over as a `<gtk-adjustment slot="adjustment" upper="20">`
+// child. The slot consumes it: the child is data, read for the six `Gtk.Adjustment`
+// properties under their GObject spelling, then dropped — GtkBuilder leaves no adjustment
+// in the widget tree either. It REPLACES the range rather than merging into it, because
+// `adjustment:` sets the property to a whole new object: an unwritten field takes the
+// adjustment's own default, not what the row held (`ADJUSTMENT_AUTHORED_VECTORS`).
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -24,6 +32,29 @@
 
 import { SpinState, deriveRowLabels, normalizeAdjustment, parseAdjustment } from '@gjsify/adwaita-core';
 import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
+import { attributeOf } from '@gjsify/adwaita-core/tags';
+
+import { bindSlottedChildren } from '../slotted-children.js';
+
+/** `Gtk.Adjustment`'s six properties, as `AdwAdjustmentInput` names them. */
+const ADJUSTMENT_FIELDS = ['value', 'lower', 'upper', 'stepIncrement', 'pageIncrement', 'pageSize'] as const;
+
+/**
+ * The range a `<gtk-adjustment>` child authors: every field written as a number, under its
+ * GObject attribute spelling (`step-increment`). An absent or non-numeric field is not
+ * authored, so it cannot overwrite what the row already holds — the same contract
+ * `parseAdjustment` gives the JSON attribute.
+ */
+function authoredAdjustment(node: Node): AdwAdjustmentInput {
+    const input: Record<string, number> = {};
+    if (!(node instanceof Element)) return input;
+    for (const field of ADJUSTMENT_FIELDS) {
+        const raw = node.getAttribute(attributeOf(field));
+        const value = raw === null ? Number.NaN : Number.parseFloat(raw);
+        if (Number.isFinite(value)) input[field] = value;
+    }
+    return input;
+}
 
 export class AdwSpinRow extends HTMLElement {
     private _input!: HTMLInputElement;
@@ -73,10 +104,6 @@ export class AdwSpinRow extends HTMLElement {
         // rather than against whatever a partly-seeded state held.
         const range = normalizeAdjustment(parseAdjustment(this.getAttribute('adjustment')));
         this._state.configure(range);
-        const authoredValue = this.getAttribute('value');
-        this._state.setValue(
-            this._roundToStep(authoredValue === null ? range.value : Number.parseFloat(authoredValue)),
-        );
 
         const text = document.createElement('div');
         text.className = 'adw-row-text';
@@ -113,7 +140,19 @@ export class AdwSpinRow extends HTMLElement {
         incBtn.addEventListener('click', () => this._adjust(this._state.adjustment.stepIncrement));
 
         control.append(decBtn, input, incBtn);
-        this.replaceChildren(text, control);
+        // The install reads an authored `<gtk-adjustment>` into the range; the authored
+        // `value` is applied after it, against the range it was authored beside.
+        bindSlottedChildren(this, [
+            {
+                name: 'adjustment',
+                consume: (node) => this._state.configure(normalizeAdjustment(authoredAdjustment(node))),
+            },
+        ]).install(text, control);
+        const authoredValue = this.getAttribute('value');
+        this._state.setValue(
+            this._roundToStep(authoredValue === null ? this._state.value : Number.parseFloat(authoredValue)),
+        );
+        input.value = this._formatValue(this._state.value);
         this._input = input;
 
         // Every core change (a set, or a re-clamp after a bound moved) refreshes

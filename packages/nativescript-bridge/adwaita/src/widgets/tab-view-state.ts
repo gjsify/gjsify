@@ -23,7 +23,7 @@ import { TabViewState, tabCloseVisible, tabTooltip, tabsRevealed } from '@gjsify
 import type { AdwTabPageState, TabViewHandlers, TabViewSelectionChange } from '@gjsify/adwaita-core';
 
 /** One page of an `AdwTabView`, as a renderer reads it. */
-export type AdwTabPage = AdwTabPageState<View>;
+export type NsTabPage = AdwTabPageState<View>;
 
 /** The two `View.visibility` values a stacked page or a tab affordance ever takes. */
 export type NsVisibility = 'visible' | 'collapse';
@@ -93,7 +93,7 @@ export function tabBarVisibility(state: TabViewState<View>, autohide: boolean): 
  * Everything else shows its title, which the model has already coerced to `''` for a
  * page that declared none.
  */
-export function tabLabelText(page: AdwTabPage): string {
+export function tabLabelText(page: NsTabPage): string {
     return page.pinned ? '' : page.title;
 }
 
@@ -103,7 +103,7 @@ export function tabLabelText(page: AdwTabPage): string {
  * accessibility label) rather than rendered, and in TEXT form: a page-supplied tooltip
  * is Pango markup in C and NS has no markup sink.
  */
-export function tabTooltipText(page: AdwTabPage): string {
+export function tabTooltipText(page: NsTabPage): string {
     return tabTooltip(page);
 }
 

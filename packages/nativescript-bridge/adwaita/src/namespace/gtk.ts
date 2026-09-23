@@ -24,6 +24,7 @@
 // are the same write and nothing in this package had to learn a second input shape.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
+export { GtkActionBar as ActionBar } from '../widgets/gtk-action-bar.js';
 export { GtkBox as Box } from '../widgets/gtk-box.js';
 export { GtkButton as Button } from '../widgets/gtk-button.js';
 export { GtkDropDown as DropDown } from '../widgets/gtk-drop-down.js';

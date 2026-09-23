@@ -249,9 +249,13 @@ const KNOWN_GAPS = {
         gaps: ['shortcuts'],
         why: 'A `Adw.TabViewShortcuts` flag set naming the keyboard accelerators the tab view handles itself (Ctrl+Tab, Alt+digit, …). This port is a touch tab bar on a phone with no key events reaching it, so there is no shortcut to enable or suppress. `<adw-tab-view>` declares the same gap.',
     },
+    'adw-toggle': {
+        gaps: ['description', 'enabled', 'tooltip', 'useUnderline'],
+        why: 'The group draws a toggle as a label and an icon (adw-toggle-group.ts, `setToggles`), and these four have nothing there to land on: no tooltip or accessible description on a NativeScript segment, no insensitive segment state, and no mnemonic underline on a touch platform. Undeclared, the shared-tree builder refuses each by name rather than accepting a value nothing draws. `<adw-toggle>` observes none of them either.',
+    },
     'adw-toggle-group': {
-        gaps: ['activeName', 'canShrink', 'homogeneous'],
-        why: '`active-name` addresses a toggle by the `Adw.Toggle:name` its objects carry; this port builds its segments from a label array and per-toggle icons (adw-toggle-group.ts:5-8), so a toggle has no name to be addressed by — the index is its identity. The other two are the size-negotiation pair, with no minimum/natural protocol behind them. `<adw-toggle-group>` declares the same three.',
+        gaps: ['canShrink', 'homogeneous'],
+        why: 'The size-negotiation pair, with no minimum/natural protocol behind them on this surface. `<adw-toggle-group>` declares the same two.',
     },
     'adw-toolbar-view': {
         gaps: ['revealBottomBars', 'revealTopBars'],
