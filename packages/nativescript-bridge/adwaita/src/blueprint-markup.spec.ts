@@ -2,18 +2,23 @@
 // back through NativeScript's XML door and held to the tree `build` makes from the same `.blp`.
 //
 // The website renders that XML with `@gjsify/adwaita-core/markup` from the block's
-// `?shared-tree` projection, on every build. Text a reader copies has to load: an element name no barrel exports, a
-// property spelled so no setter hears it, or a slot written as a plain child would each
-// load at exit 0 into a different view tree. So every `.blp` under `website/src/blueprints/`
+// `?shared-tree` projection, on every build. Text a reader copies has to load: an element
+// name no barrel exports, a property spelled so no setter hears it, or a slot written as a
+// plain child would each load at exit 0 into a different view tree. So every `.blp` under `website/src/blueprints/`
 // is imported below — `scripts/check-website-blueprint-markup.mjs` fails on one that is not —
 // and its XML is parsed and built here.
 //
-// THE PARSER IS NATIVESCRIPT'S OWN (`@nativescript/core/xml`, the SAX parser `Builder` runs
-// with namespaces on). `Builder` itself needs a device, so {@link loadXml} replays the three
-// rules of its `ComponentParser` that a template like this one reaches, each named where it is
-// applied: an element is the member of the module its `xmlns` names, an attribute is a plain
-// assignment, and a child goes to the parent's `_addChildFromBuilder` under its complex
-// property's name, or its own element name when it has none.
+// THE PARSER IS NATIVESCRIPT'S OWN: `XmlParser`, the SAX parser `Builder` runs with namespaces
+// on, VENDORED VERBATIM under `./testing/nativescript-xml/` with its version in the header.
+// `@nativescript/core` is an optional peer this workspace does not install, and CI measured it:
+// importing `@nativescript/core/xml` left the tree-driver bundle with a bare specifier nothing
+// resolves. A hand-written tokenizer would test the markup against this spec's own idea of XML;
+// the copy tests it against the parser a device runs. `Builder` itself needs a device, so
+// {@link loadXml} replays the three rules of its `ComponentParser` that a template like this one
+// reaches, each named where it is applied: an element is the member of the module its `xmlns`
+// names, an attribute is a plain assignment, and a child goes to the parent's
+// `_addChildFromBuilder` under its complex property's name, or its own element name when it
+// has none.
 
 // The `*.blp?shared-tree` module pattern, from the build plugin that serves it (this package's
 // tsconfig reads no ambient types it does not reference).
@@ -25,7 +30,7 @@ import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { sharedTreeNativeScriptXml } from '@gjsify/adwaita-core/markup';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import type { View } from '@nativescript/core';
-import { ParserEventType, XmlParser } from '@nativescript/core/xml';
+import { ParserEventType, XmlParser } from './testing/nativescript-xml/xml.mjs';
 
 import clampTree from '../../../../website/src/blueprints/adwaita/clamp.blp?shared-tree';
 

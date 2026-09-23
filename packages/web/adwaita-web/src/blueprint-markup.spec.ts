@@ -2,9 +2,9 @@
 // PARSED back by the browser and held to the tree `buildSharedTree` makes from the same `.blp`.
 //
 // The website renders that markup with `@gjsify/adwaita-core/markup` from the block's
-// `?shared-tree` projection, on every build. Markup a reader copies has to build the same widget: an attribute spelled
-// against `attributeOf`, a boolean written as `"true"` where the element reads presence, or
-// a slot dropped would each parse fine and mount something else. So every `.blp` under
+// `?shared-tree` projection, on every build. Markup a reader copies has to build the same
+// widget: an attribute spelled against `attributeOf`, a boolean written as `"true"` where the
+// element reads presence, or a slot dropped would each parse fine and mount something else. So every `.blp` under
 // `website/src/blueprints/` is imported below — `scripts/check-website-blueprint-markup.mjs`
 // fails on one that is not.
 

@@ -111,6 +111,12 @@ const EXEMPT = [
         why: 'vendored upstream wasm-bindgen glue, replaced wholesale on every lightningcss bump.',
     },
     {
+        prefix: 'packages/nativescript-bridge/adwaita/src/testing/nativescript-xml',
+        why:
+            "`@nativescript/core`'s `XmlParser` and easysax, copied verbatim so the tree driver parses " +
+            'generated XML with the parser a device runs; the package is an optional peer CI does not install.',
+    },
+    {
         prefix: 'packages/framework/gtk-host/src/generated',
         why: 'generated from the GTK/Adwaita GIR; findings belong to the generator, not the output.',
     },
