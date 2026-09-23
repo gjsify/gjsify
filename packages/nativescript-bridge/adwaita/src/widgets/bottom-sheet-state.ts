@@ -67,8 +67,17 @@ export const BOTTOM_BAR_CLASS = 'adw-bottom-sheet-bottom-bar';
  */
 export const INERT_CLASS = 'adw-bottom-sheet-inert';
 
-/** The three views a bottom sheet's chrome is painted onto. */
+/** Marker class on the scrim a modal sheet lays over its content while it is open. */
+export const DIMMING_CLASS = 'adw-bottom-sheet-dimming';
+
+/** The four views a bottom sheet's chrome is painted onto. */
 export interface BottomSheetPanes {
+    /**
+     * The scrim between the content and the sheet — libadwaita's `dimming` gizmo. Painted
+     * over the content and under the panel, so a tap on the dimmed area lands HERE and never
+     * on the content a modal sheet blocks.
+     */
+    dimming: View;
     /** The bottom-anchored bin — libadwaita's `sheet_bin`. */
     panel: View;
     /** The sheet page inside it: drag handle plus the sheet child. */
@@ -85,6 +94,7 @@ export interface BottomSheetPanes {
  * panes is how a port ends up showing a bar on top of an open sheet.
  */
 export function applyBottomSheetChrome(panes: BottomSheetPanes, chrome: BottomSheetChrome): void {
+    panes.dimming.visibility = sheetVisibility(chrome.dimmed);
     panes.panel.visibility = sheetVisibility(chrome.surfaceVisible);
     panes.page.visibility = sheetVisibility(chrome.layer === 'sheet');
     panes.bottomBar.visibility = sheetVisibility(chrome.layer === 'bottom-bar');

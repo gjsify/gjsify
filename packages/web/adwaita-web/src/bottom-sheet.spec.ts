@@ -71,6 +71,7 @@ function chromeOf(sheet: AdwBottomSheet): BottomSheetChrome {
         layer: bar.hidden ? 'sheet' : 'bottom-bar',
         surfaceVisible: sheet.classList.contains('open') || sheet.classList.contains('showing-bottom-bar'),
         bottomBarInert: bar.classList.contains('inert'),
+        dimmed: dimming(sheet).classList.contains('visible'),
     };
 }
 
@@ -184,6 +185,9 @@ export const AdwBottomSheetTest = async () => {
                         },
                         setRevealBottomBar: (reveal) => {
                             sheet.revealBottomBar = reveal;
+                        },
+                        setModal: (modal) => {
+                            sheet.modal = modal;
                         },
                         setOpen: (open) => {
                             sheet.open = open;

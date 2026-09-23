@@ -411,6 +411,8 @@ export interface BottomSheetChromeState {
     hasBottomBar: boolean;
     /** `AdwBottomSheet:reveal-bottom-bar`; absent means revealed. */
     revealBottomBar?: boolean;
+    /** `AdwBottomSheet:modal`; absent means modal, the pspec default (adw-bottom-sheet.c:1128). */
+    modal?: boolean;
 }
 
 /** What a renderer has to put on screen for a given state. */
@@ -421,6 +423,11 @@ export interface BottomSheetChrome {
     surfaceVisible: boolean;
     /** Whether the bar carries the `inert` style class — still clickable, just refusing. */
     bottomBarInert: boolean;
+    /**
+     * Whether the dimming layer covers the content — the scrim a click on dismisses through
+     * the `'dimming'` source. Only a MODAL sheet has one on screen.
+     */
+    dimmed: boolean;
 }
 
 /**
@@ -431,6 +438,11 @@ export interface BottomSheetChrome {
  * `CHILD_SWITCH_THRESHOLD` mid-animation (`open_animation_cb`, adw-bottom-sheet.c:322-330);
  * with no spring animation the settled progress IS `open`, so `showing_bottom_bar` reduces to
  * `!open` — which is also its init value (:1131) for a sheet that starts closed.
+ *
+ * The dimming reduces the same way. `set_open (TRUE)` makes it child-visible exactly when the
+ * sheet is modal (:1686-1687), `set_modal` re-applies that while the sheet is not settled closed
+ * (:1981-1982), and the close animation hides it once it settles (:338-339). At rest that is
+ * `open && modal`; the opacity ramp between is the animation this model does not run.
  */
 export function resolveBottomSheetChrome(state: BottomSheetChromeState): BottomSheetChrome {
     const open = !!state.open;
@@ -440,6 +452,7 @@ export function resolveBottomSheetChrome(state: BottomSheetChromeState): BottomS
         layer: open || !hasBottomBar ? 'sheet' : 'bottom-bar',
         surfaceVisible: open || (hasBottomBar && revealed),
         bottomBarInert: !state.canOpen,
+        dimmed: open && (state.modal ?? true),
     };
 }
 
@@ -523,6 +536,7 @@ export class BottomSheetPresentation {
     private _canOpen = true;
     private _hasBottomBar = false;
     private _revealBottomBar = true;
+    private _modal = true;
     private _hasBeenOpen = false;
     private readonly _listeners = new Set<BottomSheetPresentationListener>();
     private readonly _onClosing: (() => void) | undefined;
@@ -580,6 +594,11 @@ export class BottomSheetPresentation {
         return this._revealBottomBar;
     }
 
+    /** Whether the sheet dims and blocks the content while open (`AdwBottomSheet:modal`). */
+    get modal(): boolean {
+        return this._modal;
+    }
+
     /** What the renderer has to show for the current state — {@link resolveBottomSheetChrome}. */
     get chrome(): BottomSheetChrome {
         return resolveBottomSheetChrome(this);
@@ -612,6 +631,18 @@ export class BottomSheetPresentation {
         const next = !!hasBottomBar;
         if (next === this._hasBottomBar) return false;
         this._hasBottomBar = next;
+        return true;
+    }
+
+    /**
+     * Set `modal`. Returns whether it changed. A sheet that is open changes its dimming at
+     * once, as `adw_bottom_sheet_set_modal` does (adw-bottom-sheet.c:1981-1982); `open` and
+     * the gates do not move, so nothing is notified here — the renderer repaints.
+     */
+    setModal(modal: boolean): boolean {
+        const next = !!modal;
+        if (next === this._modal) return false;
+        this._modal = next;
         return true;
     }
 
