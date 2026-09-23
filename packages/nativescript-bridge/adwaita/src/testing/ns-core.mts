@@ -218,6 +218,7 @@ export class View extends Observable {
     accessibilityRole: string | undefined;
     accessibilityState: string | undefined;
     accessibilityLabel: string | undefined;
+    accessibilityHint: string | undefined;
     readonly style: { direction?: 'ltr' | 'rtl' | null } = { direction: null };
     /** The pseudo-classes `attachRowPressFeedback` toggles — observable, not styled. */
     readonly pseudoClasses: Set<string> = new Set();

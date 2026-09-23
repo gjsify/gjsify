@@ -63,6 +63,13 @@ export class AdwSidebar extends withSignals(ScrollView) {
     /** The vertical list container. */
     protected readonly _list: StackLayout;
     private readonly _state = new SidebarState();
+    /**
+     * A `selected` written before any section exists. NativeScript's XML builder assigns the
+     * attribute before it appends the `<adw:SidebarSection>` children, so the index was
+     * out of range and cleared the selection — where GtkBuilder, adding the same children,
+     * ends with the index the file wrote. Held until the first items arrive.
+     */
+    private _pendingSelected: number | null = null;
     private readonly _rows: { view: GridLayout; index: number }[] = [];
 
     constructor(props?: ConstructProps<AdwSidebar>) {
@@ -117,7 +124,17 @@ export class AdwSidebar extends withSignals(ScrollView) {
 
     /** Set the full section model (titles, subtitles, icons, per-item `visible`/`enabled`). */
     setSections(sections: readonly AdwSidebarSectionSpec[]): void {
+        for (const section of sections) {
+            if (section instanceof AdwSidebarSection) section._bindOwner(() => this.setSections(this._state.sections));
+        }
         this._state.setSections(sections);
+        // Applied once it is in range: XML hands the items over one at a time, so the first
+        // item alone cannot yet hold an index the file wrote for the third.
+        if (this._pendingSelected !== null && this._pendingSelected < this._state.items.length) {
+            const index = this._pendingSelected;
+            this._pendingSelected = null;
+            this._state.setSelected(index);
+        }
         this._rebuild();
     }
 
@@ -208,6 +225,10 @@ export class AdwSidebar extends withSignals(ScrollView) {
 
     set selected(raw: number | string) {
         const value = xmlNumber(raw, this.selected);
+        if (this._state.items.length === 0) {
+            this._pendingSelected = value;
+            return;
+        }
         this._state.setSelected(value);
     }
 

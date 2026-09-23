@@ -1021,6 +1021,15 @@ Page.adw-window {
     margin: 16 0 0 0;
 }
 
+/* `.compact` (libadwaita `_misc.scss`, statuspage.compact): tighter margins and `.title-2`. */
+.adw-status-page.compact .adw-status-page-content {
+    padding: 12 24 12 24;
+}
+
+.adw-status-page.compact .adw-status-page-title {
+    font-size: 15;
+}
+
 /* ===== Button row (full-width tappable row) ===== */
 
 .adw-button-row {

@@ -110,9 +110,11 @@ export class AdwViewStack extends withSignals(GridLayout) {
         }
         const content = view.child;
         if (content === null) {
-            // `add_page` takes the child from the record and `g_return_val_if_fail`s without
-            // one; a page with nothing to show would be a switcher button that selects nothing.
-            throw new Error(`AdwViewStackPage '${view.name}' has no child, so the stack has nothing to show for it.`);
+            // NativeScript's XML builder hands the record over before reading its child, so
+            // the record adds itself once the child arrives (`_awaitChild` says why). A record
+            // that never gets one never becomes a page, as `add_page` refuses it in C.
+            view._awaitChild(this);
+            return;
         }
         view._adoptBy(this);
         this._state.addPage({

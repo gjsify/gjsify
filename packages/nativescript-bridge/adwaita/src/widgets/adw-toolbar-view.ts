@@ -48,9 +48,12 @@ const BASE_CLASSES = {
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
- * `<AdwToolbarView.topBar>`, `<AdwToolbarView.bottomBar>`, `<AdwToolbarView.content>`.
+ * `<AdwToolbarView.topBar>`, `<AdwToolbarView.bottomBar>`, `<AdwToolbarView.content>` — and
+ * as GTK spells them. A projected `.blp` writes `[top]` and `[bottom]`, the child types
+ * `AdwToolbarView`'s buildable takes and the names the web toolbar view routes, so without
+ * them every `.blp` with a header bar in a toolbar view was refused by the shared-tree builder.
  */
-const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content'] as const;
+const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content', 'top', 'bottom'] as const;
 
 export class AdwToolbarView extends withSignals(GridLayout) {
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
@@ -155,9 +158,11 @@ export class AdwToolbarView extends withSignals(GridLayout) {
     _addChildFromBuilder(name: string, view: View): void {
         switch (resolveBuilderSlot(name, TOOLBAR_VIEW_SLOTS, 'content')) {
             case 'topBar':
+            case 'top':
                 this.add_top_bar(view);
                 return;
             case 'bottomBar':
+            case 'bottom':
                 this.add_bottom_bar(view);
                 return;
             default:
