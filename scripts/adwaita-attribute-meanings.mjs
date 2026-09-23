@@ -147,9 +147,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'active': 'The index of the active toggle.',
     },
     'adw-view-stack-page': {
-        'icon-name': 'The icon name of the child page.',
-        'name': 'The name of the child page.',
-        'title': 'The title of the child page.',
+        'icon-name': null,
+        'name': null,
+        'title': null,
     },
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
@@ -215,11 +215,11 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
     set: 106,
-    glossed: 29,
-    nameSuffices: 55,
+    glossed: 26,
+    nameSuffices: 58,
     divergent: 20,
     authored: 2,
-    commentLines: 41,
+    commentLines: 26,
 };
 
 /**
