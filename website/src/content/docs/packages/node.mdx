@@ -83,11 +83,3 @@ Three levels of completeness. **Full** means everything a normal app touches is 
 ## Where each module also runs
 
 Every package declares which runtimes it supports, in a `gjsify.runtimes` field. Pure TypeScript modules such as `path`, `buffer`, `events`, `querystring` and `string_decoder` also run in the browser and under NativeScript. The Gio-backed ones such as `fs`, `net`, `http` and `crypto` declare an implementation for GJS only: they call into GIO and Soup directly, and on Node, Bun and Deno the same import resolves to that runtime's own builtin instead. [Runtimes](/gjsify/runtimes/) has the whole picture, and [Platform Support](/gjsify/platform-support/) covers which operating systems each native bridge reaches.
-
-## The umbrella package
-
-| Package | What it is for |
-|---|---|
-| `@gjsify/node-polyfills` | A dependency-only umbrella that pulls in every Node polyfill. `@gjsify/cli` already depends on it, so scaffolds resolve any `node:*` import out of the box |
-
-You normally never name it. Add it explicitly only if you build without `@gjsify/cli` in your dependency tree.
