@@ -102,8 +102,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // The title -> tag rule, shared rather than re-spelled: its own header records that a
 // second spelling WAS the drift here the day the `adw-` prefix stopped being constant.
 import { galleryElementTag } from '../website/src/components/attr-sample.mjs';
-import { parseBlueprint, projectToSharedNode } from '../packages/infra/blueprint/src/index.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
+
+// `@gjsify/blueprint` pulls in every `@girs/*` vocabulary at import time (by design — see
+// `resolve-ident.mjs`), so a static import here would make importing THIS module require an
+// `npm install`. `check-generated-website-data.mjs` imports this module for its GIR-free
+// exports alone, and runs in `Detect runtime-triplet drift` / `Manifest checks (Windows)` —
+// both deliberately `checkout` + `setup-node`, no install (see that script's header). Loaded
+// lazily, inside {@link blueprintAttributes}, so only a caller that actually needs the
+// projection — `derive()`, run from a GIR image that also installs — pays for it.
+const loadBlueprint = () => import('../packages/infra/blueprint/src/index.mjs');
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -573,7 +581,8 @@ export function galleryFences(root) {
  * `<adw-view-stack-page>` gained twelve comment lines restating `name`, `title` and
  * `icon-name`. The floor measured the fence SHAPE, not what the gallery sets.
  */
-export function blueprintAttributes(root) {
+export async function blueprintAttributes(root) {
+    const { parseBlueprint, projectToSharedNode } = await loadBlueprint();
     const keys = new Set();
     const kebab = (name) => name.replace(/(?<!^)([A-Z])/g, '-$1').toLowerCase();
     const walk = (node) => {
@@ -911,7 +920,7 @@ export const meaningCounts = (meanings, applied) => ({
  *
  * The half that cannot run without a `.gir`, and the half `--check` is about.
  */
-export function derive(root, gir) {
+export async function derive(root, gir) {
     const problems = [];
     const { byTag, fences, set } = applyMeanings(root, {});
     // Every attribute the gallery sets, in the shape the module commits: tag -> attr ->
@@ -954,7 +963,7 @@ export function derive(root, gir) {
     // every attribute the gallery sets, a one-Blueprint block's included — see
     // {@link blueprintAttributes}; those glosses feed the floor and carry no comment.
     const vocabulary = [...sentences.values()];
-    for (const key of blueprintAttributes(root)) {
+    for (const key of await blueprintAttributes(root)) {
         if (sentences.has(key)) continue;
         const [tag, attribute] = key.split(' ');
         const found = gir.property(gtypeOfTag(tag), attribute);
@@ -1157,7 +1166,7 @@ if (RUN_AS_PROGRAM) {
         process.exit(1);
     }
     const gir = readGir(dir);
-    const derived = derive(ROOT, gir);
+    const derived = await derive(ROOT, gir);
     const counts = meaningCounts(derived.meanings, derived.applied);
     const module = meaningsModule({ meanings: derived.meanings, provenance: gir.provenance, counts });
 
