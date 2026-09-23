@@ -1,0 +1,79 @@
+name: Scope an OS suite to this change
+description: >
+  Decide whether a pull request needs the calling workflow's heavy OS-suite job, and
+  say why. Outputs `run` (`true` / `false`) and `reason`. Every event other than
+  `pull_request` answers `true`: `main`, the nightly and a dispatch run the full
+  matrix.
+
+
+  WHY. `macos-suites.yml`, `windows-suites.yml` and `gtk-os-suites.yml` spawn five
+  jobs per pull request, four of them on macOS, whose concurrency is capped well
+  below Linux. Measured over 30 PR runs each (2026-09-23): 40, 16 and 22
+  runner-minutes, a median 12.7 min macOS queue wait (p90 32), on PRs that mostly
+  changed the Adwaita renderers or a website gate none of the three measures.
+
+
+  WHAT A SKIP MUST PROVE, and the rules themselves, live in
+  `scripts/decide-suite-scope.mjs` next to the fixtures in `tests/e2e/ci-suite-scope`.
+  This file only gathers the two inputs — the PR diff, and `gjsify affected`'s verdict
+  from the committed classifier bundle, the one `main.yml`'s `changes` job boots — so
+  the suites and `main.yml` answer "what does this change reach" from one dependency
+  graph, not two.
+
+
+  FAILS OPEN, deliberately without `continue-on-error`: a step that cannot produce its
+  input leaves the file absent, the decision turns an absent input into `run=true`, and
+  the caller gates on `run != 'false'`, so even this action dying outright runs the
+  suite.
+
+
+  The caller must check out with `fetch-depth: 0`: the diff is taken against the PR's
+  base, which a shallow clone does not have.
+
+outputs:
+  run:
+    description: '`false` only when the change provably cannot reach the suite.'
+    value: ${{ steps.decide.outputs.run }}
+  reason:
+    description: One line saying why, also written to the job summary.
+    value: ${{ steps.decide.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install gjs (host-side, for the classifier bundle only)
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        sudo apt-get update -qq && sudo apt-get install -y -qq gjs \
+          || echo "::warning::gjs did not install; the suite runs unscoped"
+
+    - name: Classify the change
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -uo pipefail
+        # `--no-renames`: a detected rename lists only its destination, so a move out of a
+        # tested package into docs/ would read as docs-only and skip the suite.
+        git diff --no-renames --name-only "$BASE...HEAD" > "$RUNNER_TEMP/suite-scope-changed.txt" \
+          || rm -f "$RUNNER_TEMP/suite-scope-changed.txt"
+        gjs -m packages/infra/cli/dist/affected.gjs.mjs --base "$BASE" --format=json \
+          > "$RUNNER_TEMP/suite-scope-affected.json" \
+          || rm -f "$RUNNER_TEMP/suite-scope-affected.json"
+
+    - name: Decide
+      id: decide
+      shell: bash
+      env:
+        # `owner/repo/.github/workflows/x.yml@ref` → `.github/workflows/x.yml`.
+        WORKFLOW_REF: ${{ github.workflow_ref }}
+      run: |
+        set -uo pipefail
+        workflow="${WORKFLOW_REF#*/*/}"
+        workflow="${workflow%%@*}"
+        node scripts/decide-suite-scope.mjs \
+          --workflow "$workflow" \
+          --changed "$RUNNER_TEMP/suite-scope-changed.txt" \
+          --affected "$RUNNER_TEMP/suite-scope-affected.json"

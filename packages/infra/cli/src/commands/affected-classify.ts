@@ -19,6 +19,7 @@ import {
     workspacesForChangedFiles,
     type Workspace,
 } from '@gjsify/workspace';
+import type { ScriptReferrers } from './affected-script-refs.js';
 
 export interface ClassifyResult {
     /** Cannot decide precisely — caller should run full suite. */
@@ -73,8 +74,10 @@ const GLOBAL_TRIGGERS = [
  */
 const OTHER_WORKFLOW_INPUTS = [
     // Each sibling workflow's own definition. `main.yml` is deliberately absent: it
-    // is a GLOBAL_TRIGGER instead.
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|release-cut|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image|cancel-pr-runs)\.yml$/,
+    // is a GLOBAL_TRIGGER instead. The three OS-suite workflows run unfiltered on every
+    // PR, so an edit to one is measured by that run; `webview2-probe.yml` is absent on
+    // purpose, being dispatch-only — nothing would measure an edit to it on the PR.
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|release-cut|audit-runtimes|prebuilds|node-gi|napi|cli-cross-platform|build-ci-image|cancel-pr-runs|macos-suites|windows-suites|gtk-os-suites)\.yml$/,
     // `prebuilds.yml`'s toolchain (#838): the QEMU-emulated build script and the
     // classifier deciding which native packages a prebuild run rebuilds. It is in
     // both of that workflow's `paths:` filters; `main.yml` builds no prebuild and
@@ -238,7 +241,57 @@ const SCRIPT_COUPLINGS: readonly ScriptCoupling[] = [
     },
 ];
 
-export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: readonly string[]): ClassifyResult {
+/** A root script whose readers can stand in for it (see `affected-script-refs.ts`). */
+const ROOT_SCRIPT = /^scripts\/[^/]+$/;
+
+function isResolvableScript(f: string): boolean {
+    return (
+        ROOT_SCRIPT.test(f) &&
+        !GLOBAL_TRIGGERS.some((re) => re.test(f)) &&
+        !SCRIPT_COUPLINGS.some((c) => c.match.test(f))
+    );
+}
+
+/**
+ * Replace each changed root script by the files that read it, recursively through scripts
+ * that read scripts. Readers go back through IGNORE here and through GLOBAL / workspace
+ * mapping in the caller, so a reader this classifier does not model still forces the full
+ * run, and a script a GLOBAL_TRIGGER reads (`audit-runtimes.mjs`) stays in and fires it.
+ */
+function resolveRootScripts(
+    files: readonly string[],
+    readersOf: ScriptReferrers,
+): { files: string[]; scripts: number } {
+    const out = new Set<string>();
+    const queue: string[] = [];
+    for (const f of files) {
+        if (isResolvableScript(f)) queue.push(f);
+        else out.add(f);
+    }
+    const seen = new Set<string>();
+    while (queue.length > 0) {
+        const s = queue.shift()!;
+        if (seen.has(s)) continue;
+        seen.add(s);
+        for (const r of readersOf(s)) {
+            if (IGNORE.some((re) => re.test(r))) continue;
+            if (isResolvableScript(r)) queue.push(r);
+            else out.add(r);
+        }
+    }
+    return { files: [...out], scripts: seen.size };
+}
+
+/**
+ * @param readersOf who reads a root `scripts/*` file. Omitted, a changed root script stays
+ *   `unmatched` and forces the full run — the behaviour before the lookup existed, and what
+ *   the command falls back to when it cannot list the tree.
+ */
+export function classifyAndExpand(
+    workspaces: readonly Workspace[],
+    changedFiles: readonly string[],
+    readersOf?: ScriptReferrers,
+): ClassifyResult {
     const files = changedFiles.map((f) => f.replace(/\\/g, '/')).filter((f) => f.length > 0);
     if (files.length === 0) {
         return {
@@ -252,15 +305,25 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
     }
     // Ignored files go FIRST, before the global-trigger check: ignore wins over
     // global, so `packages/infra/cli/README.md` must not force a full run.
-    const remaining: string[] = [];
+    let remaining: string[] = [];
     for (const f of files) {
         if (IGNORE.some((re) => re.test(f))) continue;
         remaining.push(f);
     }
+    // Every verdict below says when it was reached through a script's readers, so a
+    // surprising selection can be traced back to the lookup rather than the diff.
+    let note = '';
+    if (readersOf) {
+        const resolved = resolveRootScripts(remaining, readersOf);
+        if (resolved.scripts > 0) {
+            remaining = resolved.files;
+            note = `; ${resolved.scripts} root script(s) resolved to their readers`;
+        }
+    }
     if (remaining.length === 0) {
         return {
             global: false,
-            reason: 'ignored-only',
+            reason: 'ignored-only' + note,
             workspaces: [],
             runE2E: false,
             runIntegration: false,
@@ -273,7 +336,7 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
             if (re.test(f)) {
                 return {
                     global: true,
-                    reason: `global-trigger ${re.source} matched ${f}`,
+                    reason: `global-trigger ${re.source} matched ${f}${note}`,
                     workspaces: workspaces.map((w) => w.name),
                     runE2E: true,
                     runIntegration: true,
@@ -321,7 +384,7 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
     if (stillUnmatched.length > 0) {
         return {
             global: true,
-            reason: `unmatched files (${stillUnmatched.length}): ${stillUnmatched.slice(0, 3).join(', ')}${stillUnmatched.length > 3 ? '…' : ''}`,
+            reason: `unmatched files (${stillUnmatched.length}): ${stillUnmatched.slice(0, 3).join(', ')}${stillUnmatched.length > 3 ? '…' : ''}${note}`,
             workspaces: workspaces.map((w) => w.name),
             runE2E: true,
             runIntegration: true,
@@ -340,7 +403,7 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
         const touchedIntegration = remaining.some((f) => f.startsWith('tests/integration/'));
         return {
             global: false,
-            reason: `test-only (${remaining.length} file(s) in ${only})`,
+            reason: `test-only (${remaining.length} file(s) in ${only})${note}`,
             workspaces: [only],
             // `|| couplingRunE2E`: this shortcut skips CLOSURE EXPANSION, and a
             // declared tier is not part of the closure. Dropping it here made a
@@ -389,7 +452,8 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
         global: false,
         reason:
             `closure (${closure.size} ws from ${matched.size} seed(s))` +
-            (couplingSeeds.size > 0 ? `, ${couplingSeeds.size} via script-coupling` : ''),
+            (couplingSeeds.size > 0 ? `, ${couplingSeeds.size} via script-coupling` : '') +
+            note,
         workspaces: [...closure].sort(),
         runE2E,
         runIntegration,

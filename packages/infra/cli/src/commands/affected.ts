@@ -61,6 +61,7 @@ import { readStdinLines } from '../utils/stdin.js';
 
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { classifyAndExpand, type ClassifyResult } from './affected-classify.js';
+import { buildScriptReferrers, readTrackedTexts, type ScriptReferrers } from './affected-script-refs.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface AffectedOptions {
@@ -110,16 +111,38 @@ export const affectedCommand: LeafCommand<unknown, AffectedOptions> = {
             ? readStdinLines()
             : runGitDiff(rootDir, args.base ?? 'origin/main', args.head ?? 'HEAD');
 
-        const result = classifyAndExpand(workspaces, changedFiles);
+        const result = classifyAndExpand(workspaces, changedFiles, scriptReadersFor(rootDir, changedFiles));
         emit(args.format, result);
     },
 };
+
+/**
+ * The root-script reader lookup, built only when the diff has a root script in it — reading
+ * the tree costs a second or two and most diffs do not need it. `undefined` when git cannot
+ * list the tree (a fixture without a repository): the classifier then treats a root script
+ * as it always did, as `unmatched`, which forces the full run.
+ */
+function scriptReadersFor(rootDir: string, changedFiles: readonly string[]): ScriptReferrers | undefined {
+    if (!changedFiles.some((f) => /^scripts\/[^/]+$/.test(f.replace(/\\/g, '/')))) return undefined;
+    try {
+        return buildScriptReferrers(readTrackedTexts(rootDir));
+    } catch (err) {
+        process.stderr.write(
+            `gjsify affected: cannot index the tree for script readers (${String(err)}); root scripts stay unmatched\n`,
+        );
+        return undefined;
+    }
+}
 
 function runGitDiff(cwd: string, base: string, head: string): string[] {
     // `base...head` lists changed paths on `head` relative to the MERGE-BASE, which
     // matches what a GitHub PR diff shows and survives stacked PRs without picking up
     // commits from base.
-    const r = spawnSync('git', ['diff', '--name-only', `${base}...${head}`], {
+    // `--no-renames`: with rename detection on (git's default since 2.9), a pure move lists
+    // only the DESTINATION. Moving `packages/node/os/src/x.ts` to `docs/x.ts` then reads as
+    // a docs-only change and skips every suite that would have seen `@gjsify/os` break.
+    // Without detection a move is a delete plus an add, and the deleted side seeds as usual.
+    const r = spawnSync('git', ['diff', '--no-renames', '--name-only', `${base}...${head}`], {
         cwd,
         encoding: 'utf8',
     });

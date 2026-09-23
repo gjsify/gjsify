@@ -284,8 +284,11 @@
 # governance decision with a trap behind it.
 #
 # The macOS CONCURRENCY caveat from `macos-suites.yml` applies here too and this
-# workflow adds two more macOS jobs to the pool. If PR runs begin queueing, narrow
-# THIS matrix to arm64 on PRs before touching either existing leg.
+# workflow adds two more macOS jobs to the pool. The `scope` job is the first answer
+# to it: a PR that cannot reach `@gjsify/gtk-host`, `@gjsify/react-native`, node-gi
+# or anything that shapes their build skips both legs (WHAT A PR MAY SKIP in
+# `windows-suites.yml`). If PR runs still queue, narrow THIS matrix to arm64 on PRs
+# before touching either existing leg.
 
 name: GTK OS suites
 
@@ -308,11 +311,30 @@ permissions:
   contents: read
 
 jobs:
+  # A pull request runs the suite below only when it can reach it: the reasoning, and what a
+  # skip has to prove, is in `.github/actions/suite-scope`. `main`, the nightly and a
+  # dispatch always answer `run=true`. The gate is `!= 'false'`, so a scope job that fails
+  # or never reports runs the suite rather than skipping it.
+  scope:
+    name: Scope the suite to this change
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        uses: ./.github/actions/suite-scope
+
   darwin:
     # `node-gi on Node` rather than a bare `node`: the suite is `test:gjs-on-node`, whose
     # name says gjs and whose host is Node. Nothing GJS runs on this leg — it installs no
     # `gjs` at all (see WHAT IT DOES NOT PROVE in the header).
     name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node-gi on Node)
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -581,6 +603,8 @@ jobs:
     # Rename it back to "GTK suites on the shipped closure" when the last
     # `continue-on-error` goes.
     name: Shipped GTK closure loads; suites are probes (win32-x64 / node-gi on Node)
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
     runs-on: windows-latest
     timeout-minutes: 60
 
