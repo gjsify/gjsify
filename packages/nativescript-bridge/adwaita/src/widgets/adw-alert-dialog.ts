@@ -65,10 +65,12 @@ export class AdwAlertDialog extends withSignals(Observable) {
         props?: ConstructProps<AdwAlertDialog>,
     ) {
         super();
-        const bag = typeof headingOrProps === 'string' ? props : headingOrProps;
-        this._responses = new AdwAlertResponses(typeof headingOrProps === 'string' ? headingOrProps : '', body);
+        const positional = typeof headingOrProps === 'string';
+        this._responses = new AdwAlertResponses(positional ? headingOrProps : '', body);
+        // The bag arrives in one of two positions; the one call below applies whichever it was.
+        if (!positional) props = headingOrProps;
 
-        applyConstructProps(this, bag);
+        applyConstructProps(this, props);
     }
 
     /** The dialog heading (title). */
