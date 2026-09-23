@@ -31,12 +31,12 @@
 $adw-components:
   adw-about-dialog, adw-action-row, adw-alert-dialog, adw-alert-response,
   adw-avatar, adw-banner, adw-bottom-sheet, adw-bottom-sheet-bottom-bar,
-  adw-bottom-sheet-content, adw-bottom-sheet-sheet, gtk-button, adw-button-content, adw-button-row,
+  adw-bottom-sheet-content, adw-bottom-sheet-sheet, gtk-box, gtk-button, adw-button-content, adw-button-row,
   adw-card, adw-carousel, adw-carousel-indicator-dots,
   adw-carousel-indicator-lines, gtk-check-button, adw-clamp, adw-combo-row,
   adw-data-grid,
   adw-dialog, gtk-drop-down, gtk-entry, adw-entry-row, adw-expander-row,
-  adw-header-bar, gtk-image, adw-inline-view-switcher, gtk-menu-button,
+  adw-header-bar, gtk-image, adw-inline-view-switcher, gtk-label, gtk-menu-button,
   adw-navigation-page,
   adw-navigation-split-view, adw-navigation-view, adw-overlay-split-view,
   adw-password-entry-row, gtk-popover, adw-preferences-dialog,
@@ -68,6 +68,27 @@ $adw-components:
   text-indent: 0;
   text-transform: none;
   text-shadow: none;
+}
+
+// A box and a label INHERIT inside another widget, as every GTK node does. They
+// are the two elements an authored tree puts INSIDE the others — a label in a
+// `.error` box, a box of labels in a header bar — and the floor above would
+// repaint every one of them in `--window-fg-color` at the base size, whatever
+// its parent says. Nested in any component the floor already stops the host
+// page, so only the OUTERMOST one keeps it. `:where()` adds no specificity, so a
+// class on the element itself (`.title-1`, `.dimmed`) still wins.
+:where(#{$adw-components}) :is(gtk-box, gtk-label) {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  font-variant: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  word-spacing: inherit;
+  text-transform: inherit;
+  text-shadow: inherit;
 }
 
 // Descendants: `box-sizing` does not inherit, so a host `*, *::before {

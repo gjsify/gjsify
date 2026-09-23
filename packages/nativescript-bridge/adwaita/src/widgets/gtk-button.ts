@@ -55,9 +55,9 @@
 
 import { GridLayout, ItemSpec, Label, type View } from '@nativescript/core';
 
+import { labelDisplayText } from '@gjsify/adwaita-core';
 import { buttonSlotAfterWrite, buttonSlotDetaches, type ButtonSlot } from './button-slot.js';
 import { GtkImage } from './gtk-image.js';
-import { labelDisplayText } from './label-text.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean } from './xml-values.js';

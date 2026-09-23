@@ -1,26 +1,20 @@
-// What a `Gtk.Label` SHOWS — the markup reduction and the mnemonic, off-device.
+// What a `Gtk.Label` SHOWS — the markup reduction and the mnemonic — and how an authored
+// `xalign`/`justify` becomes the property. Both label renderers (`<gtk-label>` on the web,
+// `GtkLabel` on NativeScript) draw through `label.ts`, so it is asserted once, here.
 //
-// `gtk-label.ts` cannot be imported here (`extends Label` evaluates the bare
-// `@nativescript/core` specifier at module eval), so this drives `widgets/label-text.ts`,
-// the shipping pure half the widget's `_render` calls.
-//
-// THE EXPECTATIONS ARE GTK'S, measured under gjs 1.88.1 / gtk 4.22.4 with
-// `Gtk.Label.get_text()` read back after each write:
-//
-//   label 'a < b', use-markup FALSE     'a < b'          literal, and this is the default
-//   label '<b>Bold</b>', markup TRUE    'Bold'           GTK RENDERS it bold; this port
-//                                                        cannot, so it shows the plain text
-//   label 'a < b', markup TRUE          'a < b'          GTK warns and keeps the raw string
-//   label '_Open', use-underline TRUE   'Open'           the marker is not shown
-//   label '_Open', use-underline FALSE  '_Open'          an underscore is literal by default
-//
-// The second row is the DECLARED divergence and the reason this file exists: GTK draws
-// bold, NativeScript's `Label.text` is literal and there is no parser to hand markup to,
-// so the port reduces rather than passing through. The third row is the C fallback.
+// The rows GTK was measured against are `conformance/label.ts`; the hand-written cases
+// are the reduction's edges the table does not need to carry.
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { labelDisplayText, labelMarkupIsUnparseable } from './widgets/label-text.js';
+import {
+    DEFAULT_LABEL_XALIGN,
+    labelDisplayText,
+    labelMarkupIsUnparseable,
+    normalizeLabelJustify,
+    normalizeLabelXalign,
+} from './label.js';
+import { LABEL_DISPLAY_TEXT_VECTORS, LABEL_JUSTIFY_VECTORS, LABEL_XALIGN_VECTORS } from './conformance/label.js';
 
 export default async () => {
     await describe('labelDisplayText — markup off, which is the default', async () => {
@@ -86,5 +80,33 @@ export default async () => {
         await it('is false whenever markup was not asked for, however the string looks', () => {
             expect(labelMarkupIsUnparseable('a < b', false)).toBe(false);
         });
+    });
+
+    await describe('LABEL_DISPLAY_TEXT_VECTORS', async () => {
+        for (const vector of LABEL_DISPLAY_TEXT_VECTORS) {
+            await it(vector.rule, () => {
+                expect(labelDisplayText(vector.label, vector.useMarkup, vector.useUnderline)).toBe(vector.text);
+            });
+        }
+    });
+
+    await describe('normalizeLabelXalign', async () => {
+        await it('defaults to 0.5, the pspec default', () => {
+            expect(DEFAULT_LABEL_XALIGN).toBe(0.5);
+        });
+
+        for (const vector of LABEL_XALIGN_VECTORS) {
+            await it(vector.rule, () => {
+                expect(normalizeLabelXalign(vector.value)).toBe(vector.xalign);
+            });
+        }
+    });
+
+    await describe('normalizeLabelJustify', async () => {
+        for (const vector of LABEL_JUSTIFY_VECTORS) {
+            await it(vector.rule, () => {
+                expect(normalizeLabelJustify(vector.value)).toBe(vector.justify);
+            });
+        }
     });
 };

@@ -1,0 +1,23 @@
+// _box.scss — <gtk-box>, GTK's one-axis container.
+//
+// libadwaita has no box partial: a box draws nothing, it only places children.
+// The element sets `flex-direction` and `gap` inline from its normalised
+// properties (gtk-box.ts); this is the rest of GtkBoxLayout's shape.
+//
+// `align-items: stretch`: a child's default `halign`/`valign` is FILL, so it takes
+// the whole cross axis. `min-width`/`min-height: 0` are deliberately NOT set on
+// the children: a GTK box never allocates a child less than its minimum, and a
+// flex item's `auto` minimum is that.
+//
+// Reference: refs/gtk/gtk/gtkboxlayout.c (homogeneous: every child the same size)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+
+gtk-box {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+gtk-box[homogeneous] > * {
+  flex: 1 1 0;
+}

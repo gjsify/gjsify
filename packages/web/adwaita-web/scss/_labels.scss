@@ -1,14 +1,14 @@
-// _labels.scss — libadwaita's typography + semantic-colour UTILITY CLASSES.
+// _labels.scss — libadwaita's typography + semantic-colour UTILITY CLASSES, and
+// the `label {}` rules of the element they are written for.
 //
-// NO ELEMENT. `refs/libadwaita/src/stylesheet/widgets/_labels.scss` is a widget
-// partial in name only: `label { … }` is four lines of GtkLabel plumbing
-// (`caret-color`, `.separator`, `:disabled`) and everything else in it is a
-// CLASS a consumer puts on whatever node it already has. There is deliberately
-// no `<adw-label>` here to go with them — it would wrap a `<span>` and add
-// nothing a class does not, which is exactly ADR 0004's "a widget with
-// genuinely trivial behaviour does not need a core class" applied one level up,
-// and ADR 0010 already makes the token/class surface the public contract. An
-// element would only add a tag to `$adw-components` for no behaviour.
+// `refs/libadwaita/src/stylesheet/widgets/_labels.scss` is a widget partial in
+// name only: `label { … }` is four lines of GtkLabel plumbing and everything else
+// in it is a CLASS a consumer puts on whatever node it already has — a `<span>` on
+// a hand-written page, or <gtk-label>, which exists because an AUTHORED tree (a
+// Blueprint `Gtk.Label` mounted through `mountSharedTree`) arrives as a tag with a
+// `label` attribute and needs an element to read it. ADR 0010 makes the class
+// surface the public contract either way; the element adds the layout below and
+// nothing to the classes.
 //
 // This is also where the in-tree duplication ends: `_data_grid.scss` declared
 // `font-variant-numeric: tabular-nums` twice and inlined a whole monospace font
@@ -41,8 +41,66 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_utility_classes.scss (the vendored port's variant, NOT followed — see above)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
-// Modifications: Adapted for @gjsify/adwaita-web; the `label {}` element rules
-//   are GtkLabel plumbing with no DOM counterpart and are not ported.
+// Modifications: Adapted for @gjsify/adwaita-web; `label {}` is ported onto
+//   <gtk-label> without `:disabled`, which the element has no state for.
+
+// <gtk-label>: `label {}` (_labels.scss:1-11) plus the layout GtkLabel does in C.
+//
+// THE TWO SPACERS ARE `xalign`. GTK places the text at `xalign * (width − text
+// width)` inside the label's allocation (gtklabel.c, gtk_label_get_layout_location); the
+// element's free space is split between `::before` and `::after` in the ratio
+// `xalign : 1 − xalign`, which is that formula, and flips in RTL as the C does.
+// `align-items: center` is `yalign`'s default, 0.5.
+//
+// `white-space: pre`: Pango keeps a newline and a run of spaces, and a label that
+// does not wrap is as wide as its text — which a flex item's `min-width: auto`
+// already makes its minimum. `wrap` breaks at word boundaries, WORD being the
+// default `wrap-mode`.
+gtk-label {
+  display: flex;
+  align-items: center;
+  white-space: pre;
+  caret-color: currentColor;
+  // GtkLabel is not selectable unless asked (`selectable` defaults to FALSE).
+  user-select: none;
+
+  &::before,
+  &::after {
+    content: '';
+    flex-shrink: 1;
+    flex-basis: 0;
+  }
+
+  &::before {
+    flex-grow: var(--gtk-label-xalign, 0.5);
+  }
+
+  &::after {
+    flex-grow: calc(1 - var(--gtk-label-xalign, 0.5));
+  }
+
+  &[wrap] {
+    white-space: pre-wrap;
+  }
+
+  // `gtk-label.ts`'s wrapped-render path: the text moves into this span so it can be
+  // pinned to its measured wrap width (a flex item is blockified by spec, but `display:
+  // block` is spelled out rather than relied on implicitly).
+  .adw-label-text {
+    display: block;
+    // A pinned width may never push the label wider than its container.
+    max-width: 100%;
+  }
+
+  &[selectable] {
+    user-select: text;
+    cursor: text;
+  }
+
+  &.separator {
+    @extend .dimmed;
+  }
+}
 
 // _labels.scss:13-15
 .dimmed {

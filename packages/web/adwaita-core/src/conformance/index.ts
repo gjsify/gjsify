@@ -551,6 +551,12 @@ export {
 } from './spinner.js';
 export type { SpinnerArcShapeVector, SpinnerConstantVector } from './spinner.js';
 
+// --- Gtk.Box / Gtk.Label property + display-text vectors ---
+export { BOX_ORIENTATION_VECTORS, BOX_SPACING_VECTORS } from './box.js';
+export type { BoxOrientationVector, BoxSpacingVector } from './box.js';
+export { LABEL_DISPLAY_TEXT_VECTORS, LABEL_JUSTIFY_VECTORS, LABEL_XALIGN_VECTORS } from './label.js';
+export type { LabelDisplayTextVector, LabelJustifyVector, LabelXalignVector } from './label.js';
+
 // --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
 export {
     WRAP_BOX_CHILD_ORDER_VECTORS,

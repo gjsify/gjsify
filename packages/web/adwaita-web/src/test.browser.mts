@@ -46,6 +46,8 @@ import { AdwIconRegistryTest } from './icon-registry.spec.js';
 import { GtkSwitchTest } from './gtk-switch.spec.js';
 import { AdwChecksTest } from './checks.spec.js';
 import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
+import { GtkBoxTest } from './gtk-box.spec.js';
+import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
@@ -79,6 +81,8 @@ run({
     GtkSwitchTest,
     AdwChecksTest,
     GtkProgressBarTest,
+    GtkBoxTest,
+    GtkLabelTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,

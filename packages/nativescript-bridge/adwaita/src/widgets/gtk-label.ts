@@ -18,8 +18,8 @@
 // is literal and its `formattedText` takes objects rather than a markup string, so there is
 // no parser to hand Pango markup to. Unparseable markup keeps the raw string, which is the C
 // fallback. The reasoning, and the reason this is the honest answer rather than a
-// pass-through, is in `label-text.ts` — one file, because `Adw.Banner` already made this
-// decision and the port should have ONE answer to markup rather than one per widget.
+// pass-through, is in `@gjsify/adwaita-core`'s `label.ts` — one file, because `Adw.Banner`
+// already made this decision and the two label renderers should have ONE answer to markup.
 //
 // `use-markup` DEFAULTS TO FALSE, as in GTK, and that is what keeps this port clear of the
 // failure the other direction has: a widget that parses markup by default blanks a label
@@ -40,7 +40,8 @@
 
 import { Label } from '@nativescript/core';
 
-import { labelDisplayText } from './label-text.js';
+import { labelDisplayText } from '@gjsify/adwaita-core';
+
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';

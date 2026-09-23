@@ -70,7 +70,9 @@ export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
 export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
-export { labelDisplayText, labelMarkupIsUnparseable } from './label-text.js';
+// The text reduction is headless (`@gjsify/adwaita-core`, ADR 0004) — the web label draws
+// through the same one — re-exported here for consumers.
+export { labelDisplayText, labelMarkupIsUnparseable } from '@gjsify/adwaita-core';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';

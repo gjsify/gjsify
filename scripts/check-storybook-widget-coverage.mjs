@@ -98,6 +98,8 @@ const NO_STORY_OF_ITS_OWN = {
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
     image: 'There is no Adwaita or GTK icon WIDGET to demonstrate: GTK draws a `Gtk.Image` inline, as the navigation stories do, and the browser element exists because CSS needs a box to hang a symbolic on — so a story would show a GTK primitive rather than an Adwaita widget. This is the exemption the two retired one-renderer rows said the pair would inherit on the day it converged (2026-09-05), which is what it did: `AdwIcon` became `GtkImage`, both renderers now spell it `image`, and one row replaces the pair plus its `sameWidgetAs` bridge.',
+    box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive, the verdict `image` gets above.",
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -158,11 +160,6 @@ const ONE_RENDERER_ONLY = {
         decision:
             'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
     },
-    box: {
-        only: 'nativescript',
-        decision:
-            "Upstream has no AdwBox: `GtkBox` is GTK's primitive and libadwaita styles what a caller puts IN one. On the browser a box is a `<div>` — the DOM already is a box with a gap, so wrapping it in an element would carry no behaviour, the same verdict `<adw-card>` gets from the other side. NativeScript needed a class because its `StackLayout` has no gap at all (`Style` carries no `columnGap`/`rowGap`) and no `insert_after` child order, so the two things this widget adds are the two the platform lacks (gtk-box.ts). The rest is why: a documented pane that reaches into `@nativescript/core` for a box is a different PROGRAM from its `gjs` sibling, which is what ADR 0034 § Amendment 14's `composition` kind counts.",
-    },
     'bottom-sheet-bottom-bar': {
         only: 'web',
         decision:
@@ -205,11 +202,6 @@ const ONE_RENDERER_ONLY = {
         only: 'nativescript',
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
-    },
-    label: {
-        only: 'nativescript',
-        decision:
-            "Upstream has no AdwLabel: `GtkLabel` is GTK's, and libadwaita's label looks are style classes over it (`.title-1`…`.title-4`, `.dimmed`, stylesheet/widgets/_labels.scss). On the browser a label is a `<span>` and the markup a caller writes is already the markup the label shows, so there is nothing for an element to translate. NativeScript's `Label.text` is LITERAL and its `formattedText` takes objects rather than a markup string, so a port had to decide what `use-markup` means here — it reduces Pango markup to its plain text, the same answer `Adw.Banner` already gives (label-text.ts) — and that decision is the widget.",
     },
     'navigation-page': {
         only: 'web',

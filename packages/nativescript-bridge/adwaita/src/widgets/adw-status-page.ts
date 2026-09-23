@@ -22,6 +22,7 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
+import { builderSlotsOf } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
 import { statusPageIconVisibility, statusPageLabelVisibility } from './status-page-content.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -33,6 +34,14 @@ const DEFAULT_STATUS_ICON_SIZE = 96;
 const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 
 export class AdwStatusPage extends withSignals(GridLayout) {
+    /**
+     * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
+     * `Adw.StatusPage:child` is this widget's own property name, and its fallback: an
+     * authored `child: …` and a bare child mean the same thing, the shape
+     * `_addChildFromBuilder` below already has.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
+
     /** The centered vertical stack. */
     protected readonly _stack: StackLayout;
     /** The large symbolic icon (shown when an `icon` SVG is set). */

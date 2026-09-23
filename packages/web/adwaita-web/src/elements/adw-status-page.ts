@@ -41,8 +41,12 @@ export class AdwStatusPage extends HTMLElement {
 
         // `Adw.StatusPage:child` is a property, so the action a status page offers can be
         // set at any point — a button appended after connect has to land in the child box,
-        // not beside it. `src/slotted-children.ts` has the incident.
-        bindSlottedChildren(this, [{ into: this._childEl }]).install(
+        // not beside it. `src/slotted-children.ts` has the incident. NAMED beside the
+        // default for the same reason `adw-toolbar-view.ts` names `content` beside ITS
+        // default: an authored `child: …` carries `slot: 'child'`
+        // (`shared-tree-builder.ts`'s `refuseUnknownSlots`), a name the bare default claim
+        // does not answer to, so the placement was refused sight unseen until this line.
+        bindSlottedChildren(this, [{ name: 'child', into: this._childEl }, { into: this._childEl }]).install(
             this._iconEl,
             this._titleEl,
             this._descEl,

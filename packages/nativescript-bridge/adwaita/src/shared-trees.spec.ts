@@ -320,6 +320,27 @@ export const AdwSharedTreesNsTest = async () => {
 
             expect(structure(placed) === structure(unplaced)).toBe(false);
         });
+
+        // `child: Gtk.Label {…}` in a `.blp` authors `slot: 'child'` — the widget's own
+        // GObject property name — for every single-child widget the corpus never places one
+        // on, so this went unmeasured until read against a real GTK render. Both widgets'
+        // `_addChildFromBuilder` already ignore the name and always set the one child they
+        // have; only the `builderSlots` declaration that lets that name THROUGH was missing.
+        await it("AdwClamp accepts its GIR child property, 'child', as a named builder slot", () => {
+            const root = build({ tag: 'AdwClamp', children: [{ tag: 'GtkLabel', slot: 'child' }] });
+
+            expect(findDescendant(root, (view) => view.constructor === elementFor('GtkLabel').ctor) !== null).toBe(
+                true,
+            );
+        });
+
+        await it("AdwStatusPage accepts its GIR child property, 'child', as a named builder slot", () => {
+            const root = build({ tag: 'AdwStatusPage', children: [{ tag: 'GtkButton', slot: 'child' }] });
+
+            expect(findDescendant(root, (view) => view.constructor === elementFor('GtkButton').ctor) !== null).toBe(
+                true,
+            );
+        });
     });
 
     await describe('the shared corpus against the adwaita-core vectors it reaches', async () => {

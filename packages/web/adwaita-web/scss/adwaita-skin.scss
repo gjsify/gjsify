@@ -19,12 +19,14 @@
 // specificity.
 @use 'icon';
 // libadwaita's typography + semantic-colour UTILITY CLASSES (`.dimmed`,
-// `.numeric`, `.monospace`, `.title-1`…). Classes only — there is deliberately
-// no <adw-label>, see _labels.scss. Emitted BEFORE every widget so a widget's
+// `.numeric`, `.monospace`, `.title-1`…), and <gtk-label>, the element they are
+// written for — see _labels.scss. Emitted BEFORE every widget so a widget's
 // own rule wins on ordinary specificity, and because two partials @extend from
 // it (`_progress_bar.scss`'s text node, `_data_grid.scss`'s cells) exactly as
 // libadwaita's own `_progress-bar.scss` does.
 @use 'labels';
+// <gtk-box>. Before every widget, which may place its own children in one.
+@use 'box';
 // The REST of libadwaita's documented style-class surface — the widget-
 // independent half: the surfaces (`.background`, `.view`, `.frame`), `.card` and
 // the two boxed lists, `.toolbar`, `.spacer`, `.osd`, `.linked`, the app-icon
