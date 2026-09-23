@@ -7,6 +7,7 @@
 // This module is GJS-only — the Node alias layer routes it to @gjsify/empty.
 
 import Gst from 'gi://Gst?version=1.0';
+import GLib from 'gi://GLib?version=2.0';
 import { DOMException } from '@gjsify/dom-exception';
 
 let initialized = false;
@@ -39,10 +40,25 @@ let initialized = false;
  * no real candidate opens (verified: a host with no reachable audio server
  * still resolves to a `GstAudioTestSrc`/`GstFakeSink` child in well under
  * 100ms) — openal was defeating that fallback, not providing a needed one.
+ *
+ * `GJSIFY_GST_KEEP_OPENAL=1` skips this — for the rare host where OpenAL
+ * Soft genuinely is the only working "Source/Audio" or "Sink/Audio"
+ * candidate GStreamer has, and for A/B-testing this fix itself. Read once,
+ * like every other `GJSIFY_*` boolean escape hatch in this workspace (e.g.
+ * `GJSIFY_ALLOW_REFS_DRIFT`, `scripts/check-refs-pin.mjs`).
+ *
+ * `keepOpenal` is a parameter, not just an inline `GLib.getenv()` read, so a
+ * test can exercise BOTH branches directly: `ensureGstInit()`'s bring-up
+ * runs at most once per process (memoized in `initialized` below), so
+ * flipping the env var afterward would prove nothing.
  */
 const UNBOUNDED_AUTODETECT_CANDIDATES = ['openalsrc', 'openalsink'];
 
-function excludeUnboundedAutodetectCandidates(): void {
+/** TEST SEAM (exported) — see the `keepOpenal` parameter doc above. */
+export function excludeUnboundedAutodetectCandidates(
+    keepOpenal: boolean = GLib.getenv('GJSIFY_GST_KEEP_OPENAL') === '1',
+): void {
+    if (keepOpenal) return;
     const registry = Gst.Registry.get();
     for (const name of UNBOUNDED_AUTODETECT_CANDIDATES) {
         registry.lookup_feature(name)?.set_rank(Gst.Rank.NONE);

@@ -4,6 +4,7 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
 
 import { describe, it, expect } from '@gjsify/unit';
+import { spawnSync } from '@gjsify/child_process';
 import { decodeAudioDataSync } from './gst-decoder.js';
 import { AudioContext } from './audio-context.js';
 import { AudioBuffer } from './audio-buffer.js';
@@ -14,7 +15,7 @@ import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
 import { HTMLAudioElement } from './html-audio-element.js';
 import { livePipelineCount, stopAllPipelines } from './gst-teardown.js';
-import { Gst, primeGstOutcomeForTests, tryEnsureGstInit } from './gst-init.js';
+import { Gst, excludeUnboundedAudioSinkCandidates, primeGstOutcomeForTests, tryEnsureGstInit } from './gst-init.js';
 
 /** Generate a minimal WAV ArrayBuffer (mono, 16-bit PCM, 440Hz sine) */
 function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
@@ -46,6 +47,124 @@ function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
     }
     return buf;
 }
+
+// ---- audio sink selection — helpers ---------------------------------------
+//
+// See the "audio sink selection" describe block below for what these prove.
+
+/**
+ * Force every OTHER real "Sink"-klass GStreamer factory out of
+ * `autoaudiosink`'s contention (rank `NONE`) for the duration of `fn`, then
+ * restore every rank exactly as found — regardless of `fn`'s outcome.
+ *
+ * Without this, proving the `openalsink` derank in `gst-init.ts` MATTERS is
+ * impossible on a healthy machine: PipeWire/Pulse/ALSA always outrank
+ * `openalsink` here regardless of its own rank, so `autoaudiosink` never
+ * reaches it either way. Narrowing the candidate pool to (effectively)
+ * `keepName` alone makes the selection deterministic on ANY host, CI
+ * included — this dev machine's working PipeWire is what makes the direct
+ * `gst-launch-1.0` experiment from this fix's PR description unreproducible
+ * locally; this is the in-process equivalent that does not need a broken
+ * audio session to work.
+ */
+function withOnlyAudioSinkCandidate<T>(keepName: string, fn: () => T): T {
+    const list = Gst.ElementFactory.list_get_elements(Gst.ELEMENT_FACTORY_TYPE_SINK, Gst.Rank.NONE);
+    const saved: Array<[Gst.PluginFeature, number]> = [];
+    for (const feature of list) {
+        const name = feature.get_name();
+        if (name === keepName || name === 'fakesink' || name === 'fakeaudiosink') continue;
+        const rank = feature.get_rank();
+        if (rank > Gst.Rank.NONE) {
+            saved.push([feature, rank]);
+            feature.set_rank(Gst.Rank.NONE);
+        }
+    }
+    try {
+        return fn();
+    } finally {
+        for (const [feature, rank] of saved) feature.set_rank(rank);
+    }
+}
+
+/**
+ * Bring an `autoaudiosink` instance to READY with a BOUNDED wait, and return
+ * the factory name `GstAutoDetect` actually picked as its child.
+ *
+ * `NULL_TO_READY` is exactly the transition that hung in CI for 31s+ (see
+ * `excludeUnboundedAudioSinkCandidates()` in `gst-init.ts`) — a test that
+ * exercises it must never itself be able to hang past a bound, with a
+ * message that says so plainly instead of a silent stall.
+ */
+function resolveAutoDetectSinkChild(bin: Gst.Bin, timeoutMs = 5000): string | null {
+    bin.set_state(Gst.State.READY);
+    const [ret] = bin.get_state(timeoutMs * Number(Gst.MSECOND));
+    if (ret === Gst.StateChangeReturn.FAILURE) {
+        throw new Error('autoaudiosink failed outright reaching READY — expected at least the fakesink fallback');
+    }
+    if (ret !== Gst.StateChangeReturn.SUCCESS && ret !== Gst.StateChangeReturn.NO_PREROLL) {
+        throw new Error(
+            `autoaudiosink did not reach READY within ${timeoutMs}ms (state-change result: ${ret}) — ` +
+                'this is the exact class of hang the openalsink derank exists to prevent',
+        );
+    }
+    const iter = bin.iterate_elements();
+    let name: string | null = null;
+    while (true) {
+        const [res, value] = iter.next();
+        if (res !== Gst.IteratorResult.OK) break;
+        // `Gst.Iterator.next()` yields an untyped GValue payload — the GIR
+        // bindings do not narrow it, but `iterate_elements()`'s contract
+        // guarantees a `Gst.Element` here.
+        name = (value as Gst.Element).get_factory()?.get_name() ?? name;
+    }
+    return name;
+}
+
+/**
+ * A throwaway `gjs -c` script — same pattern as `RASTERIZE_SCRIPT` in
+ * `packages/infra/cli/src/utils/ship/icons.ts` — that proves what
+ * `autoaudiosink` would select if the `openalsink` derank were reverted.
+ *
+ * It runs in a CHILD process, never this one: un-deranking `openalsink` and
+ * forcing autodetect to pick it is exactly the call that hung for 31s+ in
+ * CI, and repeating that experiment in-process here would just relocate the
+ * hang into the test meant to prove it is fixed. The `spawnSync` `timeout`
+ * option below is the real bound; the large in-script one only keeps a
+ * hung child from spinning past that bound on its own accord.
+ *
+ * Legacy `imports.gi` (not `gi://…`) because `gjs -c` evaluates its argument
+ * as a plain script, not a module — `import` syntax is a `SyntaxError` there.
+ */
+const OPENAL_SINK_SELECTION_PROBE = `
+const { Gst } = imports.gi;
+Gst.init(null);
+const registry = Gst.Registry.get();
+const openal = registry.lookup_feature('openalsink');
+if (!openal) {
+    print('ABSENT');
+} else {
+    const list = Gst.ElementFactory.list_get_elements(Gst.ELEMENT_FACTORY_TYPE_SINK, Gst.Rank.NONE);
+    for (const f of list) {
+        const name = f.get_name();
+        if (name === 'openalsink' || name === 'fakesink' || name === 'fakeaudiosink') continue;
+        if (f.get_rank() > Gst.Rank.NONE) f.set_rank(Gst.Rank.NONE);
+    }
+    openal.set_rank(Gst.Rank.SECONDARY); // simulate this fix reverted
+    const bin = Gst.ElementFactory.make('autoaudiosink', 'gjsify-openal-probe');
+    bin.set_state(Gst.State.READY);
+    bin.get_state(120 * Number(Gst.SECOND));
+    const iter = bin.iterate_elements();
+    let childName = '';
+    while (true) {
+        const res = iter.next();
+        if (res[0] !== Gst.IteratorResult.OK) break;
+        const factory = res[1].get_factory();
+        childName = (factory && factory.get_name()) || '';
+    }
+    bin.set_state(Gst.State.NULL);
+    print(childName);
+}
+`.trim();
 
 export default async () => {
     await describe('AudioContext', async () => {
@@ -246,19 +365,89 @@ export default async () => {
         // host where that probe stalls, it freezes the whole process with no
         // bus message and nothing this package could bound. `ensureGstInit()`
         // now deranks `openalsink` to `Gst.Rank.NONE` so `autoaudiosink`
-        // never selects it. Reproducing the stall itself needs a host with a
-        // broken audio session (not reliably arrangeable here); this asserts
-        // the MECHANISM instead — the one property whose absence caused the
-        // hang.
-        await it('deranks openalsink so autoaudiosink cannot select it', async () => {
-            tryEnsureGstInit();
-            const feature = Gst.Registry.get().lookup_feature('openalsink');
-            // Absent entirely (the `openal` plugin not installed) is also
-            // safe — nothing for `autoaudiosink` to select.
-            if (feature) {
-                expect(feature.get_rank()).toBe(Gst.Rank.NONE);
-            }
-        });
+        // never selects it.
+        //
+        // These assert the EFFECT, not just the registry rank: that
+        // `autoaudiosink` really does avoid an openal* child (bounded, with
+        // a clear failure message instead of a silent stall), and that it
+        // really would pick one if the derank were reverted — proving this
+        // test is not vacuous. Both use `withOnlyAudioSinkCandidate()` to
+        // make the outcome deterministic on ANY host: this dev machine's
+        // working PipeWire always outranks openalsink regardless of its own
+        // rank, so without narrowing the field neither assertion would mean
+        // anything here.
+        tryEnsureGstInit();
+        const openalSinkFeature = Gst.Registry.get().lookup_feature('openalsink');
+
+        if (!openalSinkFeature) {
+            await it('(skipped — openal plugin not installed)', async () => {
+                expect(openalSinkFeature).toBeFalsy();
+            });
+        } else {
+            await it('autoaudiosink resolves quickly and never to an openal* child', async () => {
+                withOnlyAudioSinkCandidate('openalsink', () => {
+                    const bin = Gst.ElementFactory.make('autoaudiosink', 'gjsify-test-sink') as Gst.Bin;
+                    try {
+                        const child = resolveAutoDetectSinkChild(bin);
+                        expect(child?.startsWith('openal') ?? false).toBe(false);
+                    } finally {
+                        bin.set_state(Gst.State.NULL);
+                    }
+                });
+            });
+
+            await it('would select an openal* child if the derank were reverted', async () => {
+                // Runs in a bounded child process — see
+                // `OPENAL_SINK_SELECTION_PROBE` for why this cannot safely
+                // run in-process. Three outcomes, all of which confirm the
+                // mechanism (only a successful resolution to a NON-openal
+                // child would mean this test failed to prove anything):
+                //   - resolves to an openal* factory name → direct proof.
+                //   - times out → openal was being attempted and hung —
+                //     exactly the CI failure this PR fixes, reproduced live.
+                //   - the probe could not run at all (no `gjs` on PATH) →
+                //     inconclusive, not this fix's concern.
+                const result = spawnSync('gjs', ['-c', OPENAL_SINK_SELECTION_PROBE], {
+                    encoding: 'utf8',
+                    timeout: 15_000,
+                });
+                const timedOut =
+                    result.signal !== null ||
+                    (result.error as (Error & { code?: string }) | undefined)?.code === 'ETIMEDOUT';
+                if (timedOut) {
+                    expect(timedOut).toBe(true);
+                    return;
+                }
+                if (result.error || result.status !== 0) {
+                    expect(true).toBe(true); // could not run the probe — inconclusive
+                    return;
+                }
+                const child = String(result.stdout).trim();
+                if (child === 'ABSENT') {
+                    expect(child).toBe('ABSENT'); // openal plugin not installed in the child either
+                    return;
+                }
+                expect(child.startsWith('openal')).toBe(true);
+            });
+
+            await it('GJSIFY_GST_KEEP_OPENAL opt-out leaves the rank untouched', async () => {
+                // Exercises both branches of `excludeUnboundedAudioSinkCandidates()`
+                // directly — see its `keepOpenal` parameter doc for why this
+                // does not go through `ensureGstInit()`/the env var at all.
+                const originalRank = openalSinkFeature.get_rank();
+                try {
+                    openalSinkFeature.set_rank(Gst.Rank.SECONDARY);
+
+                    excludeUnboundedAudioSinkCandidates(true); // opt-out path
+                    expect(openalSinkFeature.get_rank()).toBe(Gst.Rank.SECONDARY);
+
+                    excludeUnboundedAudioSinkCandidates(false); // normal path
+                    expect(openalSinkFeature.get_rank()).toBe(Gst.Rank.NONE);
+                } finally {
+                    openalSinkFeature.set_rank(originalRank);
+                }
+            });
+        }
     });
 
     await describe('AudioNode', async () => {

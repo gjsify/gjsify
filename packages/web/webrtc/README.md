@@ -40,6 +40,33 @@ pc.onicecandidate = (event) => {
 };
 ```
 
+## Audio device selection
+
+On `ensureGstInit()` (the first `RTCPeerConnection`, `getUserMedia`, or any
+other GStreamer-touching call), this package sets the `openalsrc` and
+`openalsink` GStreamer plugin features' rank to `Gst.Rank.NONE` in the
+**process-wide** GStreamer registry — it affects every pipeline in the
+process, including ones built outside this package.
+
+Why: `getUserMedia({ audio: true })`'s capture source falls through to
+`autoaudiosrc` when PipeWire/Pulse/V4L2 aren't reachable, and `autoaudiosrc`
+tries registered audio sources in rank order until one opens. `openalsrc`
+(and its sink counterpart, reachable the same way through `autoaudiosink`)
+is the one candidate whose `open()` does not fail fast: OpenAL Soft's
+device backend runs its own nested connection probe synchronously inside
+the GStreamer state change, which can stall the whole process for tens of
+seconds (measured in CI — `[ALSOFT] Failed to connect PipeWire` followed by
+30+ seconds of silence, hit while moving a shared track's source between
+peer connections). `autoaudiosrc`/`autoaudiosink` already fall back to
+`audiotestsrc`/`fakesink` when nothing opens, in well under 100ms —
+deranking `openalsrc`/`openalsink` restores that existing fallback instead
+of leaving it reachable through the one candidate that defeats it.
+
+Set `GJSIFY_GST_KEEP_OPENAL=1` to opt out, if a host genuinely needs OpenAL
+Soft as its audio backend. This also un-deranks `openalsink` for
+`@gjsify/webaudio` if both are loaded in the same process — the two
+packages share the one GStreamer registry.
+
 ## License
 
 MIT

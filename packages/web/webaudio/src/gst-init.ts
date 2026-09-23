@@ -3,6 +3,7 @@
 
 import Gst from 'gi://Gst?version=1.0';
 import GstApp from 'gi://GstApp?version=1.0';
+import GLib from 'gi://GLib?version=2.0';
 
 let initialized = false;
 
@@ -54,10 +55,29 @@ function ensureGstAppLoaded(): void {
  * runs, and there is no timeout to hand it from here. Deranking it keeps it
  * out of `autoaudiosink`'s candidate list, so a host with no working audio
  * backend degrades to the already-fast `fakesink` path instead of hanging.
+ *
+ * `GJSIFY_GST_KEEP_OPENAL=1` skips this — for the rare host where OpenAL
+ * Soft genuinely is the only working "Sink/Audio" candidate GStreamer has
+ * (its own probe being slow to fail is a materially better outcome than
+ * `autoaudiosink` never even trying it) and for A/B-testing this fix
+ * itself. Read once, like every other `GJSIFY_*` boolean escape hatch in
+ * this workspace (e.g. `GJSIFY_ALLOW_REFS_DRIFT`,
+ * `scripts/check-refs-pin.mjs`).
+ *
+ * `keepOpenal` is a parameter — not just an inline `GLib.getenv()` read —
+ * for the same reason `GstInitializer` is injectable below: it lets a test
+ * exercise BOTH branches directly and deterministically, without needing a
+ * subprocess to get a fresh env read (`ensureGstInit()`'s own bring-up runs
+ * at most once per process, memoized, so flipping the env var after the
+ * fact would prove nothing).
  */
 const UNBOUNDED_AUDIO_SINK_CANDIDATES = ['openalsink'];
 
-function excludeUnboundedAudioSinkCandidates(): void {
+/** TEST SEAM (exported) — see the `keepOpenal` parameter doc above. */
+export function excludeUnboundedAudioSinkCandidates(
+    keepOpenal: boolean = GLib.getenv('GJSIFY_GST_KEEP_OPENAL') === '1',
+): void {
+    if (keepOpenal) return;
     const registry = Gst.Registry.get();
     for (const name of UNBOUNDED_AUDIO_SINK_CANDIDATES) {
         registry.lookup_feature(name)?.set_rank(Gst.Rank.NONE);
