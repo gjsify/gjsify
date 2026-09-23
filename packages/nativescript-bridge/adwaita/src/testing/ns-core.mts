@@ -290,7 +290,11 @@ export class View extends Observable {
 export class Page extends View {}
 
 export class LayoutBase extends View {
-    private readonly _childViews: View[] = [];
+    // Hard-private for the reason `#adopt` below gives. This was `private _childViews`, an
+    // OWN field, and `AdwWrapBox`/`GtkBox` declare a `_childViews()` METHOD: the field
+    // shadowed it, so either widget threw "this._childViews is not a function" the moment
+    // a built tree gave it a child. Upstream keeps its list as `_subViews`.
+    readonly #children: View[] = [];
 
     /**
      * THE THREE REFUSALS `ViewBase._addView` MAKES, reproduced rather than simplified away.
@@ -324,12 +328,12 @@ export class LayoutBase extends View {
 
     addChild(view: View): void {
         this.#adopt(view);
-        this._childViews.push(view);
+        this.#children.push(view);
     }
 
     insertChild(view: View, atIndex: number): void {
         this.#adopt(view);
-        this._childViews.splice(atIndex, 0, view);
+        this.#children.splice(atIndex, 0, view);
     }
 
     /** `_removeView` refuses a view that is not this parent's; a silent no-op would hide it. */
@@ -337,25 +341,25 @@ export class LayoutBase extends View {
         if (PARENTS.get(view) !== this) {
             throw new Error(`View not added to this instance. View: ${view?.constructor.name}`);
         }
-        this._childViews.splice(this._childViews.indexOf(view), 1);
+        this.#children.splice(this.#children.indexOf(view), 1);
         PARENTS.delete(view);
     }
 
     removeChildren(): void {
-        for (const view of this._childViews) PARENTS.delete(view);
-        this._childViews.length = 0;
+        for (const view of this.#children) PARENTS.delete(view);
+        this.#children.length = 0;
     }
 
     getChildAt(index: number): View {
-        return this._childViews[index];
+        return this.#children[index];
     }
 
     getChildrenCount(): number {
-        return this._childViews.length;
+        return this.#children.length;
     }
 
     eachChildView(callback: (child: View) => boolean): void {
-        for (const view of this._childViews) if (callback(view) === false) return;
+        for (const view of this.#children) if (callback(view) === false) return;
     }
 
     /**
