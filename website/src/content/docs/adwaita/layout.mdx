@@ -70,10 +70,12 @@ This block is written in a different shape from the others on the page. The layo
 exists once, as a Blueprint file, and every surface builds that file: GTK compiles it
 to GtkBuilder XML, and the web and NativeScript ports build its `?shared-tree`
 projection. The preview is that projection, built by `@gjsify/adwaita-web`, and
-**Blueprint** under it is the file. So the tabs of **Code** do not restate the layout.
-Each one shows how its platform loads the file and reaches an element by its Blueprint
-id, which is where the platforms differ: the web clamp takes its size as an attribute,
-the other two as a property.
+**Blueprint** under it is the file. The **Web Components** and **NativeScript** tabs of
+**Code** open with the same layout in their port's own markup, generated from that file
+when the site is built, so the ids match the Blueprint. The code under the markup reaches
+an element by its id, which is where the platforms differ: the web clamp takes its size
+as an attribute, the other two as a property. The comment at the end shows how to build
+the layout from the Blueprint file instead of the markup.
 
 The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
 runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
@@ -96,25 +98,23 @@ bare script too; inside an `Adw.Application` the call is harmless.
     ```
   </Fragment>
   <Fragment slot="webloader">
-    ```ts
-    import { mountSharedTree, type Gtk } from '@gjsify/adwaita-web';
-    import tree from './clamp.blp?shared-tree';
+    ```js
+    import '@gjsify/adwaita-web';
 
-    const { root: clamp } = mountSharedTree(tree);
-    const label = clamp.querySelector<Gtk.Label>('#label')!;
-    label.label = 'Reached by its Blueprint id.';
+    const clamp = document.querySelector('#clamp');
+    const label = document.querySelector('#label');
+    label.label = 'Reached by its id.';
     clamp.setAttribute('maximum-size', '560');
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
     import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
-    import { build } from '@gjsify/adwaita-nativescript/builder';
-    import tree from './clamp.blp?shared-tree';
+    import { Builder } from '@nativescript/core';
 
-    const clamp = build(tree) as Adw.Clamp;
+    const clamp = Builder.load({ path: '~/views', name: 'clamp' }) as Adw.Clamp;
     const label = clamp.getViewById<Gtk.Label>('label')!;
-    label.label = 'Reached by its Blueprint id.';
+    label.label = 'Reached by its id.';
     clamp.maximumSize = 560;
     ```
   </Fragment>
