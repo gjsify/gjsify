@@ -105,12 +105,25 @@ export const JSON_DOORS = {
     parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
 };
 
+/**
+ * The ID doors: an OBJECT-valued setter annotated `<Something> | ViewId` takes, from XML, the
+ * id of another view in the same tree. `<adw:CarouselIndicatorDots carousel="carousel" />`
+ * is the case: GtkBuilder resolves an object property by id, and so does this door, against
+ * the loaded tree (`id-reference.ts`). Its own kind, `id`, because the annotation is what
+ * says which a string is: an id is not JSON, and a template spells it as the plain string.
+ */
+export const ID_DOORS = {
+    resolveIdReference: `${NS_WIDGETS_DIR}/id-reference.ts`,
+};
+
 /** The coercers this package's own door is made of. */
 export const COERCERS = { number: 'xmlNumber', boolean: 'xmlBoolean' };
 
 /** What a setter of `kind` must put its value through, named for a failure message. */
 export function doorFor(kind) {
-    return kind === 'json' ? Object.keys(JSON_DOORS).join(' / ') : COERCERS[kind];
+    if (kind === 'json') return Object.keys(JSON_DOORS).join(' / ');
+    if (kind === 'id') return Object.keys(ID_DOORS).join(' / ');
+    return COERCERS[kind];
 }
 
 /**
@@ -815,7 +828,8 @@ function arrayLiteralKind(texts, name) {
 }
 
 /**
- * `'number'`, `'boolean'`, `'string'` — or `null` when an attribute cannot carry it.
+ * `'number'`, `'boolean'`, `'string'`, `'json'`, `'id'` — or `null` when an attribute cannot
+ * carry it.
  *
  * This is the KEY the whole coercion rule turns on, and it is a property of the WIDGET.
  * Keying on the JS literal a template happened to write instead left a hole the size of
@@ -850,6 +864,9 @@ export function attributeKind(texts, annotation, seen = new Set()) {
     if (parts.every((p) => p === 'string' || /^'[^']*'$/.test(p) || stringUnion(list, p))) return 'string';
     if (parts.every((p) => /^-?\d+(?:\.\d+)?$/.test(p))) return 'number';
     if (parts.every((p) => p === 'true' || p === 'false')) return 'boolean';
+    // An ID DOOR — see {@link ID_DOORS}. The `ViewId` alias is the widget saying the string
+    // it takes is the id of another view, which no primitive coercer and no JSON parse reads.
+    if (parts.length > 1 && parts.includes('ViewId')) return 'id';
     // A JSON DOOR — see {@link JSON_DOORS}. Reached only when some member is NOT
     // string-ish (the test above would have answered `string`), so `| string` beside it
     // is the widget saying an attribute carries this as text the setter parses.
@@ -1012,6 +1029,8 @@ export function coerces(setter, kind) {
     // object gives the fallback, and `parseAdjustment` on a number gives nothing
     // authored. So this kind is held against ITS OWN doors and no others.
     if (kind === 'json') return Object.keys(JSON_DOORS).some((fn) => setter.executable.includes(`${fn}(`));
+    // An id is not a primitive either: it is resolved against the tree, never parsed.
+    if (kind === 'id') return Object.keys(ID_DOORS).some((fn) => setter.executable.includes(`${fn}(`));
     if (setter.executable.includes(`${COERCERS[kind]}(`)) return true;
     return Object.keys(STRING_TOLERANT).some((fn) => setter.executable.includes(`${fn}(`));
 }

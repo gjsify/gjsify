@@ -27,8 +27,8 @@
 // The verdict is the `__GJSIFY_NS__` marker grammar in logcat, which
 // `scripts/run-on-device.mjs` parses; the Label on screen is a fallback for a human.
 
-import { Builder, LayoutBase } from '@nativescript/core';
-import type { ContentView, Label, NavigatedData, Page, View } from '@nativescript/core';
+import { Builder, LayoutBase, View } from '@nativescript/core';
+import type { ContentView, Label, NavigatedData, Page } from '@nativescript/core';
 
 import { Adw, AdwSplitViewBase } from '@gjsify/adwaita-nativescript';
 
@@ -141,8 +141,15 @@ const describeValue = (value: unknown): string => `${typeof value} ${JSON.string
  * ran it. Nothing had: the probe needs a device, and the panes it asserts were compared as
  * TEXT until now.
  */
-const sameValue = (actual: unknown, wanted: unknown): boolean =>
-    Array.isArray(actual) && typeof wanted === 'string' ? actual.join(' ') === wanted : actual === wanted;
+const sameValue = (actual: unknown, wanted: unknown): boolean => {
+    if (Array.isArray(actual) && typeof wanted === 'string') return actual.join(' ') === wanted;
+    // AN ID-VALUED ATTRIBUTE reads back as the VIEW it names: `carousel="carousel"` is
+    // resolved against the loaded tree (`id-reference.ts`), so the widget holds the carousel
+    // and the template holds its id. Matching the id is the whole claim — a string left
+    // unresolved would still be a string and fail here.
+    if (actual instanceof View && typeof wanted === 'string') return actual.id === wanted;
+    return actual === wanted;
+};
 
 /** Walk one declared node against the view the Builder actually made. */
 async function assertNode(expect: ExpectNode, view: View, label: string): Promise<void> {

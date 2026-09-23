@@ -1,17 +1,22 @@
-<adw:Carousel
+<gtk:Box
   xmlns="http://schemas.nativescript.org/tns.xsd"
   xmlns:adw="~/adw"
+  xmlns:gtk="~/gtk"
+  orientation="vertical"
 >
-  <adw:StatusPage
-    iconText="①"
-    title="Welcome"
-  />
-  <adw:StatusPage
-    iconText="②"
-    title="Sync"
-  />
-  <adw:StatusPage
-    iconText="③"
-    title="Done"
-  />
-</adw:Carousel>
+  <adw:Carousel id="carousel">
+    <adw:StatusPage
+      iconText="①"
+      title="Welcome"
+    />
+    <adw:StatusPage
+      iconText="②"
+      title="Sync"
+    />
+    <adw:StatusPage
+      iconText="③"
+      title="Done"
+    />
+  </adw:Carousel>
+  <adw:CarouselIndicatorDots carousel="carousel" />
+</gtk:Box>

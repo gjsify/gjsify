@@ -5,7 +5,9 @@
 // indicator is its own widget that reads the bound carousel's `position` and `n-pages` and
 // asks it to scroll when a marker is clicked (adw-carousel-indicator-dots.c,
 // adw-carousel-indicator-lines.c). A Blueprint binds one with `carousel: carousel`, which the
-// shared-tree builder resolves by id (`builderReferences`, `builder-slots.ts`).
+// shared-tree builder resolves by id (`builderReferences`, `builder-slots.ts`). An XML
+// template writes the same binding as `carousel="carousel"`, which arrives as the string and
+// is resolved against the loaded tree (`id-reference.ts`).
 //
 // ONE MARKER PER PAGE, the current one `active`. The current page is the carousel's
 // `currentPage` — `get_page_at_position`, so a half-way position marks the lower page — and
@@ -22,8 +24,9 @@
 
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 
-import { NOTIFY_N_PAGES, NOTIFY_POSITION, type AdwCarousel } from './adw-carousel.js';
+import { AdwCarousel, NOTIFY_N_PAGES, NOTIFY_POSITION } from './adw-carousel.js';
 import { applyMarkerClasses, indicatorMarkerClasses } from './carousel-state.js';
+import { resolveIdReference, type ViewId } from './id-reference.js';
 import { withSignals } from './signals.js';
 
 /** The two `Gtk.Orientation` nicks `GtkOrientable:orientation` takes. */
@@ -36,6 +39,8 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
     /** The marker row, centred in the indicator's cell as the C snapshot centres it. */
     protected readonly _row: StackLayout;
     private _carousel: AdwCarousel | null = null;
+    /** A `carousel` written as an id before the indicator was in a loaded tree. */
+    private _carouselId: string | null = null;
     private readonly _onChange = (): void => this._render();
 
     /** The class every marker carries — `adw-carousel-dot` or `adw-carousel-line`. */
@@ -55,6 +60,10 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
         row.verticalAlignment = 'middle';
         this.addChild(row);
         this._row = row;
+
+        // `loaded` is emitted once the view is attached to a loaded tree, which is when every
+        // view an XML file made exists and an id written there can be resolved.
+        this.addEventListener('loaded', () => this._resolveCarouselId());
     }
 
     /** `AdwCarouselIndicator*:carousel` — the carousel whose pages this marks, or `null`. */
@@ -62,7 +71,15 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
         return this._carousel;
     }
 
-    set carousel(carousel: AdwCarousel | null) {
+    set carousel(value: AdwCarousel | ViewId | null) {
+        if (typeof value === 'string') {
+            // The XML door: an id, resolved once the tree it names into is loaded.
+            this._carouselId = value;
+            if (this.isLoaded) this.carousel = resolveIdReference(this, 'carousel', value, AdwCarousel);
+            return;
+        }
+        this._carouselId = null;
+        const carousel = value;
         if (carousel === this._carousel) return;
         if (this._carousel !== null) {
             this._carousel.removeEventListener(NOTIFY_POSITION, this._onChange);
@@ -74,6 +91,12 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
             carousel.addEventListener(NOTIFY_N_PAGES, this._onChange);
         }
         this._render();
+    }
+
+    private _resolveCarouselId(): void {
+        const id = this._carouselId;
+        if (id === null) return;
+        this.carousel = resolveIdReference(this, 'carousel', id, AdwCarousel);
     }
 
     /**

@@ -662,7 +662,12 @@ does.
         carousel.append(card);
     }
 
-    // Adw.Carousel draws its own dot row; there is no Adw.CarouselIndicatorDots to bind.
+    // Dot indicators bind to the carousel; Adw.CarouselIndicatorLines is the drop-in alternative.
+    const dots = new Adw.CarouselIndicatorDots({ carousel });
+
+    const box = new Gtk.Box({ orientation: 'vertical', spacing: 12 });
+    box.append(carousel);
+    box.append(dots);
     ```
   </Fragment>
 </AdwWidget>

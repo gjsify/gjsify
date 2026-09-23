@@ -832,9 +832,9 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
     'Adw.Carousel':
-        'property: the port has no Adw.CarouselIndicatorDots — the carousel draws its own dot row, so there ' +
-        'is nothing to bind and nothing to put it in a box with — and no swipe/scroll-wheel knobs; pageWidth ' +
-        'is what sizes a page, where GTK asks the child for its natural size.',
+        'property: the indicator binds and the box holds both as on GTK; what is left is no swipe/scroll-wheel ' +
+        'knobs, pageWidth sizing a page where GTK asks the child for its natural size, and cards placed with ' +
+        'a fixed height and NativeScript alignment words.',
     'Gtk.Button':
         'vocabulary: one line, and it is the alignment. The circular icon-only variant has a counterpart now ' +
         '— it had none while the button was the platform’s text-only one, and its icon is the same theme ' +

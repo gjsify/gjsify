@@ -23,6 +23,7 @@ export {
     ButtonContent,
     ButtonRow,
     Carousel,
+    CarouselIndicatorDots,
     Clamp,
     EntryRow,
     ExpanderRow,

@@ -753,7 +753,9 @@ if (nsSources.size === 0) {
                 );
                 continue;
             }
-            if (literalKind(value) !== kind) {
+            // An id is written as the plain string it is; only the widget's annotation says
+            // that string names another view of the template.
+            if (literalKind(value) !== (kind === 'id' ? 'string' : kind)) {
                 failures.push(
                     `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\` (${kind}), but the ` +
                         `template writes the ${literalKind(value)} ${JSON.stringify(value)}. Write it as a ` +

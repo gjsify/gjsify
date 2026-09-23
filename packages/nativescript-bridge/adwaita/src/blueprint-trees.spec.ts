@@ -301,6 +301,38 @@ export const AdwBlueprintTreesNsTest = async () => {
             expect(markers(byId(root, 'dots')).length).toBe(4);
         });
 
+        // The XML door. `Builder.load` writes `carousel="pager"` as the raw string before the
+        // indicator is in any tree, so the id waits for `loaded` — the point where the platform
+        // has attached the whole file (`id-reference.ts`). Nothing here loads a tree, so the
+        // spec emits the event where the platform would.
+        const xmlTree = () =>
+            built({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'AdwCarousel', id: 'pager', children: [{ tag: 'GtkLabel' }, { tag: 'GtkLabel' }] },
+                    { tag: 'AdwCarouselIndicatorDots', id: 'dots' },
+                ],
+            });
+
+        await it('a carousel id written as a string binds once the tree is loaded', () => {
+            const root = xmlTree();
+            const dots = byId(root, 'dots');
+            dots.carousel = 'pager';
+
+            expect(dots.carousel).toBe(null);
+            dots.notify({ eventName: 'loaded', object: dots });
+
+            expect(dots.carousel).toBe(byId(root, 'pager'));
+            expect(markers(dots)).toStrictEqual(['adw-carousel-dot active', 'adw-carousel-dot']);
+        });
+
+        await it('an id nothing in the loaded tree carries is refused', () => {
+            const dots = byId(xmlTree(), 'dots');
+            dots.carousel = 'nowhere';
+
+            expect(() => dots.notify({ eventName: 'loaded', object: dots })).toThrow('names no AdwCarousel');
+        });
+
         await it('the markers run along a Gtk.Orientation, and nothing else', () => {
             const dots = built({ tag: 'AdwCarouselIndicatorDots', props: { orientation: 'vertical' } });
 
