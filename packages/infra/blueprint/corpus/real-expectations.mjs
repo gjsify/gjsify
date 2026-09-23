@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the thirty-three probes are fewer than thirty-three distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the forty-six probes are fewer than thirty-three distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -1609,6 +1609,673 @@ export const REAL_EXPECTATIONS = [
             id: 'window_title',
             props: { title: 'Inbox', subtitle: '3 unread messages' },
             translatable: { title: {}, subtitle: {} },
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/toolbar-view.blp',
+        node: {
+            tag: 'AdwToolbarView',
+            children: [
+                {
+                    tag: 'AdwHeaderBar',
+                    slot: 'top',
+                    children: [
+                        {
+                            tag: 'AdwWindowTitle',
+                            slot: 'title-widget',
+                            props: { title: 'Documents', subtitle: '12 items' },
+                            translatable: { title: {}, subtitle: {} },
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwStatusPage',
+                    slot: 'content',
+                    props: {
+                        'icon-name': 'folder-documents-symbolic',
+                        title: 'Your library',
+                        description: 'Content sits between the toolbars and scrolls independently of them.',
+                    },
+                    translatable: { title: {}, description: {} },
+                },
+                {
+                    tag: 'GtkActionBar',
+                    slot: 'bottom',
+                    children: [
+                        {
+                            tag: 'GtkButton',
+                            id: 'add_button',
+                            slot: 'start',
+                            props: { 'icon-name': 'list-add-symbolic', 'tooltip-text': 'Add' },
+                            translatable: { 'tooltip-text': {} },
+                            styleClasses: ['flat'],
+                        },
+                        {
+                            tag: 'GtkButton',
+                            slot: 'start',
+                            props: { 'icon-name': 'list-remove-symbolic', 'tooltip-text': 'Remove' },
+                            translatable: { 'tooltip-text': {} },
+                            styleClasses: ['flat'],
+                        },
+                        {
+                            tag: 'GtkLabel',
+                            id: 'selection',
+                            slot: 'center',
+                            props: { label: 'Selection: none' },
+                            translatable: { label: {} },
+                        },
+                        {
+                            tag: 'GtkButton',
+                            slot: 'end',
+                            props: { 'icon-name': 'send-to-symbolic', 'tooltip-text': 'Share' },
+                            translatable: { 'tooltip-text': {} },
+                            styleClasses: ['flat'],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/navigation-split-view.blp',
+        node: {
+            tag: 'AdwNavigationSplitView',
+            id: 'split_view',
+            children: [
+                {
+                    tag: 'AdwNavigationPage',
+                    slot: 'sidebar',
+                    props: { title: 'Mailboxes' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'AdwToolbarView',
+                            slot: 'child',
+                            children: [
+                                { tag: 'AdwHeaderBar', slot: 'top' },
+                                {
+                                    tag: 'AdwSidebar',
+                                    id: 'sidebar',
+                                    slot: 'content',
+                                    props: { mode: 'sidebar', selected: 0 },
+                                    children: [
+                                        {
+                                            tag: 'AdwSidebarSection',
+                                            children: [
+                                                {
+                                                    tag: 'AdwSidebarItem',
+                                                    props: {
+                                                        title: 'All Mail',
+                                                        subtitle: '128 messages',
+                                                        'icon-name': 'mail-unread-symbolic',
+                                                    },
+                                                    translatable: { title: {}, subtitle: {} },
+                                                },
+                                                {
+                                                    tag: 'AdwSidebarItem',
+                                                    props: {
+                                                        title: 'Starred',
+                                                        subtitle: '6 messages',
+                                                        'icon-name': 'starred-symbolic',
+                                                    },
+                                                    translatable: { title: {}, subtitle: {} },
+                                                },
+                                                {
+                                                    tag: 'AdwSidebarItem',
+                                                    props: {
+                                                        title: 'Drafts',
+                                                        subtitle: '2 messages',
+                                                        'icon-name': 'document-edit-symbolic',
+                                                    },
+                                                    translatable: { title: {}, subtitle: {} },
+                                                },
+                                                {
+                                                    tag: 'AdwSidebarItem',
+                                                    props: {
+                                                        title: 'Archive',
+                                                        subtitle: '512 messages',
+                                                        'icon-name': 'folder-symbolic',
+                                                    },
+                                                    translatable: { title: {}, subtitle: {} },
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwNavigationPage',
+                    slot: 'content',
+                    props: { title: 'All Mail' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'AdwToolbarView',
+                            slot: 'child',
+                            children: [
+                                { tag: 'AdwHeaderBar', slot: 'top' },
+                                {
+                                    tag: 'AdwStatusPage',
+                                    id: 'status',
+                                    slot: 'content',
+                                    props: {
+                                        'icon-name': 'mail-unread-symbolic',
+                                        title: 'All Mail',
+                                        description: 'Select a conversation from the list to read it here.',
+                                    },
+                                    translatable: { title: {}, description: {} },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/overlay-split-view.blp',
+        node: {
+            tag: 'AdwOverlaySplitView',
+            id: 'split_view',
+            props: { 'show-sidebar': true },
+            children: [
+                {
+                    tag: 'AdwToolbarView',
+                    slot: 'sidebar',
+                    children: [
+                        { tag: 'AdwHeaderBar', slot: 'top' },
+                        {
+                            tag: 'AdwSidebar',
+                            id: 'sidebar',
+                            slot: 'content',
+                            props: { mode: 'sidebar', selected: 0 },
+                            children: [
+                                {
+                                    tag: 'AdwSidebarSection',
+                                    children: [
+                                        {
+                                            tag: 'AdwSidebarItem',
+                                            props: { title: 'Home', 'icon-name': 'go-home-symbolic' },
+                                            translatable: { title: {} },
+                                        },
+                                        {
+                                            tag: 'AdwSidebarItem',
+                                            props: { title: 'Discover', 'icon-name': 'system-search-symbolic' },
+                                            translatable: { title: {} },
+                                        },
+                                        {
+                                            tag: 'AdwSidebarItem',
+                                            props: { title: 'Library', 'icon-name': 'folder-music-symbolic' },
+                                            translatable: { title: {} },
+                                        },
+                                        {
+                                            tag: 'AdwSidebarItem',
+                                            props: { title: 'Settings', 'icon-name': 'emblem-system-symbolic' },
+                                            translatable: { title: {} },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwToolbarView',
+                    slot: 'content',
+                    children: [
+                        { tag: 'AdwHeaderBar', slot: 'top' },
+                        {
+                            tag: 'AdwStatusPage',
+                            id: 'status',
+                            slot: 'content',
+                            props: {
+                                'icon-name': 'folder-music-symbolic',
+                                title: 'Your Library',
+                                description:
+                                    'Toggle the sidebar to browse sections. Collapse it to overlay the content.',
+                            },
+                            translatable: { title: {}, description: {} },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/navigation-view.blp',
+        node: {
+            tag: 'AdwNavigationView',
+            id: 'navigation_view',
+            children: [
+                {
+                    tag: 'AdwNavigationPage',
+                    props: { tag: 'root', title: 'Contacts' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'AdwToolbarView',
+                            slot: 'child',
+                            children: [
+                                { tag: 'AdwHeaderBar', slot: 'top' },
+                                {
+                                    tag: 'GtkButton',
+                                    id: 'open_button',
+                                    slot: 'content',
+                                    props: { label: 'Open contact', halign: 'center', valign: 'center' },
+                                    translatable: { label: {} },
+                                    styleClasses: ['pill', 'suggested-action'],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwNavigationPage',
+                    props: { tag: 'detail', title: 'Ada Lovelace' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'AdwToolbarView',
+                            slot: 'child',
+                            children: [
+                                { tag: 'AdwHeaderBar', slot: 'top' },
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'content',
+                                    props: {
+                                        'icon-name': 'avatar-default-symbolic',
+                                        title: 'Ada Lovelace',
+                                        description: 'Mathematician and writer, the first computer programmer.',
+                                    },
+                                    translatable: { title: {}, description: {} },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/sidebar.blp',
+        node: {
+            tag: 'AdwSidebar',
+            id: 'sidebar',
+            props: { mode: 'sidebar', selected: 0 },
+            children: [
+                {
+                    tag: 'AdwSidebarSection',
+                    props: { title: 'Mailboxes' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'AdwSidebarItem',
+                            props: { title: 'Inbox', subtitle: '3 unread', 'icon-name': 'mail-unread-symbolic' },
+                            translatable: { title: {}, subtitle: {} },
+                        },
+                        {
+                            tag: 'AdwSidebarItem',
+                            props: { title: 'Starred', subtitle: 'Favourites', 'icon-name': 'starred-symbolic' },
+                            translatable: { title: {}, subtitle: {} },
+                        },
+                        {
+                            tag: 'AdwSidebarItem',
+                            props: { title: 'Sent', subtitle: 'Outgoing mail', 'icon-name': 'mail-send-symbolic' },
+                            translatable: { title: {}, subtitle: {} },
+                        },
+                        {
+                            tag: 'AdwSidebarItem',
+                            props: { title: 'Archive', subtitle: 'Older mail', 'icon-name': 'folder-symbolic' },
+                            translatable: { title: {}, subtitle: {} },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/bottom-sheet.blp',
+        node: {
+            tag: 'AdwBottomSheet',
+            id: 'sheet',
+            props: { open: true, modal: true, 'can-close': true },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'toggle',
+                    slot: 'content',
+                    props: { label: 'Toggle sheet', halign: 'center', valign: 'center' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill', 'suggested-action'],
+                },
+                {
+                    tag: 'GtkBox',
+                    slot: 'sheet',
+                    props: {
+                        orientation: 'vertical',
+                        spacing: 12,
+                        'margin-start': 18,
+                        'margin-end': 18,
+                        'margin-top': 18,
+                        'margin-bottom': 24,
+                    },
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            props: { label: 'Share track', xalign: 0 },
+                            translatable: { label: {} },
+                            styleClasses: ['title-2'],
+                        },
+                        {
+                            tag: 'AdwPreferencesGroup',
+                            children: [
+                                {
+                                    tag: 'AdwActionRow',
+                                    props: { title: 'Copy link', activatable: true },
+                                    translatable: { title: {} },
+                                    children: [
+                                        {
+                                            tag: 'GtkImage',
+                                            slot: 'prefix',
+                                            props: { 'icon-name': 'edit-copy-symbolic' },
+                                        },
+                                    ],
+                                },
+                                {
+                                    tag: 'AdwActionRow',
+                                    props: { title: 'Send to a friend', activatable: true },
+                                    translatable: { title: {} },
+                                    children: [
+                                        {
+                                            tag: 'GtkImage',
+                                            slot: 'prefix',
+                                            props: { 'icon-name': 'mail-send-symbolic' },
+                                        },
+                                    ],
+                                },
+                                {
+                                    tag: 'AdwActionRow',
+                                    props: { title: 'Add to playlist', activatable: true },
+                                    translatable: { title: {} },
+                                    children: [
+                                        {
+                                            tag: 'GtkImage',
+                                            slot: 'prefix',
+                                            props: { 'icon-name': 'list-add-symbolic' },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/view-switcher-bar.blp',
+        node: {
+            tag: 'AdwToolbarView',
+            children: [
+                {
+                    tag: 'AdwViewStack',
+                    id: 'stack',
+                    slot: 'content',
+                    children: [
+                        {
+                            tag: 'AdwViewStackPage',
+                            props: { name: 'inbox', title: 'Inbox', 'icon-name': 'mail-unread-symbolic' },
+                            translatable: { title: {} },
+                            children: [
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'child',
+                                    props: {
+                                        'icon-name': 'mail-unread-symbolic',
+                                        title: 'Inbox',
+                                        description: 'The inbox page.',
+                                    },
+                                    translatable: { title: {}, description: {} },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'AdwViewStackPage',
+                            props: { name: 'starred', title: 'Starred', 'icon-name': 'starred-symbolic' },
+                            translatable: { title: {} },
+                            children: [
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'child',
+                                    props: {
+                                        'icon-name': 'starred-symbolic',
+                                        title: 'Starred',
+                                        description: 'The starred page.',
+                                    },
+                                    translatable: { title: {}, description: {} },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'AdwViewStackPage',
+                            props: { name: 'archive', title: 'Archive', 'icon-name': 'folder-symbolic' },
+                            translatable: { title: {} },
+                            children: [
+                                {
+                                    tag: 'AdwStatusPage',
+                                    slot: 'child',
+                                    props: {
+                                        'icon-name': 'folder-symbolic',
+                                        title: 'Archive',
+                                        description: 'The archive page.',
+                                    },
+                                    translatable: { title: {}, description: {} },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                { tag: 'AdwViewSwitcherBar', slot: 'bottom', props: { stack: 'stack', reveal: true } },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/carousel.blp',
+        node: {
+            tag: 'GtkBox',
+            props: { orientation: 'vertical', spacing: 12, 'margin-bottom': 12 },
+            children: [
+                {
+                    tag: 'AdwCarousel',
+                    id: 'intro_carousel',
+                    props: { vexpand: true },
+                    children: [
+                        {
+                            tag: 'AdwStatusPage',
+                            props: { 'icon-name': 'go-home-symbolic', title: 'Welcome' },
+                            translatable: { title: {} },
+                            styleClasses: ['compact'],
+                        },
+                        {
+                            tag: 'AdwStatusPage',
+                            props: { 'icon-name': 'system-search-symbolic', title: 'Discover' },
+                            translatable: { title: {} },
+                            styleClasses: ['compact'],
+                        },
+                        {
+                            tag: 'AdwStatusPage',
+                            props: { 'icon-name': 'starred-symbolic', title: 'Get started' },
+                            translatable: { title: {} },
+                            styleClasses: ['compact'],
+                        },
+                    ],
+                },
+                { tag: 'AdwCarouselIndicatorDots', props: { carousel: 'intro_carousel' } },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/status-page.blp',
+        node: {
+            tag: 'AdwStatusPage',
+            props: {
+                'icon-name': 'folder-symbolic',
+                title: 'No Documents',
+                description: 'Documents you create or open will appear here.',
+            },
+            translatable: { title: {}, description: {} },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'new_button',
+                    slot: 'child',
+                    props: { label: 'New Document', halign: 'center' },
+                    translatable: { label: {} },
+                    styleClasses: ['pill', 'suggested-action'],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/preferences-group.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
+            translatable: { title: {}, description: {} },
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'sign_out',
+                    slot: 'header-suffix',
+                    props: { label: 'Sign out', valign: 'center' },
+                    translatable: { label: {} },
+                    styleClasses: ['flat'],
+                },
+                {
+                    tag: 'AdwEntryRow',
+                    props: { title: 'Display name', text: 'Grace Hopper' },
+                    translatable: { title: {} },
+                },
+                {
+                    tag: 'AdwSwitchRow',
+                    props: {
+                        title: 'Sync over Wi-Fi only',
+                        subtitle: 'Avoid using mobile data for backups',
+                        active: true,
+                    },
+                    translatable: { title: {}, subtitle: {} },
+                },
+                {
+                    tag: 'AdwComboRow',
+                    props: { title: 'Region', selected: 0 },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'GtkStringList',
+                            slot: 'model',
+                            extensions: {
+                                strings: [
+                                    { value: 'Europe', translatable: {} },
+                                    { value: 'Americas', translatable: {} },
+                                    { value: 'Asia', translatable: {} },
+                                    { value: 'Oceania', translatable: {} },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/combo-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwComboRow',
+                    id: 'row',
+                    props: { title: 'Accent colour', subtitle: 'Used to highlight selected items', selected: 1 },
+                    translatable: { title: {}, subtitle: {} },
+                    children: [
+                        {
+                            tag: 'GtkStringList',
+                            slot: 'model',
+                            extensions: {
+                                strings: [
+                                    { value: 'Blue', translatable: {} },
+                                    { value: 'Teal', translatable: {} },
+                                    { value: 'Green', translatable: {} },
+                                    { value: 'Orange', translatable: {} },
+                                    { value: 'Purple', translatable: {} },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/spin-row.blp',
+        node: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwSpinRow',
+                    id: 'row',
+                    props: { title: 'Font size' },
+                    translatable: { title: {} },
+                    children: [
+                        {
+                            tag: 'GtkAdjustment',
+                            slot: 'adjustment',
+                            props: { lower: 0, upper: 100, value: 16, 'step-increment': 1 },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'website/src/blueprints/adwaita/toggle-group.blp',
+        node: {
+            tag: 'AdwToggleGroup',
+            id: 'toggle_group',
+            props: { 'active-name': 'list' },
+            children: [
+                {
+                    tag: 'AdwToggle',
+                    props: { name: 'list', label: 'List', 'icon-name': 'view-list-symbolic' },
+                    translatable: { label: {} },
+                },
+                {
+                    tag: 'AdwToggle',
+                    props: { name: 'grid', label: 'Grid', 'icon-name': 'view-grid-symbolic' },
+                    translatable: { label: {} },
+                },
+                {
+                    tag: 'AdwToggle',
+                    props: { name: 'pages', label: 'Pages', 'icon-name': 'view-paged-symbolic' },
+                    translatable: { label: {} },
+                },
+            ],
         },
         lost: [],
     },

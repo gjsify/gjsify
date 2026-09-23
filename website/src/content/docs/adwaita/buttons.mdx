@@ -136,12 +136,9 @@ For a small set of mutually exclusive options, such as a view mode, use a
 toggle takes an icon, a label, or both. The style classes `.flat` and `.round`
 adapt the group for a toolbar or give it a pill shape.
 
-One divergence in the block below, and it runs the unusual way round: the third
-toggle's `view-columns-symbolic` is in no icon theme, so only the **web** pane
-draws it — from a glyph `@gjsify/adwaita-web` hand-draws itself. The GJS and
-Blueprint panes name the same icon and get GTK's broken-image paintable. It stays
-that way on purpose: dropping the hand-drawn glyph would put the web pane on
-`image-missing` as well, which is parity bought by making both panes worse.
+Each toggle carries a **name**, and the group's `active-name` picks the active one
+by it, so code that switches the view mode says `'grid'` instead of counting
+toggles.
 
 A toggle group is a **single tab stop**, the way `Adw.ToggleGroup` routes focus:
 Tab enters on the active toggle and the next Tab leaves the group, while Left and
@@ -155,68 +152,34 @@ Set it in markup or before the element is inserted: it is read once, which is al
 GTK allows too — `GtkAccessible:accessible-role` is documented "cannot be changed
 once set", and the only setter is class-level.
 
-<AdwWidget title="Adw.ToggleGroup">
-  <Fragment slot="preview">
-    ```html
-    <!-- active: The index of the active toggle. -->
-    <adw-toggle-group active="0">
-      <adw-toggle label="List" icon-name="view-list"></adw-toggle>
-      <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
-      <adw-toggle label="Columns" icon-name="view-columns"></adw-toggle>
-    </adw-toggle-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ToggleGroup" blueprint="adwaita/toggle-group.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './toggle-group.blp';
 
-    const group = new Adw.ToggleGroup();
-    group.add(new Adw.Toggle({ label: 'List', iconName: 'view-list-symbolic' }));
-    group.add(new Adw.Toggle({ label: 'Grid', iconName: 'view-grid-symbolic' }));
-    group.add(new Adw.Toggle({ label: 'Columns', iconName: 'view-columns-symbolic' }));
-    group.active = 0;
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const group = builder.get_object('toggle_group') as Adw.ToggleGroup;
+    group.activeName = 'grid';
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.ToggleGroup {
-      active: 0;
-
-      Adw.Toggle {
-        label: _("List");
-        icon-name: "view-list-symbolic";
-      }
-
-      Adw.Toggle {
-        label: _("Grid");
-        icon-name: "view-grid-symbolic";
-      }
-
-      Adw.Toggle {
-        label: _("Columns");
-        icon-name: "view-columns-symbolic";
-      }
-    }
+    const group = document.querySelector('#toggle_group');
+    group.activeName = 'grid';
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const group = new Adw.ToggleGroup();
-    // There is no Adw.Toggle widget here: setToggles() takes plain descriptors.
-    // `view-columns-symbolic` is in no icon theme (the paragraph above says so), so this
-    // pane names one that resolves rather than drawing the image-missing fallback the
-    // GJS pane's third toggle gets.
-    group.setToggles([
-        { label: 'List', icon: 'view-list-symbolic' },
-        { label: 'Grid', icon: 'view-grid-symbolic' },
-        { label: 'Columns', icon: 'view-paged-symbolic' },
-    ]);
-    group.active = 0;
+    const group = Builder.load({ path: '~/views', name: 'toggle-group' }) as Adw.ToggleGroup;
+    group.activeName = 'grid';
     ```
   </Fragment>
 </AdwWidget>

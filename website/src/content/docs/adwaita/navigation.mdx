@@ -26,160 +26,49 @@ narrow the view **collapses** into a single navigation stack, so selecting a
 sidebar row pushes the content page and a back button returns to the list. Give
 the sidebar and the content each their own navigation page and header bar.
 
-<AdwWidget title="Adw.NavigationSplitView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
-  <Fragment slot="preview">
-    ```html
-    <!-- show-content: Determines the visible page when collapsed. -->
-    <adw-navigation-split-view show-content style="flex: 1;">
-      <adw-toolbar-view slot="sidebar">
-        <adw-header-bar slot="top">
-          <adw-window-title slot="center" title="Mailboxes"></adw-window-title>
-        </adw-header-bar>
-        <adw-sidebar mode="sidebar" selected="0">
-          <adw-sidebar-section>
-            <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
-          </adw-sidebar-section>
-        </adw-sidebar>
-      </adw-toolbar-view>
-      <adw-toolbar-view slot="content">
-        <adw-header-bar slot="top">
-          <adw-window-title slot="center" title="All Mail"></adw-window-title>
-        </adw-header-bar>
-        <adw-status-page icon="mail-unread-symbolic" title="All Mail" description="Select a conversation from the list to read it here."></adw-status-page>
-      </adw-toolbar-view>
-    </adw-navigation-split-view>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.NavigationSplitView" blueprint="adwaita/navigation-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './navigation-split-view.blp';
 
-    // Sidebar: an Adw.Sidebar, NOT a boxed list. A boxed list is a card of
-    // settings and draws itself as one: rounded, bordered, edge to edge in a
-    // pane that gives it no margin. A navigation sidebar is a flat selectable
-    // list, and the widget that already knows how to be one is this.
-    const section = new Adw.SidebarSection();
-    for (const [title, subtitle, icon] of [
-        ['All Mail', '128 messages', 'mail-unread-symbolic'],
-        ['Starred', '6 messages', 'starred-symbolic'],
-    ] as const) {
-        section.append(new Adw.SidebarItem({ title, subtitle, iconName: icon }));
-    }
-
-    const sidebarList = new Adw.Sidebar({ mode: Adw.SidebarMode.SIDEBAR, selected: 0 });
-    sidebarList.append(section);
-
-    const sidebarToolbar = new Adw.ToolbarView();
-    sidebarToolbar.add_top_bar(new Adw.HeaderBar());
-    sidebarToolbar.content = sidebarList;
-    const sidebar = new Adw.NavigationPage({ title: 'Mailboxes', child: sidebarToolbar });
-
-    // Content: a status page inside a toolbar view.
-    const status = new Adw.StatusPage({
-        iconName: 'mail-unread-symbolic',
-        title: 'All Mail',
-        description: 'Select a conversation from the list to read it here.',
-        vexpand: true,
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const splitView = builder.get_object('split_view') as Adw.NavigationSplitView;
+    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
+    const status = builder.get_object('status') as Adw.StatusPage;
+    sidebar.connect('activated', () => {
+        status.title = sidebar.selectedItem?.title ?? '';
+        splitView.showContent = true;
     });
-    const contentToolbar = new Adw.ToolbarView();
-    contentToolbar.add_top_bar(new Adw.HeaderBar());
-    contentToolbar.content = status;
-    const content = new Adw.NavigationPage({ title: 'All Mail', child: contentToolbar });
-
-    const view = new Adw.NavigationSplitView({ sidebar, content, showContent: true });
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.NavigationSplitView {
-      sidebar: Adw.NavigationPage {
-        title: _("Mailboxes");
-
-        child: Adw.ToolbarView {
-          [top]
-          Adw.HeaderBar {}
-
-          content: Adw.Sidebar {
-            mode: sidebar;
-            selected: 0;
-
-            Adw.SidebarSection {
-              Adw.SidebarItem {
-                title: _("All Mail");
-                subtitle: _("128 messages");
-                icon-name: "mail-unread-symbolic";
-              }
-
-              Adw.SidebarItem {
-                title: _("Starred");
-                subtitle: _("6 messages");
-                icon-name: "starred-symbolic";
-              }
-
-              Adw.SidebarItem {
-                title: _("Drafts");
-                subtitle: _("2 messages");
-                icon-name: "document-edit-symbolic";
-              }
-
-              Adw.SidebarItem {
-                title: _("Archive");
-                subtitle: _("512 messages");
-                icon-name: "folder-symbolic";
-              }
-            }
-          };
-        };
-      };
-
-      content: Adw.NavigationPage {
-        title: _("All Mail");
-
-        child: Adw.ToolbarView {
-          [top]
-          Adw.HeaderBar {}
-
-          content: Adw.StatusPage {
-            icon-name: "mail-unread-symbolic";
-            title: _("All Mail");
-            description: _("Select a conversation from the list to read it here.");
-          };
-        };
-      };
-    }
+    const splitView = document.querySelector('#split_view');
+    const sidebar = document.querySelector('#sidebar');
+    const status = document.querySelector('#status');
+    sidebar.addEventListener('activated', () => {
+        status.setAttribute('title', sidebar.selectedItem?.title ?? '');
+        splitView.setAttribute('show-content', '');
+    });
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    // Sidebar: the navigation list, not a boxed list. The NS surface takes a
-    // flat label list (no per-item subtitle/icon slot).
-    const sidebarList = new Adw.Sidebar();
-    sidebarList.setItems(['All Mail', 'Starred', 'Drafts', 'Archive']);
-    sidebarList.selected = 0;
-
-    const sidebarToolbar = new Adw.ToolbarView();
-    sidebarToolbar.add_top_bar(new Adw.HeaderBar({ title: 'Mailboxes' }));
-    sidebarToolbar.content = sidebarList;
-
-    // Content: a status page inside a toolbar view.
-    const status = new Adw.StatusPage({
-        iconName: 'mail-unread-symbolic',
-        title: 'All Mail',
-        description: 'Select a conversation from the list to read it here.',
+    const splitView = Builder.load({ path: '~/views', name: 'navigation-split-view' }) as Adw.NavigationSplitView;
+    const sidebar = splitView.getViewById<Adw.Sidebar>('sidebar')!;
+    const status = splitView.getViewById<Adw.StatusPage>('status')!;
+    sidebar.connect('activated', () => {
+        status.title = sidebar.selectedItem?.title ?? '';
+        splitView.showContent = true;
     });
-    const contentToolbar = new Adw.ToolbarView();
-    contentToolbar.add_top_bar(new Adw.HeaderBar({ title: 'All Mail' }));
-    contentToolbar.content = status;
-
-    const view = new Adw.NavigationSplitView({ sidebar: sidebarToolbar, content: contentToolbar, showContent: true });
     ```
   </Fragment>
 </AdwWidget>
@@ -191,142 +80,44 @@ instead of replacing the content, the sidebar slides **over the top** of it as a
 temporary panel above a dimming scrim. Choose this one for a utility, filter or
 navigation pane that should not push the main content aside on a narrow window.
 
-<AdwWidget title="Adw.OverlaySplitView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
-  <Fragment slot="preview">
-    ```html
-    <adw-overlay-split-view show-sidebar style="flex: 1;">
-      <adw-toolbar-view slot="sidebar">
-        <adw-header-bar slot="top"></adw-header-bar>
-        <adw-sidebar mode="sidebar" selected="0">
-          <adw-sidebar-section>
-            <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
-            <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
-          </adw-sidebar-section>
-        </adw-sidebar>
-      </adw-toolbar-view>
-      <adw-toolbar-view slot="content">
-        <adw-header-bar slot="top"></adw-header-bar>
-        <adw-status-page icon="folder-music" title="Your Library" description="Toggle the sidebar to browse sections. Collapse it to overlay the content."></adw-status-page>
-      </adw-toolbar-view>
-    </adw-overlay-split-view>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.OverlaySplitView" blueprint="adwaita/overlay-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './overlay-split-view.blp';
 
-    // Sidebar: a flat, title-less toolbar view over an Adw.Sidebar. The pane
-    // needs no style class of its own: Adw.OverlaySplitView puts `.sidebar-pane`
-    // on it while docked and `.overlay-pane` while collapsed, which is what
-    // gives it its colour. (The old `.sidebar` class libadwaita deprecates in
-    // favour of `.navigation-sidebar`; Adw.Sidebar carries that look itself.)
-    const section = new Adw.SidebarSection();
-    for (const [title, icon] of [
-        ['Home', 'go-home-symbolic'],
-        ['Discover', 'system-search-symbolic'],
-        ['Library', 'folder-music-symbolic'],
-        ['Settings', 'emblem-system-symbolic'],
-    ] as const) {
-        section.append(new Adw.SidebarItem({ title, iconName: icon }));
-    }
-
-    const sidebarList = new Adw.Sidebar({ mode: Adw.SidebarMode.SIDEBAR, selected: 0 });
-    sidebarList.append(section);
-
-    const sidebar = new Adw.ToolbarView();
-    sidebar.add_top_bar(new Adw.HeaderBar({ showTitle: false }));
-    sidebar.content = sidebarList;
-
-    const status = new Adw.StatusPage({
-        iconName: 'folder-music-symbolic',
-        title: 'Your Library',
-        description: 'Toggle the sidebar to browse sections. Collapse it to overlay the content.',
-        vexpand: true,
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const splitView = builder.get_object('split_view') as Adw.OverlaySplitView;
+    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
+    // Collapsed, the sidebar covers the content, so choosing a section closes it.
+    sidebar.connect('activated', () => {
+        if (splitView.collapsed) splitView.showSidebar = false;
     });
-    const content = new Adw.ToolbarView();
-    content.add_top_bar(new Adw.HeaderBar());
-    content.content = status;
-
-    const view = new Adw.OverlaySplitView({ sidebar, content, showSidebar: true, collapsed: false });
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.OverlaySplitView {
-      show-sidebar: true;
-
-      sidebar: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {}
-
-        content: Adw.Sidebar {
-          mode: sidebar;
-          selected: 0;
-
-          Adw.SidebarSection {
-            Adw.SidebarItem {
-              title: _("Home");
-              icon-name: "go-home-symbolic";
-            }
-
-            Adw.SidebarItem {
-              title: _("Discover");
-              icon-name: "system-search-symbolic";
-            }
-
-            Adw.SidebarItem {
-              title: _("Library");
-              icon-name: "folder-music-symbolic";
-            }
-
-            Adw.SidebarItem {
-              title: _("Settings");
-              icon-name: "emblem-system-symbolic";
-            }
-          }
-        };
-      };
-
-      content: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {}
-
-        content: Adw.StatusPage {
-          icon-name: "folder-music-symbolic";
-          title: _("Your Library");
-          description: _("Toggle the sidebar to browse sections. Collapse it to overlay the content.");
-        };
-      };
-    }
+    const splitView = document.querySelector('#split_view');
+    const sidebar = document.querySelector('#sidebar');
+    sidebar.addEventListener('activated', () => {
+        if (splitView.collapsed) splitView.showSidebar = false;
+    });
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const sidebarList = new Adw.Sidebar();
-    sidebarList.setItems(['Home', 'Discover', 'Library', 'Settings']);
-    sidebarList.selected = 0;
-
-    const sidebar = new Adw.ToolbarView();
-    sidebar.add_top_bar(new Adw.HeaderBar({ styleClasses: 'flat' }));
-    sidebar.content = sidebarList;
-
-    const status = new Adw.StatusPage({
-        iconName: 'folder-music-symbolic',
-        title: 'Your Library',
-        description: 'Toggle the sidebar to browse sections. Collapse it to overlay the content.',
+    const splitView = Builder.load({ path: '~/views', name: 'overlay-split-view' }) as Adw.OverlaySplitView;
+    const sidebar = splitView.getViewById<Adw.Sidebar>('sidebar')!;
+    sidebar.connect('activated', () => {
+        if (splitView.collapsed) splitView.showSidebar = false;
     });
-    const content = new Adw.ToolbarView();
-    content.add_top_bar(new Adw.HeaderBar());
-    content.content = status;
-
-    const view = new Adw.OverlaySplitView({ sidebar, content, showSidebar: true, collapsed: false });
     ```
   </Fragment>
 </AdwWidget>
@@ -337,148 +128,41 @@ A **navigation stack**: push a page, pop it, and get the back button for free.
 The root page shows first. Pushing slides the next page in from the trailing edge
 when transitions are animated, and a back-swipe gesture takes the user back.
 
-The preview below is interactive: click **Open contact** on the root page to push
-the detail page and watch the back button appear.
+A page carries a **tag**, and the code below pushes the detail page by its tag when
+**Open contact** is clicked. The preview builds the file alone, without that code,
+so it shows the root page.
 
-<AdwWidget title="Adw.NavigationView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
-  <Fragment slot="preview">
-    ```html
-    <adw-navigation-view animate-transitions="true" style="flex: 1;">
-      <adw-navigation-page tag="root" title="Contacts">
-        <adw-toolbar-view>
-          <adw-header-bar slot="top">
-            <adw-window-title slot="center" title="Contacts"></adw-window-title>
-          </adw-header-bar>
-          <!-- The toolbar view gives its content widget the whole rect, as
-               Adw.ToolbarView does, so a button that wants to sit in the middle
-               says so. This box is the web spelling of the TypeScript tab's
-               halign/valign: center. -->
-          <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-            <gtk-button label="Open contact" pill suggested></gtk-button>
-          </div>
-        </adw-toolbar-view>
-      </adw-navigation-page>
-      <adw-navigation-page tag="detail" title="Ada Lovelace">
-        <adw-toolbar-view>
-          <adw-header-bar slot="top">
-            <adw-window-title slot="center" title="Ada Lovelace"></adw-window-title>
-          </adw-header-bar>
-          <adw-status-page icon="avatar-default" title="Ada Lovelace" description="Mathematician and writer, the first computer programmer."></adw-status-page>
-        </adw-toolbar-view>
-      </adw-navigation-page>
-    </adw-navigation-view>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.NavigationView" blueprint="adwaita/navigation-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './navigation-view.blp';
 
-    const page = (title: string, body: Gtk.Widget) => {
-        const toolbar = new Adw.ToolbarView();
-        toolbar.add_top_bar(new Adw.HeaderBar());
-        toolbar.content = body;
-        return new Adw.NavigationPage({ title, child: toolbar });
-    };
-
-    const view = new Adw.NavigationView({ animateTransitions: true });
-
-    const detail = page('Ada Lovelace', new Adw.StatusPage({
-        iconName: 'avatar-default-symbolic',
-        title: 'Ada Lovelace',
-        description: 'Mathematician and writer, the first computer programmer.',
-        vexpand: true,
-    }));
-
-    const open = new Gtk.Button({
-        label: 'Open contact',
-        halign: Gtk.Align.CENTER,
-        valign: Gtk.Align.CENTER,
-        vexpand: true,
-    });
-    open.add_css_class('pill');
-    open.add_css_class('suggested-action');
-    open.connect('clicked', () => view.push(detail));
-
-    view.add(page('Contacts', open));
-    view.add(detail);
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const view = builder.get_object('navigation_view') as Adw.NavigationView;
+    const open = builder.get_object('open_button') as Gtk.Button;
+    open.connect('clicked', () => view.push_by_tag('detail'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.NavigationView {
-      Adw.NavigationPage {
-        tag: "root";
-        title: _("Contacts");
-
-        child: Adw.ToolbarView {
-          [top]
-          Adw.HeaderBar {}
-
-          content: Gtk.Button {
-            label: _("Open contact");
-            halign: center;
-            valign: center;
-            action-name: "navigation.push";
-            action-target: "'detail'";
-
-            styles ["pill", "suggested-action"]
-          };
-        };
-      }
-
-      Adw.NavigationPage {
-        tag: "detail";
-        title: _("Ada Lovelace");
-
-        child: Adw.ToolbarView {
-          [top]
-          Adw.HeaderBar {}
-
-          content: Adw.StatusPage {
-            icon-name: "avatar-default-symbolic";
-            title: _("Ada Lovelace");
-            description: _("Mathematician and writer, the first computer programmer.");
-          };
-        };
-      }
-    }
+    const view = document.querySelector('#navigation_view');
+    const open = document.querySelector('#open_button');
+    open.addEventListener('click', () => view.pushByTag('detail'));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const page = (title: string, body: Adw.StatusPage | Gtk.Button) => {
-        const toolbar = new Adw.ToolbarView();
-        toolbar.add_top_bar(new Adw.HeaderBar({ title }));
-        toolbar.content = body;
-        return toolbar;
-    };
-
-    const view = new Adw.NavigationView({ animateTransitions: true });
-
-    const detail = page('Ada Lovelace', new Adw.StatusPage({
-        iconName: 'avatar-default-symbolic',
-        title: 'Ada Lovelace',
-        description: 'Mathematician and writer, the first computer programmer.',
-    }));
-
-    const open = new Gtk.Button({
-        label: 'Open contact',
-        horizontalAlignment: 'center',
-        verticalAlignment: 'middle',
-    });
-    open.add_css_class('pill');
-    open.add_css_class('suggested-action');
-    open.connect('clicked', () => view.push(detail));
-
-    view.add(page('Contacts', open));
-    view.add(detail);
+    const view = Builder.load({ path: '~/views', name: 'navigation-view' }) as Adw.NavigationView;
+    const open = view.getViewById<Gtk.Button>('open_button')!;
+    open.connect('clicked', () => view.push_by_tag('detail'));
     ```
   </Fragment>
 </AdwWidget>
@@ -494,128 +178,34 @@ Use this rather than a boxed list. A boxed list draws itself as a settings card,
 which looks wrong edge to edge in a pane; a sidebar is a flat selectable list and
 already knows how to be one.
 
-<AdwWidget title="Adw.Sidebar" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
-  <Fragment slot="preview">
-    ```html
-    <!-- mode: Determines the sidebar's look and behavior. -->
-    <!-- selected: The index of the currently selected item. -->
-    <adw-sidebar mode="sidebar" selected="0" style="width: 220px;">
-      <adw-sidebar-section title="Mailboxes">
-        <adw-sidebar-item title="Inbox" subtitle="3 unread" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-        <adw-sidebar-item title="Starred" subtitle="Favourites" icon-name="starred-symbolic"></adw-sidebar-item>
-        <adw-sidebar-item title="Sent" subtitle="Outgoing mail" icon-name="mail-send-symbolic"></adw-sidebar-item>
-        <adw-sidebar-item title="Archive" subtitle="Older mail" icon-name="folder-symbolic"></adw-sidebar-item>
-      </adw-sidebar-section>
-    </adw-sidebar>
-    <div style="width: 1px; align-self: stretch; background-color: var(--separator-color, var(--card-shade-color));"></div>
-    <adw-status-page title="Inbox" icon="mail-unread" description="3 unread" style="flex: 1 1 auto;"></adw-status-page>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.Sidebar" blueprint="adwaita/sidebar.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './sidebar.blp';
 
-    const items = [
-        { title: 'Inbox', subtitle: '3 unread', icon: 'mail-unread-symbolic' },
-        { title: 'Starred', subtitle: 'Favourites', icon: 'starred-symbolic' },
-        { title: 'Sent', subtitle: 'Outgoing mail', icon: 'mail-send-symbolic' },
-        { title: 'Archive', subtitle: 'Older mail', icon: 'folder-symbolic' },
-    ];
-
-    const section = new Adw.SidebarSection({ title: 'Mailboxes' });
-    for (const it of items) {
-        section.append(new Adw.SidebarItem({ title: it.title, subtitle: it.subtitle, iconName: it.icon }));
-    }
-
-    const sidebar = new Adw.Sidebar({ mode: Adw.SidebarMode.SIDEBAR, selected: 0, widthRequest: 220 });
-    sidebar.append(section);
-
-    const status = new Adw.StatusPage({ hexpand: true, vexpand: true });
-    const syncContent = () => {
-        const it = items[sidebar.selected] ?? items[0];
-        status.title = it.title;
-        status.iconName = it.icon;
-        status.description = it.subtitle;
-    };
-    sidebar.connect('notify::selected', syncContent);
-    syncContent();
-
-    const box = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL });
-    box.append(sidebar);
-    box.append(new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL }));
-    box.append(status);
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
+    sidebar.connect('activated', () => console.log(`Open mailbox ${sidebar.selected}`));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.Sidebar {
-      mode: sidebar;
-      selected: 0;
-
-      Adw.SidebarSection {
-        title: _("Mailboxes");
-
-        Adw.SidebarItem {
-          title: _("Inbox");
-          subtitle: _("3 unread");
-          icon-name: "mail-unread-symbolic";
-        }
-
-        Adw.SidebarItem {
-          title: _("Starred");
-          subtitle: _("Favourites");
-          icon-name: "starred-symbolic";
-        }
-
-        Adw.SidebarItem {
-          title: _("Sent");
-          subtitle: _("Outgoing mail");
-          icon-name: "mail-send-symbolic";
-        }
-
-        Adw.SidebarItem {
-          title: _("Archive");
-          subtitle: _("Older mail");
-          icon-name: "folder-symbolic";
-        }
-      }
-    }
+    const sidebar = document.querySelector('#sidebar');
+    sidebar.addEventListener('activated', () => console.log(`Open mailbox ${sidebar.selected}`));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const items = [
-        { title: 'Inbox', subtitle: '3 unread', icon: 'mail-unread-symbolic' },
-        { title: 'Starred', subtitle: 'Favourites', icon: 'starred-symbolic' },
-        { title: 'Sent', subtitle: 'Outgoing mail', icon: 'mail-send-symbolic' },
-        { title: 'Archive', subtitle: 'Older mail', icon: 'folder-symbolic' },
-    ];
-
-    // The NS surface takes a flat label list (no per-item subtitle/icon slot).
-    const sidebar = new Adw.Sidebar({ width: 220 });
-    sidebar.setItems(items.map((it) => it.title));
-    sidebar.selected = 0;
-
-    const status = new Adw.StatusPage();
-    const syncContent = () => {
-        const it = items[sidebar.selected] ?? items[0];
-        status.title = it.title;
-        status.iconName = it.icon;
-        status.description = it.subtitle;
-    };
-    sidebar.connect('notify::selected', syncContent);
-    syncContent();
-
-    const box = new Gtk.Box({ orientation: 'horizontal' });
-    box.append(sidebar);
-    box.append(status);
+    const sidebar = Builder.load({ path: '~/views', name: 'sidebar' }) as Adw.Sidebar;
+    sidebar.connect('activated', () => console.log(`Open mailbox ${sidebar.selected}`));
     ```
   </Fragment>
 </AdwWidget>
@@ -628,196 +218,46 @@ which suits contextual actions and secondary content on a narrow window. Make it
 a click on the dimmed area dismisses the sheet; switch it off to keep the sheet
 up until your own code closes it. The preview starts with the sheet up: click the
 dimmed area to dismiss it. Bringing it back is a property set (`open = true`), which
-this static preview does not wire — the button under the sheet is there to show the
-content pane, not to work.
+the code below wires to the button; the preview builds the file alone, so there the
+button shows the content pane and does nothing.
 
-<AdwWidget title="Adw.BottomSheet" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden; position: relative;">
-  <Fragment slot="preview">
-    ```html
-    <!-- can-close: Whether the bottom sheet can be closed by user. -->
-    <adw-bottom-sheet open modal can-close style="flex: 1;">
-      <adw-bottom-sheet-content>
-        <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-          <gtk-button pill suggested>Toggle sheet</gtk-button>
-        </div>
-      </adw-bottom-sheet-content>
-      <adw-bottom-sheet-sheet>
-        <div style="display: flex; flex-direction: column; gap: 12px; margin: 18px 18px 24px;">
-          <span style="font-size: 15pt; font-weight: 800;">Share track</span>
-          <adw-preferences-group>
-            <!-- activatable: Determines whether the ::row-activated signal will be emitted for this row. -->
-            <adw-action-row title="Copy link" activatable>
-              <span slot="prefix" class="adw-icon adw-icon--edit-copy"></span>
-            </adw-action-row>
-            <!-- activatable: Determines whether the ::row-activated signal will be emitted for this row. -->
-            <adw-action-row title="Send to a friend" activatable>
-              <span slot="prefix" class="adw-icon adw-icon--mail-send"></span>
-            </adw-action-row>
-            <!-- activatable: Determines whether the ::row-activated signal will be emitted for this row. -->
-            <adw-action-row title="Add to playlist" activatable>
-              <span slot="prefix" class="adw-icon adw-icon--list-add"></span>
-            </adw-action-row>
-          </adw-preferences-group>
-        </div>
-      </adw-bottom-sheet-sheet>
-    </adw-bottom-sheet>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.BottomSheet" blueprint="adwaita/bottom-sheet.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; position: relative;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './bottom-sheet.blp';
 
-    const sheet = new Adw.BottomSheet({ open: true, modal: true, canClose: true });
-
-    // Persistent content: a centered pill button that toggles the sheet.
-    const toggle = new Gtk.Button({
-        label: 'Toggle sheet',
-        halign: Gtk.Align.CENTER,
-        valign: Gtk.Align.CENTER,
-        vexpand: true,
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const sheet = builder.get_object('sheet') as Adw.BottomSheet;
+    const toggle = builder.get_object('toggle') as Gtk.Button;
+    toggle.connect('clicked', () => {
+        sheet.open = !sheet.open;
     });
-    toggle.add_css_class('pill');
-    toggle.add_css_class('suggested-action');
-    toggle.connect('clicked', () => { sheet.open = !sheet.open; });
-    sheet.content = toggle;
-
-    // The sheet: a title above a boxed list of share actions.
-    const box = new Gtk.Box({
-        orientation: Gtk.Orientation.VERTICAL,
-        spacing: 12,
-        marginTop: 18,
-        marginBottom: 24,
-        marginStart: 18,
-        marginEnd: 18,
-    });
-    box.append(new Gtk.Label({ label: 'Share track', halign: Gtk.Align.START, cssClasses: ['title-2'] }));
-
-    const group = new Adw.PreferencesGroup();
-    for (const [title, icon] of [
-        ['Copy link', 'edit-copy-symbolic'],
-        ['Send to a friend', 'mail-send-symbolic'],
-        ['Add to playlist', 'list-add-symbolic'],
-    ] as const) {
-        const row = new Adw.ActionRow({ title });
-        row.add_prefix(new Gtk.Image({ iconName: icon }));
-        row.activatable = true;
-        group.add(row);
-    }
-    box.append(group);
-    sheet.sheet = box;
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.BottomSheet {
-      open: true;
-      modal: true;
-      can-close: true;
-
-      content: Gtk.Button {
-        label: _("Toggle sheet");
-        halign: center;
-        valign: center;
-
-        styles ["pill", "suggested-action"]
-      };
-
-      sheet: Gtk.Box {
-        orientation: vertical;
-        spacing: 12;
-        margin-start: 18;
-        margin-end: 18;
-        margin-top: 18;
-        margin-bottom: 24;
-
-        Gtk.Label {
-          label: _("Share track");
-          xalign: 0;
-
-          styles ["title-2"]
-        }
-
-        Adw.PreferencesGroup {
-          Adw.ActionRow {
-            title: _("Copy link");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
-              icon-name: "edit-copy-symbolic";
-            }
-          }
-
-          Adw.ActionRow {
-            title: _("Send to a friend");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
-              icon-name: "mail-send-symbolic";
-            }
-          }
-
-          Adw.ActionRow {
-            title: _("Add to playlist");
-            activatable: true;
-
-            [prefix]
-            Gtk.Image {
-              icon-name: "list-add-symbolic";
-            }
-          }
-        }
-      };
-    }
+    const sheet = document.querySelector('#sheet');
+    const toggle = document.querySelector('#toggle');
+    toggle.addEventListener('click', () => {
+        sheet.open = !sheet.open;
+    });
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const sheet = new Adw.BottomSheet({ open: true, canClose: true });
-
-    // Persistent content: a centered pill button that toggles the sheet.
-    const toggle = new Gtk.Button({
-        label: 'Toggle sheet',
-        horizontalAlignment: 'center',
-        verticalAlignment: 'middle',
+    const sheet = Builder.load({ path: '~/views', name: 'bottom-sheet' }) as Adw.BottomSheet;
+    const toggle = sheet.getViewById<Gtk.Button>('toggle')!;
+    toggle.connect('clicked', () => {
+        sheet.open = !sheet.open;
     });
-    toggle.add_css_class('pill');
-    toggle.add_css_class('suggested-action');
-    toggle.connect('clicked', () => { sheet.open = !sheet.open; });
-    sheet.content = toggle;
-
-    // The sheet: a title above a boxed list of share actions.
-    const box = new Gtk.Box({
-        orientation: 'vertical',
-        spacing: 12,
-        marginTop: 18,
-        marginBottom: 24,
-        marginLeft: 18,
-        marginRight: 18,
-    });
-    box.append(new Gtk.Label({ label: 'Share track', styleClasses: 'title-2' }));
-
-    const group = new Adw.PreferencesGroup();
-    for (const [title, icon] of [
-        ['Copy link', 'edit-copy-symbolic'],
-        ['Send to a friend', 'mail-send-symbolic'],
-        ['Add to playlist', 'list-add-symbolic'],
-    ] as const) {
-        const row = new Adw.ActionRow({ title });
-        row.add_prefix(new Gtk.Image({ iconName: icon }));
-        row.activatable = true;
-        group.add(row);
-    }
-    box.append(group);
-    sheet.sheet = box;
     ```
   </Fragment>
 </AdwWidget>

@@ -1,0 +1,15 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.StatusPage {
+  icon-name: "folder-symbolic";
+  title: _("No Documents");
+  description: _("Documents you create or open will appear here.");
+
+  child: Gtk.Button new_button {
+    label: _("New Document");
+    halign: center;
+
+    styles ["pill", "suggested-action"]
+  };
+}

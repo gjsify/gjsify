@@ -751,18 +751,6 @@ const paneKindMenu = () => [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `  
  * down beside this one would be the second copy that drifts.
  */
 const PANE_TEXT_DIVERGENCES = {
-    'Adw.PreferencesGroup':
-        'vocabulary: one line, and it is the alignment. The header button takes verticalAlignment where GTK ' +
-        'takes valign, which is the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open; everything ' +
-        'else about these two panes is already one text.',
-    'Adw.SpinRow':
-        'property: one line, and it is `digits`. The adjustment is a Gtk.Adjustment on both sides now; what ' +
-        'is left is that the port installs no `digits` — it renders the value the state machine holds.',
-    'Adw.ToggleGroup':
-        'property: the port has no Adw.Toggle widget, so setToggles() takes plain descriptors; and the third ' +
-        'toggle names view-paged-symbolic, because view-columns-symbolic is in no icon theme and only the ' +
-        'web pillar hand-draws a substitute — this pane names one that resolves rather than drawing the ' +
-        'image-missing fallback its gjs twin gets.',
     'Adw.Toast':
         'property: the port has no Adw.Toast widget at all — showToast() is the whole API and its timeout is ' +
         'in milliseconds — and the overlay takes its content through set_child() where GTK passes `child` to ' +
@@ -778,47 +766,18 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.PreferencesDialog':
         'property: the dialog takes its own title, and present() takes no parent. The combo model is a ' +
         'Gtk.StringList and the adjustment a Gtk.Adjustment on both sides now.',
-    'Adw.ToolbarView':
-        'composition: the NativeScript window splits into an XML template and a loader, and the bottom bar is a ' +
-        'second header bar because the port has no Gtk.ActionBar — so the loader reaches its buttons by the ids ' +
-        'the template gave them.',
-    'Adw.NavigationSplitView':
-        'property: the port has no Adw.NavigationPage, Adw.SidebarSection or Adw.SidebarItem, so the sidebar ' +
-        'takes a flat label list and each pane is a toolbar view directly.',
-    'Adw.OverlaySplitView': 'property: the same three missing widgets as Adw.NavigationSplitView, one block over.',
-    'Adw.NavigationView':
-        'property: pages are pushed by TAG rather than by widget and there is no Adw.NavigationPage to wrap ' +
-        'them, so the toolbar view IS the page and add() takes the tag beside it. The button is the same ' +
-        'text on both sides now, `clicked` included; the icon is an SVG source.',
-    'Adw.Sidebar':
-        'property: the port has no Adw.SidebarSection, no Adw.SidebarItem and no Gtk.Separator, so the sidebar ' +
-        'takes a flat label list with no per-item subtitle or icon and the two panes sit side by side with ' +
-        'nothing between them; widthRequest is an exact width here, and each icon is an SVG source.',
-    'Adw.BottomSheet':
-        'property: the port has no `modal` — the sheet neither dims nor blocks what is behind it — and no ' +
-        'expand flags or logical margins, so vexpand is absent and marginStart/End are marginLeft/Right; the ' +
-        'content and sheet slots are set_content()/set_sheet() where GTK assigns the properties.',
     'Adw.Spinner':
         'property: the port sizes a spinner with `size`, where GTK asks for a width, a height and two ' +
         'alignments — the port has no layout surface to put a size request on.',
-    'Adw.StatusPage':
-        'property: `child` is read-only here so the button goes in through set_child(), the style classes are ' +
-        'one whitespace-separated string where GTK takes a list, and halign is horizontalAlignment.',
     'Adw.ViewSwitcher':
         'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
         'and content together, where GTK adds each page to the stack and binds the switcher to it.',
-    'Adw.ViewSwitcherBar':
-        'property: the port’s view stack has no items-changed signal, so refresh() stands in for it by hand.',
     'Adw.TabView':
         'property: the port has no Adw.TabBar and no Adw.TabPage, so setViews() carries the chips and the ' +
         'pages together and there is no page object to set a title on.',
     'Adw.InlineViewSwitcher':
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
-    'Adw.Carousel':
-        'property: the indicator binds and the box holds both as on GTK; what is left is no swipe/scroll-wheel ' +
-        'knobs, pageWidth sizing a page where GTK asks the child for its natural size, and cards placed with ' +
-        'a fixed height and NativeScript alignment words.',
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',

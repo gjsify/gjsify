@@ -92,6 +92,13 @@ const ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`,
 const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"`])([^'"`]*)\1/g;
 /** `setPageIcon('overview', 'view-paged-symbolic')` — the id-then-icon method shape. */
 const SET_PAGE_ICON = /set(?:Page|Indicator)Icon\(\s*[^,)]*,\s*(['"`])([^'"`]*)\1/g;
+/**
+ * `icon-name: "go-home-symbolic";` — a Blueprint property under its GIR name. A
+ * one-Blueprint gallery block's NativeScript tab is GENERATED from its `.blp`, so the
+ * names that XML hands this port are the ones the file writes.
+ */
+const BLUEPRINT_PROPERTY =
+    /(?:^|[^A-Za-z0-9_$-])(?:icon-name|start-icon-name|end-icon-name|indicator-icon)\s*:\s*"([^"]*)"/g;
 /** `value: 'camera-photo-symbolic'` inside a story control — see {@link metaControlNames}. */
 const CONTROL_VALUE = /(?:^|[^A-Za-z0-9_$])(?:value|defaultValue):\s*(['"`])([^'"`]*)\1/g;
 /** The control whose values ARE icon names: its own `name` says so. */
@@ -137,6 +144,9 @@ const SHAPES = {
     },
     metaControl: (code, add) => {
         for (const name of metaControlNames(code)) add(name);
+    },
+    blueprint: (code, add) => {
+        for (const m of code.matchAll(BLUEPRINT_PROPERTY)) add(m[1]);
     },
 };
 
@@ -205,9 +215,14 @@ const SOURCES = [
         root: 'website/src/content/docs',
         shapes: ['nativescriptFence'],
     },
+    {
+        // The gallery's `.blp` files, whose NativeScript XML the website generates.
+        root: 'website/src/blueprints',
+        shapes: ['blueprint'],
+    },
 ];
 
-const EXTENSIONS = [...CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`), '.xml', '.mdx'];
+const EXTENSIONS = [...CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`), '.xml', '.mdx', '.blp'];
 
 /** `normalizeIconName` from `@gjsify/adwaita-core`, in the spelling a script can read. */
 const ICON_NAME_TOKEN = /^[A-Za-z0-9_-]+$/;

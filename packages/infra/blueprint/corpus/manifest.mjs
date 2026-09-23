@@ -36,7 +36,7 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE THIRTY-THREE REAL FILES DO NOT REACH
+// WHAT THE FORTY-SIX REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "thirty-three real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
@@ -72,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The thirty-three `.blp` files this repo already builds are the reality probe ADR 0053
+// The forty-six `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -783,4 +783,32 @@ export const CORPUS_REAL_FILES = [
         source: 'website/src/blueprints/adwaita/shortcut-label.blp',
     },
     { slug: 'website_src_blueprints_adwaita_window_title', source: 'website/src/blueprints/adwaita/window-title.blp' },
+    { slug: 'website_src_blueprints_adwaita_toolbar_view', source: 'website/src/blueprints/adwaita/toolbar-view.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_navigation_split_view',
+        source: 'website/src/blueprints/adwaita/navigation-split-view.blp',
+    },
+    {
+        slug: 'website_src_blueprints_adwaita_overlay_split_view',
+        source: 'website/src/blueprints/adwaita/overlay-split-view.blp',
+    },
+    {
+        slug: 'website_src_blueprints_adwaita_navigation_view',
+        source: 'website/src/blueprints/adwaita/navigation-view.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_sidebar', source: 'website/src/blueprints/adwaita/sidebar.blp' },
+    { slug: 'website_src_blueprints_adwaita_bottom_sheet', source: 'website/src/blueprints/adwaita/bottom-sheet.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_view_switcher_bar',
+        source: 'website/src/blueprints/adwaita/view-switcher-bar.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_carousel', source: 'website/src/blueprints/adwaita/carousel.blp' },
+    { slug: 'website_src_blueprints_adwaita_status_page', source: 'website/src/blueprints/adwaita/status-page.blp' },
+    {
+        slug: 'website_src_blueprints_adwaita_preferences_group',
+        source: 'website/src/blueprints/adwaita/preferences-group.blp',
+    },
+    { slug: 'website_src_blueprints_adwaita_combo_row', source: 'website/src/blueprints/adwaita/combo-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_spin_row', source: 'website/src/blueprints/adwaita/spin-row.blp' },
+    { slug: 'website_src_blueprints_adwaita_toggle_group', source: 'website/src/blueprints/adwaita/toggle-group.blp' },
 ];

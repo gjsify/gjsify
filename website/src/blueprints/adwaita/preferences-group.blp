@@ -1,0 +1,40 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  title: _("Account");
+  description: _("Manage how this device signs in and syncs.");
+
+  header-suffix: Gtk.Button sign_out {
+    label: _("Sign out");
+    valign: center;
+
+    styles ["flat"]
+  };
+
+  Adw.EntryRow {
+    title: _("Display name");
+    text: "Grace Hopper";
+  }
+
+  Adw.SwitchRow {
+    title: _("Sync over Wi-Fi only");
+    subtitle: _("Avoid using mobile data for backups");
+    active: true;
+  }
+
+  Adw.ComboRow {
+    title: _("Region");
+
+    model: Gtk.StringList {
+      strings [
+        _("Europe"),
+        _("Americas"),
+        _("Asia"),
+        _("Oceania"),
+      ]
+    };
+
+    selected: 0;
+  }
+}

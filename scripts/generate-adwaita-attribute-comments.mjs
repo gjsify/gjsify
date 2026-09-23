@@ -171,21 +171,9 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'adw-alert-response id': { kind: 'not-a-widget' },
     'adw-alert-response appearance': { kind: 'not-a-widget' },
 
-    // An icon NAME under a shorter spelling. Each of these two sets
-    // `iconName`/`createGtkImage` from the attribute, so the value space is the icon
-    // theme's, exactly as the GIR property says.
+    // An icon NAME under a shorter spelling: the element sets `iconName` from the
+    // attribute, so the value space is the icon theme's, exactly as the GIR property says.
     'adw-status-page icon': { kind: 'renamed', girProperty: 'icon-name' },
-    'gtk-button icon': { kind: 'renamed', girProperty: 'icon-name' },
-
-    // The browser spelling of the same thing: the element writes `button.title`.
-    'gtk-button tooltip': { kind: 'renamed', girProperty: 'tooltip-text' },
-
-    // A style class the port exposes as a boolean attribute — `buttonStyleClasses`
-    // in `@gjsify/adwaita-core` maps the five to CSS, and libadwaita has no property
-    // for any of them because a style class is a list entry there (ADR 0049).
-    'gtk-button flat': { kind: 'style-class' },
-    'gtk-button suggested': { kind: 'style-class' },
-    'gtk-button pill': { kind: 'style-class' },
 
     // `<gtk-entry>` speaks the HTML form vocabulary rather than GTK's, deliberately
     // and visibly: /gtk/controls/ already carries an authored comment saying it has
@@ -194,12 +182,6 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'gtk-entry value': { kind: 'renamed', girProperty: 'text' },
     'gtk-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
     'gtk-entry disabled': { kind: 'inverted', girProperty: 'sensitive' },
-
-    // The value is an element ID, resolved with `getElementById`, where the GIR
-    // property holds the object itself. Same shape as `stack` on
-    // `<adw-view-switcher-bar>`, which does have a property of that name and is
-    // therefore in {@link AUTHORED_MEANINGS} instead.
-    'adw-carousel-indicator-dots for': { kind: 'id-reference', girProperty: 'carousel' },
 
     // Port-added and CSS-backed: `resolveSpinnerSize` turns the attribute into a
     // pixel box, and `AdwSpinner` has no size property — a GTK spinner takes its
@@ -223,10 +205,11 @@ const LEDGER_KINDS = {
  * same name, where the page's own authored comment stands and this generator emits
  * none.
  *
- * Two, and both are the same fact: the GIR property holds an OBJECT and the attribute
- * takes a string. `Gio.ListModel` against a JSON array, `Adw.ViewStack` against an
- * element id. The GIR sentence is true of the property and false of the markup, which
- * is the one case where a generated gloss would be worse than the hand.
+ * The case is always one fact: the GIR property holds an OBJECT and the attribute takes
+ * a string — `Gio.ListModel` against a JSON array. The GIR sentence is true of the
+ * property and false of the markup, which is the one case where a generated gloss would
+ * be worse than the hand. (`<adw-view-switcher-bar stack>`, an `Adw.ViewStack` against
+ * an element id, was the second until its block came from a `.blp`.)
  *
  * `must` is the substring the fence has to keep carrying, so removing the authored
  * comment is a red gate rather than a quiet loss — the mechanism the 110-against-54
@@ -234,7 +217,6 @@ const LEDGER_KINDS = {
  */
 export const AUTHORED_MEANINGS = {
     'gtk-drop-down model': { must: '`model` is a JSON array of strings' },
-    'adw-view-switcher-bar stack': { must: '`stack` takes the id of the <adw-view-stack> to bind to.' },
 };
 
 // ---------------------------------------------------------------------------
@@ -296,7 +278,7 @@ const FUNCTION_WORDS = stemmed(
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
  */
-const PRESENTATION_WORDS = stemmed('display shown currently current information inside contain below url widget');
+const PRESENTATION_WORDS = stemmed('display current information below url');
 
 /**
  * How many of the corpus's docs a word must appear in before it stops distinguishing

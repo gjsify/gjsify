@@ -190,70 +190,35 @@ Fill an empty, error or welcome screen with a centred placeholder: a large
 symbolic **icon**, a **title** and a **description**. Add a **child** widget to
 give the user a way out, such as a button that creates their first document.
 
-<AdwWidget title="Adw.StatusPage" padding="flush" stage="height: 320px; display:flex;">
-  <Fragment slot="preview">
-    ```html
-    <!-- description: The description markup to be displayed below the title. -->
-    <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
-      <gtk-button label="New Document" pill suggested></gtk-button>
-    </adw-status-page>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.StatusPage" blueprint="adwaita/status-page.blp" padding="flush" stage="height: 400px; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './status-page.blp';
 
-    const button = new Gtk.Button({
-        label: 'New Document',
-        halign: Gtk.Align.CENTER,
-        cssClasses: ['pill', 'suggested-action'],
-    });
-
-    const statusPage = new Adw.StatusPage({
-        iconName: 'folder-symbolic',
-        title: 'No Documents',
-        description: 'Documents you create or open will appear here.',
-        child: button,
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const button = builder.get_object('new_button') as Gtk.Button;
+    button.connect('clicked', () => console.log('Create a document'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.StatusPage {
-      icon-name: "folder-symbolic";
-      title: _("No Documents");
-      description: _("Documents you create or open will appear here.");
-
-      child: Gtk.Button {
-        label: _("New Document");
-        halign: center;
-
-        styles ["pill", "suggested-action"]
-      };
-    }
+    const button = document.querySelector('#new_button');
+    button.addEventListener('click', () => console.log('Create a document'));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const button = new Gtk.Button({
-        label: 'New Document',
-        horizontalAlignment: 'center',
-        styleClasses: 'pill suggested-action',
-    });
-
-    const statusPage = new Adw.StatusPage({
-        iconName: 'folder-symbolic',
-        title: 'No Documents',
-        description: 'Documents you create or open will appear here.',
-        child: button,
-    });
+    const statusPage = Builder.load({ path: '~/views', name: 'status-page' }) as Adw.StatusPage;
+    const button = statusPage.getViewById<Gtk.Button>('new_button')!;
+    button.connect('clicked', () => console.log('Create a document'));
     ```
   </Fragment>
 </AdwWidget>

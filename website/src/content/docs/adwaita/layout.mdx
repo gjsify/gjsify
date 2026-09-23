@@ -191,142 +191,47 @@ bar above and an action bar below. Each set of bars reveals and hides
 independently, and the content scrolls underneath, so the chrome stays put while
 the view moves.
 
-{/* `width: 100%` on the stage because it is a flex row: without it the stage is
-    shrink-to-fit, so the toolbar view came out as wide as its widest bar and
-    floated inside a panel whose `flush` padding exists to let it sit edge to
-    edge. Every other fixed-height preview on these pages sets it too. */}
-<AdwWidget title="Adw.ToolbarView" padding="flush" stage="height: 300px; width: 100%; display: flex;">
-  <Fragment slot="preview">
-    ```html
-    <adw-toolbar-view style="flex: 1;">
-      <adw-header-bar slot="top">
-        <adw-window-title slot="center" title="Documents" subtitle="12 items"></adw-window-title>
-      </adw-header-bar>
-      <adw-status-page icon="folder-documents" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
-      <div slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
-        <gtk-button icon="list-add" flat tooltip="Add"></gtk-button>
-        <gtk-button icon="list-remove" flat tooltip="Remove"></gtk-button>
-        <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
-        <gtk-button icon="send-to" flat tooltip="Share"></gtk-button>
-      </div>
-    </adw-toolbar-view>
-    ```
-  </Fragment>
+{/* A grid stage, because a toolbar view has no size of its own: its window gives
+    it one. A grid's single cell stretches the widget both ways, which a flex row
+    did only for the width, and the `.blp` cannot say either. */}
+<AdwWidget title="Adw.ToolbarView" blueprint="adwaita/toolbar-view.blp" padding="flush" stage="height: 300px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './toolbar-view.blp';
 
-    const view = new Adw.ToolbarView();
-
-    const header = new Adw.HeaderBar({
-        titleWidget: new Adw.WindowTitle({ title: 'Documents', subtitle: '12 items' }),
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const add = builder.get_object('add_button') as Gtk.Button;
+    const selection = builder.get_object('selection') as Gtk.Label;
+    add.connect('clicked', () => {
+        selection.label = 'Selection: 1 item';
     });
-    view.add_top_bar(header);
-
-    const content = new Adw.StatusPage({
-        iconName: 'folder-documents-symbolic',
-        title: 'Your library',
-        description: 'Content sits between the toolbars and scrolls independently of them.',
-    });
-    view.content = content;
-
-    const bottomBar = new Gtk.ActionBar();
-
-    const addButton = new Gtk.Button({ iconName: 'list-add-symbolic' });
-    addButton.add_css_class('flat');
-    bottomBar.pack_start(addButton);
-
-    const removeButton = new Gtk.Button({ iconName: 'list-remove-symbolic' });
-    removeButton.add_css_class('flat');
-    bottomBar.pack_start(removeButton);
-
-    bottomBar.set_center_widget(new Gtk.Label({ label: 'Selection: none' }));
-
-    const shareButton = new Gtk.Button({ iconName: 'send-to-symbolic' });
-    shareButton.add_css_class('flat');
-    bottomBar.pack_end(shareButton);
-
-    view.add_bottom_bar(bottomBar);
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.ToolbarView {
-      [top]
-      Adw.HeaderBar {
-        title-widget: Adw.WindowTitle {
-          title: _("Documents");
-          subtitle: _("12 items");
-        };
-      }
-
-      content: Adw.StatusPage {
-        icon-name: "folder-documents-symbolic";
-        title: _("Your library");
-        description: _("Content sits between the toolbars and scrolls independently of them.");
-      };
-
-      [bottom]
-      Gtk.ActionBar {
-        [start]
-        Gtk.Button {
-          icon-name: "list-add-symbolic";
-          tooltip-text: _("Add");
-
-          styles ["flat"]
-        }
-
-        [start]
-        Gtk.Button {
-          icon-name: "list-remove-symbolic";
-          tooltip-text: _("Remove");
-
-          styles ["flat"]
-        }
-
-        [center]
-        Gtk.Label {
-          label: _("Selection: none");
-        }
-
-        [end]
-        Gtk.Button {
-          icon-name: "send-to-symbolic";
-          tooltip-text: _("Share");
-
-          styles ["flat"]
-        }
-      }
-    }
+    const add = document.querySelector('#add_button');
+    const selection = document.querySelector('#selection');
+    add.addEventListener('click', () => {
+        selection.label = 'Selection: 1 item';
+    });
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    // app/adw.ts — the module the template's `xmlns:adw="~/adw"` resolves to.
-    export { HeaderBar, StatusPage, ToolbarView, WindowTitle } from '@gjsify/adwaita-nativescript/adw';
-
-    // AdwImageButton composes a button and an image and has no GIR name of its own,
-    // so it has no namespace member and keeps its class name at the package root.
-    export { AdwImageButton } from '@gjsify/adwaita-nativescript';
-
-    // app/views/toolbar-view.ts — the loader, and the three things markup cannot say.
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
     import { Builder } from '@nativescript/core';
-    import { Adw, AdwImageButton } from '@gjsify/adwaita-nativescript';
 
-    export const view = Builder.load({ path: '~/views', name: 'toolbar-view' });
-
-    // An icon name carries through an XML attribute, so these three lines exist only
-    // because the ACTION BAR does not: Gtk.ActionBar has no counterpart here, so the
-    // bottom bar is a header bar the template fills, and the ids are how the loader
-    // reaches into it.
-    view.getViewById<Adw.StatusPage>('library').iconName = 'folder-documents-symbolic';
-    view.getViewById<AdwImageButton>('add').iconName = 'list-add-symbolic';
-    view.getViewById<AdwImageButton>('remove').iconName = 'list-remove-symbolic';
-    view.getViewById<AdwImageButton>('share').iconName = 'send-to-symbolic';
+    const view = Builder.load({ path: '~/views', name: 'toolbar-view' }) as Adw.ToolbarView;
+    const add = view.getViewById<Gtk.Button>('add_button')!;
+    const selection = view.getViewById<Gtk.Label>('selection')!;
+    add.connect('clicked', () => {
+        selection.label = 'Selection: 1 item';
+    });
     ```
   </Fragment>
 </AdwWidget>

@@ -1,0 +1,21 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  Adw.ComboRow row {
+    title: _("Accent colour");
+    subtitle: _("Used to highlight selected items");
+
+    model: Gtk.StringList {
+      strings [
+        _("Blue"),
+        _("Teal"),
+        _("Green"),
+        _("Orange"),
+        _("Purple"),
+      ]
+    };
+
+    selected: 1;
+  }
+}

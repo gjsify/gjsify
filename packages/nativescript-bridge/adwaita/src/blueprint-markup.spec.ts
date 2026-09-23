@@ -35,16 +35,29 @@ import { ParserEventType, XmlParser } from './testing/nativescript-xml/xml.mjs';
 import adwaitaActionRowTree from '../../../../website/src/blueprints/adwaita/action-row.blp?shared-tree';
 import adwaitaAvatarTree from '../../../../website/src/blueprints/adwaita/avatar.blp?shared-tree';
 import adwaitaBannerTree from '../../../../website/src/blueprints/adwaita/banner.blp?shared-tree';
+import adwaitaBottomSheetTree from '../../../../website/src/blueprints/adwaita/bottom-sheet.blp?shared-tree';
 import adwaitaButtonContentTree from '../../../../website/src/blueprints/adwaita/button-content.blp?shared-tree';
 import adwaitaButtonRowTree from '../../../../website/src/blueprints/adwaita/button-row.blp?shared-tree';
+import adwaitaCarouselTree from '../../../../website/src/blueprints/adwaita/carousel.blp?shared-tree';
 import clampTree from '../../../../website/src/blueprints/adwaita/clamp.blp?shared-tree';
+import adwaitaComboRowTree from '../../../../website/src/blueprints/adwaita/combo-row.blp?shared-tree';
 import adwaitaEntryRowTree from '../../../../website/src/blueprints/adwaita/entry-row.blp?shared-tree';
 import adwaitaExpanderRowTree from '../../../../website/src/blueprints/adwaita/expander-row.blp?shared-tree';
 import adwaitaHeaderBarTree from '../../../../website/src/blueprints/adwaita/header-bar.blp?shared-tree';
+import adwaitaNavigationSplitViewTree from '../../../../website/src/blueprints/adwaita/navigation-split-view.blp?shared-tree';
+import adwaitaNavigationViewTree from '../../../../website/src/blueprints/adwaita/navigation-view.blp?shared-tree';
+import adwaitaOverlaySplitViewTree from '../../../../website/src/blueprints/adwaita/overlay-split-view.blp?shared-tree';
 import adwaitaPasswordEntryRowTree from '../../../../website/src/blueprints/adwaita/password-entry-row.blp?shared-tree';
+import adwaitaPreferencesGroupTree from '../../../../website/src/blueprints/adwaita/preferences-group.blp?shared-tree';
 import adwaitaShortcutLabelTree from '../../../../website/src/blueprints/adwaita/shortcut-label.blp?shared-tree';
+import adwaitaSidebarTree from '../../../../website/src/blueprints/adwaita/sidebar.blp?shared-tree';
+import adwaitaSpinRowTree from '../../../../website/src/blueprints/adwaita/spin-row.blp?shared-tree';
 import adwaitaSplitButtonTree from '../../../../website/src/blueprints/adwaita/split-button.blp?shared-tree';
+import adwaitaStatusPageTree from '../../../../website/src/blueprints/adwaita/status-page.blp?shared-tree';
 import adwaitaSwitchRowTree from '../../../../website/src/blueprints/adwaita/switch-row.blp?shared-tree';
+import adwaitaToggleGroupTree from '../../../../website/src/blueprints/adwaita/toggle-group.blp?shared-tree';
+import adwaitaToolbarViewTree from '../../../../website/src/blueprints/adwaita/toolbar-view.blp?shared-tree';
+import adwaitaViewSwitcherBarTree from '../../../../website/src/blueprints/adwaita/view-switcher-bar.blp?shared-tree';
 import adwaitaWindowTitleTree from '../../../../website/src/blueprints/adwaita/window-title.blp?shared-tree';
 import adwaitaWrapBoxTree from '../../../../website/src/blueprints/adwaita/wrap-box.blp?shared-tree';
 import gtkButtonTree from '../../../../website/src/blueprints/gtk/button.blp?shared-tree';
@@ -57,16 +70,29 @@ export const GALLERY_BLUEPRINTS: Readonly<Record<string, SharedTreeNode>> = {
     'adwaita/action-row.blp': adwaitaActionRowTree,
     'adwaita/avatar.blp': adwaitaAvatarTree,
     'adwaita/banner.blp': adwaitaBannerTree,
+    'adwaita/bottom-sheet.blp': adwaitaBottomSheetTree,
     'adwaita/button-content.blp': adwaitaButtonContentTree,
     'adwaita/button-row.blp': adwaitaButtonRowTree,
+    'adwaita/carousel.blp': adwaitaCarouselTree,
     'adwaita/clamp.blp': clampTree,
+    'adwaita/combo-row.blp': adwaitaComboRowTree,
     'adwaita/entry-row.blp': adwaitaEntryRowTree,
     'adwaita/expander-row.blp': adwaitaExpanderRowTree,
     'adwaita/header-bar.blp': adwaitaHeaderBarTree,
+    'adwaita/navigation-split-view.blp': adwaitaNavigationSplitViewTree,
+    'adwaita/navigation-view.blp': adwaitaNavigationViewTree,
+    'adwaita/overlay-split-view.blp': adwaitaOverlaySplitViewTree,
     'adwaita/password-entry-row.blp': adwaitaPasswordEntryRowTree,
+    'adwaita/preferences-group.blp': adwaitaPreferencesGroupTree,
     'adwaita/shortcut-label.blp': adwaitaShortcutLabelTree,
+    'adwaita/sidebar.blp': adwaitaSidebarTree,
+    'adwaita/spin-row.blp': adwaitaSpinRowTree,
     'adwaita/split-button.blp': adwaitaSplitButtonTree,
+    'adwaita/status-page.blp': adwaitaStatusPageTree,
     'adwaita/switch-row.blp': adwaitaSwitchRowTree,
+    'adwaita/toggle-group.blp': adwaitaToggleGroupTree,
+    'adwaita/toolbar-view.blp': adwaitaToolbarViewTree,
+    'adwaita/view-switcher-bar.blp': adwaitaViewSwitcherBarTree,
     'adwaita/window-title.blp': adwaitaWindowTitleTree,
     'adwaita/wrap-box.blp': adwaitaWrapBoxTree,
     'gtk/button.blp': gtkButtonTree,

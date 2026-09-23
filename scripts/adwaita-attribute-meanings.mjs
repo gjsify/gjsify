@@ -23,44 +23,17 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'version': null,
         'website': null,
     },
-    'adw-action-row': {
-        'activatable': 'Determines whether the ::row-activated signal will be emitted for this row.',
-        'title': null,
-    },
     'adw-alert-dialog': {
         'body': null,
         'heading': null,
     },
-    'adw-bottom-sheet': {
-        'can-close': 'Whether the bottom sheet can be closed by user.',
-        'modal': null,
-        'open': null,
-    },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
         'selected': 'The position of the selected item.',
-        'subtitle': null,
-        'title': null,
-    },
-    'adw-entry-row': {
-        'text': 'The contents of the entry.',
         'title': null,
     },
     'adw-inline-view-switcher': {
         'display-mode': null,
-    },
-    'adw-navigation-page': {
-        'tag': null,
-        'title': null,
-    },
-    'adw-navigation-split-view': {
-        'show-content': 'Determines the visible page when collapsed.',
-    },
-    'adw-navigation-view': {
-        'animate-transitions': null,
-    },
-    'adw-overlay-split-view': {
-        'show-sidebar': null,
     },
     'adw-preferences-dialog': {
         'title': null,
@@ -71,18 +44,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'adw-preferences-page': {
         'icon-name': null,
-        'title': null,
-    },
-    'adw-sidebar': {
-        'mode': 'Determines the sidebar\'s look and behavior.',
-        'selected': 'The index of the currently selected item.',
-    },
-    'adw-sidebar-item': {
-        'icon-name': null,
-        'subtitle': null,
-        'title': null,
-    },
-    'adw-sidebar-section': {
         'title': null,
     },
     'adw-spin-row': {
@@ -102,30 +63,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-tab-page': {
         'title': null,
     },
-    'adw-toggle': {
-        'icon-name': null,
-        'label': null,
-    },
-    'adw-toggle-group': {
-        'active': 'The index of the active toggle.',
-    },
     'adw-view-stack-page': {
         'icon-name': null,
-        'name': null,
         'title': null,
     },
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
-    },
-    'adw-view-switcher-bar': {
-        'reveal': 'Whether the bar should be revealed or hidden.',
-    },
-    'adw-window-title': {
-        'subtitle': null,
-        'title': null,
-    },
-    'gtk-button': {
-        'label': null,
     },
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
@@ -143,15 +86,9 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-alert-dialog open': 'declarative-state',
     'adw-alert-response appearance': 'not-a-widget',
     'adw-alert-response id': 'not-a-widget',
-    'adw-carousel-indicator-dots for': 'id-reference',
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
-    'gtk-button flat': 'style-class',
-    'gtk-button icon': 'renamed',
-    'gtk-button pill': 'style-class',
-    'gtk-button suggested': 'style-class',
-    'gtk-button tooltip': 'renamed',
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
@@ -159,18 +96,17 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
 export const ADWAITA_ATTRIBUTE_AUTHORED = [
-    'adw-view-switcher-bar stack',
     'gtk-drop-down model',
 ];
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 77,
-    glossed: 16,
-    nameSuffices: 43,
-    divergent: 16,
-    authored: 2,
-    commentLines: 19,
+    set: 43,
+    glossed: 8,
+    nameSuffices: 24,
+    divergent: 10,
+    authored: 1,
+    commentLines: 17,
 };
 
 /**
