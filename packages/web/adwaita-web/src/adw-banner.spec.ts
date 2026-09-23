@@ -146,4 +146,20 @@ export const AdwBannerTest = async () => {
             host.remove();
         });
     });
+
+    // adw-banner.ui: the title is a `.heading` label and the button a plain text button.
+    // Beside a GTK render of the gallery's banner `.blp` this banner was 8px shorter,
+    // with a regular-weight title.
+    await describe('adw-banner geometry (adw-banner.ui)', async () => {
+        await it('draws a bold title and a 34px text button, so the banner is 46px tall', () => {
+            const { el, host } = mount({ revealed: '', title: 'Updates paused', 'button-label': 'Resume' });
+            host.style.width = '460px';
+            expect(getComputedStyle(titleEl(el)).fontWeight).toBe('700');
+            const button = getComputedStyle(buttonEl(el));
+            expect([button.paddingLeft, button.paddingRight]).toStrictEqual(['17px', '17px']);
+            expect(Math.round(buttonEl(el).getBoundingClientRect().height)).toBe(34);
+            expect(Math.round(el.getBoundingClientRect().height)).toBe(46);
+            host.remove();
+        });
+    });
 };

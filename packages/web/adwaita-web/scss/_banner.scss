@@ -21,17 +21,24 @@ adw-banner {
     display: none;
   }
 
+  // The title is a `.heading` label and the button a plain GTK text button
+  // (adw-banner.ui:25, :29), so the title is bold and the button 34px tall with the 17px
+  // `.text-button` sides. Both were lighter here, and the banner stood 8px shorter than
+  // GTK's render of the gallery's banner `.blp`.
   .adw-banner-title {
     flex: 1 1 auto;
     min-width: 0;
     font-size: var(--font-size-base);
+    font-weight: 700;
   }
 
   .adw-banner-button {
     flex-shrink: 0;
+    box-sizing: border-box;
+    min-height: 34px;
     border: none;
     border-radius: var(--button-radius);
-    padding: 4px 14px;
+    padding: 5px 17px;
     background: var(--button-bg-color);
     color: var(--window-fg-color);
     font-family: var(--font-family);

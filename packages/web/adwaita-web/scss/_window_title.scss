@@ -11,6 +11,15 @@ adw-window-title {
   line-height: 1.15;
   min-width: 0;
 
+  // Both labels carry 12px sides upstream (_header-bar.scss:214-227). Without them the
+  // gallery's window title measured 27px narrower than GTK's render of the same `.blp`,
+  // and a header bar's title could run up against the buttons beside it.
+  .adw-window-title-title,
+  .adw-window-title-subtitle {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   .adw-window-title-title {
     font-size: var(--font-size-base);
     font-weight: 700;
