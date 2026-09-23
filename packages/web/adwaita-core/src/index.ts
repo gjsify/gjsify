@@ -278,7 +278,7 @@ export { GtkStringList } from './gtk-string-list.js';
 export type { GtkStringListProps } from './gtk-string-list.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---
-export { ComboState, ExpanderState, ToggleGroupState } from './rows.js';
+export { ComboState, ExpanderState, ToggleGroupState, keptToggles, toggleIndexOfName } from './rows.js';
 export type {
     ComboItemsListener,
     ComboStateChange,

@@ -1,6 +1,7 @@
 // <adw-toggle-group> — the web counterpart of Adw.ToggleGroup: a linked set of toggle
 // buttons where exactly one is active. Toggles are `<adw-toggle>` children carrying
-// `label` and/or `icon-name`, and the `flat` / `round` attributes mirror the upstream
+// `label` and/or `icon-name` and an optional `name`, which the group's `active-name`
+// selects by (read at connect, like the rest). The `flat` / `round` attributes mirror the upstream
 // `.flat` / `.round` style classes. `notify::active` (CustomEvent, bubbles, detail
 // `{ active }`) mirrors the `active` GObject property.
 //
@@ -54,7 +55,7 @@
 // selection state machine composed from @gjsify/adwaita-core, the icon node
 // from <gtk-image>.
 
-import { ToggleGroupState } from '@gjsify/adwaita-core';
+import { ToggleGroupState, keptToggles, toggleIndexOfName } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
@@ -74,9 +75,11 @@ export class AdwToggleGroup extends HTMLElement {
     private _initialized = false;
     /** `aria-checked` under `radio`, `aria-selected` under `tab` — decided at connect. */
     private _stateAttr: 'aria-checked' | 'aria-selected' = 'aria-checked';
+    /** Each toggle's `name`, in order — what `active-name` resolves against. */
+    private _names: (string | null)[] = [];
 
     static get observedAttributes() {
-        return ['active', 'flat', 'round'];
+        return ['active', 'active-name', 'flat', 'round'];
     }
 
     /** Zero-based index of the active toggle. */
@@ -88,13 +91,31 @@ export class AdwToggleGroup extends HTMLElement {
         this.setAttribute('active', String(value));
     }
 
+    /** `Adw.ToggleGroup:active-name` — the `name` of the active toggle, or `null`. */
+    get activeName(): string | null {
+        return this._names[this._state.selected] ?? null;
+    }
+
+    set activeName(value: string | null) {
+        if (value === null) this.removeAttribute('active-name');
+        else this.setAttribute('active-name', value);
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
 
         // Snapshot the declared <adw-toggle> children before we take over the
         // subtree — their label / icon-name become the rendered buttons.
-        const toggles = Array.from(this.querySelectorAll('adw-toggle')) as AdwToggle[];
+        // A second toggle claiming a name is refused whole, as `add_toggle` refuses it
+        // (adw-toggle-group.c:849) — the core's rule, not this element's.
+        const authored = Array.from(this.querySelectorAll('adw-toggle')) as AdwToggle[];
+        const toggles = keptToggles(authored.map((el) => ({ el, name: el.getAttribute('name') }))).map(
+            (toggle) => toggle.el,
+        );
+        if (toggles.length < authored.length) {
+            console.warn('[adw-toggle-group] a toggle name already exists; the later toggle is not added');
+        }
 
         // `gtk_widget_class_set_accessible_role` sets a CLASS DEFAULT that an instance's
         // construct-time `accessible-role` overrides, and `add_toggle` then reads
@@ -159,8 +180,12 @@ export class AdwToggleGroup extends HTMLElement {
         this._state.setLabels(
             toggles.map((toggle) => toggle.getAttribute('label') || toggle.getAttribute('icon-name') || ''),
         );
+        this._names = toggles.map((toggle) => toggle.getAttribute('name'));
         this._state.subscribe(() => this._render());
         this._state.setSelected(this._readActiveAttr());
+        // After `active`, and after the toggles are in, as `parser_finished` applies it
+        // (adw-toggle-group.c:1247): a group whose markup names both ends on the name.
+        this._applyActiveName();
         this._render();
 
         // No `disabled`/`hidden` filter, because no `<adw-toggle>` attribute can produce
@@ -185,8 +210,24 @@ export class AdwToggleGroup extends HTMLElement {
             this._state.setSelected(this._readActiveAttr());
             return;
         }
+        if (name === 'active-name') {
+            this._applyActiveName();
+            return;
+        }
         // flat / round are styling-only.
         this._render();
+    }
+
+    /**
+     * `adw_toggle_group_set_active_name`: the toggle carrying the name becomes active, and
+     * a name nothing carries leaves the selection where it was — the C's `g_critical` and
+     * return (:2001). Which toggle a name means is the core's answer, not this element's.
+     */
+    private _applyActiveName(): void {
+        const name = this.getAttribute('active-name');
+        if (name === null) return;
+        const index = toggleIndexOfName(this._names, name);
+        if (index !== -1) this._state.setSelected(index);
     }
 
     private _readActiveAttr(): number {

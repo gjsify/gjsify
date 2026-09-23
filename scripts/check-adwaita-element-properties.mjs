@@ -132,7 +132,7 @@ const KNOWN_GAPS = {
         'tooltip',
         'use-underline',
     ],
-    'adw-toggle-group': ['active-name', 'can-shrink', 'homogeneous'],
+    'adw-toggle-group': ['can-shrink', 'homogeneous'],
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],

@@ -43,17 +43,18 @@ import {
     tabCloseVisibilities,
     tabLabelText,
     tabViewNotifyPayload,
-    type AdwTabPage,
+    type NsTabPage,
     type TabViewNotifyPayload,
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
+import { AdwTabPage } from '../values/tab-page.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
-export type { AdwTabPage };
+export type { NsTabPage };
 
 /**
  * The id behind either spelling of a page handle.
@@ -63,7 +64,7 @@ export type { AdwTabPage };
  * that string. So every converged verb takes both and narrows here, exactly as the core's
  * own `setSelectedPage` does — the name is the GIR's, and the shape stays the port's.
  */
-const pageHandle = (page: AdwTabPage | string): string => (typeof page === 'string' ? page : page.id);
+const pageHandle = (page: NsTabPage | string): string => (typeof page === 'string' ? page : page.id);
 
 /** Event name emitted when the selected page changes. Mirrors `notify::selected-page`. */
 export const NOTIFY_SELECTED_PAGE = 'notify::selected-page';
@@ -117,7 +118,7 @@ export class AdwTabView extends withSignals(GridLayout) {
      * carry one; {@link CLOSE_PAGE} still fires for every attempt, so observing
      * and deciding stay separable.
      */
-    closeHandler: ((page: AdwTabPage) => boolean | 'defer') | null = null;
+    closeHandler: ((page: NsTabPage) => boolean | 'defer') | null = null;
 
     constructor(props?: ConstructProps<AdwTabView>) {
         super();
@@ -160,7 +161,7 @@ export class AdwTabView extends withSignals(GridLayout) {
     // --- Model surface (thin delegations to TabViewState) --------------------
 
     /** All pages in order. */
-    get pages(): readonly AdwTabPage[] {
+    get pages(): readonly NsTabPage[] {
         return this._state.pages;
     }
 
@@ -196,7 +197,7 @@ export class AdwTabView extends withSignals(GridLayout) {
      * two halves to differ, so `view.selectedPage = view.selectedPage` is a type error
      * rather than a silent one — which is the intended reading, not an oversight.
      */
-    get selectedPage(): AdwTabPage | null {
+    get selectedPage(): NsTabPage | null {
         return this._state.selectedPage;
     }
 
@@ -204,7 +205,7 @@ export class AdwTabView extends withSignals(GridLayout) {
         // THE ID, BECAUSE AN XML ATTRIBUTE CAN CARRY NOTHING ELSE: `<AdwTabView
         // selectedPage="inbox">` is the only way markup can declare a starting tab. The page
         // METHODS take either spelling — `close_page(page)` and `set_page_pinned(page, …)`
-        // resolve an `AdwTabPage` down to its id — so a caller holding the page object never
+        // resolve an `NsTabPage` down to its id — so a caller holding the page object never
         // has to go through the id; a setter has one parameter and this is the one markup
         // needs. The web twin takes the page OBJECT because its DOM has one and its
         // attribute carries the id separately; ADR 0034 § 1 converges the NAME, not the shape.
@@ -220,7 +221,7 @@ export class AdwTabView extends withSignals(GridLayout) {
     }
 
     /** `adw_tab_view_set_selected_page`. The page, or the id this port uses as its handle. */
-    set_selected_page(page: AdwTabPage | string | null): boolean {
+    set_selected_page(page: NsTabPage | string | null): boolean {
         return this._state.setSelectedPage(page);
     }
 
@@ -257,7 +258,7 @@ export class AdwTabView extends withSignals(GridLayout) {
     }
 
     /** Add a page opened FROM `parent`, deriving its position — `adw_tab_view_add_page`. */
-    add_page(spec: AdwTabPageSpec<View>, parent: AdwTabPage | string | null = null): number {
+    add_page(spec: AdwTabPageSpec<View>, parent: NsTabPage | string | null = null): number {
         return this._state.addPage(spec, parent === null ? null : pageHandle(parent));
     }
 
@@ -292,62 +293,62 @@ export class AdwTabView extends withSignals(GridLayout) {
     }
 
     /** Pin or unpin a page, re-ordering it in the same step. Returns its new position. */
-    set_page_pinned(page: AdwTabPage | string, pinned: boolean): number {
+    set_page_pinned(page: NsTabPage | string, pinned: boolean): number {
         return this._state.setPagePinned(pageHandle(page), pinned);
     }
 
     /** Request a close. Fires {@link CLOSE_PAGE}, then applies {@link closeHandler}'s verdict. */
-    close_page(page: AdwTabPage | string): boolean {
+    close_page(page: NsTabPage | string): boolean {
         return this._state.closePage(pageHandle(page));
     }
 
     /** Settle a close {@link closeHandler} deferred — `adw_tab_view_close_page_finish`. */
-    close_page_finish(page: AdwTabPage | string, confirm: boolean): boolean {
+    close_page_finish(page: NsTabPage | string, confirm: boolean): boolean {
         return this._state.closePageFinish(pageHandle(page), confirm);
     }
 
     /** `adw_tab_view_close_other_pages`. */
-    close_other_pages(page: AdwTabPage | string): void {
+    close_other_pages(page: NsTabPage | string): void {
         this._state.closeOtherPages(pageHandle(page));
     }
 
     /** `adw_tab_view_close_pages_before`. */
-    close_pages_before(page: AdwTabPage | string): void {
+    close_pages_before(page: NsTabPage | string): void {
         this._state.closePagesBefore(pageHandle(page));
     }
 
     /** `adw_tab_view_close_pages_after`. */
-    close_pages_after(page: AdwTabPage | string): void {
+    close_pages_after(page: NsTabPage | string): void {
         this._state.closePagesAfter(pageHandle(page));
     }
 
     /** Remove a page unconditionally, running the successor rule first. */
-    detachPage(id: string): AdwTabPage | null {
+    detachPage(id: string): NsTabPage | null {
         return this._state.detachPage(id);
     }
 
     /** `adw_tab_view_reorder_page`. */
-    reorder_page(page: AdwTabPage | string, position: number): boolean {
+    reorder_page(page: NsTabPage | string, position: number): boolean {
         return this._state.reorderPage(pageHandle(page), position);
     }
 
     /** `adw_tab_view_reorder_backward`. */
-    reorder_backward(page: AdwTabPage | string): boolean {
+    reorder_backward(page: NsTabPage | string): boolean {
         return this._state.reorderBackward(pageHandle(page));
     }
 
     /** `adw_tab_view_reorder_forward`. */
-    reorder_forward(page: AdwTabPage | string): boolean {
+    reorder_forward(page: NsTabPage | string): boolean {
         return this._state.reorderForward(pageHandle(page));
     }
 
     /** `adw_tab_view_reorder_first`. */
-    reorder_first(page: AdwTabPage | string): boolean {
+    reorder_first(page: NsTabPage | string): boolean {
         return this._state.reorderFirst(pageHandle(page));
     }
 
     /** `adw_tab_view_reorder_last`. */
-    reorder_last(page: AdwTabPage | string): boolean {
+    reorder_last(page: NsTabPage | string): boolean {
         return this._state.reorderLast(pageHandle(page));
     }
 
@@ -398,6 +399,20 @@ export class AdwTabView extends withSignals(GridLayout) {
     set defaultIcon(value: string | null) {
         this._defaultIcon = value;
         for (const page of this._state.pages) this._refreshChip(page.id);
+    }
+
+    /**
+     * XML inflation: an `Adw.TabPage` becomes an appended page carrying its title, and a
+     * bare widget becomes an untitled page around itself — the two branches of the C's
+     * `add_child` (adw-tab-view.c:2884). Both take a generated id, as `setViews` does.
+     */
+    _addChildFromBuilder(_name: string, child: object): void {
+        if (child instanceof AdwTabPage) {
+            if (child.child === null) throw new Error('Adw.TabPage has no child: a tab page is a page around one.');
+            this._state.appendPage({ id: this._nextId(), title: child.title, content: child.child });
+            return;
+        }
+        this._state.appendPage({ id: this._nextId(), content: child as View });
     }
 
     // --- Compatibility with the old view-page list --------------------------
@@ -483,7 +498,7 @@ export class AdwTabView extends withSignals(GridLayout) {
         this.notify(data);
     }
 
-    private _insertChip(page: AdwTabPage, position: number): void {
+    private _insertChip(page: NsTabPage, position: number): void {
         const button = new StackLayout();
         button.orientation = 'horizontal';
         button.className = 'adw-tab-view-tab';
@@ -562,7 +577,7 @@ export class AdwTabView extends withSignals(GridLayout) {
         this._bar.visibility = tabBarVisibility(this._state, this._autohide);
     }
 
-    private _requestClose(page: AdwTabPage): boolean | 'defer' {
+    private _requestClose(page: NsTabPage): boolean | 'defer' {
         const data: ClosePageEventData = {
             eventName: CLOSE_PAGE,
             object: this,

@@ -33,16 +33,19 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { parseBlueprint, projectToSharedNode } from '@gjsify/blueprint';
 import {
+    ADJUSTMENT_AUTHORED_VECTORS,
     authoredTags,
     sharedTreeExpectations,
     sharedTreePlacements,
     subjectIndexOf,
+    TOGGLE_ACTIVE_NAME_VECTORS,
     withoutPlacements,
     type SharedTreeExpectation,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
-import { hostTagOf } from '@gjsify/adwaita-core/tags';
+import { attributeOf, hostTagOf } from '@gjsify/adwaita-core/tags';
 
 // The corpus data itself, not the transforms: `scripts/` still owns the ONE gallery corpus
 // (ADR 0051), and this driver reads it here rather than transcribing it, the same as the
@@ -103,6 +106,26 @@ function realised(root: Element, wanted: readonly string[]): Element[] {
     return [root, ...root.querySelectorAll('*')].filter((el) => set.has(el.tagName.toLowerCase()));
 }
 
+/**
+ * A Blueprint source as the `?shared-tree` door hands it over: projected by the one
+ * projection `@gjsify/vite-plugin-blueprint` serves, and refused when it dropped anything,
+ * as that door refuses it. Projected here rather than imported as a `.blp` file so these
+ * fixtures stay out of ADR 0053's census of shipped `.blp` files. The NativeScript driver
+ * (`packages/nativescript-bridge/adwaita/src/shared-trees.spec.ts`) builds the same sources.
+ */
+function blueprintTree(body: string): SharedTreeNode {
+    const { node, lost } = projectToSharedNode(
+        parseBlueprint(`using Gtk 4.0;\nusing Adw 1;\n\n${body}\n`, 'shared-trees.spec.blp'),
+    );
+    if (lost.length > 0) {
+        throw new Error(`the projection dropped ${lost.map((loss) => `${loss.kind} at line ${loss.line}`).join(', ')}`);
+    }
+    return node as SharedTreeNode;
+}
+
+/** The ids of an element's children, in DOM order. */
+const childIds = (el: Element | null): string[] => Array.from(el?.children ?? [], (child) => child.id);
+
 export const AdwSharedTreesTest = async () => {
     await describe('the shared corpus builds through adwaita-web', async () => {
         for (const block of ADWAITA_GALLERY_SHARED_TREES) {
@@ -115,6 +138,168 @@ export const AdwSharedTreesTest = async () => {
                 });
             });
         }
+    });
+
+    // THE TAGS A REAL `.blp` WRITES, through the real projection — the same sources the
+    // NativeScript driver builds, so the two renderers answer the same trees.
+    await describe('a .blp tree with the tags the builders learned', async () => {
+        await it('Gtk.Adjustment at `adjustment:` becomes the spin row range, and the value the row shows', () => {
+            const tree = blueprintTree(
+                'Adw.SpinRow { title: "Size"; adjustment: Adjustment { lower: 2; upper: 10; value: 4; step-increment: 2; }; }',
+            );
+            mounted(tree, (root) => {
+                expect((root as unknown as { adjustment: unknown }).adjustment).toStrictEqual({
+                    value: 4,
+                    lower: 2,
+                    upper: 10,
+                    stepIncrement: 2,
+                    pageIncrement: 2,
+                    pageSize: 0,
+                });
+                expect(root.querySelector('input')?.value).toBe('4');
+                // Consumed as data, as GtkBuilder leaves no adjustment in the widget tree.
+                expect(root.querySelector('gtk-adjustment')).toBe(null);
+            });
+        });
+
+        for (const vector of ADJUSTMENT_AUTHORED_VECTORS) {
+            await it(`ADJUSTMENT_AUTHORED_VECTORS through a .blp — ${vector.rule}`, () => {
+                const fields = Object.entries(vector.input)
+                    .map(([field, value]) => `${attributeOf(field)}: ${String(value)};`)
+                    .join(' ');
+                mounted(blueprintTree(`Adw.SpinRow { adjustment: Adjustment { ${fields} }; }`), (root) => {
+                    expect((root as unknown as { adjustment: unknown }).adjustment).toStrictEqual(vector.adjustment);
+                });
+            });
+        }
+
+        for (const vector of TOGGLE_ACTIVE_NAME_VECTORS) {
+            await it(`TOGGLE_ACTIVE_NAME_VECTORS — ${vector.rule}`, () => {
+                const toggles = vector.names
+                    .map(
+                        (name, index) =>
+                            `Adw.Toggle { ${name === null ? '' : `name: "${name}"; `}label: "T${index}"; }`,
+                    )
+                    .join(' ');
+                const tree = blueprintTree(`Adw.ToggleGroup { active-name: "${vector.activeName}"; ${toggles} }`);
+                mounted(tree, (root) => {
+                    // The ACTIVE BUTTON, read off the DOM — not the element's index.
+                    const buttons = Array.from(root.querySelectorAll('button.adw-toggle'));
+                    expect(buttons.length).toBe(vector.kept);
+                    expect(buttons.findIndex((button) => button.classList.contains('active'))).toBe(vector.active);
+                });
+            });
+        }
+
+        await it('Adw.Toggle carries its label into the button it becomes', () => {
+            const tree = blueprintTree(
+                'Adw.ToggleGroup { active: 1; Adw.Toggle { label: "List"; icon-name: "view-list-symbolic"; } Adw.Toggle { label: "Grid"; } }',
+            );
+            mounted(tree, (root) => {
+                const buttons = Array.from(root.querySelectorAll('button.adw-toggle'));
+                expect(buttons.map((button) => button.textContent)).toStrictEqual(['List', 'Grid']);
+                expect(buttons[1]?.classList.contains('active')).toBe(true);
+                expect(root.querySelector('gtk-image') !== null).toBe(true);
+            });
+        });
+
+        await it('Adw.NavigationPage brings its tag, title, can-pop and child into the navigation view', () => {
+            const tree = blueprintTree(`Adw.NavigationView {
+                Adw.NavigationPage { tag: "home"; title: "Home"; child: Gtk.Label { label: "Welcome"; }; }
+                Adw.NavigationPage { tag: "details"; title: "Details"; can-pop: false; child: Gtk.Label { label: "More"; }; }
+            }`);
+            mounted(tree, (root) => {
+                const view = root as unknown as {
+                    pages: readonly Element[];
+                    visiblePageTag: string | null;
+                    pushByTag(tag: string): boolean;
+                    canGoBack: boolean;
+                };
+                expect(view.pages.length).toBe(2);
+                expect(view.visiblePageTag).toBe('home');
+                expect(view.pages[0]?.querySelector('gtk-label')?.getAttribute('label')).toBe('Welcome');
+                expect(view.pushByTag('details')).toBe(true);
+                expect(view.visiblePageTag).toBe('details');
+                // `can-pop: false` is a GTK default of TRUE authored false — the case
+                // absence cannot spell, so the builder writes it through `canPop`.
+                expect(view.canGoBack).toBe(false);
+            });
+        });
+
+        await it('Adw.SidebarSection and Adw.SidebarItem become the sidebar model and its rows', () => {
+            const tree = blueprintTree(`Adw.Sidebar {
+                Adw.SidebarSection { title: "Places"; Adw.SidebarItem { title: "Home"; icon-name: "go-home-symbolic"; } Adw.SidebarItem { title: "Trash"; enabled: false; } }
+                Adw.SidebarSection { Adw.SidebarItem { title: "Hidden"; visible: false; } Adw.SidebarItem { title: "Music"; subtitle: "Library"; } }
+            }`);
+            mounted(tree, (root) => {
+                const sections = (
+                    root as unknown as {
+                        sections: readonly {
+                            title?: string;
+                            items: readonly { title: string; enabled?: boolean; visible?: boolean }[];
+                        }[];
+                    }
+                ).sections;
+                expect(sections.map((section) => section.title)).toStrictEqual(['Places', '']);
+                expect(sections.flatMap((section) => section.items.map((item) => item.title))).toStrictEqual([
+                    'Home',
+                    'Trash',
+                    'Hidden',
+                    'Music',
+                ]);
+                expect(sections[0]?.items[1]?.enabled).toBe(false);
+                expect(sections[1]?.items[0]?.visible).toBe(false);
+                // The ROWS: the hidden item's row is hidden, the disabled one insensitive.
+                const rows = Array.from(root.querySelectorAll<HTMLButtonElement>('button.adw-sidebar-item'));
+                expect(rows.map((row) => row.querySelector('.adw-sidebar-item-title')?.textContent)).toStrictEqual([
+                    'Home',
+                    'Trash',
+                    'Hidden',
+                    'Music',
+                ]);
+                expect(rows.map((row) => row.hidden)).toStrictEqual([false, false, true, false]);
+                expect(rows.map((row) => row.disabled)).toStrictEqual([false, true, false, false]);
+            });
+        });
+
+        await it('Adw.TabPage becomes a titled page around its child; a bare widget an untitled one', () => {
+            const tree = blueprintTree(`Adw.TabView {
+                Adw.TabPage { title: "Inbox"; child: Gtk.Label inbox { label: "3 new"; }; }
+                Adw.TabPage { title: "Drafts"; child: Gtk.Label drafts { label: "None"; }; }
+                Gtk.Label bare { label: "Loose"; }
+            }`);
+            mounted(tree, (root) => {
+                const pages = (root as unknown as { pages: readonly { title: string; content?: Element }[] }).pages;
+                expect(pages.map((page) => page.title)).toStrictEqual(['Inbox', 'Drafts', '']);
+                expect(
+                    pages.map((page) => page.content?.querySelector('gtk-label')?.id ?? page.content?.id),
+                ).toStrictEqual(['inbox', 'drafts', 'bare']);
+            });
+        });
+
+        await it('Gtk.ActionBar packs [start], [end], [center] and an untyped child as GtkBuildable does', () => {
+            const tree = blueprintTree(`Gtk.ActionBar {
+                revealed: false;
+                [start] Gtk.Button a {}
+                [end] Gtk.Button c {}
+                [start] Gtk.Button b {}
+                [end] Gtk.Button d {}
+                Gtk.Button e {}
+                [center] Gtk.Label centre { label: "Centre"; }
+            }`);
+            mounted(tree, (root) => {
+                expect(childIds(root.querySelector('.adw-action-bar-start'))).toStrictEqual(['a', 'b', 'e']);
+                expect(childIds(root.querySelector('.adw-action-bar-end'))).toStrictEqual(['d', 'c']);
+                expect(childIds(root.querySelector('.adw-action-bar-center'))).toStrictEqual(['centre']);
+                expect((root as HTMLElement).hidden).toBe(true);
+            });
+        });
+
+        await it('`center-widget:` is refused — GTK has no such property, so Gtk.Builder refuses it too', () => {
+            expect(() => mountSharedTree(blueprintTree('Gtk.ActionBar { center-widget: Gtk.Label {}; }'))).toThrow(
+                'has no slot "center-widget"',
+            );
+        });
     });
 
     await describe('the shared corpus is placed where it says', async () => {

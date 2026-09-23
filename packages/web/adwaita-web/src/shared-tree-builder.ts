@@ -35,7 +35,7 @@
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
-import { attributeOf, hostTagOf } from '@gjsify/adwaita-core/tags';
+import { attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
 import { slottedChildrenOf } from './slotted-children.js';
 
@@ -54,6 +54,14 @@ interface PlacedChild {
  * (`hasAttribute('revealed')`, `hasAttribute('expanded')`); spelling `"true"` would set a
  * present attribute for `false` as well.
  *
+ * EXCEPT AN AUTHORED `false` ON A PROPERTY THE ELEMENT DECLARES. Absence cannot say `false`
+ * where the GTK default is TRUE — `AdwNavigationPage:can-pop`, `GtkActionBar:revealed` —
+ * because those elements read an absent attribute as that default, so `can-pop: false`
+ * reached the page as `can-pop` unset and the page stayed poppable. The element's own
+ * property setter knows its attribute convention, so an authored `false` is written
+ * through it when the element (already upgraded: `createElement` of a defined tag
+ * constructs it) declares one; everything else keeps the presence rule.
+ *
  * THE SLOT IS WRITTEN AS THE ATTRIBUTE THIS RENDERER ALREADY ROUTES ON, not translated:
  * `src/slotted-children.ts` reads `slot=` off every light-DOM child and keeps the routing
  * live. This builder read `tag`, `props` and `children` and dropped `slot` silently until a
@@ -71,7 +79,9 @@ export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
     if (node.id !== undefined) el.id = node.id;
     for (const [prop, value] of Object.entries(node.props ?? {})) {
-        if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
+        const member = propertyOf(prop);
+        if (value === false && member in el) (el as unknown as Record<string, unknown>)[member] = false;
+        else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));
     }
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the

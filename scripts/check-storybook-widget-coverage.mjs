@@ -100,6 +100,11 @@ const NO_STORY_OF_ITS_OWN = {
     image: 'There is no Adwaita or GTK icon WIDGET to demonstrate: GTK draws a `Gtk.Image` inline, as the navigation stories do, and the browser element exists because CSS needs a box to hang a symbolic on — so a story would show a GTK primitive rather than an Adwaita widget. This is the exemption the two retired one-renderer rows said the pair would inherit on the day it converged (2026-09-05), which is what it did: `AdwIcon` became `GtkImage`, both renderers now spell it `image`, and one row replaces the pair plus its `sameWidgetAs` bridge.',
     box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive, the verdict `image` gets above.",
     label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    'action-bar':
+        "GTK's bottom-bar primitive, not an Adwaita widget — libadwaita only styles it (`actionbar > revealer > box`, _toolbars.scss) — and like `box` and `label` both ports exist as TARGETS of an authored tree: a `.blp` built through `mountSharedTree` or the NativeScript builder names `Gtk.ActionBar`, and without the element or class that tag had nothing to realise. A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    'navigation-page':
+        'Navigation/Navigation View renders pages — a page is the bin the view pushes and pops, and alone it is a blank preview with no stack to navigate. Both ports now build one from an authored tree (`Adw.NavigationPage` carrying tag/title/can-pop), which is why it left the one-renderer ledger.',
+    toggle: 'Buttons/Toggle Group renders toggles — an `Adw.Toggle` is a GObject the group turns into a button, so it has no look of its own to show. Both ports now build one from an authored tree, which is why it left the one-renderer ledger.',
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -203,11 +208,6 @@ const ONE_RENDERER_ONLY = {
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
-    'navigation-page': {
-        only: 'web',
-        decision:
-            'The only widget here whose upstream type IS a widget and whose properties are already shared: tag/title/can-pop are `AdwNavigationPageProps` in adwaita-core, and NativeScript pushes any `View` with that object (`NsNavigationStack.push(viewOrTag, options)`). The page exists there as data plus a plain view; only the browser needs an element to carry the attributes.',
-    },
     popover: {
         only: 'web',
         decision:
@@ -252,11 +252,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             '`AdwTabPage` is declared against GObject, not GtkWidget (adw-tab-view.h) — it is DATA, held on NativeScript by `TabViewState` and projected through tab-view-state.ts. The browser element is that descriptor in markup, and doubles as the page panel the tab reveals.',
-    },
-    toggle: {
-        only: 'web',
-        decision:
-            '`AdwToggle` is declared against GObject, not GtkWidget (adw-toggle-group.h) — it is DATA. NativeScript passes the same labels and icons through `options` / `setToggles` into the shared `ToggleGroupState`, so only the browser needs a tag to declare one in.',
     },
     'view-stack-page': {
         only: 'web',

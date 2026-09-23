@@ -17,14 +17,12 @@
 // would drag `@nativescript/core` under specs that build without it today, silently, the same
 // class of defect the package's own AGENTS.md names for the ONE existing exception).
 //
-// THE ONLY THING THIS FILE NEEDS FROM `@nativescript/core` ITSELF IS THE `View` TYPE, and it
-// is imported `type`-only below — erased at build, so it carries no runtime specifier for an
-// alias (or its absence) to resolve. The same choice `bottom-sheet.spec.ts` and
-// `signals.spec.ts` already make for the same package. Consequently this module has no
-// dependency on the testing double's OWN directory depth (`src/testing/ns-core.mjs`, one level
-// under `src/`, per the alias's own relative target) — but it still lives one level under
-// `src/` itself, at parity with `../namespace/` and `../widgets/`, rather than risk a reader
-// assuming the depth-sensitive alias applies here too.
+// THE ONLY THING THIS FILE NEEDS FROM `@nativescript/core` ITSELF IS THE `View` CLASS, as the
+// one test that tells a widget from a VALUE object (below). It adds no specifier the barrels
+// do not already carry — every widget module opens with a value import of the same package —
+// so it changes nothing about which alias a build needs. This module still does not depend on
+// the testing double's OWN directory depth (`src/testing/ns-core.mjs`, one level under `src/`,
+// per the alias's own relative target): it names the package, never the double's path.
 //
 // The three `throw`s in {@link build} are door refusals, not test assertions — ADR 0051
 // Amendment 3 broke each one on purpose to prove it fires — and they moved here with the
@@ -32,7 +30,7 @@
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
-import type { View } from '@nativescript/core';
+import { View } from '@nativescript/core';
 
 import { declaredBuilderSlots } from '../widgets/builder-slots.js';
 
@@ -44,8 +42,11 @@ import { declaredBuilderSlots } from '../widgets/builder-slots.js';
 import * as Adw from '../namespace/adw.js';
 import * as Gtk from '../namespace/gtk.js';
 
-/** A class the barrel offers as an element — NativeScript builds one with NO arguments. */
-export type ElementClass = new () => View;
+/**
+ * A class the barrel offers as an element. A widget is built with NO arguments, as
+ * NativeScript builds one; a value object ({@link build}) takes its construct bag.
+ */
+export type ElementClass = new (props?: Record<string, unknown>) => object;
 
 /** `AdwSwitchRow` -> `<adw:SwitchRow>`: the element name, and the class behind it. */
 export interface Element {
@@ -101,7 +102,7 @@ export function elementFor(tag: string): Element {
 
 /** What a parent must be for an XML child to reach a slot rather than the first cell. */
 interface BuilderParent {
-    _addChildFromBuilder(name: string, view: View): void;
+    _addChildFromBuilder(name: string, child: object): void;
 }
 
 /**
@@ -119,10 +120,62 @@ interface BuilderParent {
  * nothing declares adds a dead own-property and returns, at exit 0 — this surface's own
  * silent drop. The membership test runs BEFORE the write, because afterwards the dead
  * property answers it.
+ *
+ * The root is always a widget: a tree whose root is a value object has nothing to show.
  */
 export function build(node: SharedTreeNode): View {
+    const built = buildNode(node);
+    if (!(built instanceof View)) {
+        throw new Error(`\`${node.tag}\` is not a widget, so a tree cannot root at it: there is nothing to show.`);
+    }
+    return built;
+}
+
+/**
+ * One node, widget or VALUE OBJECT.
+ *
+ * A VALUE OBJECT is what the barrel offers that is not a `View`: `Gtk.Adjustment`,
+ * `Gtk.StringList`, `Adw.Toggle`, `Adw.SidebarSection`, `Adw.SidebarItem`. In GTK they are
+ * GObjects that are not widgets, and a `.blp` writes them where a widget would go —
+ * `adjustment: Adjustment { … }`, `Adw.Toggle { … }` inside a toggle group. They have no
+ * place in the view tree, so they cannot be written the way a widget is: their fields are
+ * plain data with no XML coercion behind them, and `lower = '0'` would reach
+ * `normalizeAdjustment`'s arithmetic as a string. So a value object is built the way GJS
+ * builds one, from ONE construct bag carrying the authored values as authored (a number
+ * stays a number), and it is handed to its parent's child door like any other child — the
+ * parent decides what it means, as `GtkBuildable.add_child` does.
+ *
+ * The same refusals hold: a property the object does not declare is refused by name before
+ * construction. An id and style classes are refused too — `getViewById` walks views and a
+ * value object has no class list — rather than dropped.
+ */
+function buildNode(node: SharedTreeNode): View | object {
     const element = elementFor(node.tag);
-    const view = new element.ctor();
+    const probe = new element.ctor();
+    const built = probe instanceof View ? buildView(node, element, probe) : buildValue(node, element, probe);
+    for (const child of node.children ?? []) {
+        const parent = built as Partial<BuilderParent>;
+        if (typeof parent._addChildFromBuilder !== 'function') {
+            throw new Error(
+                `<${element.xmlName}> takes no XML child: \`${node.tag}\` has no \`_addChildFromBuilder\`, so ` +
+                    'the corpus nests a node this element cannot hold.',
+            );
+        }
+        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), buildNode(child));
+    }
+    return built;
+}
+
+/** The refusal for an authored property the class does not declare. */
+function unknownProperty(element: Element, tag: string, authored: string, prop: string, value: unknown): Error {
+    return new Error(
+        `<${element.xmlName} ${authored}="${String(value)}"> reaches nothing: \`${tag}\` declares no ` +
+            `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
+            'so the attribute door cannot report this and the tree would render without it.',
+    );
+}
+
+function buildView(node: SharedTreeNode, element: Element, view: View): View {
     // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
     // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
     if (node.id !== undefined) view.id = node.id;
@@ -131,13 +184,7 @@ export function build(node: SharedTreeNode): View {
         // declares it in camel case (`maximumSize`). Without the case rule every hyphenated
         // property of a real `.blp` was refused below, so only hand-authored trees built.
         const prop = propertyOf(authored);
-        if (!(prop in view)) {
-            throw new Error(
-                `<${element.xmlName} ${authored}="${value}"> reaches nothing: \`${node.tag}\` declares no ` +
-                    `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
-                    'so the attribute door cannot report this and the tree would render without it.',
-            );
-        }
+        if (!(prop in view)) throw unknownProperty(element, node.tag, authored, prop, value);
         (view as unknown as Record<string, unknown>)[prop] = String(value);
     }
     // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
@@ -152,17 +199,29 @@ export function build(node: SharedTreeNode): View {
         }
         (view as unknown as Record<string, unknown>).styleClasses = node.styleClasses.join(' ');
     }
-    for (const child of node.children ?? []) {
-        const parent = view as unknown as Partial<BuilderParent>;
-        if (typeof parent._addChildFromBuilder !== 'function') {
-            throw new Error(
-                `<${element.xmlName}> takes no XML child: \`${node.tag}\` has no \`_addChildFromBuilder\`, so ` +
-                    'the corpus nests a node this element cannot hold.',
-            );
-        }
-        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), build(child));
-    }
     return view;
+}
+
+function buildValue(node: SharedTreeNode, element: Element, probe: object): object {
+    if (node.id !== undefined) {
+        throw new Error(
+            `<${element.xmlName} id="${node.id}"> reaches nothing: \`${node.tag}\` is not a view, and ` +
+                '`getViewById` walks views, so code beside the `.blp` could never look it up.',
+        );
+    }
+    if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
+        throw new Error(
+            `<${element.xmlName}> takes no style classes: \`${node.tag}\` is not a widget, so ` +
+                `[${node.styleClasses.join(', ')}] would be dropped.`,
+        );
+    }
+    const bag: Record<string, unknown> = {};
+    for (const [authored, value] of Object.entries(node.props ?? {})) {
+        const prop = propertyOf(authored);
+        if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
+        bag[prop] = value;
+    }
+    return new element.ctor(bag);
 }
 
 /**
@@ -189,15 +248,16 @@ export function build(node: SharedTreeNode): View {
 function builderNameFor(element: Element, tag: string, child: SharedTreeNode): string {
     const childElement = elementFor(child.tag);
     if (child.slot === undefined) return childElement.xmlName;
+    const slot = child.slot;
     const known = declaredBuilderSlots(element.ctor);
-    if (known === null || !known.includes(child.slot)) {
+    if (known === null || !known.includes(slot)) {
         throw new Error(
-            `<${element.xmlName}.${child.slot}> reaches nothing: \`${tag}\` declares no such builder slot, so ` +
+            `<${element.xmlName}.${slot}> reaches nothing: \`${tag}\` declares no such builder slot, so ` +
                 `NativeScript would hand <${childElement.xmlName}> to its fallback placement instead — at exit 0, ` +
                 `in a cell the tree never asked for. Known slots: ${
                     known === null || known.length === 0 ? 'none' : known.join(', ')
                 }.`,
         );
     }
-    return child.slot;
+    return slot;
 }

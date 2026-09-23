@@ -73,6 +73,7 @@
         }
     },
     "devDependencies": {
+        "@gjsify/blueprint": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

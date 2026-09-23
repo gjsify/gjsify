@@ -64,15 +64,20 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { parseBlueprint, projectToSharedNode } from '@gjsify/blueprint';
 import {
+    ADJUSTMENT_AUTHORED_VECTORS,
     authoredTags,
     PROPERTY_OF_VECTORS,
     sharedTreeExpectations,
     sharedTreePlacements,
     subjectIndexOf,
+    TOGGLE_ACTIVE_NAME_VECTORS,
     withoutPlacements,
     type SharedTreeExpectation,
+    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+import { attributeOf } from '@gjsify/adwaita-core/tags';
 // The core's OWN character count, applied to text taken off the tree. Counting here
 // instead would be a second `g_utf8_strlen` for the driver to agree with itself about.
 import { entryTextLength } from '@gjsify/adwaita-core';
@@ -86,7 +91,7 @@ import { ADWAITA_GALLERY_SHARED_TREES, nativeScriptTree } from '../../../../scri
 // import in the build graph, and that module's own header carries the reachability rule.
 import { build, elementFor } from './builder/index.js';
 
-import { Button, LayoutBase, Switch, TextField } from './testing/ns-core.mjs';
+import { Button, Label, LayoutBase, ScrollView, Switch, TextField } from './testing/ns-core.mjs';
 
 /**
  * THE ONE SEAM WHERE SHIPPED CODE MEETS THIS DOUBLE — deliberately typed as neither `View`.
@@ -117,11 +122,17 @@ import { Button, LayoutBase, Switch, TextField } from './testing/ns-core.mjs';
  */
 type TreeNode = object;
 
-/** Depth-first over the REAL child lists the port filled, in the order it filled them. */
+/**
+ * Depth-first over the REAL child lists the port filled, in the order it filled them. A
+ * `ScrollView` holds its one child as `content` rather than in a child list, and
+ * `Adw.Sidebar` is one, so its rows are reached through that.
+ */
 function descendants(root: TreeNode, into: TreeNode[] = []): TreeNode[] {
     into.push(root);
     if (root instanceof LayoutBase) {
         for (let index = 0; index < root.getChildrenCount(); index++) descendants(root.getChildAt(index), into);
+    } else if (root instanceof ScrollView && root.content !== null) {
+        descendants(root.content, into);
     }
     return into;
 }
@@ -213,6 +224,38 @@ function read(expectation: SharedTreeExpectation, view: TreeNode): string | numb
     }
 }
 
+/**
+ * A Blueprint source as the `?shared-tree` door hands it to an app: projected by the one
+ * projection `@gjsify/vite-plugin-blueprint` serves, and refused when it dropped anything,
+ * as that door refuses it. Projected here rather than imported as a `.blp` file so the
+ * trees below stay out of ADR 0053's census of shipped `.blp` files — they are fixtures of
+ * this driver, not interfaces anything ships.
+ */
+function blueprintTree(body: string): SharedTreeNode {
+    const { node, lost } = projectToSharedNode(
+        parseBlueprint(`using Gtk 4.0;\nusing Adw 1;\n\n${body}\n`, 'shared-trees.spec.blp'),
+    );
+    if (lost.length > 0) {
+        throw new Error(`the projection dropped ${lost.map((loss) => `${loss.kind} at line ${loss.line}`).join(', ')}`);
+    }
+    return node as SharedTreeNode;
+}
+
+/** The ids of a box's children, in the order the port put them there. */
+function childIds(box: TreeNode): (string | undefined)[] {
+    const ids: (string | undefined)[] = [];
+    if (box instanceof LayoutBase) {
+        for (let index = 0; index < box.getChildrenCount(); index++) ids.push(box.getChildAt(index).id);
+    }
+    return ids;
+}
+
+/** Every `Label` text under `root`, in tree order — what a user reads off a built row. */
+const labelTexts = (root: TreeNode): string[] =>
+    descendants(root)
+        .filter((view): view is Label => view instanceof Label)
+        .map((label) => label.text);
+
 export const AdwSharedTreesNsTest = async () => {
     const blocks = ADWAITA_GALLERY_SHARED_TREES.map((tree) => ({
         widget: tree.widget,
@@ -295,6 +338,210 @@ export const AdwSharedTreesNsTest = async () => {
                 expect(String(view[vector.expected])).toBe(value);
             });
         }
+    });
+
+    // THE TAGS A REAL `.blp` WRITES AND THIS BUILDER COULD NOT BUILD. Each tree below is
+    // Blueprint source through the real projection, so what is under test is the join a
+    // shipped `.blp` goes through, not a hand-written node. Two of the five are VALUE
+    // objects in GTK — `Gtk.Adjustment`, and `Adw.Toggle` / `Adw.SidebarSection` /
+    // `Adw.SidebarItem` — which `build()` constructs from their construct bag and hands to
+    // the parent's child door (`builder/index.ts`).
+    await describe('a .blp tree with the tags the builder learned', async () => {
+        await it('Gtk.Adjustment at `adjustment:` becomes the spin row range, and the value the row shows', () => {
+            const row = build(
+                blueprintTree(
+                    'Adw.SpinRow { title: "Size"; adjustment: Adjustment { lower: 2; upper: 10; value: 4; step-increment: 2; }; }',
+                ),
+            );
+
+            expect((row as unknown as { adjustment: unknown }).adjustment).toStrictEqual({
+                value: 4,
+                lower: 2,
+                upper: 10,
+                stepIncrement: 2,
+                pageIncrement: 2,
+                pageSize: 0,
+            });
+            expect(labelTexts(row).includes('4')).toBe(true);
+        });
+
+        // `ADJUSTMENT_AUTHORED_VECTORS` through the tree door: the input spelled as a `.blp`
+        // spells it, so the case rule and the value-object bag are on the path too.
+        for (const vector of ADJUSTMENT_AUTHORED_VECTORS) {
+            await it(`ADJUSTMENT_AUTHORED_VECTORS through a .blp — ${vector.rule}`, () => {
+                const fields = Object.entries(vector.input)
+                    .map(([field, value]) => `${attributeOf(field)}: ${String(value)};`)
+                    .join(' ');
+                const row = build(blueprintTree(`Adw.SpinRow { adjustment: Adjustment { ${fields} }; }`));
+
+                expect((row as unknown as { adjustment: unknown }).adjustment).toStrictEqual(vector.adjustment);
+            });
+        }
+
+        for (const vector of TOGGLE_ACTIVE_NAME_VECTORS) {
+            await it(`TOGGLE_ACTIVE_NAME_VECTORS — ${vector.rule}`, () => {
+                const toggles = vector.names
+                    .map(
+                        (name, index) =>
+                            `Adw.Toggle { ${name === null ? '' : `name: "${name}"; `}label: "T${index}"; }`,
+                    )
+                    .join(' ');
+                const group = build(
+                    blueprintTree(`Adw.ToggleGroup { active-name: "${vector.activeName}"; ${toggles} }`),
+                );
+
+                // The ACTIVE PILL, read off the segments the port built — not the group's index.
+                const segments: TreeNode[] = [];
+                if (group instanceof LayoutBase) {
+                    for (let index = 0; index < group.getChildrenCount(); index++)
+                        segments.push(group.getChildAt(index));
+                }
+                const active = segments.findIndex((segment) =>
+                    ((segment as { className?: string }).className ?? '').split(' ').includes('active'),
+                );
+                expect(segments.length).toBe(vector.kept);
+                expect(active).toBe(vector.active);
+            });
+        }
+
+        await it('Adw.Toggle carries its label and icon into the segment it becomes', () => {
+            const group = build(
+                blueprintTree(
+                    'Adw.ToggleGroup { active: 1; Adw.Toggle { label: "List"; icon-name: "view-list-symbolic"; } Adw.Toggle { label: "Grid"; } }',
+                ),
+            );
+
+            expect(labelTexts(group)).toStrictEqual(['List', 'Grid']);
+            // `active: 1` is written before the toggles exist, as GtkBuilder writes it; the
+            // C holds it back until `parser_finished`, and so must the port.
+            expect((group as unknown as { active: number }).active).toBe(1);
+            expect(
+                descendants(group).some((view) => (view as { iconName?: unknown }).iconName === 'view-list-symbolic'),
+            ).toBe(true);
+        });
+
+        await it('Adw.NavigationPage brings its tag, title, can-pop and child into the navigation view', () => {
+            const view = build(
+                blueprintTree(`Adw.NavigationView {
+                    Adw.NavigationPage { tag: "home"; title: "Home"; child: Gtk.Label { label: "Welcome"; }; }
+                    Adw.NavigationPage details { tag: "details"; title: "Details"; can-pop: false; child: Gtk.Label { label: "More"; }; }
+                }`),
+            ) as unknown as {
+                pages: readonly TreeNode[];
+                visiblePageTag: string | null;
+                push_by_tag(tag: string): boolean;
+                canGoBack(): boolean;
+                find_page(tag: string): TreeNode | null;
+            };
+
+            expect(view.pages.length).toBe(2);
+            expect(view.visiblePageTag).toBe('home');
+            expect(labelTexts(view.pages[0]!)).toStrictEqual(['Welcome']);
+            // A template-built page is reachable by its tag — it could carry none before.
+            expect(view.push_by_tag('details')).toBe(true);
+            expect(view.visiblePageTag).toBe('details');
+            // `can-pop: false` on the visible page takes the back button away.
+            expect(view.canGoBack()).toBe(false);
+            // A later write reaches the stack the page is registered in.
+            (view.pages[1] as unknown as { tag: string }).tag = 'renamed';
+            expect(view.find_page('renamed')).toBe(view.pages[1]!);
+        });
+
+        await it('Adw.SidebarSection and Adw.SidebarItem become the sidebar model and its rows', () => {
+            const sidebar = build(
+                blueprintTree(`Adw.Sidebar {
+                    Adw.SidebarSection { title: "Places"; Adw.SidebarItem { title: "Home"; icon-name: "go-home-symbolic"; } Adw.SidebarItem { title: "Trash"; enabled: false; } }
+                    Adw.SidebarSection { Adw.SidebarItem { title: "Hidden"; visible: false; } Adw.SidebarItem { title: "Music"; subtitle: "Library"; } }
+                }`),
+            );
+            const sections = (
+                sidebar as unknown as { sections: readonly { title?: string; items: readonly object[] }[] }
+            ).sections;
+
+            expect(sections.map((section) => section.title)).toStrictEqual(['Places', '']);
+            expect(sections.map((section) => section.items.length)).toStrictEqual([2, 2]);
+            expect((sections[0]!.items[0] as { iconName: string }).iconName).toBe('go-home-symbolic');
+            expect((sections[1]!.items[1] as { subtitle: string }).subtitle).toBe('Library');
+            // The ROWS: every item is a row, the hidden one collapsed and the disabled one
+            // at the insensitive opacity — read off the views, not the model.
+            const rows = descendants(sidebar).filter((view) =>
+                ((view as { className?: string }).className ?? '').split(' ').includes('adw-sidebar-row'),
+            ) as { visibility: string; opacity: number }[];
+            expect(labelTexts(sidebar)).toStrictEqual(['Home', 'Trash', 'Hidden', 'Music']);
+            expect(rows.map((row) => row.visibility)).toStrictEqual(['visible', 'visible', 'collapse', 'visible']);
+            expect(rows.map((row) => row.opacity)).toStrictEqual([1, 0.5, 1, 1]);
+        });
+
+        await it('Gtk.ActionBar packs [start], [end], [center] and an untyped child as GtkBuildable does', () => {
+            const bar = build(
+                blueprintTree(`Gtk.ActionBar {
+                    revealed: false;
+                    [start] Gtk.Button a {}
+                    [end] Gtk.Button c {}
+                    [start] Gtk.Button b {}
+                    [end] Gtk.Button d {}
+                    Gtk.Button e {}
+                    [center] Gtk.Label centre { label: "Centre"; }
+                }`),
+            ) as unknown as { startBox: TreeNode; endBox: TreeNode; centerWidget: { id?: string }; visibility: string };
+
+            // pack_start appends; an untyped child packs from the start (gtkactionbar.c:233).
+            expect(childIds(bar.startBox)).toStrictEqual(['a', 'b', 'e']);
+            // pack_end PREPENDS, so the first `[end]` child sits nearest the edge.
+            expect(childIds(bar.endBox)).toStrictEqual(['d', 'c']);
+            expect(bar.centerWidget.id).toBe('centre');
+            expect(bar.visibility).toBe('collapse');
+        });
+
+        await it('Adw.TabPage becomes a titled page around its child; a bare widget an untitled one', () => {
+            const view = build(
+                blueprintTree(`Adw.TabView {
+                    Adw.TabPage { title: "Inbox"; child: Gtk.Label inbox { label: "3 new"; }; }
+                    Adw.TabPage { title: "Drafts"; child: Gtk.Label drafts { label: "None"; }; }
+                    Gtk.Label bare { label: "Loose"; }
+                }`),
+            ) as unknown as { pages: readonly { title: string; content?: { id?: string } }[] };
+
+            expect(view.pages.map((page) => page.title)).toStrictEqual(['Inbox', 'Drafts', '']);
+            expect(view.pages.map((page) => page.content?.id)).toStrictEqual(['inbox', 'drafts', 'bare']);
+            // The CHIPS: each titled page's label is on the bar the port drew.
+            const texts = labelTexts(view as unknown as TreeNode);
+            expect(texts.includes('Inbox') && texts.includes('Drafts')).toBe(true);
+        });
+
+        await it('`center-widget:` is refused — GTK has no such property, so Gtk.Builder refuses it too', () => {
+            expect(() => build(blueprintTree('Gtk.ActionBar { center-widget: Gtk.Label {}; }'))).toThrow(
+                'declares no such builder slot',
+            );
+        });
+    });
+
+    await describe('what the builder still refuses on the new tags', async () => {
+        await it('a widget inside a toggle group, which the C refuses with a g_critical', () => {
+            expect(() => build(blueprintTree('Adw.ToggleGroup { Gtk.Button {} }'))).toThrow('only Adw.Toggle');
+        });
+
+        await it('a toggle property the group does not draw, by name', () => {
+            expect(() => build(blueprintTree('Adw.ToggleGroup { Adw.Toggle { tooltip: "Hint"; } }'))).toThrow(
+                "declares no 'tooltip'",
+            );
+        });
+
+        await it('an id on a value object, which getViewById could never find', () => {
+            expect(() => build(blueprintTree('Adw.SpinRow { adjustment: Adjustment range { upper: 5; }; }'))).toThrow(
+                'is not a view',
+            );
+        });
+
+        await it('a tab page property the tab view does not draw, by name', () => {
+            expect(() =>
+                build(blueprintTree('Adw.TabView { Adw.TabPage { needs-attention: true; child: Gtk.Label {}; } }')),
+            ).toThrow("declares no 'needsAttention'");
+        });
+
+        await it('a tree rooted at a value object', () => {
+            expect(() => build(blueprintTree('Adjustment { upper: 5; }'))).toThrow('cannot root at it');
+        });
     });
 
     await describe('the shared corpus is placed where it says', async () => {

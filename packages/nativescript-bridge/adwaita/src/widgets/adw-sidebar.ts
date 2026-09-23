@@ -22,6 +22,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
+import { AdwSidebarSection } from '../values/sidebar.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { SidebarState, sidebarRowClassName, sidebarSectionsFromLabels } from './sidebar-model.js';
 import type { AdwSidebarItemSpec, AdwSidebarSectionSpec, SidebarItemFilter } from './sidebar-model.js';
@@ -94,6 +95,19 @@ export class AdwSidebar extends withSignals(ScrollView) {
         });
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * XML inflation: every child is an `Adw.SidebarSection`, appended in document order as
+     * `adw_sidebar_append` appends it, with the items it already holds. Anything else is
+     * refused, as the C refuses it with a `g_warning` (adw-sidebar.c:2758) — a view here
+     * would be a row nobody authored.
+     */
+    _addChildFromBuilder(_name: string, child: object): void {
+        if (!(child instanceof AdwSidebarSection)) {
+            throw new Error(`Adw.Sidebar takes only Adw.SidebarSection children, not \`${child.constructor.name}\`.`);
+        }
+        this.setSections([...this._state.sections, child]);
     }
 
     /** Set the navigation item labels — one untitled section. Rebuilds the tappable rows. */

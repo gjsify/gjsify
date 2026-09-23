@@ -67,6 +67,7 @@ export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-but
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { GtkActionBar } from './gtk-action-bar.js';
 export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
@@ -122,7 +123,10 @@ export type { MenuTappedEventData } from './adw-split-button.js';
 // state machine (ToggleGroupState) is headless (`@gjsify/adwaita-core`, ADR 0004),
 // re-exported here for consumers.
 export { AdwToggleGroup, NOTIFY_SELECTED as NOTIFY_TOGGLE_SELECTED, ToggleGroupState } from './adw-toggle-group.js';
+export { AdwToggle } from './adw-toggle.js';
+
 export type {
+    AdwToggleSpec,
     NotifyToggleSelectedEventData,
     ToggleGroupStateChange,
     ToggleGroupStateListener,
@@ -178,7 +182,9 @@ export {
     tabTooltipText,
     tabViewNotifyPayload,
 } from './tab-view-state.js';
-export type { AdwTabPage, NsVisibility, TabViewNotifyPayload } from './tab-view-state.js';
+export type { NsTabPage, NsVisibility, TabViewNotifyPayload } from './tab-view-state.js';
+export { AdwTabPage } from '../values/tab-page.js';
+export type { AdwTabPageProps } from '../values/tab-page.js';
 export {
     AdwCarousel,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
@@ -203,6 +209,8 @@ export {
 export type { CarouselNotifyPayload, NsCarouselStateOptions } from './carousel-state.js';
 
 // --- Navigation ---
+export { AdwNavigationPage } from './adw-navigation-page.js';
+export type { NavigationPageOwner } from './adw-navigation-page.js';
 export { AdwNavigationView, NOTIFY_VISIBLE_PAGE } from './adw-navigation-view.js';
 export type { NotifyVisiblePageEventData } from './adw-navigation-view.js';
 export { AdwSplitViewBase, NOTIFY_SHOW_SIDEBAR } from './split-view-base.js';
@@ -213,6 +221,8 @@ export { NsNavigationSplitViewState, NsOverlaySplitViewState, splitViewColumns }
 export type { NsShowSidebarNotification, NsSplitViewHost, NsSplitViewState } from './split-view-state.js';
 export { AdwSidebar, NOTIFY_SELECTED as NOTIFY_SIDEBAR_SELECTED } from './adw-sidebar.js';
 export type { NotifySidebarSelectedEventData } from './adw-sidebar.js';
+export { AdwSidebarItem, AdwSidebarSection } from '../values/sidebar.js';
+export type { AdwSidebarItemProps, AdwSidebarSectionProps } from '../values/sidebar.js';
 export { AdwBottomSheet, CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE } from './adw-bottom-sheet.js';
 export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 
@@ -341,6 +351,7 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { GtkBox } from './gtk-box.js';
+import { GtkActionBar } from './gtk-action-bar.js';
 import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
@@ -366,6 +377,7 @@ import { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
 import { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 import { AdwTabView } from './adw-tab-view.js';
 import { AdwCarousel } from './adw-carousel.js';
+import { AdwNavigationPage } from './adw-navigation-page.js';
 import { AdwNavigationView } from './adw-navigation-view.js';
 import { AdwNavigationSplitView } from './adw-navigation-split-view.js';
 import { AdwOverlaySplitView } from './adw-overlay-split-view.js';
@@ -391,6 +403,7 @@ const ELEMENTS = {
     AdwExpanderRow,
     GtkButton,
     GtkBox,
+    GtkActionBar,
     GtkLabel,
     AdwImageButton,
     GtkMenuButton,
@@ -419,6 +432,7 @@ const ELEMENTS = {
     AdwTabView,
     AdwCarousel,
     // Navigation
+    AdwNavigationPage,
     AdwNavigationView,
     AdwNavigationSplitView,
     AdwOverlaySplitView,

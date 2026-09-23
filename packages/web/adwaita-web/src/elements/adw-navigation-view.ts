@@ -54,6 +54,8 @@
 import { BACK_BUTTON_FALLBACK_TOOLTIP, NavigationViewState, describeNavigationDiagnostic } from '@gjsify/adwaita-core';
 import type { AdwNavigationPageProps, NavigationDiagnostic, NavigationStackChange } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** The page properties the core owns, read off the element's attributes. */
 function readPageProps(page: AdwNavigationPage): AdwNavigationPageProps {
     return { tag: page.tag, title: page.title, canPop: page.canPop };
@@ -66,6 +68,14 @@ export class AdwNavigationPage extends HTMLElement {
 
     static get observedAttributes() {
         return ['title', 'tag', 'can-pop', 'no-back-button'];
+    }
+
+    connectedCallback(): void {
+        // `AdwNavigationPage:child` is a widget PROPERTY, so a `.blp`'s `child: …` authors
+        // `slot="child"`. The page's children already ARE its content, so this only enrols
+        // the name — nothing is routed, and `.install()` is never called, for the reason
+        // `adw-clamp.ts` gives: `into: this` would re-trigger the observer that routes it.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
     }
 
     get title(): string {
