@@ -57,6 +57,7 @@ import { GridLayout, ItemSpec, Label, type View } from '@nativescript/core';
 
 import { labelDisplayText } from '@gjsify/adwaita-core';
 import { buttonSlotAfterWrite, buttonSlotDetaches, type ButtonSlot } from './button-slot.js';
+import { builderSlotsOf } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
@@ -71,6 +72,14 @@ export const GTK_BUTTON_CLICKED = 'clicked';
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
 
 export class GtkButton extends withSignals(GridLayout) {
+    /**
+     * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
+     * `Gtk.Button:child` is the property a `.blp` writes as `child: Adw.ButtonContent { … }`,
+     * which projects as `slot: 'child'`. Undeclared, the shared-tree builder refused that
+     * placement, so the gallery's button-content `.blp` did not build here at all.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
+
     private _styleClasses: string[] = [];
     private _label = '';
     private _iconName = '';
