@@ -9,7 +9,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
   <object class="AdwClamp" id="clamp">
     <property name="maximum-size">400</property>
     <property name="tightening-threshold">300</property>
-    <child>
+    <property name="child">
       <object class="GtkLabel" id="label">
         <property name="label" translatable="yes">This content is clamped: it stops growing past the maximum size and stays centred.</property>
         <property name="wrap">true</property>
@@ -17,6 +17,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
           <class name="card"/>
         </style>
       </object>
-    </child>
+    </property>
   </object>
 </interface>

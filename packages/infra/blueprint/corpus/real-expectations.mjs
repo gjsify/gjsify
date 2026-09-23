@@ -1100,6 +1100,7 @@ export const REAL_EXPECTATIONS = [
                 {
                     tag: 'GtkLabel',
                     id: 'label',
+                    slot: 'child',
                     props: {
                         label: 'This content is clamped: it stops growing past the maximum size and stays centred.',
                         wrap: true,
@@ -1110,6 +1111,6 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: "The first probe that is a documentation block rather than a program: the website gallery builds the clamp from this one file on GTK, on the web and on NativeScript, and each pane reaches the label by its id. The label is a BARE child, not `child:`, and that is load-bearing: `child:` projects as `slot: 'child'`, which neither the web clamp nor the NativeScript one declares as a placement, so both builders refuse it by name.",
+        note: "The first probe that is a documentation block rather than a program: the website gallery builds the clamp from this one file on GTK, on the web and on NativeScript, and each pane reaches the label by its id. The label goes in as `child:`, which projects as `slot: 'child'`: both the web clamp and the NativeScript one declare that placement, so all three builders take the file as GTK spells it.",
     },
 ];

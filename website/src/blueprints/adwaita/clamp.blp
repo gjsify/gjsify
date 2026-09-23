@@ -5,10 +5,10 @@ Adw.Clamp clamp {
   maximum-size: 400;
   tightening-threshold: 300;
 
-  Gtk.Label label {
+  child: Gtk.Label label {
     label: _("This content is clamped: it stops growing past the maximum size and stays centred.");
     wrap: true;
 
     styles ["card"]
-  }
+  };
 }
