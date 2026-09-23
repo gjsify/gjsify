@@ -3221,3 +3221,29 @@ The caution: the FIRST probe of that hole used `export const Ghost = class {}`, 
 barrel reader does not parse, and its silence meant nothing. The claim only holds with a
 probe written in the barrel's own `export { … } from` form, and it was re-measured that way
 before this amendment was written.
+
+## Amendment 20, 2026-09-23 — `halign` / `valign` answered, on the seam § Amendment 15 built
+
+§ Amendment 12 left the GTK names `halign` / `valign` open on NativeScript because adding them
+seemed to take "46 near-identical accessor pairs or a prototype patch", and § Amendment 17
+listed them as the commonest line left. The website gallery moving to one Blueprint per block
+turned the question into a refusal: the shared-tree builder refuses an attribute that lands on
+nothing, so every `.blp` that places a widget — the `Adw.BottomSheet` block writes `halign`,
+`valign` and four `margin-*` — could not be built on that surface at all.
+
+**The decision.** The `GtkWidget` layout properties are accessors under GTK's names on every
+NativeScript widget: `halign`, `valign`, `hexpand`, `vexpand`, `marginStart`, `marginEnd`
+(`widgets/widget-layout.ts`). They ride the `withSignals` mixin, which § Amendment 15 put on
+every class where the port meets the platform, so they are written once and reach every widget
+a later change adds; neither objection § Amendment 12 raised applies to a mixin that already
+exists. The platform property stays the source of truth — `halign` writes and reads
+`horizontalAlignment` through `gtk-align.ts`'s tables, and `margin-top` / `margin-bottom` need
+nothing because they are NativeScript's own names. A value that is not a `Gtk.Align` is
+refused rather than passed through, so NativeScript's vocabulary does not leak in under GTK's
+name.
+
+**What is still declared.** `hexpand` / `vexpand` are held and read back, and no NativeScript
+parent in the port allocates spare space by them yet: `Gtk.Box` is a `StackLayout`, the same
+missing size negotiation `homogeneous` is ledgered for (`status/open-todos.md`). On the web the
+same names are attributes: `_widget.scss` places a child by auto margins and grows it along a
+`gtk-box`'s own axis, and the shared-tree builder writes the margins as inline style.
