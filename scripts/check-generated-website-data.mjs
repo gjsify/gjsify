@@ -108,6 +108,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { REAL_EXPECTATIONS } from '../packages/infra/blueprint/corpus/real-expectations.mjs';
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
 import {
     ADWAITA_GALLERY_SHARED_TREES,
@@ -1318,10 +1319,23 @@ const fenceByTitle = new Map(applied.fences.map((fence) => [fence.title, fence])
  * and a boolean is the attribute's presence. So the comparison below runs unchanged, and a
  * block that moved from markup to a `.blp` keeps the corpus held to what the page shows —
  * the file both renderers build, rather than no fence at all.
+ *
+ * The projection is READ from the corpus's hand-written `REAL_EXPECTATIONS`, which
+ * `check-blueprint-corpus.mjs` stage D holds equal to what the parser produces from each
+ * file, and which stage A requires for every tracked `.blp`. Calling the parser here instead
+ * needs `@girs/*` resolved, and this gate runs in jobs that install nothing: measured, it
+ * died with ERR_MODULE_NOT_FOUND on `@girs/adw-1` in `audit-runtimes.yml`.
  */
-const { parseBlueprint, projectToSharedNode } = await import('../packages/infra/blueprint/src/index.mjs');
-const blueprintElements = (rel) =>
-    depthFirst(projectToSharedNode(parseBlueprint(readFileSync(join(ROOT, rel), 'utf8'), rel)).node).map((node) => {
+const blueprintElements = (rel) => {
+    const expectation = REAL_EXPECTATIONS.find((entry) => entry.file === rel);
+    if (expectation === undefined) {
+        failures.push(
+            `${rel}: a one-Blueprint block builds it, and the Blueprint corpus has no expectation for it — ` +
+                'add it to CORPUS_REAL_FILES and real-expectations.mjs (check-blueprint-corpus.mjs says how).',
+        );
+        return [];
+    }
+    return depthFirst(expectation.node).map((node) => {
         const values = new Map();
         if (node.slot !== undefined) values.set('slot', node.slot);
         for (const [prop, value] of Object.entries(node.props ?? {})) {
@@ -1330,6 +1344,7 @@ const blueprintElements = (rel) =>
         }
         return { tag: hostTagOf(node.tag), values };
     });
+};
 
 let containedNodes = 0;
 let comparedValues = 0;
