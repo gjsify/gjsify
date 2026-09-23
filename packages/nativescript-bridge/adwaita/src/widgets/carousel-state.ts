@@ -6,13 +6,12 @@
 // insert/reorder/remove position compensation — is HEADLESS in `@gjsify/adwaita-core`
 // as `CarouselState` (ADR 0004). NativeScript-specific is how a position becomes
 // pixels: NS has no paging `ScrollView`, so a page index becomes a horizontal offset
-// against a consumer-supplied page width, and the dots are `Label`s whose class
-// carries the selection. TYPE-only NS imports, so specs run off-device (AGENTS.md).
+// against a consumer-supplied page width, and an indicator's markers are views whose
+// class carries the selection. No NS imports at all, so specs run off-device (AGENTS.md).
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (Adw.Carousel)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import type { Label } from '@nativescript/core';
 import { CAROUSEL_SETTLE_EPSILON, CarouselState } from '@gjsify/adwaita-core';
 import type { CarouselScrollRequest, CarouselStateChange } from '@gjsify/adwaita-core';
 
@@ -96,25 +95,30 @@ export class CarouselScrollSync {
     }
 }
 
-/** The class string each dot `Label` must carry, in page order. */
-export function carouselDotClasses(state: CarouselState): string[] {
-    const current = state.pageAt(state.position);
-    return state.ids.map((_id, index) => (index === current ? 'adw-carousel-dot active' : 'adw-carousel-dot'));
+/**
+ * The class string each marker of a page indicator carries, in page order: `markerClass`,
+ * and `active` on the page the carousel settles on (`current`, `-1` for none).
+ *
+ * The CURRENT page comes from `get_page_at_position` (adw-carousel.c:222-239) — the
+ * carousel's `currentPage` — never from `Math.round(position)`, so a carousel resting
+ * half-way between two pages marks the LOWER one, and a swipe in progress still marks one.
+ */
+export function indicatorMarkerClasses(markerClass: string, count: number, current: number): string[] {
+    return Array.from({ length: count }, (_unused, index) =>
+        index === current ? `${markerClass} active` : markerClass,
+    );
 }
 
-/**
- * Push {@link carouselDotClasses} onto the real dot labels.
- *
- * The selected dot comes from `get_page_at_position` (adw-carousel.c:222-239),
- * not from `Math.round`, so a carousel resting half-way between two pages marks
- * the LOWER one — and, unlike the integer compare this replaces, it marks
- * something at all while a swipe is in progress.
- */
-export function applyCarouselDots(state: CarouselState, dots: readonly Label[]): void {
-    const classes = carouselDotClasses(state);
-    dots.forEach((dot, index) => {
+/** {@link indicatorMarkerClasses} for a dot indicator bound to a carousel in `state`. */
+export function carouselDotClasses(state: CarouselState): string[] {
+    return indicatorMarkerClasses('adw-carousel-dot', state.ids.length, state.pageAt(state.position));
+}
+
+/** Push marker classes onto the real marker views, in page order. */
+export function applyMarkerClasses(markers: readonly { className: string }[], classes: readonly string[]): void {
+    markers.forEach((marker, index) => {
         const next = classes[index];
-        if (next !== undefined) dot.className = next;
+        if (next !== undefined) marker.className = next;
     });
 }
 

@@ -188,13 +188,16 @@ export {
     PAGE_CHANGED,
 } from './adw-carousel.js';
 export type { NotifyPositionEventData, PageChangedEventData } from './adw-carousel.js';
-// The carousel's NS-specific projection — scroll offsets, dot classes and the
+export { AdwCarouselIndicatorDots } from './adw-carousel-indicator-dots.js';
+export { AdwCarouselIndicatorLines } from './adw-carousel-indicator-lines.js';
+// The carousel's NS-specific projection — scroll offsets, indicator marker classes and the
 // scroll/model sync. Free of `@nativescript/core` VALUE imports, so the spec
 // suite exercises the shipping code instead of a transcription of it.
 export {
     CarouselScrollSync,
-    applyCarouselDots,
+    applyMarkerClasses,
     carouselDotClasses,
+    indicatorMarkerClasses,
     carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
@@ -367,6 +370,8 @@ import { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
 import { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 import { AdwTabView } from './adw-tab-view.js';
 import { AdwCarousel } from './adw-carousel.js';
+import { AdwCarouselIndicatorDots } from './adw-carousel-indicator-dots.js';
+import { AdwCarouselIndicatorLines } from './adw-carousel-indicator-lines.js';
 import { AdwNavigationView } from './adw-navigation-view.js';
 import { AdwNavigationSplitView } from './adw-navigation-split-view.js';
 import { AdwOverlaySplitView } from './adw-overlay-split-view.js';
@@ -419,6 +424,8 @@ const ELEMENTS = {
     AdwInlineViewSwitcher,
     AdwTabView,
     AdwCarousel,
+    AdwCarouselIndicatorDots,
+    AdwCarouselIndicatorLines,
     // Navigation
     AdwNavigationView,
     AdwNavigationSplitView,

@@ -6,9 +6,10 @@
 // module `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier
 // at module-eval. `adw-carousel.ts` is a thin wrapper over exactly the surface below:
 // insert/remove/reorder forward to the state, `scrollToPage` to `state.scrollTo`, every
-// accessor reads the state, the subscription applies {@link applyCarouselDots} and
-// notifies {@link carouselNotifyPayload}, and the `ScrollView` listener feeds offsets
-// through {@link CarouselScrollSync}.
+// accessor reads the state, the subscription notifies {@link carouselNotifyPayload}, and
+// the `ScrollView` listener feeds offsets through {@link CarouselScrollSync}. A bound
+// indicator marks the carousel's `currentPage` through {@link indicatorMarkerClasses} and
+// {@link applyMarkerClasses}, which {@link carouselDotClasses} spells for a dot indicator.
 //
 // Two rules easy to get wrong and covered here: an out-of-range index is REFUSED, not
 // clamped (or `scrollToPage(NaN)` yields a NaN position), and the current dot comes from
@@ -29,12 +30,13 @@ import type { Label } from '@nativescript/core';
 import {
     CarouselScrollSync,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
-    applyCarouselDots,
+    applyMarkerClasses,
     carouselDotClasses,
     carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
     createCarouselState,
+    indicatorMarkerClasses,
     normalizeCarouselPageWidth,
     type CarouselNotifyPayload,
 } from './widgets/carousel-state.js';
@@ -138,7 +140,7 @@ export const AdwCarouselNsTest = async () => {
                 expect(carouselDotClasses(state)).toStrictEqual(expectedClasses);
 
                 const dots = vector.expected.ids.map(() => fakeDot());
-                applyCarouselDots(state, dots);
+                applyMarkerClasses(dots, carouselDotClasses(state));
                 expect(dots.map((dot) => dot.className)).toStrictEqual(expectedClasses);
             });
         }
@@ -167,6 +169,13 @@ export const AdwCarouselNsTest = async () => {
                 expect(state.pageAt(vector.position)).toBe(vector.page);
             });
         }
+
+        await it('an indicator marks nothing when the carousel has no current page', () => {
+            expect(indicatorMarkerClasses('adw-carousel-line', 2, -1)).toStrictEqual([
+                'adw-carousel-line',
+                'adw-carousel-line',
+            ]);
+        });
 
         await it('marks the LOWER page at an exact half-way position', () => {
             // The old `i === this._position` compare ran on an integer position,

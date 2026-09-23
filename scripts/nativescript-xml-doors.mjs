@@ -447,6 +447,10 @@ export const NO_CONSTRUCT_PROPS = {
     AdwViewSwitcherBase:
         'abstract, and constructed only by AdwViewSwitcher / AdwInlineViewSwitcher, for the same reason: a ' +
         'bag applied in a base is applied before the derived constructor has run.',
+    AdwCarouselIndicatorBase:
+        'abstract, and constructed only by AdwCarouselIndicatorDots / AdwCarouselIndicatorLines, which ' +
+        'take their own bag: a `carousel` applied in the base would render markers before the subclass ' +
+        'has set the marker class they carry.',
 };
 
 /** How the bag is spelled, in the one place both halves of the rule can read it. */
