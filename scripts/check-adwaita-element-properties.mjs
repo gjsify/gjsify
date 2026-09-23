@@ -188,19 +188,15 @@ const KNOWN_GAPS = {
         'visibility',
     ],
     'gtk-image': ['file', 'icon-size', 'pixel-size', 'resource', 'use-fallback'],
-    // Pango's layout knobs. Text is laid out by the browser here; each of these needs a
-    // measured mapping (`ellipsize` → `text-overflow` needs a clipped box, `*-chars` a
-    // font-relative width) rather than a CSS property of the same name.
-    'gtk-label': [
-        'ellipsize',
-        'lines',
-        'max-width-chars',
-        'natural-wrap-mode',
-        'single-line-mode',
-        'width-chars',
-        'wrap-mode',
-        'yalign',
-    ],
+    // `natural-wrap-mode` is a natural-SIZE-REQUEST hint over a size-negotiation protocol
+    // this renderer does not run (a browser lays out once, it does not ask a widget for a
+    // preferred width first); `single-line-mode` pins the height to one line's
+    // ascent+descent regardless of content, which no CSS box does without measuring the
+    // font — and a non-wrapping `<gtk-label>`'s own height already IS one line's. The rest
+    // of Pango's layout knobs (`ellipsize`, `wrap-mode`, `lines`, `width-chars`,
+    // `max-width-chars`, `yalign`) reach a real CSS mechanism now — see `gtk-label.ts`'s
+    // header.
+    'gtk-label': ['natural-wrap-mode', 'single-line-mode'],
     'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
     'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
     'gtk-progress-bar': ['ellipsize', 'pulse-step'],

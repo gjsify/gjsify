@@ -332,6 +332,25 @@ declare module '@nativescript/core' {
         textWrap: boolean;
         /** Horizontal text alignment (`'left' | 'center' | 'right' | 'justify' | 'initial'`). */
         textAlignment: string;
+        /**
+         * `'clip' | 'ellipsis'` (`core-types/index.d.ts` `TextOverflowType`). Acts only
+         * while `textWrap` is off — measured in `ui/text-base/index.android.js`'s
+         * `adjustLineBreak()`, which sets the native ellipsize ONLY inside the
+         * `whiteSpace === 'nowrap'` branch.
+         */
+        textOverflow: string;
+        /**
+         * A line cap. `value <= 0` means UNLIMITED (`ui/text-base/index.android.js`'s
+         * `maxLinesProperty.setNative`, `Number.MAX_SAFE_INTEGER`); `value > 0` caps the
+         * text AND force-sets a native end-ellipsize, independent of `textOverflow`.
+         *
+         * UNSET LIKE {@link View.className}, and for the same measured reason:
+         * `maxLinesProperty` (`ui/text-base/text-base-common.ts`) is registered with NO
+         * `defaultValue`, so it reads `undefined` until the first write.
+         * `scripts/check-nativescript-ns-defaults.mjs` holds this against
+         * `status/nativescript-undefined-defaults.json`.
+         */
+        maxLines: number | undefined;
     }
 
     /** A toggle switch — `<Switch>`. */
