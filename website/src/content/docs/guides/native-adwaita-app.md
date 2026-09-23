@@ -9,7 +9,9 @@ quit and about actions, a sidebar, a content stack.
 pieces so you can skip straight to your views.
 
 Nothing here hides `Adw` or `Gtk`. Your views are plain `Gtk.Widget`s, the shell returns
-real Adwaita objects, and you can drop any helper you don't want.
+real Adwaita objects, and you can drop any helper you don't want. Declare what those views
+look like in Blueprint, as [Describe the window in Blueprint](#describe-the-window-in-blueprint)
+shows, and keep TypeScript for what they do.
 
 ## Install
 
@@ -58,7 +60,7 @@ import { runAdwaitaApp } from '@gjsify/adwaita-app';
 class MainWindow extends Adw.ApplicationWindow {
     constructor(app: Adw.Application) {
         super({ application: app, defaultWidth: 900, defaultHeight: 640 });
-        // build your content here
+        // declare the content in Blueprint, see below
     }
 
     static { GObject.registerClass({ GTypeName: 'MyMainWindow' }, this); }
@@ -109,6 +111,59 @@ await runApplication(myApp, [system.programInvocationName, ...system.programArgs
 
 `system` is a bare built-in module, not a GJS-only import: `@gjsify/node-gi` carries it
 across, so that line resolves in an `--app node` bundle too.
+
+## Describe the window in Blueprint
+
+Write the widget tree in a `.blp` file. Every `_("…")` string in it is one `xgettext`
+extracts, and a reviewer can read the layout without running the app.
+
+```blueprint
+using Gtk 4.0;
+using Adw 1;
+
+template $MyMainWindow: Adw.ApplicationWindow {
+  default-width: 900;
+  default-height: 640;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.StatusPage status {
+      title: _("Nothing open");
+      icon-name: "document-open-symbolic";
+    };
+  };
+}
+```
+
+Import the file and pass it as the class's `Template`. `gjsify build` compiles the import
+to GtkBuilder XML for `--app gjs` and `--app node` alike, in process, so no
+`blueprint-compiler` needs to be installed. `InternalChildren` lists the ids you want back,
+and each one arrives as `this._<id>`:
+
+```ts
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
+import Template from './window.blp';
+
+class MainWindow extends Adw.ApplicationWindow {
+    declare private _status: Adw.StatusPage;
+
+    static {
+        GObject.registerClass({ GTypeName: 'MyMainWindow', Template, InternalChildren: ['status'] }, this);
+    }
+
+    showFile(name: string): void {
+        this._status.set_title(name);
+    }
+}
+```
+
+`template $MyMainWindow` names the `GTypeName`, so the two have to match. For the `.blp`
+import to type-check, install `@gjsify/vite-plugin-blueprint` as a dev dependency and add
+`@gjsify/vite-plugin-blueprint/types` to `compilerOptions.types`. Rows that follow your
+data go into a container the template declares, filled from TypeScript.
 
 ## Add a sidebar and views
 
