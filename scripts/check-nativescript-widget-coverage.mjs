@@ -271,9 +271,7 @@ const KNOWN_GAPS = {
     },
     'gtk-label': {
         gaps: [
-            'ellipsize',
             'justify',
-            'lines',
             'maxWidthChars',
             'naturalWrapMode',
             'selectable',
@@ -282,7 +280,7 @@ const KNOWN_GAPS = {
             'wrapMode',
             'yalign',
         ],
-        why: 'Everything here is PANGO, and a NativeScript `Label` exposes `text`, `textWrap` and `textAlignment` over a platform text view with no text-layout engine reachable behind them (gtk-label.ts). So there is no ellipsize mode, no line cap, no character-width request, no wrap-mode choice — the platform wraps at word boundaries or not at all — and no selectable text on a `Label` (that is `TextView` there, a different view). `yalign` is a CONTINUUM in [0,1] with no vertical text-placement knob behind it at all. `xalign` is the same continuum over `textAlignment`, which has three positions, so it is mapped at exactly those three (0, 0.5, 1) and refused everywhere else rather than snapped (gtk-label.ts). `justify` would land on that same one knob, which is why it stays unmapped rather than silently fighting `xalign` for it.',
+        why: "`ellipsize`, `lines` and `xalign` closed. `ellipsize`/`lines`: a NativeScript `Label` DOES have `textOverflow` ('clip'|'ellipsis') and `maxLines` (a plain int cap), measured in `@nativescript/core`'s own `index.android.js` rather than assumed absent (gtk-label.ts's header). `xalign`: `textAlignment` has three EXACT positions GTK's own continuum also takes, at 0/0.5/1, so it is mapped there and refused everywhere else rather than snapped (gtk-label.ts). What remains has no platform counterpart: `width-chars`/`max-width-chars` are a character-width REQUEST, and this port sizes everything in DIPs — the same \"one unit\" answer `gtk-box.ts` gives `spacing`, no character-relative unit to spell it in. `wrap-mode` (Pango's break-opportunity choice) has no NativeScript equivalent — `textWrap` wraps at word boundaries or not at all, no character-break option. `single-line-mode`/`natural-wrap-mode` are GTK size-negotiation hints over a protocol this port does not run. `selectable` is a different platform view (`TextView`, not `Label`). `yalign` is the sharpest of the rest: a CONTINUUM in [0,1] where `verticalAlignment` has four positions, and `Gtk.Align` already answers to it on every widget (gtk-align.ts) — a second claim would report a snap as agreement twice. `justify` would land on `xalign`'s one knob (`textAlignment`), which is why it stays unmapped rather than silently fighting for it.",
     },
     'gtk-button': {
         gaps: ['canShrink', 'hasFrame'],

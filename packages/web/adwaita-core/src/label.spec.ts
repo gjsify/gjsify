@@ -8,13 +8,41 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    DEFAULT_LABEL_ELLIPSIZE,
+    DEFAULT_LABEL_LINES,
+    DEFAULT_LABEL_MAX_WIDTH_CHARS,
+    DEFAULT_LABEL_WIDTH_CHARS,
+    DEFAULT_LABEL_WRAP_MODE,
     DEFAULT_LABEL_XALIGN,
+    DEFAULT_LABEL_YALIGN,
     labelDisplayText,
+    labelEffectiveLines,
+    labelEllipsizeOverflowValue,
     labelMarkupIsUnparseable,
+    labelWidthCharsExtent,
+    labelYalignAlignItems,
+    normalizeLabelEllipsize,
     normalizeLabelJustify,
+    normalizeLabelLines,
+    normalizeLabelMaxWidthChars,
+    normalizeLabelWidthChars,
+    normalizeLabelWrapMode,
     normalizeLabelXalign,
+    normalizeLabelYalign,
 } from './label.js';
-import { LABEL_DISPLAY_TEXT_VECTORS, LABEL_JUSTIFY_VECTORS, LABEL_XALIGN_VECTORS } from './conformance/label.js';
+import {
+    LABEL_CHAR_COUNT_VECTORS,
+    LABEL_DISPLAY_TEXT_VECTORS,
+    LABEL_EFFECTIVE_LINES_VECTORS,
+    LABEL_ELLIPSIZE_OVERFLOW_VECTORS,
+    LABEL_ELLIPSIZE_VECTORS,
+    LABEL_JUSTIFY_VECTORS,
+    LABEL_WIDTH_CHARS_EXTENT_VECTORS,
+    LABEL_WRAP_MODE_VECTORS,
+    LABEL_XALIGN_VECTORS,
+    LABEL_YALIGN_ALIGN_ITEMS_VECTORS,
+    LABEL_YALIGN_VECTORS,
+} from './conformance/label.js';
 
 export default async () => {
     await describe('labelDisplayText — markup off, which is the default', async () => {
@@ -106,6 +134,99 @@ export default async () => {
         for (const vector of LABEL_JUSTIFY_VECTORS) {
             await it(vector.rule, () => {
                 expect(normalizeLabelJustify(vector.value)).toBe(vector.justify);
+            });
+        }
+    });
+
+    await describe('normalizeLabelYalign', async () => {
+        await it('defaults to 0.5, the pspec default — same shape as xalign', () => {
+            expect(DEFAULT_LABEL_YALIGN).toBe(0.5);
+        });
+
+        for (const vector of LABEL_YALIGN_VECTORS) {
+            await it(vector.rule, () => {
+                expect(normalizeLabelYalign(vector.value)).toBe(vector.yalign);
+            });
+        }
+    });
+
+    await describe('labelYalignAlignItems — true nearest-of-three, not a half-split', async () => {
+        for (const vector of LABEL_YALIGN_ALIGN_ITEMS_VECTORS) {
+            await it(vector.rule, () => {
+                expect(labelYalignAlignItems(vector.yalign)).toBe(vector.alignItems);
+            });
+        }
+    });
+
+    await describe('normalizeLabelEllipsize', async () => {
+        await it('defaults to none, the pspec default', () => {
+            expect(DEFAULT_LABEL_ELLIPSIZE).toBe('none');
+        });
+
+        for (const vector of LABEL_ELLIPSIZE_VECTORS) {
+            await it(vector.rule, () => {
+                expect(normalizeLabelEllipsize(vector.value)).toBe(vector.ellipsize);
+            });
+        }
+    });
+
+    await describe('labelEllipsizeOverflowValue — the declared divergence both renderers draw', async () => {
+        for (const vector of LABEL_ELLIPSIZE_OVERFLOW_VECTORS) {
+            await it(vector.rule, () => {
+                expect(labelEllipsizeOverflowValue(vector.ellipsize)).toBe(vector.overflow);
+            });
+        }
+    });
+
+    await describe('normalizeLabelWrapMode', async () => {
+        await it('defaults to word, the pspec default', () => {
+            expect(DEFAULT_LABEL_WRAP_MODE).toBe('word');
+        });
+
+        for (const vector of LABEL_WRAP_MODE_VECTORS) {
+            await it(vector.rule, () => {
+                expect(normalizeLabelWrapMode(vector.value)).toBe(vector.wrapMode);
+            });
+        }
+    });
+
+    await describe('normalizeLabelWidthChars / normalizeLabelMaxWidthChars / normalizeLabelLines', async () => {
+        await it('all three default to -1, the pspec default ("auto"/unlimited)', () => {
+            expect(DEFAULT_LABEL_WIDTH_CHARS).toBe(-1);
+            expect(DEFAULT_LABEL_MAX_WIDTH_CHARS).toBe(-1);
+            expect(DEFAULT_LABEL_LINES).toBe(-1);
+        });
+
+        for (const vector of LABEL_CHAR_COUNT_VECTORS) {
+            await it(`width-chars: ${vector.rule}`, () => {
+                expect(normalizeLabelWidthChars(vector.value)).toBe(vector.count);
+            });
+            await it(`max-width-chars: ${vector.rule}`, () => {
+                expect(normalizeLabelMaxWidthChars(vector.value)).toBe(vector.count);
+            });
+            await it(`lines: ${vector.rule}`, () => {
+                expect(normalizeLabelLines(vector.value)).toBe(vector.count);
+            });
+        }
+    });
+
+    await describe('labelEffectiveLines — gated by ellipsize alone, wrap plays no part', async () => {
+        for (const vector of LABEL_EFFECTIVE_LINES_VECTORS) {
+            await it(vector.rule, () => {
+                expect(labelEffectiveLines(vector.lines, vector.ellipsize)).toBe(vector.effective);
+            });
+        }
+    });
+
+    await describe('labelWidthCharsExtent', async () => {
+        for (const vector of LABEL_WIDTH_CHARS_EXTENT_VECTORS) {
+            await it(vector.rule, () => {
+                // `toEqual` is `==`, which only ever compares object REFERENCES — the
+                // deep-equality matcher here is `toStrictEqual`.
+                expect(labelWidthCharsExtent(vector.widthChars, vector.maxWidthChars)).toStrictEqual({
+                    minCh: vector.minCh,
+                    maxCh: vector.maxCh,
+                });
             });
         }
     });

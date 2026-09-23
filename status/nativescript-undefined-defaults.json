@@ -86,6 +86,12 @@
             "property": "items",
             "registeredOn": "SegmentedBarBase",
             "source": "ui/segmented-bar/segmented-bar-common.ts"
+        },
+        {
+            "class": "Label",
+            "property": "maxLines",
+            "registeredOn": "Style",
+            "source": "ui/text-base/text-base-common.ts"
         }
     ]
 }

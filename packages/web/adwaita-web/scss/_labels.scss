@@ -50,15 +50,28 @@
 // width)` inside the label's allocation (gtklabel.c, gtk_label_get_layout_location); the
 // element's free space is split between `::before` and `::after` in the ratio
 // `xalign : 1 − xalign`, which is that formula, and flips in RTL as the C does.
-// `align-items: center` is `yalign`'s default, 0.5.
+//
+// `YALIGN` HAS NO CONTINUUM ON THE CROSS AXIS. `xalign`'s spacer trick splits free space
+// along flexbox's MAIN axis, where a flex item's `flex-grow` ratio is a real number;
+// `align-items` is the CROSS-axis equivalent and CSS gives it three keywords, not a ratio
+// — there is no `align-items: 0.25` the way there is a `flex-grow: 0.25`. A second pair of
+// spacers would need a second axis, and a `<gtk-label>` cannot be both a row (for `xalign`)
+// and a column (for `yalign`) at once without an inner wrapper element, which would cost
+// every single-line label the "one text node, no children" DOM shape `gtk-label.spec.ts`
+// pins for the XSS answer. So `--gtk-label-align-items` is set by `labelYalignAlignItems`
+// (`@gjsify/adwaita-core`) from the NEAREST of three zones — `flex-start` below `0.25`,
+// `flex-end` above `0.75`, `center` between (the default, unchanged from before this
+// property existed) — exact at the three values GTK's own default and both edges take,
+// and a DECLARED divergence for anything else: nearest zone, not a silent half-split, and
+// `label.spec.ts`/`gtk-label.spec.ts` both say so where they test the intermediate values.
 //
 // `white-space: pre`: Pango keeps a newline and a run of spaces, and a label that
 // does not wrap is as wide as its text — which a flex item's `min-width: auto`
 // already makes its minimum. `wrap` breaks at word boundaries, WORD being the
-// default `wrap-mode`.
+// default `wrap-mode` — so does `ellipsize` alone, see `.adw-label-clamp` below.
 gtk-label {
   display: flex;
-  align-items: center;
+  align-items: var(--gtk-label-align-items, center);
   white-space: pre;
   caret-color: currentColor;
   // GtkLabel is not selectable unless asked (`selectable` defaults to FALSE).
@@ -83,13 +96,56 @@ gtk-label {
     white-space: pre-wrap;
   }
 
-  // `gtk-label.ts`'s wrapped-render path: the text moves into this span so it can be
-  // pinned to its measured wrap width (a flex item is blockified by spec, but `display:
-  // block` is spelled out rather than relied on implicitly).
+  // `gtk-label.ts`'s span-render path: the text moves into this span so it can be pinned
+  // to its measured wrap width (a flex item is blockified by spec, but `display: block` is
+  // spelled out rather than relied on implicitly). Present whenever `wrap` is set OR
+  // `ellipsize` is active — MEASURED (`@gjsify/adwaita-core`'s `label.ts` header): GTK's
+  // own Pango layout wraps onto multiple lines from `ellipsize` ALONE, `wrap` or not, so
+  // both cases need the same span and the same measurement pass.
   .adw-label-text {
     display: block;
-    // A pinned width may never push the label wider than its container.
+    // A pinned width, or a shrink-to-fit one, may never push the label wider than its
+    // container.
     max-width: 100%;
+  }
+
+  // `wrap-mode` — Pango's break-opportunity choice — is a real `word-break`/
+  // `overflow-wrap` mapping, not a declared gap: CSS's `break-all` is Pango's CHAR (break
+  // anywhere), and `overflow-wrap: anywhere` is Pango's WORD_CHAR (word boundaries, falling
+  // back to a character break only when a single word will not fit) — the pspec's own
+  // words for that member. WORD, the default, is the browser's un-overridden behaviour, so
+  // it has no rule here. Scoped to `.adw-label-text` alone, not `[wrap]`: `wrap-mode` only
+  // matters once the layout can span more than one line at all, which `ellipsize` alone
+  // already grants (see above) — the span's mere existence is that condition.
+  &[wrap-mode='char'] .adw-label-text {
+    word-break: break-all;
+  }
+
+  &[wrap-mode='word-char'] .adw-label-text {
+    overflow-wrap: anywhere;
+  }
+
+  // `ellipsize` — a JS-toggled CLASS, not an attribute selector: `.adw-label-clamp` is set
+  // by `gtk-label.ts`'s `_renderSpan` from `ellipsize`'s NORMALIZED value, so a raw,
+  // unrecognised `ellipsize` attribute (which `normalizeLabelEllipsize` already reads as
+  // `none`) can never leave this rule half-applied the way an `[ellipsize]` PRESENCE
+  // selector would. `lines`, gated by `labelEffectiveLines` (`@gjsify/adwaita-core`) to
+  // "ellipsize is active", `wrap` or not — MEASURED, the same header — applies here
+  // REGARDLESS of `wrap`: a real `Gtk.Label` allocated with `wrap=FALSE, ellipsize=END,
+  // lines=2` lays out exactly two lines, ellipsized, not one. `-webkit-line-clamp` needs
+  // its own box context (`display: -webkit-box` + `-webkit-box-orient: vertical`) and text
+  // that can actually WRAP (`white-space: normal`, overriding the host's inherited `pre`/
+  // `pre-wrap`) to have more than one line to clamp in the first place; the default of `1`
+  // is Pango's own when `lines` is unset (`--gtk-label-lines` is still set then — see
+  // `_render()` — so the fallback here is only a defensive belt for a span whose host
+  // somehow reached this class without it).
+  .adw-label-text.adw-label-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--gtk-label-lines, 1);
+    overflow: hidden;
+    text-overflow: var(--gtk-label-ellipsize-overflow, ellipsis);
+    white-space: normal;
   }
 
   &[selectable] {

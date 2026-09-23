@@ -39,12 +39,43 @@
 // several lines aligns each line where GTK aligns the block and leaves the lines to
 // `justify`.
 //
-// WHAT IT DOES NOT DO: everything else Pango. `attributes`, `ellipsize`, `justify`,
-// `natural-wrap-mode`, `wrap-mode`, `lines`, `width-chars`, `max-width-chars`, `tabs`,
-// `yalign`, `selectable` and the mnemonic-widget link are declared gaps in
-// `check-nativescript-widget-coverage.mjs`. A NativeScript `Label` exposes `text`,
-// `textWrap` and `textAlignment` and no text-layout engine behind them, so most of those
-// have nothing to reach.
+// `ELLIPSIZE` AND `LINES` REACH REAL NATIVE MECHANISMS, MEASURED IN `@nativescript/core`'s
+// OWN SOURCE rather than assumed from its `.d.ts`: a `Label`'s `textOverflow` ('clip' |
+// 'ellipsis') and `maxLines` (a plain number) are not declared gaps here, contrary to the
+// three-position/continuum reasoning that keeps `yalign` off this widget below.
+// `ellipsize` sets `textOverflow` through `labelEllipsizeOverflowValue` — the SAME function
+// `<gtk-label>` on the web surface uses, since Android's own `adjustLineBreak()`
+// (`index.android.js`) only lets `textOverflow` act while `whiteSpace` is `'nowrap'`
+// (i.e. {@link wrap} is off), exactly CSS's `text-overflow` needing `white-space: nowrap`
+// — so `start`/`middle` collapse to the same end-ellipsis declared divergence the web
+// element pins.
+//
+// `lines` SETS `maxLines`, GATED BY `labelEffectiveLines` TO "ELLIPSIZE IS ACTIVE" ALONE —
+// NOT "wrapping or ellipsized", the pspec's own words for it. MEASURED (a real
+// `Gtk.Label`, allocated, gjs 1.88.1 / gtk 4.22.5): `wrap` plays NO PART in whether GTK
+// itself honours `lines` — `wrap=TRUE, ellipsize=NONE, lines=2` laid out 15 UNCAPPED
+// lines (the pspec's own hint, ignored, since Pango only consults a layout's line-count
+// while ellipsizing), and `wrap=FALSE, ellipsize=END, lines=2` laid out exactly 2,
+// ellipsized. `@gjsify/adwaita-core`'s `label.ts` header carries the full measurement;
+// this port forwards the SAME corrected function, so `wrap` is not read by
+// {@link _applyLines} either. Android's own `maxLinesProperty.setNative` treats any
+// `value <= 0` as UNLIMITED (`Number.MAX_SAFE_INTEGER`) and any `value > 0` as a real cap
+// that ALSO force-sets a native end-ellipsize — a platform mechanism this port forwards
+// the corrected value INTO, not one it built or is claiming full parity for beyond that:
+// whether Android's OWN `setSingleLine`/`setMaxLines` precedence then renders the same
+// line count GTK does is unverified off a device.
+//
+// WHAT IT DOES NOT DO: `attributes`, `justify`, `natural-wrap-mode`, `wrap-mode`,
+// `width-chars`, `max-width-chars`, `tabs`, `yalign`, `selectable` and the mnemonic-widget
+// link are declared gaps in `check-nativescript-widget-coverage.mjs`. A NativeScript
+// `Label` exposes `text`, `textWrap`, `textOverflow`, `maxLines` and `textAlignment`, and
+// no text-layout engine behind the rest of them: no break-opportunity choice behind
+// `textWrap` (`wrap-mode`), no character-width request (`width-chars`/`max-width-chars` —
+// the same "everything here is a DIP" answer `gtk-box.ts` gives `spacing`). `yalign` is a
+// continuum on the view's OWN `verticalAlignment` (four positions), which `Gtk.Align`
+// already answers to on every widget (`gtk-align.ts`) — a second claim on it would report
+// a snap as agreement twice over, the collision `xalign` does NOT have: `textAlignment`
+// is a door `halign`/`Gtk.Align` never opened, so `xalign` above is the one claim on it.
 //
 // Reference: refs/gtk gtk/gtklabel.c (GtkLabel)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss
@@ -52,7 +83,17 @@
 
 import { Label } from '@nativescript/core';
 
-import { DEFAULT_LABEL_XALIGN, labelDisplayText, normalizeLabelXalign } from '@gjsify/adwaita-core';
+import {
+    DEFAULT_LABEL_LINES,
+    DEFAULT_LABEL_XALIGN,
+    labelDisplayText,
+    labelEffectiveLines,
+    labelEllipsizeOverflowValue,
+    normalizeLabelEllipsize,
+    normalizeLabelLines,
+    normalizeLabelXalign,
+    type LabelEllipsizeMode,
+} from '@gjsify/adwaita-core';
 
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
@@ -70,6 +111,8 @@ export class GtkLabel extends withSignals(Label) {
     private _label = '';
     private _useMarkup = false;
     private _useUnderline = false;
+    private _ellipsize: LabelEllipsizeMode = 'none';
+    private _lines = -1;
     private _styleClasses: string[] = [];
     private _xalign = DEFAULT_LABEL_XALIGN;
 
@@ -136,7 +179,9 @@ export class GtkLabel extends withSignals(Label) {
      * NativeScript's own name for it is `textWrap`, which stays reachable; this is the GIR
      * spelling over the same platform property, so a snippet ported off GJS runs verbatim.
      * `wrap-mode` and `natural-wrap-mode` are the declared gaps beside it — the platform
-     * wraps at word boundaries and offers no choice.
+     * wraps at word boundaries and offers no choice. Does NOT reapply {@link lines}:
+     * MEASURED (`@gjsify/adwaita-core`'s `label.ts` header), `wrap` plays no part in
+     * whether `lines` has an effect, only {@link ellipsize} does.
      */
     get wrap(): boolean {
         return this.textWrap;
@@ -144,6 +189,45 @@ export class GtkLabel extends withSignals(Label) {
 
     set wrap(raw: boolean | string) {
         this.textWrap = xmlBoolean(raw, this.textWrap);
+    }
+
+    /**
+     * `Gtk.Label:ellipsize` — where the string is trimmed when it does not fit. Defaults
+     * to `none`. Sets the platform's `textOverflow`, which only acts while {@link wrap} is
+     * off (Android's `adjustLineBreak()` — see the header). `start` and `middle` are HELD
+     * faithfully but DRAWN as an end-ellipsis: `labelEllipsizeOverflowValue`
+     * (`@gjsify/adwaita-core`) says why, the same declared divergence the web element pins.
+     */
+    get ellipsize(): LabelEllipsizeMode {
+        return this._ellipsize;
+    }
+
+    set ellipsize(raw: LabelEllipsizeMode | string) {
+        this._ellipsize = normalizeLabelEllipsize(raw);
+        this.textOverflow = labelEllipsizeOverflowValue(this._ellipsize);
+        this._applyLines();
+    }
+
+    /**
+     * `Gtk.Label:lines` — the line count an ellipsized label is held to. Defaults to -1
+     * ("unset"), which still caps at Pango's own default of ONE line the moment
+     * {@link ellipsize} is active — never "unlimited". Has no effect at all while
+     * ellipsize is `none`, `wrap` or not — {@link labelEffectiveLines}
+     * (`@gjsify/adwaita-core`) is that MEASURED guard, applied to the platform's
+     * `maxLines`, where any `value <= 0` already means unlimited (measured in
+     * `@nativescript/core`'s `index.android.js`).
+     */
+    get lines(): number {
+        return this._lines;
+    }
+
+    set lines(raw: number | string) {
+        this._lines = normalizeLabelLines(xmlNumber(raw, DEFAULT_LABEL_LINES));
+        this._applyLines();
+    }
+
+    private _applyLines(): void {
+        this.maxLines = labelEffectiveLines(this._lines, this._ellipsize) ?? 0;
     }
 
     /**
