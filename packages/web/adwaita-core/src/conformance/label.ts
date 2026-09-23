@@ -136,6 +136,34 @@ export const LABEL_YALIGN_VECTORS: ReadonlyArray<LabelYalignVector> = [
     { value: 'top', yalign: 0.5, rule: 'an unparseable value is the default, not NaN' },
 ];
 
+/** One `yalign` and the `align-items` zone it is nearest to. */
+export interface LabelYalignAlignItemsVector {
+    yalign: number;
+    alignItems: 'flex-start' | 'center' | 'flex-end';
+    rule: string;
+}
+
+/**
+ * TRUE nearest-of-three, not a strict half-split: the boundary between "nearest 0" and
+ * "nearest 0.5" is their midpoint, `0.25`, and symmetrically `0.75` on the other side —
+ * a `yalign` short of a full CSS continuum still lands on the CLOSER zone rather than
+ * whichever half of `[0, 1]` it falls in. Exact at the three values GTK's own default and
+ * both edges take (0, 0.5, 1); the four intermediate rows (`0.2`/`0.3`/`0.7`/`0.8`) are the
+ * ones a strict `< 0.5`/`> 0.5` split gets wrong — `0.3` is closer to `0.5` than to `0`,
+ * so it belongs in `center`, not `flex-start`.
+ */
+export const LABEL_YALIGN_ALIGN_ITEMS_VECTORS: ReadonlyArray<LabelYalignAlignItemsVector> = [
+    { yalign: 0, alignItems: 'flex-start', rule: '0 is the top edge exactly' },
+    { yalign: 0.2, alignItems: 'flex-start', rule: '0.2 is nearer 0 than 0.5' },
+    { yalign: 0.25, alignItems: 'center', rule: 'the 0/0.5 boundary is equidistant: ties go to the centre zone' },
+    { yalign: 0.3, alignItems: 'center', rule: '0.3 is nearer 0.5 than 0 — a strict half-split gets this wrong' },
+    { yalign: 0.5, alignItems: 'center', rule: '0.5 is the centre exactly, the pspec default' },
+    { yalign: 0.7, alignItems: 'center', rule: '0.7 is nearer 0.5 than 1 — a strict half-split gets this wrong' },
+    { yalign: 0.75, alignItems: 'center', rule: 'the 0.5/1 boundary is equidistant: ties go to the centre zone' },
+    { yalign: 0.8, alignItems: 'flex-end', rule: '0.8 is nearer 1 than 0.5' },
+    { yalign: 1, alignItems: 'flex-end', rule: '1 is the bottom edge exactly' },
+];
+
 /** One authored `ellipsize` and the `Pango.EllipsizeMode` nick the label holds. */
 export interface LabelEllipsizeVector {
     value: string | null;
@@ -216,26 +244,40 @@ export const LABEL_CHAR_COUNT_VECTORS: ReadonlyArray<LabelCharCountVector> = [
     { value: 'auto', count: -1, rule: 'an unparseable value is the default, not NaN' },
 ];
 
-/** One `lines` / `wrap` / `ellipsize` combination and the line count a renderer applies. */
+/** One `lines` / `ellipsize` combination and the line count a renderer applies. */
 export interface LabelEffectiveLinesVector {
     lines: number;
-    wrap: boolean;
     ellipsize: 'none' | 'start' | 'middle' | 'end';
     effective: number | null;
     rule: string;
 }
 
 /**
- * "This property has no effect if the label is not wrapping or ellipsized" — the pspec's
- * own words for `lines`, pinned here rather than left for each renderer to re-derive.
+ * MEASURED (a real `Gtk.Label`, allocated, gjs 1.88.1 / gtk 4.22.5) — `wrap` is
+ * deliberately not a column here, because it changes NONE of these outcomes.
+ * `wrap=TRUE, ellipsize=NONE, lines=2` laid out 15 lines (the cap ignored);
+ * `wrap=FALSE, ellipsize=END, lines=2` laid out exactly 2, ellipsized. `label.ts`'s header
+ * carries the fuller measurement, including the two prior, WRONG readings of the pspec's
+ * "has no effect if the label is not wrapping or ellipsized" this table replaced.
  */
 export const LABEL_EFFECTIVE_LINES_VECTORS: ReadonlyArray<LabelEffectiveLinesVector> = [
-    { lines: -1, wrap: true, ellipsize: 'end', effective: null, rule: 'no lines limit is no effective limit' },
-    { lines: 2, wrap: false, ellipsize: 'none', effective: null, rule: 'neither wrapping nor ellipsized: no effect' },
-    { lines: 2, wrap: true, ellipsize: 'none', effective: 2, rule: 'wrapping alone is enough' },
-    { lines: 2, wrap: false, ellipsize: 'end', effective: 2, rule: 'ellipsized alone is enough, even without wrap' },
-    { lines: 3, wrap: true, ellipsize: 'end', effective: 3, rule: 'wrapping and ellipsized together still applies' },
-    { lines: 0, wrap: true, ellipsize: 'none', effective: 0, rule: '0 is a real, held limit — zero lines' },
+    { lines: -1, ellipsize: 'none', effective: null, rule: 'not ellipsized: no effect, however lines is set' },
+    { lines: 2, ellipsize: 'none', effective: null, rule: 'not ellipsized: lines has no effect even at a real value' },
+    { lines: -1, ellipsize: 'end', effective: 1, rule: "ellipsized, lines unset: Pango's own default is ONE line" },
+    {
+        lines: 0,
+        ellipsize: 'end',
+        effective: 1,
+        rule: '0 is not a real limit either: GTK only calls pango_layout_set_height for lines > 0, so 0 falls to the same Pango default as unset',
+    },
+    { lines: 1, ellipsize: 'end', effective: 1, rule: 'lines=1 explicitly is the same one line' },
+    {
+        lines: 2,
+        ellipsize: 'end',
+        effective: 2,
+        rule: 'ellipsized alone is enough — no wrap needed, the finding this table exists to pin',
+    },
+    { lines: 3, ellipsize: 'start', effective: 3, rule: 'holds for every ellipsize mode, not only end' },
 ];
 
 /** One `width-chars` + `max-width-chars` pair and the `ch`-unit extent it derives. */

@@ -19,6 +19,7 @@ import {
     LABEL_WIDTH_CHARS_EXTENT_VECTORS,
     LABEL_WRAP_MODE_VECTORS,
     LABEL_XALIGN_VECTORS,
+    LABEL_YALIGN_ALIGN_ITEMS_VECTORS,
     LABEL_YALIGN_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 
@@ -153,7 +154,6 @@ export const GtkLabelTest = async () => {
         for (const vector of LABEL_EFFECTIVE_LINES_VECTORS) {
             await it(vector.rule, () => {
                 const { el, host } = mount('word '.repeat(60).trim());
-                el.wrap = vector.wrap;
                 el.ellipsize = vector.ellipsize;
                 el.lines = vector.lines;
                 const held = el.style.getPropertyValue('--gtk-label-lines');
@@ -161,6 +161,28 @@ export const GtkLabelTest = async () => {
                 host.remove();
             });
         }
+
+        // The regression this table exists to pin: `wrap` must not change the answer,
+        // in EITHER direction — measured against a real Gtk.Label, `label.ts`'s header.
+        await it('wrap changes nothing while ellipsize is active', () => {
+            const { el, host } = mount('word '.repeat(60).trim());
+            el.ellipsize = 'end';
+            el.lines = 2;
+            const withoutWrap = el.style.getPropertyValue('--gtk-label-lines');
+            el.wrap = true;
+            expect(el.style.getPropertyValue('--gtk-label-lines')).toBe(withoutWrap);
+            host.remove();
+        });
+
+        await it('wrap changes nothing while ellipsize is none — lines never applies', () => {
+            const { el, host } = mount('word '.repeat(60).trim());
+            el.lines = 2;
+            const withoutWrap = el.style.getPropertyValue('--gtk-label-lines');
+            el.wrap = true;
+            expect(el.style.getPropertyValue('--gtk-label-lines')).toBe(withoutWrap);
+            expect(withoutWrap).toBe('');
+            host.remove();
+        });
     });
 
     await describe('<gtk-label> against LABEL_WIDTH_CHARS_EXTENT_VECTORS', async () => {
@@ -404,29 +426,67 @@ export const GtkLabelTest = async () => {
         });
     });
 
-    await describe('<gtk-label> lines — "no effect if not wrapping or ellipsized"', async () => {
+    await describe('<gtk-label> lines — gated by ellipsize alone, wrap plays no part', async () => {
         const paragraph = 'word '.repeat(60).trim();
 
-        await it('caps a wrapping label to N lines instead of letting it grow', () => {
+        // THE FINDING THIS BLOCK EXISTS TO PIN: `wrap=false` does NOT keep an ellipsized,
+        // `lines`-capped label to one line — a real `Gtk.Label` allocated with
+        // `wrap=FALSE, ellipsize=END, lines=2` lays out exactly two lines, ellipsized
+        // (`label.ts`'s header, `@gjsify/adwaita-core`). No `wrap` is set anywhere below.
+        await it('wraps onto multiple lines from ellipsize + lines ALONE, wrap never set', () => {
+            const { el, host } = mount(paragraph);
+            host.style.width = '150px';
+            el.ellipsize = 'end';
+            el.lines = 2;
+            const span = el.querySelector('.adw-label-text')!;
+            // Two lines of wrapped text, not one: the span's rendered text spans more than
+            // a single line's height.
+            const oneLine = mount('word').el;
+            oneLine.ellipsize = 'end';
+            const oneLineHeight = oneLine.querySelector('.adw-label-text')!.getBoundingClientRect().height;
+            expect(span.getBoundingClientRect().height).toBeGreaterThan(oneLineHeight * 1.5);
+            oneLine.parentElement?.remove();
+            host.remove();
+        });
+
+        await it('caps at 2 lines rather than the 1-line default a real allocation gives', () => {
             const { el: capped, host: cappedHost } = mount(paragraph);
             cappedHost.style.width = '150px';
-            capped.wrap = true;
             capped.ellipsize = 'end';
             capped.lines = 2;
 
-            const { el: free, host: freeHost } = mount(paragraph);
-            freeHost.style.width = '150px';
-            free.wrap = true;
-            free.ellipsize = 'end';
+            const { el: oneLine, host: oneLineHost } = mount(paragraph);
+            oneLineHost.style.width = '150px';
+            oneLine.ellipsize = 'end';
+            // `lines` left unset: Pango's own default is ONE line, not unlimited.
 
-            const cappedSpan = capped.querySelector('.adw-label-text')!.getBoundingClientRect();
-            const freeSpan = free.querySelector('.adw-label-text')!.getBoundingClientRect();
-            expect(cappedSpan.height).toBeLessThan(freeSpan.height);
+            const cappedHeight = capped.querySelector('.adw-label-text')!.getBoundingClientRect().height;
+            const oneLineHeight = oneLine.querySelector('.adw-label-text')!.getBoundingClientRect().height;
+            expect(cappedHeight).toBeGreaterThan(oneLineHeight * 1.5);
+            expect(cappedHeight).toBeLessThan(oneLineHeight * 2.5);
             cappedHost.remove();
-            freeHost.remove();
+            oneLineHost.remove();
         });
 
-        await it('has no effect on a label that is neither wrapping nor ellipsized', () => {
+        await it('still caps below the TRUE unclamped height once ellipsize is none', () => {
+            const { el: capped, host: cappedHost } = mount(paragraph);
+            cappedHost.style.width = '150px';
+            capped.ellipsize = 'end';
+            capped.lines = 2;
+
+            const { el: unclamped, host: unclampedHost } = mount(paragraph);
+            unclampedHost.style.width = '150px';
+            unclamped.wrap = true;
+            // `ellipsize` stays `none`: wraps freely onto however many lines the text needs.
+
+            const cappedHeight = capped.querySelector('.adw-label-text')!.getBoundingClientRect().height;
+            const unclampedHeight = unclamped.querySelector('.adw-label-text')!.getBoundingClientRect().height;
+            expect(cappedHeight).toBeLessThan(unclampedHeight);
+            cappedHost.remove();
+            unclampedHost.remove();
+        });
+
+        await it('has no effect at all while ellipsize is none, however lines is set', () => {
             const { el: capped, host: cappedHost } = mount(paragraph);
             capped.lines = 1;
             const { el: free, host: freeHost } = mount(paragraph);
@@ -460,6 +520,27 @@ export const GtkLabelTest = async () => {
             const topGap = text.top - box.top;
             const bottomGap = box.bottom - text.bottom;
             expect(Math.abs(topGap - bottomGap) <= 1).toBe(true);
+            host.remove();
+        });
+
+        for (const vector of LABEL_YALIGN_ALIGN_ITEMS_VECTORS) {
+            await it(`align-items: ${vector.rule}`, () => {
+                const { el, host } = mount('Hi');
+                el.yalign = vector.yalign;
+                expect(getComputedStyle(el).alignItems).toBe(vector.alignItems);
+                host.remove();
+            });
+        }
+
+        await it('sits an intermediate yalign (0.3) at the SAME top gap as 0.5 — true nearest, not a half-split', () => {
+            // The exact regression a strict `< 0.5`/`> 0.5` split gets wrong: 0.3 is
+            // NEARER 0.5 than 0, so it must render identically to 0.5, not to 0.
+            const { el, host } = mount('Hi');
+            el.style.height = '100px';
+            el.yalign = 0.5;
+            const centredTop = textRect(el).top;
+            el.yalign = 0.3;
+            expect(Math.round(textRect(el).top)).toBe(Math.round(centredTop));
             host.remove();
         });
     });

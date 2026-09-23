@@ -33,11 +33,20 @@
 // function's own comment for why an end-ellipsis, not a silent `clip`, is what every
 // non-`none` mode draws.
 //
+// `WRAP` DOES NOT GATE `LINES`, THE PSPEC'S OWN PROSE NOTWITHSTANDING. "Has no effect if
+// the label is not wrapping or ellipsized" reads as `wrap || ellipsize`; MEASURED (real
+// `Gtk.Label`, allocated, gjs 1.88.1 / gtk 4.22.5), only `ellipsize` gates it —
+// `wrap=TRUE, ellipsize=NONE, lines=2` laid out 15 lines (the cap ignored), and
+// `wrap=FALSE, ellipsize=END, lines=2` laid out exactly 2, ellipsized. `labelEffectiveLines`
+// below carries the full measurement; the first version of this function trusted the
+// prose over gtklabel.c's actual `gtk_label_ensure_layout` and shipped the first case
+// backwards.
+//
 // Reference: refs/gtk/gtk/gtklabel.c (gtk_label_set_markup, gtk_label_set_xalign,
 //   gtk_label_set_yalign, gtk_label_set_justify, gtk_label_set_ellipsize,
 //   gtk_label_set_wrap_mode, gtk_label_set_lines, gtk_label_set_width_chars,
 //   gtk_label_set_max_width_chars, the `justify` → PangoAlignment switch,
-//   get_default_widths, "This has no effect if the label is not wrapping or ellipsized")
+//   get_default_widths, gtk_label_ensure_layout's width/height conditions)
 // Reference: Pango-1.0.gir (EllipsizeMode, WrapMode nicks — no `refs/pango` pool; read via
 //   `gi://Pango` under gjs, and confirmed against `@girs/pango-1.0`'s enum member order)
 // Copyright (c) The GTK Team. LGPLv2.1+.
@@ -97,6 +106,25 @@ export const DEFAULT_LABEL_YALIGN = 0.5;
 export function normalizeLabelYalign(value: unknown): number {
     const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
     return Number.isFinite(parsed) ? glibClamp(parsed, 0, 1) : DEFAULT_LABEL_YALIGN;
+}
+
+/** The one CSS `align-items` keyword a `yalign` zone maps to. */
+export type LabelAlignItems = 'flex-start' | 'center' | 'flex-end';
+
+/**
+ * `yalign`'s three-zone CSS mapping — the DECLARED divergence past `yalign`'s three exact
+ * values (0, 0.5, 1): CSS `align-items` has three keywords and no ratio the way `xalign`'s
+ * `flex-grow` gives the main axis one (`_labels.scss`'s header has the full reasoning for
+ * why a second spacer pair is not the fix). This is the NEAREST of the three — the
+ * boundary between "nearest 0" and "nearest 0.5" is their midpoint, `0.25`, and
+ * symmetrically `0.75` between "nearest 0.5" and "nearest 1"; a value sitting exactly on a
+ * boundary is equidistant and reads as the CENTRE zone (`<`/`>`, not `<=`/`>=`), the same
+ * "high bound first" tie a strict inequality gives {@link glibClamp} at its own edges.
+ */
+export function labelYalignAlignItems(yalign: number): LabelAlignItems {
+    if (yalign < 0.25) return 'flex-start';
+    if (yalign > 0.75) return 'flex-end';
+    return 'center';
 }
 
 /** `Pango.EllipsizeMode`'s four nicks, in enum order. */
@@ -188,18 +216,38 @@ export function normalizeLabelLines(value: unknown): number {
 }
 
 /**
- * `Gtk.Label:lines` "has no effect if the label is not wrapping or ellipsized" (the
- * pspec's own doc comment) — `gtk_label_ensure_layout` only calls
- * `pango_layout_set_height(layout, -self->lines)` there, and only a WRAPPING or
- * ELLIPSIZING layout ever needs a height cap at all; a single-line, non-ellipsized label
- * is already exactly one line tall. Returns the line count a renderer should actually
- * apply, or `null` when there is none, so a renderer never re-derives this guard from the
- * three raw properties itself — the mistake `lines` on its own invites, since `-1` is also
- * "no limit" and reads the same as "not applicable" until you ask why.
+ * `Gtk.Label:lines` — the line count Pango will actually show before it ellipsizes, or
+ * `null` when nothing caps it at all.
+ *
+ * THE PSPEC'S OWN WORDS ARE IMPRECISE, MEASURED AGAINST WHAT GTK DOES. "Has no effect if
+ * the label is not wrapping or ellipsized" reads as `wrap || ellipsize !== 'none'` — this
+ * function's first, WRONG implementation — but `gtk_label_ensure_layout` (gtklabel.c) only
+ * ever calls `pango_layout_set_height(layout, -self->lines)`, and `wrap` plays NO PART in
+ * whether Pango HONOURS that call: measured on gjs 1.88.1 / gtk 4.22.5, a real
+ * `Gtk.Label` with `wrap=TRUE, ellipsize=NONE, lines=2`, allocated 100px wide, laid out
+ * **15 lines** — the `lines` hint sits there unused, because Pango only consults a
+ * layout's height/line-count when ELLIPSIZATION is active; wrapping alone never asks
+ * Pango to stop. The same label with `wrap=FALSE, ellipsize=END, lines=2` (the case the
+ * old implementation returned `null`, "no effect", for) laid out exactly **2 lines**,
+ * ellipsized — `wrap` is `false` there and it changed nothing: `ellipsize || wrap` in the
+ * C is the gate on whether the layout gets a WIDTH at all (a `Gtk.Label:ellipsize`
+ * request supplies its own width, exactly like `wrap` does), not on whether `lines` has
+ * an effect. So `wrap` is not a parameter here — passing it would invite exactly the
+ * misreading the pspec's prose does.
+ *
+ * WHAT AN UNSET `lines` (`≤ 0`) MEANS ONCE ELLIPSIZE IS ACTIVE IS NOT "UNLIMITED" — it is
+ * Pango's OWN default: `gtk_label_set_lines` only calls `pango_layout_set_height` when
+ * `lines > 0`, so an unset `lines` leaves Pango's height at ITS default, which
+ * `PangoLayout` documents as "the first line will be shown" — measured: `lines` absent
+ * (or `0`) with `ellipsize=END` laid out to exactly **1 line**, same as `lines=1`
+ * explicitly. `lines < 0` (GTK's own "unlimited" spelling once `lines` IS being read,
+ * i.e. while ellipsize is active) was never reachable through this function in the first
+ * place, since {@link normalizeLabelLines} floors at `-1` and this reads it before any
+ * positive check — folded into the `lines > 0 ? lines : 1` branch below.
  */
-export function labelEffectiveLines(lines: number, wrap: boolean, ellipsize: LabelEllipsizeMode): number | null {
-    if (lines < 0) return null;
-    return wrap || ellipsize !== 'none' ? lines : null;
+export function labelEffectiveLines(lines: number, ellipsize: LabelEllipsizeMode): number | null {
+    if (ellipsize === 'none') return null;
+    return lines > 0 ? lines : 1;
 }
 
 /** One `width-chars` + `max-width-chars` pair and the `ch`-unit extent a renderer draws. */

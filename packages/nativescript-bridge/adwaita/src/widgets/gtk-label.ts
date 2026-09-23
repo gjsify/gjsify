@@ -178,8 +178,9 @@ export class GtkLabel extends withSignals(Label) {
      * NativeScript's own name for it is `textWrap`, which stays reachable; this is the GIR
      * spelling over the same platform property, so a snippet ported off GJS runs verbatim.
      * `wrap-mode` and `natural-wrap-mode` are the declared gaps beside it — the platform
-     * wraps at word boundaries and offers no choice. Reapplies {@link lines}: its effect
-     * is gated on `wrap`, same as GTK's own pspec.
+     * wraps at word boundaries and offers no choice. Does NOT reapply {@link lines}:
+     * MEASURED (`@gjsify/adwaita-core`'s `label.ts` header), `wrap` plays no part in
+     * whether `lines` has an effect, only {@link ellipsize} does.
      */
     get wrap(): boolean {
         return this.textWrap;
@@ -187,7 +188,6 @@ export class GtkLabel extends withSignals(Label) {
 
     set wrap(raw: boolean | string) {
         this.textWrap = xmlBoolean(raw, this.textWrap);
-        this._applyLines();
     }
 
     /**
@@ -208,10 +208,12 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     /**
-     * `Gtk.Label:lines` — the line count an ellipsized or wrapping label is held to.
-     * Defaults to -1 (no limit). "Has no effect if the label is not wrapping or
-     * ellipsized" (the pspec) — {@link labelEffectiveLines} is that guard, applied to the
-     * platform's `maxLines`, where any `value <= 0` already means unlimited (measured in
+     * `Gtk.Label:lines` — the line count an ellipsized label is held to. Defaults to -1
+     * ("unset"), which still caps at Pango's own default of ONE line the moment
+     * {@link ellipsize} is active — never "unlimited". Has no effect at all while
+     * ellipsize is `none`, `wrap` or not — {@link labelEffectiveLines}
+     * (`@gjsify/adwaita-core`) is that MEASURED guard, applied to the platform's
+     * `maxLines`, where any `value <= 0` already means unlimited (measured in
      * `@nativescript/core`'s `index.android.js`).
      */
     get lines(): number {
@@ -224,7 +226,7 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     private _applyLines(): void {
-        this.maxLines = labelEffectiveLines(this._lines, this.wrap, this._ellipsize) ?? 0;
+        this.maxLines = labelEffectiveLines(this._lines, this._ellipsize) ?? 0;
     }
 
     /**

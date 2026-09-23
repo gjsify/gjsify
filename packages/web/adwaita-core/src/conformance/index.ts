@@ -564,6 +564,7 @@ export {
     LABEL_WIDTH_CHARS_EXTENT_VECTORS,
     LABEL_WRAP_MODE_VECTORS,
     LABEL_XALIGN_VECTORS,
+    LABEL_YALIGN_ALIGN_ITEMS_VECTORS,
     LABEL_YALIGN_VECTORS,
 } from './label.js';
 export type {
@@ -576,6 +577,7 @@ export type {
     LabelWidthCharsExtentVector,
     LabelWrapModeVector,
     LabelXalignVector,
+    LabelYalignAlignItemsVector,
     LabelYalignVector,
 } from './label.js';
 

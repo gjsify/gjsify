@@ -20,6 +20,7 @@ import {
     labelEllipsizeOverflowValue,
     labelMarkupIsUnparseable,
     labelWidthCharsExtent,
+    labelYalignAlignItems,
     normalizeLabelEllipsize,
     normalizeLabelJustify,
     normalizeLabelLines,
@@ -39,6 +40,7 @@ import {
     LABEL_WIDTH_CHARS_EXTENT_VECTORS,
     LABEL_WRAP_MODE_VECTORS,
     LABEL_XALIGN_VECTORS,
+    LABEL_YALIGN_ALIGN_ITEMS_VECTORS,
     LABEL_YALIGN_VECTORS,
 } from './conformance/label.js';
 
@@ -148,6 +150,14 @@ export default async () => {
         }
     });
 
+    await describe('labelYalignAlignItems — true nearest-of-three, not a half-split', async () => {
+        for (const vector of LABEL_YALIGN_ALIGN_ITEMS_VECTORS) {
+            await it(vector.rule, () => {
+                expect(labelYalignAlignItems(vector.yalign)).toBe(vector.alignItems);
+            });
+        }
+    });
+
     await describe('normalizeLabelEllipsize', async () => {
         await it('defaults to none, the pspec default', () => {
             expect(DEFAULT_LABEL_ELLIPSIZE).toBe('none');
@@ -200,10 +210,10 @@ export default async () => {
         }
     });
 
-    await describe('labelEffectiveLines — "no effect if not wrapping or ellipsized"', async () => {
+    await describe('labelEffectiveLines — gated by ellipsize alone, wrap plays no part', async () => {
         for (const vector of LABEL_EFFECTIVE_LINES_VECTORS) {
             await it(vector.rule, () => {
-                expect(labelEffectiveLines(vector.lines, vector.wrap, vector.ellipsize)).toBe(vector.effective);
+                expect(labelEffectiveLines(vector.lines, vector.ellipsize)).toBe(vector.effective);
             });
         }
     });

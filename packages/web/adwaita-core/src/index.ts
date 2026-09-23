@@ -307,6 +307,7 @@ export {
     labelEllipsizeOverflowValue,
     labelMarkupIsUnparseable,
     labelWidthCharsExtent,
+    labelYalignAlignItems,
     normalizeLabelEllipsize,
     normalizeLabelJustify,
     normalizeLabelLines,
@@ -316,7 +317,13 @@ export {
     normalizeLabelXalign,
     normalizeLabelYalign,
 } from './label.js';
-export type { LabelEllipsizeMode, LabelJustification, LabelWidthCharsExtent, LabelWrapMode } from './label.js';
+export type {
+    LabelAlignItems,
+    LabelEllipsizeMode,
+    LabelJustification,
+    LabelWidthCharsExtent,
+    LabelWrapMode,
+} from './label.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
