@@ -47,4 +47,45 @@ export const AdwGalleryBlueprintsNsTest = async () => {
             });
         }
     });
+
+    // Accepting a name is not placing by it: a builder routing `end` to `pack_start` would
+    // pass every test above. So the header bar is held to where GTK puts each child, and the
+    // menu button to the class its `styles ["flat"]` asks for.
+    await describe('the gallery header bar builds as GTK places it', async () => {
+        const entry = trees.find(({ file }) => file.endsWith('/header-bar.blp'));
+        if (entry === undefined) throw new Error('the corpus has no gallery header-bar.blp');
+
+        type Probe = {
+            getViewById(id: string): Probe | undefined;
+            parent: Probe | null;
+            titleWidget?: Probe;
+            startBox?: Probe;
+            endBox?: Probe;
+            className?: string;
+            has_css_class?(name: string): boolean;
+            add_css_class?(name: string): void;
+        };
+        const root = build(entry.node) as unknown as Probe;
+        const byId = (id: string) => root.getViewById(id)!;
+
+        await it('title-widget: becomes the title widget', () => {
+            expect(root.titleWidget === byId('window_title')).toBe(true);
+        });
+
+        await it('[start] lands in the start box', () => {
+            expect(byId('back_button').parent === root.startBox).toBe(true);
+        });
+
+        await it('[end] lands in the end box', () => {
+            expect(byId('menu_button').parent === root.endBox).toBe(true);
+        });
+
+        await it('styles ["flat"] reaches the menu button as the flat class', () => {
+            const menu = byId('menu_button');
+            expect(menu.has_css_class?.('flat')).toBe(true);
+            expect((menu.className ?? '').split(' ').includes('flat')).toBe(true);
+            menu.add_css_class?.('circular');
+            expect((menu.className ?? '').split(' ').includes('circular')).toBe(true);
+        });
+    });
 };
