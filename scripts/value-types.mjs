@@ -66,6 +66,16 @@ export const CONSTRUCTIBLE_VALUES = [
         gir: 'MenuItem',
         why: "`Gio.Menu`'s item half — `set_label` / `set_detailed_action` — for the same reason, and unreachable without it the moment a pane writes anything past a bare `append`.",
     },
+    {
+        member: 'Gtk.Adjustment',
+        gir: 'Adjustment',
+        why: 'GJS writes `adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 })`, and ADR 0047 already made the VALUE behind it portable — the class IS `AdwAdjustment` wearing the GIR spelling. It closed the `Adw.SpinRow` pane divergence down to the one property the port has no counterpart for.',
+    },
+    {
+        member: 'Gtk.StringList',
+        gir: 'StringList',
+        why: 'GJS writes `model: new Gtk.StringList({ strings: [...] })`, and ADR 0046 already made the VALUE behind it portable. An `Array` subclass like `Gio.Menu`, so the array spelling and this one are the same write — it closed the `Adw.ComboRow` pane divergence outright.',
+    },
 ];
 
 /** `Gio.Menu` -> `{ namespace: 'Gio', member: 'Menu' }`. A GIR namespace carries no dot. */

@@ -24,6 +24,8 @@ import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
+import gtkAdjustmentTestSuite from './gtk-adjustment.spec.js';
+import gtkStringListTestSuite from './gtk-string-list.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
@@ -44,6 +46,8 @@ run({
     sharedTreesTestSuite,
     aboutDialogTestSuite,
     adjustmentTestSuite,
+    gtkAdjustmentTestSuite,
+    gtkStringListTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,
     buttonTestSuite,

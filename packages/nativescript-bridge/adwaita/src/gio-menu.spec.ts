@@ -6,13 +6,17 @@
 // `normalizeMenuModel(<the array a reader would have written>)` rather than against a
 // hand-typed expectation — a hand-typed one would agree with whatever this file produces.
 //
+// The class itself lives in `@gjsify/adwaita-core`; what this file drives is the port's
+// own `Gio` DOOR onto it, so a barrel that stops resolving fails here rather than in a
+// consumer.
+//
 // Compared as JSON rather than with `toEqual`: `@gjsify/unit`'s `toEqual` is `==`, so two
 // different objects pass it whatever they hold.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { normalizeMenuModel } from '@gjsify/adwaita-core';
 
-import { Menu, MenuItem } from './gio/menu.js';
+import { Menu, MenuItem } from './namespace/gio.js';
 
 /** What a `menuModel` property does with a value, on both spellings. */
 const model = (value: readonly unknown[]) => JSON.stringify(normalizeMenuModel(value as never));

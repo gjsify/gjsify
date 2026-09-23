@@ -422,6 +422,7 @@ the web port renders them stacked instead.
   <Fragment slot="nativescript">
     ```ts
     import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const dialog = new Adw.PreferencesDialog({ title: 'Preferences' });
 
@@ -438,12 +439,12 @@ the web port renders them stacked instead.
     group.add(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
     group.add(new Adw.ComboRow({
         title: 'Accent colour',
-        model: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'],
+        model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
         selected: 0,
     }));
     group.add(new Adw.SpinRow({
         title: 'Font size',
-        adjustment: { lower: 8, upper: 24, value: 12, stepIncrement: 1 },
+        adjustment: new Gtk.Adjustment({ lower: 8, upper: 24, value: 12, stepIncrement: 1 }),
     }));
 
     page.add(group);

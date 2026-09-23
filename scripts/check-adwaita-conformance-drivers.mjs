@@ -233,6 +233,20 @@ const MODULE_REASONS = {
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },
     'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
+    // THE THREE GIR AUTHORING DOORS (ADR 0034 § Amendment 19). `gio-menu.ts`,
+    // `gtk-string-list.ts` and `gtk-adjustment.ts` add NO behaviour of their own: each one
+    // is the value beside it — the menu model, the list model, the adjustment — wearing the
+    // GIR spelling, and every write through it lands in the normaliser its sibling module
+    // already tables. So the vectors that hold them are that value's, named here; a table of
+    // their own would assert the same derivation twice under a second name.
+    //
+    // The SPELLING is the half a table cannot carry, and it is held where it is used: both
+    // ports drive `gio-menu.spec.ts` through their own `Gio` door, and both drive
+    // `gtk-value-doors.spec.ts`, which asserts that the widget cannot tell the class from the
+    // plain array or object literal it replaces.
+    'gio-menu': { table: 'MENU_NORMALIZE_VECTORS' },
+    'gtk-adjustment': { table: 'ADJUSTMENT_AUTHORED_VECTORS' },
+    'gtk-string-list': { table: 'LIST_NORMALIZE_VECTORS' },
     scrolling: { gap: NO_TABLE_LEDGER },
     source: { gap: NO_TABLE_LEDGER },
     swipe: { gap: NO_TABLE_LEDGER },

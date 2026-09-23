@@ -14,11 +14,13 @@
 import { run } from '@gjsify/unit';
 
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
+import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 
 run({
     AdwSharedTreesNsTest,
     AdwClampClasslessChildNsTest,
+    AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
 });

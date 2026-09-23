@@ -735,12 +735,9 @@ const PANE_TEXT_DIVERGENCES = {
         'vocabulary: one line, and it is the alignment. The trailing chevron is a flat Gtk.Button on both ' +
         'sides now and both icons are theme names, so what is left is verticalAlignment against valign — ' +
         'the Gtk.Align convergence ADR 0034 § Amendment 12 leaves open.',
-    'Adw.ComboRow':
-        'vocabulary: the model is a string array where GTK takes a Gtk.StringList. The portable value shape ' +
-        'is what would close it, and it is the same question ADR 0034 § 1 asks of every value.',
     'Adw.SpinRow':
-        "property: the adjustment is @gjsify/adwaita-core's AdwAdjustment where GTK takes a Gtk.Adjustment, " +
-        'and the port installs no `digits` — it renders the value the state machine holds.',
+        'property: one line, and it is `digits`. The adjustment is a Gtk.Adjustment on both sides now; what ' +
+        'is left is that the port installs no `digits` — it renders the value the state machine holds.',
     'Adw.ButtonRow': 'vocabulary: a style class is className rather than add_css_class(), and nothing else differs.',
     'Adw.ButtonContent':
         'property: the icon bitmap is PRE-COLOURED, so a suggested button pins iconColor where GTK inherits ' +
@@ -768,8 +765,8 @@ const PANE_TEXT_DIVERGENCES = {
         'credits fold into the developer line; and applicationIcon paints a Label, so it takes a text glyph ' +
         'where every icon property beside it now takes a theme name.',
     'Adw.PreferencesDialog':
-        'property: the combo model is a string array, the adjustment is the portable shape rather than a ' +
-        'Gtk.Adjustment, the dialog takes its own title, and present() takes no parent.',
+        'property: the dialog takes its own title, and present() takes no parent. The combo model is a ' +
+        'Gtk.StringList and the adjustment a Gtk.Adjustment on both sides now.',
     'Adw.Clamp':
         'composition: the NativeScript window splits into an XML template and a loader, so this pane is the ' +
         '`~/adw` barrel the template’s xmlns resolves to plus a Builder.load(), not a widget construction.',
@@ -837,7 +834,8 @@ const PANE_TEXT_DIVERGENCES = {
         'surface to put them on.',
     'Gtk.DropDown':
         'property: the port has no Gtk.PropertyExpression, no Gtk.StringObject and no search field, so the ' +
-        'model is a string array and enableSearch has no counterpart.',
+        'expression line and enableSearch have no counterpart. The model is a Gtk.StringList on both sides ' +
+        'now, and the construction is one text.',
 };
 
 /**
