@@ -55,9 +55,61 @@ export default async () => {
             );
         });
 
-        await it('escapes `&` and the double quote in a value', async () => {
+        await it('quotes a value holding a double quote with single quotes, and escapes `&`', async () => {
             expect(sharedTreeHtml({ tag: 'GtkLabel', props: { label: 'Salt & "pepper"' } })).toBe(
-                '<gtk-label label="Salt &amp; &quot;pepper&quot;"></gtk-label>',
+                `<gtk-label label='Salt &amp; "pepper"'></gtk-label>`,
+            );
+        });
+
+        await it('escapes the double quote of a value that holds both quotes', async () => {
+            expect(sharedTreeHtml({ tag: 'GtkLabel', props: { label: `"It's"` } })).toBe(
+                `<gtk-label label="&quot;It's&quot;"></gtk-label>`,
+            );
+        });
+
+        // `buildSharedTree` writes a margin as inline style beside its attribute, so markup
+        // that did not would parse to a tree without the inset.
+        await it('writes a margin as inline style too, in the order the props hold them', async () => {
+            expect(sharedTreeHtml({ tag: 'GtkBox', props: { 'margin-top': 18, 'margin-start': 12 } })).toBe(
+                [
+                    '<gtk-box',
+                    '  margin-top="18"',
+                    '  margin-start="12"',
+                    '  style="margin-top: 18px; margin-inline-start: 12px;"',
+                    '></gtk-box>',
+                ].join('\n'),
+            );
+        });
+
+        // ADR 0072: what `writeExtensions` writes for each kind.
+        await it('writes a string list as its `strings` attribute, a JSON array', async () => {
+            const list: SharedTreeNode = {
+                tag: 'GtkStringList',
+                slot: 'model',
+                extensions: { strings: [{ value: 'Blue', translatable: {} }, { value: 'Teal' }] },
+            };
+            expect(sharedTreeHtml(list)).toBe(
+                `<gtk-string-list strings='["Blue","Teal"]' slot="model"></gtk-string-list>`,
+            );
+        });
+
+        await it('writes each response as an <adw-alert-response> child ahead of the children', async () => {
+            const dialog: SharedTreeNode = {
+                tag: 'AdwAlertDialog',
+                extensions: {
+                    responses: [
+                        { id: 'cancel', label: 'Cancel' },
+                        { id: 'delete', label: 'Delete & close', appearance: 'destructive', enabled: false },
+                    ],
+                },
+            };
+            expect(sharedTreeHtml(dialog)).toBe(
+                [
+                    '<adw-alert-dialog>',
+                    '  <adw-alert-response id="cancel">Cancel</adw-alert-response>',
+                    '  <adw-alert-response id="delete" appearance="destructive" enabled="false">Delete &amp; close</adw-alert-response>',
+                    '</adw-alert-dialog>',
+                ].join('\n'),
             );
         });
     });

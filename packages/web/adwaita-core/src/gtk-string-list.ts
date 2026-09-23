@@ -70,6 +70,26 @@ export class GtkStringList extends Array<string> {
         for (const string of props?.strings ?? []) this.push(string);
     }
 
+    /**
+     * `Gtk.StringList:strings`, as the door an attribute reaches. GTK's property is
+     * construct-only, and a NativeScript XML template has no constructor call to pass it
+     * through: `<gtk:StringList strings='["Blue","Teal"]'>` assigns the JSON text to this
+     * member instead, on a list that is still empty. So it REPLACES the contents, as
+     * constructing with `{ strings }` would have filled them.
+     */
+    get strings(): string[] {
+        return [...this];
+    }
+
+    set strings(value: readonly string[] | string) {
+        const strings: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+        if (!Array.isArray(strings) || strings.some((string) => typeof string !== 'string')) {
+            throw new TypeError(`Gtk.StringList:strings takes an array of strings, not ${JSON.stringify(value)}.`);
+        }
+        this.length = 0;
+        for (const string of strings) this.push(string);
+    }
+
     /** `gtk_string_list_append`. */
     append(string: string): void {
         this.push(string);
