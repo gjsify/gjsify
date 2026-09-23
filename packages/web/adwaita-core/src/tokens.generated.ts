@@ -162,6 +162,10 @@ export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = {
     '--destructive-fg-color': {
         light: '#ffffff',
     },
+    '--destructive-color': {
+        light: 'oklab(from var(--destructive-bg-color) min(l, 0.5) a b)',
+        dark: 'oklab(from var(--destructive-bg-color) max(l, 0.85) a b)',
+    },
     '--success-bg-color': {
         light: '#2ec27e',
         dark: '#26a269',
@@ -287,6 +291,7 @@ export const ADWAITA_DARK_ONLY_TOKENS: readonly string[] = ['--active-toggle-bg-
  */
 export const ADWAITA_UNRESOLVED_TOKENS: readonly string[] = [
     '--border-color',
+    '--destructive-color',
     '--document-font-family',
     '--document-font-size',
     '--error-color',
@@ -296,4 +301,4 @@ export const ADWAITA_UNRESOLVED_TOKENS: readonly string[] = [
 ];
 
 /** How many tokens the light contract carries — derived, never typed. */
-export const ADWAITA_TOKEN_COUNT = 68;
+export const ADWAITA_TOKEN_COUNT = 69;
