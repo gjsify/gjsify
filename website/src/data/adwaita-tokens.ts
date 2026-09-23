@@ -233,6 +233,10 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
                 name: '--destructive-fg-color',
                 value: '#ffffff',
             },
+            {
+                name: '--destructive-color',
+                value: 'oklab(from var(--destructive-bg-color) min(l, 0.5) a b)',
+            },
         ],
     },
     {
@@ -397,4 +401,4 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
 ];
 
 /** How many tokens the contract carries — derived, never typed. */
-export const ADWAITA_TOKEN_COUNT = 68;
+export const ADWAITA_TOKEN_COUNT = 69;

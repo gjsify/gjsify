@@ -83,6 +83,7 @@
   // Destructive action
   --destructive-bg-color: #e01b24;
   --destructive-fg-color: #ffffff;
+  --destructive-color: oklab(from var(--destructive-bg-color) min(l, 0.5) a b);
 
   // Semantic states. `.error` / `.warning` / `.success` (see _labels.scss) do
   // not just recolour text — they REBIND the three accent tokens to these, so
