@@ -84,6 +84,7 @@
 import { Label } from '@nativescript/core';
 
 import {
+    DEFAULT_LABEL_LINES,
     DEFAULT_LABEL_XALIGN,
     labelDisplayText,
     labelEffectiveLines,
@@ -221,7 +222,7 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     set lines(raw: number | string) {
-        this._lines = normalizeLabelLines(raw);
+        this._lines = normalizeLabelLines(xmlNumber(raw, DEFAULT_LABEL_LINES));
         this._applyLines();
     }
 
