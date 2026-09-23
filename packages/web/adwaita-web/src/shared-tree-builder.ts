@@ -47,6 +47,20 @@ interface PlacedChild {
 }
 
 /**
+ * Whether `member` can be assigned on `el`: the nearest descriptor up the prototype chain is
+ * a writable data property or an accessor WITH a setter. `in` alone answers true for a
+ * getter-only accessor, whose assignment throws in strict code.
+ */
+function isWritable(el: object, member: string): boolean {
+    for (let at: object | null = el; at !== null; at = Object.getPrototypeOf(at) as object | null) {
+        const descriptor = Object.getOwnPropertyDescriptor(at, member);
+        if (descriptor === undefined) continue;
+        return descriptor.set !== undefined || descriptor.writable === true;
+    }
+    return false;
+}
+
+/**
  * A `SharedTreeNode`, realised as a DETACHED element tree: a tag, its authored properties as
  * attributes, its style classes as classes, its placement as `slot=`, its children, in that order — recursive and total,
  * no tag list, no per-block case. A boolean authored property is the ATTRIBUTE'S PRESENCE
@@ -60,7 +74,10 @@ interface PlacedChild {
  * reached the page as `can-pop` unset and the page stayed poppable. The element's own
  * property setter knows its attribute convention, so an authored `false` is written
  * through it when the element (already upgraded: `createElement` of a defined tag
- * constructs it) declares one; everything else keeps the presence rule.
+ * constructs it) declares one; everything else keeps the presence rule. "Declares" means a
+ * member it can WRITE ({@link isWritable}): a getter-only accessor of the same name — the
+ * split button's and the menu button's read-only `active` — would throw a bare `TypeError`
+ * out of the assignment, so such a property falls back to the presence rule too.
  *
  * THE SLOT IS WRITTEN AS THE ATTRIBUTE THIS RENDERER ALREADY ROUTES ON, not translated:
  * `src/slotted-children.ts` reads `slot=` off every light-DOM child and keeps the routing
@@ -80,7 +97,7 @@ export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []
     if (node.id !== undefined) el.id = node.id;
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         const member = propertyOf(prop);
-        if (value === false && member in el) (el as unknown as Record<string, unknown>)[member] = false;
+        if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
         else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));
     }

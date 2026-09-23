@@ -295,6 +295,14 @@ export const AdwSharedTreesTest = async () => {
             });
         });
 
+        await it('an authored false on a getter-only property keeps the presence rule instead of throwing', () => {
+            // `<adw-split-button>` exposes `active` as a read-only getter; assigning through it
+            // threw a bare TypeError out of the builder before the writability check.
+            mounted({ tag: 'AdwSplitButton', props: { active: false } }, (root) => {
+                expect(root.hasAttribute('active')).toBe(false);
+            });
+        });
+
         await it('`center-widget:` is refused — GTK has no such property, so Gtk.Builder refuses it too', () => {
             expect(() => mountSharedTree(blueprintTree('Gtk.ActionBar { center-widget: Gtk.Label {}; }'))).toThrow(
                 'has no slot "center-widget"',
