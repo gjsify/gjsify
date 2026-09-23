@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the twelve probes are fewer than twelve distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the thirteen probes are fewer than thirteen distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -918,5 +918,176 @@ export const REAL_EXPECTATIONS = [
             },
         ],
         note: 'The first probe that is neither Adwaita nor a showcase: plain `Gtk.ApplicationWindow`, `child:` rather than `content:`, and the only real file whose caption is the POINT — it was converted from a TypeScript `new Gtk.Label({ label: ... })` that xgettext could not see. Dropping the marking here turned the conversion back into the thing it replaced, which is the argument ADR 0067 § 2 makes from this one line. The `comment` loss is all that is left, and it is the one kind no projection can take: comments never reach the AST.',
+    },
+    {
+        file: 'packages/framework/storybook/src/window.blp',
+        node: {
+            tag: 'AdwApplicationWindow',
+            template: 'StorybookWindow',
+            props: {
+                'default-width': 1200,
+                'default-height': 800,
+                'width-request': 360,
+                'height-request': 320,
+                title: 'Storybook',
+            },
+            children: [
+                {
+                    tag: 'AdwNavigationSplitView',
+                    id: 'main_split_view',
+                    slot: 'content',
+                    props: { 'min-sidebar-width': 220, 'max-sidebar-width': 320 },
+                    children: [
+                        {
+                            tag: 'AdwNavigationPage',
+                            slot: 'sidebar',
+                            props: { title: 'Stories', tag: 'stories' },
+                            children: [
+                                {
+                                    tag: 'AdwToolbarView',
+                                    slot: 'child',
+                                    props: { 'top-bar-style': 'flat' },
+                                    children: [
+                                        {
+                                            tag: 'AdwHeaderBar',
+                                            slot: 'top',
+                                            props: { 'show-end-title-buttons': false },
+                                            children: [
+                                                {
+                                                    tag: 'AdwWindowTitle',
+                                                    slot: 'title-widget',
+                                                    props: { title: 'Stories' },
+                                                },
+                                            ],
+                                        },
+                                        {
+                                            tag: 'GtkScrolledWindow',
+                                            slot: 'content',
+                                            props: { hexpand: true, vexpand: true },
+                                            children: [
+                                                {
+                                                    tag: 'GtkListBox',
+                                                    id: 'sidebar_list',
+                                                    props: { 'selection-mode': 'single' },
+                                                    styleClasses: ['navigation-sidebar'],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'AdwNavigationPage',
+                            slot: 'content',
+                            props: { title: 'Preview', tag: 'preview' },
+                            children: [
+                                {
+                                    tag: 'AdwToolbarView',
+                                    slot: 'child',
+                                    props: { 'top-bar-style': 'flat' },
+                                    children: [
+                                        {
+                                            tag: 'AdwHeaderBar',
+                                            slot: 'top',
+                                            children: [
+                                                {
+                                                    tag: 'AdwWindowTitle',
+                                                    id: 'preview_title',
+                                                    slot: 'title-widget',
+                                                    props: { title: 'Preview' },
+                                                },
+                                                {
+                                                    tag: 'GtkToggleButton',
+                                                    id: 'show_controls_button',
+                                                    slot: 'end',
+                                                    props: {
+                                                        'icon-name': 'sidebar-show-right-symbolic',
+                                                        'tooltip-text': 'Toggle Controls',
+                                                        active: true,
+                                                    },
+                                                },
+                                                {
+                                                    tag: 'GtkButton',
+                                                    slot: 'end',
+                                                    props: {
+                                                        'icon-name': 'applications-graphics-symbolic',
+                                                        'tooltip-text': 'Appearance',
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                        {
+                                            tag: 'AdwOverlaySplitView',
+                                            id: 'controls_split_view',
+                                            slot: 'content',
+                                            props: {
+                                                'show-sidebar': true,
+                                                'sidebar-position': 'end',
+                                                'min-sidebar-width': 280,
+                                                'max-sidebar-width': 360,
+                                            },
+                                            styleClasses: ['storybook-controls'],
+                                            children: [
+                                                {
+                                                    tag: 'GtkScrolledWindow',
+                                                    slot: 'content',
+                                                    props: { hexpand: true, vexpand: true },
+                                                    styleClasses: ['sb-preview-area'],
+                                                    children: [
+                                                        {
+                                                            tag: 'AdwBin',
+                                                            id: 'content_area',
+                                                            props: { hexpand: true, vexpand: true },
+                                                        },
+                                                    ],
+                                                },
+                                                {
+                                                    tag: 'GtkScrolledWindow',
+                                                    slot: 'sidebar',
+                                                    props: { vexpand: true },
+                                                    children: [
+                                                        {
+                                                            tag: 'AdwPreferencesPage',
+                                                            children: [
+                                                                {
+                                                                    tag: 'AdwPreferencesGroup',
+                                                                    id: 'control_panel',
+                                                                    props: { title: 'Controls' },
+                                                                },
+                                                            ],
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'comment',
+                line: 4,
+                detail: '17 comment lines across seven blocks, none reaching either exit',
+            },
+            {
+                kind: 'signal',
+                line: 46,
+                detail: 'the bare handler binding `row-selected => $_onRowSelected()`',
+            },
+            { kind: 'signal', line: 76, detail: 'the bare handler binding `toggled => $_onToggleControls()`' },
+            { kind: 'signal', line: 86, detail: 'the bare handler binding `clicked => $_onAppearanceClicked()`' },
+            {
+                kind: 'breakpoint',
+                line: 134,
+                detail: 'the whole `Adw.Breakpoint` child, written with no `[breakpoint]` slot: `condition ("max-width: 720sp")` and two setters, one on `main_split_view` and one on `controls_split_view`',
+            },
+        ],
+        note: "The first real file from `packages/framework` rather than a showcase or a template — the storybook's own chrome, split out of `window.ts` by this PR. Its own header comment says captions are deliberately not marked translatable, and the projection shows that literally: this is the largest real file so far (20 nodes) with NO `translatable` field on any of them. Two siblings share `slot: 'end'` under one `AdwHeaderBar`, the same cardinality finding 2 above already names. `top-bar-style: flat` on both toolbar views is source spelling, not the `0` the golden resolves it to — finding 4 in `expectations.mjs`'s header. Unlike the three showcases that reach `breakpoint`, this one writes `Adw.Breakpoint` bare, with no `[breakpoint]` slot annotation — `14-breakpoint.blp` already proved that slot optional, and this is the first real file to take that path.",
     },
 ];
