@@ -13,7 +13,17 @@
 // § Clause 1. The namespace does not have to wait: the member is read off the GIR tag the
 // ledger already declares, so `Gtk.Image` is right here today and stays right after the
 // class is renamed.
+//
+// TWO MEMBERS HERE ARE NOT WIDGETS — `Gtk.Adjustment` and `Gtk.StringList`, the values an
+// `adjustment` and a `model` property take. ADR 0034 § Amendment 19 is what lets a
+// clause-2 namespace carry them, `CONSTRUCTIBLE_VALUES` in `scripts/value-types.mjs` is
+// where each one is declared, and the GIR answers for both in gtk-host's committed
+// `generated/value-types.mts`. They are re-exported from `@gjsify/adwaita-core`, which is
+// where the portable list and adjustment already live: the class IS that value wearing the
+// GIR spelling, so `model: ['a','b']` and `model: new Gtk.StringList({ strings: ['a','b'] })`
+// are the same write and nothing in this package had to learn a second input shape.
 
+export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 export { GtkBox as Box } from '../widgets/gtk-box.js';
 export { GtkButton as Button } from '../widgets/gtk-button.js';
 export { GtkDropDown as DropDown } from '../widgets/gtk-drop-down.js';
@@ -21,3 +31,4 @@ export { GtkEntry as Entry } from '../widgets/gtk-entry.js';
 export { GtkImage as Image } from '../widgets/gtk-image.js';
 export { GtkLabel as Label } from '../widgets/gtk-label.js';
 export { GtkMenuButton as MenuButton } from '../widgets/gtk-menu-button.js';
+export { GtkStringList as StringList } from '@gjsify/adwaita-core';

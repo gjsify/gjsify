@@ -127,10 +127,12 @@ the popover follows, and the rows that did not change keep their place.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const dropDown = Gtk.DropDown.new_from_strings(['Automatic', 'Always', 'Never', 'When busy']);
+    const dropDown = new Gtk.DropDown({
+        model: new Gtk.StringList({ strings: ['Automatic', 'Always', 'Never', 'When busy'] }),
+        selected: 0,
+    });
     // Without an expression the search field has nothing to match against.
     dropDown.expression = Gtk.PropertyExpression.new(Gtk.StringObject.$gtype, null, 'string');
-    dropDown.selected = 0;
     dropDown.enableSearch = false;
     dropDown.halign = Gtk.Align.CENTER;
     ```
@@ -154,7 +156,7 @@ the popover follows, and the rows that did not change keep their place.
     import Gtk from 'gi://Gtk?version=4.0';
 
     const dropDown = new Gtk.DropDown({
-        model: ['Automatic', 'Always', 'Never', 'When busy'],
+        model: new Gtk.StringList({ strings: ['Automatic', 'Always', 'Never', 'When busy'] }),
         selected: 0,
     });
     // The list opens as the platform action sheet, which has no search field —

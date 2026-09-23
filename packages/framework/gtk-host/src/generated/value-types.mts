@@ -26,6 +26,8 @@ export const VALUE_TYPES_PROVENANCE = 'Gio-2.0 Gtk-4.0/4.22.5';
 export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boolean }>> = {
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
+    'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },
+    'Gtk.StringList': { gtype: 'GtkStringList', widget: false },
 };
 
 /**

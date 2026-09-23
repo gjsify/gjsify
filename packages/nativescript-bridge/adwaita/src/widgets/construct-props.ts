@@ -29,6 +29,8 @@
 // That is the same silent drop one door over that `xml-values.ts` exists for, and a bag
 // that reproduced it would be a new surface for it rather than a convenience.
 
+import type { AdwAdjustmentInput, AdwListModelInput } from '@gjsify/adwaita-core';
+
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
 
@@ -37,7 +39,9 @@ import { iconSizeNickOf } from './gtk-icon-size.js';
  *
  * Methods are dropped; everything else a caller could assign stays, its type read off the
  * GETTER (so `size?: number` even though `set size(value: number | string)` also takes the
- * string XML hands over — the bag is the TypeScript door, the attribute is the string one).
+ * string XML hands over — the bag is the TypeScript door, the attribute is the string one),
+ * except for the two keys {@link ValueProps} widens, where the setter takes a portable VALUE
+ * the getter does not hand back.
  *
  * A read-only accessor survives this type and is refused at RUNTIME instead. The
  * `readonly`-detecting mapped type that would have caught `parent` at compile time was
@@ -46,8 +50,44 @@ import { iconSizeNickOf } from './gtk-icon-size.js';
  * one that admits two impossible ones and says so when they arrive.
  */
 export type ConstructProps<T> = Partial<{
-    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends EnumProp ? T[K] | number : T[K];
+    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends EnumProp
+        ? T[K] | number
+        : K extends ValueProp
+          ? T[K] | ValueProps[K & ValueProp]
+          : T[K];
 }>;
+
+/**
+ * The two properties whose SETTER takes a portable VALUE the getter does not hand back, and
+ * what each one accepts.
+ *
+ * THE GETTER TYPE IS NOT THE WHOLE DOOR HERE, and the difference is not an XML artifact like
+ * `size`'s `| string`. `set model` takes `AdwListModelInput` — bare strings included, which
+ * is `Gtk.StringList`'s own model and what `Gtk.StringList` itself is — and hands back
+ * normalised `AdwComboOption`s; `set adjustment` takes a PARTIAL and hands back a whole one,
+ * which is what makes `adjustment: { upper: 20 }` move one bound. Read off the getter alone,
+ * the bag refused both — `new Adw.ComboRow({ model: ['Blue', 'Teal'] })` and
+ * `new Adw.SpinRow({ adjustment: { lower: 0, upper: 100 } })` are the spellings the website
+ * gallery has published on every such block, and every one of them was `TS2322` while the
+ * runtime took it: `applyConstructProps` assigns through the setter, so nothing could fail.
+ *
+ * TWO KEY NAMES AND FOUR ACCESSORS: `model` on `AdwComboRow` and `GtkDropDown`, `adjustment`
+ * on `AdwSpinRow` and `AdwSliderRow`, each pair declaring the same input type as the other.
+ * Keyed by NAME like {@link ALIGNMENT_AXES}, because a widget that grows one of these
+ * properties grows it with that meaning or the vocabulary gate refuses the name.
+ *
+ * It is held by `gtk-value-doors.spec.ts`, which writes all four spellings — array, a
+ * `Gtk.StringList`, an object literal and a `Gtk.Adjustment` — through this door and is
+ * type-checked with the rest of the package, so narrowing this table stops that file
+ * compiling.
+ */
+export interface ValueProps {
+    model: AdwListModelInput;
+    adjustment: AdwAdjustmentInput;
+}
+
+/** The keys {@link ValueProps} declares — {@link ConstructProps} widens exactly these. */
+export type ValueProp = keyof ValueProps;
 
 /**
  * Every key this bag reads as a GIR ENUM, so `| number` is admitted for exactly those and
