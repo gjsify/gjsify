@@ -44,6 +44,14 @@
 // value in. A `GParamSpec` is not reconstructed: a snippet reading `pspec.name` is the
 // declared remainder, and the value it wants is on `self`.
 //
+// THE SEAM CARRIES `GtkWidget`'s LAYOUT PROPERTIES TOO. This mixin is the one place every
+// class meets the platform, which makes it the one place a property every GTK widget
+// inherits can be written once: `withSignals` applies `withGtkWidgetLayout`
+// (`widget-layout.ts`) beneath itself, so `halign`, `valign`, `hexpand`, `vexpand`,
+// `marginStart` and `marginEnd` arrive with `connect` on every class and on every class a
+// later change adds, with no second wrapper to forget. Held against the ambient slice the
+// same way as the two method names above: `View` declares none of the six.
+//
 // AN UNKNOWN HANDLER ID THROWS. `g_signal_handler_disconnect` logs a CRITICAL for an id
 // nothing holds and returns; GJS surfaces it as a warning, fatal only under
 // `G_DEBUG=fatal-criticals`. The port throws instead, for the reason the construct-props
@@ -52,6 +60,8 @@
 // caller was told it was gone.
 
 import type { EventData, Observable } from '@nativescript/core';
+
+import { withGtkWidgetLayout } from './widget-layout.js';
 
 /** What `connect` records per handler, keyed on the id it handed back. */
 interface Handler {
@@ -102,14 +112,15 @@ export interface GObjectSignals {
 export type ObservableConstructor = abstract new (...args: any[]) => Observable;
 
 /**
- * Give a `@nativescript/core` base GJS's `connect` / `disconnect`.
+ * Give a `@nativescript/core` base GJS's `connect` / `disconnect`, and `GtkWidget`'s layout
+ * properties with them ({@link withGtkWidgetLayout}).
  *
  * Applied ONCE per class that extends a platform base — `extends withSignals(GridLayout)`
  * — and never on a class whose base is already a widget of this package, which inherits
  * the two methods and would otherwise carry a second, identical copy one prototype up.
  */
 export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
-    abstract class WithSignals extends Base implements GObjectSignals {
+    abstract class WithSignals extends withGtkWidgetLayout(Base) implements GObjectSignals {
         connect(eventName: string, callback: (self: this, data: EventData) => void): number {
             // One wrapper per connect, so two handlers sharing a callback stay two
             // handlers — `removeEventListener(name, callback)` would drop both.
