@@ -113,7 +113,6 @@ const KNOWN_GAPS = {
     'adw-sidebar': ['drop-preload'],
     'adw-spin-row': ['climb-rate', 'digits', 'numeric', 'snap-to-ticks', 'update-policy', 'wrap'],
     'adw-split-button': ['can-shrink'],
-    'adw-status-page': ['icon-name'],
     'adw-tab-view': ['shortcuts'],
     'adw-toggle': [
         // Invisible until `AdwToggle` gained a GTK tag: it is a placement carrier

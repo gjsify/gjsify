@@ -503,12 +503,15 @@ export const AdwChromeTest = async () => {
         });
 
         await it('centres a status page in the pane rather than against its top bar', async () => {
-            const host = mountPreview(STATUS_PANE_PREVIEW);
+            // 400px, not the preview's 340: at upstream's metrics this page needs 298px, and
+            // in the 293px a 340px view leaves under its bar GTK would scroll it rather than
+            // centre it.
+            const host = mountPreview(STATUS_PANE_PREVIEW, 400);
             await settle();
             const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
             const status = host.querySelector('adw-status-page') as HTMLElement;
 
-            expect(heightOf(area) > 0 && heightOf(area) < 340).toBe(true);
+            expect(heightOf(area) > 0 && heightOf(area) < 400).toBe(true);
             expect(heightOf(status)).toBe(heightOf(area));
 
             // What the reader actually sees, and the discriminator at the same time:

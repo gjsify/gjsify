@@ -1,6 +1,7 @@
 // <gtk-button> — Adwaita button.
 // Attributes: icon (symbolic name, e.g. "go-previous" / "view-refresh"), or
-//   icon-name, the GObject spelling a projected `.blp` writes; label, tooltip,
+//   icon-name, the GObject spelling a projected `.blp` writes; label, tooltip or
+//   tooltip-text (the `.blp` spelling again),
 //   disabled, and the boolean variant flags flat / suggested / destructive /
 //   circular / pill. The GTK style classes on the host (`class="pill"`, which is
 //   what a `.blp`'s `styles ["pill"]` becomes) select the same classes.
@@ -34,6 +35,7 @@ export class GtkButton extends HTMLElement {
             'icon-name',
             'label',
             'tooltip',
+            'tooltip-text',
             'disabled',
             'flat',
             'suggested',
@@ -105,7 +107,7 @@ export class GtkButton extends HTMLElement {
         if (icon) btn.appendChild(createGtkImage(icon));
         if (label) btn.appendChild(document.createTextNode(label));
 
-        const tooltip = this.getAttribute('tooltip');
+        const tooltip = this.getAttribute('tooltip') ?? this.getAttribute('tooltip-text');
         btn.title = tooltip ?? '';
         // An icon-only button has no text content, so screen readers would
         // announce it as unlabeled. Give it an accessible name — prefer the

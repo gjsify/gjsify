@@ -35,27 +35,9 @@
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
-import { attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
+import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
 import { slottedChildrenOf } from './slotted-children.js';
-
-/**
- * `GtkWidget`'s four margins, as the CSS property each one is.
- *
- * WRITTEN AS INLINE STYLE, NOT LEFT AS AN ATTRIBUTE, because an attribute cannot carry a
- * length into a stylesheet portably (`attr()` with a type is not in every engine this
- * package targets). `start`/`end` are the LOGICAL edges, as `gtk_widget_set_margin_start`
- * documents them; `top`/`bottom` are physical in GTK too. The attribute is still written:
- * it is what the tree authored, and what a reader of the DOM looks for.
- */
-const GTK_WIDGET_MARGINS: Readonly<
-    Record<string, 'marginInlineStart' | 'marginInlineEnd' | 'marginTop' | 'marginBottom'>
-> = {
-    'margin-start': 'marginInlineStart',
-    'margin-end': 'marginInlineEnd',
-    'margin-top': 'marginTop',
-    'margin-bottom': 'marginBottom',
-};
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
 interface PlacedChild {
@@ -131,8 +113,10 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
         if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
         else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
         else el.setAttribute(attributeOf(prop), String(value));
-        const margin = GTK_WIDGET_MARGINS[attributeOf(prop)];
-        if (margin !== undefined) el.style[margin] = `${Number(value)}px`;
+        // A margin is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the attribute
+        // stays, since it is what the tree authored and what a reader of the DOM looks for.
+        const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
+        if (margin !== undefined) el.style.setProperty(margin, `${Number(value)}px`);
     }
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a

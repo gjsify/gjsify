@@ -4,57 +4,71 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
+// THE METRICS ARE UPSTREAM'S, measured against a GTK render of the gallery's status page
+// `.blp`. They were the vendored web port's — a 96px icon, an 18pt title, the description
+// capped at 32ch and 12px gaps all round — and beside GTK the page was a different
+// composition: the description wrapped at 290px where GTK sets it on one line, and the child
+// sat 61px higher. `_misc.scss` (statuspage) has a 36px 12px margin, 12px between icon,
+// title and description, 24px more under the icon, `.title-1` for the title and 36px
+// between that column and the child; `adw-status-page.ui` clamps the column at AdwClamp's
+// default 600px.
 adw-status-page {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: var(--spacing-m);
-  padding: var(--spacing-xl);
+  gap: 12px;
+  padding: 36px 12px;
   color: var(--window-fg-color);
 
   .adw-status-page-icon {
-    width: 96px;
-    height: 96px;
+    width: 128px;
+    height: 128px;
+    margin-bottom: 24px;
     background-color: currentColor;
     opacity: 0.45;
     -webkit-mask-size: contain;
     mask-size: contain;
   }
 
+  // `.title-1` (`_labels.scss`), restated: each partial compiles on its own, so an
+  // `@extend` across them finds no target.
   .adw-status-page-title {
-    font-size: 18pt;
     font-weight: 800;
+    font-size: 181%;
+    max-width: 600px;
   }
 
   .adw-status-page-description {
     font-size: var(--font-size-base);
     opacity: var(--dim-opacity);
-    max-width: 32ch;
+    max-width: 600px;
   }
 
+  // 36px from the column, of which the flex gap already gives 12.
   .adw-status-page-child {
-    margin-top: var(--spacing-s);
+    margin-top: 24px;
   }
 
   // `.compact` — the documented smaller status page, for a sidebar or a popover
-  // (style-classes.md "Compact Status Page"). Upstream drops the outer margins
-  // 36px → 24px, the icon 128px → 96px and the title from `.title-1` to
-  // `.title-2` (`_misc.scss:154-172`); this port's resting icon is already 96px
-  // because it renders at the size the vendored web port used, so `.compact`
-  // steps down from there in the same proportion.
+  // (style-classes.md "Compact Status Page"): margins 24px 12px, the icon 96px with 12px
+  // under it, `.title-2`, and 24px to the child (`_misc.scss`, statuspage.compact).
   &.compact {
-    gap: var(--spacing-s);
-    padding: var(--spacing-m);
+    padding: 24px 12px;
 
     .adw-status-page-icon {
-      width: 72px;
-      height: 72px;
+      width: 96px;
+      height: 96px;
+      margin-bottom: 12px;
     }
 
     .adw-status-page-title {
-      font-size: 14pt;
+      font-size: 136%;
+    }
+
+    .adw-status-page-child {
+      margin-top: 12px;
     }
   }
 }

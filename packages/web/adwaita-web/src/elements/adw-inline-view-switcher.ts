@@ -55,12 +55,23 @@ import {
     domViewSwitcherScheduler,
     readSwitcherPage,
 } from './view-switcher-dom.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 import { attachRovingFocus } from './roving-focus.js';
 
 /** A single page. Children of <adw-inline-view-switcher>; consumed at connect time. */
 export class AdwViewStackPage extends HTMLElement {
     static get observedAttributes() {
         return ['name', 'title', 'icon-name', 'badge-number', 'needs-attention', 'use-underline'];
+    }
+
+    connectedCallback(): void {
+        // `AdwViewStackPage:child` is a PROPERTY, so a `.blp`'s `child: …` authors
+        // `slot="child"`, and the mount refused the name this element never declared. The
+        // page's children already ARE its content — the stack or the switcher moves them
+        // out when it adopts the page — so this only enrols the name, as `<adw-tab-page>`
+        // does. The owner adopts on ITS connect, which runs first, so by now this page may
+        // be detached; enrolling is all that is left to do either way.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
     }
 }
 
