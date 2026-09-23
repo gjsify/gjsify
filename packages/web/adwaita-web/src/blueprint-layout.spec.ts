@@ -16,6 +16,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { mountSharedTree } from './shared-tree-builder.js';
 
 import sheetTree from '../../adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp?shared-tree';
+import carouselTree from '../../adwaita-core/src/conformance/blueprints/carousel-indicators.blp?shared-tree';
 
 /** Mount the fixture at a size a layout can be measured in; the caller unmounts. */
 function mountSheet() {
@@ -96,6 +97,25 @@ export const AdwBlueprintLayoutTest = async () => {
                 expect(dimming.classList.contains('visible')).toBe(true);
                 sheet.modal = false;
                 expect(dimming.classList.contains('visible')).toBe(false);
+            } finally {
+                unmount();
+            }
+        });
+    });
+
+    // `carousel: carousel` projects as the attribute `carousel="carousel"`: GTK's property
+    // name, which the indicators now read beside the `for` they had first.
+    await describe('adwaita-web: carousel-indicators.blp, mounted', async () => {
+        await it('both indicators bind to the carousel by id and mark its first page', async () => {
+            const { root, unmount } = mountSharedTree(carouselTree);
+            try {
+                const dots = [...root.querySelectorAll('#dots .adw-carousel-dot')];
+                const lines = [...root.querySelectorAll('#lines .adw-carousel-line')];
+
+                expect(dots.length).toBe(3);
+                expect(lines.length).toBe(3);
+                expect(dots.map((dot) => dot.classList.contains('active'))).toStrictEqual([true, false, false]);
+                expect(lines[0]?.classList.contains('active')).toBe(true);
             } finally {
                 unmount();
             }

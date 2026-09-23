@@ -39,12 +39,14 @@ function buildPage(title: string, accent: string): View {
 }
 
 /**
- * Shared body for both indicator variants. The NS Adw.Carousel renders its own
- * built-in dot row, so both stories share the identical tree — the line vs dot
- * indicator distinction has no NS equivalent (see fidelity note in report).
+ * Shared body for both indicator variants: the carousel, and under it the indicator the
+ * story binds — dots or lines, the same pair the native and browser twins build.
  */
 abstract class CarouselNsStoryBase extends StoryView {
     private _carousel: Adw.Carousel | null = null;
+
+    /** The indicator this story shows, bound to `carousel`. */
+    protected abstract indicator(carousel: Adw.Carousel): View;
 
     initialize(): void {
         const carousel = new Adw.Carousel();
@@ -57,7 +59,11 @@ abstract class CarouselNsStoryBase extends StoryView {
         // in the CSS subset); we still read them in updateArgs to keep the live
         // binding contract identical to the twins.
         this._syncCarousel();
-        this.addContent(carousel);
+        const column = new StackLayout();
+        column.orientation = 'vertical';
+        column.addChild(carousel);
+        column.addChild(this.indicator(carousel));
+        this.addContent(column);
     }
 
     updateArgs(_args: StoryArgs): void {
@@ -72,10 +78,14 @@ abstract class CarouselNsStoryBase extends StoryView {
     }
 }
 
-/** Story: carousel with dot indicators (the NS carousel's native indicator). */
+/** Story: carousel with dot indicators. */
 export class CarouselDotsNsStory extends CarouselNsStoryBase {
     constructor() {
         super(CarouselDotsNsStory.getMetadata(), 'Default');
+    }
+
+    protected indicator(carousel: Adw.Carousel): View {
+        return new Adw.CarouselIndicatorDots({ carousel });
     }
 
     static getMetadata(): StoryMeta {
@@ -83,10 +93,14 @@ export class CarouselDotsNsStory extends CarouselNsStoryBase {
     }
 }
 
-/** Story: carousel with line indicators (approximated by the same dot row). */
+/** Story: carousel with line indicators. */
 export class CarouselLinesNsStory extends CarouselNsStoryBase {
     constructor() {
         super(CarouselLinesNsStory.getMetadata(), 'Default');
+    }
+
+    protected indicator(carousel: Adw.Carousel): View {
+        return new Adw.CarouselIndicatorLines({ carousel });
     }
 
     static getMetadata(): StoryMeta {

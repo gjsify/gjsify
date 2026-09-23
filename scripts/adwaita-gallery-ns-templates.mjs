@@ -314,12 +314,22 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.Carousel',
         page: 'view-switching',
+        // The carousel draws no indicator, as upstream: the dots are their own widget, bound
+        // by id, which the indicator resolves once the loaded tree holds the carousel.
         root: {
-            tag: 'AdwCarousel',
+            tag: 'GtkBox',
+            props: { orientation: 'vertical' },
             children: [
-                { tag: 'AdwStatusPage', props: { iconText: '\u2460', title: 'Welcome' } },
-                { tag: 'AdwStatusPage', props: { iconText: '\u2461', title: 'Sync' } },
-                { tag: 'AdwStatusPage', props: { iconText: '\u2462', title: 'Done' } },
+                {
+                    tag: 'AdwCarousel',
+                    id: 'carousel',
+                    children: [
+                        { tag: 'AdwStatusPage', props: { iconText: '\u2460', title: 'Welcome' } },
+                        { tag: 'AdwStatusPage', props: { iconText: '\u2461', title: 'Sync' } },
+                        { tag: 'AdwStatusPage', props: { iconText: '\u2462', title: 'Done' } },
+                    ],
+                },
+                { tag: 'AdwCarouselIndicatorDots', props: { carousel: 'carousel' } },
             ],
         },
     },

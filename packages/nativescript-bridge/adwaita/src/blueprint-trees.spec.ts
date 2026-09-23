@@ -1,5 +1,6 @@
 // REAL `.blp` FILES, BUILT BY THIS RENDERER — the GtkWidget layout properties, a modal bottom
-// sheet, and a stack authored with page records whose switchers name it by id.
+// sheet, a stack authored with page records whose switchers name it by id, and a carousel
+// with the two indicators that bind to it.
 //
 // `./shared-trees.spec.ts` drives hand-written `SharedTreeNode` literals. These trees come out
 // of `@gjsify/vite-plugin-blueprint`'s `?shared-tree` exit at build time, so what is under test
@@ -10,8 +11,8 @@
 // had nothing to land on.
 //
 // The fixtures live in `@gjsify/adwaita-core/src/conformance/blueprints/`, beside the vectors
-// both renderers are held to, and `adwaita-web`'s `blueprint-layout.spec.ts` mounts the same
-// two files. They are Blueprint corpus reality probes, so the reference compiler holds each one
+// both renderers are held to, and `adwaita-web`'s `blueprint-layout.spec.ts` mounts the ones
+// its elements can take. They are Blueprint corpus reality probes, so the reference compiler holds each one
 // too.
 //
 // This lives on the TREES entry (`src/test.trees.mts`): it builds the port's real widget
@@ -24,6 +25,7 @@ import { LayoutBase } from './testing/ns-core.mjs';
 
 import sheetTree from '../../../web/adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp?shared-tree';
 import stackTree from '../../../web/adwaita-core/src/conformance/blueprints/view-stack-pages.blp?shared-tree';
+import carouselTree from '../../../web/adwaita-core/src/conformance/blueprints/carousel-indicators.blp?shared-tree';
 
 /** A built view, read through the members a test asks about. */
 type Built = Record<string, unknown> & {
@@ -243,6 +245,101 @@ export const AdwBlueprintTreesNsTest = async () => {
             });
 
             expect((stack.pages as ReadonlyArray<{ name: string }>)[0]?.name).toBe('same');
+        });
+    });
+
+    await describe('carousel-indicators.blp: a carousel and the indicators bound to it', async () => {
+        /** The marker classes an indicator shows, in page order. */
+        const markers = (indicator: Built): string[] =>
+            withClass(indicator, 'adw-carousel-dot')
+                .concat(withClass(indicator, 'adw-carousel-line'))
+                .map((marker) => String(marker.className));
+
+        await it('the carousel draws no indicator of its own', () => {
+            const carousel = byId(built(carouselTree), 'carousel');
+
+            expect(carousel.nPages).toBe(3);
+            expect(withClass(carousel, 'adw-carousel-dot').length).toBe(0);
+        });
+
+        await it('both indicators bind to it by id and mark its current page', () => {
+            const root = built(carouselTree);
+            const carousel = byId(root, 'carousel');
+            const dots = byId(root, 'dots');
+            const lines = byId(root, 'lines');
+
+            expect(dots.carousel).toBe(carousel);
+            expect(lines.carousel).toBe(carousel);
+            expect(markers(dots)).toStrictEqual(['adw-carousel-dot active', 'adw-carousel-dot', 'adw-carousel-dot']);
+            expect(markers(lines)).toStrictEqual([
+                'adw-carousel-line active',
+                'adw-carousel-line',
+                'adw-carousel-line',
+            ]);
+        });
+
+        await it('a tap on a marker scrolls the carousel, and every bound indicator follows', () => {
+            const root = built(carouselTree);
+            const carousel = byId(root, 'carousel');
+            const third = withClass(byId(root, 'dots'), 'adw-carousel-dot')[2];
+
+            third?.notify({ eventName: 'tap', object: third });
+
+            expect(carousel.currentPage).toBe(2);
+            expect(markers(byId(root, 'lines'))).toStrictEqual([
+                'adw-carousel-line',
+                'adw-carousel-line',
+                'adw-carousel-line active',
+            ]);
+        });
+
+        await it('a page added after binding gets a marker', () => {
+            const root = built(carouselTree);
+            const carousel = byId(root, 'carousel');
+            (carousel.append as (view: unknown) => void).call(carousel, built({ tag: 'GtkLabel' }));
+
+            expect(markers(byId(root, 'dots')).length).toBe(4);
+        });
+
+        // The XML door. `Builder.load` writes `carousel="pager"` as the raw string before the
+        // indicator is in any tree, so the id waits for `loaded` — the point where the platform
+        // has attached the whole file (`id-reference.ts`). Nothing here loads a tree, so the
+        // spec emits the event where the platform would.
+        const xmlTree = () =>
+            built({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'AdwCarousel', id: 'pager', children: [{ tag: 'GtkLabel' }, { tag: 'GtkLabel' }] },
+                    { tag: 'AdwCarouselIndicatorDots', id: 'dots' },
+                ],
+            });
+
+        await it('a carousel id written as a string binds once the tree is loaded', () => {
+            const root = xmlTree();
+            const dots = byId(root, 'dots');
+            dots.carousel = 'pager';
+
+            expect(dots.carousel).toBe(null);
+            dots.notify({ eventName: 'loaded', object: dots });
+
+            expect(dots.carousel).toBe(byId(root, 'pager'));
+            expect(markers(dots)).toStrictEqual(['adw-carousel-dot active', 'adw-carousel-dot']);
+        });
+
+        await it('an id nothing in the loaded tree carries is refused', () => {
+            const dots = byId(xmlTree(), 'dots');
+            dots.carousel = 'nowhere';
+
+            expect(() => dots.notify({ eventName: 'loaded', object: dots })).toThrow('names no AdwCarousel');
+        });
+
+        await it('the markers run along a Gtk.Orientation, and nothing else', () => {
+            const dots = built({ tag: 'AdwCarouselIndicatorDots', props: { orientation: 'vertical' } });
+
+            expect(dots.orientation).toBe('vertical');
+            expect(() => built({ tag: 'AdwCarouselIndicatorLines', props: { orientation: 'diagonal' } })).toThrow(
+                'is not a Gtk.Orientation',
+            );
         });
     });
 };

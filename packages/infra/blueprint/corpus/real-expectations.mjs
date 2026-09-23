@@ -838,7 +838,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the sixteen probes are fewer than sixteen distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the seventeen probes are fewer than seventeen distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -1225,5 +1225,47 @@ export const REAL_EXPECTATIONS = [
         },
         lost: [],
         note: 'The first probe with an OBJECT REFERENCE a renderer has to resolve: `stack: stack` projects as the prop `stack` holding the string `\'stack\'`, indistinguishable on the node from `name: "inbox"`, so a builder has to know from the widget which properties name another object. The switcher above the stack names it forward, which GtkBuilder allows because it resolves ids after the parse. `Adw.ViewStackPage` is a GObject record, not a widget, and places its page with `child:`. Built by the NativeScript port; the web switchers bundle their own pages and do not bind a stack by id yet.',
+    },
+    {
+        file: 'packages/web/adwaita-core/src/conformance/blueprints/carousel-indicators.blp',
+        node: {
+            tag: 'GtkBox',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                {
+                    tag: 'AdwCarousel',
+                    id: 'carousel',
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            props: { label: 'Welcome' },
+                            translatable: { label: {} },
+                        },
+                        {
+                            tag: 'GtkLabel',
+                            props: { label: 'Discover' },
+                            translatable: { label: {} },
+                        },
+                        {
+                            tag: 'GtkLabel',
+                            props: { label: 'Get started' },
+                            translatable: { label: {} },
+                        },
+                    ],
+                },
+                {
+                    tag: 'AdwCarouselIndicatorDots',
+                    id: 'dots',
+                    props: { carousel: 'carousel' },
+                },
+                {
+                    tag: 'AdwCarouselIndicatorLines',
+                    id: 'lines',
+                    props: { carousel: 'carousel' },
+                },
+            ],
+        },
+        lost: [],
+        note: "Two indicators naming one carousel by id — the same object-reference shape as `view-stack-pages.blp`, on a property both renderers now resolve: the NativeScript builder through the indicators' `builderReferences`, the web indicators through the `carousel` attribute GTK's property name projects to. The carousel itself draws no indicator, as upstream.",
     },
 ];

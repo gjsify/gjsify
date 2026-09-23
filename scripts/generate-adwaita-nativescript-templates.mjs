@@ -248,7 +248,13 @@ const attribute = (name, value) => {
  */
 function xml(node, depth, rootAttrs = []) {
     const pad = INDENT.repeat(depth);
-    const attrs = [...rootAttrs, ...Object.entries(node.props ?? {}).map(([n, v]) => attribute(n, v))];
+    // The id first: it is what `getViewById` and an id-valued attribute elsewhere in the
+    // file answer to, and a template that dropped it could bind nothing by name.
+    const attrs = [
+        ...rootAttrs,
+        ...(node.id === undefined ? [] : [attribute('id', node.id)]),
+        ...Object.entries(node.props ?? {}).map(([n, v]) => attribute(n, v)),
+    ];
     const inline = attrs.length <= 1;
     const head = inline
         ? `${pad}<${qualify(node.tag)}${attrs.length > 0 ? ` ${attrs[0]}` : ''}`

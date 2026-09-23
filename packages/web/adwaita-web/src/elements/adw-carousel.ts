@@ -22,8 +22,8 @@
 // `page-changed` (`detail = { index }`) fires on every settle, including back
 // onto the same page, and reports -1 when empty.
 //
-// The indicators bind through their `carousel` property or a `for` attribute
-// naming the carousel's id.
+// The indicators bind through their `carousel` property, or a `carousel` (GTK's
+// name, what a projected `.blp` writes) or `for` attribute naming the carousel's id.
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (AdwCarousel behaviour)
 // Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c
@@ -678,7 +678,7 @@ abstract class AdwCarouselIndicator extends HTMLElement {
     protected _initialized = false;
 
     static get observedAttributes() {
-        return ['for'];
+        return ['for', 'carousel'];
     }
 
     /** The bound carousel. Mirrors AdwCarouselIndicator*'s `carousel` property. */
@@ -705,7 +705,7 @@ abstract class AdwCarouselIndicator extends HTMLElement {
     }
 
     attributeChangedCallback(name: string) {
-        if (name === 'for' && this._initialized) {
+        if ((name === 'for' || name === 'carousel') && this._initialized) {
             this._detach();
             this._carousel = null;
             this._resolveForAttr();
@@ -714,8 +714,13 @@ abstract class AdwCarouselIndicator extends HTMLElement {
         }
     }
 
+    /**
+     * The carousel named by id. `carousel` is the GTK property's own name, and what a
+     * projected `.blp` writes for `carousel: carousel`; `for` is the markup spelling this
+     * element had first, kept as the fallback.
+     */
     private _resolveForAttr(): void {
-        const id = this.getAttribute('for');
+        const id = this.getAttribute('carousel') ?? this.getAttribute('for');
         if (!id) return;
         const root = this.getRootNode() as Document | ShadowRoot;
         const el = root.getElementById?.(id) ?? document.getElementById(id);
