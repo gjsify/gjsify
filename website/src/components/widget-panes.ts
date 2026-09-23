@@ -1,4 +1,4 @@
-// The four kinds of pane a gallery window can hold, declared once.
+// The five kinds of pane a gallery window can hold, declared once.
 //
 // ONE MODULE because two components need the same union: `AdwWidget.astro` builds
 // the list and `AdwWidgetWindow.astro` renders it, and the list is POSITIONAL — its
@@ -31,11 +31,28 @@ export type LivePane = {
 /** A pane a PAGE filled, as one `<Fragment slot="…">` holding one fenced block. */
 export type SlotPane = { id: string; kind: 'slot'; label: string; html: string };
 
-/**
- * A pane whose code the component supplies: a generated data file's snippet, or a page's
- * loader fence with the markup generated from its `.blp` appended.
- */
+/** A pane whose code the component supplies: a generated data file's snippet, or the `.blp`. */
 export type CodePane = { id: string; kind: 'code'; label: string; lang: string; source: string };
+
+/** One file of a {@link FilesPane}. */
+export type PaneFile = {
+    /**
+     * What the file IS within its tab (`markup`, `code`, `blueprint`), which stays the same from
+     * block to block while its name does not. A reader's pick of a file is kept by it.
+     */
+    role: string;
+    /** The file name as the file row shows it, e.g. `views/clamp.xml` or `main.js (Blueprint)`. */
+    label: string;
+    lang: string;
+    source: string;
+};
+
+/**
+ * A tab that is several FILES of one program: a one-Blueprint block's port tabs, where the
+ * generated markup, the code that loads it and the Blueprint route are each a file of their own.
+ * Rendered as a row of file names over one code view per file.
+ */
+export type FilesPane = { id: string; kind: 'files'; label: string; files: PaneFile[] };
 
 /**
  * Why this block has no snippet in one group's dialect.
@@ -53,7 +70,7 @@ export type RefusalPane = {
     reason: string;
 };
 
-export type WidgetPane = LivePane | SlotPane | CodePane | RefusalPane;
+export type WidgetPane = LivePane | SlotPane | CodePane | FilesPane | RefusalPane;
 
 /**
  * Every kind a TAB BAR can show, which is every kind but the live preview.
@@ -63,4 +80,4 @@ export type WidgetPane = LivePane | SlotPane | CodePane | RefusalPane;
  * it alone, and this type is how `AdwWidgetWindow` says so to a reader AND to `tsc`:
  * the tab loop reads a `label` off every pane it draws, and a live pane has none.
  */
-export type TabbedPane = SlotPane | CodePane | RefusalPane;
+export type TabbedPane = SlotPane | CodePane | FilesPane | RefusalPane;

@@ -1,5 +1,6 @@
-// The NativeScript XML the gallery's NativeScript tab shows for a one-Blueprint block, LOADED
-// back through NativeScript's XML door and held to the tree `build` makes from the same `.blp`.
+// The NativeScript XML of the `views/<name>.xml` file the gallery's NativeScript tab shows for a
+// one-Blueprint block, LOADED back through NativeScript's XML door and held to the tree `build`
+// makes from the same `.blp`.
 //
 // The website renders that XML with `@gjsify/adwaita-core/markup` from the block's
 // `?shared-tree` projection, on every build. Text a reader copies has to load: an element

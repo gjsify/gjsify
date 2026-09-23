@@ -1,5 +1,6 @@
-// The custom-element markup the gallery's Web Components tab shows for a one-Blueprint block,
-// PARSED back by the browser and held to the tree `buildSharedTree` makes from the same `.blp`.
+// The custom-element markup of the `index.html` file the gallery's Web Components tab shows for
+// a one-Blueprint block, PARSED back by the browser and held to the tree `buildSharedTree`
+// makes from the same `.blp`.
 //
 // The website renders that markup with `@gjsify/adwaita-core/markup` from the block's
 // `?shared-tree` projection, on every build. Markup a reader copies has to build the same

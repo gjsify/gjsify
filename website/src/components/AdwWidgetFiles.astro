@@ -1,0 +1,103 @@
+---
+// AdwWidgetFiles — a tab of an {@link AdwWidgetWindow} that holds several FILES of one program:
+// a compact row of file names over one code view per file.
+//
+// A one-Blueprint block's port tabs are the case: the generated markup, the code that loads
+// it and the Blueprint route are three files in a project, in three languages. One fence held
+// them all once, the other languages inside comments of the first, and that read as dead code
+// (see `blueprint-panes.mjs`).
+//
+// THE ROW IS `<adw-toggle-group>`, the port's own Adw.ToggleGroup, declared a TAB LIST the way
+// Adw.InlineViewSwitcher declares the same widget upstream: the toggles then take the `tab`
+// role and `aria-selected`, and each file below is its `tabpanel`. It is the same element set
+// the window's own tab bar comes from, so the row follows the site's light and dark theme with
+// no styling of its own beyond size.
+//
+// ONE FILE IS SHOWN, by `data-active`, which the server puts on the first and `AdwWidget`'s
+// script moves. Without JavaScript the page shows that first file and no row, which is what the
+// window's tab view does with its first tab (`CommandTabs.astro`'s `:not(:defined)` rule).
+//
+// `data-file-role` is what a file IS in its tab (`markup`, `code`, `blueprint`), and the
+// reader's pick is stored by it: the name changes from block to block, the role does not.
+// `scripts/check-website-blueprint-markup.mjs` reads the files back off the built page by it.
+
+import { Code } from '@astrojs/starlight/components';
+
+import type { FilesPane } from './widget-panes';
+
+interface Props {
+    pane: FilesPane;
+}
+
+const { pane } = Astro.props;
+
+// The role is the key for the stored pick and for the gate, so two files of one tab sharing
+// a role would make one of them unreachable, at exit 0.
+const roles = pane.files.map((file) => file.role);
+const duplicate = roles.find((role, index) => roles.indexOf(role) !== index);
+if (pane.files.length < 2 || duplicate !== undefined) {
+    throw new Error(
+        `AdwWidgetFiles(${pane.label}): ${pane.files.length} file(s) with roles ${roles.join(', ')}. A file row ` +
+            'is for two or more files, each with a role of its own; a single file is a plain code pane.',
+    );
+}
+---
+
+{/* `not-content` although the window around it already carries it: Starlight's
+    margin rule is exempt only under a `.not-content` ancestor, and
+    `check-website-preview-not-content.mjs` reads each component on its own. */}
+<div class="adw-widget-files not-content" data-files-of={pane.id}>
+    <adw-toggle-group class="adw-widget-files-row" role="tablist" aria-label={`${pane.label} files`} flat>
+        {pane.files.map((file) => <adw-toggle name={file.role} label={file.label}></adw-toggle>)}
+    </adw-toggle-group>
+    {
+        pane.files.map((file, index) => (
+            <div
+                class="adw-widget-file"
+                role="tabpanel"
+                aria-label={file.label}
+                data-file-role={file.role}
+                data-active={index === 0 ? '' : undefined}
+            >
+                <Code code={file.source} lang={file.lang} />
+            </div>
+        ))
+    }
+</div>
+
+<style is:global>
+    .adw-widget-files {
+        background-color: var(--view-bg-color);
+    }
+
+    /* Small and inline: the row sits in the pane, under the window's own tab bar, and must
+       read as a level below it. It scrolls inside itself rather than widening the page when
+       the names do not fit a phone. */
+    .adw-widget-files-row {
+        display: flex;
+        width: fit-content;
+        max-width: calc(100% - 16px);
+        margin: 6px 8px 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .adw-widget-files-row .adw-toggle {
+        min-height: 24px;
+        padding: 3px 10px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* Before the element upgrades its toggles are empty, so it would paint a bare pill. It
+       keeps its height so the code under it does not jump when it does upgrade. */
+    .adw-widget-files-row:not(:defined) {
+        visibility: hidden;
+        min-height: 30px;
+    }
+
+    .adw-widget-file:not([data-active]) {
+        display: none;
+    }
+</style>

@@ -6,20 +6,24 @@
 //
 // The markup is in no source file. `AdwWidget.astro` renders it on every build from the block's
 // `?shared-tree` projection with `@gjsify/adwaita-core/markup`, and `blueprint-panes.mjs`
-// composes the Web Components tab (the `<adw-*>` markup, then a module script with the page's
-// `webloader` code and the Blueprint route commented) and the NativeScript tab (the XML
-// template, then an XML comment with the page's `nativescriptloader` code and the Blueprint
-// route). The only place the result exists is `website/dist`, so that is what this reads, after
+// composes each port tab's FILES from it and the page's slot code: Web Components as
+// `index.html` (the `<adw-*>` markup, then a module script with the page's `webloader` code)
+// and `main.js` (that code building the `.blp`); NativeScript as `views/<name>.xml` (the
+// template), `app.ts` (the page's `nativescriptloader` code) and `app.ts` again building the
+// `.blp`. The only place the result exists is `website/dist`, so that is what this reads, after
 // `docs:build`, in the job that builds the site.
 //
 // WHAT IT CHECKS
 //
 //   1. For every `<AdwWidget … blueprint="…">` block of `website/src/content/docs/`, the built
-//      page's `webloader` and `nativescriptloader` panes are EXACTLY what `blueprint-panes.mjs`
-//      composes from the page's own slot code and the markup `sharedTreeHtml` /
-//      `sharedTreeNativeScriptXml` render from the `.blp` — parsed and projected HERE, with
-//      `@gjsify/blueprint`, not read back off the page. A block whose markup went missing or
-//      stale, or a composition the component stopped applying, fails by block and tab.
+//      page's `webloader` and `nativescriptloader` panes hold EXACTLY the files
+//      `blueprint-panes.mjs` composes from the page's own slot code and the markup
+//      `sharedTreeHtml` / `sharedTreeNativeScriptXml` render from the `.blp` — parsed and
+//      projected HERE, with `@gjsify/blueprint`, not read back off the page: the same roles in
+//      the same order, each file's code byte for byte, the file row naming each file by its
+//      label, and the first file the one shown. A block whose markup went missing or stale, a
+//      file dropped, renamed or reordered, or a composition the component stopped applying,
+//      fails by block, tab and file.
 //   2. Every `.blp` under `website/src/blueprints/` is in `GALLERY_BLUEPRINTS` of both round-trip
 //      specs — `adwaita-web/src/blueprint-markup.spec.ts` (the markup parsed by the browser) and
 //      `adwaita-nativescript/src/blueprint-markup.spec.ts` (the XML through NativeScript's XML
@@ -35,7 +39,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { nativeScriptPane, webComponentsPane } from '../website/src/components/blueprint-panes.mjs';
+import { BLUEPRINT_PANE_FILES } from '../website/src/components/blueprint-panes.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const distArg = process.argv.indexOf('--dist');
@@ -59,17 +63,10 @@ const { gtypeName, parseBlueprint, projectToSharedNode } = await import(
     pathToFileURL(join(ROOT, 'packages/infra/blueprint/src/index.mjs')).href
 );
 
-/** Each pane, and how its expected code is composed from the tree and the slot. */
+/** Each pane, and the markup its files are composed from. */
 const PANES = [
-    {
-        id: 'webloader',
-        compose: (tree, access, file) => webComponentsPane({ markup: sharedTreeHtml(tree), access, file }),
-    },
-    {
-        id: 'nativescriptloader',
-        compose: (tree, access, file) =>
-            nativeScriptPane({ markup: sharedTreeNativeScriptXml(tree), access, file, tree }),
-    },
+    { id: 'webloader', markup: sharedTreeHtml },
+    { id: 'nativescriptloader', markup: sharedTreeNativeScriptXml },
 ];
 
 const failures = [];
@@ -96,7 +93,33 @@ const decodeDataCode = (value) =>
         .replaceAll(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
         .replaceAll(/&#(\d+);/g, (_m, dec) => String.fromCodePoint(Number(dec)));
 
-/** Each built window that holds a loader pane: its pane ids and each pane's code, in order. */
+/** What Astro writes into an attribute value: `&`, `"` and `<` as named entities. */
+const decodeAttribute = (value) =>
+    value.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
+
+/**
+ * A pane's files as the built page holds them: the file row's toggles (`name` = role, `label`)
+ * and the panels (`data-file-role`, whether it is the one shown, and its code), each in order.
+ */
+const filesOf = (page) => {
+    const toggles = [...page.matchAll(/<adw-toggle(?=[\s>])([^>]*)>/g)].map((match) => ({
+        role: decodeAttribute(/\bname="([^"]*)"/.exec(match[1])?.[1] ?? ''),
+        label: decodeAttribute(/\blabel="([^"]*)"/.exec(match[1])?.[1] ?? ''),
+    }));
+    const starts = [...page.matchAll(/<div class="adw-widget-file"([^>]*)>/g)];
+    const panels = starts.map((start, index) => {
+        const body = page.slice(start.index, starts[index + 1]?.index ?? page.length);
+        const code = /data-code="([^"]*)"/.exec(body);
+        return {
+            role: decodeAttribute(/\bdata-file-role="([^"]*)"/.exec(start[1])?.[1] ?? ''),
+            shown: /\bdata-active\b/.test(start[1]),
+            code: code === null ? null : decodeDataCode(code[1]),
+        };
+    });
+    return { toggles, panels };
+};
+
+/** Each built window that holds a loader pane: its pane ids and each pane's files, in order. */
 const loaderWindows = (html) => {
     const windows = [];
     const starts = [...html.matchAll(/data-impls="([^"]*)"/g)];
@@ -105,13 +128,38 @@ const loaderWindows = (html) => {
         if (!PANES.some((pane) => ids.includes(pane.id))) continue;
         const end = starts[index + 1]?.index ?? html.length;
         const pages = html.slice(start.index, end).split('<adw-tab-page').slice(1);
-        const code = pages.map((page) => {
-            const found = /data-code="([^"]*)"/.exec(page);
-            return found === null ? null : decodeDataCode(found[1]);
-        });
-        windows.push({ ids, code });
+        windows.push({ ids, files: pages.map(filesOf) });
     }
     return windows;
+};
+
+/** Every way `shown` differs from the files `expected`, as lines naming the file. */
+const fileDifferences = (shown, expected) => {
+    const problems = [];
+    const want = expected.map((file) => file.role).join(', ');
+    const rowRoles = shown.toggles.map((toggle) => toggle.role).join(', ');
+    const panelRoles = shown.panels.map((panel) => panel.role).join(', ');
+    if (rowRoles !== want) problems.push(`the file row names ${rowRoles || 'nothing'}, expected ${want}`);
+    if (panelRoles !== want) problems.push(`the files are ${panelRoles || 'none'}, expected ${want}`);
+    for (const [at, file] of expected.entries()) {
+        const toggle = shown.toggles[at];
+        if (toggle !== undefined && toggle.label !== file.label) {
+            problems.push(`file ${at + 1} is labelled "${toggle.label}", expected "${file.label}"`);
+        }
+        const panel = shown.panels.find((candidate) => candidate.role === file.role);
+        if (panel === undefined) continue;
+        if (panel.shown !== (at === 0)) {
+            problems.push(`${file.label} is ${panel.shown ? '' : 'not '}the file shown first`);
+        }
+        if (panel.code !== file.source) {
+            problems.push(
+                `${file.label} is not what ${file.role === 'markup' ? 'the .blp renders to' : 'the page composes'}.\n` +
+                    `        shown:\n${(panel.code ?? '(no code block)').replace(/^/gm, '          ')}\n` +
+                    `        expected:\n${file.source.replace(/^/gm, '          ')}`,
+            );
+        }
+    }
+    return problems;
 };
 
 /** The body of the one fence inside `<Fragment slot="…">`, de-indented as MDX does. */
@@ -166,22 +214,29 @@ for (const mdx of walk(DOCS, '.mdx')) {
         for (const pane of PANES) {
             const access = slotFence(block.body, pane.id);
             const at = window.ids.indexOf(pane.id);
-            const shown = at === -1 ? null : window.code[at];
+            const shown = at === -1 ? undefined : window.files[at];
             if (access === null) {
                 failures.push(`${block.title}: the page writes no "${pane.id}" fence`);
                 continue;
             }
-            if (shown === null || shown === undefined) {
+            if (shown === undefined) {
                 failures.push(`${block.title}: the built Code window has no "${pane.id}" pane`);
                 continue;
             }
-            const expected = pane.compose(node, access, block.blueprint.split('/').pop());
-            if (shown !== expected) {
-                failures.push(
-                    `${block.title}: the "${pane.id}" pane is not the markup ${block.blueprint} renders to, ` +
-                        `composed with the page's code.\n      shown:\n${shown.replace(/^/gm, '        ')}\n` +
-                        `      expected:\n${expected.replace(/^/gm, '        ')}`,
-                );
+            let expected;
+            try {
+                expected = BLUEPRINT_PANE_FILES[pane.id]({
+                    markup: pane.markup(node),
+                    access,
+                    file: block.blueprint.split('/').pop(),
+                    tree: node,
+                });
+            } catch (error) {
+                failures.push(`${block.title}: the "${pane.id}" slot cannot be composed: ${error.message}`);
+                continue;
+            }
+            for (const problem of fileDifferences(shown, expected)) {
+                failures.push(`${block.title}, "${pane.id}" pane: ${problem}`);
             }
         }
     }
@@ -205,6 +260,6 @@ if (failures.length > 0) {
     process.exit(1);
 }
 console.log(
-    `check-website-blueprint-markup: ${blocks} one-Blueprint block(s) show their generated markup on both ` +
-        `port tabs; ${blps.length} .blp file(s) are loaded by both round-trip specs.`,
+    `check-website-blueprint-markup: ${blocks} one-Blueprint block(s) show their generated markup and ` +
+        `composed files on both port tabs; ${blps.length} .blp file(s) are loaded by both round-trip specs.`,
 );

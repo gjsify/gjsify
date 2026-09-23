@@ -71,11 +71,12 @@ exists once, as a Blueprint file, and every surface builds that file: GTK compil
 to GtkBuilder XML, and the web and NativeScript ports build its `?shared-tree`
 projection. The preview is that projection, built by `@gjsify/adwaita-web`, and
 **Blueprint** under it is the file. The **Web Components** and **NativeScript** tabs of
-**Code** open with the same layout in their port's own markup, generated from that file
-when the site is built, so the ids match the Blueprint. The code under the markup reaches
-an element by its id, which is where the platforms differ: the web clamp takes its size
-as an attribute, the other two as a property. The comment at the end shows how to build
-the layout from the Blueprint file instead of the markup.
+**Code** hold the files of a project, picked in the small row under the tab bar. The first
+is the same layout in the port's own markup, `index.html` or `views/clamp.xml`, generated
+from the Blueprint file when the site is built, so the ids match. The code that goes with
+it reaches an element by its id, which is where the platforms differ: the web clamp takes
+its size as an attribute, the other two as a property. The file marked **(Blueprint)** is
+that same code building the layout from the Blueprint file instead of the markup.
 
 The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
 runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
