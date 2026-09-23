@@ -744,8 +744,9 @@ const PANE_TEXT_DIVERGENCES = {
         '`color` from the stylesheet — a property GTK has no counterpart for. The button around the content ' +
         'is a Gtk.Button with a child on both sides now.',
     'Adw.SplitButton':
-        'vocabulary: the menu is a plain array where GTK takes a Gio.Menu with action names — a namespace ' +
-        'the gi:// arms deliberately do not answer.',
+        'vocabulary: two lines, since #1751 gave both ports a real Gio.Menu. `gi://Gio` has no renderer arm, ' +
+        "so the import spells the port's package name instead, and the commented flat variant is " +
+        '`className` rather than `add_css_class()`.',
     'Adw.ToggleGroup':
         'property: the port has no Adw.Toggle widget, so setToggles() takes plain descriptors; and the third ' +
         'toggle names view-paged-symbolic, because view-columns-symbolic is in no icon theme and only the ' +
@@ -824,8 +825,10 @@ const PANE_TEXT_DIVERGENCES = {
         '— it had none while the button was the platform’s text-only one, and its icon is the same theme ' +
         'name — so what is left is halign as horizontalAlignment.',
     'Gtk.MenuButton':
-        'property: the menu is a plain array where GTK takes a Gio.Menu with action names, and there is no ' +
-        'popover, so `primary` has no counterpart and the menu opens as the platform action sheet.',
+        'property: the menu is a real Gio.Menu on both sides since #1751; what is left is the Gio import ' +
+        '(`gi://Gio` has no renderer arm), no popover so `primary` has no counterpart and the menu opens as ' +
+        "the platform action sheet with `menuTitle` as its heading, and the port's button is unconditionally " +
+        "flat so there is no `add_css_class('flat')` call to mirror.",
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',
@@ -834,6 +837,22 @@ const PANE_TEXT_DIVERGENCES = {
         'expression line and enableSearch have no counterpart. The model is a Gtk.StringList on both sides ' +
         'now, and the construction is one text.',
 };
+
+/**
+ * The words a stale reason used twice (`Adw.SplitButton`, `Gtk.MenuButton`, #1751):
+ * "the menu is a plain array where GTK takes a Gio.Menu" stayed on the ledger after
+ * the pane it was written about started building a REAL `new Gio.Menu()`. Checkable
+ * without opening a renderer: the construction call is right there in the pane text
+ * arm 12 already parses.
+ */
+const PLAIN_ARRAY_CLAIM = /\bplain array\b/;
+
+/** Qualified constructor calls (`new Ns.Type(`) a pane's own text makes. */
+function constructedTypes(lines) {
+    const types = new Set();
+    for (const line of lines) for (const match of line.matchAll(/\bnew ([A-Z]\w+\.[A-Z]\w+)\(/g)) types.add(match[1]);
+    return types;
+}
 
 /**
  * The rules of arm 12, over a world of pairs — a pure function, so the vectors below
@@ -857,6 +876,16 @@ function panePartitionProblems(world) {
                     'has been closed — delete the entry, so the gallery stops carrying a reason for a difference ' +
                     'that is gone.',
             );
+        }
+        if (ledgered && PLAIN_ARRAY_CLAIM.test(world.ledger[title])) {
+            for (const type of constructedTypes(nativescript)) {
+                if (world.ledger[title].includes(type)) {
+                    problems.push(
+                        `${title}: ledgered reason calls it "a plain array", but its own \`nativescript\` pane ` +
+                            `constructs \`new ${type}()\` — the reason is stale.`,
+                    );
+                }
+            }
         }
         if (!same && !ledgered) {
             problems.push(
