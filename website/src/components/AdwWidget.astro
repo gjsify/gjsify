@@ -132,12 +132,14 @@
 // ONE `.blp` under `src/blueprints/` builds the widget on every surface, so the layout is
 // written once and each pane shows only what differs per platform: how the layout is
 // LOADED and how a named element is REACHED by its Blueprint id. The Web Components and
-// NativeScript tabs lead with the same layout in their port's own markup, GENERATED from the
-// file on every build ({@link PANE_MARKUP}), then the page's code that reaches the elements,
-// then the Blueprint route as a comment: a reader sees how a widget is written in that port,
-// and the page still holds no second copy of the layout. The live window builds
-// the file's `?shared-tree` projection with `@gjsify/adwaita-web`'s own `buildSharedTree`,
-// and the file itself is rendered, so neither is a copy a page can let drift.
+// NativeScript tabs are FILES, picked in a small row under the tab bar (`AdwWidgetFiles`):
+// the same layout in the port's own markup, GENERATED from the file on every build
+// ({@link PANE_MARKUP}); the page's code that loads it and reaches the elements; and the same
+// code building the `.blp` instead. A reader sees how a widget is written in that port, each
+// file highlighted in its own language, and the page still holds no second copy of the
+// layout. The live window builds the file's `?shared-tree` projection with
+// `@gjsify/adwaita-web`'s own `buildSharedTree`, and the file itself is rendered, so neither
+// is a copy a page can let drift.
 // {@link ONE_BLUEPRINT_SLOTS} and {@link FROM_THE_BLUEPRINT} say which slots each shape
 // writes, and arm 13 of `check-website-adwaita-gallery.mjs` holds each block to its shape.
 //
@@ -202,7 +204,7 @@ import {
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { sharedTreeHtml, sharedTreeNativeScriptXml } from '@gjsify/adwaita-core/markup';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
-import { BLUEPRINT_PANE_SLOTS, nativeScriptPane, webComponentsPane } from './blueprint-panes.mjs';
+import { BLUEPRINT_PANE_FILES, BLUEPRINT_PANE_SLOTS } from './blueprint-panes.mjs';
 import type { WidgetPane } from './widget-panes';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref, blueprint } = Astro.props;
@@ -415,7 +417,7 @@ const ONE_BLUEPRINT_SLOTS: Record<string, string> = {
         'the module script that reaches an element of the generated `<adw-*>` markup by its id — ' +
         'the tab the HTML markup holds on the other shape',
     nativescriptloader:
-        'the TypeScript that loads the generated XML template and reaches a view by its id',
+        'the TypeScript that loads the generated XML template (`Builder.load`) and reaches a view by its id',
 };
 
 /**
@@ -429,12 +431,11 @@ const FROM_THE_BLUEPRINT: Record<string, string> = {
 };
 
 /**
- * The Web Components and NativeScript tabs of a one-Blueprint block, composed by
- * `blueprint-panes.mjs`: the layout in the port's own markup, GENERATED here on every build from
- * the tree the preview mounts; the page's slot code that reaches the elements by id; and the
- * Blueprint route, commented. `@gjsify/adwaita-core/markup` spells the markup the way each
- * port's own builder builds the tree, each port's suite parses it back through its own door, and
- * `scripts/check-website-blueprint-markup.mjs` holds the built pages to the same composition.
+ * The markup of the Web Components and NativeScript tabs of a one-Blueprint block, GENERATED here
+ * on every build from the tree the preview mounts. `blueprint-panes.mjs` composes each tab's
+ * files from it and the page's slot code. `@gjsify/adwaita-core/markup` spells the markup the
+ * way each port's own builder builds the tree, each port's suite parses it back through its own
+ * door, and `scripts/check-website-blueprint-markup.mjs` holds the built pages to the same files.
  */
 const PANE_MARKUP: Record<string, (tree: SharedTreeNode) => string> = {
     webloader: sharedTreeHtml,
@@ -556,8 +557,9 @@ const WINDOWS: readonly {
         // until a dialect can load a `.blp`. The NativeScript XML template does NOT: it is
         // the layout written a second time, and the `nativescriptloader` tab builds the
         // file's own tree, so two tabs labelled "NativeScript" would leave the reader to
-        // guess which one is the program. That tab now leads with the XML itself, generated
-        // from the file ({@link PANE_MARKUP}), so the template is shown once, and not by hand.
+        // guess which one is the program. That tab now holds the XML itself as its first file,
+        // generated from the file ({@link PANE_MARKUP}), so the template is shown once, and not
+        // by hand.
         groups: [FRAMEWORK_GROUP],
     },
 ];
@@ -745,12 +747,9 @@ for (const spec of WINDOWS) {
             }
             const tree = blueprintTree as SharedTreeNode;
             const file = blueprint!.split('/').pop()!;
-            const markup = render(tree);
-            const source =
-                tab.slot === 'webloader'
-                    ? webComponentsPane({ markup, access, file })
-                    : nativeScriptPane({ markup, access, file, tree });
-            panes.push({ id: tab.slot, kind: 'code', label: tab.label, lang: pane.lang, source });
+            const compose = BLUEPRINT_PANE_FILES[tab.slot as keyof typeof BLUEPRINT_PANE_FILES];
+            const files = compose({ markup: render(tree), access, file, tree });
+            panes.push({ id: tab.slot, kind: 'files', label: tab.label, files });
             continue;
         }
         let html: string;
@@ -915,7 +914,9 @@ for (const spec of WINDOWS) {
         // `.adw-tab-page` is applied by <adw-tab-view> as it adopts its pages, so
         // a window with a single pane — no tab view — has none, and the pane is the
         // window's own child.
-        const active = host?.querySelector('.adw-tab-page:not([hidden]), .adw-widget-window-pane');
+        const page = host?.querySelector('.adw-tab-page:not([hidden]), .adw-widget-window-pane');
+        // A pane of several files copies the one on screen, and only that one.
+        const active = page?.querySelector('.adw-widget-file[data-active]') ?? page;
         // THE ACTIVE PANE ONLY. There used to be a fallback to the window's first code
         // block, for the live preview pane, which held a running widget and no code
         // while sharing a window with the markup that painted it. It shares no window
@@ -937,6 +938,56 @@ for (const spec of WINDOWS) {
             applyPreference(localStorage.getItem(KEY));
         } catch {
             // ignore
+        }
+    });
+
+    // THE FILE ROW of a pane of several files (AdwWidgetFiles). The pick is kept PER TAB and
+    // by the file's ROLE, not its name: `views/clamp.xml` and `views/avatar.xml` are both the
+    // NativeScript tab's `markup` file, so a reader who picked the markup on one block finds it
+    // on every other, and picking a web file leaves the NativeScript tabs where they were.
+    const FILE_KEY = 'gjsify-preferred-file';
+
+    const readFilePicks = (): Record<string, string> => {
+        try {
+            const stored = JSON.parse(localStorage.getItem(FILE_KEY) ?? '{}');
+            return stored !== null && typeof stored === 'object' ? stored : {};
+        } catch {
+            // Private mode, or a value this script did not write: nothing is remembered.
+            return {};
+        }
+    };
+
+    /** Shows `role`'s file in every pane of tab `tab`, the row included; unknown roles move nothing. */
+    const showFile = (tab: string, role: string) => {
+        for (const files of document.querySelectorAll<HTMLElement>(`.adw-widget-files[data-files-of="${tab}"]`)) {
+            const panels = [...files.querySelectorAll<HTMLElement>(':scope > .adw-widget-file')];
+            if (!panels.some((panel) => panel.dataset.fileRole === role)) continue;
+            for (const panel of panels) panel.toggleAttribute('data-active', panel.dataset.fileRole === role);
+            // `active-name` selects without emitting `notify::active`, so this cannot loop.
+            const row = files.querySelector(':scope > adw-toggle-group');
+            if (row?.getAttribute('active-name') !== role) row?.setAttribute('active-name', role);
+        }
+    };
+
+    document.addEventListener('notify::active', (event) => {
+        // Only a file row: a preview can hold a toggle group of its own, and its event bubbles
+        // through here too.
+        const row = event.target as HTMLElement;
+        if (!row?.matches?.('.adw-widget-files-row')) return;
+        const tab = (row.parentElement as HTMLElement | null)?.dataset.filesOf;
+        const role = (row as HTMLElement & { activeName: string | null }).activeName;
+        if (!tab || !role) return;
+        showFile(tab, role);
+        try {
+            localStorage.setItem(FILE_KEY, JSON.stringify({ ...readFilePicks(), [tab]: role }));
+        } catch {
+            // Private mode — the pick just won't persist.
+        }
+    });
+
+    customElements.whenDefined('adw-toggle-group').then(() => {
+        for (const [tab, role] of Object.entries(readFilePicks())) {
+            if (typeof role === 'string') showFile(tab, role);
         }
     });
 </script>

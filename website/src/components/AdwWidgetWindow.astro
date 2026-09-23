@@ -40,6 +40,7 @@
 
 import { Code } from '@astrojs/starlight/components';
 
+import AdwWidgetFiles from './AdwWidgetFiles.astro';
 import AdwWidgetRefusal from './AdwWidgetRefusal.astro';
 import type { TabbedPane, WidgetPane } from './widget-panes';
 
@@ -51,7 +52,7 @@ interface Props {
     /** The widget, for the reference link's labels and the refusal prose. */
     widget: string;
     /**
-     * This window's panes, in render order — see {@link WidgetPane} for the four kinds.
+     * This window's panes, in render order — see {@link WidgetPane} for the five kinds.
      *
      * ONE ordered list and not a prop per kind, so the order a reader sees and the
      * order `data-impls` records cannot be two facts.
@@ -86,12 +87,12 @@ const impls = panes.map((pane) => pane.id).join(',');
  * reason — rendered a button labelled "Copy this window's code" that could never copy
  * anything. Nothing else noticed; the site builds and every gate stays green.
  *
- * Slot panes and code panes are both Expressive Code blocks and nothing else is, so
- * this counts the panes that hold code rather than asking a window what kind it is.
+ * Slot, code and files panes hold Expressive Code blocks and nothing else does, so this
+ * counts the panes that hold code rather than asking a window what kind it is.
  * The header bar's trailing span keeps the button's width either way, so the title
  * stays centred against the windows above and below it.
  */
-const copyable = panes.some((pane) => pane.kind === 'slot' || pane.kind === 'code');
+const copyable = panes.some((pane) => pane.kind === 'slot' || pane.kind === 'code' || pane.kind === 'files');
 
 // NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
 // exit 0. `AdwWidget` is what prevents it — it skips a window that filled none of its
@@ -173,6 +174,7 @@ for (const pane of panes) {
                     <adw-tab-page title={pane.label}>
                         {pane.kind === 'slot' && <Fragment set:html={pane.html} />}
                         {pane.kind === 'code' && <Code code={pane.source} lang={pane.lang} />}
+                        {pane.kind === 'files' && <AdwWidgetFiles pane={pane} />}
                         {pane.kind === 'refusal' && (
                             <AdwWidgetRefusal
                                 widget={widget}
@@ -187,9 +189,9 @@ for (const pane of panes) {
         )
     }
 
-    {/* The bare pane, with no tab bar over it. Four kinds reach it: the live preview
-        (the first window, always), a lone slot tab, a lone data pane, and a recorded
-        reason — the last being the ordinary case for the blocks whose frameworks
+    {/* The bare pane, with no tab bar over it. Every kind can reach it: the live preview
+        (the first window, always), a lone slot tab, a lone data or files pane, and a
+        recorded reason — the last being the ordinary case for the blocks whose frameworks
         window carries a reason instead of a snippet. */}
     {
         single?.kind === 'live' && (
@@ -242,6 +244,13 @@ for (const pane of panes) {
         single?.kind === 'code' && (
             <div class="adw-widget-window-pane">
                 <Code code={single.source} lang={single.lang} />
+            </div>
+        )
+    }
+    {
+        single?.kind === 'files' && (
+            <div class="adw-widget-window-pane">
+                <AdwWidgetFiles pane={single} />
             </div>
         )
     }

@@ -87,7 +87,10 @@ A block built from one Blueprint file reads in a different order, because there 
 file is the template every snippet refers to. **Blueprint** shows that file, straight
 under the preview and with no tabs. **Code** holds every program that loads it: the
 `@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun, then the Web
-Components and NativeScript loaders, then Solid, Vue and React.
+Components and NativeScript loaders, then Solid, Vue and React. The two loaders are
+several files each, picked in a small row under the tab bar: the layout in the port's
+own markup, generated from the Blueprint file, the code that loads it, and the same code
+building the Blueprint file instead.
 
 Libadwaita and GTK are the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1) and
