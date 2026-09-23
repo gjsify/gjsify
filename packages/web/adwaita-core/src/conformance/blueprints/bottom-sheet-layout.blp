@@ -1,0 +1,48 @@
+using Gtk 4.0;
+using Adw 1;
+
+// The GtkWidget layout properties every renderer's builder has to honour, in the shape the
+// gallery's Adw.BottomSheet block writes them: a centred button over a modal sheet whose
+// box is inset by four margins and whose title sits at the start edge.
+Adw.BottomSheet sheet {
+  open: true;
+  modal: true;
+  can-close: true;
+
+  content: Gtk.Button toggle {
+    label: _("Toggle sheet");
+    halign: center;
+    valign: center;
+    vexpand: true;
+
+    styles ["pill", "suggested-action"]
+  };
+
+  sheet: Gtk.Box box {
+    orientation: vertical;
+    spacing: 12;
+    margin-start: 18;
+    margin-end: 12;
+    margin-top: 18;
+    margin-bottom: 24;
+
+    Gtk.Label title {
+      label: _("Share track");
+      xalign: 0;
+      halign: start;
+
+      styles ["title-2"]
+    }
+
+    Gtk.Label caption {
+      label: _("Pick where it goes");
+      hexpand: true;
+    }
+
+    Gtk.Label body {
+      label: _("The link stays valid for a week.");
+      wrap: true;
+      vexpand: true;
+    }
+  };
+}

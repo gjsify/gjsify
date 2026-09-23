@@ -285,6 +285,14 @@ jobs:
       - name: Check website package names resolve
         run: node scripts/check-website-package-names.mjs
 
+      # The hand-written CLI reference page drifted from the CLI it documents in
+      # three ways at once: a stale ship formats table (missing `appimage`), an
+      # oxlint plugin section that said "its one rule" of a plugin that had grown
+      # to seven, and two whole commands (`gjsify link` / `unlink`) with no section
+      # at all. Nothing walked the page against the source it describes.
+      - name: Check CLI reference page against the CLI source
+        run: node scripts/check-website-cli-reference.mjs
+
       # The check above asks whether a quoted `@gjsify/*` name is a package OF THIS
       # WORKSPACE. The registry is a different question, and until now nothing asked it:
       # `@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64}` shipped in 0.44.0 as

@@ -171,8 +171,8 @@ const KNOWN_GAPS = {
         why: "There is no in-app dialog to carry them: this class maps onto the platform `confirm()` / `action()` sheet so the dialog looks like the user's OS rather than a libadwaita card (adw-alert-dialog.ts:12-16). A native sheet takes PLAIN strings — no Pango markup to enable — and picks its own width, so the wide-layout hint has nothing to hint to.",
     },
     'adw-bottom-sheet': {
-        gaps: ['align', 'fullWidth', 'modal', 'showDragHandle'],
-        why: 'The sheet is bottom-aligned in a `GridLayout` and toggled by `visibility` — "no upward slide, no dimming scrim/backdrop-blur" (adw-bottom-sheet.ts, FIDELITY). Alignment, full-width and modality are properties of a presentation this port does not perform, and the drag handle is the one sub-widget it does not make optional: it is decorative upstream, so there is no behaviour behind hiding it. The bottom bar IS built, and with it `can-open` and `reveal-bottom-bar` — it is the only affordance a user has for opening a sheet, so leaving it out left an app whose GNOME original opens from the bar with no way in at all.',
+        gaps: ['align', 'fullWidth', 'showDragHandle'],
+        why: 'The sheet is bottom-aligned in a `GridLayout` and toggled by `visibility` — "no upward slide" (adw-bottom-sheet.ts, FIDELITY). Alignment and full-width are properties of a presentation this port does not perform (`modal` is not: its scrim is a view between the content and the panel, painted from the core\'s `BottomSheetChrome.dimmed`), and the drag handle is the one sub-widget it does not make optional: it is decorative upstream, so there is no behaviour behind hiding it. The bottom bar IS built, and with it `can-open` and `reveal-bottom-bar` — it is the only affordance a user has for opening a sheet, so leaving it out left an app whose GNOME original opens from the bar with no way in at all.',
     },
     'adw-carousel': {
         gaps: ['allowLongSwipes', 'allowMouseDrag', 'allowScrollWheel', 'revealDuration', 'spacing'],
@@ -284,10 +284,9 @@ const KNOWN_GAPS = {
             'singleLineMode',
             'widthChars',
             'wrapMode',
-            'xalign',
             'yalign',
         ],
-        why: 'Everything here is PANGO, and a NativeScript `Label` exposes `text`, `textWrap` and `textAlignment` over a platform text view with no text-layout engine reachable behind them (gtk-label.ts). So there is no ellipsize mode, no line cap, no character-width request, no wrap-mode choice — the platform wraps at word boundaries or not at all — and no selectable text on a `Label` (that is `TextView` there, a different view). `xalign`/`yalign` are the sharpest of them: they are a CONTINUUM in [0,1] where `textAlignment` has three positions and `horizontalAlignment` is the property a caller actually has here, so mapping them would report a snap as agreement. `justify` and `xalign` would both land on that one knob, which is why neither is mapped rather than one of them silently winning.',
+        why: 'Everything here is PANGO, and a NativeScript `Label` exposes `text`, `textWrap` and `textAlignment` over a platform text view with no text-layout engine reachable behind them (gtk-label.ts). So there is no ellipsize mode, no line cap, no character-width request, no wrap-mode choice — the platform wraps at word boundaries or not at all — and no selectable text on a `Label` (that is `TextView` there, a different view). `yalign` is a CONTINUUM in [0,1] with no vertical text-placement knob behind it at all. `xalign` is the same continuum over `textAlignment`, which has three positions, so it is mapped at exactly those three (0, 0.5, 1) and refused everywhere else rather than snapped (gtk-label.ts). `justify` would land on that same one knob, which is why it stays unmapped rather than silently fighting `xalign` for it.',
     },
     'gtk-button': {
         gaps: ['canShrink', 'hasFrame'],

@@ -87,3 +87,28 @@ export function resolveBuilderSlot<Slot extends string, Fallback extends string>
     const wanted = dot === -1 ? name : name.slice(dot + 1);
     return (slots as readonly string[]).includes(wanted) ? (wanted as Slot) : fallback;
 }
+
+/**
+ * A widget class that declares which of its properties hold ANOTHER OBJECT of the tree,
+ * named by id — read by the shared-tree builder.
+ *
+ * WHY A DECLARATION, when the builder could look for a string that matches an id: a projected
+ * `.blp` carries `stack: stack` as the prop `stack` holding the STRING `"stack"`, exactly as it
+ * carries `name: "inbox"` — the projection keeps the value and drops the type. GtkBuilder tells
+ * the two apart by the property's `GParamSpec` (an object pspec resolves the id, deferred to
+ * the end of the parse so a reference may point forward), and a runtime without GI has no
+ * pspec to ask. So the widget says which of its properties are object-valued, and the builder
+ * resolves exactly those — never a `name` that happens to equal an id.
+ */
+export interface BuilderReferenceDeclaring {
+    readonly builderReferences: readonly string[];
+}
+
+/**
+ * The object-valued properties a widget CLASS declares, as the camelCase names its accessors
+ * carry; an empty list when it declares none.
+ */
+export function declaredBuilderReferences(ctor: unknown): readonly string[] {
+    const references = (ctor as Partial<BuilderReferenceDeclaring> | undefined)?.builderReferences;
+    return Array.isArray(references) ? references : [];
+}

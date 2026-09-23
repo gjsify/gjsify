@@ -4,6 +4,29 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### NativeScript `Gtk.Box` grants no spare space to an expanding child
+
+`hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
+ADR 0034 § Amendment 20) and are held and read back, but no parent in the port allocates by
+them. The case a gallery Blueprint writes is a vertical `Gtk.Box` holding a `vexpand` stack or
+tab view: GTK hands the box's spare height to that child, and the port's `GtkBox` is a
+`StackLayout`, which measures every child at its natural size. The web grows it
+(`gtk-box[orientation='vertical'] > [vexpand] { flex-grow: 1 }`). Closing it means a box that
+can divide spare space — a `GridLayout` with a `*` track per expanding child and `auto`
+elsewhere is GTK's rule exactly — and the same change would answer the `homogeneous` gap the
+`gtk-box` coverage row declares.
+
+### The web view switchers cannot bind a stack by id
+
+`Adw.ViewSwitcher` and `Adw.InlineViewSwitcher` take their pages from an `Adw.ViewStack` named
+by `stack: stack` in a `.blp`, and the NativeScript builder now resolves that reference
+(`builderReferences`, `widgets/builder-slots.ts`) and builds the `Adw.ViewStackPage` records.
+`<adw-view-switcher>` and `<adw-inline-view-switcher>` still BUNDLE their pages as children, so
+`view-stack-pages.blp` (`@gjsify/adwaita-core/src/conformance/blueprints/`) is built by one
+renderer only. Two parts: the two switchers binding an `<adw-view-stack>` by id, as
+`<adw-view-switcher-bar>` already does, and `<adw-view-stack-page>` declaring `child` as a slot,
+since the web mount refuses a `slot="child"` its element has no binding for.
+
 ### An ARIA relation has no way to name the other widget
 
 `@gjsify/gtk-host` expresses 39 of GTK's 53 ARIA slots through `accessibility={{ … }}` (ADR 0067).
@@ -6512,8 +6535,8 @@ the `@girs` 5.3.0 bump, and again on each of the
 eleven constructs that closed the subset, and once more against the PUBLISHED `@girs` 5.4.0
 rather than a local build — **95 of 95** in `tests/samples` and **272 of 273** wild, 0 silently
 wrong, the one remainder being a deliberately invalid fixture the oracle refuses too:
-56 rule files and 14
-reality probes, all 70 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
+56 rule files and 16
+reality probes, all 72 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
 naming their construct, their file and their line. The refusal count went DOWN by four and that
 is the shape of this change: a fixture pinning a construct the parser now reads is a fixture
 that has to be retired, and the corpus check is what says so. Those four are held to the tree by
@@ -6655,7 +6678,7 @@ the same shape and clause 7 already calls it a scoping decision rather than a de
 deletion list is a completion test: these two are the unchecked boxes.
 
 One thing the corpus settled that the ADR's mapping table did not have: more construct classes
-fall outside `SharedNode` than the census of the fourteen real files found, and the translatable
+fall outside `SharedNode` than the census of the sixteen real files found, and the translatable
 marker is the one that costs — a caption parsed into a plain string loses exactly the attribute
 ADR 0033 prefers a template for. The per-kind count is below, under "Inverting the Blueprint
 projection needs the GIR", and is not repeated here.

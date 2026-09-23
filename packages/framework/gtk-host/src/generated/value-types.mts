@@ -27,6 +27,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Adw.SidebarItem': { gtype: 'AdwSidebarItem', widget: false },
     'Adw.SidebarSection': { gtype: 'AdwSidebarSection', widget: false },
     'Adw.TabPage': { gtype: 'AdwTabPage', widget: false },
+    'Adw.ViewStackPage': { gtype: 'AdwViewStackPage', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
     'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },

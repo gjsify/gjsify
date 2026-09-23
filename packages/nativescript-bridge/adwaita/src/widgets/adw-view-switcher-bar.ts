@@ -51,6 +51,9 @@ interface BarButtonNodes {
 }
 
 export class AdwViewSwitcherBar extends withSignals(GridLayout) {
+    /** `stack` names an `AdwViewStack` of the same tree — see `./builder-slots.ts`. */
+    static readonly builderReferences: readonly string[] = ['stack'];
+
     /** The horizontal (homogeneous) row of buttons. */
     private readonly _bar: GridLayout;
     private _nodes: BarButtonNodes[] = [];

@@ -464,7 +464,7 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'Three of the fourteen real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
+        note: 'Three of the sixteen real files write a bare `ToggleButton`, so this is not a corner of the grammar. It is the second place the parser needs GIR knowledge and not only syntax, beside the enum resolution recorded as the `surprise` on `03-property-enum.blp`. The lookup is against Gtk ALONE — a bare `Bin` is refused with `using Adw 1;` in the file — so a parser that searches every import accepts what the compiler rejects. A bare name is legal in every position a qualified one is: the root, a property value and a child, with an id and with an enum that resolves through the Gtk type it names.',
     },
     {
         file: '25-bracket-breakpoint.blp',

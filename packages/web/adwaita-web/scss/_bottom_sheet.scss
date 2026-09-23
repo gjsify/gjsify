@@ -19,7 +19,11 @@ adw-bottom-sheet {
   color: var(--window-fg-color);
 
   // --- Persistent content layer ---
+  // A grid rather than a block, as GTK's content bin allocates its child the whole area and
+  // lets the child's `halign` / `valign` place it (`_widget.scss`); a block container
+  // resolves a vertical auto margin to zero.
   .adw-bottom-sheet-content {
+    display: grid;
     box-sizing: border-box;
     width: 100%;
     height: 100%;

@@ -101,9 +101,8 @@ export class BottomSheetNsStory extends StoryView {
 
     private _sync(): void {
         if (!this._sheet) return;
-        // NS Adw.BottomSheet models `open` and `can-close`, both out of the shared
-        // `@gjsify/adwaita-core` state. `modal` has no NS equivalent: the CSS subset
-        // here has no scrim/backdrop.
+        // NS Adw.BottomSheet models `open`, `modal` and `can-close`, all out of the shared
+        // `@gjsify/adwaita-core` state; `modal` lays the scrim over the content.
         //
         // `canClose` is only observable through a dismissal, and this widget has
         // none to offer on its own — the drag handle is decorative
@@ -111,9 +110,8 @@ export class BottomSheetNsStory extends StoryView {
         // what it has (Android back, an in-sheet button) into
         // `requestClose(source)`.
         this._sheet.canClose = this.args.canClose as boolean;
+        this._sheet.modal = this.args.modal as boolean;
         this._sheet.open = this.args.open as boolean;
-        // Read so the control stays bound to this rendering too.
-        void (this.args.modal as boolean);
     }
 }
 

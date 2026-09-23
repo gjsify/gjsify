@@ -160,7 +160,8 @@ export type { ShortcutLabelRenderPlan, ShortcutLabelViewSpec } from './shortcut-
 
 // --- View switching ---
 export { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
-export type { AdwViewStackPage, NotifyVisibleChildEventData } from './adw-view-stack.js';
+export type { AdwViewStackPageInfo, NotifyVisibleChildEventData } from './adw-view-stack.js';
+export { AdwViewStackPage } from './view-stack-page.js';
 export { AdwViewSwitcherBase, NOTIFY_SELECTED as NOTIFY_VIEW_SELECTED } from './view-switcher-base.js';
 export type { AdwViewPage, NotifyViewSelectedEventData } from './view-switcher-base.js';
 export { AdwViewSwitcher } from './adw-view-switcher.js';

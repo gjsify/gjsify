@@ -26,11 +26,11 @@ refused by name, held by a corpus of its own.
 | `corpus/rules/*.blp` | one small file per language rule |
 | `corpus/rules/*.ui` | what `blueprint-compiler compile` produces from each |
 | `corpus/refused/*.blp` | one small file per construct the subset does NOT hold, each refused by name and by line |
-| `corpus/real/*.ui` | the same, for the 14 `.blp` files this repo already builds |
+| `corpus/real/*.ui` | the same, for the 16 `.blp` files this repo already builds |
 | `corpus/manifest.mjs` | which rule each file isolates, and which compiler produced the goldens |
 | `corpus/manifest.d.mts` | its types, hand-written like `src/index.d.mts` — what lets a TypeScript consumer read a refusal's line rather than copy it |
 | `corpus/expectations.mjs` | the `SharedNode` tree each rule file must project to, hand-written |
-| `corpus/real-expectations.mjs` | the same for the 14 real files |
+| `corpus/real-expectations.mjs` | the same for the 16 real files |
 | `corpus/divergences.mjs` | where the in-repo parser and the reference compiler still disagree |
 | `src/index.mjs` | the package's whole surface: one compile, the five seams it needs, and what it throws |
 | `src/errors.mjs` | both error classes — the refusal is part of the contract, so it is not two homes |

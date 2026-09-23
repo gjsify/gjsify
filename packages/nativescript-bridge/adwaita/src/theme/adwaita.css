@@ -1469,6 +1469,12 @@ Page.adw-window {
 
 /* ===== Bottom sheet ===== */
 
+/* The scrim a modal sheet lays over its content while open — libadwaita's
+   `> dimming` (_bottom-sheet.scss), at the strength `<adw-bottom-sheet>` paints it. */
+.adw-bottom-sheet-dimming {
+    background-color: rgba(0, 0, 6, 0.32);
+}
+
 .adw-bottom-sheet-panel {
     background-color: #ffffff;
     border-top-left-radius: 16;

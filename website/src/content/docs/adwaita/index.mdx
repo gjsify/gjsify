@@ -83,6 +83,12 @@ a phone. Where a widget is built in code rather than declared, a recorded reason
 takes the place of the snippet. Choose a tab once and every block on the site
 follows it.
 
+A block built from one Blueprint file reads in a different order, because there the
+file is the template every snippet refers to. **Blueprint** shows that file, straight
+under the preview and with no tabs. **Code** holds every program that loads it: the
+`@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun, then the Web
+Components and NativeScript loaders, then Solid, Vue and React.
+
 Libadwaita and GTK are the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1) and
 [`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). Both ports follow

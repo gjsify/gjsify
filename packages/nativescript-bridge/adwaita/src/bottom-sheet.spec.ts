@@ -63,7 +63,7 @@ function fakeView(className = ''): View {
  */
 function mountSheet() {
     const state = createBottomSheetPresentation();
-    const panes = { panel: fakeView(), page: fakeView(), bottomBar: fakeView() };
+    const panes = { dimming: fakeView(), panel: fakeView(), page: fakeView(), bottomBar: fakeView() };
     const panel = panes.panel;
     const events: string[] = [];
     const notifications: boolean[] = [];
@@ -87,11 +87,12 @@ function mountSheet() {
  * state that produced them. `layer` is a question about which pane is collapsed, which is
  * the whole reason the two are one stack upstream.
  */
-function chromeOf(panes: { panel: View; page: View; bottomBar: View }): BottomSheetChrome {
+function chromeOf(panes: { dimming: View; panel: View; page: View; bottomBar: View }): BottomSheetChrome {
     return {
         layer: panes.page.visibility === 'visible' ? 'sheet' : 'bottom-bar',
         surfaceVisible: panes.panel.visibility === 'visible',
         bottomBarInert: (panes.bottomBar.className ?? '').split(' ').includes(INERT_CLASS),
+        dimmed: panes.dimming.visibility === 'visible',
     };
 }
 
@@ -171,7 +172,7 @@ export const AdwBottomSheetNsTest = async () => {
                 // leaves every pane exactly where it was.
                 expect(sheet.state.open).toBe(outcome === 'open' ? true : open);
                 expect(chromeOf(sheet.panes)).toStrictEqual(
-                    outcome === 'open' ? { ...before, layer: 'sheet', surfaceVisible: true } : before,
+                    outcome === 'open' ? { ...before, layer: 'sheet', surfaceVisible: true, dimmed: true } : before,
                 );
             });
         }
@@ -194,6 +195,10 @@ export const AdwBottomSheetNsTest = async () => {
                         },
                         setRevealBottomBar: (reveal) => {
                             sheet.state.setRevealBottomBar(reveal);
+                            sheet.paint();
+                        },
+                        setModal: (modal) => {
+                            sheet.state.setModal(modal);
                             sheet.paint();
                         },
                         setOpen: (open) => {

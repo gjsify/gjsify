@@ -69,10 +69,16 @@ at a comfortable measure on a large display without wasting room on a small one.
 This block is written in a different shape from the others on the page. The layout
 exists once, as a Blueprint file, and every surface builds that file: GTK compiles it
 to GtkBuilder XML, and the web and NativeScript ports build its `?shared-tree`
-projection. The preview is that projection, built by `@gjsify/adwaita-web`. So the
-tabs below do not restate the layout. Each one shows how its platform loads the file
-and reaches an element by its Blueprint id, which is where the platforms differ: the
-web clamp takes its size as an attribute, the other two as a property.
+projection. The preview is that projection, built by `@gjsify/adwaita-web`, and
+**Blueprint** under it is the file. So the tabs of **Code** do not restate the layout.
+Each one shows how its platform loads the file and reaches an element by its Blueprint
+id, which is where the platforms differ: the web clamp takes its size as an attribute,
+the other two as a property.
+
+The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
+runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
+through `node-gi`. It calls `Adw.init()` so that the builder knows `Adw.Clamp` in a
+bare script too; inside an `Adw.Application` the call is harmless.
 
 <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
   <Fragment slot="gjs">
@@ -81,6 +87,7 @@ web clamp takes its size as an attribute, the other two as a property.
     import Gtk from 'gi://Gtk?version=4.0';
     import ui from './clamp.blp';
 
+    Adw.init();
     const builder = Gtk.Builder.new_from_string(ui, -1);
     const clamp = builder.get_object('clamp') as Adw.Clamp;
     const label = builder.get_object('label') as Gtk.Label;
