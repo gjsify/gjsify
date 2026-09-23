@@ -33,9 +33,12 @@ import { withSignals } from './signals.js';
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
- * `<AdwHeaderBar.titleWidget>`, `<AdwHeaderBar.startBox>`, `<AdwHeaderBar.endBox>`.
+ * `<AdwHeaderBar.titleWidget>`, `<AdwHeaderBar.startBox>`, `<AdwHeaderBar.endBox>` — and
+ * as GTK spells them. A projected `.blp` writes `title-widget: …`, `[start]` and `[end]`,
+ * the names the web header bar routes too, so without them a real `.blp` header bar was
+ * refused by the shared-tree builder.
  */
-const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox'] as const;
+const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox', 'title-widget', 'start', 'end'] as const;
 
 export class AdwHeaderBar extends withSignals(GridLayout) {
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
@@ -179,9 +182,11 @@ export class AdwHeaderBar extends withSignals(GridLayout) {
     _addChildFromBuilder(name: string, view: View): void {
         switch (resolveBuilderSlot(name, HEADER_BAR_SLOTS, 'startBox')) {
             case 'titleWidget':
+            case 'title-widget':
                 this.set_title_widget(view);
                 return;
             case 'endBox':
+            case 'end':
                 this.pack_end(view);
                 return;
             default:
