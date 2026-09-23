@@ -13,7 +13,9 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -21,7 +23,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/ci-suite-scope/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const SCRIPT = join(MONOREPO_ROOT, 'scripts', 'decide-suite-scope.mjs');
-const { decide, namedPackages, namedPaths } = await import(pathToFileURL(SCRIPT).href);
+const { decide, namedPackages, namedPaths, withImportedScripts } = await import(pathToFileURL(SCRIPT).href);
 
 const WORKFLOWS = ['macos-suites.yml', 'windows-suites.yml', 'gtk-os-suites.yml'];
 const read = (rel) => readFileSync(join(MONOREPO_ROOT, rel), 'utf8');
@@ -100,6 +102,79 @@ describe('decide-suite-scope: what a skip must prove', () => {
     it('an extra own-inputs pattern runs', () => {
         const v = onMacos(['flatpak/x.json'], IGNORED_ONLY, { extra: /^flatpak\// });
         assert.equal(v.run, true);
+    });
+});
+
+describe('decide-suite-scope: a step script brings its helpers', () => {
+    const files = {
+        'scripts/report-symlink-capability.mjs': "import { probe } from './symlink-probe.mjs';\n",
+        'scripts/symlink-probe.mjs': "export { deep } from './lib/deeper.mjs';\n",
+        'scripts/lib/deeper.mjs': "import '../../packages/node/fs/lib/index.js';\n",
+    };
+    const readText = (p) => files[p];
+
+    it('a helper only a suite-run script imports is an input, transitively', () => {
+        const all = withImportedScripts(['scripts/report-symlink-capability.mjs'], readText);
+        assert.ok(all.includes('scripts/symlink-probe.mjs'));
+        assert.ok(all.includes('scripts/lib/deeper.mjs'));
+        // Outside scripts/ is the closure's business, not this list's.
+        assert.ok(!all.some((p) => p.startsWith('packages/')));
+        const v = decide({
+            event: 'pull_request',
+            changed: ['scripts/symlink-probe.mjs'],
+            affected: IGNORED_ONLY,
+            packages: [],
+            workflowPath: '.github/workflows/windows-suites.yml',
+            workflowText: read('.github/workflows/windows-suites.yml'),
+            readText,
+        });
+        assert.equal(v.run, true, v.reason);
+    });
+
+    it('a script nothing the suite runs imports is not an input', () => {
+        const all = withImportedScripts(['scripts/report-symlink-capability.mjs'], readText);
+        assert.ok(!all.includes('scripts/unrelated.mjs'));
+    });
+});
+
+describe('decide-suite-scope: the diff the action feeds it', () => {
+    // A pure move out of a tested package into docs/ must list the SOURCE too. With
+    // git's default rename detection `--name-only` prints only `docs/x.ts`, the change
+    // reads as docs-only, and the suite that would have seen `@gjsify/os` break skips.
+    it("the action's git diff lists both sides of a rename", () => {
+        const action = read('.github/actions/suite-scope/action.yml');
+        const line = action.split('\n').find((l) => /^\s*git diff .*--name-only/.test(l));
+        assert.ok(line, 'the action no longer runs a `git diff --name-only`');
+        const argv = line
+            .trim()
+            .replace(/\s*>.*$/, '')
+            .replace(/"\$BASE\.\.\.HEAD"/, 'HEAD~1...HEAD')
+            .split(/\s+/);
+        assert.equal(argv[0], 'git');
+
+        const repo = mkdtempSync(join(tmpdir(), 'ci-suite-scope-rename-'));
+        try {
+            const git = (...a) =>
+                execFileSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=t', ...a], {
+                    cwd: repo,
+                    encoding: 'utf8',
+                });
+            mkdirSync(join(repo, 'packages/node/os/src'), { recursive: true });
+            mkdirSync(join(repo, 'docs'));
+            writeFileSync(join(repo, 'packages/node/os/src/x.ts'), 'export const x = 1;\n'.repeat(40));
+            git('init', '-q');
+            git('add', '-A');
+            git('commit', '-q', '-m', 'base');
+            git('mv', 'packages/node/os/src/x.ts', 'docs/x.ts');
+            git('commit', '-q', '-m', 'move');
+            const listed = git(...argv.slice(1))
+                .split('\n')
+                .filter(Boolean);
+            assert.ok(listed.includes('packages/node/os/src/x.ts'), `listed only: ${listed.join(', ')}`);
+            assert.ok(listed.includes('docs/x.ts'));
+        } finally {
+            rmSync(repo, { recursive: true, force: true });
+        }
     });
 });
 

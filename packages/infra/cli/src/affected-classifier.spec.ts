@@ -10,7 +10,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { classifyAndExpand } from './commands/affected-classify.js';
 import { buildScriptReferrers } from './commands/affected-script-refs.js';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -616,6 +616,34 @@ export default async (): Promise<void> => {
             const value = await includeArgsFor(root, ['packages/node/fs/src/index.ts']);
             expect(value.includes('@gjsify/fs')).toBe(true);
             expect(value.includes('@gjsify/example-')).toBe(false);
+        });
+
+        await it('a pure MOVE out of a workspace still seeds that workspace (git diff --no-renames)', async () => {
+            // Rename detection is git's default, and with it `--name-only` lists only the
+            // destination: moving an `@gjsify/fs` source into docs/ read as docs-only and
+            // skipped every job that would have seen `@gjsify/fs` break. This spawns the
+            // CLI without `--changed-from-stdin`, so the real `git diff` is what is tested.
+            const repo = makeMonorepo();
+            const git = (...a: string[]) =>
+                execFileSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=t', ...a], {
+                    cwd: repo,
+                    stdio: 'pipe',
+                });
+            mkdirSync(join(repo, 'packages/node/fs/src'), { recursive: true });
+            mkdirSync(join(repo, 'docs'), { recursive: true });
+            // Enough content that git pairs the delete and the add as a rename.
+            writeFileSync(join(repo, 'packages/node/fs/src/x.ts'), 'export const x = 1;\n'.repeat(40));
+            git('init', '-q');
+            git('add', '-A');
+            git('commit', '-q', '-m', 'base');
+            git('mv', 'packages/node/fs/src/x.ts', 'docs/x.ts');
+            git('commit', '-q', '-m', 'move');
+            const r = await run([CLI_ENTRY, 'affected', '--base', 'HEAD~1', '--format=json', '--cwd', repo], '', null);
+            rmSync(repo, { recursive: true, force: true });
+            expect(r.code).toBe(0);
+            const out = JSON.parse(r.stdout) as ClassifyOutput;
+            expect(out.skipAll).toBe(false);
+            expect(out.workspaces.includes('@gjsify/fs')).toBe(true);
         });
 
         // ── Root scripts resolved to their readers ──────────────────────────

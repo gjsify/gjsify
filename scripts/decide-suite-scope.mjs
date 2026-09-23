@@ -41,6 +41,7 @@
 
 import { appendFileSync, readFileSync } from 'node:fs';
 import { argv, env, exit, stdout } from 'node:process';
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /** Files that decide how the workspace BUILDS, or what the manifest audit reads. */
@@ -87,6 +88,40 @@ export function namedPackages(workflowText) {
     return [...out].sort();
 }
 
+/** Read a repo file, or `undefined` — an unreadable helper simply adds no further inputs. */
+function readRepoText(path) {
+    try {
+        return readFileSync(path, 'utf8');
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * The named root scripts plus every root script they import, transitively. A step names
+ * `scripts/report-symlink-capability.mjs`, not the helpers it imports, and a change to a
+ * helper changes what the step does just as much. Relative specifiers inside `scripts/`
+ * only: that is how the scripts import each other; anything else they import is a
+ * workspace or a builtin, which the closure and BUILD_SHAPE already cover.
+ */
+export function withImportedScripts(paths, readText = readRepoText) {
+    const out = new Set(paths);
+    const queue = paths.filter((p) => /^scripts\/[^/]+\.[mc]?js$/.test(p));
+    while (queue.length > 0) {
+        const script = queue.shift();
+        const text = readText(script);
+        if (text === undefined) continue;
+        for (const m of text.matchAll(/(?:from\s*|import\s*\(\s*|import\s+)['"](\.\.?\/[^'"]+)['"]/g)) {
+            // Repo paths are `/`-separated on every host, hence POSIX joining.
+            const dep = posix.normalize(posix.join(posix.dirname(script), m[1]));
+            if (!dep.startsWith('scripts/') || out.has(dep)) continue;
+            out.add(dep);
+            queue.push(dep);
+        }
+    }
+    return [...out].sort();
+}
+
 function claims(path, named) {
     return named.some((n) => path === n || path.startsWith(n.endsWith('/') ? n : `${n}/`));
 }
@@ -100,9 +135,10 @@ function claims(path, named) {
  * @param {string} input.workflowPath   the calling workflow, repo-relative
  * @param {string} input.workflowText   its content
  * @param {RegExp|undefined} input.extra      additional own inputs
+ * @param {(path: string) => string|undefined} [input.readText]  repo file reader (tests inject one)
  * @returns {{ run: boolean, reason: string }}
  */
-export function decide({ event, changed, affected, packages, workflowPath, workflowText, extra }) {
+export function decide({ event, changed, affected, packages, workflowPath, workflowText, extra, readText }) {
     if (event !== 'pull_request') return { run: true, reason: `\`${event}\` runs the full matrix` };
     if (!changed || changed.length === 0) {
         return { run: true, reason: 'the changed-file list was empty or unreadable — failing open' };
@@ -110,7 +146,7 @@ export function decide({ event, changed, affected, packages, workflowPath, workf
     if (!affected || typeof affected.global !== 'boolean' || !Array.isArray(affected.workspaces)) {
         return { run: true, reason: 'the affected classifier gave no verdict — failing open' };
     }
-    const named = [workflowPath, ...namedPaths(workflowText)];
+    const named = [workflowPath, ...withImportedScripts(namedPaths(workflowText), readText)];
     const tested = [...new Set([...packages, ...namedPackages(workflowText)])];
     for (const f of changed) {
         if (claims(f, named)) return { run: true, reason: `\`${f}\` is named by ${workflowPath}` };

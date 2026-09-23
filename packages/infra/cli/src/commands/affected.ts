@@ -138,7 +138,11 @@ function runGitDiff(cwd: string, base: string, head: string): string[] {
     // `base...head` lists changed paths on `head` relative to the MERGE-BASE, which
     // matches what a GitHub PR diff shows and survives stacked PRs without picking up
     // commits from base.
-    const r = spawnSync('git', ['diff', '--name-only', `${base}...${head}`], {
+    // `--no-renames`: with rename detection on (git's default since 2.9), a pure move lists
+    // only the DESTINATION. Moving `packages/node/os/src/x.ts` to `docs/x.ts` then reads as
+    // a docs-only change and skips every suite that would have seen `@gjsify/os` break.
+    // Without detection a move is a delete plus an add, and the deleted side seeds as usual.
+    const r = spawnSync('git', ['diff', '--no-renames', '--name-only', `${base}...${head}`], {
         cwd,
         encoding: 'utf8',
     });

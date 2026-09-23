@@ -55,7 +55,9 @@ runs:
         BASE: ${{ github.event.pull_request.base.sha }}
       run: |
         set -uo pipefail
-        git diff --name-only "$BASE...HEAD" > "$RUNNER_TEMP/suite-scope-changed.txt" \
+        # `--no-renames`: a detected rename lists only its destination, so a move out of a
+        # tested package into docs/ would read as docs-only and skip the suite.
+        git diff --no-renames --name-only "$BASE...HEAD" > "$RUNNER_TEMP/suite-scope-changed.txt" \
           || rm -f "$RUNNER_TEMP/suite-scope-changed.txt"
         gjs -m packages/infra/cli/dist/affected.gjs.mjs --base "$BASE" --format=json \
           > "$RUNNER_TEMP/suite-scope-affected.json" \
