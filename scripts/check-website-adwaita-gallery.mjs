@@ -1416,11 +1416,19 @@ for (const problem of livePreviewDeclaration(windows, markupSlot, provided)) {
  * windows a reader never meets there, in the exact voice this arm exists to keep
  * honest.
  *
+ * ONE PAGE ENUMERATES, SINCE THE INTRO WAS DEDUPLICATED. The same two paragraphs
+ * used to open all nine widget pages and both section indexes, so one rename meant
+ * eleven edits. The enumeration now lives on {@link WINDOW_INTRO_PAGE} alone, and the
+ * Gtk index links to it, so that page is held against the union over EVERY gallery
+ * page it introduces, in both directions. Every other page is held in one direction
+ * only: it may not name a window it does not draw, which is the stale-name defect
+ * above, and it need not repeat the enumeration.
+ *
  * MEASURED against the four ways it can be wrong, each restored afterwards:
  *
  *   · rename the window in the component alone — exit 1, on every page that draws
  *     it, which is the defect this arm is named after
- *   · drop "UI frameworks" from one page's intro — exit 1, on that page
+ *   · drop "UI frameworks" from the intro page — exit 1, on that page
  *   · take the `gjs` fragments off one page, so it stops drawing a window it still
  *     names — exit 1, the inverse direction
  *   · break the title read (`title:` -> `heading:`) — exit 1 on the vacuity guard,
@@ -1459,31 +1467,41 @@ for (const block of blocks) {
         }
     }
 }
-/** section dir → the union over that section's own pages, which its index stands for. */
-const sectionWindows = new Map(GALLERY_SECTIONS.map(({ dir }) => [dir, new Set()]));
+/** The one page whose prose enumerates the windows, for every gallery section. */
+const WINDOW_INTRO_PAGE = 'website/src/content/docs/adwaita/index.mdx';
+/** The union over every gallery page, which the intro page stands for. */
+const galleryWindows = new Set();
 for (const page of pages) {
-    for (const title of shownBy.get(page.path)) sectionWindows.get(page.dir).add(title);
+    for (const title of shownBy.get(page.path)) galleryWindows.add(title);
+}
+if (!pages.some((page) => page.path === WINDOW_INTRO_PAGE)) {
+    failures.push(
+        `${WINDOW_INTRO_PAGE} is not a gallery page any more, so arm 10 holds no page to the\n` +
+            '    window enumeration and would pass vacuously. Point WINDOW_INTRO_PAGE at the page\n' +
+            '    that explains the windows now.',
+    );
 }
 
 for (const page of pages) {
-    const shown = page.file === SECTION_INDEX ? sectionWindows.get(page.dir) : shownBy.get(page.path);
-    // A page with no block draws nothing, and the index stands for its section.
-    if (shown.size === 0) continue;
+    const intro = page.path === WINDOW_INTRO_PAGE;
+    const shown = intro ? galleryWindows : shownBy.get(page.path);
     const prose = pageProse(readFileSync(join(ROOT, page.path), 'utf8'));
     for (const title of titledWindows.map((window) => window.title)) {
         const named = prose.includes(proseName(title));
         if (named === shown.has(title)) continue;
+        // Off the intro page, silence about a window is the deduplicated intro working.
+        if (!intro && !named) continue;
         failures.push(
             named
                 ? `${page.path} names the window "${title}" in its prose, and no block on it draws\n` +
                       '    that window. A reader is told to look for a window that is not there — and the\n' +
                       '    enumeration is the only place the window titles are explained, so being wrong\n' +
                       '    there is worse than being silent.'
-                : `${page.path} draws the window "${title}" and its prose never names it. Every\n` +
-                      `    gallery page introduces the stack of windows by title, and ${WIDGET_COMPONENT}\n` +
-                      '    relies on that: what a window title cannot say (the four runtimes, the three\n' +
-                      '    dialects) the page says instead. Rename a window here and nowhere else, or grow\n' +
-                      '    the stack by one, and the intro describes a page that no longer exists.',
+                : `${page.path} introduces the gallery's windows and never names "${title}", which\n` +
+                      `    a gallery page draws. ${WIDGET_COMPONENT} relies on this enumeration: what a\n` +
+                      '    window title cannot say (the four runtimes, the three dialects) this page says\n' +
+                      '    instead. Rename a window here and nowhere else, or grow the stack by one, and the\n' +
+                      '    intro describes a page that no longer exists.',
         );
     }
 }

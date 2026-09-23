@@ -49,8 +49,7 @@ different one.
 
 Each target picks its own runtime from `gjsify.ship.app.<os>`, keyed `linux`,
 `darwin` and `win32`, falling back to `gjsify.app`. So one project can be GJS on
-Linux and Node where no GJS exists. Before that key existed, asking for a `.app`
-moved the Linux package's `Depends:` with it.
+Linux and Node where no GJS exists.
 
 Assembling is never host-bound, so one workstation produces all three artifact
 sets. Packing is another matter: two of the nine formats need a particular host.
@@ -58,9 +57,7 @@ See [where each format can be packed](#where-each-format-can-be-packed).
 
 A Linux package declares its interpreter and its GTK libraries as dependencies
 and takes them from the distribution. The macOS bundle and the Windows program
-directory carry a Node interpreter and a GTK closure inside themselves, because
-neither operating system ships one. That is why those two accept `node` only,
-and why they need extra packages in your `package.json`.
+directory carry them inside, as described below.
 
 - [Linux packages](/gjsify/ship/linux-packages/) covers `.deb`, `.rpm` and the
   Flatpak bundle.
@@ -69,6 +66,54 @@ and why they need extra packages in your `package.json`.
 - [Windows artifacts](/gjsify/ship/windows/) covers the program directory, its
   zip and the `.msi`.
 - [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
+
+## What macOS and Windows carry
+
+Neither operating system ships GTK, and neither has a GJS you could put in a
+download, so the darwin and windows layouts carry a Node interpreter and a GTK
+closure and run `node` only. Set that for those targets alone, and the Linux
+package of the same project stays on GJS:
+
+```jsonc
+{
+  "gjsify": {
+    "app": "gjs",                                          // Linux keeps it
+    "ship": { "app": { "darwin": "node", "win32": "node" } }
+  }
+}
+```
+
+Setting `gjsify.app` to `"node"` works too, and moves every target with it,
+including the Linux `.deb` from `Depends: gjs` to `Depends: nodejs`.
+
+`gjsify ship` resolves the interpreter and the closure by name out of your
+`node_modules`, so they are installed on the machine that packages the app, not
+on the one that runs it. Each operating system has its own pair, listed on its
+page. `@gjsify/node-gi` is a dependency rather than a devDependency, because a
+`--app node` bundle keeps `@gjsify/node-gi/*` external and requires it at run
+time:
+
+```jsonc
+{
+  "devDependencies": {
+    "@gjsify/node-runtime-<os>-<arch>": "^0.44.0",  // Node and its LICENSE
+    "@gjsify/gtk-runtime-<os>-<arch>": "^0.44.0"    // GTK and GObject-Introspection
+  },
+  "dependencies": { "@gjsify/node-gi": "^0.44.0" }
+}
+```
+
+When one is missing, ship names the package to install and still produces an
+artifact. That artifact starts only where Node and GTK are already installed,
+so use it as an intermediate and do not hand it to a user. For a patched or
+unpublished build, `GJSIFY_NODE_RUNTIME` names a directory holding the `node`
+binary (`node.exe` on Windows) and its `LICENSE`, and `GJSIFY_GTK_RUNTIME` one
+holding the GTK closure.
+
+The `.desktop` entry and the AppStream component travel along and are never
+read, because neither macOS nor Windows reads them. Ship lists every such file on
+each run. The zips carry the operating system in their filename, `macos` or
+`windows`, because `.zip` is the one suffix two layouts share.
 
 ## What ship reads from your package.json
 
@@ -129,7 +174,7 @@ AppImage runtime the finished file starts with. `gjsify ship` passes a pinned on
 when your machine has it at
 `/usr/local/share/gjsify/appimage-runtime/runtime-<arch>` (or wherever
 `GJSIFY_APPIMAGE_RUNTIME_DIR` points), and says so on every pack. Without one,
-`appimagetool` downloads a runtime — so that pack needs a network, and the pack
+`appimagetool` downloads a runtime, so that pack needs a network, and the pack
 log says that too.
 
 `glib-compile-schemas` ships in `glib2` on Fedora and `libglib2.0-bin` on
@@ -227,8 +272,8 @@ tool nobody wants permanently installed.
 
 The AppImage and the Flatpak bundle are both one file with no repository behind
 it, and they answer different questions. An AppImage needs no installation and
-no root at all, and takes GJS and GTK from the machine it runs on — `gjsify
-ship` prints that list and the file repeats it if the runtime is missing. A
+no root at all, and takes GJS and GTK from the machine it runs on. `gjsify
+ship` prints that list, and the file repeats it if the runtime is missing. A
 Flatpak carries its own runtime and needs flatpak installed to put it anywhere.
 
 ## Next

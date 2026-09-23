@@ -11,25 +11,6 @@ its content sit side by side. As the window narrows, the same structure folds
 into a stack you push and pop, or into a panel that overlays the content. You
 build one structure, not two.
 
-Every block below is three windows. The first one runs the widget. It is the live
-browser port, so it follows the light and dark toggle like a real window.
-
-**GJS** holds the `@girs` program and the Blueprint declaration that goes with it:
-two files of one program, against the real libadwaita widget. **UI frameworks** holds
-the same widget reached through an element model. Its HTML Web Components tab is the
-markup that paints the preview, and one `import '@gjsify/adwaita-web'` registers every
-element in it. Solid, Vue and React go through `@gjsify/gtk-host`. NativeScript is the
-XML template that runs on a phone. Where a widget is built in code rather than
-declared, a recorded reason takes the place of the snippet.
-
-Libadwaita is the reference, typed by
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
-[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
-and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where a port differs, the window that shows it says so. Both
-answer `gi://Adw` and `gi://Gtk`. On NativeScript that resolves once you build with
-`gjsify build --app nativescript --gi-renderer`.
-
 :::note
 These are the widgets that lean hardest on Libadwaita: adaptive breakpoints,
 gesture-driven overlays, animated push and pop, back-swipe. The previews run the

@@ -11,25 +11,6 @@ happen next. A **dialog** puts a modal surface in front of the window and waits
 for an answer, so use it when something does. This page also covers the two
 dialogs every app is expected to have: About and Preferences.
 
-Every block below is three windows. The first one runs the widget. It is the live
-browser port, so it follows the light and dark toggle like a real window.
-
-**GJS** holds the `@girs` program and the Blueprint declaration that goes with it:
-two files of one program, against the real libadwaita widget. **UI frameworks** holds
-the same widget reached through an element model. Its HTML Web Components tab is the
-markup that paints the preview, and one `import '@gjsify/adwaita-web'` registers every
-element in it. Solid, Vue and React go through `@gjsify/gtk-host`. NativeScript is the
-XML template that runs on a phone. Where a widget is built in code rather than
-declared, a recorded reason takes the place of the snippet.
-
-Libadwaita is the reference, typed by
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
-[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
-and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where a port differs, the window that shows it says so. Both
-answer `gi://Adw` and `gi://Gtk`. On NativeScript that resolves once you build with
-`gjsify build --app nativescript --gi-renderer`.
-
 :::note
 The previews hold each dialog **open** and each toast **visible**, which is not
 how they behave in an app: there they are modal windows and transient overlays

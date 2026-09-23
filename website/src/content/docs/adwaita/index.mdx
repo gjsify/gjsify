@@ -11,18 +11,22 @@ dialogs a GNOME app is made of. GJSify gives you the whole set from TypeScript,
 and the same widget renders as a real Libadwaita widget on the desktop and as a
 custom element in the browser.
 
-Pick a category below. Every widget on those pages runs live in your browser, in a
-window of its own, with two more under it. **GJS** holds the `@girs` program and a
-Blueprint declaration beside it. **UI frameworks** holds the same widget reached
-through an element model: the markup that paints the preview, then Solid, Vue and
-React through `@gjsify/gtk-host`, then the NativeScript XML template that runs on a
-phone. Choose a tab once and every widget block on the site follows it.
-
 Adwaita is one design system GJSify supports, not a requirement. Your app is an
 ordinary GTK 4 program, so you can mix in plain `Gtk.*` widgets or style your
 own, and the browser components live in a package you opt into. Libadwaita ships
 no entry, drop down, plain button or menu button, and those GTK widgets are
 documented under [Gtk](/gjsify/gtk/).
+
+## Write the layout in Blueprint
+
+Declare the widget tree in a Blueprint `.blp` file and keep TypeScript for what
+the widgets do. `gjsify build` compiles an imported `.blp` to GtkBuilder XML in
+process, with no `blueprint-compiler` installed, and `xgettext` finds every
+`_("…")` string in it. Every widget page shows the Blueprint beside the
+TypeScript. [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/#describe-the-window-in-blueprint)
+turns one into a window class. Reach for a
+[UI framework](/gjsify/frameworks/) only where the tree changes shape with your
+data.
 
 ## Get the widgets
 
@@ -58,7 +62,37 @@ dependency: `gjsify build --app browser`, the
 [`gjsifyBrowser()` Vite preset](/gjsify/guides/vite-plugin/), or whatever you
 already use.
 
+| Package | What it holds |
+|---|---|
+| `@gjsify/adwaita-web` | the custom elements and the compiled stylesheet |
+| `@gjsify/adwaita-core` | the behaviour both ports share, with no rendering: breakpoints, color scheme, toast queue, row state machines |
+| `@gjsify/adwaita-fonts` | Adwaita Sans as TTF files plus the `@font-face` CSS |
+| `@gjsify/adwaita-icons` | the symbolic icons as importable SVG strings, plus a `toDataUri()` helper |
+
 To change how any of it looks, set the [design tokens](./theming/).
+
+## How a widget page reads
+
+Every widget block is three windows. The first runs the widget in the browser
+port, so it follows the light and dark toggle like a real window. **GJS** holds
+the `@girs` program and the Blueprint declaration that goes with it, two files of
+one program against the real widget. **UI frameworks** holds the same widget
+through an element model: the HTML that paints the preview, then Solid, Vue and
+React through `@gjsify/gtk-host`, then the NativeScript XML template that runs on
+a phone. Where a widget is built in code rather than declared, a recorded reason
+takes the place of the snippet. Choose a tab once and every block on the site
+follows it.
+
+Libadwaita and GTK are the reference, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1) and
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). Both ports follow
+their naming and export the widgets as `Adw` and `Gtk` namespaces, beside a
+`Gio` namespace that holds `Gio.Menu` and `Gio.MenuItem`, so
+`import { Adw, Gio } from '@gjsify/adwaita-web'` builds a menu model the way GJS
+does. `Gtk.StringList` and `Gtk.Adjustment` sit in the `Gtk` namespace for the
+same reason. Built with `--gi-renderer`, a browser or NativeScript bundle also
+answers `gi://Adw` and `gi://Gtk` from the port, and refuses `gi://Gio` by name.
+Where a port differs, the window that shows it says so.
 
 ## Browse the widgets
 
@@ -141,8 +175,7 @@ To change how any of it looks, set the [design tokens](./theming/).
   <Card title="In the browser">
     [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
     gives you the same widgets as custom elements: `<adw-switch-row>`,
-    `<adw-header-bar>`. There is no runtime framework to learn: one import
-    registers everything, and then you write HTML.
+    `<adw-header-bar>`.
   </Card>
   <Card title="On Android and iOS">
     [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)

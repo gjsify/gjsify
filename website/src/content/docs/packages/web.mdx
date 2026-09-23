@@ -70,24 +70,8 @@ Groups work too (`--globals auto,dom`). The full identifier and group list is in
 
 Fifteen further standards are tracked as planned but not built yet, and ten are marked out of scope because they make no sense in a desktop GTK app. The dashboard above names each one.
 
-## Adwaita in the browser
-
-For `--app browser` builds, the Adwaita design system comes over as Web Components:
-
-| Package | What you get |
-|---|---|
-| `@gjsify/adwaita-web` | Adwaita as custom elements (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView and more) plus the compiled stylesheet |
-| `@gjsify/adwaita-core` | The behaviour behind those widgets, with no rendering: breakpoints, color scheme, toast queue, row state machines, alert-dialog responses |
-| `@gjsify/adwaita-fonts` | Adwaita Sans as TTF files plus the `@font-face` CSS |
-| `@gjsify/adwaita-icons` | Adwaita symbolic icons as importable SVG strings, plus a `toDataUri()` helper |
-
-Start at the [Adwaita gallery](/gjsify/adwaita/): it shows every widget with a live preview and the code for GJS, Blueprint, the web and NativeScript.
-
-## The umbrella package
-
-| Package | What it is for |
-|---|---|
-| `@gjsify/web-polyfills` | A dependency-only umbrella that pulls in every Web polyfill. `@gjsify/cli` already depends on it, so scaffolds resolve every Web API out of the box |
+The Adwaita widgets for `--app browser` builds are custom elements rather than a
+standard, and they are documented in the [Adwaita gallery](/gjsify/adwaita/).
 
 ## Where each API also runs
 

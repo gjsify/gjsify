@@ -72,7 +72,7 @@ The templates:
 
 | Template | What you get |
 |---|---|
-| `gtk-minimal` | A `Gtk.Window` with a `Gtk.Label`. No Adwaita, no Blueprint. |
+| `gtk-minimal` | A `Gtk.ApplicationWindow` declared in Blueprint. No Adwaita. |
 | `adw-canvas2d` | Adwaita app rendering through HTML Canvas 2D, Blueprint UI. |
 | `adw-webgl` | Adwaita app with WebGL and three.js, Blueprint UI. |
 | `adw-game` | Adwaita game shell on Excalibur.js, WebGL with a Canvas2D fallback. |
