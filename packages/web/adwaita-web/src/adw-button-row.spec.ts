@@ -53,6 +53,14 @@ export const AdwButtonRowTest = async () => {
         // adw-action-rows.spec.ts, which asserts that every spelling of the
         // attribute leaves the row activatable.
 
+        // `row.button > box { min-height: 40px }` (_lists.scss:458-462): a GTK render of the
+        // gallery's button-row `.blp` measures the row at 44, where this one stood at 50.
+        await it('stands 44px tall, as a GTK button row does', () => {
+            const { row, host } = parseRow('<adw-button-row title="Add account"></adw-button-row>');
+            expect(Math.round(row.getBoundingClientRect().height)).toBe(44);
+            host.remove();
+        });
+
         await it('emits `activated` on click', async () => {
             const { row, host } = parseRow('<adw-button-row title="Add account"></adw-button-row>');
             let activated = false;

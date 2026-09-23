@@ -338,6 +338,13 @@ export const AdwSplitButtonTest = async () => {
             expect(el.classList.contains('checked')).toBe(false);
             host.remove();
         });
+
+        // Measured beside a GTK render of the gallery's split-button `.blp`: 5px wider there.
+        await it('draws the arrow half 24px wide, as `splitbutton > menubutton > button` is', () => {
+            const { el, host } = mount({ label: 'Save' });
+            expect(Math.round(dropdownHalf(el).getBoundingClientRect().width)).toBe(24);
+            host.remove();
+        });
     });
 
     // The two behaviours a hand-rolled popover with only an outside-click handler cannot
