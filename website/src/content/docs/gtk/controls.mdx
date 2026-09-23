@@ -15,26 +15,6 @@ Each has a boxed-list twin, `Adw.EntryRow` and `Adw.ComboRow`, documented under
 about the surrounding layout rather than about the control. A preferences page
 uses the rows, a toolbar or a dialog uses these.
 
-Every block below is three windows. The first one runs the widget. It is the live
-browser port, so it follows the light and dark toggle like a real window.
-
-**GJS** holds the `@girs` program and the Blueprint declaration that goes with it:
-two files of one program, against the real libadwaita widget. **UI frameworks** holds
-the same widget reached through an element model. Its HTML Web Components tab is the
-markup that paints the preview, and one `import '@gjsify/adwaita-web'` registers every
-element in it. Solid, Vue and React go through `@gjsify/gtk-host`. NativeScript is the
-XML template that runs on a phone. Where a widget is built in code rather than
-declared, a recorded reason takes the place of the snippet.
-
-GTK 4 is the reference, typed by
-[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser port
-spells both controls the way the GIR does, `<gtk-entry>` and `<gtk-drop-down>`, the same tags
-`@gjsify/gtk-host` uses. A widget is named after the library that owns it, and the
-Adwaita part of these two is the stylesheet. The NativeScript port names them by the
-same rule, `Gtk.Entry` and `Gtk.DropDown`. Where a port differs, the window that shows it
-says so. Both answer `gi://Adw` and `gi://Gtk`. On NativeScript that resolves once you
-build with `gjsify build --app nativescript --gi-renderer`.
-
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
 be simplified here. Two divergences are worth knowing: `<gtk-entry>` has no

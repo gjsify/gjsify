@@ -11,17 +11,6 @@ view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
-Every block below is three windows. The first one runs the widget. It is the live
-browser port, so it follows the light and dark toggle like a real window.
-
-**GJS** holds the `@girs` program and the Blueprint declaration that goes with it:
-two files of one program, against the real libadwaita widget. **UI frameworks** holds
-the same widget reached through an element model. Its HTML Web Components tab is the
-markup that paints the preview, and one `import '@gjsify/adwaita-web'` registers every
-element in it. Solid, Vue and React go through `@gjsify/gtk-host`. NativeScript is the
-XML template that runs on a phone, and on this page every widget is a tree, so all
-four blocks have one.
-
 A NativeScript template reaches these widgets through its `xmlns`, and the namespace
 is a MODULE: NativeScript loads it and reads the element name off its exports, so
 `xmlns:adw="~/adw"` needs an app-local `app/adw.ts` that re-exports what the markup
@@ -37,9 +26,6 @@ loads each template through NativeScript's own `Builder` and asserts the view tr
 built. That is the only way to tell a template that renders from one that renders
 something else: an attribute arrives as a string, and a child a widget has no slot for
 is added to the layout anyway.
-
-The Solid, Vue and React tabs go through
-[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host).
 
 The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
 `AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a

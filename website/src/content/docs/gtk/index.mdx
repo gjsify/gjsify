@@ -17,12 +17,11 @@ already uses to name its tags. So `Gtk.Entry` is here and `Adw.EntryRow` is unde
 [Adwaita](/gjsify/adwaita/), and the two are different widgets one namespace
 apart.
 
-Pick a category below. Every widget on those pages runs live in your browser, in a
-window of its own, with two more under it. **GJS** holds the `@girs` program and a
-Blueprint declaration beside it. **UI frameworks** holds the same widget reached
-through an element model: the markup that paints the preview, then Solid, Vue and
-React through `@gjsify/gtk-host`, then the NativeScript XML template that runs on a
-phone. Choose a tab once and every widget block on the site follows it.
+The pages read like the Adwaita ones, three windows per widget with the
+Blueprint beside the TypeScript, as
+[How a widget page reads](/gjsify/adwaita/#how-a-widget-page-reads) explains.
+Blueprint is the way to lay these widgets out too, with
+[the same setup](/gjsify/adwaita/#write-the-layout-in-blueprint).
 
 ## Get the widgets
 
@@ -35,28 +34,19 @@ import Gtk from 'gi://Gtk?version=4.0';
 const entry = new Gtk.Entry({ placeholderText: 'Search files…' });
 ```
 
-For the browser, install the Adwaita port and import it once. That registers
-every element and applies the stylesheet, so from there you write HTML:
-
-```bash
-gjsify install @gjsify/adwaita-web
-```
-
-```ts
-import '@gjsify/adwaita-web';
-```
+In the browser and on a phone these widgets come from the same packages as the
+Adwaita ones, [installed the same way](/gjsify/adwaita/#get-the-widgets), and
+the GType rule names them there too: `Gtk.Entry` is `<gtk-entry>` and
+`Gtk.MenuButton` is `<gtk-menu-button>` in `@gjsify/adwaita-web`, and
+`Gtk.Entry` and `Gtk.MenuButton` in
+[`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita).
+Both export them from a `Gtk` namespace, beside `Adw` and a `Gio` namespace that
+holds `Gio.Menu` for a menu button's model. What makes them look Adwaita is the
+stylesheet, not the widget.
 
 ```html
 <gtk-entry placeholder="Search files…"></gtk-entry>
 ```
-
-One package carries the whole Adwaita-styled widget set, and every element in it is
-named after the library that owns its GType — so `Gtk.Entry` is `<gtk-entry>`,
-`Gtk.MenuButton` is `<gtk-menu-button>`, and `Adw.ActionRow` is `<adw-action-row>`.
-That is the same rule, and the same spelling, as `@gjsify/gtk-host`'s tags. What makes
-these two look Adwaita is the stylesheet, not the widget.
-[`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-reads the rule the same way and calls them `Gtk.Entry` and `Gtk.MenuButton`.
 
 ## Browse the widgets
 
