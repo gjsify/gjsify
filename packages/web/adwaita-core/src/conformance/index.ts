@@ -554,8 +554,30 @@ export type { SpinnerArcShapeVector, SpinnerConstantVector } from './spinner.js'
 // --- Gtk.Box / Gtk.Label property + display-text vectors ---
 export { BOX_ORIENTATION_VECTORS, BOX_SPACING_VECTORS } from './box.js';
 export type { BoxOrientationVector, BoxSpacingVector } from './box.js';
-export { LABEL_DISPLAY_TEXT_VECTORS, LABEL_JUSTIFY_VECTORS, LABEL_XALIGN_VECTORS } from './label.js';
-export type { LabelDisplayTextVector, LabelJustifyVector, LabelXalignVector } from './label.js';
+export {
+    LABEL_CHAR_COUNT_VECTORS,
+    LABEL_DISPLAY_TEXT_VECTORS,
+    LABEL_EFFECTIVE_LINES_VECTORS,
+    LABEL_ELLIPSIZE_OVERFLOW_VECTORS,
+    LABEL_ELLIPSIZE_VECTORS,
+    LABEL_JUSTIFY_VECTORS,
+    LABEL_WIDTH_CHARS_EXTENT_VECTORS,
+    LABEL_WRAP_MODE_VECTORS,
+    LABEL_XALIGN_VECTORS,
+    LABEL_YALIGN_VECTORS,
+} from './label.js';
+export type {
+    LabelCharCountVector,
+    LabelDisplayTextVector,
+    LabelEffectiveLinesVector,
+    LabelEllipsizeOverflowVector,
+    LabelEllipsizeVector,
+    LabelJustifyVector,
+    LabelWidthCharsExtentVector,
+    LabelWrapModeVector,
+    LabelXalignVector,
+    LabelYalignVector,
+} from './label.js';
 
 // --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
 export {

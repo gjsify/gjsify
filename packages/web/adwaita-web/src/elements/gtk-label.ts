@@ -22,20 +22,49 @@
 // switch: LEFT and RIGHT are START and END of the text direction, FILL is start-aligned
 // lines with inter-word justification.
 //
-// NOT HERE, and declared in `check-adwaita-element-properties.mjs`: `ellipsize`,
-// `wrap-mode`, `natural-wrap-mode`, `lines`, `width-chars`, `max-width-chars`,
-// `single-line-mode`, `yalign` and the mnemonic machinery. `selectable` is only the
-// ability to select; there is no caret or context menu.
+// `ELLIPSIZE`, `WRAP-MODE`, `LINES`, `WIDTH-CHARS`, `MAX-WIDTH-CHARS` AND `YALIGN` are
+// Pango's text-layout knobs, and each reaches a REAL CSS mechanism rather than being
+// declared unreachable: `ellipsize` is `text-overflow` on the single-line span or
+// `-webkit-line-clamp` on the wrapped one, `wrap-mode` is `word-break`/`overflow-wrap`,
+// `width-chars`/`max-width-chars` are `min-width`/`max-width` in `ch` (`@gjsify/
+// adwaita-core`'s `labelWidthCharsExtent`), and `lines` is the same `-webkit-line-clamp`
+// count, gated by `labelEffectiveLines` to "wrapping or ellipsized" exactly as the pspec
+// says. `yalign` is a DECLARED divergence past its three exact values (0, 0.5, 1): CSS
+// `align-items` has three keywords and no ratio the way `flex-grow` gives `xalign` one —
+// `_labels.scss`'s header says why a second spacer pair is not the fix. `ellipsize`
+// carries its own declared divergence at `start`/`middle`: `labelEllipsizeOverflowValue`
+// (`@gjsify/adwaita-core`) draws every non-`none` mode as an end-ellipsis, the one
+// truncating value CSS `text-overflow` and NativeScript's `textOverflow` both have.
 //
-// Reference: refs/gtk/gtk/gtklabel.c (properties, the `label` CSS name, the justify switch)
+// NOT HERE, and declared in `check-adwaita-element-properties.mjs`: `natural-wrap-mode`
+// (a NATURAL-SIZE-REQUEST hint over a size-negotiation protocol this renderer does not
+// run — a browser lays out once, it does not ask a widget for a preferred width first),
+// `single-line-mode` (height pinned to one line's ascent+descent regardless of content —
+// no CSS box does that without measuring the font, which a `<gtk-label>` never needs to:
+// its own height already IS one line's whenever `wrap` is off) and the mnemonic machinery.
+// `selectable` is only the ability to select; there is no caret or context menu.
+//
+// Reference: refs/gtk/gtk/gtklabel.c (properties, the `label` CSS name, the justify switch,
+//   get_default_widths, "This has no effect if the label is not wrapping or ellipsized")
 // Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss (`label {}`)
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 
 import {
     labelDisplayText,
+    labelEffectiveLines,
+    labelEllipsizeOverflowValue,
+    labelWidthCharsExtent,
+    normalizeLabelEllipsize,
     normalizeLabelJustify,
+    normalizeLabelLines,
+    normalizeLabelMaxWidthChars,
+    normalizeLabelWidthChars,
+    normalizeLabelWrapMode,
     normalizeLabelXalign,
+    normalizeLabelYalign,
+    type LabelEllipsizeMode,
     type LabelJustification,
+    type LabelWrapMode,
 } from '@gjsify/adwaita-core';
 
 /** The attributes that carry a property — also the `notify::` roster. */
@@ -45,7 +74,13 @@ const PROPERTY_ATTRIBUTES = [
     'use-underline',
     'justify',
     'xalign',
+    'yalign',
     'wrap',
+    'wrap-mode',
+    'ellipsize',
+    'lines',
+    'width-chars',
+    'max-width-chars',
     'selectable',
 ] as const;
 
@@ -59,9 +94,13 @@ const JUSTIFY_TEXT_ALIGN: Record<LabelJustification, string> = {
 
 export class GtkLabel extends HTMLElement {
     /**
-     * The wrapped text's own box, present only while {@link wrap} is set. `null` the rest
-     * of the time so a single-line label keeps the plain text node `childElementCount`
-     * asserts on (`gtk-label.spec.ts`'s XSS note: "the DOM gets one text node").
+     * The rendered text's own box — present while {@link wrap} is set (so it can be pinned
+     * to its measured wrap width, see `_remeasure`) OR while {@link ellipsize} is not
+     * `none` (so `overflow`/`text-overflow` have a box of their own to clip, rather than
+     * the label's flex container, which also holds the `xalign` spacer pseudo-elements).
+     * `null` the rest of the time so a single-line, non-ellipsized label keeps the plain
+     * text node `childElementCount` asserts on (`gtk-label.spec.ts`'s XSS note: "the DOM
+     * gets one text node").
      */
     private _wrapSpan: HTMLSpanElement | null = null;
     private _resizes: ResizeObserver | null = null;
@@ -115,6 +154,20 @@ export class GtkLabel extends HTMLElement {
         this.setAttribute('xalign', String(value));
     }
 
+    /**
+     * `Gtk.Label:yalign` — where the text sits vertically in the label's box, 0…1.
+     * Defaults to 0.5. Exact at 0, 0.5 and 1; a DECLARED divergence between them — see
+     * `_labels.scss`'s header for why `align-items` has no continuum the way `xalign`'s
+     * flex-grow ratio does.
+     */
+    get yalign(): number {
+        return normalizeLabelYalign(this.getAttribute('yalign'));
+    }
+
+    set yalign(value: number) {
+        this.setAttribute('yalign', String(value));
+    }
+
     /** `Gtk.Label:wrap` — whether the text breaks into lines rather than overflowing. */
     get wrap(): boolean {
         return this.hasAttribute('wrap');
@@ -122,6 +175,69 @@ export class GtkLabel extends HTMLElement {
 
     set wrap(value: boolean) {
         this.toggleAttribute('wrap', !!value);
+    }
+
+    /**
+     * `Gtk.Label:wrap-mode` — where a wrapping line may break. Defaults to `word`. Only
+     * affects the formatting while {@link wrap} is set, same as in GTK.
+     */
+    get wrapMode(): LabelWrapMode {
+        return normalizeLabelWrapMode(this.getAttribute('wrap-mode'));
+    }
+
+    set wrapMode(value: LabelWrapMode) {
+        this.setAttribute('wrap-mode', value);
+    }
+
+    /**
+     * `Gtk.Label:ellipsize` — where the string is trimmed when it does not fit. Defaults
+     * to `none`. `start` and `middle` are HELD faithfully — read `ellipsize` back and it
+     * is exactly what was set — but DRAWN as an end-ellipsis: `labelEllipsizeOverflowValue`
+     * (`@gjsify/adwaita-core`) says why.
+     */
+    get ellipsize(): LabelEllipsizeMode {
+        return normalizeLabelEllipsize(this.getAttribute('ellipsize'));
+    }
+
+    set ellipsize(value: LabelEllipsizeMode) {
+        this.setAttribute('ellipsize', value);
+    }
+
+    /**
+     * `Gtk.Label:lines` — the line count an ellipsized or wrapping label is held to.
+     * Defaults to -1 (no limit). "Has no effect if the label is not wrapping or
+     * ellipsized" (the pspec) — `labelEffectiveLines` in `_render()` is that guard.
+     */
+    get lines(): number {
+        return normalizeLabelLines(this.getAttribute('lines'));
+    }
+
+    set lines(value: number) {
+        this.setAttribute('lines', String(value));
+    }
+
+    /**
+     * `Gtk.Label:width-chars` — the label's minimum width, in characters. Defaults to -1
+     * (calculated automatically, i.e. unset here).
+     */
+    get widthChars(): number {
+        return normalizeLabelWidthChars(this.getAttribute('width-chars'));
+    }
+
+    set widthChars(value: number) {
+        this.setAttribute('width-chars', String(value));
+    }
+
+    /**
+     * `Gtk.Label:max-width-chars` — the label's natural (maximum) width, in characters.
+     * Defaults to -1 (calculated automatically, i.e. unset here).
+     */
+    get maxWidthChars(): number {
+        return normalizeLabelMaxWidthChars(this.getAttribute('max-width-chars'));
+    }
+
+    set maxWidthChars(value: number) {
+        this.setAttribute('max-width-chars', String(value));
     }
 
     /** `Gtk.Label:selectable` — whether the text can be selected. GTK's default is not. */
@@ -151,7 +267,10 @@ export class GtkLabel extends HTMLElement {
     }
 
     private _remeasure(): void {
-        if (!this._wrapSpan || !this.isConnected) return;
+        // Pinning a measured width is `wrap`'s fix (see `_renderSpan`'s doc comment) — an
+        // ellipsize-only span needs no measurement, CSS shrink-to-fit already gives it the
+        // right width, so a resize firing while only `ellipsize` is set is a no-op here.
+        if (!this._wrapSpan || !this.isConnected || !this.wrap) return;
         this._wrapSpan.style.width = '';
         const width = measuredWrapWidth(this._wrapSpan);
         this._wrapSpan.style.width = width !== null ? `${width}px` : '';
@@ -168,18 +287,63 @@ export class GtkLabel extends HTMLElement {
         if (name === 'label') return raw ?? '';
         if (name === 'justify') return normalizeLabelJustify(raw);
         if (name === 'xalign') return normalizeLabelXalign(raw);
+        if (name === 'yalign') return normalizeLabelYalign(raw);
+        if (name === 'wrap-mode') return normalizeLabelWrapMode(raw);
+        if (name === 'ellipsize') return normalizeLabelEllipsize(raw);
+        if (name === 'lines') return normalizeLabelLines(raw);
+        if (name === 'width-chars') return normalizeLabelWidthChars(raw);
+        if (name === 'max-width-chars') return normalizeLabelMaxWidthChars(raw);
         return raw !== null;
     }
 
     private _render(): void {
         // `textContent`, the whole of the XSS answer: whatever the label holds, the DOM
-        // gets one text node (wrapped in {@link _wrapSpan} only while {@link wrap} is set —
-        // see its measurement below).
+        // gets one text node (wrapped in {@link _wrapSpan} while {@link wrap} or
+        // {@link ellipsize} needs a box of its own — see `_renderSpan`).
         const text = this.getText();
-        if (this.wrap) this._renderWrapped(text);
+        const wrap = this.wrap;
+        const ellipsize = this.ellipsize;
+        if (wrap || ellipsize !== 'none') this._renderSpan(text, wrap);
         else this._renderSingleLine(text);
+
         this.style.setProperty('--gtk-label-xalign', String(this.xalign));
         this.style.textAlign = JUSTIFY_TEXT_ALIGN[this.justify];
+        // `yalign`'s three-zone snap — `_labels.scss`'s header explains why there is no
+        // continuum here the way `xalign`'s ratio spacers give the main axis one.
+        const yalign = this.yalign;
+        this.style.setProperty(
+            '--gtk-label-align-items',
+            yalign < 0.5 ? 'flex-start' : yalign > 0.5 ? 'flex-end' : 'center',
+        );
+
+        // The ONE truncating value CSS/NativeScript can both draw — see
+        // `labelEllipsizeOverflowValue`'s comment. Left unset (falling through to the
+        // `clip` the two selectors in `_labels.scss` default to) while `ellipsize` is
+        // `none`, so a label that never asked to be truncated never gets a stray custom
+        // property a later `getComputedStyle` read would have to explain.
+        const overflow = labelEllipsizeOverflowValue(ellipsize);
+        if (overflow === 'ellipsis') this.style.setProperty('--gtk-label-ellipsize-overflow', overflow);
+        else this.style.removeProperty('--gtk-label-ellipsize-overflow');
+
+        // The custom property is set to the FULL pspec gate ("wrapping OR ellipsized"),
+        // exactly what {@link labelEffectiveLines} answers — the NARROWING to a VISIBLE
+        // clamp is `_labels.scss`'s job, not this method's: `&[wrap][lines] .adw-label-text`
+        // is the one rule that reads `--gtk-label-lines`, so the "ellipsized alone, not
+        // wrapping" case sets a property nothing consumes rather than a property this
+        // method has to know is inert — `-webkit-line-clamp` needs an actual WRAPPING box,
+        // a `white-space: nowrap` span has no second line to clamp.
+        const effectiveLines = labelEffectiveLines(this.lines, wrap, ellipsize);
+        if (effectiveLines !== null) this.style.setProperty('--gtk-label-lines', String(effectiveLines));
+        else this.style.removeProperty('--gtk-label-lines');
+
+        // `width-chars` / `max-width-chars`, in `ch` — GTK's MINIMUM and NATURAL widths
+        // (`get_default_widths`, gtklabel.c) — on the flex item itself, so wrap/ellipsize
+        // resolve against that box rather than the ambient container.
+        const extent = labelWidthCharsExtent(this.widthChars, this.maxWidthChars);
+        if (extent.minCh !== null) this.style.minWidth = `${extent.minCh}ch`;
+        else this.style.removeProperty('min-width');
+        if (extent.maxCh !== null) this.style.maxWidth = `${extent.maxCh}ch`;
+        else this.style.removeProperty('max-width');
     }
 
     private _renderSingleLine(text: string): void {
@@ -197,20 +361,25 @@ export class GtkLabel extends HTMLElement {
      * zero-basis spacers to nothing and stretches the text item to the full container width
      * instead — which is where the offset was lost (the defect this method fixes).
      *
-     * NO PURE-CSS FIX EXISTS: `width: fit-content` clamps to that SAME full-container width
-     * the moment its content no longer fits one line — CSS shrink-to-fit is
-     * `min(max(min-content, available), max-content)`, and `available` IS the container
-     * here, not the narrower width GTK's Pango layout actually wrapped to. So this measures
-     * instead, in two passes: first let {@link _wrapSpan} wrap at the FULL container width
-     * (`width: ''`, the same collapse above, which is exactly the width GTK's own
-     * allocation wraps against), then pin the span to its widest resulting line via
-     * `Range.getClientRects()`, which gives the pseudo spacers real free space to split.
-     * Approximate on purpose, and cheap: one synchronous reflow per render. The pinned
-     * width goes stale whenever the available width or the font changes, and a page does
-     * both (a rotated phone, an opened sidebar, a web font arriving late), so
+     * NO PURE-CSS FIX EXISTS for a WRAPPING label: `width: fit-content` clamps to that SAME
+     * full-container width the moment its content no longer fits one line — CSS
+     * shrink-to-fit is `min(max(min-content, available), max-content)`, and `available` IS
+     * the container here, not the narrower width GTK's Pango layout actually wrapped to. So
+     * this measures instead, in two passes: first let {@link _wrapSpan} wrap at the FULL
+     * container width (`width: ''`, the same collapse above, which is exactly the width
+     * GTK's own allocation wraps against), then pin the span to its widest resulting line
+     * via `Range.getClientRects()`, which gives the pseudo spacers real free space to
+     * split. Approximate on purpose, and cheap: one synchronous reflow per render. The
+     * pinned width goes stale whenever the available width or the font changes, and a page
+     * does both (a rotated phone, an opened sidebar, a web font arriving late), so
      * {@link connectedCallback} re-measures on each resize and once the fonts have loaded.
+     *
+     * An ELLIPSIZED, non-wrapping label needs none of this: `white-space: nowrap` text has
+     * one width whichever way you measure it, so `min-content` and `max-content` collapse
+     * into the same number and shrink-to-fit already resolves to the right box — see
+     * `_remeasure`'s early return and `_labels.scss`'s `[ellipsize]:not([wrap])` rule.
      */
-    private _renderWrapped(text: string): void {
+    private _renderSpan(text: string, wrap: boolean): void {
         if (!this._wrapSpan) {
             this.textContent = '';
             this._wrapSpan = document.createElement('span');
@@ -218,11 +387,12 @@ export class GtkLabel extends HTMLElement {
             this.appendChild(this._wrapSpan);
         }
         if (this._wrapSpan.textContent !== text) this._wrapSpan.textContent = text;
-        this._remeasure();
+        if (wrap) this._remeasure();
+        else this._wrapSpan.style.width = '';
     }
 }
 
-/** The widest line {@link span}'s text wrapped to, at its CURRENT width — see `_renderWrapped`. */
+/** The widest line {@link span}'s text wrapped to, at its CURRENT width — see `_renderSpan`. */
 function measuredWrapWidth(span: HTMLSpanElement): number | null {
     const range = document.createRange();
     range.selectNodeContents(span);

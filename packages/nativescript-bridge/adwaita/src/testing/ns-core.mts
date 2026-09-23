@@ -459,6 +459,14 @@ export class Label extends View {
     text = '';
     textWrap = false;
     textAlignment = 'initial';
+    textOverflow = 'initial';
+    /**
+     * Unset like {@link View.className}, and for the same measured reason: `maxLinesProperty`
+     * (`ui/text-base/text-base-common.ts`) carries no `defaultValue`.
+     * `scripts/check-nativescript-ns-defaults.mjs` holds this against
+     * `status/nativescript-undefined-defaults.json`.
+     */
+    maxLines: number | undefined;
 }
 
 export class Switch extends View {

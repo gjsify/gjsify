@@ -50,7 +50,19 @@
 // width)` inside the label's allocation (gtklabel.c, gtk_label_get_layout_location); the
 // element's free space is split between `::before` and `::after` in the ratio
 // `xalign : 1 − xalign`, which is that formula, and flips in RTL as the C does.
-// `align-items: center` is `yalign`'s default, 0.5.
+//
+// `YALIGN` HAS NO CONTINUUM ON THE CROSS AXIS. `xalign`'s spacer trick splits free space
+// along flexbox's MAIN axis, where a flex item's `flex-grow` ratio is a real number;
+// `align-items` is the CROSS-axis equivalent and CSS gives it three keywords, not a ratio
+// — there is no `align-items: 0.25` the way there is a `flex-grow: 0.25`. A second pair of
+// spacers would need a second axis, and a `<gtk-label>` cannot be both a row (for `xalign`)
+// and a column (for `yalign`) at once without an inner wrapper element, which would cost
+// every single-line label the "one text node, no children" DOM shape `gtk-label.spec.ts`
+// pins for the XSS answer. So `--gtk-label-align-items` is set by `gtk-label.ts` from
+// THREE zones — `flex-start` below 0.5, `center` at 0.5 (the default, unchanged from
+// before this property existed), `flex-end` above — which is exact at the three values
+// GTK's own default and both edges take and a DECLARED divergence for anything between:
+// nearest zone, not a silent round, and `gtk-label.spec.ts` says so where it tests it.
 //
 // `white-space: pre`: Pango keeps a newline and a run of spaces, and a label that
 // does not wrap is as wide as its text — which a flex item's `min-width: auto`
@@ -58,7 +70,7 @@
 // default `wrap-mode`.
 gtk-label {
   display: flex;
-  align-items: center;
+  align-items: var(--gtk-label-align-items, center);
   white-space: pre;
   caret-color: currentColor;
   // GtkLabel is not selectable unless asked (`selectable` defaults to FALSE).
@@ -85,11 +97,63 @@ gtk-label {
 
   // `gtk-label.ts`'s wrapped-render path: the text moves into this span so it can be
   // pinned to its measured wrap width (a flex item is blockified by spec, but `display:
-  // block` is spelled out rather than relied on implicitly).
+  // block` is spelled out rather than relied on implicitly). The SAME span carries a
+  // single-line `ellipsize` (no `wrap`): see the block below for why that one case needs
+  // no measurement.
   .adw-label-text {
     display: block;
-    // A pinned width may never push the label wider than its container.
+    // A pinned width, or a shrink-to-fit one, may never push the label wider than its
+    // container.
     max-width: 100%;
+  }
+
+  // `wrap-mode` — Pango's break-opportunity choice — is a real `word-break`/
+  // `overflow-wrap` mapping, not a declared gap: CSS's `break-all` is Pango's CHAR (break
+  // anywhere), and `overflow-wrap: anywhere` is Pango's WORD_CHAR (word boundaries, falling
+  // back to a character break only when a single word will not fit) — the pspec's own
+  // words for that member. WORD, the default, is the browser's un-overridden behaviour, so
+  // it has no rule here. Scoped to `[wrap]`: `wrap-mode` "only affects the formatting if
+  // line wrapping is on" (the pspec), and outside it there is nothing to wrap.
+  &[wrap][wrap-mode='char'] .adw-label-text {
+    word-break: break-all;
+  }
+
+  &[wrap][wrap-mode='word-char'] .adw-label-text {
+    overflow-wrap: anywhere;
+  }
+
+  // `lines`, gated by `labelEffectiveLines` in `gtk-label.ts` (`@gjsify/adwaita-core`) to
+  // the one case a `pre-wrap` block can clamp: WRAPPING text. `-webkit-line-clamp` needs
+  // its own box context (`display: -webkit-box` + `-webkit-box-orient: vertical`), so it
+  // only applies here, not to `display: block`'s plain overflow. `ellipsize: none` with
+  // `lines` set is GTK's own "no ellipsis, just a height cap" combination — `text-overflow:
+  // clip` suppresses the mark `-webkit-line-clamp` would otherwise still draw.
+  &[wrap][lines] .adw-label-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--gtk-label-lines);
+    overflow: hidden;
+    text-overflow: var(--gtk-label-ellipsize-overflow, clip);
+  }
+
+  // `ellipsize` WITHOUT `wrap` — a single line, trimmed rather than reflowed. No
+  // measurement pass, unlike the wrapped case above: `white-space: nowrap` text has ONE
+  // width whichever way you measure it, so CSS shrink-to-fit (`min(max(min-content,
+  // available), max-content)`) already collapses `min-content` and `max-content` into that
+  // one number — it either fits (natural width, `::before`/`::after` centre it exactly as
+  // the plain text node would) or it does not (the item shrinks to the available width and
+  // `text-overflow` takes the rest), with no in-between width for a reflow to get wrong.
+  // `start`/`middle` are `labelEllipsizeOverflowValue`'s declared divergence — `end` is
+  // the one value CSS spells, so every non-`none` mode draws it (`--gtk-label-ellipsize-
+  // overflow`, set beside `--gtk-label-lines` above so the same custom property serves the
+  // wrapped multi-line case too).
+  &[ellipsize]:not([wrap]) .adw-label-text {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: var(--gtk-label-ellipsize-overflow, clip);
+    white-space: nowrap;
   }
 
   &[selectable] {

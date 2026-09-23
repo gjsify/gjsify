@@ -292,14 +292,31 @@ export type {
 export { DEFAULT_BOX_SPACING, normalizeBoxOrientation, normalizeBoxSpacing } from './box.js';
 export type { BoxOrientation } from './box.js';
 export {
+    DEFAULT_LABEL_ELLIPSIZE,
+    DEFAULT_LABEL_LINES,
+    DEFAULT_LABEL_MAX_WIDTH_CHARS,
+    DEFAULT_LABEL_WIDTH_CHARS,
+    DEFAULT_LABEL_WRAP_MODE,
     DEFAULT_LABEL_XALIGN,
+    DEFAULT_LABEL_YALIGN,
+    LABEL_ELLIPSIZE_MODES,
     LABEL_JUSTIFICATIONS,
+    LABEL_WRAP_MODES,
     labelDisplayText,
+    labelEffectiveLines,
+    labelEllipsizeOverflowValue,
     labelMarkupIsUnparseable,
+    labelWidthCharsExtent,
+    normalizeLabelEllipsize,
     normalizeLabelJustify,
+    normalizeLabelLines,
+    normalizeLabelMaxWidthChars,
+    normalizeLabelWidthChars,
+    normalizeLabelWrapMode,
     normalizeLabelXalign,
+    normalizeLabelYalign,
 } from './label.js';
-export type { LabelJustification } from './label.js';
+export type { LabelEllipsizeMode, LabelJustification, LabelWidthCharsExtent, LabelWrapMode } from './label.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
