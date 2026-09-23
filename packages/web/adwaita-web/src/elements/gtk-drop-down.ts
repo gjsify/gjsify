@@ -68,6 +68,9 @@ import type { GtkPopover } from './gtk-popover.js';
 import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+import { stringListSlot } from '../string-list-slot.js';
+
 import { createGtkImage } from './gtk-image.js';
 
 /**
@@ -176,6 +179,13 @@ export class GtkDropDown extends HTMLElement {
         this._listEl.className = 'adw-drop-down-list';
         this._popoverEl.appendChild(this._listEl);
 
+        // A `<gtk-string-list slot="model">` child is the list a `.blp` authored (ADR 0072),
+        // consumed first so the attribute seed below sees a model and leaves it alone.
+        bindSlottedChildren(this, [stringListSlot((model) => this._state.setModel(model))]).install(
+            this._buttonEl,
+            this._popoverEl,
+        );
+
         // Seed options BEFORE anything subscribes, so building the initial DOM below is
         // not driven by a change notification.
         if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
@@ -186,7 +196,6 @@ export class GtkDropDown extends HTMLElement {
         // assignment reaches the splice rather than a rebuild.
         this._state.subscribeItems((change) => this._applyItemsChanged(change));
 
-        this.replaceChildren(this._buttonEl, this._popoverEl);
         this._popoverEl.anchor = this._buttonEl;
         this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
         // Type-ahead is the ONE key class the shared popover deliberately leaves to the

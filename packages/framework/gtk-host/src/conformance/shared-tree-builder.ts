@@ -46,6 +46,16 @@ import type { HostElement } from '../types.js';
  * bar's own construction, at exit 0.
  */
 export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = []): HostElement {
+    // ADR 0072: a string list's items and a dialog's responses have no door in this host yet —
+    // `createElement` builds widgets, and a `Gtk.StringList` is not one. Refused rather than
+    // dropped, because an empty list model or a dialog with no buttons both look finished. A GTK
+    // application loads the `.blp` through `Gtk.Builder`, which fills both itself.
+    if (node.extensions !== undefined) {
+        throw new Error(
+            `gtk-host's shared-tree builder has no door for \`${node.tag}\`'s ` +
+                `${Object.keys(node.extensions).join(' and ')} (ADR 0072); load the .blp through Gtk.Builder instead.`,
+        );
+    }
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
     built.push(el);
     // Before the children: `insert` parents a REALISED widget, and a construct-only

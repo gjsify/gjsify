@@ -46,6 +46,18 @@ interface PlacedChild {
     slot: string;
 }
 
+/** One node that authored `extensions`, kept so {@link mountSharedTree} can hold it too. */
+interface ExtendedNode {
+    el: HTMLElement;
+    node: SharedTreeNode;
+}
+
+/** What one build collects for the checks that can only run once the tree is connected. */
+interface BuildRecord {
+    placed: PlacedChild[];
+    extended: ExtendedNode[];
+}
+
 /**
  * Whether `member` can be assigned on `el`: the nearest descriptor up the prototype chain is
  * a writable data property or an accessor WITH a setter. `in` alone answers true for a
@@ -62,7 +74,8 @@ function isWritable(el: object, member: string): boolean {
 
 /**
  * A `SharedTreeNode`, realised as a DETACHED element tree: a tag, its authored properties as
- * attributes, its style classes as classes, its placement as `slot=`, its children, in that order — recursive and total,
+ * attributes, its style classes as classes, its extensions (ADR 0072) as the markup the element
+ * reads, its placement as `slot=`, its children, in that order — recursive and total,
  * no tag list, no per-block case. A boolean authored property is the ATTRIBUTE'S PRESENCE
  * (`toggleAttribute`), which is what every element in the corpus reads
  * (`hasAttribute('revealed')`, `hasAttribute('expanded')`); spelling `"true"` would set a
@@ -90,7 +103,7 @@ function isWritable(el: object, member: string): boolean {
  * container. A DETACHED build therefore cannot check a slot either: an element that has not
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
-export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []): HTMLElement {
+export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { placed: [], extended: [] }): HTMLElement {
     const el = document.createElement(hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
@@ -105,15 +118,82 @@ export function buildSharedTree(node: SharedTreeNode, placed: PlacedChild[] = []
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
+    writeExtensions(el, node);
+    if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of node.children ?? []) {
-        const childEl = buildSharedTree(child, placed);
+        const childEl = buildSharedTree(child, record);
         if (child.slot !== undefined) {
             childEl.setAttribute('slot', child.slot);
-            placed.push({ parent: el, child: childEl, slot: child.slot });
+            record.placed.push({ parent: el, child: childEl, slot: child.slot });
         }
         el.append(childEl);
     }
     return el;
+}
+
+/**
+ * ADR 0072's `extensions`, written in the markup this package already reads for each.
+ *
+ * `strings` is the `strings` attribute, a JSON array — `Gtk.StringList:strings` is a real
+ * property, and JSON is how `model` is written on the two elements that take the list (see
+ * `string-list-slot.ts`). `responses` are `<adw-alert-response>` children, the markup
+ * spelling of GtkBuilder's `<response>` that `<adw-alert-dialog>` consumes at connect. A
+ * translatable string is written as its source text: no renderer here translates, and the
+ * marking stays on the tree for whoever extracts it.
+ */
+function writeExtensions(el: HTMLElement, node: SharedTreeNode): void {
+    const strings = node.extensions?.strings;
+    if (strings !== undefined) el.setAttribute('strings', JSON.stringify(strings.map((string) => string.value)));
+    for (const response of node.extensions?.responses ?? []) {
+        const responseEl = document.createElement('adw-alert-response');
+        responseEl.id = response.id;
+        if (response.appearance !== undefined) responseEl.setAttribute('appearance', response.appearance);
+        if (response.enabled === false) responseEl.setAttribute('enabled', 'false');
+        responseEl.textContent = response.label;
+        el.append(responseEl);
+    }
+}
+
+/** The response API an element answers to — `<adw-alert-dialog>`'s, named after libadwaita's. */
+interface ResponseReader {
+    getResponseLabel(id: string): string | null;
+    getResponseAppearance(id: string): string | null;
+    getResponseEnabled(id: string): boolean;
+}
+
+/**
+ * An extension the realised element did not take is refused, after connect, like a slot.
+ *
+ * Both doors are markup the ELEMENT consumes, so writing them proves nothing: an element that
+ * has no `model` slot, or is not a dialog, leaves the list or the responses where the builder
+ * put them, and the widget renders empty at exit 0. So each is read back off the element. A
+ * string list must have been consumed (it is data and leaves the tree when taken); every
+ * response must be registered with the label, appearance and enabled state the tree authored.
+ */
+function refuseUnheldExtensions(extended: readonly ExtendedNode[]): void {
+    for (const { el, node } of extended) {
+        if (node.extensions?.strings !== undefined && el.isConnected) {
+            const parent = el.parentElement?.localName ?? 'nothing';
+            throw new Error(
+                `<${parent}> did not take the <${el.localName}> authored at "${el.getAttribute('slot') ?? ''}", so ` +
+                    `its ${node.extensions.strings.length} string(s) reach no list.`,
+            );
+        }
+        const reader = el as unknown as Partial<ResponseReader>;
+        for (const response of node.extensions?.responses ?? []) {
+            const held =
+                typeof reader.getResponseLabel === 'function' &&
+                reader.getResponseLabel(response.id) === response.label &&
+                reader.getResponseAppearance?.(response.id) === (response.appearance ?? 'default') &&
+                reader.getResponseEnabled?.(response.id) === (response.enabled ?? true);
+            if (!held) {
+                throw new Error(
+                    `<${el.localName}> did not register the response "${response.id}" as authored, so the ` +
+                        'dialog would show without it.',
+                );
+            }
+        }
+    }
 }
 
 /**
@@ -167,14 +247,15 @@ export interface MountedSharedTree {
  */
 export function mountSharedTree(node: SharedTreeNode): MountedSharedTree {
     const host = document.createElement('div');
-    const placed: PlacedChild[] = [];
-    host.append(buildSharedTree(node, placed));
+    const record: BuildRecord = { placed: [], extended: [] };
+    host.append(buildSharedTree(node, record));
     document.body.append(host);
     // After the append, because that is what upgrades the elements and runs the binds the
     // refusal reads; before the return, because a caller handed a tree back has no way left
     // to tell a placement that was honoured from one that was dropped.
     try {
-        refuseUnknownSlots(placed);
+        refuseUnknownSlots(record.placed);
+        refuseUnheldExtensions(record.extended);
     } catch (error) {
         host.remove();
         throw error;

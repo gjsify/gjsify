@@ -70,6 +70,22 @@ export interface SharedNode {
      * (ADR 0068 § 2).
      */
     styleClasses?: string[];
+    /**
+     * The extension blocks that carry plain values: `strings [ ]` on a `Gtk.StringList` and
+     * `responses [ ]` on an `Adw.AlertDialog`, in source order, each string with its `_()`
+     * marking beside it (ADR 0072). A response's flags become `appearance` and `enabled`, the
+     * two attributes GtkBuilder writes for them. Every other extension stays a named loss.
+     */
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: SharedNode[];
 }
 

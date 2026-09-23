@@ -360,6 +360,14 @@ two patterns — `<class name="…"/>` inside a `<style>` block, and the NEWLINE
 `<property name="css-classes">` — and that newline is what decided the field is a list: a joined
 string would have to pick one join and could not be held where the oracle picked the other.
 
+Two value-carrying extensions joined them under ADR 0072, in one field, `extensions`: a
+`Gtk.StringList`'s `strings [ ]` and an `Adw.AlertDialog`'s `responses [ ]`. Until then the
+first projected an EMPTY list model, which renders as a legitimate empty dropdown. Each item
+keeps its `_()` marking beside it, and a response carries the `appearance` and `enabled` its
+flags stand for. The arm reads the golden's `<item>` elements inside a `GtkStringList` (only
+there: `Gtk.ComboBoxText`'s `items [ ]` writes the same elements and stays a loss) and its
+`<response>` elements, with every attribute the oracle writes on them.
+
 ### An earlier version of this file got item 2 wrong, and how
 
 It claimed the published types already carried positional enum values — measured on

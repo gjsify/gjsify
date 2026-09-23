@@ -593,6 +593,10 @@ export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWid
 export { ATTRIBUTE_OF_VECTORS, HOST_TAG_VECTORS, PROPERTY_OF_VECTORS } from './tags.js';
 export type { AttributeOfVector, HostTagVector, PropertyOfVector } from './tags.js';
 
+// --- What a `.blp`'s string lists and dialog responses build into (ADR 0072) ---
+export { VALUE_LIST_VECTORS } from './value-lists.js';
+export type { ValueListResponse, ValueListVector } from './value-lists.js';
+
 // --- Which vectors an AUTHORED WIDGET TREE reaches (ADR 0051) — no table of its own ---
 export {
     SHARED_TREE_BLOCKS_WITHOUT_EXPECTATIONS,
