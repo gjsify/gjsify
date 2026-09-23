@@ -261,7 +261,7 @@ const ONE_RENDERER_ONLY = {
     'view-stack-page': {
         only: 'web',
         decision:
-            '`AdwViewStackPage` is declared against GObject, not GtkWidget (adw-view-stack.h) — it is DATA. NativeScript passes the same page descriptors to `AdwViewSwitcherBase.setViews`, so only the browser needs a tag to declare one in.',
+            '`AdwViewStackPage` is declared against GObject, not GtkWidget (adw-view-stack.h) — it is DATA. NativeScript passes the same page descriptors to `AdwViewSwitcherBase.setViews`, and carries the record as a constructible VALUE (`view-stack-page.ts`) only so its builder can construct the node a `.blp` authors — not a widget with a story of its own. The browser needs a tag to declare one in.',
     },
     'view-switcher-page': {
         only: 'web',

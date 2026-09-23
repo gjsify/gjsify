@@ -26,15 +26,16 @@
 // `src/` itself, at parity with `../namespace/` and `../widgets/`, rather than risk a reader
 // assuming the depth-sensitive alias applies here too.
 //
-// The three `throw`s in {@link build} are door refusals, not test assertions — ADR 0051
-// Amendment 3 broke each one on purpose to prove it fires — and they moved here with the
-// function they belong to.
+// The `throw`s in {@link build} and `buildNode` are door refusals, not test assertions — ADR
+// 0051 Amendment 3 broke the first three on purpose to prove each fires — and they moved here
+// with the function they belong to. The two about ids (an unknown one, a duplicate one) are
+// GtkBuilder's own refusals, restated where the ids are resolved.
 
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import type { View } from '@nativescript/core';
 
-import { declaredBuilderSlots } from '../widgets/builder-slots.js';
+import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 
 // The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
 // Imported as MODULE NAMESPACES because that is literally what this door is:
@@ -104,10 +105,32 @@ interface BuilderParent {
     _addChildFromBuilder(name: string, view: View): void;
 }
 
+/** An object-valued property waiting for the rest of the tree, and the id it names. */
+interface PendingReference {
+    view: View;
+    element: Element;
+    prop: string;
+    id: string;
+}
+
+/** What one {@link build} call collects while it walks the tree. */
+interface BuildContext {
+    ids: Map<string, View>;
+    pending: PendingReference[];
+}
+
 /**
  * Build one authored node the way NativeScript's XML builder does: construct with no
  * arguments, write the attributes, then hand each child to the parent's own child door
  * under the name its placement asks for ({@link builderNameFor}).
+ *
+ * AN OBJECT-VALUED PROPERTY IS WRITTEN LAST, with the object. `stack: stack` in a `.blp`
+ * projects as the string `"stack"`, and GtkBuilder resolves it to the object with that id
+ * once the whole file is parsed — which is what lets a switcher above its stack name it. The
+ * properties a widget declares object-valued (`builderReferences`, `widgets/builder-slots.ts`)
+ * are held back the same way here and assigned once every node exists, so the switcher also
+ * binds to a stack whose pages are all in. An id nothing in the tree carries is refused, as
+ * GtkBuilder refuses an unknown object id, rather than handing the widget a string.
  *
  * AN ATTRIBUTE IS ALWAYS A STRING, and that is the door rather than a choice of this
  * builder: `setPropertyValue` ends in `instance[name] = value` with no conversion at all for
@@ -121,11 +144,34 @@ interface BuilderParent {
  * property answers it.
  */
 export function build(node: SharedTreeNode): View {
+    const context: BuildContext = { ids: new Map(), pending: [] };
+    const root = buildNode(node, context);
+    for (const { view, element, prop, id } of context.pending) {
+        const target = context.ids.get(id);
+        if (target === undefined) {
+            throw new Error(
+                `<${element.xmlName} ${prop}="${id}"> names no object: nothing in this tree has the id '${id}', ` +
+                    `so \`${prop}\` would be handed the string instead of the widget it refers to.`,
+            );
+        }
+        (view as unknown as Record<string, unknown>)[prop] = target;
+    }
+    return root;
+}
+
+function buildNode(node: SharedTreeNode, context: BuildContext): View {
     const element = elementFor(node.tag);
     const view = new element.ctor();
     // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
     // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
-    if (node.id !== undefined) view.id = node.id;
+    if (node.id !== undefined) {
+        if (context.ids.has(node.id)) {
+            throw new Error(`Two nodes of this tree carry the id '${node.id}'; GtkBuilder refuses a duplicate id.`);
+        }
+        context.ids.set(node.id, view);
+        view.id = node.id;
+    }
+    const references = declaredBuilderReferences(element.ctor);
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         // A projected `.blp` spells a property as GObject does (`maximum-size`); the widget
         // declares it in camel case (`maximumSize`). Without the case rule every hyphenated
@@ -137,6 +183,10 @@ export function build(node: SharedTreeNode): View {
                     `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
                     'so the attribute door cannot report this and the tree would render without it.',
             );
+        }
+        if (references.includes(prop)) {
+            context.pending.push({ view, element, prop, id: String(value) });
+            continue;
         }
         (view as unknown as Record<string, unknown>)[prop] = String(value);
     }
@@ -160,7 +210,7 @@ export function build(node: SharedTreeNode): View {
                     'the corpus nests a node this element cannot hold.',
             );
         }
-        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), build(child));
+        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), buildNode(child, context));
     }
     return view;
 }
