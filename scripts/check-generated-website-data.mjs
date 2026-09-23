@@ -249,6 +249,12 @@ for (const rel of GENERATORS) {
 // ---------------------------------------------------------------------------
 
 const seenTitles = new Set();
+/**
+ * title -> the `.blp` a ONE-BLUEPRINT block builds (`<AdwWidget blueprint="…">`), relative
+ * to `website/src/blueprints/`. Such a block has no markup fence: the file is what the page
+ * shows, so arm 13 holds the shared corpus against it instead.
+ */
+const blueprintByTitle = new Map();
 let blocks = 0;
 
 for (const { file } of DOCS_SECTIONS.flatMap((section) =>
@@ -259,9 +265,11 @@ for (const { file } of DOCS_SECTIONS.flatMap((section) =>
         .map((f) => ({ page: `${section}/${f}`, file: join(docsDir(section), f) })),
 )) {
     const text = readFileSync(file, 'utf8');
-    for (const [, title] of text.matchAll(/<AdwWidget\s+title="([^"]+)"/g)) {
+    for (const [, title, rest] of text.matchAll(/<AdwWidget\s+title="([^"]+)"([^>]*)>/g)) {
         blocks++;
         seenTitles.add(title);
+        const blueprint = /\bblueprint="([^"]+)"/.exec(rest)?.[1];
+        if (blueprint !== undefined) blueprintByTitle.set(title, blueprint);
     }
 }
 
@@ -1302,20 +1310,44 @@ const depthFirst = (node, out = []) => {
 };
 
 const fenceByTitle = new Map(applied.fences.map((fence) => [fence.title, fence]));
+
+/**
+ * A one-Blueprint block's `.blp`, in the shape {@link markupElements} gives a fence: its
+ * projection depth-first, each node as its host tag and its values as attributes. The same
+ * two rules the web builder writes a tree with (`buildSharedTree`): a placement is `slot=`
+ * and a boolean is the attribute's presence. So the comparison below runs unchanged, and a
+ * block that moved from markup to a `.blp` keeps the corpus held to what the page shows —
+ * the file both renderers build, rather than no fence at all.
+ */
+const { parseBlueprint, projectToSharedNode } = await import('../packages/infra/blueprint/src/index.mjs');
+const blueprintElements = (rel) =>
+    depthFirst(projectToSharedNode(parseBlueprint(readFileSync(join(ROOT, rel), 'utf8'), rel)).node).map((node) => {
+        const values = new Map();
+        if (node.slot !== undefined) values.set('slot', node.slot);
+        for (const [prop, value] of Object.entries(node.props ?? {})) {
+            if (value === false) continue;
+            values.set(attributeOf(prop), value === true ? '' : String(value));
+        }
+        return { tag: hostTagOf(node.tag), values };
+    });
+
 let containedNodes = 0;
 let comparedValues = 0;
 let fenceElements = 0;
 for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
-    const fence = fenceByTitle.get(tree.widget);
+    const blueprint = blueprintByTitle.get(tree.widget);
+    const fence =
+        fenceByTitle.get(tree.widget) ??
+        (blueprint === undefined ? undefined : { slot: 'blueprint', rel: `website/src/blueprints/${blueprint}` });
     if (fence === undefined) {
         failures.push(
-            `${tree.widget} is a shared tree with no fence on any gallery page, so the corpus describes ` +
-                'a UI the site does not show. Either the block was renamed or it was removed from the gallery ' +
-                'while its tree stayed in the shared source.',
+            `${tree.widget} is a shared tree with no fence and no .blp on any gallery page, so the corpus ` +
+                'describes a UI the site does not show. Either the block was renamed or it was removed from ' +
+                'the gallery while its tree stayed in the shared source.',
         );
         continue;
     }
-    const elements = markupElements(fence.body);
+    const elements = fence.body === undefined ? blueprintElements(fence.rel) : markupElements(fence.body);
     fenceElements += elements.length;
     let cursor = 0;
     for (const [index, node] of depthFirst(tree.root).entries()) {

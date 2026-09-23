@@ -1,0 +1,24 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  Adw.ExpanderRow row {
+    title: _("Proxy settings");
+    subtitle: _("Route traffic through a custom proxy");
+    expanded: true;
+
+    [prefix]
+    Gtk.Button {
+      label: _("Test");
+    }
+
+    Adw.EntryRow host_row {
+      title: _("Host");
+      text: "proxy.example.com";
+    }
+
+    Adw.SwitchRow {
+      title: _("Use authentication");
+    }
+  }
+}

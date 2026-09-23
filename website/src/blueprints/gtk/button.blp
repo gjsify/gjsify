@@ -1,0 +1,37 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.WrapBox button_box {
+  child-spacing: 12;
+  line-spacing: 12;
+
+  Gtk.Button pill_button {
+    label: _("Pill");
+
+    styles ["pill"]
+  }
+
+  Gtk.Button add_button {
+    icon-name: "list-add-symbolic";
+
+    styles ["circular"]
+  }
+
+  Gtk.Button suggested_button {
+    label: _("Suggested");
+
+    styles ["suggested-action"]
+  }
+
+  Gtk.Button delete_button {
+    label: _("Delete");
+
+    styles ["destructive-action"]
+  }
+
+  Gtk.Button flat_button {
+    label: _("Flat");
+
+    styles ["flat"]
+  }
+}

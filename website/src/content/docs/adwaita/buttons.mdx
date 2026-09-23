@@ -27,62 +27,48 @@ It pairs a symbolic icon with a label, so the action reads at a glance and in
 words. Set `can-shrink` if the label may ellipsize when horizontal space runs
 short.
 
-<AdwWidget title="Adw.ButtonContent">
-  <Fragment slot="preview">
-    ```html
-    <button class="adw-button suggested-action pill">
-      <adw-button-content label="Download" icon-name="folder-download"></adw-button-content>
-    </button>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ButtonContent" blueprint="adwaita/button-content.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './button-content.blp';
 
-    const content = new Adw.ButtonContent({
-        label: 'Download',
-        iconName: 'folder-download-symbolic',
-        canShrink: false,
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const button = builder.get_object('download_button') as Gtk.Button;
+    const content = builder.get_object('content') as Adw.ButtonContent;
+    button.connect('clicked', () => {
+        content.label = 'Downloading…';
     });
-
-    const button = new Gtk.Button({ child: content });
-    button.add_css_class('suggested-action');
-    button.add_css_class('pill');
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Gtk.Button {
-      child: Adw.ButtonContent {
-        label: _("Download");
-        icon-name: "folder-download-symbolic";
-      };
-
-      styles ["suggested-action", "pill"]
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="webloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './button-content.blp?shared-tree';
 
-    const content = new Adw.ButtonContent({
-        label: 'Download',
-        iconName: 'folder-download-symbolic',
-        // The bitmap is pre-coloured, so a suggested button's white icon is pinned here
-        // rather than inherited from the stylesheet the way GTK inherits `color`.
-        iconColor: '#ffffff',
-        canShrink: false,
+    const { root: button } = mountSharedTree(tree);
+    const content = button.querySelector<Adw.ButtonContent>('#content')!;
+    button.addEventListener('click', () => {
+        content.setAttribute('label', 'Downloading…');
     });
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './button-content.blp?shared-tree';
 
-    const button = new Gtk.Button({ child: content });
-    button.add_css_class('suggested-action');
-    button.add_css_class('pill');
+    const button = build(tree) as Gtk.Button;
+    const content = button.getViewById<Adw.ButtonContent>('content')!;
+    // The bitmap is pre-coloured, so a suggested button's white icon is pinned here
+    // rather than inherited from the stylesheet the way GTK inherits `color`.
+    content.iconColor = '#ffffff';
+    button.connect('clicked', () => {
+        content.label = 'Downloading…';
+    });
     ```
   </Fragment>
 </AdwWidget>
@@ -94,78 +80,56 @@ variations on it. Clicking the main half runs the default; the attached arrow
 opens a menu with the alternatives. Add `.flat` for the variant that belongs in a
 header bar or toolbar, where a raised button looks too heavy.
 
-<AdwWidget title="Adw.SplitButton">
-  <Fragment slot="preview">
-    ```html
-    <!-- icon-name: The name of the icon used to automatically populate the button. -->
-    <!-- menu-model: The `GMenuModel` from which the popup will be created. -->
-    <adw-split-button
-      label="Save"
-      icon-name="document-save"
-      menu-model='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
-    ></adw-split-button>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.SplitButton" blueprint="adwaita/split-button.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './split-button.blp';
 
-    const menu = new Gio.Menu();
-    menu.append('Save as…', 'app.save-as');
-    menu.append('Export', 'app.export');
-    menu.append('Print', 'app.print');
-
-    const button = new Adw.SplitButton({ label: 'Save', menuModel: menu });
-    button.iconName = 'document-save-symbolic';
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const button = builder.get_object('split_button') as Adw.SplitButton;
     // button.add_css_class('flat'); // the header-bar / toolbar variant
-    ```
-  </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.SplitButton {
-      label: _("Save");
-      icon-name: "document-save-symbolic";
-
-      menu-model: save-menu;
-    }
-
-    menu save-menu {
-      section {
-        item {
-          label: _("Save as…");
-          action: "app.save-as";
-        }
-
-        item {
-          label: _("Export");
-          action: "app.export";
-        }
-
-        item {
-          label: _("Print");
-          action: "app.print";
-        }
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
-    ```ts
-    import Adw from 'gi://Adw?version=1';
-    import { Gio } from '@gjsify/adwaita-nativescript';
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');
     menu.append('Export', 'app.export');
     menu.append('Print', 'app.print');
+    button.menuModel = menu;
+    ```
+  </Fragment>
+  <Fragment slot="webloader">
+    ```ts
+    import { mountSharedTree, type Adw } from '@gjsify/adwaita-web';
+    import tree from './split-button.blp?shared-tree';
 
-    const button = new Adw.SplitButton({ label: 'Save', menuModel: menu });
-    button.iconName = 'document-save-symbolic';
+    const { root } = mountSharedTree(tree);
+    const button = root as Adw.SplitButton;
+    // button.classList.add('flat'); // the header-bar / toolbar variant
+
+    button.menuModel = [
+        { label: 'Save as…', action: 'app.save-as' },
+        { label: 'Export', action: 'app.export' },
+        { label: 'Print', action: 'app.print' },
+    ];
+    ```
+  </Fragment>
+  <Fragment slot="nativescriptloader">
+    ```ts
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { build } from '@gjsify/adwaita-nativescript/builder';
+    import tree from './split-button.blp?shared-tree';
+
+    const button = build(tree) as Adw.SplitButton;
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
+
+    button.menuModel = [
+        { label: 'Save as…', action: 'app.save-as' },
+        { label: 'Export', action: 'app.export' },
+        { label: 'Print', action: 'app.print' },
+    ];
     ```
   </Fragment>
 </AdwWidget>

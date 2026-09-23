@@ -1,0 +1,10 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  Adw.SwitchRow row {
+    title: _("Automatic updates");
+    subtitle: _("Download and install updates without asking");
+    active: true;
+  }
+}

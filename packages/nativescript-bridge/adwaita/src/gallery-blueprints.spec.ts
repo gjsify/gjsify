@@ -88,4 +88,36 @@ export const AdwGalleryBlueprintsNsTest = async () => {
             expect((menu.className ?? '').split(' ').includes('circular')).toBe(true);
         });
     });
+
+    // Building is not placing, as above. The button-content file puts an `Adw.ButtonContent`
+    // in a `Gtk.Button`'s `child:` property, and the button-row file styles its row; both
+    // were refused by the builder until the widgets declared those doors, and a door that
+    // accepted the name but dropped the value would still pass the loop at the top.
+    await describe('the gallery buttons build as GTK places them', async () => {
+        const byFile = (name: string) => {
+            const entry = trees.find(({ file }) => file.endsWith(name));
+            if (entry === undefined) throw new Error(`the corpus has no gallery ${name}`);
+            return build(entry.node) as unknown as {
+                getViewById(id: string): { className?: string } | undefined;
+                child?: object | null;
+                has_css_class?(name: string): boolean;
+                className?: string;
+            };
+        };
+
+        await it("child: becomes the button's child", () => {
+            const button = byFile('/button-content.blp');
+            expect(button.child === button.getViewById('content')).toBe(true);
+        });
+
+        await it('styles ["suggested-action"] reaches the button row as a class', () => {
+            const row = byFile('/button-row.blp').getViewById('row') as {
+                has_css_class(name: string): boolean;
+                className?: string;
+            };
+            expect(row.has_css_class('suggested-action')).toBe(true);
+            const classes = (row.className ?? '').split(' ');
+            expect(classes.includes('suggested-action') && classes.includes('adw-button-row')).toBe(true);
+        });
+    });
 };

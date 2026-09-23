@@ -147,7 +147,7 @@ const GIR_NAMESPACES = [
  * web port's markup surface and libadwaita's property surface, and each is checked
  * back: an attribute here that has grown a GIR property fails, an attribute with no
  * property and no entry fails, and every `girProperty` named must still resolve on
- * that element's own GType chain. 20 entries over 9 elements, which is 20 of the 107
+ * that element's own GType chain. The run prints how many there are beside how many
  * distinct attributes the gallery sets.
  *
  * NONE of them gets a generated comment, and that is the conservative reading rather
@@ -171,10 +171,9 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'adw-alert-response id': { kind: 'not-a-widget' },
     'adw-alert-response appearance': { kind: 'not-a-widget' },
 
-    // An icon NAME under a shorter spelling. Each of these three sets
+    // An icon NAME under a shorter spelling. Each of these two sets
     // `iconName`/`createGtkImage` from the attribute, so the value space is the icon
     // theme's, exactly as the GIR property says.
-    'adw-avatar icon': { kind: 'renamed', girProperty: 'icon-name' },
     'adw-status-page icon': { kind: 'renamed', girProperty: 'icon-name' },
     'gtk-button icon': { kind: 'renamed', girProperty: 'icon-name' },
 
@@ -186,8 +185,6 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // for any of them because a style class is a list entry there (ADR 0049).
     'gtk-button flat': { kind: 'style-class' },
     'gtk-button suggested': { kind: 'style-class' },
-    'gtk-button destructive': { kind: 'style-class' },
-    'gtk-button circular': { kind: 'style-class' },
     'gtk-button pill': { kind: 'style-class' },
 
     // `<gtk-entry>` speaks the HTML form vocabulary rather than GTK's, deliberately
@@ -208,10 +205,6 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // pixel box, and `AdwSpinner` has no size property — a GTK spinner takes its
     // size from its allocation.
     'adw-spinner size': { kind: 'port-only' },
-
-    // Port-added: it titles the popover AND becomes the button's `aria-label`.
-    // `Gtk.MenuButton` has `label`, and no title.
-    'gtk-menu-button menu-title': { kind: 'port-only' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */
@@ -303,9 +296,7 @@ const FUNCTION_WORDS = stemmed(
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
  */
-const PRESENTATION_WORDS = stemmed(
-    'display show shown currently current information inside contain below set url widget',
-);
+const PRESENTATION_WORDS = stemmed('display shown currently current information inside contain below url widget');
 
 /**
  * How many of the corpus's docs a word must appear in before it stops distinguishing
