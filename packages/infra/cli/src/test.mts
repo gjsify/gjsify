@@ -202,7 +202,30 @@ function hasPosixShell(): boolean {
     }
 }
 
+/**
+ * Is `git` on PATH? The one row that needs it exercises `gjsify affected` WITHOUT
+ * `--changed-from-stdin`, i.e. the command's own `git diff`. That dependency is the
+ * product's, not the test's — `affected` diffs two commits, and there is nothing to
+ * diff without git — so the row is skipped where git is absent rather than the command
+ * taught to work without it. The win32 leg is such a host on purpose: it strips every
+ * `\Git\` entry from PATH. The rename behaviour it proves is git's, not the host's, and
+ * the Linux and macOS legs still run it.
+ */
+function hasGit(): boolean {
+    try {
+        execFileSync('git', ['--version'], { stdio: 'ignore', timeout: 15000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 const skip: Record<string, string> = {};
+
+if (!hasGit()) {
+    skip['a pure MOVE out of a workspace still seeds that workspace (git diff --no-renames)'] =
+        'no git on PATH — this row runs the command against a real scratch repository';
+}
 
 if (!canCreateFileSymlink()) {
     const why = 'host cannot create file symlinks (Windows needs Developer Mode or elevation)';
