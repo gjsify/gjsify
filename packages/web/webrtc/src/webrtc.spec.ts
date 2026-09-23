@@ -23,6 +23,7 @@
 
 import Gst from 'gi://Gst?version=1.0';
 import { describe, it, expect } from '@gjsify/unit';
+import { ensureGstInit } from './gst-init.js';
 
 import type { RTCDataChannel, RTCDTMFToneChangeEvent } from './index.js';
 import {
@@ -1250,6 +1251,40 @@ export default async () => {
                     pc2.close();
                 });
             }
+        });
+
+        await describe('audio sink selection', async () => {
+            // Regression test for an intermittent CI hang in this exact
+            // describe block (runs 35858217482/job 107186497944 on PR #1764,
+            // and 35823074218 on main): "Multi-PC fan-out" is the one place
+            // in this suite that runs several `getUserMedia({ audio: true })`
+            // captures and moves a live source between pipelines (the
+            // tee-creation branch in `RTCRtpSender._wirePipeline`) — the kind
+            // of GStreamer state churn that reaches `autoaudiosrc`'s
+            // candidate probing. `_chooseSource()` in `get-user-media.ts`
+            // already carries an earlier, separately-measured incident: on
+            // `ghcr.io/gjsify/ci-fedora:44` (no reachable PipeWire/Pulse)
+            // `autoaudiosrc` resolves to `openalsrc`, whose device backend
+            // does its OWN nested probe SYNCHRONOUSLY inside
+            // `gst_element_set_state()` — GstAutoDetect runs a child's state
+            // change on the calling thread, so on GJS's single JS thread a
+            // stall there freezes the whole process. `ensureGstInit()` now
+            // deranks `openalsrc`/`openalsink` so `autoaudiosrc`/
+            // `autoaudiosink` never select them. Reproducing the stall
+            // itself needs a host with no reachable audio backend; this
+            // asserts the mechanism instead.
+            await it('deranks openalsrc/openalsink so autodetect cannot select them', async () => {
+                ensureGstInit();
+                const registry = Gst.Registry.get();
+                for (const name of ['openalsrc', 'openalsink']) {
+                    const feature = registry.lookup_feature(name);
+                    // Absent entirely (the `openal` plugin not installed) is
+                    // also safe — nothing for autodetect to select.
+                    if (feature) {
+                        expect(feature.get_rank()).toBe(Gst.Rank.NONE);
+                    }
+                }
+            });
         });
     });
 

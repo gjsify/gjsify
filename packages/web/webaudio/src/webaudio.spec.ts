@@ -14,7 +14,7 @@ import { AudioBufferSourceNode } from './audio-buffer-source-node.js';
 import { AudioDestinationNode } from './audio-destination-node.js';
 import { HTMLAudioElement } from './html-audio-element.js';
 import { livePipelineCount, stopAllPipelines } from './gst-teardown.js';
-import { primeGstOutcomeForTests, tryEnsureGstInit } from './gst-init.js';
+import { Gst, primeGstOutcomeForTests, tryEnsureGstInit } from './gst-init.js';
 
 /** Generate a minimal WAV ArrayBuffer (mono, 16-bit PCM, 440Hz sine) */
 function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
@@ -232,6 +232,31 @@ export default async () => {
             } finally {
                 if (!hadBun) delete g.Bun;
                 if (!hadDeno) delete g.Deno;
+            }
+        });
+    });
+
+    await describe('audio sink selection', async () => {
+        // Regression test for a CI hang (run 35891271728, job 107302747930):
+        // "runtime gating › decodes and plays with a bun/deno global present"
+        // logged `[ALSOFT] Failed to connect PipeWire` then froze for 30+s
+        // past the heartbeat-guard deadline. `autoaudiosink` reached
+        // `openalsink`, whose device backend does its own nested probe of
+        // PipeWire/ALSA/JACK/etc SYNCHRONOUSLY inside `set_state()` — on a
+        // host where that probe stalls, it freezes the whole process with no
+        // bus message and nothing this package could bound. `ensureGstInit()`
+        // now deranks `openalsink` to `Gst.Rank.NONE` so `autoaudiosink`
+        // never selects it. Reproducing the stall itself needs a host with a
+        // broken audio session (not reliably arrangeable here); this asserts
+        // the MECHANISM instead — the one property whose absence caused the
+        // hang.
+        await it('deranks openalsink so autoaudiosink cannot select it', async () => {
+            tryEnsureGstInit();
+            const feature = Gst.Registry.get().lookup_feature('openalsink');
+            // Absent entirely (the `openal` plugin not installed) is also
+            // safe — nothing for `autoaudiosink` to select.
+            if (feature) {
+                expect(feature.get_rank()).toBe(Gst.Rank.NONE);
             }
         });
     });

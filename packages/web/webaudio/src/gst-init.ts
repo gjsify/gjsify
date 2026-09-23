@@ -34,12 +34,43 @@ function ensureGstAppLoaded(): void {
     }
 }
 
+/**
+ * Plugin feature names `autoaudiosink` must never select, because their
+ * `open()` does not fail fast like the ordinary candidates
+ * (pipewiresink/pulsesink/alsasink) do.
+ *
+ * `autoaudiosink` walks every registered "Sink/Audio" element by rank and
+ * calls `set_state(READY)` on each until one opens — that is already fast
+ * and already falls back to a silent `fakesink` when nothing opens
+ * (measured: a host with no reachable PipeWire/Pulse/ALSA still finishes in
+ * ~0.1s). `openalsink` is the one candidate that breaks that guarantee:
+ * OpenAL Soft's own device backend runs ITS OWN nested probe of
+ * PipeWire/ALSA/JACK/etc, and on a host where that probe stalls (measured
+ * in CI: `[ALSOFT] Failed to connect PipeWire`, then 30+s of silence) the
+ * stall happens INSIDE the synchronous `gst_element_set_state()` call.
+ * `GstBin` (which `autoaudiosink` is) runs a child's state change on the
+ * calling thread, so on GJS's single JS thread that freezes the whole
+ * process for as long as OpenAL Soft takes — no bus message, nothing else
+ * runs, and there is no timeout to hand it from here. Deranking it keeps it
+ * out of `autoaudiosink`'s candidate list, so a host with no working audio
+ * backend degrades to the already-fast `fakesink` path instead of hanging.
+ */
+const UNBOUNDED_AUDIO_SINK_CANDIDATES = ['openalsink'];
+
+function excludeUnboundedAudioSinkCandidates(): void {
+    const registry = Gst.Registry.get();
+    for (const name of UNBOUNDED_AUDIO_SINK_CANDIDATES) {
+        registry.lookup_feature(name)?.set_rank(Gst.Rank.NONE);
+    }
+}
+
 /** The GStreamer bring-up. A parameter so its FAILURE branch is executable. */
 export type GstInitializer = () => void;
 
 const defaultInitializer: GstInitializer = () => {
     Gst.init(null);
     ensureGstAppLoaded();
+    excludeUnboundedAudioSinkCandidates();
 };
 
 /** `null` once GStreamer is up; otherwise why it is not, memoized. */
