@@ -1,0 +1,23 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.HeaderBar header_bar {
+  title-widget: Adw.WindowTitle window_title {
+    title: _("Text Editor");
+    subtitle: "notes.md";
+  };
+
+  [start]
+  Gtk.Button back_button {
+    icon-name: "go-previous-symbolic";
+
+    styles ["flat"]
+  }
+
+  [end]
+  Gtk.MenuButton menu_button {
+    icon-name: "open-menu-symbolic";
+
+    styles ["flat"]
+  }
+}

@@ -161,10 +161,6 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'subtitle': null,
         'title': null,
     },
-    'adw-wrap-box': {
-        'child-spacing': 'The spacing between widgets on the same line.',
-        'line-spacing': null,
-    },
     'gtk-button': {
         'label': null,
     },
@@ -214,12 +210,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 106,
-    glossed: 26,
-    nameSuffices: 58,
+    set: 104,
+    glossed: 25,
+    nameSuffices: 57,
     divergent: 20,
     authored: 2,
-    commentLines: 26,
+    commentLines: 25,
 };
 
 /**
