@@ -1,6 +1,10 @@
-// VENDORED VERBATIM from `@nativescript/core@9.1.0-alpha.11`, `xml/index.js` (Apache-2.0,
-// https://github.com/NativeScript/NativeScript, `packages/core/xml/index.ts`). Only this header,
-// the easysax import path and the trailing source-map comment differ.
+// SPDX-License-Identifier: Apache-2.0 AND MIT
+// VENDORED VERBATIM from `@nativescript/core@9.1.0-alpha.11`, `xml/index.js`
+// (https://github.com/NativeScript/NativeScript, `packages/core/xml/index.ts`). The package
+// declares `"license": "Apache-2.0"` while the LICENSE file it ships is MIT, "Copyright OpenJS
+// Foundation and other contributors"; both texts sit beside this file (`./LICENSE-apache-2.0`,
+// `./LICENSE-nativescript-core`), and upstream ships no NOTICE. Only this header, the easysax
+// import path and the trailing source-map comment differ.
 // Why a copy: `../../blueprint-markup.spec.ts`. To refresh, copy the file from a newer
 // `@nativescript/core` and reapply exactly the differences listed above.
 

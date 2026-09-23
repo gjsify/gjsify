@@ -1,6 +1,8 @@
-// VENDORED VERBATIM from `@nativescript/core@9.1.0-alpha.11`, `js-libs/easysax/easysax.js`
-// (easysax 0.1.14 by Vopilovskiy Konstantin, https://github.com/vflash/easysax, as NativeScript
-// ships it under its Apache-2.0 package). Only this header and the leading BOM differ.
+// SPDX-License-Identifier: MIT
+// VENDORED VERBATIM from `@nativescript/core@9.1.0-alpha.11`, `js-libs/easysax/easysax.js`:
+// easysax 0.1.14, https://github.com/vflash/easysax. Copyright (c) 2012 Vopilovskiy Konstantin,
+// MIT; the full text is `./LICENSE-easysax`, from the upstream repository (the file carries no
+// header and the npm package no license field). Only this header and the leading BOM differ.
 // Why a copy: `../../blueprint-markup.spec.ts`. To refresh, copy the file from a newer
 // `@nativescript/core` and reapply exactly the differences listed above.
 
