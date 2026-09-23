@@ -131,6 +131,27 @@ export function build(node: SharedTreeNode): View {
     return built;
 }
 
+/** What {@link buildDialog} hands back: the object `present()` is called on. */
+export interface PresentableRoot {
+    present(): unknown;
+}
+
+/**
+ * A tree rooted at a DIALOG — ADR 0072's `responses`.
+ *
+ * This port's `Adw.AlertDialog` is not a `View`: it presents through the platform's own
+ * dialog, so {@link build} rightly refuses it as a root. Its own entry point keeps that
+ * refusal intact for every other value object, and admits a root by the one method a dialog
+ * is for rather than by a class list.
+ */
+export function buildDialog(node: SharedTreeNode): PresentableRoot {
+    const built = buildNode(node);
+    if (built instanceof View || typeof (built as Partial<PresentableRoot>).present !== 'function') {
+        throw new Error(`\`${node.tag}\` is not a dialog: it has no \`present()\`, so use \`build\` for it.`);
+    }
+    return built as PresentableRoot;
+}
+
 /**
  * One node, widget or VALUE OBJECT.
  *
@@ -199,6 +220,15 @@ function buildView(node: SharedTreeNode, element: Element, view: View): View {
         }
         (view as unknown as Record<string, unknown>).styleClasses = node.styleClasses.join(' ');
     }
+    // A string list is a list MODEL, never a widget, so items authored on a view have nowhere
+    // to go; refused by name, as `buildValue` refuses them on a value class without `append`.
+    if (node.extensions?.strings !== undefined) {
+        throw new Error(
+            `<${element.xmlName}> takes no string-list items: \`${node.tag}\` is a widget, and only a list ` +
+                `model holds them, so [${node.extensions.strings.map((string) => string.value).join(', ')}] would be dropped.`,
+        );
+    }
+    applyResponses(view, element, node);
     return view;
 }
 
@@ -221,7 +251,55 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object): obje
         if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
         bag[prop] = value;
     }
-    return new element.ctor(bag);
+    // ADR 0072's string-list items are CONSTRUCT data, the same `{ strings }` bag
+    // `new Gtk.StringList({ strings })` takes in GJS. `append` is what marks a class as a list
+    // that can hold them (`gtk_string_list_append` is what GtkBuilder's `<items>` calls), so a
+    // value class without it refuses them by name rather than constructing without them.
+    const strings = node.extensions?.strings;
+    if (strings !== undefined) {
+        if (typeof (probe as Partial<ExtensionDoors>).append !== 'function') {
+            throw new Error(
+                `<${element.xmlName}> takes no string-list items: \`${node.tag}\` has no \`append\`, so ` +
+                    `[${strings.map((string) => string.value).join(', ')}] would be dropped.`,
+            );
+        }
+        bag.strings = strings.map((string) => string.value);
+    }
+    const built = new element.ctor(bag);
+    applyResponses(built, element, node);
+    return built;
+}
+
+/** The two GTK methods ADR 0072's extensions are filled through, in this port's spelling. */
+interface ExtensionDoors {
+    append(string: string): void;
+    add_response(id: string, label: string, options?: { appearance?: string; enabled?: boolean }): void;
+}
+
+/**
+ * ADR 0072's `responses`, written through `adw_alert_dialog_add_response` with the appearance
+ * and enabled state the flags stand for — what GtkBuilder's `<responses>` calls. Asked of a
+ * widget and of a value object alike, because this port's `Adw.AlertDialog` is not a `View`:
+ * it presents through the platform's own dialog. A class with no such method is REFUSED rather
+ * than skipped: a dialog without its buttons looks finished.
+ */
+function applyResponses(built: object, element: Element, node: SharedTreeNode): void {
+    const doors = built as Partial<ExtensionDoors>;
+    const responses = node.extensions?.responses;
+    if (responses !== undefined) {
+        if (typeof doors.add_response !== 'function') {
+            throw new Error(
+                `<${element.xmlName}> takes no responses: \`${node.tag}\` has no \`add_response\`, so ` +
+                    `[${responses.map((response) => response.id).join(', ')}] would be dropped.`,
+            );
+        }
+        for (const { id, label, appearance, enabled } of responses) {
+            doors.add_response(id, label, {
+                ...(appearance === undefined ? {} : { appearance }),
+                ...(enabled === undefined ? {} : { enabled }),
+            });
+        }
+    }
 }
 
 /**

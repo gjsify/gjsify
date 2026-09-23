@@ -124,13 +124,13 @@ const { REAL_EXPECTATIONS } = await import(`file://${join(CORPUS, 'real-expectat
 // a JSDoc union is not readable at runtime. A kind used there and missing here fails
 // stage A, which is the direction that matters: an unnamed loss is the defect.
 const LOSS_KINDS = new Set([
-    // NO `template`, NO `object-id`, NO `translatable` and NO `styles`: ADR 0066 gave the first
-    // two a field on the node, ADR 0067 the third and ADR 0068 the fourth, so declaring any of
-    // them as a loss here is now the defect rather than the bookkeeping. `value-list` STAYED
-    // and is the one to read carefully: it is where a bracketed value that is NOT a style class
-    // still leaves — `widgets [ ]` is object references, `strings [ ]` emits as `<items>` — and
-    // where an ident inside either style-class spelling leaves too, since the reference compiler
-    // refuses that construct and there is no oracle for it. `translation-domain` stayed because
+    // NO `template`, NO `object-id`, NO `translatable`, NO `styles` and NO `responses`: ADR 0066
+    // gave the first two a field on the node, ADR 0067 the third, ADR 0068 the fourth and ADR
+    // 0072 the fifth, so declaring any of them as a loss here is now the defect rather than the
+    // bookkeeping. `value-list` STAYED and is the one to read carefully: it is where a bracketed
+    // value that is neither a style class nor a string-list item still leaves — `widgets [ ]`
+    // is object references — and where an ident inside any of those lists leaves too, since the
+    // reference compiler refuses that construct and there is no oracle for it. `translation-domain` stayed because
     // it is a fact about the FILE and this shape is a tree, ADR 0067 § 4.
     'signal',
     'binding',
@@ -141,7 +141,6 @@ const LOSS_KINDS = new Set([
     'comment',
     'value-list',
     'sibling-object',
-    'responses',
     'extern',
     'inline-template',
     // The six bracketed lists, each by its own name — see `project.mjs`.
@@ -156,7 +155,17 @@ const LOSS_KINDS = new Set([
     'action-widget',
 ]);
 
-const NODE_FIELDS = new Set(['tag', 'id', 'template', 'slot', 'props', 'translatable', 'styleClasses', 'children']);
+const NODE_FIELDS = new Set([
+    'tag',
+    'id',
+    'template',
+    'slot',
+    'props',
+    'translatable',
+    'styleClasses',
+    'extensions',
+    'children',
+]);
 
 const problems = [];
 
@@ -167,7 +176,72 @@ const fail = () => {
     process.exit(1);
 };
 
-/** A `SharedNode` is eight optional-ish fields and three value kinds; hold it to that. */
+/** A `{ context? }` marking, or its absence — the one shape a translatable string carries. */
+const isMarking = (marking) =>
+    marking === undefined ||
+    (marking !== null &&
+        typeof marking === 'object' &&
+        Object.keys(marking).every((field) => field === 'context' && typeof marking.context === 'string'));
+
+/**
+ * ADR 0072's `extensions`: a closed set of kinds, each a non-empty list — absence is what says
+ * a node carries none, the rule every other optional field follows. `enabled: true` is refused
+ * for the same reason: it is GTK's default, so only `false` says anything.
+ */
+const validateExtensions = (extensions, where) => {
+    const KINDS = {
+        strings: ['value', 'translatable'],
+        responses: ['id', 'label', 'translatable', 'appearance', 'enabled'],
+    };
+    if (extensions === null || typeof extensions !== 'object' || Object.keys(extensions).length === 0) {
+        problems.push(`${where}: "extensions" is ${JSON.stringify(extensions)}. Absence says a node carries none.`);
+        return;
+    }
+    for (const [kind, entries] of Object.entries(extensions)) {
+        const fields = KINDS[kind];
+        if (fields === undefined) {
+            problems.push(
+                `${where}: "extensions.${kind}" is not a kind ADR 0072 carries (${Object.keys(KINDS).join(', ')}). ` +
+                    'Every other extension is a declared loss.',
+            );
+            continue;
+        }
+        if (!Array.isArray(entries) || entries.length === 0) {
+            problems.push(`${where}: "extensions.${kind}" must be a non-empty list.`);
+            continue;
+        }
+        entries.forEach((entry, i) => {
+            const at = `${where} > extensions.${kind}[${i}]`;
+            const extra = Object.keys(entry ?? {}).filter((field) => !fields.includes(field));
+            if (entry === null || typeof entry !== 'object' || extra.length > 0) {
+                problems.push(`${at}: ${JSON.stringify(entry)} holds only ${fields.join(', ')}.`);
+                return;
+            }
+            const text = kind === 'strings' ? entry.value : entry.label;
+            if (typeof text !== 'string') problems.push(`${at}: the text must be a string.`);
+            if (!isMarking(entry.translatable)) {
+                problems.push(
+                    `${at}: the marking ${JSON.stringify(entry.translatable)} holds an optional "context" only.`,
+                );
+            }
+            if (kind !== 'responses') return;
+            if (typeof entry.id !== 'string' || entry.id.length === 0)
+                problems.push(`${at}: "id" must be a non-empty string.`);
+            if (
+                entry.appearance !== undefined &&
+                entry.appearance !== 'suggested' &&
+                entry.appearance !== 'destructive'
+            ) {
+                problems.push(`${at}: "appearance" is "suggested" or "destructive"; absence is the default.`);
+            }
+            if (entry.enabled !== undefined && entry.enabled !== false) {
+                problems.push(`${at}: "enabled" is written only as false; true is the default and says nothing.`);
+            }
+        });
+    }
+};
+
+/** A `SharedNode` is nine optional-ish fields and three value kinds; hold it to that. */
 const validateNode = (node, where, isRoot = true) => {
     if (node === null || typeof node !== 'object' || Array.isArray(node)) {
         problems.push(`${where}: expected a SharedNode object, got ${JSON.stringify(node)}.`);
@@ -264,6 +338,7 @@ const validateNode = (node, where, isRoot = true) => {
             }
         }
     }
+    if (node.extensions !== undefined) validateExtensions(node.extensions, where);
     if (node.children !== undefined) {
         if (!Array.isArray(node.children)) {
             problems.push(`${where}: "children" must be an array.`);
@@ -1097,6 +1172,97 @@ const checkStyleClasses = (job, result) => {
     );
 };
 
+/**
+ * ADR 0072's `extensions`, held against the GOLDEN — built like the marking and style-class arms,
+ * and for their reason: the hand-written tree and the projection can agree and both be wrong.
+ *
+ * WHAT IS COMPARED. A string list's items are the `<item>` elements of an `<items>` block inside
+ * a `GtkStringList` object — ONLY that object, because `Gtk.ComboBoxText { items [ ] }` writes the
+ * same two elements and stays a declared `items` loss. A dialog's responses are the `<response>`
+ * elements. Each is compared with everything the oracle writes on it: text, marking, context,
+ * and for a response its id, `appearance` and `enabled`. A multiset, for the reason
+ * `checkMarkings` gives.
+ */
+const checkExtensions = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    const golden = readFileSync(job.golden, 'utf8').replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    const text = (raw) =>
+        raw
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&quot;', '"')
+            .replaceAll('&apos;', "'")
+            .replaceAll('&amp;', '&');
+    const attr = (attrs, name) => new RegExp(`\\b${name}="([^"]*)"`).exec(attrs)?.[1];
+    const spell = (fields) => JSON.stringify(Object.entries(fields).filter(([, value]) => value !== undefined));
+    const wanted = [];
+    for (const block of golden.matchAll(/<items>([\s\S]*?)<\/items>/g)) {
+        const opener = golden.lastIndexOf('<object class="', block.index);
+        if (!golden.startsWith('<object class="GtkStringList"', opener)) continue;
+        for (const item of block[1].matchAll(/<item\b([^>]*)>([\s\S]*?)<\/item>/g)) {
+            const marked = attr(item[1], 'translatable') === 'yes';
+            wanted.push(spell({ kind: 'strings', text: text(item[2]), marked, context: attr(item[1], 'context') }));
+        }
+    }
+    for (const response of golden.matchAll(/<response\b([^>]*)>([\s\S]*?)<\/response>/g)) {
+        wanted.push(
+            spell({
+                kind: 'responses',
+                id: attr(response[1], 'id'),
+                text: text(response[2]),
+                marked: attr(response[1], 'translatable') === 'yes',
+                context: attr(response[1], 'context'),
+                appearance: attr(response[1], 'appearance'),
+                enabled: attr(response[1], 'enabled') === 'false' ? false : undefined,
+            }),
+        );
+    }
+    const carried = [];
+    const walk = (node) => {
+        for (const string of node.extensions?.strings ?? []) {
+            carried.push(
+                spell({
+                    kind: 'strings',
+                    text: string.value,
+                    marked: string.translatable !== undefined,
+                    context: string.translatable?.context,
+                }),
+            );
+        }
+        for (const response of node.extensions?.responses ?? []) {
+            carried.push(
+                spell({
+                    kind: 'responses',
+                    id: response.id,
+                    text: response.label,
+                    marked: response.translatable !== undefined,
+                    context: response.translatable?.context,
+                    appearance: response.appearance,
+                    enabled: response.enabled,
+                }),
+            );
+        }
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(result.node);
+    extended += carried.length;
+    const a = [...wanted].sort();
+    const b = [...carried].sort();
+    if (a.join('\n') === b.join('\n')) return;
+    const missing = [...a];
+    const invented = [];
+    for (const one of b) {
+        const at = missing.indexOf(one);
+        if (at === -1) invented.push(one);
+        else missing.splice(at, 1);
+    }
+    problems.push(
+        `${job.key}: the golden and the projection disagree about the string-list items and responses — ` +
+            `written by the oracle and not carried: [${missing.join(', ')}]; ` +
+            `carried and not written: [${invented.join(', ')}].`,
+    );
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -1126,6 +1292,8 @@ let addressedIds = 0;
 // same reason: a count that grows with the corpus is what says the arm RAN.
 let marked = 0;
 let styled = 0;
+// The extensions arm's denominator: items and responses carried and held against the oracle.
+let extended = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -1186,6 +1354,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
         checkAddressing(job, result);
         checkMarkings(job, result);
         checkStyleClasses(job, result);
+        checkExtensions(job, result);
     }
 }
 
@@ -1381,8 +1550,8 @@ const stageC =
 
 const stageD =
     `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
-    `composite class(es), ${addressedIds} object id(s), ${marked} translatable marking(s) and ${styled} ` +
-    'style class(es) against the golden the oracle wrote';
+    `composite class(es), ${addressedIds} object id(s), ${marked} translatable marking(s), ${styled} ` +
+    `style class(es) and ${extended} string-list item(s) and response(s) against the golden the oracle wrote`;
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 

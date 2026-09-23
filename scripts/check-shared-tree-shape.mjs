@@ -87,10 +87,15 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 // ------------------------------------------------------------------ 1. the ledger
 
 // The delta lines that repeat across every `apart` entry, written once each: the marking of
-// ADR 0067 and the style-class list of ADR 0068 are absent from all five of them, and five
-// copies of one string is five places to forget when its spelling moves.
+// ADR 0067, the style-class list of ADR 0068 and the extensions of ADR 0072 are absent from
+// all five of them, and five copies of one string is five places to forget when its spelling
+// moves.
 const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
+const EXTENSIONS =
+    '- extensions?: { strings?: { value: string; translatable?: { context?: string } }[]; responses?: ' +
+    "{ id: string; label: string; translatable?: { context?: string }; appearance?: 'suggested' | " +
+    "'destructive'; enabled?: boolean; }[]; }";
 
 /** The declaration that decides the shape. Everything else is measured against it. */
 const ORIGINAL = {
@@ -151,6 +156,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${EXTENSIONS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -175,6 +181,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${EXTENSIONS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -197,6 +204,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${EXTENSIONS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -423,6 +431,16 @@ export interface SharedTreeNode {
     props?: Readonly<Record<string, string | number | boolean>>;
     translatable?: Readonly<Record<string, { readonly context?: string }>>;
     styleClasses?: readonly string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -438,6 +456,16 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -453,6 +481,16 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -474,6 +512,7 @@ const VECTORS = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${EXTENSIONS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -486,6 +525,16 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: Lossy[];
 }`,
         'Lossy',
@@ -502,6 +551,16 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -517,6 +576,16 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    extensions?: {
+        strings?: { value: string; translatable?: { context?: string } }[];
+        responses?: {
+            id: string;
+            label: string;
+            translatable?: { context?: string };
+            appearance?: 'suggested' | 'destructive';
+            enabled?: boolean;
+        }[];
+    };
     children?: (Widened | string)[];
 }`,
         'Widened',

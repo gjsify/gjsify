@@ -40,7 +40,7 @@ const modelState = (el: AdwComboRow | GtkDropDown, options: string) =>
 
 /** The option labels the row actually paints, which is what a reader sees. */
 const comboOptions = (el: HTMLElement) =>
-    [...el.querySelectorAll('option, .adw-drop-down-option')].map((node) => node.textContent).join('|');
+    [...el.querySelectorAll('option, .adw-drop-down-item-label')].map((node) => node.textContent).join('|');
 
 export const GtkValueDoorsTest = async () => {
     await describe('<adw-combo-row> takes a plain array and a Gtk.StringList alike', async () => {

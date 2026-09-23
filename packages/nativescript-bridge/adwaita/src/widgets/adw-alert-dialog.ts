@@ -54,11 +54,21 @@ export class AdwAlertDialog extends withSignals(Observable) {
     /** The headless response registry + ordering + resolution (ADR 0004). */
     private readonly _responses: AdwAlertResponses;
 
-    constructor(heading = '', body = '', props?: ConstructProps<AdwAlertDialog>) {
+    /**
+     * `adw_alert_dialog_new(heading, body)`'s positional pair, or GJS's construct bag
+     * `new Adw.AlertDialog({ heading, body })` as the only argument — the form a GJS author
+     * writes and the one the shared-tree builder hands every value object it builds.
+     */
+    constructor(
+        headingOrProps: string | ConstructProps<AdwAlertDialog> = '',
+        body = '',
+        props?: ConstructProps<AdwAlertDialog>,
+    ) {
         super();
-        this._responses = new AdwAlertResponses(heading, body);
+        const bag = typeof headingOrProps === 'string' ? props : headingOrProps;
+        this._responses = new AdwAlertResponses(typeof headingOrProps === 'string' ? headingOrProps : '', body);
 
-        applyConstructProps(this, props);
+        applyConstructProps(this, bag);
     }
 
     /** The dialog heading (title). */

@@ -30,12 +30,13 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
-import { action, Label, StackLayout, type EventData } from '@nativescript/core';
+import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
 import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
@@ -53,6 +54,12 @@ export interface NotifyDropDownSelectedEventData extends EventData {
 }
 
 export class GtkDropDown extends withSignals(StackLayout) {
+    /**
+     * `model` only: `model: Gtk.StringList { strings [ … ] }` in a `.blp` places the list at
+     * the property it sets (ADR 0072). `GtkDropDown` takes no child widget in GTK.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['model'], 'model');
+
     /** The button label — the selected option. */
     protected readonly _label: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
@@ -137,6 +144,17 @@ export class GtkDropDown extends withSignals(StackLayout) {
         // take descriptors only, so `model = ['a','b']` stored strings and every label
         // read back `undefined`.
         this._state.setModel(normalizeComboOptions(value));
+    }
+
+    /**
+     * XML inflation: a child at `model` is the list, written through the property's setter.
+     * Anything else is refused, as GTK refuses a child widget on a `GtkDropDown`.
+     */
+    _addChildFromBuilder(name: string, child: View): void {
+        if (resolveBuilderSlot(name, ['model'], 'child') !== 'model') {
+            throw new Error(`Gtk.DropDown takes no child widget; <${name}> is placed nowhere.`);
+        }
+        this.model = child as unknown as AdwListModelInput;
     }
 
     /** The selected option index (`Gtk.DropDown:selected`). */
