@@ -58,7 +58,7 @@ Why 15.0 and not lower:
 3. **It matches Apple's support window.** Apple ships security fixes for the current
    release and the two before it — 27, 26 and 15 on the date of this ADR.
 
-How it is applied — one definition, three consumers:
+How it is applied — one definition, and every consumer imports it:
 
 - **Compiled code (meson + clang, valac's generated C, cargo/rustc)** reads the
   environment variable `MACOSX_DEPLOYMENT_TARGET`, which all three honour. Every CI job that
@@ -74,11 +74,20 @@ How it is applied — one definition, three consumers:
   `-mmacosx-version-min=13.5` explicitly, which is below the floor. Writing 15.0 into
   `binding.gyp` would be a second copy of the number with no effect on who can load it.
 
-How it is checked: the portable `prebuild-darwin-target` rule reads `minos` out of every
-Mach-O under a committed `prebuilds/darwin-*/` directory with the one binary parser
-(`lib/binary.mjs`, `LC_BUILD_VERSION` and the older `LC_VERSION_MIN_MACOSX`) and fails when
-it is newer than `DARWIN_DEPLOYMENT_TARGET`. An image with no version record at all is a
-failure too — "not measured" must not read as "fits".
+How it is checked — from the bytes, twice, never from the workflow text:
+
+- **Where an image is born.** `scripts/stage-prebuild.mjs`, which every shipped darwin
+  artifact passes through, measures what it just staged and fails in CI on an image above
+  the floor (a local build only warns: it runs on the Mac that built it). A job that
+  compiles without the action therefore goes red in its own run, naming the image — which
+  is why no test parses the workflows for the action: that would be a guard watching the
+  mechanism the stager already measures the output of.
+- **What is committed.** The portable `prebuild-darwin-target` rule reads `minos` out of every
+  Mach-O under a committed `prebuilds/darwin-*/` directory with the one binary parser
+  (`lib/binary.mjs`, `LC_BUILD_VERSION` and the older `LC_VERSION_MIN_MACOSX`) and fails
+  when it is newer than `DARWIN_DEPLOYMENT_TARGET` — this also catches an image a developer
+  staged locally and committed. An image with no version record at all is a failure too —
+  "not measured" must not read as "fits".
 
 ## Consequences
 
