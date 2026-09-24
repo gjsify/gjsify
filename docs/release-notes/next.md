@@ -32,6 +32,26 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## Upgrading
 
+### Blueprint no longer needs `blueprint-compiler`
+
+The build now parses `.blp` files itself (#1712) and the `blueprint-compiler` dependency is gone
+(#1715, ADR 0063). Nothing is spawned, so no GNOME toolchain, no Python and no MSYS2 package is
+needed to build an app with Blueprint templates, and `gjsify system-check` no longer asks for one.
+
+Two things can break on upgrade:
+
+- **A `.blp` the compiler accepted can now fail the build.** Seven constructs are refused rather
+  than turned into XML that looks plausible and is wrong: `internal-child`, `translation-domain`,
+  a multi-step `.parent` lookup chain, an inline `menu`, a flag on a dialog response, an
+  untyped closure, and a namespace no `@girs` vocabulary covers. The build reports the file and
+  line as a `BlueprintSyntaxError` or `BlueprintEmitError`, both exported by `@gjsify/blueprint`.
+- **`@gjsify/vite-plugin-blueprint/resolve` is removed**, along with the root re-exports of
+  `resolveBlueprintCompiler`, `BlueprintCompilerNotFoundError`, `BlueprintCompileError`,
+  `currentBlueprintHost` and `formatMissingBlueprintCompiler`. There is no compiler left to
+  resolve. Catch the two error classes from `@gjsify/blueprint` instead.
+
+### `node:sqlite` raises instead of answering "no rows"
+
 `node:sqlite` now RAISES where it used to answer "no rows".
 
 `StatementSync.get()` wrapped its whole body in `catch { return undefined }` and `all()` in
