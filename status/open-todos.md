@@ -7078,10 +7078,10 @@ MP3 now decodes on win32 through `mfmp3dec`, gst-plugins-bad's wrapper of the de
 Windows ships (ADR 0056 § 7), and a live Icecast stream decodes on every bundle now that
 `icydemux` and `id3demux` ship. Three things stay open.
 
-**Media Foundation is an OS component.** Windows N without the Media Feature Pack and
-Windows Server without `Server-Media-Foundation` have no `mfplat.dll`; there the plugin
-does not load and MP3 is a gap again. Nothing in the bundle can detect that ahead of time.
-The CI leg installs the feature on the runner before measuring.
+**Media Foundation is an OS component.** Windows N without the Media Feature Pack has no
+`mfplat.dll`; there the plugin does not load and MP3 is a gap again, and nothing in the
+bundle can detect that ahead of time. Not measured on such a host. On the Server 2025
+runner the DLLs were present before the optional feature was installed.
 
 **The library route, as an upstream change.** A `libmpg123` project in `wingtk/gvsbuild`
 would let win32 use `mpg123audiodec`, like darwin, and drop the OS dependency. The patch is

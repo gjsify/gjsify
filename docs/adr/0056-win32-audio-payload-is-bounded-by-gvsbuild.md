@@ -186,12 +186,20 @@ OS's, patched by Windows Update, and the only new file is `gstmediafoundation.dl
 
 **What it costs, and why that is acceptable.** The decoder is an OS component, so the
 claim is conditional on the host in a way no other claim is: Windows N editions lack
-Media Foundation until the Media Feature Pack is installed, and Windows Server lacks it
-until the `Server-Media-Foundation` feature is. On those hosts `mfplat.dll` is absent, the
-plugin fails to load, GStreamer skips it, and MP3 is the gap it was before — nothing else
-in the bundle is affected. The target of these bundles is a desktop application on client
-Windows, where Media Foundation is part of the OS. The CI runner is a Windows Server, so
-the leg that measures the bundle installs that feature first and prints the before/after.
+Media Foundation until the Media Feature Pack is installed, and on Windows Server it is
+the optional `Server-Media-Foundation` feature. Where `mfplat.dll` is absent, the plugin
+fails to load, GStreamer skips it, and MP3 is the gap it was before — nothing else in the
+bundle is affected. The target of these bundles is a desktop application on client
+Windows, where Media Foundation is part of the OS. On the windows-latest runner (Server
+2025) the feature read `Available` and `mfplat.dll` and `mp3dmod.dll` were present before
+anything was installed; the leg installs the feature anyway and prints the before/after.
+
+**Measured on run 36029738694**: the prefix assertion found `gstmediafoundation.dll`,
+`gsticydemux.dll` and `gstid3demux.dll`; `gst-elements.test.mjs` passed 10 of 10 on
+windows-latest against the CI-built bundle (both MP3 decode tests included) and on both
+darwin legs. The bundle grew from 133.6 MiB (published 0.52.0) to 134.1 MiB: three
+plugins, plus `gstwinrt-1.0-0.dll`, a -bad library the plugin links, which the first build
+found through the licence-coverage gate.
 
 **What it does not change.** darwin keeps `mpg123audiodec`; the platforms now differ in
 WHICH element decodes MP3, not in whether one does. `mpg123` stays a declared win32 gap

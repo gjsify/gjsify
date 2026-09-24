@@ -2971,13 +2971,13 @@ jobs:
       # what missed the defect: a bundle shipped both Gst typelibs and ZERO plugins
       # with every gate green. This asks the registry for the elements the decode
       # path is made of, which covers the payload AND the env wiring around it.
-      # win32 decodes MP3 with the decoder WINDOWS ships (`mfmp3dec`, ADR 0056 § 7), and
-      # Windows Server leaves Media Foundation out until the `Server-Media-Foundation`
-      # feature is installed; the runner image does not list it. Without it the plugin's
-      # import of mfplat.dll fails, GStreamer skips the plugin, and the MP3 tests report
-      # the SERVER's missing component as a bundle defect. Client Windows — the target —
-      # has it. The step prints before/after, so a red MP3 test can be told apart from a
-      # missing OS feature.
+      # win32 decodes MP3 with the decoder WINDOWS ships (`mfmp3dec`, ADR 0056 § 7), so
+      # the MP3 tests below measure the OS as well as the bundle. On Windows Server, Media
+      # Foundation is the optional `Server-Media-Foundation` feature, which the runner image
+      # does not list. Measured on windows-latest (run 36029738694): the feature was
+      # `Available`, not `Installed`, and mfplat.dll and mp3dmod.dll were present anyway.
+      # The step installs it regardless and prints before/after, so a red MP3 test on a
+      # future image can be told apart from a missing OS component.
       - name: Enable Media Foundation on the runner (the OS decoder mfmp3dec wraps)
         shell: pwsh
         run: |
