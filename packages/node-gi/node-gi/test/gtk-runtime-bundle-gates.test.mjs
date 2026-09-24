@@ -777,6 +777,7 @@ test('every binary the win32 bundle ships belongs to a declared license family',
     assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
     assert.equal(familyOf('gstvorbis.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
     assert.equal(familyOf('gstmediafoundation.dll'), 'gst-plugins-bad', 'the -bad plugin is not -good');
+    assert.equal(familyOf('gstwinrt-1.0-0.dll'), 'gst-plugins-bad', 'the library the -bad plugin links');
     // The libraries BEHIND those plugins, claimed ahead of any binary matching them. ogg and
     // libvorbis are CMake projects in gvsbuild and CMake defaults to static, so today they link
     // into the plugin and ship no DLL of their own — measured on the prefix, where `opus-0.dll`

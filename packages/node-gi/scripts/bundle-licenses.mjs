@@ -202,6 +202,15 @@ export const WIN32_LICENSE_FAMILIES = [
     },
     {
         components: ['gst-plugins-bad'],
+        pattern: /^gstwinrt-1\.0-\d+\.dll$/i,
+        why:
+            "-bad's WinRT helper library, which `gstmediafoundation.dll` links on an MSVC build: the plugin's " +
+            'meson takes its WinRT branch whenever `runtimeobject` is found, and -bad builds the library ' +
+            'without a feature option, so `--auto-features=disabled` does not remove it. Measured on the ' +
+            'first win32 build with mediafoundation, where it was the one binary no family claimed',
+    },
+    {
+        components: ['gst-plugins-bad'],
         pattern: /^gstmediafoundation\.dll$/i,
         why:
             'the one -bad plugin the bundle carries (win32 MP3 through the OS decoder, ADR 0056 § 7). Named ' +
