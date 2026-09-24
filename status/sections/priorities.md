@@ -12,9 +12,8 @@ package it named had reached `full`.
 1. **Finish the platforms that already ship.** linux-x64 is not the frontier; the other legs
    are. Open and unowned: no darwin gamepad backend (the only route to macOS support, and a
    separate project); `@gjsify/webgl` now draws WebGL2 content on darwin, but HiDPI is unproven
-   there and two GLES 3.0 API spellings are still missing; `@gjsify/webrtc-native` has no darwin
-   target; and nothing exercises the node-free toolchain on macOS, although all three engines now
-   publish darwin prebuilds. `win32-arm64` is measured as blocked upstream rather than on
+   there and two GLES 3.0 API spellings are still missing; and nothing exercises the node-free
+   toolchain on macOS, although all three engines now publish darwin prebuilds. `win32-arm64` is measured as blocked upstream rather than on
    effort, so it is not on this list.
 
    musl is covered by two jobs asking two questions, and both are gates now.

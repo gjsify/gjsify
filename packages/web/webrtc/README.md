@@ -14,6 +14,12 @@ npm install @gjsify/webrtc
 yarn add @gjsify/webrtc
 ```
 
+The GStreamer side comes from the system: `webrtcbin` (gst-plugins-bad) and libnice's
+GStreamer plugin for ICE. On Fedora `dnf install gstreamer1-plugins-bad-free libnice-gstreamer1`,
+on Debian/Ubuntu `apt install gstreamer1.0-plugins-bad gstreamer1.0-nice`, on macOS
+`brew install gstreamer libnice-gstreamer`. The native bridge (`@gjsify/webrtc-native`)
+ships prebuilt for `linux-{x64,arm64,ppc64,s390x,riscv64}` and `darwin-{arm64,x64}`.
+
 ## Usage
 
 ```typescript

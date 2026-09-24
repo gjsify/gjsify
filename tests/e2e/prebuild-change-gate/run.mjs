@@ -737,12 +737,12 @@ describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
             .slice(text.search(/^jobs:\s*$/m))
             .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
             .slice(1);
-        let macosJobs = 0;
+        const macosJobs = [];
         for (const job of jobs) {
             const name = /^([a-z0-9-]+):/.exec(job)?.[1] ?? '(unnamed)';
             // Directly or through a matrix `runner:` entry.
             if (!/^\s*(runs-on|-?\s*runner):\s*\S*macos/m.test(job)) continue;
-            macosJobs++;
+            macosJobs.push(name);
             for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
                 const stepName = /^name:\s*(.+)$/m.exec(step)?.[1].trim() ?? '(unnamed)';
                 const code = step
@@ -760,7 +760,13 @@ describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
             }
         }
         // A shape change that made the runner unrecognisable would turn this into a silent pass.
-        assert.ok(macosJobs >= 2, `expected the macOS jobs to be recognised, saw ${macosJobs}`);
+        // Named rather than counted: the count (>= 2) held only while the dispatch-only
+        // experimental macOS job existed, and a count cannot say WHICH job went unseen —
+        // `build-prebuilds-macos` is the one whose matrix `runner:` the regex must reach.
+        assert.ok(
+            macosJobs.includes('build-prebuilds-macos'),
+            `expected build-prebuilds-macos to be recognised as a macOS job, saw [${macosJobs.join(', ')}]`,
+        );
     });
 });
 

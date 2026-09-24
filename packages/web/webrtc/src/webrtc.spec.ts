@@ -50,7 +50,7 @@ const webrtcbinReady = Boolean(Gst.ElementFactory.find('webrtcbin') && Gst.Eleme
 if (!webrtcbinReady) {
     console.log(
         '  ⚠ webrtcbin/nicesrc not installed — skipping pipeline tests.\n' +
-            '    Install: dnf install libnice-gstreamer1 (Fedora) | apt install gstreamer1.0-nice (Ubuntu)',
+            '    Install: dnf install libnice-gstreamer1 (Fedora) | apt install gstreamer1.0-nice (Ubuntu) | brew install libnice-gstreamer (macOS)',
     );
 }
 
