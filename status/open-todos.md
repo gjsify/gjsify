@@ -4965,9 +4965,10 @@ once `build-ci-image` has republished the tag; see its note in `status/integrati
 
 The remaining work, in the shape it should be done:
 
-- **Seven suites are genuinely red** — `axios`, `chalk`, `debug`, `mcp-typescript-sdk`,
-  `socket.io`, `ts-for-gir`, `undici`. One cause per commit, and each returns to the allowlist in
-  the commit that makes it green. They are SEVEN causes, not one: a single shared defect was the
+- **Six suites are genuinely red** — `axios`, `chalk`, `debug`, `mcp-typescript-sdk`,
+  `ts-for-gir`, `undici` (`socket.io` is green again and back in the allowlist). One cause per
+  commit, and each returns to the allowlist in the commit that makes it green. They were SEVEN
+  causes, not one: a single shared defect was the
   first hypothesis and the measurement refuted it. Two of them (`chalk`, `ts-for-gir`) fail on the
   NODE leg, which by this repo's own rule means the test is wrong rather than the implementation.
 - **`undici` should be looked at first, and at the BUILD rather than the suite.** Its failures
