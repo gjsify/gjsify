@@ -12,7 +12,7 @@
 // therefore fails the moment this decision returns the wrong answer.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { needsSelfShim } from './gjsify-shim.js';
+import { needsSelfShim, pathWithoutSelfShim } from './gjsify-shim.js';
 
 export default async () => {
     await describe('needsSelfShim', async () => {
@@ -90,6 +90,36 @@ export default async () => {
                     workspaceRoot: '/c/a/gjsify/gjsify',
                 }),
             ).toBe(true);
+        });
+    });
+
+    await describe('pathWithoutSelfShim', async () => {
+        // The shim is prepended to the CLI's own PATH, so `self-update` resolving
+        // `gjsify` there found the running (old) version and reported a failed update.
+        await it('drops the self-shim dir and keeps every other entry in order', async () => {
+            expect(
+                pathWithoutSelfShim('/tmp/gjsify-shim-x:/home/u/.local/bin:/usr/bin', '/tmp/gjsify-shim-x', ':'),
+            ).toBe('/home/u/.local/bin:/usr/bin');
+        });
+
+        await it('leaves PATH untouched when no shim is active', async () => {
+            expect(pathWithoutSelfShim('/tmp/gjsify-shim-x:/usr/bin', undefined, ':')).toBe(
+                '/tmp/gjsify-shim-x:/usr/bin',
+            );
+        });
+
+        // An npx temp bin is the user's shell's real winner for that run; only
+        // OUR dir is removed, so `verifyPathResolution` still reports it.
+        await it('keeps a different gjsify-shim dir', async () => {
+            expect(pathWithoutSelfShim('/tmp/gjsify-shim-y:/usr/bin', '/tmp/gjsify-shim-x', ':')).toBe(
+                '/tmp/gjsify-shim-y:/usr/bin',
+            );
+        });
+
+        await it('splits on the given separator (win32)', async () => {
+            expect(pathWithoutSelfShim('C:\\Temp\\gjsify-shim-x;C:\\bin', 'C:\\Temp\\gjsify-shim-x', ';')).toBe(
+                'C:\\bin',
+            );
         });
     });
 };

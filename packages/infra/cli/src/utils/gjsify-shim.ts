@@ -66,6 +66,27 @@ export function usingSelfShim(): boolean {
 }
 
 /**
+ * `PATH` as the user's shell sees it: `process.env.PATH` without the self-shim dir.
+ *
+ * The shim is this PROCESS TREE's `gjsify`, never the one the user's next command
+ * runs. `self-update` asked `resolveBinOnPath` who wins PATH and got its own shim
+ * back, the temp copy of the version it had just replaced, so a successful update
+ * inside a workspace reported "`gjsify` on PATH resolves to /tmp/gjsify-shim-…
+ * (v0.51.1)" and exited 1.
+ */
+export function pathWithoutSelfShim(
+    pathValue: string = process.env.PATH ?? '',
+    shimDir: string | undefined = process.env.GJSIFY_SHIM_DIR,
+    sep: string = delimiter,
+): string {
+    if (!shimDir) return pathValue;
+    return pathValue
+        .split(sep)
+        .filter((entry) => entry !== shimDir)
+        .join(sep);
+}
+
+/**
  * Does this invocation need its own `gjsify` on PATH, rather than the workspace's
  * npm bin?
  *
