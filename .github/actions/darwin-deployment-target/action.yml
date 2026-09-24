@@ -1,0 +1,31 @@
+name: Export the declared macOS deployment target
+description: >
+  Export `MACOSX_DEPLOYMENT_TARGET` for the rest of the job, read from the ONE
+  definition — `DARWIN_DEPLOYMENT_TARGET` in
+  `packages/infra/manifest-conformance/lib/platforms.mjs` (ADR 0074). Run it after
+  `actions/checkout` and before the first compiler, in every job that builds a
+  darwin binary somebody ships.
+
+
+  WHY AN ENVIRONMENT VARIABLE. clang (meson's C/ObjC and the C valac generates),
+  ld and cargo/rustc all honour it, so one variable reaches every toolchain these
+  jobs drive without a single `meson.build` or `Cargo.toml` carrying a copy of the
+  number. An explicit `-mmacosx-version-min` still wins over it — that is how
+  `@gjsify/webkit-native` keeps its lower 11.0 API floor.
+
+
+  WHY IT MATTERS. Unset, both compilers default to the RUNNER's macOS, and dyld
+  refuses any image whose recorded `minos` is newer than the OS it runs on: the
+  0.52.0 darwin-arm64 prebuilds all required macOS 26 because `macos-latest` had
+  become macOS 26. The `prebuild-darwin-target` conformance rule reads that `minos`
+  back out of every committed image.
+runs:
+  using: composite
+  steps:
+    - name: Export MACOSX_DEPLOYMENT_TARGET
+      shell: bash
+      run: |
+        set -euo pipefail
+        target="$(node --input-type=module -e "import { DARWIN_DEPLOYMENT_TARGET } from '${GITHUB_WORKSPACE}/packages/infra/manifest-conformance/lib/platforms.mjs'; process.stdout.write(DARWIN_DEPLOYMENT_TARGET)")"
+        echo "MACOSX_DEPLOYMENT_TARGET=${target}" >> "$GITHUB_ENV"
+        echo "darwin-deployment-target: MACOSX_DEPLOYMENT_TARGET=${target} (ADR 0074)"
