@@ -4636,7 +4636,7 @@ on the same runner — the pre-fix state, reproduced beside the fix. Measured on
 `windows-latest` (PR #1789): no ICD found, Mesa preloaded, GDK context **4.6 core**,
 `GL_RENDERER` `D3D12 (Microsoft Basic Render Driver)` (Mesa's d3d12 driver on WARP); the
 `GJSIFY_OPENGL=system` child: `No GL implementation is available`. Bundle 192.6 MiB
-unpacked. `realize()` alone leaves `get_renderer()` null on GdkWin32 — the renderer case
+unpacked, ~+22 MB in the npm tarball for EVERY win32 consumer, although Mesa activates only on hosts without a vendor GL driver (VMs, RDP, CI). **GSK still picks `GskCairoRenderer`** on a presented window despite the working context — cause not yet recorded, so #1097 stays open. `realize()` alone leaves `get_renderer()` null on GdkWin32 — the renderer case
 presents the window and spins the loop.
 
 STILL OPEN: **real-GPU hardware is unmeasured** — the ICD probe's "keep the vendor driver"
