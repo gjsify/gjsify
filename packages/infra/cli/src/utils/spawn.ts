@@ -60,7 +60,7 @@
 //
 // ## What is spawned still matters — the Windows rewrite
 //
-// This helper also carries the Windows command rewrite (`forWin32`), which is a
+// This helper also carries the Windows command rewrite (`toSpawnable`), which is a
 // second reason to come through it, and the one that applies OUTSIDE the CLI too:
 //
 //   • a real executable (`git`, `gh`, `node`, `gjs`, `flatpak`, `process.execPath`)
@@ -184,10 +184,15 @@ function resolveEnv(opts: SpawnToCompletionOptions): NodeJS.ProcessEnv | undefin
 /**
  * Rewrite a bare command for Windows (see `utils/win32-command.ts`). A no-op on
  * every other platform, and on win32 for anything already carrying a path or
- * extension. Applied to BOTH paths below so the blocking and streaming branches
- * agree; `env` is the CHILD's, because its `PATH` is what must be searched.
+ * extension. `env` is the CHILD's, because its `PATH` is what must be searched.
+ *
+ * Exported for the synchronous PROBES that cannot go through
+ * {@link spawnToCompletion} (`<tool> --version` in `check-system-deps.ts`, the
+ * runtime probe in `runtimes.ts`): a raw `execFileSync('deno', …)` is ENOENT on
+ * Windows when deno came from `npm i -g deno`, which installs a `.cmd` shim, so
+ * `--runtime deno` was refused as "not installed" on a host where `deno` runs.
  */
-function forWin32(cmd: string, args: readonly string[], env: NodeJS.ProcessEnv | undefined): Win32Invocation {
+export function toSpawnable(cmd: string, args: readonly string[], env?: NodeJS.ProcessEnv): Win32Invocation {
     const rewritten = resolveWin32Command(cmd, args, {
         platform: process.platform,
         env: env ?? process.env,
@@ -230,7 +235,7 @@ export function spawnToCompletion(
     // must not touch it — see `SpawnToCompletionOptions.shell`.
     const invocation = opts.shell
         ? { cmd, args: [...args], windowsVerbatimArguments: false }
-        : forWin32(cmd, args, env);
+        : toSpawnable(cmd, args, env);
 
     if (mustBlock(opts)) {
         // `'inherit'` is NOT forwarded through `@gjsify/child_process`'s GJS

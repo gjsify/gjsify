@@ -1,5 +1,5 @@
 // System dependency checker for gjsify CLI.
-// Uses execFileSync with explicit argument arrays — no shell injection possible.
+// Uses spawnSync with explicit argument arrays — no shell injection possible.
 // All binary names are hardcoded constants, never derived from user input.
 //
 // Severity model:
@@ -11,13 +11,15 @@
 // is in the project's dependency tree. A user with only @gjsify/fs in their
 // project never sees a warning about libmanette.
 
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { findSystemTypelib } from './gi-typelib.js';
+import { toSpawnable } from './spawn.js';
+import { findOnPath, type Win32ResolveContext } from './win32-command.js';
 
 export type DepSeverity = 'required' | 'optional';
 
@@ -39,16 +41,21 @@ export type PackageManager = 'apt' | 'dnf' | 'pacman' | 'zypper' | 'apk' | 'brew
 
 /** Run a binary and return its stdout trimmed, or null if it fails. */
 function tryExecFile(binary: string, args: string[]): string | null {
-    try {
-        return execFileSync(binary, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    } catch {
-        return null;
-    }
+    // `spawnSync`, not `execFileSync`: only the former takes the verbatim-argv
+    // flag the cmd.exe route of `toSpawnable` needs.
+    const inv = toSpawnable(binary, args);
+    const r = spawnSync(inv.cmd, inv.args, {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsVerbatimArguments: inv.windowsVerbatimArguments,
+    });
+    return r.error || r.status !== 0 ? null : r.stdout.trim();
 }
 
 /**
  * True when `cmd` is on PATH. Walks `process.env.PATH` with `existsSync`
- * instead of shelling out to `which`(1).
+ * instead of shelling out to `which`(1), honouring `PATHEXT` on win32 — see
+ * `findOnPath` in `win32-command.ts`, which owns the walk.
  *
  * `which` is NOT a probe you can rely on: the Fedora 43/44 minimal containers
  * CI runs in ship without it (only the `which-2.x` rpm provides it), so a
@@ -64,19 +71,13 @@ function tryExecFile(binary: string, args: string[]): string | null {
  * reason. It stays a second copy on purpose: it is `.mjs` under `tests/` and
  * cannot be imported from the shipped CLI.
  */
-export function isOnPath(cmd: string): boolean {
-    const pathVar = process.env.PATH;
-    if (!pathVar) return false;
-    const sep = process.platform === 'win32' ? ';' : ':';
-    for (const dir of pathVar.split(sep)) {
-        if (!dir) continue;
-        try {
-            if (existsSync(join(dir, cmd))) return true;
-        } catch {
-            // An inaccessible PATH entry is not an answer about `cmd`.
-        }
-    }
-    return false;
+export function isOnPath(cmd: string, ctx: Win32ResolveContext = hostPathContext()): boolean {
+    return findOnPath(cmd, ctx) !== undefined;
+}
+
+/** This process's PATH, filesystem and platform — what {@link isOnPath} asks by default. */
+function hostPathContext(): Win32ResolveContext {
+    return { platform: process.platform, env: process.env, exists: existsSync, join };
 }
 
 /** Check if a binary exists and optionally capture its version output. */

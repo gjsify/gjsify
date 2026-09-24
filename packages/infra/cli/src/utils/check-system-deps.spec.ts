@@ -13,6 +13,7 @@ import type { DepCheck } from './check-system-deps.js';
 import {
     buildInstallCommand,
     checkTypeSkew,
+    isOnPath,
     missingSystemDepsFor,
     OPTIONAL_DEPS,
     PACKAGE_DEPS,
@@ -26,7 +27,47 @@ function readers(declared: Record<string, string>, installed: Record<string, str
     };
 }
 
+/** A Windows host whose filesystem is exactly `files` (case-insensitive, like NTFS). */
+function winHost(files: readonly string[], env: NodeJS.ProcessEnv = {}) {
+    const set = new Set(files.map((f) => f.toLowerCase()));
+    return {
+        platform: 'win32',
+        env: { PATH: 'C:\\sdk;C:\\nodejs', PATHEXT: '.COM;.EXE;.BAT;.CMD', ...env },
+        exists: (p: string) => set.has(p.toLowerCase()),
+        join: (dir: string, file: string) => `${dir}\\${file}`,
+    };
+}
+
 export default async () => {
+    // `gjsify ship win32 --sign` gates on `isOnPath('signtool')`. The walk used to
+    // join the bare name and nothing else, so on the one OS that can sign, with
+    // `signtool.exe` on PATH, it refused: "`signtool` is not on PATH". Measured on
+    // the win11-gjsify VM against @gjsify/cli 0.52.0.
+    await describe('isOnPath on win32', async () => {
+        await it('finds a bare name through PATHEXT', () => {
+            expect(isOnPath('signtool', winHost(['C:\\sdk\\signtool.exe']))).toBe(true);
+        });
+
+        await it('finds a .cmd shim, the shape every npm-installed bin has', () => {
+            expect(isOnPath('deno', winHost(['C:\\nodejs\\deno.cmd']))).toBe(true);
+        });
+
+        await it('does not count the extensionless sh member of the shim trio', () => {
+            // It exists on disk and `spawn` cannot run it — a "yes" here is a lie.
+            expect(isOnPath('npm', winHost(['C:\\nodejs\\npm']))).toBe(false);
+        });
+
+        await it('probes a name that already has an extension verbatim', () => {
+            expect(isOnPath('signtool.exe', winHost(['C:\\sdk\\signtool.exe']))).toBe(true);
+            expect(isOnPath('missing.exe', winHost([]))).toBe(false);
+        });
+
+        await it('reads PATH case-insensitively, as Windows does', () => {
+            const host = winHost(['C:\\tools\\signtool.exe'], { PATH: undefined, Path: 'C:\\tools' });
+            expect(isOnPath('signtool', host)).toBe(true);
+        });
+    });
+
     // An id with no OPTIONAL_DEPS entry is not a runtime error: `runOptionalChecks`
     // has nothing to look up, so the dependency is silently never checked. That is
     // how @gjsify/rolldown-native's json-glib could be missing entirely — nothing
