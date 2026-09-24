@@ -795,6 +795,53 @@ export default async () => {
                 destroyTestFBO(gl, fbo);
             });
 
+            // The respelling's edge cases on a REAL compiler: `: require` (which a
+            // desktop front end rejects for an ES extension name) and a sampler
+            // the consumer named `texture` (a desktop built-in). Both are
+            // ordinary WebGL1; on a host whose ES front end handles derivatives
+            // they take the untouched path and must pass all the same.
+            await it('a derivative shader with `: require` and a sampler named `texture` draws', async () => {
+                gl.getExtension('OES_standard_derivatives');
+                const fbo = makeTestFBO(gl, 4, 4);
+                const tex = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.RGBA,
+                    1,
+                    1,
+                    0,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    new Uint8Array([0, 255, 0, 255]),
+                );
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                const prog = makeProgram(
+                    gl,
+                    FULLSCREEN_VS,
+                    `#extension GL_OES_standard_derivatives : require
+                    precision highp float;
+                    uniform sampler2D texture;
+                    void main() {
+                        float d = dFdx(gl_FragCoord.x);
+                        gl_FragColor = texture2D(texture, vec2(0.5)) * (abs(d - 1.0) < 0.01 ? 1.0 : 0.0);
+                    }`,
+                );
+                expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBe(true);
+                gl.useProgram(prog);
+                gl.uniform1i(gl.getUniformLocation(prog, 'texture'), 0);
+                drawTriangle(gl);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(pixelClose(readPixel(gl, 1, 1), [0, 255, 0, 255])).toBeTruthy();
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+                destroyTestFBO(gl, fbo);
+            });
+
             await it('getSupportedExtensions returns an array', async () => {
                 const exts = gl.getSupportedExtensions();
                 expect(Array.isArray(exts)).toBeTruthy();

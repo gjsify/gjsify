@@ -243,7 +243,10 @@ driver whose ES front end honours the extension keeps the shader as written. Bec
 not link an ES stage with a desktop one, `linkProgram` gives every GLSL1 shader of a program the
 spelling its most demanding member needs, recomputed per link so a vertex shader shared with a
 plain program returns to the ES dialect there. `#ifdef GL_OES_standard_derivatives` is pointed
-at an unreserved stand-in macro, because desktop GLSL refuses to `#define` a `GL_` name.
+at an unreserved stand-in macro, defined only once the extension is enabled, because desktop GLSL
+refuses to `#define` a `GL_` name; the `#extension` line is commented out (`: require` would be
+an error there); a consumer name desktop GLSL claims (`uniform sampler2D texture;`) is renamed;
+`#line` keeps every consumer line at its own number in compile errors.
 
 For the dialect rewrite itself — including why **win32 is rewritten too**, which this file
 predicted wrongly once — see [Platform coverage](#platform-coverage) above. Host diagnosis:

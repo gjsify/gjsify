@@ -378,10 +378,20 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         // context's own desktop GLSL, where the derivatives are core. Every
         // other shader, and every context that CAN compile the ES dialect, takes
         // the untouched path below.
+        // The respelled source answers `#ifdef GL_OES_standard_derivatives`
+        // through its own stand-in, so the `#undef` above is not carried over —
+        // and could not be: desktop GLSL reserves every `GL_` macro name.
         const desktopVersion = desktopSpelling ? this._desktopGlslForEsDerivatives() : null;
         if (desktopVersion) {
             const stage = _type === this.VERTEX_SHADER ? 'vertex' : 'fragment';
-            return translateGlsl1ToDesktop(source, stage, desktopVersion, preamble);
+            const desktopPreamble = preamble.replace('#undef GL_OES_standard_derivatives\n', '');
+            return translateGlsl1ToDesktop(
+                source,
+                stage,
+                desktopVersion,
+                desktopPreamble,
+                !!this._extensions.oes_standard_derivatives,
+            );
         }
 
         if (hasVersion) {
