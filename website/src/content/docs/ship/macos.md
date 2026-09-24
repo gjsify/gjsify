@@ -105,8 +105,10 @@ The `initFonts()` call the [Windows](/gjsify/ship/windows/) row needs is still s
 to leave in a shared codebase. Pango's CoreText font map implements no runtime
 registration, so the call answers `G_IO_ERROR_NOT_SUPPORTED` and the faces come
 back under `declined` rather than `failed`. Nothing is lost: the `Info.plist` key
-already activated the same directory before your code ran. You need no
-`process.platform` branch. [Ship your own fonts](/gjsify/guides/bundled-fonts/) has
+already activated the same directory before your code ran. If the family is NOT on
+the CoreText map — `gjsify run` during development, where there is no `Info.plist` —
+`initFonts()` switches the process to Pango's fontconfig map and registers the faces
+there, reporting `fontconfigFallback: true`. You need no `process.platform` branch. [Ship your own fonts](/gjsify/guides/bundled-fonts/) has
 the detail, including what to check inside a running bundle.
 
 ## Make a .dmg

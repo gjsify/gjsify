@@ -195,7 +195,7 @@ operating system answers it differently, and all three answers are correct:
 | Where it runs | What reaches the font map | What `initFonts()` reports |
 |---|---|---|
 | **Linux** (`.deb`, `.rpm`, Flatpak, a `--prefix` tree) | fontconfig finds the staged directory on its own, through the stock `fonts.conf` | the faces in `registered` |
-| **macOS** (`.app`) | this call, on a bundled GTK runtime — the loader asks for the fontconfig backend there. On a CoreText map instead: `ATSApplicationFontsPath` in `Info.plist`, which macOS honours before your code runs | the faces in `registered`; `declined` on a CoreText map. **Neither is a failure** |
+| **macOS** (`.app`) | this call, on a bundled GTK runtime — the loader asks for the fontconfig backend there. On a CoreText map instead: `ATSApplicationFontsPath` in `Info.plist`, which macOS honours before your code runs | the faces in `registered`; `declined` on a CoreText map that already has them. **Neither is a failure** |
 | **Windows** (program directory, `.msi`) | this call. On a bundled GTK runtime the loader also selects the fontconfig backend; on the DirectWrite map this call is the only mechanism there is | the faces in `registered` |
 
 Windows is the row that matters. GTK4 there is pangowin32, and that font map is populated
@@ -225,7 +225,17 @@ If a process does resolve a CoreText map — a system GTK, or `PANGOCAIRO_BACKEN
 set by hand — the call answers `G_IO_ERROR_NOT_SUPPORTED` and `initFonts()` files the face
 under `declined` rather than `failed`. **Nothing is lost there either**: the bundle's
 `Info.plist` had the OS activate the same directory at launch, earlier than any code of
-yours could have run. So both outcomes are correct on macOS, and neither needs a branch in
+yours could have run.
+
+**Development is the exception, and `initFonts()` covers it.** `gjsify run` on a Homebrew
+GTK resolves CoreText and has no `.app`, so nothing activates your faces there. When the
+map declines faces whose family it does not already hold, `initFonts()` builds Pango's
+fontconfig map, registers them on it and makes it the process default — the faces then
+land in `registered` and the result says `fontconfigFallback: true`. It does not do this
+when `PANGOCAIRO_BACKEND` is set (so `coretext` pins the platform map), when fontconfig has
+no configuration, or when the family is already on the CoreText map, which is the shipped
+`.app`. Text in that process is then rasterised by FreeType, and widgets built before the
+call keep the old map — call it first. So both outcomes are correct on macOS, and neither needs a branch in
 your app — which is why there is no `process.platform` check anywhere in this API. The
 decision is made from the error the font map returns, so it stays right whichever backend
 a host actually compiled in, and stayed right through this change.
