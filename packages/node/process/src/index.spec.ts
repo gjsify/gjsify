@@ -259,13 +259,15 @@ export default async () => {
             // Beyond every default pid_max (Linux 2^22, macOS 99998), so no
             // live process can hold it.
             const deadPid = 2 ** 22 + 1001;
-            let code: string | undefined;
+            let error: NodeJS.ErrnoException | undefined;
             try {
                 process.kill(deadPid, 0);
             } catch (err) {
-                code = (err as NodeJS.ErrnoException).code;
+                error = err as NodeJS.ErrnoException;
             }
-            expect(code).toBe('ESRCH');
+            expect(error?.code).toBe('ESRCH');
+            expect(error?.syscall).toBe('kill');
+            expect(error?.message).toBe('kill ESRCH');
         });
 
         await it('process.abort should be a function', async () => {

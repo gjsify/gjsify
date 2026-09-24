@@ -72,7 +72,9 @@ export function killPid(pid: number, signal?: string | number): boolean {
         if (exitedCleanly) return true;
         const text = stderr ? new TextDecoder().decode(stderr).trim() : '';
         const code = classifyKillFailure(text);
-        const err = new Error(`kill ${code ?? 'failed'}${text ? `: ${text}` : ''}`) as NodeJS.ErrnoException;
+        // Node's `ErrnoException` message is exactly `kill ESRCH` (refs/node
+        // lib/internal/errors.js); only an unclassified failure carries the text.
+        const err = new Error(code ? `kill ${code}` : `kill failed${text ? `: ${text}` : ''}`) as NodeJS.ErrnoException;
         if (code) {
             err.code = code;
             err.errno = code === 'ESRCH' ? -3 : -1;
