@@ -37,6 +37,7 @@ import {
     linkGlobalBins,
     resolveBinOnPath,
 } from '../utils/install-global.js';
+import { pathWithoutSelfShim } from '../utils/gjsify-shim.js';
 import { resolveHostPlatform } from '../utils/platform-check.js';
 import { pruneAfterInstall } from '../utils/prune-prefix.js';
 
@@ -258,7 +259,7 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             const verdict = verifyPathResolution({
                 binName: BIN_NAME,
                 binDir: layout.binDir,
-                resolvedBin: resolveBinOnPath(BIN_NAME),
+                resolvedBin: resolveBinOnPath(BIN_NAME, { pathValue: pathWithoutSelfShim() }),
                 runningVersion: currentVersion,
                 targetVersion: target,
             });
