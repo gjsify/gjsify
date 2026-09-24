@@ -248,6 +248,26 @@ export default async () => {
             expect(typeof process.kill).toBe('function');
         });
 
+        // Signal 0 is Node's documented liveness probe, and on a host without
+        // procfs (macOS) it is the ONLY one the CLI's install lock has. The GJS
+        // implementation used to return `true` for every pid, dead or not.
+        await it('process.kill(pid, 0) returns true for a live process', async () => {
+            expect(process.kill(process.pid, 0)).toBe(true);
+        });
+
+        await it('process.kill(pid, 0) throws ESRCH for a process that does not exist', async () => {
+            // Beyond every default pid_max (Linux 2^22, macOS 99998), so no
+            // live process can hold it.
+            const deadPid = 2 ** 22 + 1001;
+            let code: string | undefined;
+            try {
+                process.kill(deadPid, 0);
+            } catch (err) {
+                code = (err as NodeJS.ErrnoException).code;
+            }
+            expect(code).toBe('ESRCH');
+        });
+
         await it('process.abort should be a function', async () => {
             expect(typeof process.abort).toBe('function');
         });
