@@ -178,12 +178,19 @@ export class Http2NativeDispatcher {
 
     close(): void {
         if (this._service) {
-            this._service.stop();
-            // SocketListener.close() exists since GLib 2.22 (far below our
-            // floor) and has no throw path in the GIR — the old comment blamed
-            // "older Gio versions" that cannot occur on any supported runtime.
-            this._service.close();
+            const service = this._service;
             this._service = null;
+            service.stop();
+            // stop() only cancels the pending accept; its GSource polls the
+            // listener until that cancellation is dispatched next iteration.
+            // Closing now left it on a closed fd, and GLib on darwin polls via
+            // select(2), which fails the whole iteration with EBADF. A 0 ms
+            // source at the same priority dispatches after the (earlier-attached)
+            // accept source — same fix and reasoning as `@gjsify/net`'s Server.
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+                service.close();
+                return GLib.SOURCE_REMOVE;
+            });
         }
         for (const conn of this._connections) this._closeConnection(conn);
         this._connections.clear();
