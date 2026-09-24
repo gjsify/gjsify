@@ -6,14 +6,15 @@
 // runtime→build-target mapping and `availableRuntimes()` live in ONE place instead
 // of a per-example copy.
 //
-// Intentionally PURE (only `node:child_process` and the side-effect-free
-// `@gjsify/rolldown-plugin-gjsify/runtime` host detector, no `gi://` or native
-// imports) so an external example can deep-import it from the installed CLI
-// (`@gjsify/cli/lib/utils/runtimes.js`) without pulling in the whole bundler — the
-// same deep-import precedent as `@gjsify/cli/lib/utils/run-gjs.js`.
+// Intentionally PURE (only `node:child_process`, `./spawn.js`'s Windows command
+// rewrite and the side-effect-free `@gjsify/rolldown-plugin-gjsify/runtime` host
+// detector, no `gi://` or native imports) so an external example can deep-import
+// it from the installed CLI (`@gjsify/cli/lib/utils/runtimes.js`) without pulling
+// in the whole bundler — the same deep-import precedent as `@gjsify/cli/lib/utils/run-gjs.js`.
 
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { toSpawnable } from './spawn.js';
 
 /** The runtimes a built gjsify example/showcase can run on. `gjs` is the reference. */
 export type ExampleRuntime = 'gjs' | 'node' | 'bun' | 'deno';
@@ -81,12 +82,13 @@ export function requiresGjsSystemDeps(runtime: ExampleRuntime): boolean {
 
 /** Whether `<probe> --version` succeeds (i.e. the runtime binary is on PATH). */
 export function isRuntimeOnPath(probe: string): boolean {
-    try {
-        execFileSync(probe, ['--version'], { stdio: 'ignore', timeout: 15000 });
-        return true;
-    } catch {
-        return false;
-    }
+    const inv = toSpawnable(probe, ['--version']);
+    const r = spawnSync(inv.cmd, inv.args, {
+        stdio: 'ignore',
+        timeout: 15000,
+        windowsVerbatimArguments: inv.windowsVerbatimArguments,
+    });
+    return !r.error && r.status === 0;
 }
 
 /**
