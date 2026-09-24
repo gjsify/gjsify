@@ -20,7 +20,7 @@
 // `@nativescript/core` at module scope. This file needs only the case rules in `./tags`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { attributeOf, hostTagOf, propertyOf } from './tags.js';
+import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from './tags.js';
 
 const INDENT = '  ';
 
@@ -64,14 +64,28 @@ function element(
 
 // ------------------------------------------------------------------ adwaita-web
 
-/** HTML attribute text: `&` and the delimiter are all an attribute value has to escape. */
-const htmlQuote: Quote = (value) => `"${value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`;
+/** HTML text content: `&` and `<` are all it has to escape. */
+const htmlText = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+/**
+ * HTML attribute text: `&` and the delimiter are all an attribute value has to escape. The
+ * delimiter follows the value, as in {@link xmlQuote}: a string list's JSON reads as
+ * `strings='["Blue","Teal"]'`, the way an author writes it, not as a run of `&quot;`.
+ */
+const htmlQuote: Quote = (value) => {
+    const quote = value.includes('"') && !value.includes("'") ? "'" : '"';
+    const escaped = value
+        .replace(/&/g, '&amp;')
+        .replace(quote === '"' ? /"/g : /'/g, quote === '"' ? '&quot;' : '&#39;');
+    return `${quote}${escaped}${quote}`;
+};
 
 function htmlElement(node: SharedTreeNode, depth: number): string {
     const attributes: Attribute[] = [];
     // `buildSharedTree`: the id, the props through `attributeOf`, the style classes as
     // `class`, then the placement as `slot=` — in that order.
     if (node.id !== undefined) attributes.push(['id', node.id]);
+    const style: string[] = [];
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         // A boolean is the attribute's PRESENCE (`toggleAttribute`), so `false` is no
         // attribute at all and `true` is the bare name.
@@ -80,12 +94,27 @@ function htmlElement(node: SharedTreeNode, depth: number): string {
         } else {
             attributes.push([attributeOf(prop), String(value)]);
         }
+        // A margin is inline style as well, in the order the builder sets it.
+        const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
+        if (margin !== undefined) style.push(`${margin}: ${Number(value)}px;`);
     }
+    if (style.length > 0) attributes.push(['style', style.join(' ')]);
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
         attributes.push(['class', node.styleClasses.join(' ')]);
     }
+    // `writeExtensions`: a string list is its `strings` attribute, a JSON array.
+    const strings = node.extensions?.strings;
+    if (strings !== undefined) attributes.push(['strings', JSON.stringify(strings.map((string) => string.value))]);
     if (node.slot !== undefined) attributes.push(['slot', node.slot]);
-    const body = (node.children ?? []).map((child) => htmlElement(child, depth + 1));
+    // …and each response an `<adw-alert-response>` child, ahead of the authored children.
+    const responses = (node.extensions?.responses ?? []).map((response) => {
+        const pairs = [`id=${htmlQuote(response.id)}`];
+        if (response.appearance !== undefined) pairs.push(`appearance=${htmlQuote(response.appearance)}`);
+        if (response.enabled === false) pairs.push('enabled="false"');
+        const label = htmlText(response.label);
+        return `${INDENT.repeat(depth + 1)}<adw-alert-response ${pairs.join(' ')}>${label}</adw-alert-response>`;
+    });
+    const body = [...responses, ...(node.children ?? []).map((child) => htmlElement(child, depth + 1))];
     return element(depth, hostTagOf(node.tag), attributes, htmlQuote, body, false);
 }
 
@@ -149,6 +178,10 @@ function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonl
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
         attributes.push(['styleClasses', node.styleClasses.join(' ')]);
     }
+    // ADR 0072's string list: `build` passes the items as the `{ strings }` construct bag,
+    // and a template has no constructor to pass them to, so they are the `strings` member.
+    const strings = node.extensions?.strings;
+    if (strings !== undefined) attributes.push(['strings', JSON.stringify(strings.map((string) => string.value))]);
     const body = (node.children ?? []).map((child) => {
         if (child.slot === undefined) return xmlElement(child, depth + 1, []);
         // A placement is NativeScript's complex-property element, `<adw:Clamp.child>`: the

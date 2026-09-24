@@ -61,6 +61,14 @@ export class AdwComboRow extends AdwActionRow {
     protected readonly _chevron: GtkImage;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
+    /**
+     * A `selected` written while the row has no model yet. NativeScript's XML builder assigns
+     * every attribute before it adds the children, so `<adw:ComboRow selected="1">` reaches
+     * this setter before its `<adw:ComboRow.model>` list does, and the index had nothing to
+     * select. Held until the first model arrives, which is the order a `.blp` states when it
+     * writes `model:` first — the order GtkBuilder needs too.
+     */
+    private _pendingSelected: number | null = null;
 
     constructor(props?: ConstructProps<AdwComboRow>) {
         super();
@@ -154,6 +162,11 @@ export class AdwComboRow extends AdwActionRow {
         // take descriptors only, so `model = ['a','b']` stored strings and every label
         // read back `undefined`.
         this._state.setModel(normalizeComboOptions(value));
+        if (this._pendingSelected !== null && this._pendingSelected < this._state.model.length) {
+            const index = this._pendingSelected;
+            this._pendingSelected = null;
+            this._state.setSelectedIndex(index);
+        }
     }
 
     /**
@@ -176,6 +189,10 @@ export class AdwComboRow extends AdwActionRow {
 
     set selected(raw: number | string) {
         const value = xmlNumber(raw, this.selected);
+        if (this._state.model.length === 0) {
+            this._pendingSelected = value;
+            return;
+        }
         this._state.setSelectedIndex(value);
     }
 

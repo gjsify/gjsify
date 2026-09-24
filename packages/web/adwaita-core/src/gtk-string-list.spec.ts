@@ -153,4 +153,31 @@ export default async () => {
             expect(list.slice(0, 2).join(',')).toBe('Blue,Teal');
         });
     });
+
+    // A NativeScript XML template constructs with no arguments and assigns attributes, so
+    // `<gtk:StringList strings='["Blue","Teal"]'>` reaches the list as JSON text.
+    await describe('Gtk.StringList:strings, the attribute door', async () => {
+        await it('takes the JSON text an XML attribute carries, replacing the contents', () => {
+            const list = new GtkStringList({ strings: ['Old'] });
+            (list as unknown as { strings: string }).strings = '["Blue","Teal"]';
+
+            expect(list.join(',')).toBe('Blue,Teal');
+            expect(list.strings.join(',')).toBe('Blue,Teal');
+        });
+
+        await it('takes an array as the construct bag does', () => {
+            const list = new GtkStringList();
+            list.strings = ['Green'];
+
+            expect(list.join(',')).toBe('Green');
+        });
+
+        await it('refuses anything that is not a list of strings', () => {
+            const list = new GtkStringList();
+
+            expect(() => {
+                (list as unknown as { strings: string }).strings = '{"a":1}';
+            }).toThrow('takes an array of strings');
+        });
+    });
 };

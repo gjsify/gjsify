@@ -1,0 +1,49 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.OverlaySplitView split_view {
+  show-sidebar: true;
+
+  sidebar: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.Sidebar sidebar {
+      mode: sidebar;
+      selected: 0;
+
+      Adw.SidebarSection {
+        Adw.SidebarItem {
+          title: _("Home");
+          icon-name: "go-home-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Discover");
+          icon-name: "system-search-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Library");
+          icon-name: "folder-music-symbolic";
+        }
+
+        Adw.SidebarItem {
+          title: _("Settings");
+          icon-name: "emblem-system-symbolic";
+        }
+      }
+    };
+  };
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.StatusPage status {
+      icon-name: "folder-music-symbolic";
+      title: _("Your Library");
+      description: _("Toggle the sidebar to browse sections. Collapse it to overlay the content.");
+    };
+  };
+}

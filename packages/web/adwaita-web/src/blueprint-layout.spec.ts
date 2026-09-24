@@ -18,6 +18,8 @@ import { mountSharedTree } from './shared-tree-builder.js';
 import sheetTree from '../../adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp?shared-tree';
 import carouselTree from '../../adwaita-core/src/conformance/blueprints/carousel-indicators.blp?shared-tree';
 
+import { GALLERY_BLUEPRINTS } from './blueprint-markup.spec.js';
+
 /** Mount the fixture at a size a layout can be measured in; the caller unmounts. */
 function mountSheet() {
     const mounted = mountSharedTree(sheetTree);
@@ -116,6 +118,103 @@ export const AdwBlueprintLayoutTest = async () => {
                 expect(lines.length).toBe(3);
                 expect(dots.map((dot) => dot.classList.contains('active'))).toStrictEqual([true, false, false]);
                 expect(lines[0]?.classList.contains('active')).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+    });
+
+    // The gallery's third batch of `.blp` files, mounted at the size of the gallery's stage
+    // and held to a GTK render of the same file (GJS, `Gtk.Builder`, an `Adw.ApplicationWindow`
+    // of that size, libadwaita 1.9). The GTK numbers are written beside each assertion; the
+    // tolerance is the 1-2px a header bar and text metrics differ by.
+    await describe('adwaita-web: the gallery Blueprints, laid out beside GTK', async () => {
+        /** The tree mounted in a grid of `width` x `height`, as the gallery stage holds it. */
+        const mountAt = (file: string, width: number, height: number) => {
+            const tree = GALLERY_BLUEPRINTS[file];
+            if (tree === undefined) throw new Error(`no gallery Blueprint ${file}`);
+            const mounted = mountSharedTree(tree);
+            const host = mounted.root.parentElement as HTMLElement;
+            host.style.cssText = `display: grid; width: ${width}px; height: ${height}px;`;
+            const box = (el: Element) => {
+                const r = el.getBoundingClientRect();
+                const h = host.getBoundingClientRect();
+                return { x: r.left - h.left, y: r.top - h.top, width: r.width, height: r.height };
+            };
+            const byId = (id: string): HTMLElement => {
+                const el = host.querySelector<HTMLElement>(`#${id}`);
+                if (el === null) throw new Error(`${file} mounted no element with the id '${id}'`);
+                return el;
+            };
+            return { ...mounted, host, box, byId };
+        };
+        const near = (actual: number, gtk: number, tolerance = 2) => Math.abs(actual - gtk) <= tolerance;
+
+        await it('a split view page fills its pane, and its header bar shows the page title', async () => {
+            const { unmount, box, byId, host } = mountAt('adwaita/navigation-split-view.blp', 652, 340);
+            try {
+                // GTK: sidebar 0,46 180x294 — the list fills the pane under the header bar.
+                expect(near(box(byId('sidebar')).height, 294)).toBe(true);
+                const titles = [...host.querySelectorAll('adw-header-bar')].map(
+                    (bar) => bar.querySelector('adw-window-title')?.getAttribute('title') ?? null,
+                );
+                expect(titles).toStrictEqual(['Mailboxes', 'All Mail']);
+            } finally {
+                unmount();
+            }
+        });
+
+        await it('an overlay split view sidebar fills its pane', async () => {
+            const { unmount, box, byId } = mountAt('adwaita/overlay-split-view.blp', 652, 340);
+            try {
+                // GTK: sidebar 0,46 180x294.
+                expect(near(box(byId('sidebar')).height, 294)).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+
+        await it('a centred toolbar-view content widget keeps its own height', async () => {
+            const { unmount, box, byId } = mountAt('adwaita/navigation-view.blp', 652, 340);
+            try {
+                // GTK: open_button 245,171 161x44.
+                const button = box(byId('open_button'));
+                expect(near(button.height, 44)).toBe(true);
+                expect(near(button.y, 171)).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+
+        await it("a status page has upstream's metrics: a 128px icon, the child where GTK puts it", async () => {
+            const { unmount, box, byId, host } = mountAt('adwaita/status-page.blp', 652, 400);
+            try {
+                const icon = host.querySelector('.adw-status-page-icon') as HTMLElement;
+                expect(box(icon).width).toBe(128);
+                expect(box(icon).height).toBe(128);
+                // GTK: new_button 239,311 174x44.
+                expect(near(box(byId('new_button')).y, 311, 3)).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+
+        await it('a carousel does not widen the box it fills to the sum of its pages', async () => {
+            const { unmount, box, root } = mountAt('adwaita/carousel.blp', 652, 260);
+            try {
+                // GTK: the box is 652 wide, the window's width.
+                expect(box(root).width).toBe(652);
+            } finally {
+                unmount();
+            }
+        });
+
+        await it('tooltip-text becomes the icon button tooltip and accessible name', async () => {
+            const { unmount, byId } = mountAt('adwaita/toolbar-view.blp', 652, 300);
+            try {
+                const inner = byId('add_button').querySelector('button') as HTMLButtonElement;
+                expect(inner.title).toBe('Add');
+                expect(inner.getAttribute('aria-label')).toBe('Add');
             } finally {
                 unmount();
             }

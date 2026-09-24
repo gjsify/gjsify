@@ -66,14 +66,27 @@ export class AdwSidebarSection implements AdwSidebarSectionSpec {
     title: string;
     /** The section's items, in the order they were appended. */
     readonly items: AdwSidebarItem[] = [];
+    /** The sidebar showing this section, told when an item arrives — see {@link _bindOwner}. */
+    private _owner: (() => void) | null = null;
 
     constructor(props?: AdwSidebarSectionProps | null) {
         this.title = props?.title ?? '';
     }
 
-    /** `adw_sidebar_section_append`. */
+    /** `adw_sidebar_section_append`. A sidebar already showing the section redraws. */
     append(item: AdwSidebarItem): void {
         this.items.push(item);
+        this._owner?.();
+    }
+
+    /**
+     * Called by the sidebar that takes this section. NativeScript's XML builder hands a
+     * `<adw:SidebarSection>` to the sidebar at its START tag, before its items are read, so
+     * the items reach a section the sidebar already drew — as `adw_sidebar_section_append` on
+     * a section in a sidebar does in C, which the sidebar follows through `items-changed`.
+     */
+    _bindOwner(owner: () => void): void {
+        this._owner = owner;
     }
 
     /** XML inflation: every child is an item, appended in document order. */

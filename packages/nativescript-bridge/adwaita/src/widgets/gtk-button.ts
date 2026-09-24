@@ -142,6 +142,20 @@ export class GtkButton extends withSignals(GridLayout) {
     }
 
     /**
+     * `GtkWidget:tooltip-text`. A phone has no hover, so there is no tooltip to show; GTK
+     * also hands the text to assistive technology as the widget's description, and that
+     * half has a home here: `accessibilityHint`. An icon-only button is where a `.blp`
+     * writes one, and the builder refused the whole tree for want of this door.
+     */
+    get tooltipText(): string {
+        return this.accessibilityHint ?? '';
+    }
+
+    set tooltipText(value: string) {
+        this.accessibilityHint = value ?? '';
+    }
+
+    /**
      * `Gtk.Button:child` — any view, which is how a button wraps an `Adw.ButtonContent`.
      *
      * `null` empties the button. Setting it also hands an `AdwButtonContent` the host it

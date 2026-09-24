@@ -211,10 +211,28 @@ export const AdwBlueprintTreesNsTest = async () => {
             }).toThrow('was read when its stack adopted it');
         });
 
-        await it('a record with no child is refused, as add_page refuses one', () => {
-            expect(() => built({ tag: 'AdwViewStack', children: [{ tag: 'AdwViewStackPage' }] })).toThrow(
-                'has no child',
-            );
+        // `add_page` refuses a record with no child (`g_return_val_if_fail`), so no page comes
+        // of it. The record WAITS for one rather than throwing, because NativeScript's XML
+        // builder hands it over before reading its `<adw:ViewStackPage.child>`; one that never
+        // gets a child therefore stays out of the stack, as in C.
+        await it('a record with no child never becomes a page, as add_page refuses one', () => {
+            const stack = built({ tag: 'AdwViewStack', children: [{ tag: 'AdwViewStackPage' }] });
+
+            expect((stack.pages as readonly unknown[]).length).toBe(0);
+        });
+
+        await it('a record handed over before its child becomes a page when the child arrives', () => {
+            const stack = built({ tag: 'AdwViewStack' }) as unknown as {
+                pages: ReadonlyArray<{ name: string }>;
+                _addChildFromBuilder(name: string, view: object): void;
+            };
+            const record = new ViewStackPage({ name: 'inbox' });
+            stack._addChildFromBuilder('', record);
+            expect(stack.pages.length).toBe(0);
+
+            // The XML door's own call: the record's child arrives through its child door.
+            (record._addChildFromBuilder as (name: string, view: unknown) => void).call(record, 'child', new Label());
+            expect(stack.pages.map((page) => page.name)).toStrictEqual(['inbox']);
         });
 
         await it('a bare child of the stack is a page with no name', () => {

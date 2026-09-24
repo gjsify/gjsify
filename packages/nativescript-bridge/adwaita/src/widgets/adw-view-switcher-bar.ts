@@ -34,8 +34,8 @@
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
-import type { AdwViewStack } from './adw-view-stack.js';
-import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
+import { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
+import { resolveIdReference, type ViewId } from './id-reference.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState } from './view-switcher-model.js';
 import { xmlBoolean } from './xml-values.js';
@@ -58,6 +58,8 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
     private readonly _bar: GridLayout;
     private _nodes: BarButtonNodes[] = [];
     private _stack: AdwViewStack | null = null;
+    /** A `stack` written as an id before the bar was in a loaded tree. */
+    private _stackId: string | null = null;
     private _stackListener: (() => void) | null = null;
     private readonly _barState = createViewSwitcherBarState();
 
@@ -83,6 +85,9 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
         // Re-bind on attach and release on detach: the listener used to survive
         // every detach with nothing dropping it.
         this.addEventListener('loaded', () => {
+            // `loaded` is when every view an XML file made exists, so an id written there
+            // resolves now, as the carousel indicators resolve theirs.
+            if (this._stackId !== null) this.stack = resolveIdReference(this, 'stack', this._stackId, AdwViewStack);
             this._bindStack();
             this._rebuild();
         });
@@ -104,7 +109,16 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
         return this._stack;
     }
 
-    set stack(value: AdwViewStack | null) {
+    set stack(value: AdwViewStack | ViewId | null) {
+        if (typeof value === 'string') {
+            // The XML door: `<adw:ViewSwitcherBar stack="stack">` carries the stack's id, and
+            // the stack may not exist yet — a `.blp` puts the bar after it, but it is still
+            // being read. Resolved at `loaded`, or now if the tree already is.
+            this._stackId = value;
+            if (this.isLoaded) this.stack = resolveIdReference(this, 'stack', value, AdwViewStack);
+            return;
+        }
+        this._stackId = null;
         this.set_stack(value);
     }
 

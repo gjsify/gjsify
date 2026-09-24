@@ -581,21 +581,23 @@ export const AdwSharedTreesNsTest = async () => {
             expect(blocks.some((block) => sharedTreePlacements(block.authored).length > 0)).toBe(true);
         });
 
-        // THE OTHER HALF OF READING A SLOT, and the corpus cannot carry it: `top` is the
-        // name GTK and the web both spell, and this port spells `topBar` — the `vocabulary`
-        // divergence the gallery ledger already records, now LOUD instead of a header bar
-        // quietly landing in the content cell.
+        // THE OTHER HALF OF READING A SLOT, and the corpus cannot carry it: a name no
+        // dialect spells for this widget is refused LOUDLY instead of the header bar quietly
+        // landing in the content cell. `top` used to be that name here — GTK and the web
+        // spell it, this port spelled only `topBar` — until the gallery's `.blp` toolbar views
+        // needed it, so the refusal is now held on a name nobody spells.
         await it('a placement this dialect does not spell is refused BY NAME', () => {
-            expect(() => build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot: 'top' }] })).toThrow(
-                'declares no such builder slot',
-            );
+            expect(() =>
+                build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot: 'overlay' }] }),
+            ).toThrow('declares no such builder slot');
         });
 
-        await it('the name this dialect DOES spell places the child', () => {
-            const placed = build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot: 'topBar' }] });
+        await it("the names this dialect DOES spell place the child, its own and GTK's", () => {
             const unplaced = build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar' }] });
-
-            expect(structure(placed) === structure(unplaced)).toBe(false);
+            for (const slot of ['topBar', 'top', 'bottomBar', 'bottom']) {
+                const placed = build({ tag: 'AdwToolbarView', children: [{ tag: 'AdwHeaderBar', slot }] });
+                expect(structure(placed) === structure(unplaced)).toBe(false);
+            }
         });
 
         // `child: Gtk.Label {…}` in a `.blp` authors `slot: 'child'` — the widget's own

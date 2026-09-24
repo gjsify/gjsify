@@ -60,6 +60,16 @@ adw-toolbar-view {
     flex: 1 1 auto;
   }
 
+  // …UNLESS IT ASKED FOR LESS. A content widget with a `valign` other than fill is
+  // allocated its natural height and placed by that alignment (`_widget.scss`'s auto
+  // margin), which a growing flex item cannot be: the grow claims the free space before
+  // an auto margin sees any. Measured on the gallery's navigation view, whose `.blp`
+  // centres a pill button in a toolbar view: GTK drew it 44px tall mid-pane, this port
+  // stretched it over the whole 293px content rect.
+  .adw-toolbar-view-content > :only-child:is([valign='start'], [valign='end'], [valign='center']) {
+    flex-grow: 0;
+  }
+
   // top-bar-style / bottom-bar-style: an opaque background plus a persistent
   // shadow, which `.border` swaps for a hairline (adw-toolbar-view.c:1011-1024,
   // _toolbars.scss `> .top-bar.raised`).

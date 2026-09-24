@@ -47,6 +47,13 @@ export class AdwHeaderBar extends HTMLElement {
      * see the divergence at the top of this file.
      */
     private _titleEl: HTMLElement | null = null;
+    /**
+     * The `<adw-navigation-page>` this bar sits in, and the observer that follows its
+     * title. `update_title` (adw-header-bar.c:488) asks that page FIRST, which is how a
+     * bare `Adw.HeaderBar {}` in a `.blp` page shows "Mailboxes" with no title of its own.
+     */
+    private _page: Element | null = null;
+    private _pageObserver: MutationObserver | null = null;
 
     static get observedAttributes() {
         return ['title', 'subtitle'];
@@ -69,7 +76,11 @@ export class AdwHeaderBar extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (this._initialized) {
+            this._followPage();
+            this._renderTitle();
+            return;
+        }
         this._initialized = true;
 
         this._startEl = document.createElement('div');
@@ -117,7 +128,27 @@ export class AdwHeaderBar extends HTMLElement {
             this._titleEl.className = 'adw-header-bar-title';
             this._centerEl.appendChild(this._titleEl);
         }
+        this._followPage();
         this._renderTitle();
+    }
+
+    disconnectedCallback() {
+        this._pageObserver?.disconnect();
+        this._pageObserver = null;
+        this._page = null;
+    }
+
+    /**
+     * Find the enclosing navigation page and re-render when its title moves, as GTK does:
+     * `root` looks the ancestor up (adw-header-bar.c:586) and a `notify::title` on it re-runs
+     * `update_title`. Looked up on every connect, since a bar moved into another page has a
+     * new ancestor, which is why C does it in `root` and drops it in `unroot`.
+     */
+    private _followPage() {
+        this._page = this.closest('adw-navigation-page');
+        if (this._page === null) return;
+        this._pageObserver ??= new MutationObserver(() => this._renderTitle());
+        this._pageObserver.observe(this._page, { attributes: true, attributeFilter: ['title'] });
     }
 
     /**
@@ -156,7 +187,10 @@ export class AdwHeaderBar extends HTMLElement {
         // empty-string collapse do the work. Removing rather than writing `''`
         // keeps "unset" distinguishable from "set to empty" on the child.
         for (const name of ['title', 'subtitle']) {
-            const value = this.getAttribute(name);
+            // The bar's own `title` is this port's declarative divergence (see the header) and
+            // wins; without one, the page's title is the first answer `update_title` has.
+            const value =
+                this.getAttribute(name) ?? (name === 'title' ? (this._page?.getAttribute('title') ?? null) : null);
             if (value === null) this._titleEl.removeAttribute(name);
             else this._titleEl.setAttribute(name, value);
         }

@@ -1,0 +1,37 @@
+using Gtk 4.0;
+using Adw 1;
+
+Gtk.Box {
+  orientation: vertical;
+  spacing: 12;
+  margin-bottom: 12;
+
+  Adw.Carousel intro_carousel {
+    vexpand: true;
+
+    Adw.StatusPage {
+      icon-name: "go-home-symbolic";
+      title: _("Welcome");
+
+      styles ["compact"]
+    }
+
+    Adw.StatusPage {
+      icon-name: "system-search-symbolic";
+      title: _("Discover");
+
+      styles ["compact"]
+    }
+
+    Adw.StatusPage {
+      icon-name: "starred-symbolic";
+      title: _("Get started");
+
+      styles ["compact"]
+    }
+  }
+
+  Adw.CarouselIndicatorDots {
+    carousel: intro_carousel;
+  }
+}

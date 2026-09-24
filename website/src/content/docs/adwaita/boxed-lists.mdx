@@ -23,90 +23,35 @@ a **description**, and a **header-suffix** widget (a button or switch pinned to
 the trailing edge of the header). Stack several groups to build a full
 preferences page.
 
-<AdwWidget title="Adw.PreferencesGroup">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group title="Account" description="Manage how this device signs in and syncs.">
-      <button slot="header-suffix" class="adw-button flat">Sign out</button>
-      <!-- text: The contents of the entry. -->
-      <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
-      <!-- active: Whether the switch row is in the "on" or "off" position. -->
-      <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
-      <adw-combo-row title="Region" model='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.PreferencesGroup" blueprint="adwaita/preferences-group.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './preferences-group.blp';
 
-    const signOut = new Gtk.Button({ label: 'Sign out', valign: Gtk.Align.CENTER });
-    signOut.add_css_class('flat');
-
-    const group = new Adw.PreferencesGroup({
-        title: 'Account',
-        description: 'Manage how this device signs in and syncs.',
-        headerSuffix: signOut,
-    });
-
-    group.add(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
-    group.add(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const signOut = builder.get_object('sign_out') as Gtk.Button;
+    signOut.connect('clicked', () => console.log('Sign out'));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.PreferencesGroup {
-      title: _("Account");
-      description: _("Manage how this device signs in and syncs.");
-
-      header-suffix: Gtk.Button {
-        label: _("Sign out");
-
-        styles ["flat"]
-      };
-
-      Adw.EntryRow {
-        title: _("Display name");
-        text: "Grace Hopper";
-      }
-
-      Adw.SwitchRow {
-        title: _("Sync over Wi-Fi only");
-        subtitle: _("Avoid using mobile data for backups");
-        active: true;
-      }
-
-      Adw.ComboRow {
-        title: _("Region");
-        selected: 0;
-
-        model: Gtk.StringList {
-          strings [_("Europe"), _("Americas"), _("Asia"), _("Oceania")]
-        };
-      }
-    }
+    const signOut = document.querySelector('#sign_out');
+    signOut.addEventListener('click', () => console.log('Sign out'));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const signOut = new Gtk.Button({ label: 'Sign out', verticalAlignment: 'middle' });
-    signOut.add_css_class('flat');
-
-    const group = new Adw.PreferencesGroup({
-        title: 'Account',
-        description: 'Manage how this device signs in and syncs.',
-        headerSuffix: signOut,
-    });
-
-    group.add(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
-    group.add(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
+    const group = Builder.load({ path: '~/views', name: 'preferences-group' }) as Adw.PreferencesGroup;
+    const signOut = group.getViewById<Gtk.Button>('sign_out')!;
+    signOut.connect('clicked', () => console.log('Sign out'));
     ```
   </Fragment>
 </AdwWidget>
@@ -272,68 +217,42 @@ to reveal it. Use it anywhere a password or key is edited inline.
 Pick one option from a fixed list. The row shows an inline **drop-down**, and the
 selection is an index into the model you gave it, not the string itself.
 
-The list is the **model** property. Write it as an array of plain strings, or of
+The list is the **model** property, a `Gtk.StringList` in the Blueprint below. Write
+`model` before `selected`: GtkBuilder sets properties in the order the file gives
+them, and setting a model resets the selection, so a `selected` written first ends
+up on the first item. In code the model can also be an array of plain strings, or of
 `{ value, label }` objects when the value you store differs from the text you
-show — `{ label: 'Blue' }` on its own is addressed by `'Blue'`. In markup the
-same array goes in the `model` attribute as JSON.
+show — `{ label: 'Blue' }` on its own is addressed by `'Blue'`.
 
-<AdwWidget title="Adw.ComboRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- model: The model that provides the displayed items. -->
-      <!-- selected: The position of the selected item. -->
-      <adw-combo-row
-        title="Accent colour"
-        subtitle="Used to highlight selected items"
-        model='["Blue","Teal","Green","Orange","Purple"]'
-        selected="1"
-      ></adw-combo-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.ComboRow" blueprint="adwaita/combo-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './combo-row.blp';
 
-    const row = new Adw.ComboRow({
-        title: 'Accent colour',
-        subtitle: 'Used to highlight selected items',
-        model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
-        selected: 1,
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.ComboRow;
+    row.connect('notify::selected', () => console.log(`Accent ${row.selected}`));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.PreferencesGroup {
-      Adw.ComboRow {
-        title: _("Accent colour");
-        subtitle: _("Used to highlight selected items");
-        selected: 1;
-
-        model: Gtk.StringList {
-          strings [_("Blue"), _("Teal"), _("Green"), _("Orange"), _("Purple")]
-        };
-      }
-    }
+    const row = document.querySelector('#row');
+    row.addEventListener('notify::selected', () => console.log(`Accent ${row.selected}`));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const row = new Adw.ComboRow({
-        title: 'Accent colour',
-        subtitle: 'Used to highlight selected items',
-        model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
-        selected: 1,
-    });
+    const group = Builder.load({ path: '~/views', name: 'combo-row' }) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.ComboRow>('row')!;
+    row.connect('notify::selected', () => console.log(`Accent ${row.selected}`));
     ```
   </Fragment>
 </AdwWidget>
@@ -386,55 +305,35 @@ Take a number within a range. The row carries an inline **spin button** with plu
 and minus steppers and optional decimal digits, which fits settings like a font
 size or a count.
 
-<AdwWidget title="Adw.SpinRow">
-  <Fragment slot="preview">
-    ```html
-    <adw-preferences-group>
-      <!-- adjustment: The adjustment that holds the value of the spin row. -->
-      <adw-spin-row title="Font size" value="16" adjustment='{"lower":0,"upper":100,"stepIncrement":1}'></adw-spin-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
+<AdwWidget title="Adw.SpinRow" blueprint="adwaita/spin-row.blp">
   <Fragment slot="gjs">
     ```ts
     import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
+    import ui from './spin-row.blp';
 
-    const row = new Adw.SpinRow({
-        title: 'Font size',
-        adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 }),
-        digits: 0,
-    });
+    Adw.init();
+    const builder = Gtk.Builder.new_from_string(ui, -1);
+    const row = builder.get_object('row') as Adw.SpinRow;
+    row.connect('notify::value', () => console.log(`Font size ${row.value}`));
     ```
   </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
+  <Fragment slot="webloader">
+    ```js
+    import '@gjsify/adwaita-web';
 
-    Adw.PreferencesGroup {
-      Adw.SpinRow {
-        title: _("Font size");
-
-        adjustment: Gtk.Adjustment {
-          lower: 0;
-          upper: 100;
-          value: 16;
-          step-increment: 1;
-        };
-      }
-    }
+    const row = document.querySelector('#row');
+    row.addEventListener('notify::value', () => console.log(`Font size ${row.value}`));
     ```
   </Fragment>
-  <Fragment slot="nativescript">
+  <Fragment slot="nativescriptloader">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
+    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { Builder } from '@nativescript/core';
 
-    const row = new Adw.SpinRow({
-        title: 'Font size',
-        adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 }),
-    });
+    const group = Builder.load({ path: '~/views', name: 'spin-row' }) as Adw.PreferencesGroup;
+    const row = group.getViewById<Adw.SpinRow>('row')!;
+    row.connect('notify::value', () => console.log(`Font size ${row.value}`));
     ```
   </Fragment>
 </AdwWidget>

@@ -49,6 +49,24 @@ adw-navigation-split-view {
     background-color: var(--window-bg-color);
   }
 
+  // A pane's page fills the pane, as GTK allocates it the whole pane. The two panes are
+  // flex columns and an `<adw-navigation-page>` is a block, so a page in one — which is
+  // what a `.blp` writes, `sidebar: Adw.NavigationPage { … }` — was sized by its content:
+  // the gallery's sidebar list stopped 118px short of the pane it sat in. Its child fills
+  // it in turn, the way `.adw-navigation-page > *` does inside a navigation view.
+  .adw-nsv-sidebar > adw-navigation-page,
+  .adw-nsv-content > adw-navigation-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    > * {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+
   // `sidebar-position: end` docks the sidebar past the content. flex `order`
   // flips the visual order without changing the slotting DOM order.
   &.sidebar-end {

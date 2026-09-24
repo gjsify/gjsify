@@ -20,6 +20,12 @@
 adw-carousel {
   display: block;
   overflow: hidden;
+  // A carousel's own width is its parent's to give, never its pages laid end to end. The
+  // track is a row of full-width pages, so its max-content width is their SUM, and a
+  // carousel in a stretching box (the gallery's `.blp`) pushed that box 274px past its
+  // window. GTK measures a carousel by its widest page; CSS has no "max of the children"
+  // for a scrolling row, so the width comes from outside, as a filled GTK allocation does.
+  contain: inline-size;
 
   .adw-carousel-track {
     display: flex;

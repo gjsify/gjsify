@@ -210,6 +210,9 @@ declare module '@nativescript/core' {
         /** The text a screen reader announces for this view — NS's counterpart
          *  to `gtk_accessible_update_property (…, DESCRIPTION, …)`. */
         accessibilityLabel: string | undefined;
+        /** What activating this view does, read after its label — the half of GTK's
+         *  `tooltip-text` a screen reader announces. */
+        accessibilityHint: string | undefined;
         /** Animate one or more properties to their target values. Resolves when the
          *  animation finishes; the returned promise can also be `cancel()`ed. */
         animate(options: AnimationDefinition): AnimationPromise;

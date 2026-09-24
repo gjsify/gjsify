@@ -1,0 +1,15 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesGroup {
+  Adw.SpinRow row {
+    title: _("Font size");
+
+    adjustment: Gtk.Adjustment {
+      lower: 0;
+      upper: 100;
+      value: 16;
+      step-increment: 1;
+    };
+  }
+}

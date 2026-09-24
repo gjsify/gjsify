@@ -92,6 +92,7 @@ on the desktop.
   <Fragment slot="web">
     ```html
     <adw-toast-overlay id="overlay" style="width: 360px; height: 220px;">
+        <!-- description: The description markup to be displayed below the title. -->
         <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
     </adw-toast-overlay>
 
@@ -315,7 +316,10 @@ the web port renders them stacked instead.
         <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
           <!-- active: Whether the switch row is in the "on" or "off" position. -->
           <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+          <!-- model: The model that provides the displayed items. -->
+          <!-- selected: The position of the selected item. -->
           <adw-combo-row title="Accent colour" model='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
+          <!-- adjustment: The adjustment that holds the value of the spin row. -->
           <adw-spin-row title="Font size" value="12" adjustment='{"lower":8,"upper":24}'></adw-spin-row>
         </adw-preferences-group>
       </adw-preferences-page>

@@ -1,0 +1,38 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.NavigationView navigation_view {
+  Adw.NavigationPage {
+    tag: "root";
+    title: _("Contacts");
+
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {}
+
+      content: Gtk.Button open_button {
+        label: _("Open contact");
+        halign: center;
+        valign: center;
+
+        styles ["pill", "suggested-action"]
+      };
+    };
+  }
+
+  Adw.NavigationPage {
+    tag: "detail";
+    title: _("Ada Lovelace");
+
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {}
+
+      content: Adw.StatusPage {
+        icon-name: "avatar-default-symbolic";
+        title: _("Ada Lovelace");
+        description: _("Mathematician and writer, the first computer programmer.");
+      };
+    };
+  }
+}

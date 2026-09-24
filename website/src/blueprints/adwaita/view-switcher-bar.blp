@@ -1,0 +1,48 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ToolbarView {
+  content: Adw.ViewStack stack {
+    Adw.ViewStackPage {
+      name: "inbox";
+      title: _("Inbox");
+      icon-name: "mail-unread-symbolic";
+
+      child: Adw.StatusPage {
+        icon-name: "mail-unread-symbolic";
+        title: _("Inbox");
+        description: _("The inbox page.");
+      };
+    }
+
+    Adw.ViewStackPage {
+      name: "starred";
+      title: _("Starred");
+      icon-name: "starred-symbolic";
+
+      child: Adw.StatusPage {
+        icon-name: "starred-symbolic";
+        title: _("Starred");
+        description: _("The starred page.");
+      };
+    }
+
+    Adw.ViewStackPage {
+      name: "archive";
+      title: _("Archive");
+      icon-name: "folder-symbolic";
+
+      child: Adw.StatusPage {
+        icon-name: "folder-symbolic";
+        title: _("Archive");
+        description: _("The archive page.");
+      };
+    }
+  };
+
+  [bottom]
+  Adw.ViewSwitcherBar {
+    stack: stack;
+    reveal: true;
+  }
+}

@@ -27,8 +27,11 @@ import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
-/** The one slot a template may name — everything else is a row. */
-const PREFERENCES_GROUP_SLOTS = ['headerSuffix'] as const;
+/**
+ * The one slot a template may name — everything else is a row. Spelled as this widget's own
+ * property and as GTK's `header-suffix:`, which is what a projected `.blp` writes.
+ */
+const PREFERENCES_GROUP_SLOTS = ['headerSuffix', 'header-suffix'] as const;
 
 export class AdwPreferencesGroup extends withSignals(StackLayout) implements NsSearchableGroup {
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
@@ -171,7 +174,8 @@ export class AdwPreferencesGroup extends withSignals(StackLayout) implements NsS
      * around them — which is the failure that looks like a styling bug.
      */
     _addChildFromBuilder(name: string, view: View): void {
-        if (resolveBuilderSlot(name, PREFERENCES_GROUP_SLOTS, 'row') === 'headerSuffix') {
+        const slot = resolveBuilderSlot(name, PREFERENCES_GROUP_SLOTS, 'row');
+        if (slot === 'headerSuffix' || slot === 'header-suffix') {
             this.headerSuffix = view;
             return;
         }

@@ -1,0 +1,64 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.BottomSheet sheet {
+  open: true;
+  modal: true;
+  can-close: true;
+
+  content: Gtk.Button toggle {
+    label: _("Toggle sheet");
+    halign: center;
+    valign: center;
+
+    styles ["pill", "suggested-action"]
+  };
+
+  sheet: Gtk.Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-start: 18;
+    margin-end: 18;
+    margin-top: 18;
+    margin-bottom: 24;
+
+    Gtk.Label {
+      label: _("Share track");
+      xalign: 0;
+
+      styles ["title-2"]
+    }
+
+    Adw.PreferencesGroup {
+      Adw.ActionRow {
+        title: _("Copy link");
+        activatable: true;
+
+        [prefix]
+        Gtk.Image {
+          icon-name: "edit-copy-symbolic";
+        }
+      }
+
+      Adw.ActionRow {
+        title: _("Send to a friend");
+        activatable: true;
+
+        [prefix]
+        Gtk.Image {
+          icon-name: "mail-send-symbolic";
+        }
+      }
+
+      Adw.ActionRow {
+        title: _("Add to playlist");
+        activatable: true;
+
+        [prefix]
+        Gtk.Image {
+          icon-name: "list-add-symbolic";
+        }
+      }
+    }
+  };
+}

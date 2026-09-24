@@ -32,7 +32,12 @@ adw-overlay-split-view {
   // of the two a pane is in is exactly what decides its colour — hard-coding
   // `--sidebar-bg-color` on this private class painted a collapsed overlay,
   // which libadwaita puts on the window background, as though it were docked.
+  // A flex column, as the content pane is, so the pane's widget fills it: GTK allocates the
+  // sidebar the whole pane. A block pane sized a toolbar view by its content, and the
+  // gallery's `.blp` sidebar list stopped 130px above the pane's bottom edge.
   .adw-osv-sidebar {
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     flex-shrink: 0;
     z-index: 10;

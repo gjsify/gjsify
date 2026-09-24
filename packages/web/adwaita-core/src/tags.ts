@@ -85,3 +85,19 @@ export const attributeOf = (prop: string) => prop.replace(/[A-Z]/g, (upper) => `
  */
 export const propertyOf = (name: string) =>
     name.replace(/[-_]([a-z0-9])/g, (_match, next: string) => next.toUpperCase());
+
+/**
+ * `GtkWidget`'s four margins, as the CSS property each one is — `start`/`end` the LOGICAL
+ * edges `gtk_widget_set_margin_start` documents, `top`/`bottom` physical as in GTK.
+ *
+ * A markup renderer writes them as inline style, because an attribute cannot carry a length
+ * into a stylesheet portably (`attr()` with a type is not in every engine). ONE table for the
+ * two places that do it: `buildSharedTree` in `@gjsify/adwaita-web`, and `sharedTreeHtml` in
+ * `./markup.ts`, whose markup has to parse back to exactly what that builder made.
+ */
+export const GTK_WIDGET_MARGIN_CSS: Readonly<Record<string, string>> = {
+    'margin-start': 'margin-inline-start',
+    'margin-end': 'margin-inline-end',
+    'margin-top': 'margin-top',
+    'margin-bottom': 'margin-bottom',
+};

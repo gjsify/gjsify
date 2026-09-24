@@ -30,6 +30,11 @@ interface AdoptingStack {
     setPageVisible(name: string, visible: boolean): boolean;
 }
 
+/** A stack this record was handed to before it had a child — see {@link AdwViewStackPage._awaitChild}. */
+interface AwaitingStack {
+    _addChildFromBuilder(name: string, view: AdwViewStackPage): void;
+}
+
 export class AdwViewStackPage extends withSignals(Observable) {
     /** `child:` in a `.blp` — the page itself. The fallback too: a bare child IS the page. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
@@ -44,6 +49,8 @@ export class AdwViewStackPage extends withSignals(Observable) {
     private _useUnderline = false;
     /** The stack that adopted this record, or `null` while it is still being authored. */
     private _stack: AdoptingStack | null = null;
+    /** The stack waiting for this record's child, while it has none. */
+    private _awaiting: AwaitingStack | null = null;
 
     constructor(props?: ConstructProps<AdwViewStackPage>) {
         super();
@@ -58,6 +65,10 @@ export class AdwViewStackPage extends withSignals(Observable) {
     set child(view: View | null) {
         this._refuseAfterAdoption('child');
         this._child = view;
+        const stack = this._awaiting;
+        if (stack === null || view === null) return;
+        this._awaiting = null;
+        stack._addChildFromBuilder('', this);
     }
 
     /** `AdwViewStackPage:name` — what `visible-child-name` and a bound switcher select by. */
@@ -150,6 +161,18 @@ export class AdwViewStackPage extends withSignals(Observable) {
             throw new Error(`AdwViewStackPage '${this._name}' already belongs to a stack.`);
         }
         this._stack = stack;
+    }
+
+    /**
+     * Called by a stack handed this record while it has no child yet. NativeScript's XML
+     * builder hands a child to its parent at the child's START tag, so a template's
+     * `<adw:ViewStackPage>` reaches the stack before its own `<adw:ViewStackPage.child>` has
+     * been read — where GtkBuilder adds the page once it is whole. The stack takes the record
+     * when the child arrives, which is still before the next page's start tag, so the pages
+     * keep document order.
+     */
+    _awaitChild(stack: AwaitingStack): void {
+        this._awaiting = stack;
     }
 
     private _refuseAfterAdoption(property: string): void {

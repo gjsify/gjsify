@@ -121,6 +121,11 @@ const JS_ASSIGN = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})\\s*[:=]\\s*(['
 const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"`])([^'"`]*)\1/g;
 /** `icon="go-next"` — the markup form, and the ONLY one read in a `.mdx`/`.astro`. */
 const MARKUP_ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`, 'g');
+/**
+ * `icon-name: "go-home-symbolic";` — a Blueprint property. A one-Blueprint gallery block
+ * names its icons in its `.blp`, and the page renders that file through this stylesheet.
+ */
+const BLUEPRINT_PROPERTY = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})\\s*:\\s*"([^"]*)"`, 'g');
 /** `el.setAttribute('icon', 'go-next')`. */
 const SET_ATTRIBUTE = new RegExp(`setAttribute\\(\\s*(['"\`])(?:${KEY_ALT})\\1\\s*,\\s*(['"\`])([^'"\`]*)\\2`, 'g');
 /** `createGtkImage('go-next', …)`. */
@@ -141,6 +146,9 @@ const SHAPES = {
     },
     markup: (code, add) => {
         for (const m of code.matchAll(MARKUP_ATTR)) add(m[2]);
+    },
+    blueprint: (code, add) => {
+        for (const m of code.matchAll(BLUEPRINT_PROPERTY)) add(m[1]);
     },
     setAttribute: (code, add) => {
         for (const m of code.matchAll(SET_ATTRIBUTE)) add(m[3]);
@@ -217,14 +225,25 @@ const SOURCES = [
         shapes: NAME_SHAPES,
         onlyPath: [/\/src\/browser\//],
     },
-    { root: 'website/src', shapes: ['markup', 'maskClass'] },
+    { root: 'website/src', shapes: ['markup', 'maskClass'], skipDir: ['blueprints'] },
+    // The gallery's `.blp` files: the live window builds each one with `buildSharedTree`,
+    // so every icon a file names is drawn by this stylesheet.
+    { root: 'website/src/blueprints', shapes: ['blueprint'] },
 ];
 
 // The source half comes from the shared vocabulary and the rest are the markup and
 // style formats these roots hold. The hand-written pair `.ts`/`.mts` was one `.tsx`
 // showcase away from going blind — `showcases/gtk/adwaita-gallery-react/src/app.tsx` is
 // one directory from a root already listed above.
-const EXTENSIONS = [...CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`), '.scss', '.astro', '.vue', '.mdx', '.html'];
+const EXTENSIONS = [
+    ...CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`),
+    '.scss',
+    '.astro',
+    '.vue',
+    '.mdx',
+    '.html',
+    '.blp',
+];
 
 /** `normalizeIconName` from `@gjsify/adwaita-core`, in the spelling a script can read. */
 const ICON_NAME_TOKEN = /^[A-Za-z0-9_-]+$/;

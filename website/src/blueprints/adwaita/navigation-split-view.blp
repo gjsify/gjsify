@@ -1,0 +1,59 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.NavigationSplitView split_view {
+  sidebar: Adw.NavigationPage {
+    title: _("Mailboxes");
+
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {}
+
+      content: Adw.Sidebar sidebar {
+        mode: sidebar;
+        selected: 0;
+
+        Adw.SidebarSection {
+          Adw.SidebarItem {
+            title: _("All Mail");
+            subtitle: _("128 messages");
+            icon-name: "mail-unread-symbolic";
+          }
+
+          Adw.SidebarItem {
+            title: _("Starred");
+            subtitle: _("6 messages");
+            icon-name: "starred-symbolic";
+          }
+
+          Adw.SidebarItem {
+            title: _("Drafts");
+            subtitle: _("2 messages");
+            icon-name: "document-edit-symbolic";
+          }
+
+          Adw.SidebarItem {
+            title: _("Archive");
+            subtitle: _("512 messages");
+            icon-name: "folder-symbolic";
+          }
+        }
+      };
+    };
+  };
+
+  content: Adw.NavigationPage {
+    title: _("All Mail");
+
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {}
+
+      content: Adw.StatusPage status {
+        icon-name: "mail-unread-symbolic";
+        title: _("All Mail");
+        description: _("Select a conversation from the list to read it here.");
+      };
+    };
+  };
+}

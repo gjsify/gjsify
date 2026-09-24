@@ -62,7 +62,7 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.ToggleGroup': "AdwToggleGroup.options is an array of toggles; an XML attribute is a string.",
     'Adw.Sidebar': "AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.",
     'Adw.TabView': "AdwTabView.views and .tabs are arrays; an XML attribute is a string.",
-    'Adw.ViewSwitcherBar': "AdwViewSwitcherBar.stack points at another VIEW, which no attribute can name.",
+    'Adw.ViewSwitcherBar': "AdwViewStack takes its titled pages as AdwViewStackPage records, which are not views and not in the widgets barrel these templates are written against.",
     'Adw.ViewSwitcher': "AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
     'Adw.InlineViewSwitcher': "AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
     'Adw.Toast': "AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.",
