@@ -62,7 +62,7 @@ export function closeSocketService(service: Gio.SocketService, ports: readonly n
  */
 export function releaseListenPort(port: number): void {
     if (!port) return;
-    for (const [service, entry] of [...pending]) {
+    for (const [service, entry] of pending) {
         if (entry.ports.includes(port)) finishClose(service);
     }
 }

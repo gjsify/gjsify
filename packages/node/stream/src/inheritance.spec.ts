@@ -419,7 +419,12 @@ export default async () => {
                 },
             };
             const r = new R({ read() {}, ...opts });
-            const w = new W({ write(_c, _e, cb) { cb(); }, ...opts });
+            const w = new W({
+                write(_c, _e, cb) {
+                    cb();
+                },
+                ...opts,
+            });
             r.destroy();
             w.destroy();
             await Promise.all([closed(r), closed(w)]);
@@ -429,8 +434,20 @@ export default async () => {
         await it('a _destroy that calls back twice emits error and close once', async () => {
             const boom = new Error('boom');
             for (const s of [
-                new Readable({ read() {}, destroy: (_e, cb) => { cb(boom); cb(boom); } }),
-                new Writable({ write: (_c, _e, cb) => cb(), destroy: (_e, cb) => { cb(boom); cb(boom); } }),
+                new Readable({
+                    read() {},
+                    destroy: (_e, cb) => {
+                        cb(boom);
+                        cb(boom);
+                    },
+                }),
+                new Writable({
+                    write: (_c, _e, cb) => cb(),
+                    destroy: (_e, cb) => {
+                        cb(boom);
+                        cb(boom);
+                    },
+                }),
             ]) {
                 let errors = 0;
                 let closes = 0;
