@@ -4632,7 +4632,12 @@ readings that each looked right are the reason the fix has the shape it has:
 Held by `test/win32-opengl.test.mjs` on `windows-gtk-windowing`, the one Windows step
 without `GSK_RENDERER=cairo`: GDK realizes a ≥ 3.2 context whose `GL_RENDERER` is not GDI
 Generic, GSK picks a non-cairo renderer, and a child with `GJSIFY_OPENGL=system` must FAIL
-on the same runner — the pre-fix state, reproduced beside the fix.
+on the same runner — the pre-fix state, reproduced beside the fix. Measured on
+`windows-latest` (PR #1789): no ICD found, Mesa preloaded, GDK context **4.6 core**,
+`GL_RENDERER` `D3D12 (Microsoft Basic Render Driver)` (Mesa's d3d12 driver on WARP); the
+`GJSIFY_OPENGL=system` child: `No GL implementation is available`. Bundle 192.6 MiB
+unpacked. `realize()` alone leaves `get_renderer()` null on GdkWin32 — the renderer case
+presents the window and spins the loop.
 
 STILL OPEN: **real-GPU hardware is unmeasured** — the ICD probe's "keep the vendor driver"
 branch has never run on a machine with one (the VM has QXL, CI has WARP), so

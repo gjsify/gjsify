@@ -84,10 +84,20 @@ test(
     () => {
         const Gtk = requireGi('Gtk', '4.0');
         const GObject = requireGi('GObject', '2.0');
+        const GLib = requireGi('GLib', '2.0');
         Gtk.init();
+        // realize() alone left get_renderer() null on GdkWin32 (measured on this leg): present
+        // the window and spin the loop until GTK has created its renderer.
         const win = new Gtk.Window({ default_width: 64, default_height: 64 });
-        win.realize();
-        const renderer = GObject.type_name(win.get_renderer().constructor.$gtype);
+        win.present();
+        const context = GLib.MainContext.default();
+        let gsk = win.get_renderer();
+        for (let i = 0; !gsk && i < 500; i++) {
+            context.iteration(false);
+            gsk = win.get_renderer();
+        }
+        assert.ok(gsk, 'the presented window never got a GSK renderer');
+        const renderer = GObject.type_name(gsk.constructor.$gtype);
         console.log(`GSK renderer: ${renderer}`);
         win.destroy();
         assert.notEqual(renderer, 'GskCairoRenderer', 'GSK fell back to cairo — it found no usable GL');
