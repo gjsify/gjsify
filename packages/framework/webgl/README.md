@@ -228,9 +228,12 @@ will render.
 and a desktop driver has no reason to list — macOS's does not, so `getExtension()` used to
 answer `null` for three of them where Safari and Chrome expose all four.
 `getSupportedExtensions()` now advertises each when the list names it OR the desktop GL version
-provides it; on GLES the list stays the only source. Each is held to a spec that USES the
-feature (a texel outside [0, 1] survives, a float texture filters, 32-bit indices draw, `dFdx`
-evaluates), not merely to a non-null object.
+provides it; on GLES the list stays the only source. An `RGBA`/`RGB` + `FLOAT` upload is handed
+to a desktop driver as `RGBA32F`/`RGB32F`, since an unsized format leaves the storage to the
+driver. `EXT_blend_minmax` (core GL 1.4) and `EXT_texture_filter_anisotropic` follow the same
+rule. Each is held to a spec that USES the feature (a texel outside [0, 1] survives, a float
+texture filters, 32-bit indices draw, `dFdx` evaluates, MAX blends), not merely to a non-null
+object.
 
 **Derivatives need a respelled shader on macOS.** A desktop core context compiles
 `#version 100` through ARB_ES2_compatibility, and macOS's ES front end is GLSL ES 1.00 with no

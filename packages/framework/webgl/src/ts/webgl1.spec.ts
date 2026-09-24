@@ -842,6 +842,53 @@ export default async () => {
                 destroyTestFBO(gl, fbo);
             });
 
+            // Looked up without the driver's `GL_` prefix, these two once never
+            // matched on any driver; MIN/MAX blending is core desktop GL besides.
+            await it('EXT_blend_minmax is advertised and MAX blends', async () => {
+                const ext = gl.getExtension('EXT_blend_minmax') as { MAX_EXT: number } | null;
+                expect(ext).not.toBeNull();
+                expect(gl.getSupportedExtensions()).toContain('EXT_blend_minmax');
+                const fbo = makeTestFBO(gl, 1, 1);
+                gl.clearColor(0.2, 0.8, 0.0, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                const prog = makeProgram(
+                    gl,
+                    FULLSCREEN_VS,
+                    'precision mediump float; void main() { gl_FragColor = vec4(0.6, 0.4, 0.0, 1.0); }',
+                );
+                gl.useProgram(prog);
+                gl.enable(gl.BLEND);
+                gl.blendEquation(ext!.MAX_EXT);
+                gl.blendFunc(gl.ONE, gl.ONE);
+                drawTriangle(gl);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                // max((0.2, 0.8), (0.6, 0.4)) = (0.6, 0.8); FUNC_ADD would give (0.8, 1.0).
+                expect(pixelClose(readPixel(gl), [153, 204, 0, 255])).toBeTruthy();
+                gl.blendEquation(gl.FUNC_ADD);
+                gl.disable(gl.BLEND);
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                destroyTestFBO(gl, fbo);
+            });
+
+            await it('EXT_texture_filter_anisotropic is advertised and takes its parameter', async () => {
+                const ext = gl.getExtension('EXT_texture_filter_anisotropic') as {
+                    TEXTURE_MAX_ANISOTROPY_EXT: number;
+                    MAX_TEXTURE_MAX_ANISOTROPY_EXT: number;
+                } | null;
+                expect(ext).not.toBeNull();
+                expect(gl.getSupportedExtensions()).toContain('EXT_texture_filter_anisotropic');
+                const max = gl.getParameter(ext!.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+                expect(max).toBeGreaterThan(1);
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texParameterf(gl.TEXTURE_2D, ext!.TEXTURE_MAX_ANISOTROPY_EXT, 2);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(gl.getTexParameter(gl.TEXTURE_2D, ext!.TEXTURE_MAX_ANISOTROPY_EXT)).toBe(2);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+            });
+
             await it('getSupportedExtensions returns an array', async () => {
                 const exts = gl.getSupportedExtensions();
                 expect(Array.isArray(exts)).toBeTruthy();

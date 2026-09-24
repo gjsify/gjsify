@@ -93,7 +93,10 @@ const textureParameterMethods: ThisType<WebGLContextBase> & Record<string, Funct
             | { TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
             | undefined;
         if (anisoExt && pname === anisoExt.TEXTURE_MAX_ANISOTROPY_EXT) {
-            return this._getTexParameterDirect(target, pname);
+            // A float. The native `getTexParameterx` boxes it as GVariant "f",
+            // which is no GVariant type (GLib-CRITICAL, answers null) — the
+            // typed float getter needs no Variant at all.
+            return this._gl.getTexParameterfv(target, pname);
         }
 
         this.setError(this.INVALID_ENUM);
