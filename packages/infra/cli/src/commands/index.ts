@@ -1,6 +1,7 @@
 export * from './build.js';
 export * from './clear.js';
 export * from './copy.js';
+export * from './env.js';
 export * from './test.js';
 export * from './run.js';
 export * from './info.js';

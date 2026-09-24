@@ -94,7 +94,7 @@ export {
     TARGET_OSES,
     OS_CLAIMS,
 } from './rules/os-axis.mjs';
-export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
+export { envPrefixes, portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { shipRule, auditShip } from './rules/ship.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';

@@ -222,6 +222,8 @@ export declare function readGstPluginDir(dir: string): { plugins: Set<string>; f
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];
+/** `NAME=value` words that open a clause outside quotes — the POSIX env prefix cmd.exe lacks. */
+export declare function envPrefixes(script: string): string[];
 
 /** One load-command record, with its file offset. */
 export interface MachOCommand {

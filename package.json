@@ -136,10 +136,10 @@
         "docs:dev": "gjsify workspace @gjsify/website start",
         "docs:build": "gjsify workspace @gjsify/website build",
         "docs:serve": "gjsify workspace @gjsify/website serve",
-        "release": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --pre-release",
-        "release:patch": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it patch",
-        "release:stable": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it",
-        "release:dry": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} release-it --dry-run"
+        "release": "node scripts/release.mjs --pre-release",
+        "release:patch": "node scripts/release.mjs patch",
+        "release:stable": "node scripts/release.mjs",
+        "release:dry": "node scripts/release.mjs --dry-run"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT",

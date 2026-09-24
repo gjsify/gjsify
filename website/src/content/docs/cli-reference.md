@@ -476,6 +476,21 @@ gjsify copy "data/*.ui" data/icons dist/data/
 | `--dry-run` | `false` | Print what would be copied and touch nothing. |
 | `-v`, `--verbose` | `false` | Print each path as it goes. |
 
+### `gjsify env`
+
+Run a command with extra environment variables, like `env(1)`. A portable spelling of the `NAME=value command` prefix, which `cmd.exe` cannot run, so npm scripts that set a variable work on Windows too.
+
+```bash
+gjsify env NODE_ENV=production node dist/server.mjs
+gjsify env LC_ALL=C GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<entries..>` | — | Leading `NAME=VALUE` words, then the command and its arguments. A later `X=y` is passed to the command as an argument. |
+
+Every flag after the command belongs to the command, a `--` included. The exit code is the command's own.
+
 The destination is treated as a directory when it ends in `/`, when you pass several sources, or when a source has a wildcard. Otherwise it is the exact target path. Missing parent directories are created. `*` and `?` work in the last segment of a source.
 
 ## Configure it in `package.json`

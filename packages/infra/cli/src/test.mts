@@ -123,6 +123,7 @@ import devPlanSuite from './utils/dev-plan.spec.js';
 import watchLoopSuite from './utils/watch-loop.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
+import envCommandSuite from './commands/env.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import jsxConfigSuite from './utils/jsx-config.spec.js';
@@ -367,6 +368,7 @@ run(
         watchLoopSuite,
         spawnSuite,
         win32CommandSuite,
+        envCommandSuite,
         gjsBundleGuardSuite,
         gjsSourceEscapeSuite,
         jsxConfigSuite,
