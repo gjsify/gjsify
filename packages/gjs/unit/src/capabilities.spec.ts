@@ -12,31 +12,56 @@ const X11: DisplayEnv = { DISPLAY: ':0' };
 const WAYLAND: DisplayEnv = { WAYLAND_DISPLAY: 'wayland-0' };
 const HEADLESS: DisplayEnv = {};
 
-const CASES: Array<{ what: string; os: TargetOs | undefined; env: DisplayEnv; surface: boolean; gl: boolean }> = [
-    { what: 'Linux under X11', os: 'linux', env: X11, surface: true, gl: true },
-    { what: 'Linux under Wayland', os: 'linux', env: WAYLAND, surface: true, gl: true },
-    { what: 'Linux with no session (a CI container)', os: 'linux', env: HEADLESS, surface: false, gl: false },
+/** Stand-in GL probes: the real one realizes a context, which this spec must not need. */
+const YES = (): boolean => true;
+const NO = (): boolean => false;
+
+const CASES: Array<{ what: string; os: TargetOs | undefined; env: DisplayEnv; surface: boolean }> = [
+    { what: 'Linux under X11', os: 'linux', env: X11, surface: true },
+    { what: 'Linux under Wayland', os: 'linux', env: WAYLAND, surface: true },
+    { what: 'Linux with no session (a CI container)', os: 'linux', env: HEADLESS, surface: false },
     // The regression this file exists for: GdkQuartz sets neither variable, so the
     // old rule read "no display" and skipped every GTK assertion on macOS forever.
-    { what: 'macOS, which never sets DISPLAY', os: 'darwin', env: HEADLESS, surface: true, gl: false },
-    { what: 'Windows, which never sets DISPLAY', os: 'win32', env: HEADLESS, surface: true, gl: false },
+    { what: 'macOS, which never sets DISPLAY', os: 'darwin', env: HEADLESS, surface: true },
+    { what: 'Windows, which never sets DISPLAY', os: 'win32', env: HEADLESS, surface: true },
     // An unknown OS must not be assumed capable: "unknown" is not "not Linux".
-    { what: 'an unrecognised OS', os: undefined, env: HEADLESS, surface: false, gl: false },
-    { what: 'an unrecognised OS with X11', os: undefined, env: X11, surface: true, gl: false },
+    { what: 'an unrecognised OS', os: undefined, env: HEADLESS, surface: false },
+    { what: 'an unrecognised OS with X11', os: undefined, env: X11, surface: true },
 ];
 
 export default async (): Promise<void> => {
     await describe('host capabilities', async () => {
-        for (const { what, os, env, surface, gl } of CASES) {
-            await it(`says surface=${surface} gl=${gl} on ${what}`, async () => {
+        for (const { what, os, env, surface } of CASES) {
+            await it(`says surface=${surface} on ${what}`, async () => {
                 expect(canRealizeSurface(os, env)).toBe(surface);
-                expect(canRealizeGl(os, env)).toBe(gl);
             });
         }
 
+        // The OS never decides GL any more; the probe does. A host with a surface
+        // is exactly as GL-capable as its probe says — on every OS, which is the
+        // point: the old OS rule skipped a Mac that had GL.
+        await it('answers GL from the probe wherever a surface exists', async () => {
+            for (const { os, env, surface } of CASES) {
+                expect(canRealizeGl(os, env, NO)).toBe(false);
+                expect(canRealizeGl(os, env, YES)).toBe(surface);
+            }
+        });
+
+        await it('never runs the probe where there is no surface', async () => {
+            let asked = 0;
+            const counting = (): boolean => {
+                ++asked;
+                return true;
+            };
+            for (const { os, env, surface } of CASES) {
+                if (!surface) canRealizeGl(os, env, counting);
+            }
+            expect(asked).toBe(0);
+        });
+
         await it('never claims GL where it cannot claim a surface', async () => {
             for (const { os, env } of CASES) {
-                if (canRealizeGl(os, env)) expect(canRealizeSurface(os, env)).toBe(true);
+                if (canRealizeGl(os, env, YES)) expect(canRealizeSurface(os, env)).toBe(true);
             }
         });
 

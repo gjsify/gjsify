@@ -21,7 +21,18 @@ import { createHeartbeat, type Heartbeat } from './heartbeat.js';
 interface _RuntimeGlobals {
     imports?: {
         mainloop?: GLib.MainLoop;
-        gi?: { GLib?: typeof GLib };
+        gi?: {
+            GLib?: typeof GLib;
+            versions: Record<string, string>;
+            // Read only by the GL probe, and only as far as it goes — typed at the
+            // call surface rather than importing the GTK typings into a runner
+            // that must load without GTK.
+            Gtk: { init_check(): boolean };
+            Gdk: {
+                Display: { get_default(): { create_gl_context(): { realize(): boolean } } | null };
+                GLContext: { clear_current(): void };
+            };
+        };
         system?: { exit: (code: number) => never };
     };
     process?: {
@@ -1115,7 +1126,49 @@ const displayEnv = (): DisplayEnv => ({ DISPLAY: envVar('DISPLAY'), WAYLAND_DISP
 
 const hasDisplay = (): boolean => canRealizeSurface(hostOs(), displayEnv());
 
-const hasGl = (): boolean => canRealizeGl(hostOs(), displayEnv());
+/** The GL probe's answer, once per process: a context's realizability does not change mid-run. */
+let glProbe: boolean | undefined;
+
+/**
+ * Realize a GL context through GDK, and report whether that worked.
+ *
+ * The question `on('Gl')` asks, asked directly: every WebGL spec behind it gets
+ * its context from a `Gtk.GLArea`, i.e. from exactly this GDK call chain. Through
+ * `imports.gi`, which GJS provides and `@gjsify/node-gi` mirrors, so the answer
+ * is the same on both runtimes; a host with neither (a browser) has no GTK to
+ * realize one through, and says no.
+ *
+ * A failure is the ANSWER, not an error to hide: `create_gl_context()` and
+ * `realize()` report a host without GL by throwing a GError — measured on a
+ * win32 VM with no OpenGL ICD, "No GL implementation is available" (#1097).
+ * Only ever reached behind `canRealizeSurface`, so it never tries to open a
+ * display on a host that has none. A "no" on a host that HAS a surface is
+ * recorded as a warning with the driver's reason, because it turns every GL
+ * suite on that leg into a skip, and a skip nobody sees is how the darwin GL
+ * suites stayed dark.
+ */
+const realizeGlContext = (): boolean => {
+    if (glProbe !== undefined) return glProbe;
+    const gi = runtimeGlobals().imports?.gi;
+    if (!gi) return (glProbe = false);
+    try {
+        // WebGL's bridge is a GTK 4 widget; pin the namespaces a spec imports.
+        gi.versions.Gtk = '4.0';
+        gi.versions.Gdk = '4.0';
+        if (!gi.Gtk.init_check()) throw new Error('Gtk.init_check() could not open the display');
+        const display = gi.Gdk.Display.get_default();
+        if (!display) throw new Error('GDK has no default display');
+        display.create_gl_context().realize();
+        gi.Gdk.GLContext.clear_current();
+        glProbe = true;
+    } catch (error) {
+        glProbe = false;
+        noteWarning(`on('Gl') skipped: a display exists but no GL context realizes — ${errorMessage(error)}`);
+    }
+    return glProbe;
+};
+
+const hasGl = (): boolean => canRealizeGl(hostOs(), displayEnv(), realizeGlContext);
 
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
     // Capabilities, not runtime identity — each answers its own question. They name
