@@ -51,7 +51,7 @@ import type { HostElement, WidgetDescriptor } from './types.js';
 // see `status/open-todos.md` § "`systemGiLibraryDirs()` lives in three
 // places". `runInChild` below needs it because it spawns a RAW `gjs -m`
 // child with no launcher in front of it at all.
-import { hostPlatform, systemGiLibraryDirs } from '@gjsify/utils/core';
+import { dyldDefaultFallbackDirs, hostPlatform, systemGiLibraryDirs } from '@gjsify/utils/core';
 
 const widgetOf = (el: HostElement) => materialize(el) as unknown as Gtk.Widget;
 
@@ -73,24 +73,51 @@ function rooted(): { window: Adw.Window; parent: HostElement; box: Gtk.Box } {
 /** POSIX signal 6. Spelled once, so the assertion below reads as the name it means. */
 const SIGABRT = 6;
 
+/** POSIX signal 5 — see {@link FATAL_SIGNAL}. */
+const SIGTRAP = 5;
+
 /**
  * The signal `adw_dialog_root()`'s `g_error()` actually kills the child
  * with, which is SIGABRT (`abort()`) everywhere EXCEPT a real macOS host,
- * where it is SIGTRAP (5) instead.
+ * where it is SIGTRAP instead.
  *
- * MEASURED, independent of this suite's own launcher: `env -i … gjs -m
+ * NOT "WHATEVER HAPPENED" — the mechanism, read from the exact header this
+ * host's `g_error()` expands against (Homebrew glib 2.90.0,
+ * `glib/gbacktrace.h`, `G_BREAKPOINT()`):
+ *
+ * ```c
+ * #if (defined (__i386__) || defined (__x86_64__)) && defined (__GNUC__) …
+ * #  define G_BREAKPOINT()   G_STMT_START{ __asm__ __volatile__ ("int $03"); }G_STMT_END
+ * …
+ * #elif defined (__APPLE__) || (defined(_WIN32) && (defined(__clang__) || defined(__GNUC__)))
+ * #  define G_BREAKPOINT()   G_STMT_START{ __builtin_trap(); }G_STMT_END
+ * #else
+ * #  define G_BREAKPOINT()   G_STMT_START{ raise (SIGTRAP); }G_STMT_END
+ * #endif
+ * ```
+ * documented right above it: "`SIGTRAP` is used rather than `abort()` to
+ * allow breakpoints to be skipped past in a debugger." `gmessages.h`'s
+ * `g_error()` macro/inline-fn ends in an explicit, unconditional `abort()`
+ * — but that line is only REACHED if glib's own fatal-log handling inside
+ * `g_log()`/`g_logv()` did not already end the process; on a host whose
+ * `G_BREAKPOINT()` traps (every Apple target, via `__builtin_trap()`), the
+ * kernel reports THAT trap — SIGTRAP — before the macro's trailing `abort()`
+ * ever runs, and on a host where it doesn't (this repo's Linux CI, where the
+ * explicit `abort()` is what actually fires), the signal is plain SIGABRT.
+ * `refs/` carries no glib checkout to cite by line number, so this reads the
+ * installed header directly rather than a submodule — the artifact this
+ * comment cites is reproducible by anyone with Homebrew glib on PATH.
+ *
+ * MEASURED too, independent of this suite's own launcher: `env -i … gjs -m
  * case.js` running the exact body below exits 133 (128 + 5) on this host —
  * `$?` alone, no `Gio.Subprocess` in the loop — and prints the same
- * `Adwaita-ERROR` this suite already asserts. So the divergence is glib's
- * own fatal-error path on darwin, not a fact about how this suite spawns or
- * reads its child; on Linux (`gtk-os-suites.yml`'s gating leg, and every CI
- * runner this repo builds on) the same body raises plain SIGABRT. Naming
- * the REAL signal per host is what keeps this the falsifiable claim the
- * comment above `runInChild` says it has to be — a hardcoded `SIGABRT` here
- * would make the negative control fail on every real Mac forever, which is
- * the opposite of catching a regression.
+ * `Adwaita-ERROR` this suite already asserts. Naming the REAL signal per
+ * host is what keeps this the falsifiable claim the comment above
+ * `runInChild` says it has to be — a hardcoded `SIGABRT` here would make the
+ * negative control fail on every real Mac forever, which is the opposite of
+ * catching a regression.
  */
-const FATAL_SIGNAL = hostPlatform() === 'darwin' ? 5 : SIGABRT;
+const FATAL_SIGNAL = hostPlatform() === 'darwin' ? SIGTRAP : SIGABRT;
 
 /**
  * The interpreter the child cases need, or null.
@@ -151,19 +178,20 @@ const NATIVE_ENV: readonly string[] | null = (() => {
     // search fails, and setting it REPLACES dyld's own default tail rather
     // than extending it — `dyld(1)`: `$HOME/lib`, `/usr/local/lib`, `/lib`,
     // `/usr/lib`. Carrying that tail here is what keeps this child's search
-    // no SMALLER than an unset variable would have given it — the same
-    // composition `@gjsify/cli`'s `buildNativeEnv()` uses
-    // (`utils/system-gi.ts`), minus the CURRENT value of the variable
-    // itself: that is the poisoned one under `test:gjs-on-node`, and `dirs`
-    // already comes first, so nothing genuinely needed is lost by not
-    // carrying it forward.
+    // no SMALLER than an unset variable would have given it.
+    // `dyldDefaultFallbackDirs()`, not a fourth hand-rolled copy of the same
+    // four-entry array: `@gjsify/utils/core` holds it for exactly this
+    // caller (a launcher replacing the environment, so there is no CURRENT
+    // value of the variable to fold in — the other half of `@gjsify/cli`'s
+    // `composeDyldFallback()` in `utils/system-gi.ts`), and
+    // `system-gi.spec.ts` now pins this copy against the other two rather
+    // than letting a fourth one drift unseen.
     const home = GLib.getenv('HOME');
-    const tail = [...(home ? [`${home}/lib`] : []), '/usr/local/lib', '/lib', '/usr/lib'];
     const path = GLib.getenv('PATH');
     return [
         ...(path ? [`PATH=${path}`] : []),
         ...(home ? [`HOME=${home}`] : []),
-        `DYLD_FALLBACK_LIBRARY_PATH=${[...new Set([...dirs, ...tail])].join(':')}`,
+        `DYLD_FALLBACK_LIBRARY_PATH=${[...new Set([...dirs, ...dyldDefaultFallbackDirs(home ? { HOME: home } : {})])].join(':')}`,
     ];
 })();
 
