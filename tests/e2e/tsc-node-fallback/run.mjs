@@ -50,6 +50,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { nodeLessPath } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/tsc-node-fallback/ → monorepo root is 3 levels up.
@@ -63,8 +64,11 @@ function hasGjs() {
 }
 
 const SKIP =
-    process.platform !== 'linux' || !hasGjs() || !existsSync(CLI_BUNDLE) || !existsSync(TYPESCRIPT_PKG)
-        ? 'needs linux + gjs + a built dist/cli.gjs.mjs + node_modules/typescript'
+    (process.platform !== 'linux' && process.platform !== 'darwin') ||
+    !hasGjs() ||
+    !existsSync(CLI_BUNDLE) ||
+    !existsSync(TYPESCRIPT_PKG)
+        ? 'needs linux or darwin + gjs + a built dist/cli.gjs.mjs + node_modules/typescript'
         : false;
 
 describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
@@ -185,9 +189,13 @@ describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, ti
         writeFileSync(join(projectDir, 'src', 'index.ts'), 'export const answer: number = 42;\n');
         // A PATH that still resolves `gjs` (the host we are launching) but not
         // `node` (the interpreter the fallback needs), so the spawn raises
-        // ENOENT instead of the child failing.
-        const gjsDir = dirname(spawnSync('sh', ['-c', 'command -v gjs'], { encoding: 'utf-8' }).stdout.trim());
-        const { code, output } = runGjsifyTsc(['-p', 'tsconfig.json'], { ...process.env, PATH: gjsDir });
+        // ENOENT instead of the child failing. It used to be `gjs`'s directory
+        // ALONE — which on Homebrew still holds `node`, and drops `/usr/bin`
+        // (`uname`) besides.
+        const { code, output } = runGjsifyTsc(['-p', 'tsconfig.json'], {
+            ...process.env,
+            PATH: nodeLessPath(tmpDir),
+        });
         assert.notEqual(
             code,
             0,
