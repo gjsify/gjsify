@@ -78,29 +78,42 @@ test('GDK realizes a desktop GL context of at least 3.2', { skip }, () => {
     assert.doesNotMatch(gl.strings.renderer, /GDI Generic/, 'the context is the GDI generic OpenGL 1.1');
 });
 
+// In a child, with GSK_DEBUG=renderer, so a cairo answer arrives with GSK's own reason for
+// rejecting GL instead of a bare type name.
 test(
     'GSK picks a GL renderer on its own',
     { skip: skip || (process.env.GSK_RENDERER && 'GSK_RENDERER is set') },
     () => {
-        const Gtk = requireGi('Gtk', '4.0');
-        const GObject = requireGi('GObject', '2.0');
-        const GLib = requireGi('GLib', '2.0');
-        Gtk.init();
-        // realize() alone left get_renderer() null on GdkWin32 (measured on this leg): present
-        // the window and spin the loop until GTK has created its renderer.
-        const win = new Gtk.Window({ default_width: 64, default_height: 64 });
-        win.present();
-        const context = GLib.MainContext.default();
-        let gsk = win.get_renderer();
-        for (let i = 0; !gsk && i < 500; i++) {
-            context.iteration(false);
-            gsk = win.get_renderer();
-        }
-        assert.ok(gsk, 'the presented window never got a GSK renderer');
-        const renderer = GObject.type_name(gsk.constructor.$gtype);
-        console.log(`GSK renderer: ${renderer}`);
-        win.destroy();
-        assert.notEqual(renderer, 'GskCairoRenderer', 'GSK fell back to cairo — it found no usable GL');
+        const script = `
+            import { requireGi } from ${JSON.stringify(new URL('../gi.js', import.meta.url).href)};
+            const Gtk = requireGi('Gtk', '4.0');
+            const GObject = requireGi('GObject', '2.0');
+            const GLib = requireGi('GLib', '2.0');
+            Gtk.init();
+            // realize() alone left get_renderer() null on GdkWin32 (measured on this leg):
+            // present the window and spin the loop until GTK has created its renderer.
+            const win = new Gtk.Window({ default_width: 64, default_height: 64 });
+            win.present();
+            const context = GLib.MainContext.default();
+            let gsk = win.get_renderer();
+            for (let i = 0; !gsk && i < 500; i++) {
+                context.iteration(false);
+                gsk = win.get_renderer();
+            }
+            console.log(JSON.stringify({ renderer: gsk ? GObject.type_name(gsk.constructor.$gtype) : null }));
+            win.destroy();
+        `;
+        const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+            cwd: here,
+            env: { ...process.env, GSK_DEBUG: 'renderer' },
+            encoding: 'utf8',
+        });
+        const line = res.stdout.trim().split(/\r?\n/).pop() ?? '';
+        const debug = res.stderr.trim();
+        console.log(`GSK: ${line}\n${debug}`);
+        const { renderer } = JSON.parse(line);
+        assert.ok(renderer, `the presented window never got a GSK renderer\n${debug}`);
+        assert.notEqual(renderer, 'GskCairoRenderer', `GSK fell back to cairo:\n${debug}`);
     },
 );
 
