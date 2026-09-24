@@ -227,6 +227,115 @@ export default async () => {
                 }
                 expect(completed).toBe(70);
             });
+
+            await it('drains a followed redirect so the next hop reuses its connection', async () => {
+                const ports: number[] = [];
+                const server = new Soup.Server({});
+                server.add_handler(null, (_s: unknown, msg: SoupNS.ServerMessage) => {
+                    ports.push((msg.get_remote_address() as GioNS.InetSocketAddress).get_port());
+                    if (msg.get_uri().get_path() === '/moved') {
+                        msg.set_redirect(307, '/target');
+                        // A non-empty body: libsoup completes an empty one without a stream close.
+                        msg.set_response('text/plain', Soup.MemoryUse.COPY, new TextEncoder().encode('moved'));
+                    } else {
+                        msg.set_status(200, null);
+                        msg.set_response('text/plain', Soup.MemoryUse.COPY, new TextEncoder().encode('ok'));
+                    }
+                });
+                server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+                const base = server.get_uris()[0].to_string();
+                try {
+                    // libsoup follows safe-method redirects itself; a 307 on PUT is
+                    // left to fetch's own redirect step, the path under test.
+                    const res = await fetchFn(`${base}moved`, { method: 'PUT', headers: { Connection: 'keep-alive' } });
+                    expect(await res.text()).toBe('ok');
+                    expect(ports.length).toBe(2);
+                    // Nobody reads a redirect's body; left open it pinned its connection.
+                    expect(new Set(ports).size).toBe(1);
+                } finally {
+                    server.disconnect();
+                }
+            });
+
+            // A body read parked on a server that has gone quiet (long-poll, SSE)
+            // kept the stream open past body.cancel(): close() cannot run while
+            // a read is pending, so the connection stayed pinned. Cancel one
+            // such body per per-host slot (DEFAULT_MAX_CONNS_PER_HOST = 16);
+            // pinned, they leave no slot for the request after them.
+            await it('releases the connection when a body is cancelled mid-stream', async () => {
+                const server = new Soup.Server({});
+                server.add_handler(null, (_s: unknown, msg: SoupNS.ServerMessage) => {
+                    msg.set_status(200, null);
+                    if (msg.get_uri().get_path() === '/stream') {
+                        msg.get_response_headers().set_encoding(Soup.Encoding.CHUNKED);
+                        // No complete(): the response stays open with nothing more to read.
+                        msg.get_response_body().append(new TextEncoder().encode('first'));
+                    } else {
+                        msg.set_response('text/plain', Soup.MemoryUse.COPY, new TextEncoder().encode('ok'));
+                    }
+                });
+                server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+                const base = server.get_uris()[0].to_string();
+                try {
+                    for (let i = 0; i < 16; i++) {
+                        const res = await fetchFn(`${base}stream`);
+                        const reader = res.body!.getReader();
+                        const first = await reader.read();
+                        expect(new TextDecoder().decode(first.value)).toBe('first');
+                        await reader.cancel();
+                    }
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 2000);
+                    try {
+                        expect(await (await fetchFn(base, { signal: ctrl.signal })).text()).toBe('ok');
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                } finally {
+                    server.disconnect();
+                }
+            });
+
+            // libsoup does not watch the cancellable of a message still queued
+            // for a connection slot, so an abort there used to hang until some
+            // other request freed a slot.
+            await it('rejects an aborted fetch that is still queued for a connection', async () => {
+                const paused: SoupNS.ServerMessage[] = [];
+                const server = new Soup.Server({});
+                server.add_handler(null, (_s: unknown, msg: SoupNS.ServerMessage) => {
+                    msg.pause();
+                    paused.push(msg);
+                });
+                server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+                const base = server.get_uris()[0].to_string();
+                // Fill every per-host slot (DEFAULT_MAX_CONNS_PER_HOST) with a hung request.
+                const holders = Array.from({ length: 16 }, () => new AbortController());
+                const held = holders.map((c) => fetchFn(base, { signal: c.signal }).catch(() => undefined));
+                try {
+                    const deadline = Date.now() + 2000;
+                    while (paused.length < holders.length && Date.now() < deadline) {
+                        await new Promise((r) => setTimeout(r, 20));
+                    }
+                    expect(paused.length).toBe(holders.length);
+
+                    const ctrl = new AbortController();
+                    const queued = fetchFn(base, { signal: ctrl.signal }).then(
+                        () => 'resolved',
+                        (err: Error) => err.name,
+                    );
+                    setTimeout(() => ctrl.abort(), 50);
+                    const outcome = await Promise.race([
+                        queued,
+                        new Promise((r) => setTimeout(() => r('still queued'), 2000)),
+                    ]);
+                    expect(outcome).toBe('AbortError');
+                } finally {
+                    for (const c of holders) c.abort();
+                    await Promise.all(held);
+                    for (const msg of paused) msg.unpause();
+                    server.disconnect();
+                }
+            });
         });
 
         // Regression: @gjsify/fetch re-parsed the already-encoded request URL
