@@ -615,6 +615,17 @@ gjsify_sab_send_fd (gint socket_fd, gint fd_to_send, guint32 tag)
   do {
     n = sendmsg (socket_fd, &msg, MSG_NOSIGNAL);
   } while (n < 0 && errno == EINTR);
+#if defined(__APPLE__)
+  /* SOCK_STREAM (see gjsify_sab_socketpair) may accept a frame short; the
+   * receiver reads exactly four bytes per frame, so a missing tail would shift
+   * every later tag. The fd already travelled with the first byte. */
+  while (n >= 0 && (size_t) n < sizeof tag_be) {
+    ssize_t m = send (socket_fd, (guint8 *) &tag_be + n, sizeof tag_be - (size_t) n, 0);
+    if (m < 0 && errno == EINTR) continue;
+    if (m < 0) return FALSE;
+    n += m;
+  }
+#endif
   return n >= 0;
 }
 
@@ -663,7 +674,17 @@ gjsify_sab_recv_fd (gint socket_fd, guint32 *tag)
     ssize_t m = recv (socket_fd, (guint8 *) &tag_be + n, sizeof tag_be - (size_t) n, 0);
     if (m < 0 && errno == EINTR) continue;
     if (m <= 0) {
-      errno = m == 0 ? EBADMSG : errno;
+      int e = m == 0 ? EBADMSG : errno;
+      /* The frame's fd was already installed in this process by the first
+       * recvmsg; the caller never sees it on this path, so close it here. */
+      for (struct cmsghdr *cm = CMSG_FIRSTHDR (&msg); cm != NULL; cm = gjsify_cmsg_nxthdr (&msg, cm)) {
+        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) {
+          int fd;
+          memcpy (&fd, CMSG_DATA (cm), sizeof (int));
+          close (fd);
+        }
+      }
+      errno = e;
       return -1;
     }
     n += m;
