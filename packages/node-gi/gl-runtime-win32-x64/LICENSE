@@ -3,10 +3,10 @@ MIT License
 Copyright (c) 2026 gjsify contributors
 
 This license covers the SOURCE of this package (index.js, index.d.ts) and the
-build script in the gjsify repository that assembles the bundle. It does NOT
-cover the third-party GTK / GObject-Introspection binaries under `gtk/`: those
-keep the terms of their own projects, reproduced in
-`gtk/THIRD-PARTY-NOTICES.md` and `gtk/licenses/` inside the published tarball.
+build script in the gjsify repository that assembles the payload. It does NOT
+cover the third-party Mesa / LLVM binaries under `bin/`: those keep the terms
+of their own projects, reproduced in `bin/THIRD-PARTY-NOTICES.md` and
+`bin/licenses/` inside the published tarball.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

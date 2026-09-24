@@ -50,7 +50,8 @@ writeFileSync(
             `\`libgallium_wgl.dll\` links LLVM ${provenance.components.llvm} statically (llvmpipe).`,
         '',
         "Mesa's terms are per source file (SPDX); its own summary and the permissive licence texts it uses, " +
-            "and LLVM's Apache-2.0 WITH LLVM-exception, are in:",
+            "LLVM's Apache-2.0 WITH LLVM-exception, and the notices of third-party code compiled into " +
+            '`libgallium_wgl.dll` (`NOTICE-*`: SoftFloat, xxHash, Henry Spencer regex) are in:',
         '',
         ...texts.sort().map((t) => `- \`${t}\``),
         '',

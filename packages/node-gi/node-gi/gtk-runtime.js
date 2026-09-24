@@ -844,7 +844,8 @@ export function decideOpenGLSource({ bundled, host, override }) {
     if (host.loadedFrom) return { source: 'system', reason: `opengl32 was already loaded from ${host.loadedFrom}` };
     if (override === 'system') return { source: 'system', reason: 'GJSIFY_OPENGL=system' };
     if (bundled && override === 'bundle') return { source: 'bundle', reason: 'GJSIFY_OPENGL=bundle' };
-    if (host.wddmIcd) return { source: 'system', reason: `the display driver provides an OpenGL ICD (${host.wddmIcd})` };
+    if (host.wddmIcd)
+        return { source: 'system', reason: `the display driver provides an OpenGL ICD (${host.wddmIcd})` };
     if (host.registryIcd) return { source: 'system', reason: `an OpenGL ICD is registered (${host.registryIcd})` };
     if (!bundled) {
         return {

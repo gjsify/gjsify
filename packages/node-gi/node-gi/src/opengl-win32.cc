@@ -27,6 +27,14 @@
 #include <memory>
 #include <string>
 
+// Windows 8+ (and 7 with KB2533623); older SDK headers guard them behind _WIN32_WINNT.
+#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
+#define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
 namespace {
 
 // The D3DKMT thunks gdi32 exports, declared by hand: <d3dkmthk.h> needs the WDK's
@@ -161,9 +169,12 @@ Napi::Value ProbeHostOpenGL(const Napi::CallbackInfo& info) {
   return out;
 }
 
-// preloadOpenGL(absPath) → the path the loaded opengl32 module reports. LOAD_WITH_ALTERED_
-// SEARCH_PATH makes its own imports (Mesa's libgallium_wgl.dll) resolve beside it. The
-// module is never freed: gtk and epoxy hold function pointers into it for the process's life.
+// preloadOpenGL(absPath) → the path the loaded opengl32 module reports. Its own imports
+// (Mesa's libgallium_wgl.dll, then system DLLs) resolve from ITS directory and System32 only:
+// LOAD_WITH_ALTERED_SEARCH_PATH would fall through to the working directory and PATH when
+// libgallium_wgl.dll is missing, so a planted copy there would be loaded instead. The
+// DLL_LOAD_DIR flag also refuses a relative path. The module is never freed: gtk and epoxy
+// hold function pointers into it for the process's life.
 Napi::Value PreloadOpenGL(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsString()) {
@@ -171,7 +182,8 @@ Napi::Value PreloadOpenGL(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
   std::string path = info[0].As<Napi::String>().Utf8Value();
-  HMODULE mod = LoadLibraryExW(Wide(path).c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+  HMODULE mod = LoadLibraryExW(Wide(path).c_str(), nullptr,
+                               LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (mod == nullptr) {
     DWORD code = GetLastError();
     Napi::Error::New(env, "preloadOpenGL: LoadLibraryExW(" + path + ") failed: " + LastErrorText(code) + " (" +
