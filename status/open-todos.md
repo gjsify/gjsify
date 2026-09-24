@@ -6084,33 +6084,6 @@ passed through `StageInputs`, so folding it in means moving where that text is r
 in the file that neighbours the layout/stage-writer work. Doing it later costs one call
 site; doing it in the same change would have crossed into a tree being rewritten.
 
-### `verify-msi.sh`'s three component assertions pass on an empty Component table
-
-An empty herestring is still one line. `COMPONENT_ROWS=$(awk … <<<"$COMPONENTS" | sort)`
-is the empty string when the `Component` parse matches nothing, and `wc -l <<<""` is
-**1** — so all three component arms of `.github/ship-oracle/verify-msi.sh` are satisfied
-by a table that yielded no rows, provided `ROWS` is 1. Measured, with the exact
-expressions from lines 173-186 under `set -euo pipefail`:
-
-    wc -l <<<"$COMPONENT_ROWS" = 1   (an empty herestring is still ONE line)
-      line 175 one-component-per-file  : PASSES on zero components
-      line 177 component-in-feature   : PASSES on two empty sets
-      sort -u <<<"" | wc -l = 1
-      line 185 distinct-GUIDs         : PASSES on zero GUIDs
-
-The seam is bounded and is NOT open today: it needs a single-file installer, and with a
-realistic `ROWS=14` line 175 reds on `1 != 14`, which is why the shipped fixture closes
-it by accident rather than by design. What makes it worth an entry is that the closing
-condition is a property of the FIXTURE, not of the oracle — a future one-file artifact,
-or a `msiinfo` output change that stops the `NF >= 6` shape matching, reopens all three
-arms at once and reports "one component per file" about nothing.
-
-The repair is the one this repo already applies elsewhere: count the rows explicitly and
-refuse zero, rather than comparing two line counts that both degrade to 1. `File` already
-has that floor one block up (`[ "$ROWS" -gt 0 ] || fail …`); `Component` has none.
-Deliberately not fixed in the audit that found it — the release was being cut, and a
-shell edit to a gating oracle is exactly the change whose cost cannot be priced in time.
-
 ### An in-repo `path:line` citation is checked by nothing
 
 `scripts/check-refs-citations.mjs` holds every `refs/<submodule>/<path>` cited as provenance
