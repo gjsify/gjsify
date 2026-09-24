@@ -24,6 +24,7 @@
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import { hasNativeHttp2, loadNativeHttp2, type SessionBridge as SessionBridgeT } from '@gjsify/http2-native';
+import { closeSocketService, releaseListenPort } from '@gjsify/utils';
 
 /** Bytes the bridge needs to recognize the h2c client preface (RFC 7540 §3.5). */
 const PREFACE_LEN = 24;
@@ -142,6 +143,7 @@ export class Http2NativeDispatcher {
         if (!hasNativeHttp2()) {
             throw new Error('@gjsify/http2-native prebuild not loadable — dispatcher unavailable');
         }
+        releaseListenPort(port);
         this._service = new Gio.SocketService();
 
         let chosenPort = port;
@@ -178,19 +180,9 @@ export class Http2NativeDispatcher {
 
     close(): void {
         if (this._service) {
-            const service = this._service;
+            // Deferred descriptor close — why in `closeSocketService`.
+            closeSocketService(this._service, [this._listenPort]);
             this._service = null;
-            service.stop();
-            // stop() only cancels the pending accept; its GSource polls the
-            // listener until that cancellation is dispatched next iteration.
-            // Closing now left it on a closed fd, and GLib on darwin polls via
-            // select(2), which fails the whole iteration with EBADF. A 0 ms
-            // source at the same priority dispatches after the (earlier-attached)
-            // accept source — same fix and reasoning as `@gjsify/net`'s Server.
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
-                service.close();
-                return GLib.SOURCE_REMOVE;
-            });
         }
         for (const conn of this._connections) this._closeConnection(conn);
         this._connections.clear();
