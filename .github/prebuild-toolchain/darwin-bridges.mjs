@@ -86,6 +86,7 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
     { dir: 'packages/node/tls-native', namespace: 'GjsifyTls', klass: 'Tls', rustSibling: false },
     { dir: 'packages/node/http-soup-bridge', namespace: 'GjsifyHttpSoupBridge', klass: 'Server', rustSibling: false },
     { dir: 'packages/node/http2-native', namespace: 'GjsifyHttp2', klass: 'SessionBridge', rustSibling: false },
+    { dir: 'packages/node/sab-native', namespace: 'GjsifySabNative', klass: 'SharedBuffer', rustSibling: false },
     { dir: 'packages/framework/webgl', namespace: 'Gwebgl', klass: 'WebGLRenderingContext', rustSibling: false },
     // The ONE row whose library leaf is authored, and the reason the field
     // exists. ADR 0022 makes GIR namespace and symbol prefix deliberately

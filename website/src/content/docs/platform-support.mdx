@@ -201,9 +201,11 @@ What you lose:
 | `@gjsify/sab-native` | no cross-process `SharedBuffer`; the rest of `worker_threads` is unaffected |
 | `@gjsify/webgl`, `@gjsify/webrtc-native` | WebGL and WebRTC unavailable |
 
-`@gjsify/sab-native` is Linux-only by design rather than by missing CI: it is
-built on `memfd_create`, Linux `futex` syscalls and `SCM_RIGHTS`. The reasoning
-is in [ADR 0013](https://github.com/gjsify/gjsify/blob/main/docs/adr/0013-sab-native-platform-scope.md).
+`@gjsify/sab-native` runs on Linux and on macOS 14.4 or newer, with a separate
+backend per OS behind one contract: `memfd_create` and `futex` on Linux,
+`shm_open` and `os_sync_wait_on_address` on macOS. Windows is out of scope,
+because Windows has no cross-process address-keyed wait. The reasoning is in
+[ADR 0013](https://github.com/gjsify/gjsify/blob/main/docs/adr/0013-sab-native-platform-scope.md).
 
 ## Related
 

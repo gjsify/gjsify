@@ -1107,10 +1107,6 @@ jobs:
   #     CONSEQUENCE UNTIL THEN: `gjsify build` still has no engine on macOS —
   #     this job closes the format/CSS half of the toolchain, not the bundler half.
   #
-  #   • @gjsify/sab-native — built on `memfd_create`, Linux `futex` and
-  #     `SCM_RIGHTS`. It is Linux-only BY DESIGN; the portability decision for it
-  #     is owned elsewhere. Do not add it here.
-  #
   #   • @gjsify/webgl and @gjsify/webrtc-native — NOT blocked, just unverified.
   #     They pull the two heaviest macOS toolchains (gtk4 + libepoxy; the unified
   #     `gstreamer` formula for gstreamer-sdp-1.0 + gstreamer-webrtc-1.0), and
@@ -1423,6 +1419,27 @@ jobs:
         working-directory: packages/node/http2-native
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
+      # -------- @gjsify/sab-native (GjsifySabNative) --------
+      # The darwin backend ADR 0013 §3 fixed in advance and gated on THIS job:
+      # shm_open + shm_unlink for the region, os_sync_wait_on_address with the
+      # `_SHARED` flag for wait/notify (macOS 14.4+, which every runner here
+      # exceeds), SOCK_STREAM for the fd channel. libc-only, so it adds nothing
+      # to the brew closure. The load test below proves it DLOPENS; that the
+      # wait really crosses processes is the package's own GJS suite
+      # (`atomics.wait32 / notify32 across processes`), measured on macOS 27
+      # arm64 when the port landed.
+      - name: Build @gjsify/sab-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        working-directory: packages/node/sab-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/sab-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        working-directory: packages/node/sab-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
       # @gjsify/webgl was built by the EXPLORATORY job below for months without
       # anything downloading its output, so it built, proved it worked and threw
       # the result away. Nothing about it needed fixing to move here: its
@@ -1672,6 +1689,15 @@ jobs:
         with:
           name: http2-native-prebuilds-darwin-${{ matrix.arch }}
           path: packages/node/http2-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/sab-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sab-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/sab-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -3916,8 +3942,8 @@ jobs:
           path: packages/infra/rolldown-native-linux-arm64/prebuilds/linux-arm64/
 
       # -------- darwin-arm64 (macOS, Apple silicon) --------
-      # rolldown-native, sab-native, webgl and webrtc-native have no darwin
-      # artifact — see the rationale in build-prebuilds-macos above.
+      # webrtc-native has no darwin artifact — see the rationale in
+      # build-prebuilds-macos above.
       - name: Download lightningcss-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
         uses: actions/download-artifact@v8
@@ -3967,6 +3993,13 @@ jobs:
           name: http2-native-prebuilds-darwin-arm64
           path: packages/node/http2-native-darwin-arm64/prebuilds/darwin-arm64/
 
+      - name: Download sab-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sab-native-prebuilds-darwin-arm64
+          path: packages/node/sab-native-darwin-arm64/prebuilds/darwin-arm64/
+
       - name: Download webgl darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         uses: actions/download-artifact@v8
@@ -3988,7 +4021,7 @@ jobs:
           path: packages/framework/webkit-native-darwin-arm64/prebuilds/darwin-arm64/
 
       # -------- darwin-x64 (macOS, Intel) --------
-      # The SAME eight packages as the arm64 block above, because both come from
+      # The SAME packages as the arm64 block above, because both come from
       # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
       - name: Download lightningcss-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"lightningcss-native"') }}
@@ -4038,6 +4071,13 @@ jobs:
         with:
           name: http2-native-prebuilds-darwin-x64
           path: packages/node/http2-native-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download sab-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sab-native-prebuilds-darwin-x64
+          path: packages/node/sab-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download webgl darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
