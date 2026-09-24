@@ -2,10 +2,17 @@
 // Adapted from Deno (refs/deno/ext/node/polyfills/path/_win32.ts) and Node.js (refs/node/lib/path.js)
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
 // Copyright (c) Node.js contributors. MIT license.
-// Modifications: Stub — full win32 support is secondary since GJS runs on POSIX systems
+// Modifications: TypeScript port; `index.ts` selects this flavour on a win32 host.
 
-import { CHAR_DOT, CHAR_BACKWARD_SLASH, CHAR_COLON } from './constants.js';
-import { assertPath, isPathSeparator, isWindowsDeviceRoot, normalizeString, _format } from './util.js';
+import { CHAR_DOT, CHAR_BACKWARD_SLASH, CHAR_COLON, CHAR_QUESTION_MARK } from './constants.js';
+import {
+    assertPath,
+    isPathSeparator,
+    isPosixPathSeparator,
+    isWindowsDeviceRoot,
+    normalizeString,
+    _format,
+} from './util.js';
 
 export interface ParsedPath {
     root: string;
@@ -20,6 +27,14 @@ export type FormatInputPathObject = Partial<ParsedPath>;
 export const sep = '\\';
 export const delimiter = ';';
 
+/**
+ * The directory a relative path resolves against — `process.cwd()`, which is where Node reads
+ * it too, and `/` off a host that has no `process` (a bare browser bundle).
+ */
+function cwd(): string {
+    return typeof globalThis.process?.cwd === 'function' ? globalThis.process.cwd() : '/';
+}
+
 export function resolve(...pathSegments: string[]): string {
     let resolvedDevice = '';
     let resolvedTail = '';
@@ -32,9 +47,20 @@ export function resolve(...pathSegments: string[]): string {
             assertPath(path);
             if (path.length === 0) continue;
         } else if (resolvedDevice.length === 0) {
-            path = typeof globalThis.process?.cwd === 'function' ? globalThis.process.cwd() : '/';
+            path = cwd();
         } else {
-            path = typeof globalThis.process?.cwd === 'function' ? globalThis.process.cwd() : '/';
+            // A drive-RELATIVE path (`D:foo`) resolves against THAT drive's current directory,
+            // which Windows keeps in the hidden `=D:` variable — not against the process cwd,
+            // which may be on another drive. With neither available it is the drive's root:
+            // `D:foo` with the cwd on `C:` is `D:\foo`, never `D:foo` (the answer this gave
+            // before, a relative path that `pathToFileURL` then glued onto the cwd).
+            path = globalThis.process?.env?.[`=${resolvedDevice}`] || cwd();
+            if (
+                path.slice(0, 2).toLowerCase() !== resolvedDevice.toLowerCase() &&
+                path.charCodeAt(2) === CHAR_BACKWARD_SLASH
+            ) {
+                path = `${resolvedDevice}\\`;
+            }
         }
 
         const len = path.length;
@@ -43,115 +69,18 @@ export function resolve(...pathSegments: string[]): string {
         let isAbsolutePath = false;
         const code = path.charCodeAt(0);
 
-        if (len > 1) {
+        if (len === 1) {
             if (isPathSeparator(code)) {
+                rootEnd = 1;
                 isAbsolutePath = true;
-                if (isPathSeparator(path.charCodeAt(1))) {
-                    // UNC path
-                    let j = 2;
-                    let last = j;
-                    for (; j < len; ++j) {
-                        if (isPathSeparator(path.charCodeAt(j))) break;
-                    }
-                    if (j < len && j !== last) {
-                        const firstPart = path.slice(last, j);
-                        last = j;
-                        for (; j < len; ++j) {
-                            if (!isPathSeparator(path.charCodeAt(j))) break;
-                        }
-                        if (j < len && j !== last) {
-                            last = j;
-                            for (; j < len; ++j) {
-                                if (isPathSeparator(path.charCodeAt(j))) break;
-                            }
-                            if (j === len) {
-                                device = `\\\\${firstPart}\\${path.slice(last)}`;
-                                rootEnd = j;
-                            } else if (j !== last) {
-                                device = `\\\\${firstPart}\\${path.slice(last, j)}`;
-                                rootEnd = j;
-                            }
-                        }
-                    }
-                } else {
-                    rootEnd = 1;
-                }
-            } else if (isWindowsDeviceRoot(code)) {
-                if (path.charCodeAt(1) === CHAR_COLON) {
-                    device = path.slice(0, 2);
-                    rootEnd = 2;
-                    if (len > 2) {
-                        if (isPathSeparator(path.charCodeAt(2))) {
-                            isAbsolutePath = true;
-                            rootEnd = 3;
-                        }
-                    }
-                }
             }
         } else if (isPathSeparator(code)) {
-            rootEnd = 1;
-            isAbsolutePath = true;
-        }
-
-        if (device.length > 0 && resolvedDevice.length > 0 && device.toLowerCase() !== resolvedDevice.toLowerCase()) {
-            continue;
-        }
-
-        if (resolvedDevice.length === 0 && device.length > 0) {
-            resolvedDevice = device;
-        }
-        if (!resolvedAbsolute) {
-            resolvedTail = `${path.slice(rootEnd)}\\${resolvedTail}`;
-            resolvedAbsolute = isAbsolutePath;
-        }
-
-        if (resolvedDevice.length > 0 && resolvedAbsolute) {
-            break;
-        }
-    }
-
-    resolvedTail = normalizeString(resolvedTail, !resolvedAbsolute, '\\', isPathSeparator);
-
-    return resolvedDevice + (resolvedAbsolute ? '\\' : '') + resolvedTail || '.';
-}
-
-export function normalize(path: string): string {
-    assertPath(path);
-    const len = path.length;
-    if (len === 0) return '.';
-
-    let rootEnd = 0;
-    let device: string | undefined;
-    let isAbsolutePath = false;
-    const code = path.charCodeAt(0);
-
-    if (len > 1) {
-        if (isPathSeparator(code)) {
             isAbsolutePath = true;
             if (isPathSeparator(path.charCodeAt(1))) {
-                let j = 2;
-                let last = j;
-                for (; j < len; ++j) {
-                    if (isPathSeparator(path.charCodeAt(j))) break;
-                }
-                if (j < len && j !== last) {
-                    const firstPart = path.slice(last, j);
-                    last = j;
-                    for (; j < len; ++j) {
-                        if (!isPathSeparator(path.charCodeAt(j))) break;
-                    }
-                    if (j < len && j !== last) {
-                        last = j;
-                        for (; j < len; ++j) {
-                            if (isPathSeparator(path.charCodeAt(j))) break;
-                        }
-                        if (j === len) {
-                            return `\\\\${firstPart}\\${path.slice(last)}\\`;
-                        } else if (j !== last) {
-                            device = `\\\\${firstPart}\\${path.slice(last, j)}`;
-                            rootEnd = j;
-                        }
-                    }
+                const unc = matchUncRoot(path);
+                if (unc) {
+                    device = unc.device;
+                    rootEnd = unc.rootEnd;
                 }
             } else {
                 rootEnd = 1;
@@ -164,34 +93,134 @@ export function normalize(path: string): string {
                 rootEnd = 3;
             }
         }
-    } else if (isPathSeparator(code)) {
-        return '\\';
+
+        if (device.length > 0) {
+            if (resolvedDevice.length > 0) {
+                if (device.toLowerCase() !== resolvedDevice.toLowerCase()) continue;
+            } else {
+                resolvedDevice = device;
+            }
+        }
+
+        if (resolvedAbsolute) {
+            if (resolvedDevice.length > 0) break;
+        } else {
+            resolvedTail = `${path.slice(rootEnd)}\\${resolvedTail}`;
+            resolvedAbsolute = isAbsolutePath;
+            if (isAbsolutePath && resolvedDevice.length > 0) break;
+        }
     }
 
-    let tail: string;
-    if (rootEnd < len) {
-        tail = normalizeString(path.slice(rootEnd), !isAbsolutePath, '\\', isPathSeparator);
-    } else {
-        tail = '';
+    resolvedTail = normalizeString(resolvedTail, !resolvedAbsolute, '\\', isPathSeparator);
+
+    return resolvedAbsolute ? `${resolvedDevice}\\${resolvedTail}` : `${resolvedDevice}${resolvedTail}` || '.';
+}
+
+/**
+ * The root of a path that opens with two separators: a UNC share (`\\server\share`) or a
+ * device namespace (`\\.\PHYSICALDRIVE0`, `\\?\C:`). The second is NOT a share — `.` and
+ * `?` are not server names — so its root is the four-character prefix alone, and what
+ * follows is an ordinary segment. Read as a share it gained a trailing separator Node does
+ * not produce (`\\.\PHYSICALDRIVE0\`).
+ */
+function matchUncRoot(path: string): { device: string; rootEnd: number; shareOnly: boolean } | undefined {
+    const len = path.length;
+    let j = 2;
+    let last = j;
+    while (j < len && !isPathSeparator(path.charCodeAt(j))) j++;
+    if (j >= len || j === last) return undefined;
+    const firstPart = path.slice(last, j);
+    last = j;
+    while (j < len && isPathSeparator(path.charCodeAt(j))) j++;
+    if (j >= len || j === last) return undefined;
+    last = j;
+    while (j < len && !isPathSeparator(path.charCodeAt(j))) j++;
+    if (firstPart === '.' || firstPart === '?') {
+        return { device: `\\\\${firstPart}`, rootEnd: 4, shareOnly: false };
     }
-    if (tail.length === 0 && !isAbsolutePath) tail = '.';
-    if (tail.length > 0 && isPathSeparator(path.charCodeAt(len - 1))) {
-        tail += '\\';
-    }
-    if (device === undefined) {
-        if (isAbsolutePath) {
-            if (tail.length > 0) return `\\${tail}`;
-            return '\\';
+    return { device: `\\\\${firstPart}\\${path.slice(last, j)}`, rootEnd: j, shareOnly: j === len };
+}
+
+export function normalize(path: string): string {
+    assertPath(path);
+    const len = path.length;
+    if (len === 0) return '.';
+    const code = path.charCodeAt(0);
+    if (len === 1) return isPosixPathSeparator(code) ? '\\' : path;
+
+    let rootEnd = 0;
+    let device: string | undefined;
+    let isAbsolutePath = false;
+
+    if (isPathSeparator(code)) {
+        isAbsolutePath = true;
+        if (isPathSeparator(path.charCodeAt(1))) {
+            const unc = matchUncRoot(path);
+            if (unc?.shareOnly) return `${unc.device}\\`;
+            if (unc) {
+                device = unc.device;
+                rootEnd = unc.rootEnd;
+                if (device.length === 3) {
+                    // `\\?\COM1:` names the device itself, so the device name is root too.
+                    const possibleDevice = path.slice(4, path.indexOf(':') + 1);
+                    if (isWindowsReservedName(possibleDevice, possibleDevice.length - 1)) {
+                        device = `\\\\?\\${possibleDevice}`;
+                        rootEnd = 4 + possibleDevice.length;
+                    }
+                }
+            }
+        } else {
+            rootEnd = 1;
         }
-        if (tail.length > 0) return tail;
-        return '';
+    } else {
+        const colonIndex = path.indexOf(':');
+        if (colonIndex > 0) {
+            if (isWindowsDeviceRoot(code) && colonIndex === 1) {
+                device = path.slice(0, 2);
+                rootEnd = 2;
+                if (len > 2 && isPathSeparator(path.charCodeAt(2))) {
+                    isAbsolutePath = true;
+                    rootEnd = 3;
+                }
+            } else if (isWindowsReservedName(path, colonIndex)) {
+                device = path.slice(0, colonIndex + 1);
+                rootEnd = colonIndex + 1;
+            }
+        }
     }
-    if (isAbsolutePath) {
-        if (tail.length > 0) return `${device}\\${tail}`;
-        return `${device}\\`;
+
+    let tail = rootEnd < len ? normalizeString(path.slice(rootEnd), !isAbsolutePath, '\\', isPathSeparator) : '';
+    if (tail.length === 0 && !isAbsolutePath) tail = '.';
+    if (tail.length > 0 && isPathSeparator(path.charCodeAt(len - 1))) tail += '\\';
+
+    // CVE-2024-36139: collapsing `..` must not turn a relative path into one Windows reads as
+    // drive-qualified — `foo\..\C:bar` normalised to `C:bar` names another drive's cwd.
+    // Node prefixes `.\` whenever the result could be read that way, and `join()` inherits it.
+    if (!isAbsolutePath && device === undefined && path.includes(':')) {
+        if (tail.length >= 2 && isWindowsDeviceRoot(tail.charCodeAt(0)) && tail.charCodeAt(1) === CHAR_COLON) {
+            return `.\\${tail}`;
+        }
+        let index = path.indexOf(':');
+        do {
+            if (index === len - 1 || isPathSeparator(path.charCodeAt(index + 1))) return `.\\${tail}`;
+        } while ((index = path.indexOf(':', index + 1)) !== -1);
     }
-    if (tail.length > 0) return device + tail;
-    return device;
+    if (isWindowsReservedName(path, path.indexOf(':'))) return `.\\${device ?? ''}${tail}`;
+    if (device === undefined) return isAbsolutePath ? `\\${tail}` : tail;
+    return isAbsolutePath ? `${device}\\${tail}` : `${device}${tail}`;
+}
+
+/** DOS device names, which Windows resolves to the device in any directory (`C:\\x\\NUL`). */
+const WINDOWS_RESERVED_NAMES = new Set([
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
+    ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '\xb9', '\xb2', '\xb3'].flatMap((n) => [`COM${n}`, `LPT${n}`]),
+]);
+
+function isWindowsReservedName(path: string, colonIndex: number): boolean {
+    return WINDOWS_RESERVED_NAMES.has(path.slice(0, colonIndex).toUpperCase());
 }
 
 export function isAbsolute(path: string): boolean {
@@ -245,6 +274,15 @@ export function join(...paths: string[]): string {
         }
         if (slashCount >= 2) joined = `\\${joined.slice(slashCount)}`;
     }
+
+    // A reserved device name in any segment (`COM1:`) is returned un-normalised, as Node does:
+    // normalising around it could fold the device into a path segment.
+    const hasReservedSegment = joined.split(/\\+/).some((part) => {
+        const colonIndex = part.indexOf(':');
+        return colonIndex !== -1 && isWindowsReservedName(part, colonIndex);
+    });
+    if (hasReservedSegment) return joined.replace(/\//g, '\\');
+
     return normalize(joined);
 }
 
@@ -333,27 +371,29 @@ export function relative(from: string, to: string): string {
 }
 
 export function toNamespacedPath(path: string): string {
-    if (typeof path !== 'string') return path;
-    if (path.length === 0) return '';
+    if (typeof path !== 'string' || path.length === 0) return path;
 
     const resolvedPath = resolve(path);
-    if (resolvedPath.length >= 3) {
-        if (resolvedPath.charCodeAt(0) === CHAR_BACKWARD_SLASH) {
-            if (resolvedPath.charCodeAt(1) === CHAR_BACKWARD_SLASH) {
-                const code = resolvedPath.charCodeAt(2);
-                if (code !== 63 && code !== CHAR_DOT) {
-                    return `\\\\?\\UNC\\${resolvedPath.slice(2)}`;
-                }
+    if (resolvedPath.length <= 2) return path;
+
+    if (resolvedPath.charCodeAt(0) === CHAR_BACKWARD_SLASH) {
+        if (resolvedPath.charCodeAt(1) === CHAR_BACKWARD_SLASH) {
+            const code = resolvedPath.charCodeAt(2);
+            if (code !== CHAR_QUESTION_MARK && code !== CHAR_DOT) {
+                return `\\\\?\\UNC\\${resolvedPath.slice(2)}`;
             }
-        } else if (
-            isWindowsDeviceRoot(resolvedPath.charCodeAt(0)) &&
-            resolvedPath.charCodeAt(1) === CHAR_COLON &&
-            resolvedPath.charCodeAt(2) === CHAR_BACKWARD_SLASH
-        ) {
-            return `\\\\?\\${resolvedPath}`;
         }
+    } else if (
+        isWindowsDeviceRoot(resolvedPath.charCodeAt(0)) &&
+        resolvedPath.charCodeAt(1) === CHAR_COLON &&
+        resolvedPath.charCodeAt(2) === CHAR_BACKWARD_SLASH
+    ) {
+        return `\\\\?\\${resolvedPath}`;
     }
-    return path;
+
+    // A path that is not drive- or UNC-rooted has no long form, but it IS resolved: Node
+    // returns the absolute path here, never the input.
+    return resolvedPath;
 }
 
 export function dirname(path: string): string {
