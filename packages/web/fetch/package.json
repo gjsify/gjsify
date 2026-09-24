@@ -51,6 +51,7 @@
         "fetch"
     ],
     "devDependencies": {
+        "@gjsify/abort-controller": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

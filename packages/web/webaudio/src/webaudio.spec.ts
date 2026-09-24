@@ -4,7 +4,8 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
 
 import { describe, it, expect } from '@gjsify/unit';
-import { spawnSync } from '@gjsify/child_process';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import { decodeAudioDataSync } from './gst-decoder.js';
 import { AudioContext } from './audio-context.js';
 import { AudioBuffer } from './audio-buffer.js';
@@ -128,8 +129,8 @@ function resolveAutoDetectSinkChild(bin: Gst.Bin, timeoutMs = 5000): string | nu
  * It runs in a CHILD process, never this one: un-deranking `openalsink` and
  * forcing autodetect to pick it is exactly the call that hung for 31s+ in
  * CI, and repeating that experiment in-process here would just relocate the
- * hang into the test meant to prove it is fixed. The `spawnSync` `timeout`
- * option below is the real bound; the large in-script one only keeps a
+ * hang into the test meant to prove it is fixed. The timeout of
+ * `runBoundedGjsProbe()` is the real bound; the large in-script one only keeps a
  * hung child from spinning past that bound on its own accord.
  *
  * Legacy `imports.gi` (not `gi://…`) because `gjs -c` evaluates its argument
@@ -165,6 +166,49 @@ if (!openal) {
     print(childName);
 }
 `.trim();
+
+/**
+ * Run `gjs -c <script>` and force-exit it after `timeoutMs`.
+ *
+ * `Gio.Subprocess`, not `@gjsify/child_process`: this spec is compiled by the
+ * package's own `build:types`, and a cold `@gjsify/cli --with-dependencies`
+ * build reaches this package before child_process — #1775's import was TS2307
+ * there (held by `scripts/check-build-infra-order.mjs`).
+ */
+function runBoundedGjsProbe(
+    script: string,
+    timeoutMs: number,
+): Promise<{ timedOut: boolean; ok: boolean; stdout: string }> {
+    return new Promise((resolve) => {
+        let proc: Gio.Subprocess;
+        try {
+            proc = Gio.Subprocess.new(
+                ['gjs', '-c', script],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE,
+            );
+        } catch {
+            // throws="1": no `gjs` on PATH is the "probe could not run" outcome, not a test failure.
+            resolve({ timedOut: false, ok: false, stdout: '' });
+            return;
+        }
+        let timedOut = false;
+        const timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeoutMs, () => {
+            timedOut = true;
+            proc.force_exit();
+            return GLib.SOURCE_REMOVE;
+        });
+        proc.communicate_utf8_async(null, null, (_source, result) => {
+            if (!timedOut) GLib.source_remove(timer);
+            let stdout = '';
+            try {
+                stdout = proc.communicate_utf8_finish(result)[1] ?? '';
+            } catch {
+                // throws="1": a pipe error is the same "could not run" outcome as a failed spawn.
+            }
+            resolve({ timedOut, ok: !timedOut && proc.get_successful(), stdout: stdout.trim() });
+        });
+    });
+}
 
 export default async () => {
     await describe('AudioContext', async () => {
@@ -416,14 +460,9 @@ export default async () => {
             // assert past; asserting "would pick openal" there would be a
             // vacuous pass, not a real check. See `OPENAL_SINK_SELECTION_PROBE`
             // for why the experiment runs in a bounded child process at all.
-            const revertProbe = spawnSync('gjs', ['-c', OPENAL_SINK_SELECTION_PROBE], {
-                encoding: 'utf8',
-                timeout: 15_000,
-            });
-            const revertTimedOut =
-                revertProbe.signal !== null ||
-                (revertProbe.error as (Error & { code?: string }) | undefined)?.code === 'ETIMEDOUT';
-            const revertChild = revertTimedOut ? null : String(revertProbe.stdout ?? '').trim();
+            const revertProbe = await runBoundedGjsProbe(OPENAL_SINK_SELECTION_PROBE, 15_000);
+            const revertTimedOut = revertProbe.timedOut;
+            const revertChild = revertTimedOut ? null : revertProbe.stdout;
 
             if (revertTimedOut) {
                 await it('would select an openal* child if the derank were reverted', async () => {
@@ -432,9 +471,9 @@ export default async () => {
                     // prevents, reproduced live.
                     expect(revertTimedOut).toBe(true);
                 });
-            } else if (revertProbe.error || revertProbe.status !== 0 || !revertChild) {
+            } else if (!revertProbe.ok || !revertChild) {
                 await it('(skipped — the probe subprocess could not run)', async () => {
-                    expect(Boolean(revertProbe.error) || revertProbe.status !== 0).toBe(true);
+                    expect(revertProbe.ok).toBe(false);
                 });
             } else if (revertChild === 'ABSENT') {
                 await it('(skipped — openal plugin not installed in the probe subprocess)', async () => {
