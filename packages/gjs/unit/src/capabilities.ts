@@ -59,6 +59,10 @@ export function canRealizeSurface(os: TargetOs | undefined, env: DisplayEnv): bo
  * the probe is never run where there is no display to open (a headless Linux
  * container, where GTK's own init would fail first).
  */
-export function canRealizeGl(os: TargetOs | undefined, env: DisplayEnv, probe: () => boolean): boolean {
-    return canRealizeSurface(os, env) && probe();
+export async function canRealizeGl(
+    os: TargetOs | undefined,
+    env: DisplayEnv,
+    probe: () => boolean | Promise<boolean>,
+): Promise<boolean> {
+    return canRealizeSurface(os, env) && (await probe());
 }

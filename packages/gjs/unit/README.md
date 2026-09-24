@@ -36,6 +36,15 @@ gjs -m test.gjs.js
 node test-runner.mjs
 ```
 
+### Capability gates in CI
+
+`on('Display')` and `on('Gl')` run their block only where the host can realize a surface / a
+GL context — `on('Gl')` asks by realizing a GDK GL context once per process. A "no" is a skip,
+which is right on a host without GL and wrong on a CI step that provisioned it. Such a step sets
+`GJSIFY_TEST_EXPECT_AXES=Gl` (comma-separated axes): an expected axis that a gate named but the
+host did not match then fails the run, with the probe's reason. An entry that never names the
+axis is not held to it.
+
 ### Available matchers
 
 - `toBe(value)` — strict equality (`===`)

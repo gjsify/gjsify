@@ -42,8 +42,8 @@ export default async (): Promise<void> => {
         // point: the old OS rule skipped a Mac that had GL.
         await it('answers GL from the probe wherever a surface exists', async () => {
             for (const { os, env, surface } of CASES) {
-                expect(canRealizeGl(os, env, NO)).toBe(false);
-                expect(canRealizeGl(os, env, YES)).toBe(surface);
+                expect(await canRealizeGl(os, env, NO)).toBe(false);
+                expect(await canRealizeGl(os, env, YES)).toBe(surface);
             }
         });
 
@@ -54,14 +54,14 @@ export default async (): Promise<void> => {
                 return true;
             };
             for (const { os, env, surface } of CASES) {
-                if (!surface) canRealizeGl(os, env, counting);
+                if (!surface) await canRealizeGl(os, env, counting);
             }
             expect(asked).toBe(0);
         });
 
         await it('never claims GL where it cannot claim a surface', async () => {
             for (const { os, env } of CASES) {
-                if (canRealizeGl(os, env, YES)) expect(canRealizeSurface(os, env)).toBe(true);
+                if (await canRealizeGl(os, env, YES)) expect(canRealizeSurface(os, env)).toBe(true);
             }
         });
 

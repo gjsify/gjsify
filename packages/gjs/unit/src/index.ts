@@ -21,18 +21,7 @@ import { createHeartbeat, type Heartbeat } from './heartbeat.js';
 interface _RuntimeGlobals {
     imports?: {
         mainloop?: GLib.MainLoop;
-        gi?: {
-            GLib?: typeof GLib;
-            versions: Record<string, string>;
-            // Read only by the GL probe, and only as far as it goes — typed at the
-            // call surface rather than importing the GTK typings into a runner
-            // that must load without GTK.
-            Gtk: { init_check(): boolean };
-            Gdk: {
-                Display: { get_default(): { create_gl_context(): { realize(): boolean } } | null };
-                GLContext: { clear_current(): void };
-            };
-        };
+        gi?: { GLib?: typeof GLib };
         system?: { exit: (code: number) => never };
     };
     process?: {
@@ -1126,17 +1115,47 @@ const displayEnv = (): DisplayEnv => ({ DISPLAY: envVar('DISPLAY'), WAYLAND_DISP
 
 const hasDisplay = (): boolean => canRealizeSurface(hostOs(), displayEnv());
 
+/**
+ * The slice of GTK/GDK the GL probe calls — typed at the call surface rather than
+ * importing the GTK typings into a runner that must load without GTK.
+ */
+interface GlProbeGi {
+    Gtk: { init_check(): boolean };
+    Gdk: {
+        Display: { get_default(): { create_gl_context(): { realize(): boolean } } | null };
+        GLContext: { clear_current(): void };
+    };
+}
+
 /** The GL probe's answer, once per process: a context's realizability does not change mid-run. */
 let glProbe: boolean | undefined;
+/** Why the probe said no — quoted by an unmet `GJSIFY_TEST_EXPECT_AXES`. */
+let glProbeFailure = '';
+
+/**
+ * Load GTK/GDK the portable way: `gi://`, which GJS resolves natively and the
+ * node target rewrites to a LAZY `@gjsify/node-gi` proxy (resolved on first
+ * access, so a node bundle without node-gi throws HERE, inside the probe, and
+ * answers no), and a browser build maps to an empty module (no `default`,
+ * answers no). NOT `globalThis.imports.gi`: that object is the GJS host, and on
+ * node it exists only when a build predicted the bundle needed it (see
+ * docs/code-anti-patterns.md). Dynamic, so a run that never asks about GL never
+ * loads GTK.
+ */
+const loadGlProbeGi = async (): Promise<GlProbeGi> => {
+    const [gtk, gdk] = await Promise.all([
+        import('gi://Gtk?version=4.0' as string) as Promise<{ default?: GlProbeGi['Gtk'] }>,
+        import('gi://Gdk?version=4.0' as string) as Promise<{ default?: GlProbeGi['Gdk'] }>,
+    ]);
+    if (!gtk.default || !gdk.default) throw new Error('no GTK 4 reachable from this runtime');
+    return { Gtk: gtk.default, Gdk: gdk.default };
+};
 
 /**
  * Realize a GL context through GDK, and report whether that worked.
  *
  * The question `on('Gl')` asks, asked directly: every WebGL spec behind it gets
- * its context from a `Gtk.GLArea`, i.e. from exactly this GDK call chain. Through
- * `imports.gi`, which GJS provides and `@gjsify/node-gi` mirrors, so the answer
- * is the same on both runtimes; a host with neither (a browser) has no GTK to
- * realize one through, and says no.
+ * its context from a `Gtk.GLArea`, i.e. from exactly this GDK call chain.
  *
  * A failure is the ANSWER, not an error to hide: `create_gl_context()` and
  * `realize()` report a host without GL by throwing a GError — measured on a
@@ -1145,30 +1164,28 @@ let glProbe: boolean | undefined;
  * display on a host that has none. A "no" on a host that HAS a surface is
  * recorded as a warning with the driver's reason, because it turns every GL
  * suite on that leg into a skip, and a skip nobody sees is how the darwin GL
- * suites stayed dark.
+ * suites stayed dark. A leg that must not skip says so with
+ * `GJSIFY_TEST_EXPECT_AXES=Gl` (see `failUnmetExpectedAxes`).
  */
-const realizeGlContext = (): boolean => {
+const realizeGlContext = async (): Promise<boolean> => {
     if (glProbe !== undefined) return glProbe;
-    const gi = runtimeGlobals().imports?.gi;
-    if (!gi) return (glProbe = false);
     try {
-        // WebGL's bridge is a GTK 4 widget; pin the namespaces a spec imports.
-        gi.versions.Gtk = '4.0';
-        gi.versions.Gdk = '4.0';
-        if (!gi.Gtk.init_check()) throw new Error('Gtk.init_check() could not open the display');
-        const display = gi.Gdk.Display.get_default();
+        const { Gtk, Gdk } = await loadGlProbeGi();
+        if (!Gtk.init_check()) throw new Error('Gtk.init_check() could not open the display');
+        const display = Gdk.Display.get_default();
         if (!display) throw new Error('GDK has no default display');
         display.create_gl_context().realize();
-        gi.Gdk.GLContext.clear_current();
+        Gdk.GLContext.clear_current();
         glProbe = true;
     } catch (error) {
         glProbe = false;
-        noteWarning(`on('Gl') skipped: a display exists but no GL context realizes — ${errorMessage(error)}`);
+        glProbeFailure = errorMessage(error);
+        noteWarning(`on('Gl') skipped: a display exists but no GL context realizes — ${glProbeFailure}`);
     }
     return glProbe;
 };
 
-const hasGl = (): boolean => canRealizeGl(hostOs(), displayEnv(), realizeGlContext);
+const hasGl = (): Promise<boolean> => canRealizeGl(hostOs(), displayEnv(), realizeGlContext);
 
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
     // Capabilities, not runtime identity — each answers its own question. They name
@@ -1178,7 +1195,7 @@ const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
         return { matched: hasDisplay(), runtime: 'Display' as Runtime };
     }
     if (onRuntime.includes('Gl')) {
-        return { matched: hasGl(), runtime: 'Gl' as Runtime };
+        return { matched: await hasGl(), runtime: 'Gl' as Runtime };
     }
 
     const currRuntime = await getRuntime();
@@ -1676,6 +1693,36 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
 };
 
 /**
+ * Hold the run to the axes its ENVIRONMENT promised the host has.
+ *
+ * `requireAxes` cannot see a capability that stood down: it holds only axes the
+ * host MATCHES, so a leg that was set up to have GL and lost it (a broken driver,
+ * a missing typelib, a probe regression) turns every `on('Gl')` suite into a
+ * skip and exits 0. A CI step that provisions a capability names it in
+ * `GJSIFY_TEST_EXPECT_AXES` (comma-separated, e.g. `Gl` on the Linux xvfb
+ * legs), and then an axis that some gate NAMED but the host did not match is a
+ * failure carrying the probe's reason. An entry whose gates never name the axis
+ * is not held to it, so one step-wide variable covers every package in a sweep.
+ */
+const failUnmetExpectedAxes = async (): Promise<void> => {
+    const expected = (envVar('GJSIFY_TEST_EXPECT_AXES') ?? '')
+        .split(',')
+        .map((axis) => axis.trim())
+        .filter(Boolean) as Runtime[];
+    for (const axis of expected) {
+        if (!axisLedger.has(axis)) continue;
+        const { matched } = await runtimeMatch([axis]);
+        if (matched) continue;
+
+        ++countFailuresOutsideTests;
+        const reason = axis === 'Gl' && glProbeFailure ? ` — ${glProbeFailure}` : '';
+        const message = `axis '${axis}' is expected on this host (GJSIFY_TEST_EXPECT_AXES) but stood down${reason}`;
+        testErrors.push({ suite: '<axis expectation>', test: axis, message });
+        print(`\n${RED}❌ ${message}${RESET}`);
+    }
+};
+
+/**
  * The process exit code, as a pure function of the two things that decide it.
  *
  * Extracted for the same reason `formatFailureRecap` is: the two exit sites read
@@ -1993,6 +2040,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             }
         })
         .then(() => failUnexercisedAxes(requireAxes))
+        .then(() => failUnmetExpectedAxes())
         .catch((error: unknown) => {
             // A throw that ESCAPED a suite body rather than an `it()` — an `expect()`
             // called directly in a `describe` callback, a failing top-level import, a

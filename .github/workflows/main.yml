@@ -1121,11 +1121,15 @@ jobs:
       # Examples keep their coverage — `Build examples` + `Check examples` here,
       # `Test CLI/net examples` in the `examples` job — this only stops the test
       # shards from running something they cannot have built.
+      # GJSIFY_TEST_EXPECT_AXES=Gl: xvfb + llvmpipe IS a GL host, so an
+      # `on('Gl')` suite that stands down here is a regression, not a skip —
+      # the runner fails it with the GL probe's reason (@gjsify/unit).
       - name: Test
         env:
           GLOBAL: ${{ needs.changes.outputs.global }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
           SHARD: ${{ matrix.shard }}
+          GJSIFY_TEST_EXPECT_AXES: Gl
         run: |
           su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args=\"-screen 0 1280x720x24\" sh -c '
             ulimit -n \"\$(ulimit -Hn)\" 2>/dev/null || true
@@ -1139,7 +1143,7 @@ jobs:
 
       - name: Test WebGL conformance
         if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 GJSIFY_TEST_EXPECT_AXES=Gl xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
   # ── Cross-runtime tests (Node + Bun + Deno) ─────────────────────────
   # Bun and Deno share the `node` runtime slot with Node via the Node-API common
