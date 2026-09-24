@@ -365,6 +365,101 @@ export default async () => {
 
     // CJS `require('stream')` / `require('events')` interop — the bundler
     // `__toCommonJS` + `"module.exports"` string-export path (regression guard).
+    // refs/node/lib/internal/streams/destroy.js: destroy() calls `this._destroy`
+    // virtually, the constructor stores `opts.destroy` ON THE INSTANCE, and the
+    // callback is once-only (a throw counts as the error).
+    await describe('stream destroy(): _destroy dispatch', async () => {
+        const closed = (s: Readable | Writable) => new Promise<void>((resolve) => s.once('close', () => resolve()));
+
+        await it('Readable and Duplex subclasses run their prototype _destroy', async () => {
+            const calls: string[] = [];
+            class R extends Readable {
+                override _read() {}
+                override _destroy(err: Error | null, cb: (err?: Error | null) => void) {
+                    calls.push('readable');
+                    cb(err);
+                }
+            }
+            class D extends Duplex {
+                override _read() {}
+                override _write(_c: unknown, _e: BufferEncoding, cb: () => void) {
+                    cb();
+                }
+                override _destroy(err: Error | null, cb: (err?: Error | null) => void) {
+                    calls.push('duplex');
+                    cb(err);
+                }
+            }
+            const r = new R();
+            const d = new D();
+            r.destroy();
+            d.destroy();
+            await Promise.all([closed(r), closed(d)]);
+            expect(calls).toStrictEqual(['readable', 'duplex']);
+        });
+
+        await it('options.destroy shadows a subclass prototype _destroy', async () => {
+            const calls: string[] = [];
+            class R extends Readable {
+                override _destroy(err: Error | null, cb: (err?: Error | null) => void) {
+                    calls.push('prototype');
+                    cb(err);
+                }
+            }
+            class W extends Writable {
+                override _destroy(err: Error | null, cb: (err?: Error | null) => void) {
+                    calls.push('prototype');
+                    cb(err);
+                }
+            }
+            const opts = {
+                destroy(err: Error | null, cb: (err?: Error | null) => void) {
+                    calls.push('option');
+                    cb(err);
+                },
+            };
+            const r = new R({ read() {}, ...opts });
+            const w = new W({ write(_c, _e, cb) { cb(); }, ...opts });
+            r.destroy();
+            w.destroy();
+            await Promise.all([closed(r), closed(w)]);
+            expect(calls).toStrictEqual(['option', 'option']);
+        });
+
+        await it('a _destroy that calls back twice emits error and close once', async () => {
+            const boom = new Error('boom');
+            for (const s of [
+                new Readable({ read() {}, destroy: (_e, cb) => { cb(boom); cb(boom); } }),
+                new Writable({ write: (_c, _e, cb) => cb(), destroy: (_e, cb) => { cb(boom); cb(boom); } }),
+            ]) {
+                let errors = 0;
+                let closes = 0;
+                s.on('error', () => errors++);
+                s.on('close', () => closes++);
+                s.destroy();
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                expect(errors).toBe(1);
+                expect(closes).toBe(1);
+            }
+        });
+
+        await it('a throwing _destroy is reported as the error, then close', async () => {
+            const boom = new Error('thrown');
+            const r = new Readable({
+                read() {},
+                destroy() {
+                    throw boom;
+                },
+            });
+            const events: unknown[] = [];
+            r.on('error', (err) => events.push(err));
+            r.on('close', () => events.push('close'));
+            r.destroy();
+            await closed(r);
+            expect(events).toStrictEqual([boom, 'close']);
+        });
+    });
+
     await describe('CJS require() interop: class extends require("stream")/("events")', async () => {
         await it('require("stream") yields the callable Stream constructor', async () => {
             expect(typeof cjsInterop.Stream).toBe('function');
