@@ -122,6 +122,24 @@ export interface SystemGiLibraryDirsHost {
  * Sources 2 and 3 are GUESSES at a prefix, so each must show the
  * `girepository-1.0/` marker before it is believed. Source 1 is not a guess.
  */
+/**
+ * dyld's OWN default fallback list, verbatim from `dyld(1)`. Setting
+ * `DYLD_FALLBACK_LIBRARY_PATH` REPLACES it rather than extending it, so any
+ * caller that composes a value for that variable must carry this tail or a
+ * child launched through it searches LESS than one launched with the
+ * variable unset — the regression `packages/infra/cli/src/utils/system-gi.ts`
+ * (`composeDyldFallback`) and `packages/node-gi/node-gi/system-gi.js` both
+ * exist to avoid. A THIRD caller that only needs the tail, not the rest of
+ * that composition (a launcher replacing the environment outright has no
+ * "current value of the variable" to fold in), imports this rather than
+ * hand-rolling the same four-entry array — see
+ * `packages/framework/gtk-host/src/placement.spec.ts`.
+ */
+export function dyldDefaultFallbackDirs(env: Record<string, string | undefined> = {}): string[] {
+    const home = env['HOME'];
+    return [...(home ? [`${home}/lib`] : []), '/usr/local/lib', '/lib', '/usr/lib'];
+}
+
 export function systemGiLibraryDirs(host: SystemGiLibraryDirsHost): string[] {
     const probed = PROBED_GI_LIBDIRS[host.platform];
     if (!probed) return [];
