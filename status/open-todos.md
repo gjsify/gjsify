@@ -793,21 +793,6 @@ generator scripts already mark), or the claim could be demanded of any package a
 GTK-bearing OS leg runs. Both are defensible; neither should be guessed at in a CI PR.
 The measurement above is the evidence either would rest on.
 
-### 31 package scripts still open a clause with a `VAR=x` prefix, which cmd.exe has no form of
-
-`portable-scripts` catches a POSIX UTILITY in command position and says in its own
-header that it cannot see shell SYNTAX. That header also said "None is present in the
-tree today"; counted 2026-08-31, 33 scripts carried a `VAR=x` prefix. Two of them were
-load-bearing — `@gjsify/gtk-host` and `@gjsify/react-native`'s `test:gjs-on-node`, the
-entry point `gtk-os-suites.yml` calls on a cmd.exe leg — and both now take the variable
-from the environment.
-
-The remaining 31: `@gjsify/node-gi` (10) and `@gjsify/napi` (11), neither a workspace
-member and both driven only by their own Linux legs, plus 10 private `examples/`.
-Widening the rule before they are fixed lands a check with a 31-entry exemption ledger,
-which the rule's own header argues against having shipped once already. Fix the 21
-published-package ones, then add the pattern.
-
 ### node-gi invalidates a handle `gtk_window_destroy()` drops, where gjs keeps the object
 
 MEASURED on this machine (gjs 1.88.1 / node 24.19.0 / GTK 4.22.4), the same corpus on

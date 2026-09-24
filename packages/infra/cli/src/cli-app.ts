@@ -24,6 +24,7 @@ import {
     buildCommand as build,
     clearCommand as clear,
     copyCommand as copy,
+    envCommand as env,
     testCommand as test,
     runCommand as run,
     infoCommand as info,
@@ -146,6 +147,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(build.command, build.description, build.builder, build.handler)
         .command(clear.command, clear.description, clear.builder, clear.handler)
         .command(copy.command, copy.description, copy.builder, copy.handler)
+        .command(env.command, env.description, env.builder, env.handler)
         .command(test.command, test.description, test.builder, test.handler)
         .command(run.command, run.description, run.builder, run.handler)
         .command(dlx.command, dlx.description, dlx.builder, dlx.handler)

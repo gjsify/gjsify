@@ -6,7 +6,7 @@
     "scripts": {
         "build": "gjsify build src/probe.ts --app gjs --outfile dist/probe.gjs.mjs",
         "test": "gjsify run build && node run.mjs",
-        "test:without": "gjsify run build && SKIP_NATIVE=1 node run.mjs",
+        "test:without": "gjsify run build && gjsify env SKIP_NATIVE=1 node run.mjs",
         "test:with": "gjsify run build && node run.mjs"
     },
     "dependencies": {
