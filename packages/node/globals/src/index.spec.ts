@@ -1,5 +1,5 @@
 // oxlint-disable typescript/no-explicit-any -- spec asserts node-globals are wired on globalThis by reading them dynamically via (globalThis as any).<prop>; typing each chained access (.process.env/.versions, .Buffer, .TextEncoder, .structuredClone, .atob/btoa, .setImmediate, …) would obscure the test intent and is exactly the dynamic-globalThis-read pattern the convention permits at file level
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 
 export default async () => {
     await describe('global', async () => {
@@ -103,6 +103,32 @@ export default async () => {
                 setTimeout(() => resolve('timeout'), 10);
             });
             expect(result).toBe('timeout');
+        });
+
+        await on('Gjs', async () => {
+            await it('a throwing callback is reported once, not re-armed forever', async () => {
+                // The replacement rethrew through `setTimeout(() => { throw err }, 0)`,
+                // i.e. through ITSELF, so the throw was caught and re-armed on every
+                // iteration: a silent busy 0 ms timer at PRIORITY_DEFAULT that starved
+                // every lower-priority source for the rest of the process.
+                const GLib = (await import('gi://GLib?version=2.0' as string)).default as {
+                    idle_add(priority: number, fn: () => boolean): number;
+                    PRIORITY_DEFAULT_IDLE: number;
+                };
+                setTimeout(() => {
+                    throw new Error('thrown on purpose by this test');
+                }, 0);
+                await new Promise<void>((resolve) => setTimeout(resolve, 20));
+                const idleRan = await new Promise<boolean>((resolve) => {
+                    const timer = setTimeout(() => resolve(false), 500);
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                        clearTimeout(timer);
+                        resolve(true);
+                        return false;
+                    });
+                });
+                expect(idleRan).toBe(true);
+            });
         });
     });
 

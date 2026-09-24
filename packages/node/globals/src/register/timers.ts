@@ -34,6 +34,22 @@ const _isGjsTimer = getGLib() !== undefined;
 
 type TimerCallback = (...args: unknown[]) => unknown;
 
+/** GJS has no 'uncaughtException'; log the throw on stderr the way
+ *  `@gjsify/utils`' nextTick drainer does, rather than swallow it. */
+function reportTimerThrow(GLib: typeof GLibNS, err: unknown): void {
+    try {
+        GLib.log_default_handler(
+            'gjsify-timers',
+            GLib.LogLevelFlags.LEVEL_WARNING,
+            // SpiderMonkey's `stack` carries no message line, unlike V8's.
+            `Uncaught exception in a timer callback: ${String(err)}\n${(err as { stack?: string })?.stack ?? ''}`,
+            null,
+        );
+    } catch {
+        /* best-effort */
+    }
+}
+
 /**
  * Node-compatible Timeout returned by our setTimeout / setInterval. Mirrors
  * `NodeJS.Timeout`: `.ref() / .unref() / .hasRef() / .refresh()`, and
@@ -75,11 +91,13 @@ class GjsifyTimeout {
             try {
                 this._callback.apply(globalThis, this._args as unknown[]);
             } catch (err) {
-                // Surface uncaught timer exceptions without killing the main loop,
-                // matching Node.js's `setTimeout(() => { throw… }, 0)` behavior.
-                setTimeout(() => {
-                    throw err;
-                }, 0);
+                // Report once and keep the main loop alive. This used to rethrow
+                // from `setTimeout(() => { throw err }, 0)` — but `setTimeout` IS
+                // this class by the time a timer fires, so the rethrow was caught
+                // here again and re-armed: a silent 0 ms timer at PRIORITY_DEFAULT
+                // for the rest of the process, which burned a core and starved
+                // every lower-priority source (idles never ran again).
+                reportTimerThrow(GLib, err);
             }
             if (this._repeat) return GLib.SOURCE_CONTINUE;
             this._id = null;
