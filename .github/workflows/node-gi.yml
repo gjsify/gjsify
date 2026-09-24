@@ -74,9 +74,10 @@ jobs:
   # arm64 matrix? The `on:` block above explains why the trigger is wide; this is
   # where the cost of that width is paid back. The rule is deliberately blunt and
   # per-RUNNER rather than per-job — everything on `ubuntu-latest` always runs,
-  # the scarce runners run when node-gi's own sources changed — because a
-  # per-job "could a consumer change move this?" list is a second copy of the
-  # dependency graph, and the copy is what drifts. This is a per-RUNNER cost
+  # the scarce runners run when node-gi's own sources changed, or when a
+  # ship-oracle script one of those runners' jobs exists to run changed —
+  # because a per-job "could a consumer change move this?" list is a second copy
+  # of the dependency graph, and the copy is what drifts. This is a per-RUNNER cost
   # control on THIS workflow's own matrix, not an application of ADR 0018 § 5's
   # PR asymmetry — that half was re-measured on 2026-08-16 and superseded, and
   # the OS legs elsewhere (`macos-suites.yml`, `windows-suites.yml`, `napi.yml`)
@@ -136,8 +137,19 @@ jobs:
             decide true 'The changed-file list was empty or unreadable — failing open.'
           fi
 
-          if printf '%s\n' "$files" | grep -Eq '^(packages/node-gi/|scripts/node-gi-consumer-harness\.mjs$|\.github/(workflows/node-gi\.yml$|scripts/))'; then
-            decide true "node-gi's own sources changed."
+          # `.github/ship-oracle/` is in this list for a different reason than
+          # `packages/node-gi/`: it is not node-gi's OWN source, but every OS-gated
+          # job below EXISTS to run one of its scripts against a real artifact —
+          # `windows-msi-install`/`windows-msi-crossread` against a real WiX MSI,
+          # `windows-dir-assemble`/`-selfcontained` and `macos-app-assemble`/
+          # `-selfcontained` against a real Windows/macOS program layout. A bug in
+          # an oracle script can only be EXERCISED on those hosts, so gating it
+          # behind "did node-gi change" left it needing a manual
+          # `workflow_dispatch` to prove a fix — measured on #1782, where the
+          # Windows MSI legs had to be forced by hand because this heuristic could
+          # not see that the change was to the thing THEY run.
+          if printf '%s\n' "$files" | grep -Eq '^(packages/node-gi/|scripts/node-gi-consumer-harness\.mjs$|\.github/(workflows/node-gi\.yml$|scripts/|ship-oracle/))'; then
+            decide true "node-gi's own sources changed, or a ship-oracle script the OS legs run changed."
           fi
           decide false 'Consumer-only change: the Linux legs run, the OS matrix does not.'
 

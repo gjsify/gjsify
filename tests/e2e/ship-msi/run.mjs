@@ -369,6 +369,40 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         });
     }
 
+    it('RED: refuses a Component table the parser matched no rows in', () => {
+        // THE GAP THE MUTATIONS ABOVE CANNOT REACH. `msibuild -q "DELETE FROM
+        // \`Component\`"` only thins the table (libmsi's shrinking-index DELETE),
+        // and an ENTIRELY empty export is already caught by `idt()`'s own
+        // three-header-lines floor — so neither route exercises the shape this
+        // case is about: a Component table whose export comes back with MORE than
+        // three lines (idt()'s floor sees rows and says nothing), but where the
+        // data line no longer carries the six tab-separated fields the parser
+        // requires. That is a `msiinfo` output change, or a corrupted export, and
+        // it is exactly the parse `wc -l <<<"$COMPONENT_ROWS"` used to read as ONE
+        // row rather than zero, provided the installer packs a single file. A
+        // stub keeps the real header lines (`sed -n '1,3p'`, never `head` — see
+        // the CRLF/EPIPE comment above `idt()`) and replaces the row with one that
+        // has two fields instead of six.
+        const stub = join(tmpDir, 'reader-stub-component-shape');
+        mkdirSync(stub, { recursive: true });
+        const realMsiinfo = execFileSync('bash', ['-c', 'command -v msiinfo'], { encoding: 'utf-8' }).trim();
+        writeFileSync(
+            join(stub, 'msiinfo'),
+            '#!/usr/bin/env bash\n' +
+                'if [ "$1" = export ] && [ "$3" = Component ]; then\n' +
+                `    ${JSON.stringify(realMsiinfo)} "$@" | sed -n '1,3p'\n` +
+                '    printf "malformed\\tonly-two-fields\\r\\n"\n' +
+                '    exit 0\n' +
+                'fi\n' +
+                `exec ${JSON.stringify(realMsiinfo)} "$@"\n`,
+            { mode: 0o755 },
+        );
+        const failure = oracleExpectingFailure([msi, programDir, 'msitools'], {
+            env: { ...process.env, PATH: `${stub}:${process.env.PATH}` },
+        });
+        assert.match(failure, /the installer has no component rows at all/);
+    });
+
     it('installs under ProgramFiles64Folder as the directory the zip also expands to', () => {
         const directories = table(msi, 'Directory');
         const installDir = directories.find((row) => row[0] === 'INSTALLDIR');

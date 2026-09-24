@@ -237,11 +237,25 @@ ON_DISK=$(cd "$DIR" && find . -type f | wc -l)
 
 # Every row's KeyPath component must exist, and every component must be in the
 # feature — a component nothing references installs nothing, silently.
+#
+# COUNTED EXPLICITLY, not by `wc -l` on the possibly-empty variable: an empty
+# COMPONENT_ROWS is still ONE line once it goes through `<<<` (a herestring always
+# adds the trailing newline), so `wc -l <<<""` reads 1 — and every check below that
+# compared it against `$ROWS` degraded into passing on a Component table the awk
+# filter matched NOTHING in, provided `$ROWS` was also 1 (a single-file installer).
+# `idt()`'s own three-line floor does not catch this shape: it counts TOTAL lines,
+# and a table whose rows exist but no longer satisfy `NF >= 6` (a `msiinfo` output
+# change, or corruption) is not three lines, only zero MATCHING ones. `grep -c .`
+# counts non-empty lines, so it reads 0 for nothing — the same fix already applied
+# to `SHORTCUT_COUNT`/`ICON_COUNT` below, for the identical reason.
 COMPONENTS=$(idt Component)
 COMPONENT_ROWS=$(awk -F'\t' 'NR > 3 && NF >= 6 { print $1 }' <<<"$COMPONENTS" | sort)
+COMPONENT_COUNT=$(grep -c . <<<"${COMPONENT_ROWS:-}" || true)
+[ "$COMPONENT_COUNT" -gt 0 ] ||
+    fail "the installer has no component rows at all (\`msiinfo tables\` lists Component, but nothing in its export matched the expected row shape) — an installer with no components installs nothing"
 FEATURE_ROWS=$(idt FeatureComponents | awk -F'\t' 'NR > 3 && NF >= 2 { print $2 }' | sort)
-[ "$(wc -l <<<"$COMPONENT_ROWS")" = "$ROWS" ] ||
-    fail "the installer has $(wc -l <<<"$COMPONENT_ROWS") component(s) for $ROWS file(s) — one component per file is what makes an uninstall able to remove exactly what was installed"
+[ "$COMPONENT_COUNT" = "$ROWS" ] ||
+    fail "the installer has $COMPONENT_COUNT component(s) for $ROWS file(s) — one component per file is what makes an uninstall able to remove exactly what was installed"
 diff <(printf '%s\n' "$COMPONENT_ROWS") <(printf '%s\n' "$FEATURE_ROWS") >/dev/null ||
     fail "a component is not in the feature, or the feature names a component that does not exist. A component outside every feature is never installed, and the package still installs at exit 0."
 
@@ -249,7 +263,7 @@ diff <(printf '%s\n' "$COMPONENT_ROWS") <(printf '%s\n' "$FEATURE_ROWS") >/dev/n
 # so two components sharing one GUID make an uninstall of either leave the other's
 # files behind.
 GUIDS=$(awk -F'\t' 'NR > 3 && NF >= 6 { print $2 }' <<<"$COMPONENTS")
-UNIQUE=$(sort -u <<<"$GUIDS" | wc -l)
+UNIQUE=$(sort -u <<<"${GUIDS:-}" | grep -c . || true)
 [ "$UNIQUE" = "$ROWS" ] ||
     fail "$ROWS component(s) carry only $UNIQUE distinct GUID(s). Windows Installer reference-counts on the component id, so a shared GUID makes one uninstall strand another product's files."
 
