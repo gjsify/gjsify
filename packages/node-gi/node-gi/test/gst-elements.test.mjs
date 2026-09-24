@@ -24,6 +24,14 @@ import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
 import { GST_PLUGIN_GAPS, gstAudioDecoders } from '../../scripts/gst-plugins.mjs';
 import { resolveGtkRuntimeBundle } from '../gtk-runtime.js';
+import {
+    MP3_FIXTURE_SECONDS,
+    PCM_RATE,
+    decodeToPcm,
+    icyInterleave,
+    readMp3Fixture,
+    stripId3v2,
+} from './gst-decode.mjs';
 import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
 // The pipeline @gjsify/webaudio is built from, element by element. Named
@@ -46,6 +54,17 @@ const REQUIRED_ELEMENTS = [
     ['playbin3', 'the URI player an app hands a stream address to'],
     ['uridecodebin3', 'what playbin3 autoplugs the source and the decoder from'],
     ['souphttpsrc', 'the http(s) source — a URI pipeline has no source element without it'],
+    // What sits BETWEEN that source and the decoder on a real stream, and no bundle carried
+    // it. An Icecast server answering `Icy-MetaData: 1` (souphttpsrc sends it by default)
+    // interleaves title blocks into the audio, and souphttpsrc labels the bytes
+    // `application/x-icy`, which only icydemux accepts. Measured against a live Icecast MP3
+    // stream with the host GStreamer: with icydemux ranked NONE, playbin3 fails with
+    // `Internal data stream error` out of souphttpsrc — the same string a missing TLS
+    // backend produces, for a third, different cause.
+    ['icydemux', 'strips Icecast metadata blocks, without which a live radio stream reaches no parser'],
+    // The file-side twin: a podcast episode normally opens with an ID3v2 tag, which typefind
+    // reports as `application/x-id3` rather than as MPEG audio.
+    ['id3demux', 'strips the ID3v2 tag most MP3 files open with'],
 ];
 
 test('the GStreamer registry resolves the audio-path elements', { skip }, () => {
@@ -156,6 +175,59 @@ test('a declared decoder gap is still a gap', { skip: bundleSkip }, () => {
         `this bundle's \`gjsify.mediaCapabilities.gaps\` declares no decoder for ${arrived.join(', ')}, and the ` +
             'registry has one. Delete the entry — the bundle now keeps a promise its own ' +
             'declaration still refuses.',
+    );
+});
+
+// THE EFFECT, for the two MP3 shapes an app plays: a tagged file and an Icecast stream.
+// Everything above asks whether a FACTORY exists, and a factory can exist and never be
+// autoplugged — a rank of NONE, a caps mismatch, a demuxer missing in front of it. So these
+// push real bytes through decodebin3 (what playbin3 plugs) and count the PCM that comes out.
+//
+// UNCONDITIONAL on every bundle, not driven by the claim list. MP3 is the format a desktop
+// app on these runtimes was measured failing on (#1544, #1626: a podcast episode and a live
+// radio stream, both silent on win32), so "the bundle plays MP3" is the requirement and the
+// manifest's claim is held to it rather than the other way round.
+//
+// Negative controls, run on linux-x64 against the host registry with the same helper
+// (`GST_PLUGIN_FEATURE_RANK=<feature>:NONE`): every MP3 decoder ranked out → 0 frames on
+// both; icydemux out → the stream 0, the file unaffected; id3demux out → the file 0, the
+// stream unaffected. Each test goes red for its own cause and only for it.
+const MP3_FRAMES = MP3_FIXTURE_SECONDS * PCM_RATE;
+// Upper slack: an MP3 decoder that ignores the LAME gapless header emits the encoder delay
+// and the last frame's padding — 46080 frames for this fixture on mpg123, i.e. 40 × 1152.
+const MP3_FRAMES_MAX = MP3_FRAMES + 4 * 1152;
+
+test('an ID3-tagged MP3 file decodes to PCM on the bundle', { skip: bundleSkip }, () => {
+    assert.ok(
+        claim.some((entry) => entry.format === 'MP3'),
+        "this bundle's `gjsify.mediaCapabilities.audioDecode` does not claim MP3, and every bundle has to",
+    );
+    const result = decodeToPcm(readMp3Fixture());
+    assert.ok(
+        result.frames >= 0.9 * MP3_FRAMES && result.frames <= MP3_FRAMES_MAX && result.eos,
+        `decoding a ${MP3_FIXTURE_SECONDS} s MP3 produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${MP3_FRAMES}..${MP3_FRAMES_MAX}. ` +
+            'Zero frames with no EOS is what decodebin3 does when nothing can take the stream: it posts no ' +
+            'error and exposes no pad, which an app sees as a player that never leaves READY.',
+    );
+});
+
+test('an Icecast MP3 stream decodes to PCM on the bundle', { skip: bundleSkip }, () => {
+    // Offline: the bytes a server sends for `Icy-MetaData: 1`, labelled the way souphttpsrc
+    // labels them. 2048 puts two metadata blocks into this fixture (the first with a title);
+    // a real server uses 16000, which here would insert none and prove nothing. Each block
+    // costs a frame or two at the parser's resync — measured 43776 frames against 46080 — so
+    // the lower bound is the same 90 %.
+    const interval = 2048;
+    const result = decodeToPcm(
+        icyInterleave(stripId3v2(readMp3Fixture()), interval),
+        `application/x-icy,metadata-interval=(int)${interval}`,
+    );
+    assert.ok(
+        result.frames >= 0.9 * MP3_FRAMES && result.frames <= MP3_FRAMES_MAX && result.eos,
+        `an ICY-interleaved MP3 stream produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${MP3_FRAMES}..${MP3_FRAMES_MAX}. ` +
+            'This is the live-radio path minus the network: icydemux → mpegaudioparse → the MP3 decoder.',
     );
 });
 

@@ -183,16 +183,16 @@
 # On win32 BOTH suite steps are probes, so the job reports `success` while the log
 # holds red steps that each exited 1. That is the probe shape working as designed, and
 # it is also exactly how a green-that-checked-nothing looks from the outside — so: the
-# win32 job's colour answers "did the shipped closure stage, verify and LOAD", and since
-# 2026-09-19 also "does this tree's declared win32 media contract match the PUBLISHED
-# payload" — but still not "does the layer pass". The numbers are in the step logs and
+# win32 job's colour answers "did the shipped closure stage, verify and LOAD" — and, while
+# the MP3 widening waits for a release (ADR 0056 § 7), NOT "does this tree's declared win32
+# media contract match the PUBLISHED payload", nor "does the layer pass". The numbers are in the step logs and
 # the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever flips
 # either suite step to gating should delete this paragraph with it.
 #
-# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: THREE
-# `continue-on-error` steps — one on darwin (react-native) and two on win32 (gtk-host,
-# react-native). It was four until the win32 conformance audit was promoted on
-# 2026-09-19. Each remaining one carries `retire-when:` clauses that
+# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: FOUR
+# `continue-on-error` steps — one on darwin (react-native) and three on win32 (gtk-host,
+# react-native, and the conformance audit again). The audit was promoted on 2026-09-19 and
+# went back to a probe for the MP3 widening, with a tarball clause that ends it. Each remaining one carries `retire-when:` clauses that
 # `scripts/check-probe-retirement.mjs` evaluates on every run, so this number now
 # changes when a condition comes true rather than when somebody notices it has.
 #
@@ -593,10 +593,10 @@ jobs:
             "--media-payload=@gjsify/gtk-runtime-$TARGET=packages/node-gi/node-gi/prebuilds/$TARGET"
 
   win32:
-    # The name says what a GREEN here means, because two of its four measuring steps are
-    # probes: the closure staged, verified and LOADED — and, since the conformance audit
-    # was promoted on 2026-09-19, that this tree's declared win32 media contract matches
-    # the PUBLISHED payload. It does not say the SUITES passed, which is what the name
+    # The name says what a GREEN here means, because three of its four measuring steps are
+    # probes: the closure staged, verified and LOADED. The conformance audit gated from
+    # 2026-09-19 until the MP3 widening (ADR 0056 § 7) and is a probe again until a
+    # release carries `gstmediafoundation.dll`. It does not say the SUITES passed, which is what the name
     # claims and why the name still holds: both suite steps are still
     # `continue-on-error`. This job going green while they are red is the designed
     # behaviour — see READING THE JOB COLOUR IS NOT READING THE RESULT in the header.
@@ -799,5 +799,19 @@ jobs:
       # So when this leg goes red during a future widening, the answer is not to restore
       # `continue-on-error` — it is to state the condition as a `retire-when:` clause the
       # way the two probes above do, so the flag removes itself when the release lands.
-      - name: Conformance audit (os-axis + the staged bundle's media claim)
+      #
+      # AND THAT WIDENING IS HERE: this tree claims MP3 through `mediafoundation` (ADR 0056
+      # § 7) while every published win32 bundle predates `gstmediafoundation.dll`, so the
+      # audit is red on the published payload until a release carries it. The window closes
+      # on the tarball, not on a version number — the file is the claim.
+      #   retire-when: npm-tarball-has @gjsify/gtk-runtime-win32-x64 latest gtk/lib/gstreamer-1.0/gstmediafoundation.dll
+      - name: Conformance audit (os-axis + the staged bundle's media claim) — probe (gating blocked until a release ships mediafoundation)
+        id: conformance-win32
+        continue-on-error: true
         run: node scripts\audit-runtimes.mjs --check "--media-payload=@gjsify/gtk-runtime-%TARGET%=packages\node-gi\node-gi\prebuilds\%TARGET%"
+      - name: 'Probe outcome: conformance audit'
+        if: always()
+        env:
+          PROBE_LABEL: "Conformance audit (os-axis + the staged bundle's media claim) — probe (gating blocked until a release ships mediafoundation)"
+          PROBE_OUTCOME: ${{ steps.conformance-win32.outcome }}
+        run: node scripts/report-probe-outcome.mjs

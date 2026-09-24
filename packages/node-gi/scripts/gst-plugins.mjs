@@ -112,6 +112,14 @@ export const GST_AUDIO_PLUGINS = [
     // demuxes the container and `aacparse` parses the stream, after which nothing decodes it.
     // Every bundle states that gap in its own manifest, with the licensing reason.
     'audioparsers',
+    // What stands between the bytes and `mpegaudioparse` on the two MP3 shapes an app meets: an
+    // ID3v2 tag in front of nearly every podcast episode (typefind calls it `application/x-id3`),
+    // and the metadata blocks an Icecast server interleaves into a live stream (souphttpsrc labels
+    // those bytes `application/x-icy`). Neither bundle carried either, so a live radio stream failed
+    // on EVERY target as `Internal data stream error` out of souphttpsrc — measured against a real
+    // Icecast MP3 stream with icydemux ranked NONE. Both are gst-plugins-good with no library.
+    'id3demux',
+    'icydemux',
     'wavparse',
     'isomp4',
     'ogg',
@@ -119,6 +127,11 @@ export const GST_AUDIO_PLUGINS = [
     'opus',
     'flac',
     'mpg123',
+    // win32's MP3 decoder: `mfmp3dec` wraps the decoder Windows ships, because gvsbuild has no
+    // libmpg123 to build `mpg123` from (ADR 0056 § 7). The plugin also registers AAC/MP3/H.264
+    // encoders and a camera source — one file, and the header's "no encoding, no capture" is
+    // about what we choose to carry, not about elements that come along inside a decoder's DLL.
+    'mediafoundation',
     'alaw',
     'mulaw',
     'auparse',
@@ -300,15 +313,16 @@ export const GST_PLUGIN_GAPS = Object.fromEntries(
 );
 
 /**
- * The output sinks that belong to ONE platform, so the other's absence is not a gap.
+ * The plugins that belong to ONE platform, so the other's absence is not a gap.
  *
  * The list above is one list for both bundles because every other plugin in it is portable. These
  * are not, and a checker that did not know it would report `osxaudio` missing from every Windows
- * bundle — an alarm that is wrong on every run, which is the kind that gets switched off.
+ * bundle — an alarm that is wrong on every run, which is the kind that gets switched off. They were
+ * all output sinks until `mediafoundation`, a DECODER that exists only because the OS it wraps does.
  */
-export const GST_PLATFORM_SINKS = {
+export const GST_PLATFORM_PLUGINS = {
     darwin: ['osxaudio'],
-    win32: ['wasapi2', 'directsound'],
+    win32: ['wasapi2', 'directsound', 'mediafoundation'],
 };
 
 /**
@@ -321,14 +335,14 @@ export const GST_PLATFORM_SINKS = {
  */
 export function expectedGstPlugins(target) {
     const os = String(target).split('-')[0];
-    if (!Object.hasOwn(GST_PLATFORM_SINKS, os)) {
+    if (!Object.hasOwn(GST_PLATFORM_PLUGINS, os)) {
         throw new Error(
             `gst-plugins: "${target}" names no platform this bundles for. Known: ` +
-                `${Object.keys(GST_PLATFORM_SINKS).join(', ')} — the \`process.platform\` spelling.`,
+                `${Object.keys(GST_PLATFORM_PLUGINS).join(', ')} — the \`process.platform\` spelling.`,
         );
     }
     const foreign = new Set(
-        Object.entries(GST_PLATFORM_SINKS)
+        Object.entries(GST_PLATFORM_PLUGINS)
             .filter(([platform]) => platform !== os)
             .flatMap(([, sinks]) => sinks),
     );
