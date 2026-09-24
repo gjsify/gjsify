@@ -371,11 +371,16 @@ export default async () => {
         // `autoaudiosink` really does avoid an openal* child (bounded, with
         // a clear failure message instead of a silent stall), and that it
         // really would pick one if the derank were reverted — proving this
-        // test is not vacuous. Both use `withOnlyAudioSinkCandidate()` to
-        // make the outcome deterministic on ANY host: this dev machine's
+        // test is not vacuous. The first uses `withOnlyAudioSinkCandidate()`
+        // to make the outcome deterministic on ANY host: this dev machine's
         // working PipeWire always outranks openalsink regardless of its own
-        // rank, so without narrowing the field neither assertion would mean
-        // anything here.
+        // rank, so without narrowing the field the assertion would mean
+        // nothing here. The second cannot use the same trick safely (see
+        // `OPENAL_SINK_SELECTION_PROBE`) and its precondition genuinely does
+        // NOT hold on every host — some hosts' openal fails its own open()
+        // outright rather than getting picked, which is a HOST property,
+        // not a claim about this fix; which test gets registered for it is
+        // decided below, after running the probe once.
         tryEnsureGstInit();
         const openalSinkFeature = Gst.Registry.get().lookup_feature('openalsink');
 
@@ -396,39 +401,54 @@ export default async () => {
                 });
             });
 
-            await it('would select an openal* child if the derank were reverted', async () => {
-                // Runs in a bounded child process — see
-                // `OPENAL_SINK_SELECTION_PROBE` for why this cannot safely
-                // run in-process. Three outcomes, all of which confirm the
-                // mechanism (only a successful resolution to a NON-openal
-                // child would mean this test failed to prove anything):
-                //   - resolves to an openal* factory name → direct proof.
-                //   - times out → openal was being attempted and hung —
-                //     exactly the CI failure this PR fixes, reproduced live.
-                //   - the probe could not run at all (no `gjs` on PATH) →
-                //     inconclusive, not this fix's concern.
-                const result = spawnSync('gjs', ['-c', OPENAL_SINK_SELECTION_PROBE], {
-                    encoding: 'utf8',
-                    timeout: 15_000,
-                });
-                const timedOut =
-                    result.signal !== null ||
-                    (result.error as (Error & { code?: string }) | undefined)?.code === 'ETIMEDOUT';
-                if (timedOut) {
-                    expect(timedOut).toBe(true);
-                    return;
-                }
-                if (result.error || result.status !== 0) {
-                    expect(true).toBe(true); // could not run the probe — inconclusive
-                    return;
-                }
-                const child = String(result.stdout).trim();
-                if (child === 'ABSENT') {
-                    expect(child).toBe('ABSENT'); // openal plugin not installed in the child either
-                    return;
-                }
-                expect(child.startsWith('openal')).toBe(true);
+            // Run the "would select openal" probe ONCE here, at DESCRIBE time —
+            // not inside an `it()` — so which test gets registered next can
+            // reflect whether its precondition ("openal really would be
+            // picked here") holds on THIS host at all, the same way
+            // `webrtcbinReady` above decides before the tree is built.
+            //
+            // It does not always hold: measured in CI (run 35913613275, job
+            // 107373859426), un-deranking `openalsink` and excluding every
+            // other real candidate still resolved to `fake-audio-sink` —
+            // that host's OpenAL Soft fails its OWN open() immediately
+            // (not a hang), so `autoaudiosink` correctly falls through
+            // regardless of rank. That is a HOST property this test cannot
+            // assert past; asserting "would pick openal" there would be a
+            // vacuous pass, not a real check. See `OPENAL_SINK_SELECTION_PROBE`
+            // for why the experiment runs in a bounded child process at all.
+            const revertProbe = spawnSync('gjs', ['-c', OPENAL_SINK_SELECTION_PROBE], {
+                encoding: 'utf8',
+                timeout: 15_000,
             });
+            const revertTimedOut =
+                revertProbe.signal !== null ||
+                (revertProbe.error as (Error & { code?: string }) | undefined)?.code === 'ETIMEDOUT';
+            const revertChild = revertTimedOut ? null : String(revertProbe.stdout ?? '').trim();
+
+            if (revertTimedOut) {
+                await it('would select an openal* child if the derank were reverted', async () => {
+                    // A timeout IS conclusive here: openal was being
+                    // attempted and hung — exactly the CI failure this fix
+                    // prevents, reproduced live.
+                    expect(revertTimedOut).toBe(true);
+                });
+            } else if (revertProbe.error || revertProbe.status !== 0 || !revertChild) {
+                await it('(skipped — the probe subprocess could not run)', async () => {
+                    expect(Boolean(revertProbe.error) || revertProbe.status !== 0).toBe(true);
+                });
+            } else if (revertChild === 'ABSENT') {
+                await it('(skipped — openal plugin not installed in the probe subprocess)', async () => {
+                    expect(revertChild).toBe('ABSENT');
+                });
+            } else if (revertChild.startsWith('openal')) {
+                await it('would select an openal* child if the derank were reverted', async () => {
+                    expect(revertChild.startsWith('openal')).toBe(true);
+                });
+            } else {
+                await it(`(skipped — openal is not a viable audio sink on this host, picked "${revertChild}")`, async () => {
+                    expect(revertChild.startsWith('openal')).toBe(false);
+                });
+            }
 
             await it('GJSIFY_GST_KEEP_OPENAL opt-out leaves the rank untouched', async () => {
                 // Exercises both branches of `excludeUnboundedAudioSinkCandidates()`
