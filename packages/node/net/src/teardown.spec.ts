@@ -100,6 +100,53 @@ export default async () => {
             await closeServer(server);
             expect(errorEvents).toBe(0);
         });
+
+        // refs/node/lib/net.js `Server.prototype.close` / `_emitCloseIfDrained`.
+        await it('close() keeps accepted connections open; close follows the last one', async () => {
+            let accepted: Socket | null = null;
+            const server = createServer((socket) => {
+                accepted = socket;
+                socket.on('error', () => {});
+            });
+            const port = await listen(server);
+            const client = connect(port, '127.0.0.1');
+            client.on('error', () => {});
+            await new Promise<void>((resolve) => server.once('connection', () => resolve()));
+            let closed = false;
+            server.close(() => {
+                closed = true;
+            });
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(closed).toBe(false);
+            expect(accepted!.destroyed).toBe(false);
+            client.destroy();
+            await new Promise<void>((resolve) => server.once('close', () => resolve()));
+        });
+
+        await it('close() on a server that is not listening: callback gets ERR_SERVER_NOT_RUNNING, no error event', async () => {
+            const server = createServer();
+            let errorEvents = 0;
+            server.on('error', () => errorEvents++);
+            const err = await new Promise<(Error & { code?: string }) | undefined>((resolve) => server.close(resolve));
+            expect(err?.code).toBe('ERR_SERVER_NOT_RUNNING');
+            expect(errorEvents).toBe(0);
+        });
+
+        await it('close() then listen() on the same port succeeds synchronously', async () => {
+            // Node's close() releases the port synchronously. The listener's
+            // descriptor close is deferred one main-loop iteration here (darwin
+            // select(2) EBADF), so listen() must finish a pending close on its port.
+            const first = createServer();
+            const port = await listen(first);
+            first.close();
+            const second = createServer();
+            const outcome = await new Promise<string>((resolve) => {
+                second.once('error', (err: Error & { code?: string }) => resolve(err.code ?? err.message));
+                second.listen(port, '127.0.0.1', () => resolve('listening'));
+            });
+            if (outcome === 'listening') await closeServer(second);
+            expect(outcome).toBe('listening');
+        });
     });
 
     await on('Gjs', async () => {
