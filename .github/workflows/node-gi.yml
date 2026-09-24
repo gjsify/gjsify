@@ -2914,6 +2914,24 @@ jobs:
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
 
+      # OPENGL (#1097) — the one Windows step WITHOUT GSK_RENDERER=cairo, because which
+      # renderer GSK picks on its own is part of the claim. This runner has no GPU and no
+      # OpenGL ICD, i.e. only the GDI generic OpenGL 1.1 GDK rejects, so every GL context
+      # here comes from the OPTIONAL `@gjsify/gl-runtime-win32-x64` (built in place:
+      # node-gi resolves it as the monorepo sibling, exactly as it resolves the bundle) or
+      # from nowhere. The test's last case re-runs the probe in a child told to keep the
+      # host's OpenGL and requires it to FAIL — what a consumer WITHOUT the package gets —
+      # so a green run cannot mean the host had GL.
+      - name: Build the optional GL package (@gjsify/gl-runtime-win32-x64)
+        working-directory: packages/node-gi/gl-runtime-win32-x64
+        run: node scripts/build-gl-runtime.mjs
+
+      - name: OpenGL proof — the optional Mesa package gives GDK a GL context (#1097)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/win32-opengl.test.mjs
+
       # SCRIPT COVERAGE (#1668), and this leg is the ONLY oracle for it. Non-Latin text was
       # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
       # map — CoreText on darwin, pangowin32/DirectWrite on win32 — whose script fallback does

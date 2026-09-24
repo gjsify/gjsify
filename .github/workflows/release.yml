@@ -866,6 +866,24 @@ jobs:
             packages/node-gi/gtk-runtime-win32-x64 `
             --tolerate-republish --tag latest --access public
 
+      # The OPTIONAL OpenGL for driverless hosts (#1097), published beside the bundle it
+      # serves. Its own package because it is ~22 MB a consumer opts into; node-gi finds it
+      # by name and never depends on it. Payload: the pinned, sha256-checked Mesa.
+      - name: Build @gjsify/gl-runtime-win32-x64 (pinned Mesa + licences)
+        shell: pwsh
+        working-directory: packages/node-gi/gl-runtime-win32-x64
+        run: node scripts/build-gl-runtime.mjs
+
+      - name: Publish @gjsify/gl-runtime-win32-x64 (OIDC)
+        shell: pwsh
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          CLI_BIN: ${{ steps.cli.outputs.bin }}
+        run: |
+          node "$env:CLI_BIN" publish `
+            packages/node-gi/gl-runtime-win32-x64 `
+            --tolerate-republish --tag latest --access public
+
   # @gjsify/node-gi is the Node GI reverse bridge. Like the gtk-runtime packages it
   # lives under packages/node-gi/** and is NOT a root workspace, so the ubuntu
   # `publish` job's `gjsify foreach ... publish` never covers it — it was left at

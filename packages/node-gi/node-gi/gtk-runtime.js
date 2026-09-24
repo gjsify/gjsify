@@ -782,3 +782,132 @@ export function activateBundledGtkRuntime(native) {
     activated = bundle;
     return bundle;
 }
+
+// --- OpenGL on win32 (#1097) -------------------------------------------------
+//
+// GTK 4 needs desktop GL >= 3.2 core over WGL on win32 — the gvsbuild GTK is built without
+// EGL, so ANGLE is unreachable, and without Vulkan. A host with no OpenGL ICD (a GPU-less VM,
+// an RDP session, a CI runner) offers only Microsoft's GDI generic OpenGL 1.1, which GDK
+// rejects: every Gtk.GLArea then reads "No GL implementation is available" and GSK falls
+// back to cairo. The OPTIONAL package `@gjsify/gl-runtime-win32-x64` carries Mesa's
+// opengl32.dll for exactly those hosts; it is ~22 MB, so it is a consumer's opt-in and never
+// part of the bundle or a dependency of node-gi (ADR 0023). This decides per process whether
+// it or the host's OpenGL serves GTK. Why it has to be a native preload rather than a PATH
+// entry: src/opengl-win32.cc.
+//
+// `GJSIFY_OPENGL=bundle|system` overrides — `system` keeps a host's OpenGL even when the
+// probe finds no ICD, `bundle` takes Mesa over a vendor driver.
+
+/** The optional GL package's npm name for a platform-arch tag. */
+export function glRuntimePackageName(tag = `${process.platform}-${process.arch}`) {
+    return `@gjsify/gl-runtime-${tag}`;
+}
+
+/**
+ * Where the optional GL package's opengl32.dll is, or null. Resolved BY NAME, like the GTK
+ * bundle: the monorepo sibling first (what CI builds in place), then the installed package.
+ * @returns {string | null}
+ */
+export function resolveGlRuntime() {
+    const tag = `${process.platform}-${process.arch}`;
+    const candidates = [join(here, '..', `gl-runtime-${tag}`, 'bin')];
+    try {
+        candidates.push(join(dirname(require.resolve(glRuntimePackageName(tag))), 'bin'));
+    } catch {
+        // Not installed — the common case; decideOpenGLSource says what that costs.
+    }
+    for (const dir of candidates) {
+        const dll = join(dir, 'opengl32.dll');
+        if (existsSync(dll)) return dll;
+    }
+    return null;
+}
+
+/** @typedef {{ wddmIcd: string, registryIcd: string, loadedFrom: string }} HostOpenGL */
+
+/**
+ * Which OpenGL this process should use. PURE, so every branch runs on any host.
+ *
+ * A host ICD wins by default: Mesa over a real GPU would still work (its d3d12 driver runs on
+ * the hardware) but replaces the vendor's driver for this process, which is a regression
+ * nobody asked for. An opengl32 that is ALREADY loaded is a fact, not a preference — no
+ * override can move it, so it is reported rather than fought. `missing` marks the one case a
+ * consumer can fix: no ICD, no package.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.bundled absolute path of the GL package's opengl32.dll, or null
+ * @param {HostOpenGL} opts.host `native.probeHostOpenGL()`
+ * @param {string} [opts.override] raw `GJSIFY_OPENGL`
+ * @returns {{ source: 'bundle' | 'system', reason: string, missing?: true }}
+ */
+export function decideOpenGLSource({ bundled, host, override }) {
+    if (host.loadedFrom) return { source: 'system', reason: `opengl32 was already loaded from ${host.loadedFrom}` };
+    if (override === 'system') return { source: 'system', reason: 'GJSIFY_OPENGL=system' };
+    if (bundled && override === 'bundle') return { source: 'bundle', reason: 'GJSIFY_OPENGL=bundle' };
+    if (host.wddmIcd)
+        return { source: 'system', reason: `the display driver provides an OpenGL ICD (${host.wddmIcd})` };
+    if (host.registryIcd) return { source: 'system', reason: `an OpenGL ICD is registered (${host.registryIcd})` };
+    if (!bundled) {
+        return {
+            source: 'system',
+            missing: true,
+            reason:
+                'this host has no OpenGL driver (only the GDI generic OpenGL 1.1, which GTK rejects), so ' +
+                'Gtk.GLArea fails and GSK renders with cairo. Add ' +
+                `${glRuntimePackageName('win32-x64')} as a dependency to ship Mesa for such hosts ` +
+                '(VMs, RDP sessions, CI), or set GJSIFY_OPENGL=system to accept this',
+        };
+    }
+    return { source: 'bundle', reason: 'the host has no OpenGL ICD, only the GDI generic OpenGL 1.1' };
+}
+
+let openGL = null;
+
+/**
+ * Apply `decideOpenGLSource` to this process: preload the GL package's opengl32.dll when it
+ * wins. MUST run before anything loads gtk-4-1.dll, which imports OPENGL32 statically —
+ * index.js calls it right after the addon loads. Strict no-op off win32. Idempotent.
+ * @param {{ probeHostOpenGL?: () => HostOpenGL, preloadOpenGL?: (p: string) => string }} native
+ * @returns {{ source: 'bundle' | 'system', reason: string, loadedFrom: string | null } | null}
+ */
+export function activateBundledOpenGL(native) {
+    if (openGL !== null) return openGL || null;
+    openGL = false;
+    if (process.platform !== 'win32' || typeof native?.probeHostOpenGL !== 'function') return null;
+    const candidate = resolveGlRuntime();
+    const host = native.probeHostOpenGL();
+    const decision = decideOpenGLSource({ bundled: candidate, host, override: process.env.GJSIFY_OPENGL });
+    if (decision.source === 'system') {
+        // Said once, at the point the process could still be told what to add — the
+        // alternative is a GLArea painting "No GL implementation is available" with nothing
+        // naming the package. Only where a WINDOWING runtime is present: a headless process
+        // never asks for GL, and this would be noise there.
+        if (decision.missing && hasWindowingRuntime()) {
+            process.emitWarning(decision.reason, { code: 'GJSIFY_OPENGL_MISSING' });
+        }
+        openGL = { ...decision, loadedFrom: host.loadedFrom || null };
+        return openGL;
+    }
+    try {
+        openGL = { ...decision, loadedFrom: native.preloadOpenGL(candidate) };
+    } catch (error) {
+        // preloadOpenGL throws with the loader's own reason (a missing libgallium_wgl.dll, a
+        // blocked file). The process still runs — GTK falls back to cairo — so this is a
+        // warning with the cause, where silence would read as "the host has no GL".
+        const reason = `preloading the bundled OpenGL failed: ${error.message}`;
+        process.emitWarning(reason, { code: 'GJSIFY_OPENGL_PRELOAD' });
+        openGL = { source: 'system', reason, loadedFrom: null };
+    }
+    return openGL;
+}
+
+/** Whether the GTK in use can open windows — the bundle's windowing marker. */
+function hasWindowingRuntime() {
+    const bundle = gtkSource() === 'bundle' ? resolveGtkRuntimeBundle() : null;
+    return !!bundle && existsSync(join(bundle.dir, 'share', 'glib-2.0', 'schemas', 'gschemas.compiled'));
+}
+
+/** What `activateBundledOpenGL` decided for this process, or null when it did not apply. */
+export function openGLActivation() {
+    return openGL || null;
+}

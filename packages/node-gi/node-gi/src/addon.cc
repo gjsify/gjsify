@@ -155,6 +155,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("localeCategories", Napi::Function::New(env, LocaleCategories));
   // The native cairo binding + foreign-struct registration (the `__cairo` export).
   InitCairo(env, exports);
+  InitOpenGLWin32(env, exports);
   return exports;
 }
 

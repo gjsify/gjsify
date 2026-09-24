@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: MIT
+// win32: the optional @gjsify/gl-runtime-win32-x64 gives GTK a real OpenGL (#1097).
+//
+// The runner this is written for has no GPU and no OpenGL ICD, so the host offers only the
+// GDI generic OpenGL 1.1 that GDK rejects. Without Mesa, a process gets exactly that: `Gdk.Display.create_gl_context()` read "No GL implementation is available",
+// every Gtk.GLArea painted that string, and GSK quietly fell back to cairo — invisible to
+// every other Windows leg, all of which pin GSK_RENDERER=cairo.
+//
+// The last case is the discriminator. It re-runs the same probe in a child told to keep the
+// host's OpenGL (`GJSIFY_OPENGL=system`), which is precisely what a consumer WITHOUT the package gets,
+// and requires it to fail where this process succeeded. So a green run cannot mean the host
+// happened to have GL: the only thing varied between the two is the preload.
+//
+// Run WITHOUT GSK_RENDERER — which renderer GSK picks, and why, is part of the claim.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { currentGLStrings, probeHostOpenGL } from '../index.js';
+import { requireGi } from '../gi.js';
+import { openGLActivation, resolveGlRuntime } from '../gtk-runtime.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const skip = process.platform !== 'win32' ? 'win32 only — elsewhere the OpenGL is the host system’s' : false;
+
+// GTK 4.22's GL renderer needs 3.2 core on WGL; below that GDK refuses the context.
+const MIN_GL = [3, 2];
+
+/** Realize a GL context on the default display; returns what it got, or the error text. */
+function probeGL(Gdk) {
+    try {
+        const ctx = Gdk.Display.get_default().create_gl_context();
+        ctx.realize();
+        ctx.make_current();
+        const [major, minor] = ctx.get_version();
+        const strings = currentGLStrings();
+        Gdk.GLContext.clear_current();
+        return { ok: true, major, minor, es: ctx.get_use_es(), strings };
+    } catch (error) {
+        return { ok: false, error: String(error?.message ?? error) };
+    }
+}
+
+test('the optional GL package resolves and the loader preloads it', { skip }, () => {
+    const dll = resolveGlRuntime();
+    assert.ok(dll, 'no @gjsify/gl-runtime-win32-x64 resolved — build it first (scripts/build-gl-runtime.mjs)');
+    const host = probeHostOpenGL();
+    const activation = openGLActivation();
+    console.log(`host OpenGL: ${JSON.stringify(host)}; decision: ${JSON.stringify(activation)}`);
+    assert.ok(activation, 'activateBundledOpenGL did not apply');
+    if (host.wddmIcd || host.registryIcd) {
+        // A host with a real ICD keeps it; the rest of this file then measures that driver.
+        assert.equal(activation.source, 'system');
+        return;
+    }
+    assert.equal(activation.source, 'bundle', activation.reason);
+    assert.equal(
+        resolve(activation.loadedFrom).toLowerCase(),
+        resolve(dll).toLowerCase(),
+        'opengl32 in this process is not the package one',
+    );
+});
+
+test('GDK realizes a desktop GL context of at least 3.2', { skip }, () => {
+    const Gdk = requireGi('Gdk', '4.0');
+    const Gtk = requireGi('Gtk', '4.0');
+    Gtk.init();
+    const gl = probeGL(Gdk);
+    console.log(`GL: ${JSON.stringify(gl)}`);
+    assert.ok(gl.ok, `GL context failed: ${gl.error}`);
+    assert.ok(
+        gl.major > MIN_GL[0] || (gl.major === MIN_GL[0] && gl.minor >= MIN_GL[1]),
+        `GL ${gl.major}.${gl.minor} is below ${MIN_GL.join('.')}`,
+    );
+    assert.ok(gl.strings, 'no GL strings from the current context');
+    assert.doesNotMatch(gl.strings.renderer, /GDI Generic/, 'the context is the GDI generic OpenGL 1.1');
+});
+
+// Which renderer GSK picks, in a child with GSK_DEBUG=renderer so the answer carries GSK's own
+// reason. MEASURED on this leg (GTK 4.22.4): by default GSK REJECTS GL with "OpenGL requires
+// Direct Composition" and renders with cairo, even with Mesa's 4.6 context available — GTK's
+// win32 GL renderer draws through DirectComposition, which it makes opt-in (`GDK_DEBUG=dcomp`,
+// gdkdisplay-win32.c: "causes issues with the GL and Vulkan renderers (e.g. black borders)").
+// That is upstream policy, not a gap here, and it is the same on a host with a vendor driver.
+// So both halves are asserted: the default says why it is cairo, and the opt-in reaches GL —
+// which only Mesa makes possible on this runner.
+function gskRendererIn(extraEnv) {
+    const script = `
+        import { requireGi } from ${JSON.stringify(new URL('../gi.js', import.meta.url).href)};
+        const Gtk = requireGi('Gtk', '4.0');
+        const GObject = requireGi('GObject', '2.0');
+        const GLib = requireGi('GLib', '2.0');
+        Gtk.init();
+        // realize() alone left get_renderer() null on GdkWin32 (measured on this leg):
+        // present the window and spin the loop until GTK has created its renderer.
+        const win = new Gtk.Window({ default_width: 64, default_height: 64 });
+        win.present();
+        const context = GLib.MainContext.default();
+        let gsk = win.get_renderer();
+        for (let i = 0; !gsk && i < 500; i++) {
+            context.iteration(false);
+            gsk = win.get_renderer();
+        }
+        console.log(JSON.stringify({ renderer: gsk ? GObject.type_name(gsk.constructor.$gtype) : null }));
+        win.destroy();
+    `;
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+        cwd: here,
+        env: { ...process.env, GSK_DEBUG: 'renderer', ...extraEnv },
+        encoding: 'utf8',
+    });
+    const line = res.stdout.trim().split(/\r?\n/).pop() ?? '';
+    const debug = res.stderr.trim();
+    console.log(`GSK ${JSON.stringify(extraEnv)}: ${line}\n${debug}`);
+    return { renderer: JSON.parse(line).renderer, debug };
+}
+
+const gskSkip = skip || (process.env.GSK_RENDERER && 'GSK_RENDERER is set');
+
+test('GSK defaults to cairo on win32 for GTK`s own reason, not for lack of GL', { skip: gskSkip }, () => {
+    const { renderer, debug } = gskRendererIn({});
+    assert.equal(renderer, 'GskCairoRenderer', debug);
+    assert.match(debug, /OpenGL requires Direct Composition/, 'cairo, but not for the reason GTK documents');
+});
+
+test('with GDK_DEBUG=dcomp, GSK renders with GL on Mesa', { skip: gskSkip }, () => {
+    const { renderer, debug } = gskRendererIn({ GDK_DEBUG: 'dcomp' });
+    assert.equal(renderer, 'GskGLRenderer', debug);
+});
+
+test('the same probe keeping the host OpenGL fails — the preload is what made it pass', { skip }, () => {
+    const host = probeHostOpenGL();
+    if (host.wddmIcd || host.registryIcd) return; // a real driver: there is no "before" to show
+    const script = `
+        import { requireGi } from ${JSON.stringify(new URL('../gi.js', import.meta.url).href)};
+        import { openGLActivation } from ${JSON.stringify(new URL('../gtk-runtime.js', import.meta.url).href)};
+        const Gdk = requireGi('Gdk', '4.0');
+        requireGi('Gtk', '4.0').init();
+        let out;
+        try {
+            const ctx = Gdk.Display.get_default().create_gl_context();
+            ctx.realize();
+            out = { ok: true, version: ctx.get_version() };
+        } catch (e) {
+            out = { ok: false, error: String(e?.message ?? e) };
+        }
+        console.log(JSON.stringify({ activation: openGLActivation(), ...out }));
+    `;
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+        cwd: here,
+        env: { ...process.env, GJSIFY_OPENGL: 'system' },
+        encoding: 'utf8',
+    });
+    const line = res.stdout.trim().split(/\r?\n/).pop() ?? '';
+    console.log(`child (GJSIFY_OPENGL=system): ${line}\n${res.stderr.trim()}`);
+    const child = JSON.parse(line);
+    assert.equal(child.activation?.source, 'system');
+    assert.equal(
+        child.ok,
+        false,
+        `the host OpenGL realized a context (${child.version}) — this runner is not GPU-less`,
+    );
+    assert.match(child.error, /No GL implementation|OpenGL|GL/i);
+});
