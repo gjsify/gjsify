@@ -2,6 +2,7 @@
 // Reimplemented for GJS using Gio.SocketService
 
 import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils/core';
 import type { ErrnoException } from '@gjsify/utils/core';
@@ -26,6 +27,7 @@ export class Server extends EventEmitter {
 
     private _service: Gio.SocketService | null = null;
     private _connections = new Set<Socket>();
+    private _listenerClosed = false;
     private _address: { port: number; family: string; address: string } | null = null;
 
     constructor(connectionListener?: (socket: Socket) => void);
@@ -138,6 +140,7 @@ export class Server extends EventEmitter {
         this._connections.add(socket);
         socket.on('close', () => {
             this._connections.delete(socket);
+            this._maybeEmitClose();
         });
 
         this.emit('connection', socket);
@@ -163,20 +166,42 @@ export class Server extends EventEmitter {
             return this;
         }
 
-        this._service.stop();
-        this._service.close();
+        const service = this._service;
         this._service = null;
         this.listening = false;
-        _activeServers.delete(this);
 
-        // Close all existing connections
-        for (const socket of this._connections) {
-            socket.destroy();
-        }
-        this._connections.clear();
-
-        deferEmit(this, 'close');
+        // Node's contract: close() stops ACCEPTING; connections already accepted
+        // stay open, and 'close' is emitted once the last of them has closed.
+        //
+        // stop() only CANCELS the pending accept; its GSource keeps polling the
+        // listening descriptor until the cancellation is dispatched on the next
+        // main-loop iteration. Closing the listener synchronously here left that
+        // source on a closed fd: harmless on Linux (poll(2) reports POLLNVAL for
+        // the one entry), but GLib on darwin polls via select(2), which fails the
+        // whole iteration with EBADF and warns "poll(2) failed due to: Bad file
+        // descriptor". So the listener is closed from a 0 ms source at the SAME
+        // priority as the accept's: GLib dispatches a priority band in attach
+        // order, and the accept source was attached first (at listen, or when the
+        // service re-armed after the last accept) — by the time this runs, the
+        // cancellation has been dispatched and the source destroyed. Not an idle:
+        // a lower-priority source is starved for as long as anything at DEFAULT
+        // stays ready (GJS's own promise-drain source does, under a busy chain).
+        service.stop();
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+            service.close();
+            this._listenerClosed = true;
+            this._maybeEmitClose();
+            return GLib.SOURCE_REMOVE;
+        });
         return this;
+    }
+
+    /** 'close' follows the real close of the listener AND of every connection. */
+    private _maybeEmitClose(): void {
+        if (!this._listenerClosed || this._connections.size > 0) return;
+        this._listenerClosed = false;
+        _activeServers.delete(this);
+        this.emit('close');
     }
 
     /** Get the number of concurrent connections. */

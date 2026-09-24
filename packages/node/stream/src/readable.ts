@@ -418,18 +418,15 @@ export class Readable_ extends Stream_ {
             nextTick(() => this.emit('close'));
         };
 
-        // Dispatch virtually ONLY when the user overrode _destroy on the instance
-        // (e.g. tests: `stream._destroy = fn`). Do NOT call a subclass prototype
-        // _destroy: net.Socket's prototype `_destroy` synchronously cancels in-flight
-        // Gio I/O and would break tests that call destroy() during pending writes.
-        // The opts.destroy path still runs via _destroyImpl as before.
-        if (Object.prototype.hasOwnProperty.call(this, '_destroy')) {
-            (this as Readable_)._destroy(error ?? null, cb);
-        } else if (this._destroyImpl) {
-            this._destroyImpl.call(this, error ?? null, cb);
-        } else {
-            cb(error);
-        }
+        // Dispatch virtually, like `Writable_.destroy` and Node's
+        // `lib/internal/streams/destroy.js`: a subclass's prototype `_destroy` is
+        // where it releases what it holds. This used to call only an INSTANCE
+        // override, so every prototype `_destroy` below a Readable/Duplex was dead
+        // code — `net.Socket.destroy()` closed no descriptor (the peer never saw
+        // EOF) and `fs.ReadStream` / child_process pipes never cancelled their
+        // in-flight Gio reads. The base `_destroy` still forwards to
+        // `opts.destroy`, so the constructor-option form keeps working.
+        this._destroy(error ?? null, cb);
 
         return this;
     }
