@@ -14,9 +14,9 @@ package it named had reached `full`.
    a GObject shim on every OS, replacing libmanette on Linux once proven there) and its seam has
    landed, but the shim itself — a new native package — is not built; `@gjsify/webgl` now draws WebGL2 content on darwin, but HiDPI is unproven
    there and two GLES 3.0 API spellings are still missing; two packages have no darwin target at
-   all; and nothing exercises the node-free toolchain on macOS, although all three engines now
-   publish darwin prebuilds. `win32-arm64` is measured as blocked upstream rather than on
-   effort, so it is not on this list.
+   all; and the node-free toolchain on macOS is exercised only by e2e suites, never by a
+   cold-tree `build:infra` with no Node. `win32-arm64` is measured as blocked upstream rather
+   than on effort, so it is not on this list.
 
    musl is covered by two jobs asking two questions, and both are gates now.
    `check-committed-musl` asks whether the committed glibc prebuilds resolve on real Alpine; it

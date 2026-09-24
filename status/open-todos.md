@@ -3816,15 +3816,13 @@ Found by committing the generated Platform Support matrix and having a review no
 
 The fix is to credit from git rather than from the filesystem. What makes it more than a one-liner: `tests/e2e/prebuild-declaration-invariant` drives this code against SYNTHETIC packages, which are by construction untracked, so a tracked-ness requirement has to be a matrix-side credit rather than a change inside `collectNativePackages()`. Alternative, cheaper and honest: leave the measurement alone and change the legend to say "artifact present", which then no longer answers "can I install this there?" — the question the page exists for.
 
-### Nothing exercises the NODE-FREE toolchain on macOS, and the prebuild's arrival hid that
+### No cold-tree `build:infra` without Node runs on macOS
 
-The engine half is DONE — `@gjsify/rolldown-native` declares all four of `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`; `packages/infra/rolldown-native-darwin-{arm64,x64}` hold committed artifacts; `--platforms` marks every darwin cell `✓` for it and for `@gjsify/lightningcss-native` / `@gjsify/oxfmt-native`; all three are on npm at the train version.
+The e2e half is DONE: `macos-suites.yml`'s node-pillar leg runs `node-free-bootstrap`, `workspace-node-free-gjs`, `launcher-free-build`, `node-script` and `tsc-node-fallback` on both darwin arches — install, orchestration, build, `--node-script` and the tsc fallback, each through `gjs -m dist/cli.gjs.mjs` with `node` resolving nowhere. Wiring them up is what found the defects nothing had seen (a bare `sysctl` that killed the CLI at module evaluation, `/proc`-only process-tree and liveness probes, SIP stripping the launcher's `DYLD_*` inside compound scripts); `docs/bundled-toolchains.md` § macOS has them and the manual recipe.
 
-What no leg covers is the path those engines exist FOR. Both darwin jobs in `macos-suites.yml` install, bootstrap and build by invoking the CLI **under Node** (`node "$RUNNER_TEMP/bootstrap-cli/…/lib/index.js"`, then `node packages/infra/cli/lib/index.js run build`) — correct for proving the Node pillar on darwin, and blind to `gjs -m install.mjs` → `gjsify build` on a box with no Node at all. `tests/e2e/node-free-bootstrap` exercises that shape only on the Linux runner.
+What no darwin leg runs is the shape Linux's `cold-bootstrap` job does: the whole repository's `build:infra` from a tree with no build outputs, with `node` moved aside. Both darwin jobs still install and build the tree under Node. Cost is the reason, not effort: it is a second full build on 10x-billed minutes. The condition to measure: a darwin job whose install + `build:infra` go through `gjs -m` with `command -v node` failing, green on both arches.
 
-This entry previously read "no native macOS build has been promoted … until that leg is green the docs must keep describing the Node-free toolchain as Linux-only". The build was promoted; the instruction outlived it, and three pages of the website went on telling macOS users to install Node because a ledger entry told them to. **The lesson is the shape of the sentence**: a ledger item that instructs the DOCS to keep saying something has no retirement trigger — the docs do not fail when the code changes underneath them. State the condition to measure, not the prose to keep.
-
-The work: a darwin leg whose install+build steps go through the bootstrap the way the Linux node-free leg does, with `node` off PATH for the duration so the leg cannot pass by accident.
+**The lesson this entry used to carry stands**: it once told the DOCS to keep describing the node-free toolchain as Linux-only, which outlived the promotion it was waiting for — a ledger item that instructs the docs has no retirement trigger. State the condition to measure, not the prose to keep.
 
 ### Follow-up — adwaita-web style isolation (ADR 0010)
 
