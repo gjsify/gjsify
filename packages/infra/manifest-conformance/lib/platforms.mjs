@@ -97,3 +97,25 @@ export const LIB_EXT = { linux: '.so', darwin: '.dylib', win32: '.dll' };
  * has; see `status/open-todos.md`, "HOST_TARGET is libc-blind".
  */
 export const HOST_TARGET = `${process.platform}-${process.arch}`;
+
+/**
+ * The oldest macOS every darwin binary this repository ships must load on — ADR 0074.
+ *
+ * THE ONE DEFINITION. Without it, clang and rustc default the deployment target to the
+ * build machine, and dyld refuses an image whose `LC_BUILD_VERSION` `minos` is newer than
+ * the running OS: the 0.52.0 darwin-arm64 prebuilds all said `26.0` because
+ * `macos-latest` had become macOS 26, while no doc ruled macOS 15 out. Three consumers
+ * read this value and none keeps a copy:
+ *   - `.github/actions/darwin-deployment-target` exports it as `MACOSX_DEPLOYMENT_TARGET`
+ *     for every CI job that compiles a shipped darwin binary (meson/clang, valac's C,
+ *     cargo — all three honour the variable);
+ *   - the `prebuild-darwin-target` rule holds every committed Mach-O's `minos` to it;
+ *   - `build-gtk-runtime-darwin.mjs` refuses a bundled Homebrew image newer than it.
+ *
+ * 15.0, not lower, because the Homebrew-built GTK runtime cannot go lower: a bottle's
+ * `minos` is its bottle tag's OS, and the x64 bundle comes from `macos-15-intel`, the last
+ * x86_64 image Actions offers. Every API in use is older (WKContentWorld 11.0,
+ * os_sync_wait_on_address 14.4). This file is a shared input of `prebuilds.yml`, so
+ * changing the number rebuilds every darwin prebuild.
+ */
+export const DARWIN_DEPLOYMENT_TARGET = '15.0';

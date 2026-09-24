@@ -44,7 +44,9 @@ declared. Same shape as `gjsify.platformsUncommitted`, for the same reason.
 
 - **`portable`** (this package) — reads only the manifest, files on disk and
   binaries. Correct in any npm package: `package-outputs`,
-  `prebuild-artifacts`, `headless`, `field-coverage`, `media-capabilities`.
+  `prebuild-artifacts`, `prebuild-darwin-target` (every committed darwin image's
+  `minos` at or below the macOS floor, ADR 0074), `headless`, `field-coverage`,
+  `media-capabilities`.
 - **`repo`** (`scripts/manifest-conformance/` in the gjsify repo) — knows about
   *that* repository: its directory layout as an axis taxonomy, curated
   `@gjsify/*` package-name allowlists, `prebuilds.yml`'s matrix,

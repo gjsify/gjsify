@@ -1567,6 +1567,10 @@ const CHECK_RULES = [
     // flavour and glibc floor come out of the ELF headers, which is why one x86-64 runner
     // can answer for every architecture.
     'prebuild-libc',
+    // The macOS half of the same question: the `minos` every committed darwin image records
+    // must not exceed ADR 0074's floor. Mach-O headers only, so the Linux runner answers for
+    // both darwin arches — same reason as `prebuild-libc` above.
+    'prebuild-darwin-target',
     'platform-packages',
     'runtimes-reachability',
     'curated-alias-routing',
@@ -1676,6 +1680,14 @@ function repoContext() {
         discoveryRoots: ['packages'],
         extra: {
             fieldCoverage: 'enforce',
+            // REPORT, not enforce, and only until the rebuilt darwin prebuilds land. ADR 0074
+            // declared the macOS 15.0 floor while the committed darwin-arm64 images still
+            // record 26.0 (built on `macos-latest` with no deployment target). They are only
+            // ever rebuilt by `prebuilds.yml`'s `commit-prebuilds` on `main`, AFTER this
+            // lands, so enforcing now would red every PR on bytes no PR can fix. Every
+            // violation is still printed on every run. Flip to 'enforce' once
+            // `commit-prebuilds` has landed them — status/open-todos.md tracks it.
+            darwinDeploymentTarget: 'report',
             uncheckedFields: UNCHECKED_FIELDS,
             // Empty unless `--media-payload` was passed, which is the ordinary state and
             // the reason `media-capabilities` reports what it did NOT inspect: the
