@@ -204,13 +204,21 @@ export default async () => {
             });
 
             await new Promise<void>((resolve, reject) => {
-                let seen: { sameSocket: boolean; sameConnection: boolean; remoteAddress: unknown } | null = null;
+                let seen: {
+                    sameSocket: boolean;
+                    sameConnection: boolean;
+                    remoteAddress: unknown;
+                    remotePort: unknown;
+                    localPort: unknown;
+                } | null = null;
 
                 server.on('upgrade', (req, socket, _head) => {
                     seen = {
                         sameSocket: req.socket === socket,
                         sameConnection: (req as unknown as { connection: unknown }).connection === socket,
                         remoteAddress: req.socket?.remoteAddress,
+                        remotePort: req.socket?.remotePort,
+                        localPort: req.socket?.localPort,
                     };
                     socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: custom\r\n\r\n');
                     socket.end();
@@ -234,7 +242,10 @@ export default async () => {
                             expect(seen).not.toBeNull();
                             expect(seen!.sameSocket).toBe(true);
                             expect(seen!.sameConnection).toBe(true);
-                            expect(typeof seen!.remoteAddress).toBe('string');
+                            // Node reports the v4-mapped form on its dual-stack default listener.
+                            expect(String(seen!.remoteAddress)).toMatch(/127\.0\.0\.1$/);
+                            expect(seen!.remotePort).toBe(client.localPort);
+                            expect(seen!.localPort).toBe(addr.port);
                             server.close(() => resolve());
                         } catch (e) {
                             server.close(() => reject(e));

@@ -483,8 +483,12 @@ export class Server extends EventEmitter {
             // The bridge hands over a stolen IOStream that is not a
             // Gio.SocketConnection, so _attachOutputOnly cannot read the peer
             // address from it — take it from the request the bridge parsed.
-            socket.remoteAddress ??= bridgeReq.remote_address ?? undefined;
+            // Same sources ServerRequestSocket uses for a plain request.
+            socket.remoteAddress ??= bridgeReq.remote_address || undefined;
             socket.remotePort ??= bridgeReq.remote_port ?? undefined;
+            socket.remoteFamily ??= socket.remoteAddress?.includes(':') ? 'IPv6' : 'IPv4';
+            socket.localAddress ??= this._address?.address;
+            socket.localPort ??= this._address?.port;
             this.emit('upgrade', req, socket, Buffer.alloc(0));
         }
     }
