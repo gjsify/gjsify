@@ -489,7 +489,7 @@ gjsify env LC_ALL=C GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs
 |---|---|---|
 | `<entries..>` | — | Leading `NAME=VALUE` words, then the command and its arguments. A later `X=y` is passed to the command as an argument. |
 
-Every flag after the command belongs to the command. The exit code is the command's own.
+Every flag after the command belongs to the command, a `--` included. The exit code is the command's own.
 
 The destination is treated as a directory when it ends in `/`, when you pass several sources, or when a source has a wildcard. Otherwise it is the exact target path. Missing parent directories are created. `*` and `?` work in the last segment of a source.
 

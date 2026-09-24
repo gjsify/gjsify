@@ -49,6 +49,16 @@ export function splitEnvArgv(argv: readonly string[]): EnvInvocation | null {
 }
 
 /**
+ * Rejoin the argv yargs split at the first `--`. One AFTER the command belongs to
+ * the command, as in env(1) (`gjsify env A=1 node x.mjs -- --flag` hands node the
+ * `--`); only one BEFORE it separates (`gjsify env A=1 -- node …`).
+ */
+export function joinEnvArgv(entries: readonly string[], tail: readonly string[]): string[] {
+    if (tail.length === 0) return [...entries];
+    return splitEnvArgv(entries) ? [...entries, '--', ...tail] : [...entries, ...tail];
+}
+
+/**
  * The child's environment: `base` with `assignments` applied.
  *
  * On win32 names are case-insensitive, and a spread of `process.env` keeps the
@@ -93,7 +103,7 @@ export const envCommand: Command<unknown, EnvOptions> = {
                 'unknown-options-as-args': true,
             }),
     handler: async (args) => {
-        const invocation = splitEnvArgv([...(args.entries ?? []), ...doubleDashArgs(args)]);
+        const invocation = splitEnvArgv(joinEnvArgv(args.entries ?? [], doubleDashArgs(args)));
         if (!invocation) {
             console.error('gjsify env: no command given. Usage: gjsify env NAME=VALUE… <command> [args…]');
             return process.exit(1);

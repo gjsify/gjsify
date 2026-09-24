@@ -2,7 +2,7 @@
 // decide WHAT runs; the spawn itself is `spawnToCompletion`'s, tested there.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { applyAssignments, splitEnvArgv } from './env.js';
+import { applyAssignments, joinEnvArgv, splitEnvArgv } from './env.js';
 
 export default async () => {
     await describe('gjsify env — splitEnvArgv', async () => {
@@ -37,6 +37,28 @@ export default async () => {
 
         await it('runs a command with no assignments at all', () => {
             expect(splitEnvArgv(['node', '-v'])?.command).toBe('node');
+        });
+    });
+
+    await describe('gjsify env — joinEnvArgv', async () => {
+        // yargs consumes the first `--` into `args['--']`; dropping it handed
+        // `node x.mjs -- --flag` to node as `node x.mjs --flag`.
+        await it('keeps a `--` that follows the command', () => {
+            expect(joinEnvArgv(['A=1', 'node', 'x.mjs'], ['--flag'])).toStrictEqual([
+                'A=1',
+                'node',
+                'x.mjs',
+                '--',
+                '--flag',
+            ]);
+        });
+
+        await it('drops a `--` that precedes the command', () => {
+            expect(joinEnvArgv(['A=1'], ['node', 'x.mjs'])).toStrictEqual(['A=1', 'node', 'x.mjs']);
+        });
+
+        await it('is the entries alone when nothing followed a `--`', () => {
+            expect(joinEnvArgv(['A=1', 'node'], [])).toStrictEqual(['A=1', 'node']);
         });
     });
 
