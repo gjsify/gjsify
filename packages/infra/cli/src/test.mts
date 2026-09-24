@@ -65,6 +65,7 @@ import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
 import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
+import processTableSuite from './utils/process-table.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
 import installOptionalEdgesSuite from './utils/install-optional-edges.spec.js';
 import installPeerEdgesSuite from './utils/install-peer-edges.spec.js';
@@ -318,6 +319,7 @@ run(
         dlxCacheSuite,
         installCacheFsSuite,
         installLockSuite,
+        processTableSuite,
         installBackendNativeWarnSuite,
         installOptionalEdgesSuite,
         installPeerEdgesSuite,
