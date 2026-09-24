@@ -4601,41 +4601,46 @@ which every win32 consumer of `@gjsify/webgl` already has, because it is how
 is a worse failure than the one being solved, so the closure is DOCUMENTED (in
 `@gjsify/webgl`'s README) rather than packaged around.
 
-STILL OPEN, and NOT this prebuild's to close:
+**The GL layer below it is CLOSED in the bundle (#1097)** — kept here because the three
+readings that each looked right are the reason the fix has the shape it has:
 
-- **The batteries-included win32 bundle ships no GL implementation** — its DLLs
-  include `epoxy-0.dll`, which is the GL *dispatch* layer and resolves nothing on
-  its own. So on a Windows host WITHOUT a vendor or Mesa ICD (a GPU-less VM, an
-  RDP session, CI) the GL showcases stay dark, and that is a property of the
-  bundle, not of the webgl prebuild. The windowing builder's ANGLE seeds
-  (`/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`) matched NOTHING — the gvsbuild
-  GTK4 release ZIP carries no ANGLE — which is how a bundle came to promise
-  "windowing" while shipping no GL. **The proposed fix was wrong twice over**:
-  the gvsbuild `epoxy-0.dll` is built with NO EGL support at all (measured on the
-  shipped 0.34.0 bundle: no `epoxy_has_egl`, no `egl*` entry point), so
-  `gdk_win32_display_get_egl_display()` can never engage no matter what
-  `libEGL.dll` is present — that path needs libepoxy rebuilt with
-  `-Degl=enabled`, a gvsbuild-side change. And the desktop-GL family is inert for
-  a second, independent reason: epoxy resolves it with a bare
-  `LoadLibraryA("OPENGL32")`, which Windows answers from the **application
-  directory** then **System32**, never from `PATH` — the only search the loader's
-  bundle wiring controls. Measured three ways on the VM: bundle-local
-  `libEGL`+`libGLESv2`+`libgallium_wgl` → still none; bundle-local `opengl32.dll`
-  preloaded by absolute path via `process.dlopen` → still none (Node *unloads* a
-  DLL that fails to self-register, so the base-name-match trick needs the addon,
-  not JS); the same `opengl32.dll` beside a copied `node.exe` → **GL 4.6, works**,
-  which is what proves the mechanism is placement and nothing else. A bundled ICD
-  therefore requires the ADDON to opt the process into
-  `SetDefaultDllDirectories(…)` + `AddDllDirectory(<bundle>/bin)` — process-wide
-  DLL-resolution surgery that would also stop other native modules resolving
-  their deps from `PATH`, so it is a decision, not a detail. The
-  positive-assertion half is DONE: the windowing builder probes the FINISHED
-  `bin/` for a GL implementation, records it as `manifest.glImplementation` (with
-  `dispatch` listed separately so epoxy's presence can never be misread as GL),
-  and warns naming every pattern that matched nothing. `--require-gl` makes it
-  fatal; it is off by default only because no gvsbuild prefix satisfies it yet,
-  so the promotion that ships a GL implementation flips it in the same change.
-  Tracked as #1097.
+- **The seed that matched nothing.** The windowing builder seeded ANGLE
+  (`/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`), the gvsbuild ZIP carries no ANGLE,
+  and four releases shipped `windowing: true` bundles with GL *dispatch* (`epoxy-0.dll`)
+  and no implementation — every `Gtk.GLArea` on a GPU-less host (VM, RDP, CI) read
+  `No GL implementation is available`, and every Windows leg hid it behind
+  `GSK_RENDERER=cairo`. The builder now records `manifest.glImplementation` with
+  `dispatch` apart, and `--require-gl` (passed by both workflows) fails a windowing
+  bundle without one.
+- **ANGLE is unreachable, not just absent**: gvsbuild builds GTK 4.22.4 and libepoxy
+  without EGL (`gtk-4-1.dll` compiles only the WGL context class; epoxy has no `egl*`
+  entry point). So the implementation is Mesa's WGL build — `opengl32.dll` +
+  `libgallium_wgl.dll` from a pinned, sha256-checked `mesa-dist-win`
+  (`scripts/fetch-gl-implementation.mjs`), +59 MiB unpacked / ~22 MiB in the tarball.
+- **Bundling it does nothing by itself**: `gtk-4-1.dll` imports `OPENGL32` statically and
+  epoxy loads it by bare name; Windows answers from loaded modules, the application
+  directory, System32 — never `PATH`. Measured on the VM: on PATH → none; preloaded from
+  JS via `process.dlopen` → none (Node unloads a DLL that fails to self-register); beside
+  `node.exe` → GL 4.6. So the ADDON preloads it by absolute path
+  (`src/opengl-win32.cc`, `activateBundledOpenGL` in `gtk-runtime.js`) before GTK loads —
+  and only when the host has no ICD (no display-driver user-mode ICD per
+  `D3DKMTQueryAdapterInfo`, nothing under `HKLM\…\OpenGLDrivers`), so a vendor driver
+  keeps serving GTK. `GJSIFY_OPENGL=bundle|system` overrides. The
+  `SetDefaultDllDirectories` route the old entry proposed is not needed, and would have
+  changed DLL resolution for every other native module in the process.
+
+Held by `test/win32-opengl.test.mjs` on `windows-gtk-windowing`, the one Windows step
+without `GSK_RENDERER=cairo`: GDK realizes a ≥ 3.2 context whose `GL_RENDERER` is not GDI
+Generic, GSK picks a non-cairo renderer, and a child with `GJSIFY_OPENGL=system` must FAIL
+on the same runner — the pre-fix state, reproduced beside the fix.
+
+STILL OPEN: **real-GPU hardware is unmeasured** — the ICD probe's "keep the vendor driver"
+branch has never run on a machine with one (the VM has QXL, CI has WARP), so
+`D3DKMTQueryAdapterInfo(KMTQAITYPE_UMOPENGLINFO)` naming the vendor ICD is documented
+behaviour, not an observation here. What it unlocks and nobody has run yet: a RENDERING
+proof for `@gjsify/webgl` on win32 — `webgl-glarea`/`excalibur-webgl` gate on a realizable
+GL context, which the windows runner now has, while the prebuild is still only
+load-tested there (#1101, the next layer up, was found by hand on the VM).
 
 The two-job split generalises past webgl: every other Vala bridge in this
 repository has the same "valac does not run on Windows" problem, and

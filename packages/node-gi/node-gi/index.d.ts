@@ -73,6 +73,11 @@ export function prependSearchPath(path: string): void;
 /** Prepend a directory GI searches for the SHARED LIBRARY a typelib names. */
 export function prependLibraryPath(path: string): void;
 
+/** win32 only: the host's OpenGL ICDs (display driver / registry) and any opengl32 already loaded; each "" when absent. */
+export const probeHostOpenGL: (() => { wddmIcd: string; registryIcd: string; loadedFrom: string }) | undefined;
+/** win32 only: GL_VENDOR/GL_RENDERER/GL_VERSION of the context current on this thread, or null without one. */
+export const currentGLStrings: (() => { vendor: string; renderer: string; version: string } | null) | undefined;
+
 /**
  * Invoke a namespace-level GObject-Introspection function (not an instance
  * method) with primitive/string/object args. OUT and INOUT parameters are
@@ -591,6 +596,8 @@ declare const native: {
     setErrorBuilder: typeof setErrorBuilder;
     prependSearchPath: typeof prependSearchPath;
     prependLibraryPath: typeof prependLibraryPath;
+    probeHostOpenGL: typeof probeHostOpenGL;
+    currentGLStrings: typeof currentGLStrings;
     callFunction: typeof callFunction;
     callMethod: typeof callMethod;
     hasMethod: typeof hasMethod;

@@ -26,3 +26,28 @@ export function appGiLibraryDirs(opts?: { platform?: NodeJS.Platform | string; e
 export function activateGiLibraryPath(native: { prependLibraryPath?: (p: string) => void }): string[];
 /** TEST-ONLY: allow the activation to run again. */
 export function resetGiLibraryPathForTests(): void;
+
+/** What `native.probeHostOpenGL()` reports on win32 — each field "" when absent. */
+export interface HostOpenGL {
+    wddmIcd: string;
+    registryIcd: string;
+    loadedFrom: string;
+}
+/** The OpenGL a win32 process uses: the bundle's Mesa opengl32.dll or the host's. */
+export interface OpenGLDecision {
+    source: 'bundle' | 'system';
+    reason: string;
+}
+/** Decide which OpenGL serves GTK on win32 (pure). `override` is `GJSIFY_OPENGL`. */
+export function decideOpenGLSource(opts: {
+    bundled: string | null;
+    host: HostOpenGL;
+    override?: string;
+}): OpenGLDecision;
+/** win32: preload the bundle's opengl32.dll when the host has no OpenGL ICD (no-op elsewhere). */
+export function activateBundledOpenGL(native: {
+    probeHostOpenGL?: () => HostOpenGL;
+    preloadOpenGL?: (path: string) => string;
+}): (OpenGLDecision & { loadedFrom: string | null }) | null;
+/** The decision `activateBundledOpenGL` made for this process, or null. */
+export function openGLActivation(): (OpenGLDecision & { loadedFrom: string | null }) | null;

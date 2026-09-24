@@ -272,34 +272,34 @@ both sufficient and the simplest mechanism.
   The GdkWin32 backend is compiled **into** `libgtk-4-*.dll` (GTK4 builds every
   backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
   `gschemas.compiled`, `icon-theme.cache`) + the librsvg backer are the
-  additions. The bundle carries `epoxy-0.dll` — GL *dispatch* — and **no GL
-  *implementation***; the builder probes for one and records the answer as
-  `manifest.glImplementation` (`--require-gl` makes an empty result fatal, for the
-  promotion that ships one). On a host with a vendor OpenGL ICD that is invisible;
-  on a GPU-less one (VM, RDP, CI) every `Gtk.GLArea` fails with `No GL
-  implementation is available`. Measured on the win11-gjsify VM; tracked as #1097,
-  with the reasoning in the webgl-on-win32 entry of `status/open-todos.md`.
+  additions. **The GL implementation is Mesa** (#1097): `--gl-implementation <dir>`
+  copies `opengl32.dll` + `libgallium_wgl.dll` from the pinned `mesa-dist-win` build
+  (`scripts/fetch-gl-implementation.mjs` holds version + sha256) into `bin/`, next to
+  `epoxy-0.dll`, which is only GL *dispatch*. The builder records the result as
+  `manifest.glImplementation`, and the workflows pass `--require-gl`, so a windowing
+  bundle without one fails its build.
 
-  **Neither obvious way of closing it works as-is**, which is why the bundle still
-  ships none — both measured on 0.34.0:
-  - *ANGLE* (`libEGL`/`libGLESv2`) is what #1097 proposed, and gvsbuild ships none.
-    But adding it would not have helped: this `epoxy-0.dll` is built with **no EGL
-    support at all** (no `epoxy_has_egl` export, no `egl*` entry point), so
-    `gdk_win32_display_get_egl_display()` can never engage. That needs libepoxy
-    rebuilt with `-Degl=enabled` first.
-  - *A desktop ICD in `bin/`* (Mesa's `opengl32.dll` + `libgallium_wgl.dll`) is
-    inert by PLACEMENT: epoxy loads desktop GL with a bare
-    `LoadLibraryA("OPENGL32")`, which Windows answers from the **application
-    directory** and then **System32** — never from `PATH`, the only search the
-    loader's bundle wiring controls. System32's inbox GL 1.1 wins and GTK4 rejects
-    it. Reaching a bundled ICD needs the addon to opt the process into
-    `SetDefaultDllDirectories` + `AddDllDirectory(<bundle>/bin)`.
+  Why Mesa and not ANGLE, and why the DLLs alone do nothing — both measured:
+  - *ANGLE* is unreachable: the gvsbuild GTK (4.22.4) is built without EGL — only the
+    WGL context class is compiled into `gtk-4-1.dll` — and `epoxy-0.dll` has no `egl*`
+    entry point. It would take a gvsbuild rebuild of both.
+  - *A desktop ICD in `bin/`* is inert by PLACEMENT: `gtk-4-1.dll` imports `OPENGL32`
+    statically and epoxy loads it with a bare `LoadLibraryA("OPENGL32")`; Windows answers
+    both from already-loaded modules, then the application directory, then System32 —
+    never from `PATH`. So node-gi's loader PRELOADS the bundled `opengl32.dll` by absolute
+    path (`activateBundledOpenGL`, native half in `src/opengl-win32.cc`) before GTK loads,
+    and every bare-name request then binds to it.
+  - It does that only on a host with **no OpenGL ICD** — neither a display driver's
+    user-mode ICD (read through `D3DKMTQueryAdapterInfo`) nor one under
+    `HKLM\…\OpenGLDrivers` — so a vendor driver keeps serving GTK. `GJSIFY_OPENGL=bundle|system`
+    overrides; `openGLActivation()` from `@gjsify/node-gi/gtk-runtime` says what was
+    decided and why.
 
-  **The host-side answer works today** and needs no bundle change: register Mesa as
-  a system OpenGL ICD (`mesa-dist-win`'s `systemwidedeploy.cmd 1` writes
-  `HKLM\…\OpenGLDrivers\MSOGL` → `mesadrv.dll` and leaves the inbox `opengl32.dll`
-  in place as the loader). Measured on the win11-gjsify VM: GDK then reports
-  **OpenGL 4.6, non-legacy**, and `three-geometry-teapot` renders.
+  On a GPU-less host (VM, RDP, CI) Mesa picks its d3d12 driver where a D3D12 device
+  exists (WARP counts) and llvmpipe otherwise; GDK gets a desktop GL core context, so
+  `Gtk.GLArea` works and GSK picks its GL renderer instead of falling back to cairo.
+  Cost: +59 MiB unpacked, ~22 MiB in the npm tarball, nearly all of it
+  `libgallium_wgl.dll` (LLVM for llvmpipe).
 
   gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
   `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.

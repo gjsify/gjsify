@@ -79,6 +79,7 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import { MESA_DIST_WIN } from '../../scripts/fetch-gl-implementation.mjs';
 import {
     TYPELIB_API_FLOOR,
     TYPELIB_API_GAPS,
@@ -734,8 +735,12 @@ const WIN32_UNDOCUMENTED_BY_PREFIX = [
     'zlib',
 ];
 const WIN32_UNDOCUMENTED_WHY =
-    'the nine projects the gvsbuild prefix builds binaries from and documents no terms for — ' +
-    'exactly the set licenses-not-in-prefix/ vendors, so the two lists are held against each other';
+    'the nine projects the gvsbuild prefix builds binaries from and documents no terms for, plus the ' +
+    'two behind the GL implementation (#1097), which comes from outside the prefix entirely — exactly ' +
+    'the set licenses-not-in-prefix/ vendors, so the two lists are held against each other';
+
+/** The GL implementation's projects: from the pinned mesa-dist-win build, not the prefix. */
+const WIN32_GL_IMPLEMENTATION_COMPONENTS = ['llvm', 'mesa'];
 
 /** The corpus shape the win32 builder derives: one component per documented project. */
 function corpusOf(names) {
@@ -792,6 +797,10 @@ test('every binary the win32 bundle ships belongs to a declared license family',
     assert.equal(familyOf('vorbisenc.dll'), 'libvorbis');
     assert.equal(familyOf('vorbisfile.dll'), 'libvorbis', 'libvorbis builds three libraries, not one');
     assert.equal(familyOf('gst-plugin-scanner.exe'), 'gstreamer', 'the bundle ships one .exe and it is gstreamer`s');
+    // The GL implementation (#1097): the leaf is Windows' own OpenGL name, the project is Mesa;
+    // and the gallium image carries LLVM, whose terms must travel with it too.
+    assert.equal(familyOf('opengl32.dll'), 'mesa');
+    assert.equal(familyOf('libgallium_wgl.dll'), 'mesa+llvm');
     // TWO leaves, TWO projects. glib 2.80 took girepository-2.0 in; gobject-introspection
     // still builds the 1.0 library and gvsbuild still installs it, so one pattern for both
     // named glib as the project behind a gobject-introspection binary.
@@ -918,7 +927,20 @@ test('the vendored corpus records where each text came from, and to which gvsbui
         'every vendored directory needs a recorded upstream version, and every record a directory',
     );
     // And the set is the gap itself, not a list that drifted away from it.
-    assert.deepEqual(directories, WIN32_UNDOCUMENTED_BY_PREFIX, WIN32_UNDOCUMENTED_WHY);
+    assert.deepEqual(
+        directories,
+        [...WIN32_UNDOCUMENTED_BY_PREFIX, ...WIN32_GL_IMPLEMENTATION_COMPONENTS].sort(),
+        WIN32_UNDOCUMENTED_WHY,
+    );
+
+    // The GL implementation has its own pin, held the same way: the mesa and llvm texts
+    // describe the mesa-dist-win release fetch-gl-implementation.mjs downloads, and no other.
+    assert.equal(
+        MESA_DIST_WIN.version,
+        provenance.glImplementation.mesaDistWin,
+        `mesa-dist-win is pinned at ${MESA_DIST_WIN.version} but the mesa/llvm texts were taken for ` +
+            `${provenance.glImplementation.mesaDistWin} — re-take them with the pin, never move it alone.`,
+    );
 
     const workflows = ['release.yml', 'node-gi.yml'].map((name) =>
         readFileSync(fileURLToPath(new URL(`../../../../.github/workflows/${name}`, import.meta.url)), 'utf8'),

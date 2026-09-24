@@ -62,6 +62,7 @@ import {
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
 import {
+    GL_IMPLEMENTATION_FILES,
     GL_IMPLEMENTATION_PATTERNS,
     describeGlImplementation,
     formatMissingGlImplementation,
@@ -117,12 +118,15 @@ const ADDON = argValue('--addon');
 // The full-windowing SUPERSET: also collect the runtime data a real GTK window needs.
 const WINDOWING = process.argv.includes('--windowing');
 // Make "this windowing bundle resolves no GL implementation" FATAL rather than a
-// warning. Off by default because no gvsbuild prefix has ever satisfied it (see
-// GL_IMPLEMENTATION_PATTERNS): turning it on today would fail every win32 bundle
-// build for a gap the bundle cannot currently close. It exists so the promotion
-// that DOES ship a GL implementation can lock the property in the same change,
-// instead of re-deriving it — and so the check is exercised, not just written.
+// warning. The workflows that build the published windowing bundle pass it together
+// with --gl-implementation; it stays a flag so a local build without a Mesa download
+// still produces a (GL-less, warned-about) bundle.
 const REQUIRE_GL = process.argv.includes('--require-gl');
+// A directory holding Mesa's win32 WGL build (mesa-dist-win's `x64/`): its opengl32.dll
+// and libgallium_wgl.dll are copied into bin/ (#1097). No gvsbuild prefix carries a GL
+// implementation, and its GTK is built without EGL, so ANGLE is not an option either —
+// see GL_IMPLEMENTATION_FILES. node-gi's loader preloads it only on a host with no ICD.
+const GL_IMPLEMENTATION_DIR = argValue('--gl-implementation');
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
     console.error(`build-gtk-runtime: only supported on win32/x64, not ${process.platform}/${process.arch}`);
@@ -399,6 +403,28 @@ for (const src of binDlls.values()) {
     copyFileSync(join(gtkBin, src), join(binOut, src));
 }
 console.log(`build-gtk-runtime: copied ${binDlls.size} DLLs -> ${binOut}`);
+
+// --- 2a. the GL implementation, from outside the prefix -----------------------
+// Added to binDlls so everything downstream — the GL probe, the typelib index, the
+// licence coverage set, dllList, the manifest — sees it as the bundle's own.
+if (GL_IMPLEMENTATION_DIR) {
+    if (!WINDOWING) {
+        console.error('build-gtk-runtime: --gl-implementation only applies to a --windowing bundle');
+        process.exit(2);
+    }
+    for (const leaf of GL_IMPLEMENTATION_FILES) {
+        const src = join(GL_IMPLEMENTATION_DIR, leaf);
+        if (!existsSync(src)) {
+            console.error(`build-gtk-runtime: --gl-implementation ${GL_IMPLEMENTATION_DIR} has no ${leaf}`);
+            process.exit(1);
+        }
+        copyFileSync(src, join(binOut, leaf));
+        binDlls.set(leaf.toLowerCase(), leaf);
+    }
+    console.log(
+        `build-gtk-runtime: GL implementation ${GL_IMPLEMENTATION_FILES.join(' + ')} <- ${GL_IMPLEMENTATION_DIR}`,
+    );
+}
 
 // --- 2b. does this bundle carry a GL IMPLEMENTATION? ----------------------
 // Asked of the FINISHED bin/, not of the seed list, so the answer describes the
@@ -719,7 +745,7 @@ if (WINDOWING) {
     // Rule 3: no module § 4a/4g/4h placed may ALSO be a flat bin/ entry. Case-folded,
     // because bin/ is a Windows directory. The darwin twin of this gate stands after its
     // § 3, and duplicatedModuleLeaves carries the class.
-    // `binDlls` is a Map (leaf -> resolved source); its VALUES are what § 2a copied.
+    // `binDlls` is a Map (leaf -> resolved source); its VALUES are what § 2 and § 2a copied.
     const duplicatedModules = duplicatedModuleLeaves(binDlls.values(), placedModuleLeaves, {
         caseInsensitive: true,
     });

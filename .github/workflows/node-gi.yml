@@ -2753,11 +2753,20 @@ jobs:
             The GTK runtime bundle ships these faces under `share/fonts`, and the
             `fonts` windowing-data set fails the build without them
 
+      # The GL implementation (#1097). No gvsbuild prefix carries one and its GTK is built
+      # without EGL, so the bundle ships Mesa's WGL build; node-gi preloads it on a host
+      # with no OpenGL ICD. Pin + sha256 live in the script, not here.
+      - name: Fetch the GL implementation (pinned Mesa, sha256-verified)
+        shell: pwsh
+        run: node packages/node-gi/scripts/fetch-gl-implementation.mjs --out C:\mesa-gl
+
       - name: Build the FULL-windowing GTK runtime bundle (--windowing)
         shell: pwsh
         run: |
           node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
             --windowing `
+            --gl-implementation C:\mesa-gl `
+            --require-gl `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX `
             --addon (Join-Path $PWD 'addon\node_gi.node')
@@ -2913,6 +2922,18 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
+      # OPENGL (#1097) — the one Windows step WITHOUT GSK_RENDERER=cairo, because which
+      # renderer GSK picks on its own is part of the claim. This runner has no GPU and no
+      # OpenGL ICD, i.e. only the GDI generic OpenGL 1.1 GDK rejects, so every GL context
+      # here comes from the bundle's Mesa or from nowhere. The test's last case re-runs the
+      # probe in a child told to keep the host's OpenGL and requires it to FAIL — the state
+      # of every bundle before this one — so a green run cannot mean the host had GL.
+      - name: OpenGL proof — the bundled Mesa gives GDK a GL context and GSK a GL renderer (#1097)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/win32-opengl.test.mjs
 
       # SCRIPT COVERAGE (#1668), and this leg is the ONLY oracle for it. Non-Latin text was
       # tofu in every shipped app on this platform because PangoCairo builds the OS's own font
