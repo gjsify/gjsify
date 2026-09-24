@@ -7,16 +7,16 @@
 //      non-macOS build-version record;
 //   2. the RULE — `prebuild-darwin-target` fails an image above the floor and an image it
 //      could not measure, passes one below it, and in report mode prints instead of fails;
-//   3. the WIRING — every workflow job that runs `meson setup` on a macOS runner exports
-//      the floor through `.github/actions/darwin-deployment-target`, and that action reads
-//      the constant rather than restating it. A job that compiles without it records the
-//      runner's macOS, which is how the 0.52.0 darwin-arm64 prebuilds came to need macOS 26.
+//   3. the STAGER — `scripts/stage-prebuild.mjs`, which every shipped darwin artifact passes
+//      through, fails an image above the floor in CI and only warns on a local build. That
+//      is what catches a job compiling without `.github/actions/darwin-deployment-target`,
+//      in its own run, from the bytes — so no test parses the workflows for the action.
 //
 // Synthetic Mach-O fixtures (tests/e2e/macho.mjs), so the suite runs on Linux CI.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,7 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const LIB = join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib');
 
 const { readLibrary } = await import(`file://${join(LIB, 'binary.mjs')}`);
+const { checkDarwinFloor } = await import(`file://${join(MONOREPO_ROOT, 'scripts', 'stage-prebuild.mjs')}`);
 const { DARWIN_DEPLOYMENT_TARGET, createContext, auditPrebuildDarwinTarget, measureDarwinTargets } = await import(
     `file://${join(LIB, 'index.mjs')}`
 );
@@ -125,42 +126,35 @@ describe('prebuild-darwin-target rule', () => {
     });
 });
 
-describe('workflow wiring', () => {
-    const WORKFLOWS = join(MONOREPO_ROOT, '.github', 'workflows');
-    const ACTION = './.github/actions/darwin-deployment-target';
+describe('stage-prebuild darwin floor gate', () => {
+    let dir;
+    before(() => {
+        dir = mkdtempSync(join(tmpdir(), 'darwin-stage-'));
+        writeFileSync(join(dir, 'libok.dylib'), dylib('libok.dylib', buildVersion(DARWIN_DEPLOYMENT_TARGET)));
+        writeFileSync(join(dir, 'libnew.dylib'), dylib('libnew.dylib', buildVersion('26.0')));
+    });
+    after(() => rmSync(dir, { recursive: true, force: true }));
 
-    /** Top-level jobs of a workflow as `[name, text]`, split on two-space-indented keys. */
-    function jobs(text) {
-        const at = text.indexOf('\njobs:\n');
-        if (at < 0) return [];
-        return text
-            .slice(at + '\njobs:\n'.length)
-            .split(/\n(?=  [A-Za-z0-9_-]+:\s*\n)/)
-            .map((body) => [body.match(/^\s*([A-Za-z0-9_-]+):/)?.[1], body]);
-    }
-
-    it('every macOS job that runs meson exports the declared floor', () => {
-        const missing = [];
-        let seen = 0;
-        for (const file of readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml'))) {
-            for (const [name, body] of jobs(readFileSync(join(WORKFLOWS, file), 'utf8'))) {
-                const onMac = /runs-on:\s*macos|runner:\s*macos/.test(body);
-                if (!onMac || !/meson setup/.test(body)) continue;
-                seen++;
-                if (!body.includes(`uses: ${ACTION}`)) missing.push(`${file} › ${name}`);
-            }
-        }
-        assert.ok(seen >= 4, `expected the four known macOS meson jobs, found ${seen} — did the job split change?`);
-        assert.deepEqual(
-            missing,
-            [],
-            `macOS meson jobs compiling without MACOSX_DEPLOYMENT_TARGET:\n${missing.join('\n')}`,
-        );
+    it('fails an image above the floor in CI, naming the action', () => {
+        const { errors, warnings } = checkDarwinFloor(dir, { ci: true });
+        assert.deepEqual(warnings, []);
+        assert.equal(errors.length, 1, errors.join('\n'));
+        assert.match(errors[0], /libnew\.dylib needs macOS 26\.0.*darwin-deployment-target/);
     });
 
-    it('the action reads the constant instead of restating it', () => {
-        const action = readFileSync(join(MONOREPO_ROOT, ACTION, 'action.yml'), 'utf8');
-        assert.match(action, /import \{ DARWIN_DEPLOYMENT_TARGET \} from .*manifest-conformance\/lib\/platforms\.mjs/);
-        assert.doesNotMatch(action, /MACOSX_DEPLOYMENT_TARGET=\d/);
+    it('only warns about it on a local build', () => {
+        const { errors, warnings } = checkDarwinFloor(dir, { ci: false });
+        assert.deepEqual(errors, []);
+        assert.equal(warnings.length, 1);
+    });
+
+    it('fails an unmeasured image even locally', () => {
+        const bare = mkdtempSync(join(tmpdir(), 'darwin-stage-bare-'));
+        try {
+            writeFileSync(join(bare, 'libbare.dylib'), dylib('libbare.dylib', null));
+            assert.equal(checkDarwinFloor(bare, { ci: false }).errors.length, 1);
+        } finally {
+            rmSync(bare, { recursive: true, force: true });
+        }
     });
 });

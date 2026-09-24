@@ -104,11 +104,12 @@ export const HOST_TARGET = `${process.platform}-${process.arch}`;
  * THE ONE DEFINITION. Without it, clang and rustc default the deployment target to the
  * build machine, and dyld refuses an image whose `LC_BUILD_VERSION` `minos` is newer than
  * the running OS: the 0.52.0 darwin-arm64 prebuilds all said `26.0` because
- * `macos-latest` had become macOS 26, while no doc ruled macOS 15 out. Three consumers
- * read this value and none keeps a copy:
+ * `macos-latest` had become macOS 26, while no doc ruled macOS 15 out. Every consumer
+ * imports this value and none keeps a copy:
  *   - `.github/actions/darwin-deployment-target` exports it as `MACOSX_DEPLOYMENT_TARGET`
  *     for every CI job that compiles a shipped darwin binary (meson/clang, valac's C,
  *     cargo — all three honour the variable);
+ *   - `scripts/stage-prebuild.mjs` fails a darwin image above it the moment CI stages it;
  *   - the `prebuild-darwin-target` rule holds every committed Mach-O's `minos` to it;
  *   - `build-gtk-runtime-darwin.mjs` refuses a bundled Homebrew image newer than it.
  *

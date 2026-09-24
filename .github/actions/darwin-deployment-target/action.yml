@@ -17,8 +17,9 @@ description: >
   WHY IT MATTERS. Unset, both compilers default to the RUNNER's macOS, and dyld
   refuses any image whose recorded `minos` is newer than the OS it runs on: the
   0.52.0 darwin-arm64 prebuilds all required macOS 26 because `macos-latest` had
-  become macOS 26. The `prebuild-darwin-target` conformance rule reads that `minos`
-  back out of every committed image.
+  become macOS 26. `scripts/stage-prebuild.mjs` reads that `minos` back out of every
+  image a job stages and fails the job when it is above the floor, so a job that skips
+  this action goes red on its own bytes.
 runs:
   using: composite
   steps:
