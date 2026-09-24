@@ -23,6 +23,8 @@
 
 import Gst from 'gi://Gst?version=1.0';
 import { describe, it, expect } from '@gjsify/unit';
+import { spawnSync } from '@gjsify/child_process';
+import { ensureGstInit, excludeUnboundedAutodetectCandidates } from './gst-init.js';
 
 import type { RTCDataChannel, RTCDTMFToneChangeEvent } from './index.js';
 import {
@@ -78,6 +80,123 @@ function awaitEvent(target: EventTarget, type: string, timeoutMs = 10000): Promi
         `${type} event`,
     );
 }
+
+// ---- audio sink selection — helpers ---------------------------------------
+//
+// See the "audio sink selection" describe block for what these prove. Same
+// pattern as `@gjsify/webaudio`'s `webaudio.spec.ts` (autoaudiosink there,
+// autoaudiosrc here — the direction `getUserMedia({ audio: true })` uses).
+
+/**
+ * Force every OTHER real "Source"-klass GStreamer factory out of
+ * `autoaudiosrc`'s contention (rank `NONE`) for the duration of `fn`, then
+ * restore every rank exactly as found — regardless of `fn`'s outcome.
+ *
+ * Without this, proving the `openalsrc` derank in `gst-init.ts` MATTERS is
+ * impossible on a healthy machine: PipeWire/Pulse/ALSA always outrank
+ * `openalsrc` here regardless of its own rank, so `autoaudiosrc` never
+ * reaches it either way. Narrowing the candidate pool to (effectively)
+ * `keepName` alone makes the selection deterministic on ANY host, CI
+ * included.
+ */
+function withOnlyAudioSourceCandidate<T>(keepName: string, fn: () => T): T {
+    const list = Gst.ElementFactory.list_get_elements(Gst.ELEMENT_FACTORY_TYPE_SRC, Gst.Rank.NONE);
+    const saved: Array<[Gst.PluginFeature, number]> = [];
+    for (const feature of list) {
+        const name = feature.get_name();
+        if (name === keepName || name === 'audiotestsrc' || name === 'videotestsrc') continue;
+        const rank = feature.get_rank();
+        if (rank > Gst.Rank.NONE) {
+            saved.push([feature, rank]);
+            feature.set_rank(Gst.Rank.NONE);
+        }
+    }
+    try {
+        return fn();
+    } finally {
+        for (const [feature, rank] of saved) feature.set_rank(rank);
+    }
+}
+
+/**
+ * Bring an `autoaudiosrc` instance to READY with a BOUNDED wait, and return
+ * the factory name `GstAutoDetect` actually picked as its child.
+ *
+ * `NULL_TO_READY` is exactly the transition that hung in CI for 31s+ (see
+ * `excludeUnboundedAutodetectCandidates()` in `gst-init.ts`) — a test that
+ * exercises it must never itself be able to hang past a bound, with a
+ * message that says so plainly instead of a silent stall.
+ */
+function resolveAutoDetectSourceChild(bin: Gst.Bin, timeoutMs = 5000): string | null {
+    bin.set_state(Gst.State.READY);
+    const [ret] = bin.get_state(timeoutMs * Number(Gst.MSECOND));
+    if (ret === Gst.StateChangeReturn.FAILURE) {
+        throw new Error('autoaudiosrc failed outright reaching READY — expected at least the audiotestsrc fallback');
+    }
+    if (ret !== Gst.StateChangeReturn.SUCCESS && ret !== Gst.StateChangeReturn.NO_PREROLL) {
+        throw new Error(
+            `autoaudiosrc did not reach READY within ${timeoutMs}ms (state-change result: ${ret}) — ` +
+                'this is the exact class of hang the openalsrc derank exists to prevent',
+        );
+    }
+    const iter = bin.iterate_elements();
+    let name: string | null = null;
+    while (true) {
+        const [res, value] = iter.next();
+        if (res !== Gst.IteratorResult.OK) break;
+        // `Gst.Iterator.next()` yields an untyped GValue payload — the GIR
+        // bindings do not narrow it, but `iterate_elements()`'s contract
+        // guarantees a `Gst.Element` here.
+        name = (value as Gst.Element).get_factory()?.get_name() ?? name;
+    }
+    return name;
+}
+
+/**
+ * A throwaway `gjs -c` script — same pattern as `RASTERIZE_SCRIPT` in
+ * `packages/infra/cli/src/utils/ship/icons.ts` — that proves what
+ * `autoaudiosrc` would select if the `openalsrc` derank were reverted.
+ *
+ * It runs in a CHILD process, never this one: un-deranking `openalsrc` and
+ * forcing autodetect to pick it is exactly the call that hung for 31s+ in
+ * CI, and repeating that experiment in-process here would just relocate the
+ * hang into the test meant to prove it is fixed. The `spawnSync` `timeout`
+ * option below is the real bound; the large in-script one only keeps a
+ * hung child from spinning past that bound on its own accord.
+ *
+ * Legacy `imports.gi` (not `gi://…`) because `gjs -c` evaluates its argument
+ * as a plain script, not a module — `import` syntax is a `SyntaxError` there.
+ */
+const OPENAL_SOURCE_SELECTION_PROBE = `
+const { Gst } = imports.gi;
+Gst.init(null);
+const registry = Gst.Registry.get();
+const openal = registry.lookup_feature('openalsrc');
+if (!openal) {
+    print('ABSENT');
+} else {
+    const list = Gst.ElementFactory.list_get_elements(Gst.ELEMENT_FACTORY_TYPE_SRC, Gst.Rank.NONE);
+    for (const f of list) {
+        const name = f.get_name();
+        if (name === 'openalsrc' || name === 'audiotestsrc' || name === 'videotestsrc') continue;
+        if (f.get_rank() > Gst.Rank.NONE) f.set_rank(Gst.Rank.NONE);
+    }
+    openal.set_rank(Gst.Rank.SECONDARY); // simulate this fix reverted
+    const bin = Gst.ElementFactory.make('autoaudiosrc', 'gjsify-openal-probe');
+    bin.set_state(Gst.State.READY);
+    bin.get_state(120 * Number(Gst.SECOND));
+    const iter = bin.iterate_elements();
+    let childName = '';
+    while (true) {
+        const res = iter.next();
+        if (res[0] !== Gst.IteratorResult.OK) break;
+        const factory = res[1].get_factory();
+        childName = (factory && factory.get_name()) || '';
+    }
+    bin.set_state(Gst.State.NULL);
+    print(childName);
+}
+`.trim();
 
 export default async () => {
     await describe('@gjsify/webrtc', async () => {
@@ -1248,6 +1367,135 @@ export default async () => {
                     track.stop();
                     pc1.close();
                     pc2.close();
+                });
+            }
+        });
+
+        await describe('audio sink selection', async () => {
+            // Regression test for an intermittent CI hang in this exact
+            // describe block (runs 35858217482/job 107186497944 on PR #1764,
+            // and 35823074218 on main): "Multi-PC fan-out" is the one place
+            // in this suite that runs several `getUserMedia({ audio: true })`
+            // captures and moves a live source between pipelines (the
+            // tee-creation branch in `RTCRtpSender._wirePipeline`) — the kind
+            // of GStreamer state churn that reaches `autoaudiosrc`'s
+            // candidate probing. `_chooseSource()` in `get-user-media.ts`
+            // already carries an earlier, separately-measured incident: on
+            // `ghcr.io/gjsify/ci-fedora:44` (no reachable PipeWire/Pulse)
+            // `autoaudiosrc` resolves to `openalsrc`, whose device backend
+            // does its OWN nested probe SYNCHRONOUSLY inside
+            // `gst_element_set_state()` — GstAutoDetect runs a child's state
+            // change on the calling thread, so on GJS's single JS thread a
+            // stall there freezes the whole process. `ensureGstInit()` now
+            // deranks `openalsrc`/`openalsink` so `autoaudiosrc`/
+            // `autoaudiosink` never select them.
+            //
+            // These assert the EFFECT, not just the registry rank: that
+            // `autoaudiosrc` really does avoid an openal* child (bounded,
+            // with a clear failure message instead of a silent stall), and
+            // that it really would pick one if the derank were reverted —
+            // proving this test is not vacuous. The first uses
+            // `withOnlyAudioSourceCandidate()` to make the outcome
+            // deterministic on ANY host: this dev machine's working
+            // PipeWire always outranks openalsrc regardless of its own
+            // rank, so without narrowing the field the assertion would mean
+            // nothing here. The second cannot use the same trick safely
+            // (see `OPENAL_SOURCE_SELECTION_PROBE`) and its precondition
+            // genuinely does NOT hold on every host — some hosts' openal
+            // fails its own open() outright rather than getting picked,
+            // which is a HOST property, not a claim about this fix; which
+            // test gets registered for it is decided below, after running
+            // the probe once.
+            ensureGstInit();
+            const openalSrcFeature = Gst.Registry.get().lookup_feature('openalsrc');
+
+            if (!openalSrcFeature) {
+                await it('(skipped — openal plugin not installed)', async () => {
+                    expect(openalSrcFeature).toBeFalsy();
+                });
+            } else {
+                await it('autoaudiosrc resolves quickly and never to an openal* child', async () => {
+                    withOnlyAudioSourceCandidate('openalsrc', () => {
+                        const bin = Gst.ElementFactory.make('autoaudiosrc', 'gjsify-test-src') as Gst.Bin;
+                        try {
+                            const child = resolveAutoDetectSourceChild(bin);
+                            expect(child?.startsWith('openal') ?? false).toBe(false);
+                        } finally {
+                            bin.set_state(Gst.State.NULL);
+                        }
+                    });
+                });
+
+                // Run the "would select openal" probe ONCE here, at DESCRIBE
+                // time — not inside an `it()` — so which test gets
+                // registered next can reflect whether its precondition
+                // ("openal really would be picked here") holds on THIS host
+                // at all, the same way `webrtcbinReady` decides before the
+                // tree is built.
+                //
+                // It does not always hold: measured in CI (webaudio's
+                // sibling test, run 35913613275, job 107373859426— same
+                // mechanism, same probe shape), un-deranking the openal
+                // feature and excluding every other real candidate still
+                // resolved to the non-openal fallback — that host's OpenAL
+                // Soft fails its OWN open() immediately (not a hang), so
+                // autodetect correctly falls through regardless of rank.
+                // That is a HOST property this test cannot assert past;
+                // asserting "would pick openal" there would be a vacuous
+                // pass, not a real check. See `OPENAL_SOURCE_SELECTION_PROBE`
+                // for why the experiment runs in a bounded child process at
+                // all.
+                const revertProbe = spawnSync('gjs', ['-c', OPENAL_SOURCE_SELECTION_PROBE], {
+                    encoding: 'utf8',
+                    timeout: 15_000,
+                });
+                const revertTimedOut =
+                    revertProbe.signal !== null ||
+                    (revertProbe.error as (Error & { code?: string }) | undefined)?.code === 'ETIMEDOUT';
+                const revertChild = revertTimedOut ? null : String(revertProbe.stdout ?? '').trim();
+
+                if (revertTimedOut) {
+                    await it('would select an openal* child if the derank were reverted', async () => {
+                        // A timeout IS conclusive here: openal was being
+                        // attempted and hung — exactly the CI failure this
+                        // fix prevents, reproduced live.
+                        expect(revertTimedOut).toBe(true);
+                    });
+                } else if (revertProbe.error || revertProbe.status !== 0 || !revertChild) {
+                    await it('(skipped — the probe subprocess could not run)', async () => {
+                        expect(Boolean(revertProbe.error) || revertProbe.status !== 0).toBe(true);
+                    });
+                } else if (revertChild === 'ABSENT') {
+                    await it('(skipped — openal plugin not installed in the probe subprocess)', async () => {
+                        expect(revertChild).toBe('ABSENT');
+                    });
+                } else if (revertChild.startsWith('openal')) {
+                    await it('would select an openal* child if the derank were reverted', async () => {
+                        expect(revertChild.startsWith('openal')).toBe(true);
+                    });
+                } else {
+                    await it(`(skipped — openal is not a viable audio source on this host, picked "${revertChild}")`, async () => {
+                        expect(revertChild.startsWith('openal')).toBe(false);
+                    });
+                }
+
+                await it('GJSIFY_GST_KEEP_OPENAL opt-out leaves the rank untouched', async () => {
+                    // Exercises both branches of
+                    // `excludeUnboundedAutodetectCandidates()` directly — see
+                    // its `keepOpenal` parameter doc for why this does not
+                    // go through `ensureGstInit()`/the env var at all.
+                    const originalRank = openalSrcFeature.get_rank();
+                    try {
+                        openalSrcFeature.set_rank(Gst.Rank.SECONDARY);
+
+                        excludeUnboundedAutodetectCandidates(true); // opt-out path
+                        expect(openalSrcFeature.get_rank()).toBe(Gst.Rank.SECONDARY);
+
+                        excludeUnboundedAutodetectCandidates(false); // normal path
+                        expect(openalSrcFeature.get_rank()).toBe(Gst.Rank.NONE);
+                    } finally {
+                        openalSrcFeature.set_rank(originalRank);
+                    }
                 });
             }
         });

@@ -74,6 +74,7 @@
         "@girs/gst-1.0": "5.4.0",
         "@girs/gstsdp-1.0": "5.4.0",
         "@girs/gstwebrtc-1.0": "5.4.0",
+        "@gjsify/child_process": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
