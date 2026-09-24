@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Download the pinned Mesa win32 build the windowing GTK bundle ships as its GL implementation
-// (#1097), verify it, and extract the files `build-gtk-runtime.mjs --gl-implementation` copies.
+// Download the pinned Mesa win32 build that @gjsify/gl-runtime-win32-x64 ships as the
+// optional GL implementation (#1097), verify it, and extract the two DLLs.
 //
 //   node packages/node-gi/scripts/fetch-gl-implementation.mjs --out <dir>
 //
 // The pin lives HERE and nowhere else: the release and the CI build both run this script, and
-// licenses-not-in-prefix/provenance.json is held against MESA_DIST_WIN by
-// gtk-runtime-bundle-gates.test.mjs, so the mesa/llvm texts cannot silently describe another
+// the package's licenses/provenance.json is held against MESA_DIST_WIN by
+// gl-runtime-package.test.mjs, so the mesa/llvm texts cannot silently describe another
 // release. The digest is what makes the pin a pin — a re-uploaded asset under the same tag
 // would otherwise land in a published tarball unnoticed.
 import { execFileSync } from 'node:child_process';
@@ -28,13 +28,11 @@ export function mesaDistWinUrl({ version, asset } = MESA_DIST_WIN) {
     return `https://github.com/pal1000/mesa-dist-win/releases/download/${version}/${asset}`;
 }
 
-async function main() {
-    const i = process.argv.indexOf('--out');
-    const out = i >= 0 ? process.argv[i + 1] : undefined;
-    if (!out) {
-        console.error('usage: fetch-gl-implementation.mjs --out <dir>');
-        process.exit(2);
-    }
+/**
+ * Put the pinned Mesa DLLs into `out`, verified. A no-op when both are already there.
+ * @param {{ out: string }} opts
+ */
+export async function fetchGlImplementation({ out }) {
     if (GL_IMPLEMENTATION_FILES.every((leaf) => existsSync(join(out, leaf)))) {
         console.log(`fetch-gl-implementation: ${out} already holds ${GL_IMPLEMENTATION_FILES.join(' + ')}`);
         return;
@@ -66,4 +64,12 @@ async function main() {
     rmSync(work, { recursive: true, force: true });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+    const i = process.argv.indexOf('--out');
+    const out = i >= 0 ? process.argv[i + 1] : undefined;
+    if (!out) {
+        console.error('usage: fetch-gl-implementation.mjs --out <dir>');
+        process.exit(2);
+    }
+    await fetchGlImplementation({ out });
+}

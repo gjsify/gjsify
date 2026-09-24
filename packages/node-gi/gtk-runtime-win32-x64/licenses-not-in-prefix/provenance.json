@@ -8,14 +8,8 @@
         "graphene": "1.10.8",
         "libtiff": "4.7.1",
         "libxml2": "2.15.3",
-        "llvm": "23.1.1",
-        "mesa": "26.1.8",
         "openssl": "3.6.1",
         "sqlite": "3.53.2",
         "zlib": "1.3.2"
-    },
-    "glImplementation": {
-        "mesaDistWin": "26.1.8",
-        "$comment": "mesa and llvm are not from the gvsbuild prefix: the windowing bundle's opengl32.dll + libgallium_wgl.dll come from this mesa-dist-win release (Mesa 26.1.8, LLVM 23.1.1 linked into libgallium_wgl). Held against MESA_DIST_WIN_VERSION in the workflows."
     }
 }

@@ -799,20 +799,11 @@ jobs:
             The GTK runtime bundle ships these faces under `share/fonts`, and the
             `fonts` windowing-data set fails the build without them
 
-      # The GL implementation (#1097). No gvsbuild prefix carries one and its GTK is built
-      # without EGL, so the bundle ships Mesa's WGL build; node-gi preloads it on a host
-      # with no OpenGL ICD. Pin + sha256 live in the script, not here.
-      - name: Fetch the GL implementation (pinned Mesa, sha256-verified)
-        shell: pwsh
-        run: node packages/node-gi/scripts/fetch-gl-implementation.mjs --out C:\mesa-gl
-
       - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         shell: pwsh
         run: |
           node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
             --windowing `
-            --gl-implementation C:\mesa-gl `
-            --require-gl `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX `
             --addon (Join-Path $PWD 'addon\node_gi.node')
@@ -873,6 +864,24 @@ jobs:
         run: |
           node "$env:CLI_BIN" publish `
             packages/node-gi/gtk-runtime-win32-x64 `
+            --tolerate-republish --tag latest --access public
+
+      # The OPTIONAL OpenGL for driverless hosts (#1097), published beside the bundle it
+      # serves. Its own package because it is ~22 MB a consumer opts into; node-gi finds it
+      # by name and never depends on it. Payload: the pinned, sha256-checked Mesa.
+      - name: Build @gjsify/gl-runtime-win32-x64 (pinned Mesa + licences)
+        shell: pwsh
+        working-directory: packages/node-gi/gl-runtime-win32-x64
+        run: node scripts/build-gl-runtime.mjs
+
+      - name: Publish @gjsify/gl-runtime-win32-x64 (OIDC)
+        shell: pwsh
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          CLI_BIN: ${{ steps.cli.outputs.bin }}
+        run: |
+          node "$env:CLI_BIN" publish `
+            packages/node-gi/gl-runtime-win32-x64 `
             --tolerate-republish --tag latest --access public
 
   # @gjsify/node-gi is the Node GI reverse bridge. Like the gtk-runtime packages it

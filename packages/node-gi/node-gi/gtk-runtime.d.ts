@@ -33,18 +33,24 @@ export interface HostOpenGL {
     registryIcd: string;
     loadedFrom: string;
 }
-/** The OpenGL a win32 process uses: the bundle's Mesa opengl32.dll or the host's. */
+/** The OpenGL a win32 process uses: the optional GL package's Mesa opengl32.dll or the host's. */
 export interface OpenGLDecision {
     source: 'bundle' | 'system';
     reason: string;
+    /** Set when the host has no ICD and the optional GL package is not installed. */
+    missing?: true;
 }
+/** `@gjsify/gl-runtime-<tag>` — the optional package carrying Mesa for driverless hosts. */
+export function glRuntimePackageName(tag?: string): string;
+/** The optional GL package's opengl32.dll (monorepo sibling or installed package), or null. */
+export function resolveGlRuntime(): string | null;
 /** Decide which OpenGL serves GTK on win32 (pure). `override` is `GJSIFY_OPENGL`. */
 export function decideOpenGLSource(opts: {
     bundled: string | null;
     host: HostOpenGL;
     override?: string;
 }): OpenGLDecision;
-/** win32: preload the bundle's opengl32.dll when the host has no OpenGL ICD (no-op elsewhere). */
+/** win32: preload the optional GL package's opengl32.dll when the host has no OpenGL ICD (no-op elsewhere). */
 export function activateBundledOpenGL(native: {
     probeHostOpenGL?: () => HostOpenGL;
     preloadOpenGL?: (path: string) => string;

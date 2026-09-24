@@ -1,0 +1,4 @@
+# Mesa's DLLs (~59 MiB) are fetched from the pinned mesa-dist-win release by
+# scripts/build-gl-runtime.mjs, never committed. `files: ["bin"]` in package.json
+# overrides this for `gjsify pack`: gitignored in the checkout, present in the tarball.
+bin/

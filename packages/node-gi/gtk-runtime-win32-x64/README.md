@@ -272,34 +272,21 @@ both sufficient and the simplest mechanism.
   The GdkWin32 backend is compiled **into** `libgtk-4-*.dll` (GTK4 builds every
   backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
   `gschemas.compiled`, `icon-theme.cache`) + the librsvg backer are the
-  additions. **The GL implementation is Mesa** (#1097): `--gl-implementation <dir>`
-  copies `opengl32.dll` + `libgallium_wgl.dll` from the pinned `mesa-dist-win` build
-  (`scripts/fetch-gl-implementation.mjs` holds version + sha256) into `bin/`, next to
-  `epoxy-0.dll`, which is only GL *dispatch*. The builder records the result as
-  `manifest.glImplementation`, and the workflows pass `--require-gl`, so a windowing
-  bundle without one fails its build.
+  additions. The bundle carries `epoxy-0.dll` — GL *dispatch* — and **no GL
+  *implementation***, deliberately; the builder records that as
+  `manifest.glImplementation`. On a host with a vendor OpenGL driver that is
+  invisible. On a host without one (VM, RDP, CI) every `Gtk.GLArea` fails with
+  `No GL implementation is available` — **unless the app also depends on the OPTIONAL
+  `@gjsify/gl-runtime-win32-x64`** (Mesa's WGL build, ~22 MB, kept out of this bundle
+  for that reason; not yet published on npm). node-gi preloads it by absolute path on
+  such hosts only, and warns once (`GJSIFY_OPENGL_MISSING`) naming the package when a
+  windowing process runs without it. Why a preload and not a DLL in `bin/`, why Mesa
+  and not ANGLE (this GTK and epoxy are built without EGL), and the measurements:
+  `docs/node-gi-platform-notes.md` and #1097.
 
-  Why Mesa and not ANGLE, and why the DLLs alone do nothing — both measured:
-  - *ANGLE* is unreachable: the gvsbuild GTK (4.22.4) is built without EGL — only the
-    WGL context class is compiled into `gtk-4-1.dll` — and `epoxy-0.dll` has no `egl*`
-    entry point. It would take a gvsbuild rebuild of both.
-  - *A desktop ICD in `bin/`* is inert by PLACEMENT: `gtk-4-1.dll` imports `OPENGL32`
-    statically and epoxy loads it with a bare `LoadLibraryA("OPENGL32")`; Windows answers
-    both from already-loaded modules, then the application directory, then System32 —
-    never from `PATH`. So node-gi's loader PRELOADS the bundled `opengl32.dll` by absolute
-    path (`activateBundledOpenGL`, native half in `src/opengl-win32.cc`) before GTK loads,
-    and every bare-name request then binds to it.
-  - It does that only on a host with **no OpenGL ICD** — neither a display driver's
-    user-mode ICD (read through `D3DKMTQueryAdapterInfo`) nor one under
-    `HKLM\…\OpenGLDrivers` — so a vendor driver keeps serving GTK. `GJSIFY_OPENGL=bundle|system`
-    overrides; `openGLActivation()` from `@gjsify/node-gi/gtk-runtime` says what was
-    decided and why.
-
-  On a GPU-less host (VM, RDP, CI) Mesa picks its d3d12 driver where a D3D12 device
-  exists (WARP counts) and llvmpipe otherwise; GDK gets a desktop GL core context, so
-  `Gtk.GLArea` works and GSK picks its GL renderer instead of falling back to cairo.
-  Cost: +59 MiB unpacked, ~22 MiB in the npm tarball, nearly all of it
-  `libgallium_wgl.dll` (LLVM for llvmpipe).
+  GSK still renders with cairo by default even WITH a GL context: GTK's win32 GL
+  renderer needs DirectComposition, which GTK makes opt-in (`GDK_DEBUG=dcomp`).
+  `Gtk.GLArea` does not need it.
 
   gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
   `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.

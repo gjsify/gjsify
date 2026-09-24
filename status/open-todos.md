@@ -4601,51 +4601,41 @@ which every win32 consumer of `@gjsify/webgl` already has, because it is how
 is a worse failure than the one being solved, so the closure is DOCUMENTED (in
 `@gjsify/webgl`'s README) rather than packaged around.
 
-**The GL layer below it is CLOSED in the bundle (#1097)** — kept here because the three
+**The GL layer below it has an OPT-IN answer (#1097, PR #1789)** — kept here because the
 readings that each looked right are the reason the fix has the shape it has:
 
 - **The seed that matched nothing.** The windowing builder seeded ANGLE
   (`/^libEGL.*\.dll$/i` + `/^libGLESv2.*\.dll$/i`), the gvsbuild ZIP carries no ANGLE,
   and four releases shipped `windowing: true` bundles with GL *dispatch* (`epoxy-0.dll`)
-  and no implementation — every `Gtk.GLArea` on a GPU-less host (VM, RDP, CI) read
-  `No GL implementation is available`, and every Windows leg hid it behind
-  `GSK_RENDERER=cairo`. The builder now records `manifest.glImplementation` with
-  `dispatch` apart, and `--require-gl` (passed by both workflows) fails a windowing
-  bundle without one.
+  and no implementation, hidden on every Windows leg by `GSK_RENDERER=cairo`. The builder
+  records `manifest.glImplementation` with `dispatch` apart.
 - **ANGLE is unreachable, not just absent**: gvsbuild builds GTK 4.22.4 and libepoxy
-  without EGL (`gtk-4-1.dll` compiles only the WGL context class; epoxy has no `egl*`
-  entry point). So the implementation is Mesa's WGL build — `opengl32.dll` +
-  `libgallium_wgl.dll` from a pinned, sha256-checked `mesa-dist-win`
-  (`scripts/fetch-gl-implementation.mjs`), +59 MiB unpacked / ~22 MiB in the tarball.
-- **Bundling it does nothing by itself**: `gtk-4-1.dll` imports `OPENGL32` statically and
-  epoxy loads it by bare name; Windows answers from loaded modules, the application
-  directory, System32 — never `PATH`. Measured on the VM: on PATH → none; preloaded from
-  JS via `process.dlopen` → none (Node unloads a DLL that fails to self-register); beside
-  `node.exe` → GL 4.6. So the ADDON preloads it by absolute path
-  (`src/opengl-win32.cc`, `activateBundledOpenGL` in `gtk-runtime.js`) before GTK loads —
-  and only when the host has no ICD (no display-driver user-mode ICD per
-  `D3DKMTQueryAdapterInfo`, nothing under `HKLM\…\OpenGLDrivers`), so a vendor driver
-  keeps serving GTK. `GJSIFY_OPENGL=bundle|system` overrides. The
-  `SetDefaultDllDirectories` route the old entry proposed is not needed, and would have
-  changed DLL resolution for every other native module in the process.
+  without EGL. The implementation is Mesa's WGL build, pinned + sha256-checked
+  (`scripts/fetch-gl-implementation.mjs`) — and at ~22 MB per tarball it is the OPTIONAL
+  package `@gjsify/gl-runtime-win32-x64` (Pascal's decision), never the base bundle and
+  never a node-gi dependency. **First publish not yet done** (`status/pending-npm-bootstrap.json`).
+- **A DLL on disk does nothing by itself**: `gtk-4-1.dll` imports `OPENGL32` statically and
+  epoxy loads it by bare name; Windows answers from loaded modules, the app directory,
+  System32 — never `PATH` (VM: on PATH → none; `process.dlopen` → none; beside `node.exe` →
+  GL 4.6). So the ADDON preloads it by absolute path (`src/opengl-win32.cc`,
+  `activateBundledOpenGL`) before GTK loads, only when the host has no ICD (display-driver
+  UMD ICD via `D3DKMTQueryAdapterInfo`, or `HKLM\…\OpenGLDrivers`). Without the package on
+  such a host a windowing process gets ONE `GJSIFY_OPENGL_MISSING` warning naming it.
+  `GJSIFY_OPENGL=bundle|system` overrides.
 
-Held by `test/win32-opengl.test.mjs` on `windows-gtk-windowing`, the one Windows step
-without `GSK_RENDERER=cairo`: GDK realizes a ≥ 3.2 context whose `GL_RENDERER` is not GDI
-Generic, GSK picks a non-cairo renderer, and a child with `GJSIFY_OPENGL=system` must FAIL
-on the same runner — the pre-fix state, reproduced beside the fix. Measured on
-`windows-latest` (PR #1789): no ICD found, Mesa preloaded, GDK context **4.6 core**,
-`GL_RENDERER` `D3D12 (Microsoft Basic Render Driver)` (Mesa's d3d12 driver on WARP); the
-`GJSIFY_OPENGL=system` child: `No GL implementation is available`. Bundle 192.6 MiB
-unpacked, ~+22 MB in the npm tarball for EVERY win32 consumer, although Mesa activates only on hosts without a vendor GL driver (VMs, RDP, CI). **GSK still picks `GskCairoRenderer`** on a presented window despite the working context — cause not yet recorded, so #1097 stays open. `realize()` alone leaves `get_renderer()` null on GdkWin32 — the renderer case
-presents the window and spins the loop.
+Measured on `windows-latest` (`test/win32-opengl.test.mjs`, the one Windows step without
+`GSK_RENDERER=cairo`): no ICD, Mesa preloaded, GDK context **4.6 core**, `GL_RENDERER`
+`D3D12 (Microsoft Basic Render Driver)`; the `GJSIFY_OPENGL=system` child on the same runner:
+`No GL implementation is available`. **GSK still picks cairo by default, and that is
+GTK's policy, not a gap**: `Failed to realize renderer 'GskGLRenderer' … OpenGL requires
+Direct Composition` — GTK's win32 GL renderer draws through DComp, which GTK makes opt-in
+(`GDK_DEBUG=dcomp`, "black borders"). The test asserts that reason, and asserts GL under
+`GDK_DEBUG=dcomp`.
 
-STILL OPEN: **real-GPU hardware is unmeasured** — the ICD probe's "keep the vendor driver"
-branch has never run on a machine with one (the VM has QXL, CI has WARP), so
-`D3DKMTQueryAdapterInfo(KMTQAITYPE_UMOPENGLINFO)` naming the vendor ICD is documented
-behaviour, not an observation here. What it unlocks and nobody has run yet: a RENDERING
-proof for `@gjsify/webgl` on win32 — `webgl-glarea`/`excalibur-webgl` gate on a realizable
-GL context, which the windows runner now has, while the prebuild is still only
-load-tested there (#1101, the next layer up, was found by hand on the VM).
+STILL OPEN: **real-GPU hardware is unmeasured** — the "keep the vendor driver" branch never
+ran on a machine with one. What it unlocks and nobody has run yet: a RENDERING proof for
+`@gjsify/webgl` on win32 (`webgl-glarea`/`excalibur-webgl` need a realizable GL context,
+which the windows runner has with the package installed).
 
 The two-job split generalises past webgl: every other Vala bridge in this
 repository has the same "valac does not run on Windows" problem, and

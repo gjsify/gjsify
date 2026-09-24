@@ -51,15 +51,6 @@ files by name and `FTL.TXT` / `GPLv2.TXT` do not look like one.
 | `zlib` | `LICENSE` | `LICENSE` (unchanged since 1.3.1; zlib carries the same notice in `zlib.h`) |
 | `sqlite` | `LICENSE.md` | `LICENSE.md` — the public-domain dedication |
 | `openssl` | `LICENSE.txt` | `LICENSE.txt` — Apache-2.0 |
-| `mesa` | `LICENSE.rst` | `docs/license.rst` of `mesa-26.1.8` — says terms are per file (SPDX) |
-| `mesa` | `LICENSE-MIT`, `LICENSE-Apache-2.0`, `LICENSE-BSL-1.0` | `licenses/<id>` of `mesa-26.1.8` — the permissive ids; SGI-B-2.0 is GLX's and not in a WGL build. The GPL texts are NOT vendored — which sources the win32 build compiles was not audited per SPDX tag |
-| `llvm` | `LICENSE.TXT` | `llvm/LICENSE.TXT` of `llvmorg-23.1.1` — Apache-2.0 WITH LLVM-exception, linked into `libgallium_wgl.dll` |
-
-`mesa` and `llvm` are the one pair NOT from the gvsbuild prefix: they back the GL
-implementation (#1097), which comes from the pinned `mesa-dist-win` build — a 7z that
-carries no licence text at all. Their pin is `MESA_DIST_WIN` in
-`scripts/fetch-gl-implementation.mjs`, recorded as `glImplementation.mesaDistWin` in
-`provenance.json` and held against it by the same test.
 
 A gvsbuild bump that changes one of these projects' TERMS is still not detected — only that
 the pin moved, which is what puts a human back in front of this table. What IS detected on

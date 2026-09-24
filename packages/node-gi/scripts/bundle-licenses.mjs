@@ -121,19 +121,6 @@ export const WIN32_LICENSE_FAMILIES = [
     { components: ['freetype'], pattern: /^freetype-\d+\.dll$/i },
     { components: ['fribidi'], pattern: /^fribidi-\d+\.dll$/i },
     { components: ['libepoxy'], pattern: /^epoxy-\d+\.dll$/i, why: 'libepoxy builds `epoxy-0.dll`' },
-    {
-        components: ['mesa'],
-        pattern: /^opengl32\.dll$/i,
-        why:
-            'the windowing bundle`s GL implementation (#1097): Mesa`s WGL front end, which takes the ' +
-            'name of the Windows OpenGL DLL on purpose so gtk and epoxy bind to it. Not from the ' +
-            'gvsbuild prefix — from the pinned mesa-dist-win build, which ships no licence texts',
-    },
-    {
-        components: ['mesa', 'llvm'],
-        pattern: /^libgallium_wgl\.dll$/i,
-        why: 'Mesa`s gallium drivers, with LLVM linked in statically for llvmpipe — two projects, one image',
-    },
     { components: ['libffi'], pattern: /^ffi-\d+\.dll$/i, why: 'libffi builds `ffi-8.dll`' },
     { components: ['libpng'], pattern: /^libpng\d+\.dll$/i },
     { components: ['libjpeg-turbo'], pattern: /^jpeg\d+\.dll$/i, why: 'libjpeg-turbo builds `jpeg62.dll`' },

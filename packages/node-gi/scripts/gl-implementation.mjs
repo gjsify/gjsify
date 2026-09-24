@@ -28,8 +28,8 @@ export const GL_IMPLEMENTATION_PATTERNS = [
 ];
 
 /**
- * What `build-gtk-runtime.mjs --gl-implementation <dir>` copies out of a mesa-dist-win `x64/`
- * directory: Mesa's WGL front end, named like the Windows OpenGL DLL so gtk-4-1.dll's static
+ * What `@gjsify/gl-runtime-win32-x64` carries, extracted from a mesa-dist-win `x64/`
+ * directory by fetch-gl-implementation.mjs: Mesa's WGL front end, named like the Windows OpenGL DLL so gtk-4-1.dll's static
  * import and epoxy's `LoadLibraryA("OPENGL32")` bind to it once node-gi has preloaded it, and
  * the gallium image it imports (llvmpipe, plus d3d12 for hosts with a D3D12 device).
  *
@@ -75,9 +75,8 @@ export function formatMissingGlImplementation({ gl, prefixBin }) {
         `${prefixBin}, and ${dispatch} is GL DISPATCH, which resolves nothing on its own. Every Gtk.GLArea will ` +
         'fail with "No GL implementation is available" on a host with no vendor OpenGL ICD (VM, RDP session, CI). ' +
         'Hosts WITH a vendor driver, or with Mesa registered as a system ICD, are unaffected — the implementation ' +
-        'comes from the system there. Build with --gl-implementation <mesa-dist-win x64 dir>: gvsbuild GTK and ' +
-        'libepoxy are built without EGL, so ANGLE cannot be reached, and a Mesa opengl32.dll takes effect only ' +
-        "because node-gi preloads it by absolute path — Windows never answers epoxy's bare-name load from PATH. " +
-        'See #1097.'
+        'comes from the system there. The GL implementation for driverless hosts is the OPTIONAL package ' +
+        '@gjsify/gl-runtime-win32-x64 (Mesa), which node-gi preloads when a consumer installs it — it is ' +
+        'kept out of this bundle on purpose (size). See #1097.'
     );
 }
