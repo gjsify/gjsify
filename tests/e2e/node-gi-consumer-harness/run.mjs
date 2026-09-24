@@ -31,7 +31,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/node-gi-consumer-harness/ → monorepo root is 3 levels up.
@@ -47,7 +47,10 @@ const {
     stageTestAssets,
     REASON_RULES,
     STAGED_ASSET_DIRS,
-} = await import(`file://${HARNESS}`);
+} = await import(pathToFileURL(HARNESS).href);
+
+/** A CLI runner for cases that must not reach the CLI at all. */
+const noGjsify = (args) => assert.fail(`gjsify ${args.join(' ')} must not run here`);
 
 /** Bucket a raw captured run, exactly as the harness does. */
 const bucketOf = (stdout) => classify(collectFailures(stdout));
@@ -288,7 +291,7 @@ describe('node-gi consumer harness: test-asset staging', () => {
         writeFileSync(join(pkgDir, 'test', 'file.txt'), 'asset\n');
         writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'probe' }));
 
-        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
+        stageTestAssets(pkgDir, distDir, noGjsify, 1000);
 
         for (const name of STAGED_ASSET_DIRS) {
             assert.equal(readlinkSync(join(distDir, name)), `../${name}`, `${name} must link to the package root`);
@@ -301,6 +304,25 @@ describe('node-gi consumer harness: test-asset staging', () => {
         rmSync(pkgDir, { recursive: true, force: true });
     });
 
+    // The CLI used to be a command STRING, `node_modules/.bin/gjsify`, which on
+    // Windows is the unspawnable `sh` member of npm's shim trio (ENOENT). A string
+    // cannot carry the cmd.exe form, whose line embeds the arguments, so every
+    // call now goes through a runner. This pins that the fixture step does.
+    it('runs `prebuild:test:fixtures` through the CLI runner it is handed', () => {
+        const pkgDir = mkdtempSync(join(tmpdir(), 'gjsify-harness-assets-'));
+        const distDir = join(pkgDir, 'dist');
+        mkdirSync(distDir);
+        writeFileSync(
+            join(pkgDir, 'package.json'),
+            JSON.stringify({ name: 'probe', scripts: { 'prebuild:test:fixtures': 'echo fixtures' } }),
+        );
+        const calls = [];
+        stageTestAssets(pkgDir, distDir, (args, opts) => calls.push({ args, cwd: opts.cwd }), 1000);
+
+        assert.deepEqual(calls, [{ args: ['run', 'prebuild:test:fixtures'], cwd: pkgDir }]);
+        rmSync(pkgDir, { recursive: true, force: true });
+    });
+
     it('is idempotent — a second stage over an existing link is a no-op', () => {
         const pkgDir = mkdtempSync(join(tmpdir(), 'gjsify-harness-assets-'));
         const distDir = join(pkgDir, 'dist');
@@ -308,8 +330,8 @@ describe('node-gi consumer harness: test-asset staging', () => {
         mkdirSync(join(pkgDir, 'test'));
         writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'probe' }));
 
-        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
-        stageTestAssets(pkgDir, distDir, 'gjsify-not-invoked', 1000);
+        stageTestAssets(pkgDir, distDir, noGjsify, 1000);
+        stageTestAssets(pkgDir, distDir, noGjsify, 1000);
 
         assert.equal(readlinkSync(join(distDir, 'test')), '../test');
         rmSync(pkgDir, { recursive: true, force: true });

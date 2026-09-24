@@ -164,6 +164,23 @@ export function resolveGjsifySpawn(root, argv, opts = {}) {
     return null;
 }
 
+/**
+ * Spawn shape for any bare command on PATH — `bun`, `deno`, `npm` — resolved the
+ * way {@link resolveGjsifySpawn} resolves `gjsify`, or the name unchanged when it is
+ * not found so the spawn still fails with ENOENT. A runtime installed with
+ * `npm i -g` is a `.cmd` shim on Windows, as unspawnable by bare name as `gjsify`.
+ *
+ * @param {string} name
+ * @param {readonly string[]} argv
+ * @param {{platform?: string, env?: NodeJS.ProcessEnv}} [opts] Injected for tests.
+ */
+export function resolveCommandSpawn(name, argv, opts = {}) {
+    const platform = opts.platform ?? process.platform;
+    const env = opts.env ?? process.env;
+    const found = lookupOnPath(name, env, platform);
+    return found ? invoke(found, [...argv], env, platform) : { cmd: name, args: [...argv] };
+}
+
 /** Spawn shape for one resolved file: direct when it is a real executable, else via cmd.exe. */
 function invoke(file, args, env, platform) {
     if (platform !== 'win32' || DIRECTLY_EXECUTABLE_RE.test(file)) return { cmd: file, args };
