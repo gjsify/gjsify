@@ -270,8 +270,11 @@ export function isUnsupportedByFontMap(error: unknown): boolean {
  * A literal rather than `gi://cairo`'s `FontType.FT`: this module runs on both legs (GJS and
  * `@gjsify/node-gi`), and the enum is part of cairo's ABI, so importing a fourth namespace to
  * spell one stable integer would add a load-time dependency for nothing.
+ *
+ * Exported so `fonts.spec.ts`'s independent probe spells the SAME integer rather than a second
+ * literal that could drift from this one silently — see § duplication instead of a helper.
  */
-const CAIRO_FONT_TYPE_FT = 1;
+export const CAIRO_FONT_TYPE_FT = 1;
 
 /** What {@link adoptFontconfigMap} did, when it did anything. */
 interface AdoptedFontMap {

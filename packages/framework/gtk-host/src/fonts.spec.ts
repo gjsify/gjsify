@@ -21,6 +21,7 @@ import PangoCairo from 'gi://PangoCairo?version=1.0';
 import {
     adwaitaUiFontAvailability,
     applyUiFontPolicy,
+    CAIRO_FONT_TYPE_FT,
     type FontFaceFailure,
     initFonts,
     type InitFontsResult,
@@ -133,8 +134,7 @@ function probeRegistrationSupport(face: string | undefined): boolean {
  */
 function probeFontconfigFallback(): boolean {
     if (GLib.getenv('PANGOCAIRO_BACKEND') !== null) return false;
-    // `CAIRO_FONT_TYPE_FT`, spelled as the integer for the reason `fonts.ts` gives.
-    const candidate = PangoCairo.FontMap.new_for_font_type(1 as never);
+    const candidate = PangoCairo.FontMap.new_for_font_type(CAIRO_FONT_TYPE_FT as never);
     return candidate !== null && candidate.list_families().length > 0;
 }
 
