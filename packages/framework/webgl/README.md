@@ -222,6 +222,29 @@ and the mandatory ETC2/EAC compressed formats. Both surface as a **draw-time** e
 than a compile failure, so a shader that compiles is not evidence that a scene using them
 will render.
 
+**Four WebGL1 extensions are core on desktop GL, so the version answers, not the list.**
+`OES_element_index_uint` (GL 1.1), `OES_standard_derivatives` (GL 2.0), `OES_texture_float` and
+`OES_texture_float_linear` (GL 3.0) are features a GLES driver names as `GL_OES_*` extensions
+and a desktop driver has no reason to list — macOS's does not, so `getExtension()` used to
+answer `null` for three of them where Safari and Chrome expose all four.
+`getSupportedExtensions()` now advertises each when the list names it OR the desktop GL version
+provides it; on GLES the list stays the only source. Each is held to a spec that USES the
+feature (a texel outside [0, 1] survives, a float texture filters, 32-bit indices draw, `dFdx`
+evaluates), not merely to a non-null object.
+
+**Derivatives need a respelled shader on macOS.** A desktop core context compiles
+`#version 100` through ARB_ES2_compatibility, and macOS's ES front end is GLSL ES 1.00 with no
+extensions: `#extension GL_OES_standard_derivatives : enable` is "not supported" and `dFdx` is
+undeclared. So a GLSL1 shader that calls a derivative is respelled in the context's own desktop
+GLSL (`#version 410`, `attribute`/`varying`/`texture2D`/`gl_FragColor` renamed by macro —
+`context/shader-program/glsl1-desktop.ts`), where the derivatives are core. Whether a context
+needs that is PROBED once by compiling the smallest such shader, never read off the OS: a
+driver whose ES front end honours the extension keeps the shader as written. Because macOS will
+not link an ES stage with a desktop one, `linkProgram` gives every GLSL1 shader of a program the
+spelling its most demanding member needs, recomputed per link so a vertex shader shared with a
+plain program returns to the ES dialect there. `#ifdef GL_OES_standard_derivatives` is pointed
+at an unreserved stand-in macro, because desktop GLSL refuses to `#define` a `GL_` name.
+
 For the dialect rewrite itself — including why **win32 is rewritten too**, which this file
 predicted wrongly once — see [Platform coverage](#platform-coverage) above. Host diagnosis:
 `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a

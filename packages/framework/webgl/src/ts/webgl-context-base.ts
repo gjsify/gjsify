@@ -357,6 +357,41 @@ export abstract class WebGLContextBase {
         return haveMajor > major || (haveMajor === major && haveMinor >= minor);
     }
 
+    /** Cached answer of {@link _desktopGlslForEsDerivatives}; `undefined` = not probed yet. */
+    private _esDerivativesDesktopGlsl: string | null | undefined;
+
+    /**
+     * The desktop GLSL version to respell a derivative-using GLSL ES 1.00
+     * shader in — or `null` when the context compiles it as written.
+     *
+     * PROBED, once per context, rather than inferred from the OS or the GL
+     * version: whether a desktop driver's ES 1.00 front end honours
+     * `GL_OES_standard_derivatives` is the driver's own choice (macOS's does not;
+     * nothing in the GL version says so), and compiling the smallest shader
+     * that needs it is the question itself. A failed compile queues no GL error,
+     * so the probe leaves nothing behind for a consumer's `getError()`.
+     */
+    _desktopGlslForEsDerivatives(): string | null {
+        if (this._esDerivativesDesktopGlsl !== undefined) return this._esDerivativesDesktopGlsl;
+        let answer: string | null = null;
+        // GLES compiles its own dialect natively; below GL 4.1 a GLSL1 shader
+        // is not compiled as `#version 100` at all (see `_getGlsl1Version`).
+        if (this._atLeastGlVersion(4, 1)) {
+            const id = this._gl.createShader(this.FRAGMENT_SHADER);
+            this._gl.shaderSource(
+                id,
+                '#version 100\n#extension GL_OES_standard_derivatives : enable\nprecision mediump float;\n' +
+                    'void main() { gl_FragColor = vec4(dFdx(gl_FragCoord.x)); }\n',
+            );
+            this._gl.compileShader(id);
+            const compiles = !!this._gl.getShaderParameter(id, this.COMPILE_STATUS);
+            this._gl.deleteShader(id);
+            if (!compiles) answer = this._desktopGlslVersion();
+        }
+        this._esDerivativesDesktopGlsl = answer;
+        return answer;
+    }
+
     _checkOwns(object: unknown): boolean {
         return typeof object === 'object' && object !== null && (object as { _ctx?: unknown })._ctx === this;
     }
@@ -442,16 +477,37 @@ export abstract class WebGLContextBase {
             'WEBGL_debug_renderer_info',
         ];
 
-        const supportedExts = this._gl.getSupportedExtensions();
+        const supportedExts = this._gl.getSupportedExtensions() ?? [];
 
-        if (!supportedExts) {
-            return exts;
+        // A GLES driver names these four as `GL_OES_*` extensions because GLES 2.0
+        // lacks them. DESKTOP GL folded each into core long ago, so a desktop
+        // driver has no reason to list the ES name, and macOS's GL 4.1 core does
+        // not: reading the list alone hid three of them on every darwin context,
+        // while Safari and Chrome expose all four on the same stack. So a feature
+        // is advertised when the list names it OR the desktop version provides
+        // it — the version, not the OS, is what makes the promise true.
+        // `_atLeastGlVersion` answers false for GLES, where the list stays the
+        // only source.
+        if (supportedExts.indexOf('GL_OES_element_index_uint') >= 0 || this._atLeastGlVersion(1, 1)) {
+            // 32-bit indices: `glDrawElements(GL_UNSIGNED_INT)` since GL 1.1.
+            exts.push('OES_element_index_uint');
         }
-
-        if (supportedExts.indexOf('GL_OES_element_index_uint') >= 0) exts.push('OES_element_index_uint');
-        if (supportedExts.indexOf('GL_OES_standard_derivatives') >= 0) exts.push('OES_standard_derivatives');
-        if (supportedExts.indexOf('GL_OES_texture_float') >= 0) exts.push('OES_texture_float');
-        if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0) exts.push('OES_texture_float_linear');
+        if (supportedExts.indexOf('GL_OES_standard_derivatives') >= 0 || this._atLeastGlVersion(2, 0)) {
+            // `dFdx`/`dFdy`/`fwidth` are GLSL 1.10 built-ins (GL 2.0), and
+            // `GL_FRAGMENT_SHADER_DERIVATIVE_HINT` shares the OES enum's value.
+            exts.push('OES_standard_derivatives');
+        }
+        if (supportedExts.indexOf('GL_OES_texture_float') >= 0 || this._atLeastGlVersion(3, 0)) {
+            // ARB_texture_float is core from GL 3.0. The unsized upload WebGL1
+            // uses (`RGBA` + `FLOAT`) is passed through: desktop GL lets the
+            // driver pick the storage, and macOS picks float (the spec's
+            // out-of-[0, 1] round trip is what proves it, not this comment).
+            exts.push('OES_texture_float');
+        }
+        if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0 || this._atLeastGlVersion(3, 0)) {
+            // Desktop GL 3.0 made 32-bit float textures filterable; GLES never did.
+            exts.push('OES_texture_float_linear');
+        }
         if (
             supportedExts.indexOf('GL_OES_texture_half_float') >= 0 ||
             supportedExts.indexOf('GL_ARB_half_float_pixel') >= 0

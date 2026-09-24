@@ -76,6 +76,9 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
             program._linkCount += 1;
             program._attributes = [];
             const prevError = this.getError();
+            this._harmoniseShaderSpelling(
+                program._references.filter((s): s is WebGLShader => s instanceof WebGLShader),
+            );
             // Deferred compilation: recompile any shader whose source changed since last compile
             for (const s of program._references) {
                 if (s instanceof WebGLShader && s._needsRecompile) {

@@ -13,6 +13,7 @@ import type { WebGLContextBase } from '../../webgl-context-base.js';
 import { WebGLShader } from '../../webgl-shader.js';
 import { WebGLShaderPrecisionFormat } from '../../webgl-shader-precision-format.js';
 import { checkObject, isValidString } from '../../utils.js';
+import { translateGlsl1ToDesktop, usesStandardDerivatives } from './glsl1-desktop.js';
 
 export interface ShaderLifecycleMethods {
     createShader(type?: GLenum): WebGLShader | null;
@@ -24,7 +25,9 @@ export interface ShaderLifecycleMethods {
     getShaderPrecisionFormat(shaderType?: GLenum, precisionType?: GLenum): WebGLShaderPrecisionFormat | null;
     getShaderSource(shader: WebGLShader): string | null;
     _checkShaderSource(shader: WebGLShader): boolean;
-    _wrapShader(type: GLenum, source: string): string;
+    _wrapShader(type: GLenum, source: string, desktopSpelling?: boolean): string;
+    _needsDesktopSpelling(source: string): boolean;
+    _harmoniseShaderSpelling(shaders: WebGLShader[]): void;
 }
 
 declare module '../shader-program.js' {
@@ -102,6 +105,12 @@ function glslDialectOf(source: string): 'glsl1' | 'modern' {
     return 'glsl1';
 }
 
+/** Is a source GLSL ES 1.00 — versionless and GLSL1-shaped, or `#version 100`? */
+export function isGlsl1Source(source: string): boolean {
+    const hasVersion = source.startsWith('#version') || source.includes('\n#version');
+    return hasVersion ? /^\s*#\s*version\s+100\b/.test(source) : glslDialectOf(source) === 'glsl1';
+}
+
 const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase> = {
     createShader(this: WebGLContextBase, type: GLenum = 0): WebGLShader | null {
         if (type !== this.FRAGMENT_SHADER && type !== this.VERTEX_SHADER) {
@@ -149,7 +158,10 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         if (!isValidString(source)) {
             this.setError(this.INVALID_VALUE);
         } else if (this._checkWrapper(shader, WebGLShader)) {
-            source = this._wrapShader(shader._type, source);
+            shader._userSource = source;
+            shader._needsDesktop = this._needsDesktopSpelling(source);
+            shader._desktopSpelled = shader._needsDesktop;
+            source = this._wrapShader(shader._type, source, shader._desktopSpelled);
             this._gl.shaderSource(shader._ | 0, source);
             shader._source = source;
             shader._needsRecompile = true;
@@ -283,7 +295,51 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         return !errorStatus;
     },
 
-    _wrapShader(this: WebGLContextBase, _type: GLenum, source: string): string {
+    /**
+     * Must this source be respelled in desktop GLSL to compile at all? Only a
+     * GLSL ES 1.00 shader using a derivative, on a context whose ES front end
+     * was PROBED and cannot compile one — see `glsl1-desktop.ts`.
+     */
+    _needsDesktopSpelling(this: WebGLContextBase, source: string): boolean {
+        return isGlsl1Source(source) && usesStandardDerivatives(source) && !!this._desktopGlslForEsDerivatives();
+    },
+
+    /**
+     * Give every GLSL ES 1.00 shader of one program the SAME spelling before it
+     * links.
+     *
+     * A driver will not link an ES-dialect stage with a desktop-dialect one —
+     * measured on macOS: "Linking ES shaders with non-ES shaders is not
+     * supported". Respelling is decided per SHADER at `shaderSource()` time (the
+     * derivative lives in the fragment stage), but linking is per PROGRAM, and
+     * the vertex shader beside it knows nothing of derivatives. So at link time
+     * the program's GLSL1 shaders follow its most demanding member: desktop if
+     * any one of them needs it, the ES dialect otherwise. Recomputed on every
+     * link rather than flipped once, because one shader object may be attached
+     * to several programs — a shared vertex shader respelled for one program
+     * must return to the ES dialect when it next links beside ES stages.
+     */
+    _harmoniseShaderSpelling(this: WebGLContextBase, shaders: WebGLShader[]): void {
+        const desktop = shaders.some((s) => s._needsDesktop);
+        for (const s of shaders) {
+            if (s._desktopSpelled === desktop || !isGlsl1Source(s._userSource)) continue;
+            const source = this._wrapShader(s._type, s._userSource, desktop);
+            this._gl.shaderSource(s._ | 0, source);
+            s._source = source;
+            s._desktopSpelled = desktop;
+            // Only a shader the consumer already compiled is recompiled here, and
+            // its reported status becomes the respelled compile's — the object the
+            // program links is that one. One still awaiting its first compile is
+            // left to the deferred compile in `linkProgram`, as before.
+            if (!s._needsRecompile) {
+                this._gl.compileShader(s._ | 0);
+                s._compileStatus = !!this._gl.getShaderParameter(s._ | 0, this.COMPILE_STATUS);
+                s._compileInfo = this._gl.getShaderInfoLog(s._ | 0) || 'null';
+            }
+        }
+    },
+
+    _wrapShader(this: WebGLContextBase, _type: GLenum, source: string, desktopSpelling = false): string {
         // the gl implementation seems to define `GL_OES_standard_derivatives` even when the extension is disabled
         // this behaviour causes one conformance test ('GL_OES_standard_derivatives defined in shaders when extension is disabled') to fail
         // by `undef`ing `GL_OES_standard_derivatives`, this appears to solve the issue
@@ -315,6 +371,17 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         // follows the DIALECT, not merely the absence of a `#version` line.
         if (!this._extensions.webgl_draw_buffers && dialect === 'glsl1') {
             preamble += '#define gl_MaxDrawBuffers 1\n';
+        }
+
+        // A GLSL ES 1.00 shader the caller decided must be respelled (see
+        // `_needsDesktopSpelling` / `_harmoniseShaderSpelling`): written in the
+        // context's own desktop GLSL, where the derivatives are core. Every
+        // other shader, and every context that CAN compile the ES dialect, takes
+        // the untouched path below.
+        const desktopVersion = desktopSpelling ? this._desktopGlslForEsDerivatives() : null;
+        if (desktopVersion) {
+            const stage = _type === this.VERTEX_SHADER ? 'vertex' : 'fragment';
+            return translateGlsl1ToDesktop(source, stage, desktopVersion, preamble);
         }
 
         if (hasVersion) {
