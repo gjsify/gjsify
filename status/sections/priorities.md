@@ -12,8 +12,9 @@ package it named had reached `full`.
 1. **Finish the platforms that already ship.** linux-x64 is not the frontier; the other legs
    are. Open and unowned: the darwin gamepad backend is DECIDED (ADR 0075: SDL3 behind a
    GObject shim) and its seam has landed, but the shim itself — a new native package — is not
-   built; `@gjsify/webgl` now draws WebGL2 content on darwin, but HiDPI is unproven
-   there and two GLES 3.0 API spellings are still missing; two packages have no darwin target at
+   built; `@gjsify/webgl` now draws WebGL2 content on darwin and is measured HiDPI-correct on a
+   Retina Mac, but two GLES 3.0 API spellings are still missing and no CI leg realizes a GL
+   context on darwin itself; two packages have no darwin target at
    all; and nothing exercises the node-free toolchain on macOS, although all three engines now
    publish darwin prebuilds. `win32-arm64` is measured as blocked upstream rather than on
    effort, so it is not on this list.

@@ -3451,7 +3451,7 @@ The L1 `GObject.registerClass` no longer does: an entry `signalSpecToNative` can
 
 `node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` triggers on `packages/infra/resolve-npm/lib/` and `packages/infra/rolldown-plugin-gjsify/src/`.)
 
-### `@gjsify/webgl` on darwin — WebGL2 content draws; HiDPI and two GLES 3.0 API gaps do not
+### `@gjsify/webgl` on darwin — WebGL2 content draws and HiDPI holds; no CI leg, GLES 3.0 gaps
 
 First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM
 (`docs/workstation/macos-test-vm.md`): the committed `darwin-x64` prebuild draws real pixels onto
@@ -3545,12 +3545,19 @@ What is still open:
   second candidate is untouched and unproven either way: whether the `_gtkFboId` captured from
   `GL_FRAMEBUFFER_BINDING` is the framebuffer GTK presents on this backend. Re-run the
   `Adw.Application` reproducer before calling the black window closed.
-- **The HiDPI path stays unproven on darwin.** The VM reports scale factor 1 (its LaunchAgent pins
-  `res:1920x1080 scaling:off`), so `clientWidth × devicePixelRatio === canvas.width` holds
-  trivially and this host cannot falsify the drawing-buffer bug class. Only a real HiDPI Mac can.
+- **HiDPI is measured correct on a real Retina Mac, and the gate that used to need opening by
+  hand now opens itself.** `hidpi.spec.ts` passes all 14 cases against a real `Gtk.GLArea`
+  (macOS 27, Apple Silicon, scale 2, 2026-09-24; see `packages/framework/webgl/README.md` §
+  HiDPI) — `clientWidth × devicePixelRatio === canvas.width` holds against GTK's own `resize`
+  signal and the framebuffer it actually presents, not just the arithmetic a stub would agree
+  with trivially. `canRealizeGl` in `@gjsify/unit` no longer stands down on darwin: it takes a
+  probe, and that probe realizes a GDK GL context once per process instead of asking the OS.
 - **No CI leg runs the GL specs on macOS**, so only a hand run on a Mac shows a desktop-CORE
   regression. `on('Gl')` realizes a GDK GL context and asks (`@gjsify/unit`'s `canRealizeGl` +
   probe) rather than assuming `linux && DISPLAY`, so the specs do run wherever a display exists.
+  For HiDPI specifically, the Linux `GDK_SCALE=2` step in `main.yml` is what holds the contract
+  in CI meanwhile (now under `GJSIFY_TEST_EXPECT_AXES=Gl`, so a regression in the probe fails
+  that step instead of letting it pass having drawn nothing).
 - **`framebufferTextureLayer` of an `ALPHA`/`LUMINANCE` 3D or array texture renders on a core
   profile.** WebGL says legacy formats are never color-renderable; the 2D attachment path refuses
   them from the recorded format, but `framebufferTextureLayer` goes straight to the driver with no

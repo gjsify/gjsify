@@ -1145,6 +1145,17 @@ jobs:
         if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 GJSIFY_TEST_EXPECT_AXES=Gl xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
+      # The Test step above realizes every GLArea at scale 1, where a drawing buffer
+      # reported at the allocation is indistinguishable from the right one. GDK_SCALE=2
+      # makes GdkX11 hand the GLArea a 2x framebuffer; GJSIFY_TEST_EXPECT_SCALE fails
+      # the run if the override ever stops taking effect instead of passing at 1.
+      # GJSIFY_TEST_EXPECT_AXES=Gl for the same reason as the Test step above: this
+      # spec lives entirely behind `on('Gl')`, so a probe regression must fail the
+      # step instead of letting it pass having drawn nothing.
+      - name: Test WebGL HiDPI (GDK_SCALE=2)
+        if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 GDK_SCALE=2 GJSIFY_TEST_EXPECT_SCALE=2 GJSIFY_TEST_EXPECT_AXES=Gl xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:hidpi'
+
   # ── Cross-runtime tests (Node + Bun + Deno) ─────────────────────────
   # Bun and Deno share the `node` runtime slot with Node via the Node-API common
   # ABI, which the runtime model ASSERTS. This job is where that assertion is
