@@ -31,7 +31,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
@@ -88,7 +88,8 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
 function diagnoseNativeEngine(): string {
     let pkgDir: string | null = null;
     try {
-        const bundleDir = path.dirname(new URL(import.meta.url).pathname);
+        // Not `new URL(...).pathname`: on win32 that is `/C:/...`, percent-encoded, no path.
+        const bundleDir = path.dirname(fileURLToPath(import.meta.url));
         pkgDir = findRolldownNativeDir(process.cwd(), bundleDir);
     } catch {
         pkgDir = null;
@@ -471,7 +472,7 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
                 // limitations and `findWorkspaceRoot`'s dependency on
                 // `discoverWorkspaces`, both of which can fail to map a
                 // sub-package dir up to the hoisted workspace root.
-                const bundleDir = path.dirname(new URL(import.meta.url).pathname);
+                const bundleDir = path.dirname(fileURLToPath(import.meta.url));
                 const resolvedFromNpm = resolveNpmPackage(specifier, { bundleUrl: import.meta.url });
                 const resolvedFromFs = resolvedFromNpm
                     ? null
