@@ -52,7 +52,6 @@
         "@girs/gstapp-1.0": "5.4.0",
         "@girs/gstaudio-1.0": "5.4.0",
         "@girs/gstbase-1.0": "5.4.0",
-        "@gjsify/child_process": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

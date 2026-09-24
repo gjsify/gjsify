@@ -1004,3 +1004,92 @@ describe('check-build-infra-order: the type-dependency order', () => {
         assert.equal(result.status, 0, result.output);
     });
 });
+
+// The THIRD rule: a package in the CLI's production closure may not type-check
+// against a workspace package that closure does not order before it. #1775 gave
+// `webaudio.spec.ts` a `@gjsify/child_process` import (a devDependency); the cold
+// `@gjsify/cli build --with-dependencies` sweep built child_process after
+// webaudio, and the v0.52.0 GJS canary died on TS2307.
+describe('check-build-infra-order: the cold CLI sweep', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+
+    /** `packages` maps a name to `{ dependencies?, files }`, files relative to the package dir. */
+    function runSweepGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-sweep-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, pkg] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'web', name.replace('@gjsify/', ''));
+            mkdirSync(join(dir, 'src'), { recursive: true });
+            writeFileSync(
+                join(dir, 'package.json'),
+                JSON.stringify({
+                    name,
+                    dependencies: pkg.dependencies ?? {},
+                    scripts: { build: 'gjsify run build:types', 'build:types': 'gjsify tsc' },
+                    exports: { '.': { types: './lib/types/index.d.ts', default: './lib/esm/index.js' } },
+                }),
+            );
+            writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ include: ['src/**/*.ts'] }));
+            for (const [file, source] of Object.entries(pkg.files)) writeFileSync(join(dir, file), source);
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    const LEAF = { files: { 'src/index.ts': 'export const spawnSync = 1;\n' } };
+    const SPEC_IMPORTER = {
+        files: {
+            'src/index.ts': 'export const ctx = 1;\n',
+            'src/webaudio.spec.ts': "import { spawnSync } from '@gjsify/child_process';\nexport const s = spawnSync;\n",
+        },
+    };
+    const CLI = {
+        dependencies: { '@gjsify/webaudio': 'workspace:^', '@gjsify/child_process': 'workspace:^' },
+        files: { 'src/index.ts': 'export const cli = 1;\n' },
+    };
+
+    it("rejects a spec importing a closure member outside the package's own closure", () => {
+        const result = runSweepGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': CLI,
+            '@gjsify/webaudio': SPEC_IMPORTER,
+            '@gjsify/child_process': LEAF,
+        });
+        assert.equal(result.status, 1, result.output);
+        assert.match(
+            result.stderr,
+            /builds @gjsify\/webaudio, whose tsc compiles \S+webaudio\.spec\.ts — it imports '@gjsify\/child_process'/,
+        );
+    });
+
+    it('accepts the same import once it is a production dependency', () => {
+        const result = runSweepGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': CLI,
+            '@gjsify/webaudio': { ...SPEC_IMPORTER, dependencies: { '@gjsify/child_process': 'workspace:^' } },
+            '@gjsify/child_process': LEAF,
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('accepts the same import once build:infra emits it', () => {
+        const result = runSweepGuard(
+            `gjsify workspace @gjsify/child_process build:types && gjsify workspace @gjsify/cli build && ${FACADE}`,
+            { '@gjsify/cli': CLI, '@gjsify/webaudio': SPEC_IMPORTER, '@gjsify/child_process': LEAF },
+        );
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('ignores a package outside the CLI closure', () => {
+        const result = runSweepGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': { files: CLI.files },
+            '@gjsify/webrtc': SPEC_IMPORTER,
+            '@gjsify/child_process': LEAF,
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('reads the real CLI closure', () => {
+        const result = spawnSync(process.execPath, [ORDER_GUARD], { cwd: MONOREPO_ROOT, encoding: 'utf8' });
+        const read = /sweep rule read (\d+) package\(s\)/.exec(result.stdout);
+        assert.ok(read && Number(read[1]) > 0, `the sweep rule read nothing:\n${result.stdout}${result.stderr}`);
+    });
+});

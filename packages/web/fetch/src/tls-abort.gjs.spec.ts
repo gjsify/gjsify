@@ -12,11 +12,12 @@
 // GJS-only (`.gjs.spec.ts`): the body runs under `on('Gjs', …)`, a no-op on Node. Soup/GLib/Gio are
 // read from the GJS bootstrap `imports` (same idiom as soup-session.gjs.spec.ts) so the Node bundle
 // never resolves `gi://*`. Request/fetch are read from `globalThis` (installed by
-// `@gjsify/fetch/register`, pulled in by test.mts). `@gjsify/abort-controller` is pure-TS
-// cross-runtime, so its static import is safe on both legs.
+// `@gjsify/fetch/register`, pulled in by test.mts), and so is AbortController/AbortSignal
+// (`@gjsify/abort-controller/register`): a workspace import here would be compiled by this
+// package's `build:types`, which a cold `@gjsify/cli --with-dependencies` sweep may run before
+// abort-controller's (held by scripts/check-build-infra-order.mjs, incident #1775).
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { AbortController, AbortSignal } from '@gjsify/abort-controller';
 import type SoupNS from '@girs/soup-3.0';
 import type GLibNS from '@girs/glib-2.0';
 import type GioNS from '@girs/gio-2.0';
@@ -33,14 +34,10 @@ interface GjsImports {
 }
 
 /**
- * @gjsify/fetch accepts two GJS-runtime extensions the DOM `RequestInit` does not model: a
- * per-request `rejectUnauthorized`, and the cross-runtime `@gjsify` `AbortSignal` (not DOM's — its
- * `onabort` type differs). Model both here instead of casting through `unknown` at each call site.
+ * @gjsify/fetch accepts a GJS-runtime extension the DOM `RequestInit` does not model: a
+ * per-request `rejectUnauthorized`. Model it here instead of casting through `unknown` at each call site.
  */
-type FetchInit = Omit<RequestInit, 'signal'> & {
-    rejectUnauthorized?: boolean;
-    signal?: AbortSignal;
-};
+type FetchInit = RequestInit & { rejectUnauthorized?: boolean };
 
 // A REAL self-signed cert+key (RSA-2048, CN=localhost, SAN DNS:localhost + IP:127.0.0.1, 100y) so a
 // live TLS handshake against the local Soup.Server actually completes. Embedded inline to stay

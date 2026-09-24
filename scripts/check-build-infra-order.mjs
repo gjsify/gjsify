@@ -427,15 +427,35 @@ function typesTargetOf(manifest, specifier, name) {
     return manifest.types ?? manifest.typings ?? null;
 }
 
-/** Production workspace closure of a package — what `-d` builds before the clause itself. */
+/**
+ * Production workspace closure of a package — what `-d` builds before the clause
+ * itself. `optionalDependencies` count: `buildDependencyGraph()` follows them by
+ * default (packages/infra/workspace/src/graph.ts), `devDependencies` it does not.
+ */
 function productionClosure(name, index, seen = new Set()) {
     if (seen.has(name)) return seen;
     seen.add(name);
     const manifest = index.get(name)?.json;
-    for (const dep of Object.keys(manifest?.dependencies ?? {})) {
+    for (const dep of Object.keys({ ...manifest?.dependencies, ...manifest?.optionalDependencies })) {
         if (index.has(dep)) productionClosure(dep, index, seen);
     }
     return seen;
+}
+
+/** The files a package script's `gjsify tsc` compiles, or `null` if it runs none / has no readable config. */
+function typeCheckInputsOf(entry, script) {
+    const tscCall = commandsOf(entry.json, script).find((c) => /gjsify\s+tsc\b/.test(c));
+    if (!tscCall) return null;
+    const projectFlag = /gjsify\s+tsc\b[^&|;]*?\s-p\s+(\S+)/.exec(tscCall);
+    return tsconfigInputs(entry.dir, projectFlag ? projectFlag[1] : 'tsconfig.json');
+}
+
+/** The declaration file of a workspace import, or `null` when a cold checkout already has it (or none exists). */
+function uncommittedTypesTarget(depEntry, spec, dep) {
+    const target = typesTargetOf(depEntry.json, spec, dep);
+    if (!target) return null;
+    const rel = relative(ROOT, resolve(depEntry.dir, target)).split(sep).join('/');
+    return tracked.has(rel) ? null : target;
 }
 
 /**
@@ -477,12 +497,8 @@ for (const [i, clause] of clauses.entries()) {
     const [, name, script] = m;
     const entry = byName.get(name);
     if (!entry) continue; // rule 1 already reported the unresolvable clause
-    const tscCall = commandsOf(entry.json, script).find((c) => /gjsify\s+tsc\b/.test(c));
-    if (!tscCall) continue; // no type-check in this clause, nothing to order
-    const projectFlag = /gjsify\s+tsc\b[^&|;]*?\s-p\s+(\S+)/.exec(tscCall);
-    const configName = projectFlag ? projectFlag[1] : 'tsconfig.json';
-    const inputs = tsconfigInputs(entry.dir, configName);
-    if (inputs === null) continue; // no readable config — nothing this rule can assert
+    const inputs = typeCheckInputsOf(entry, script);
+    if (inputs === null) continue; // no type-check or no readable config — nothing to order
     scanned++;
     inputsSeen += inputs.length;
     const withDeps = /\s(?:-d|--with-dependencies)(?:\s|$)/.test(clause);
@@ -493,10 +509,9 @@ for (const [i, clause] of clauses.entries()) {
         if (!depEntry) continue; // not a workspace package — npm resolves it
         const at = typedAt.get(dep);
         if (at !== undefined && at < i) continue;
-        const target = typesTargetOf(depEntry.json, spec, dep);
-        if (!target) continue; // no declaration entry to resolve — nothing this rule can assert
-        const rel = relative(ROOT, resolve(depEntry.dir, target)).split(sep).join('/');
-        if (tracked.has(rel)) continue; // committed declarations survive a cold checkout
+        // No declaration entry, or a committed one that survives a cold checkout.
+        const target = uncommittedTypesTarget(depEntry, spec, dep);
+        if (!target) continue;
         const builtLater = at === undefined ? 'is never built by `build:infra`' : `is built at clause ${at + 1}`;
         orderProblems.push(
             `clause ${i + 1} runs \`${name} ${script}\`, whose tsc compiles ` +
@@ -524,7 +539,76 @@ if (scanned && !inputsSeen) {
 console.log(`build-infra-order: type-ordering rule read ${inputsSeen} compiled file(s) across ${scanned} clause(s).`);
 for (const p of orderProblems) console.error(`  ✗ ${p}`);
 
-const total = problems.length + orderProblems.length;
+// ---------------------------------------------------------------------------
+// RULE 3 — a package in the CLI's production closure may not type-check against
+// a workspace package that closure does not order before it.
+//
+// THE INVARIANT
+//
+// `scripts/verify-committed-bundles.mjs` rebuilds `@gjsify/cli --with-dependencies`
+// after `build:infra`. That sweep follows PRODUCTION edges only (`includeDev` is
+// off in `buildDependencyGraph()`), yet each package's `build` runs `gjsify tsc`
+// over everything its tsconfig includes — spec files too. A spec importing a
+// devDependency therefore compiles against whatever that package happens to have
+// in `lib/types` at that moment: nothing on a cold tree, unless `build:infra`
+// already emitted it or the sweep's order puts it first by accident.
+//
+// THE INCIDENT
+//
+// #1775 gave `webaudio.spec.ts` an import of `@gjsify/child_process` (a
+// devDependency). child_process is in the CLI closure, but nothing orders it
+// before webaudio, so the sweep built it AFTER: `TS2307: Cannot find module
+// '@gjsify/child_process'` on the v0.52.0 release's cold-tree GJS canary. The
+// Node legs stayed green because their tree was warm — rule 2 cannot see it, as
+// no `build:infra` clause names webaudio.
+//
+// WHAT MAKES AN IMPORT SATISFIED
+//
+//   · it is in the importing package's own production closure (built first); or
+//   · some `build:infra` clause emitted it, which runs to completion before; or
+//   · its declarations are tracked in git.
+
+/** Roots of the cold `--with-dependencies` sweeps run after `build:infra` (see verify-committed-bundles.mjs). */
+const SWEEP_ROOTS = ['@gjsify/cli'];
+
+const sweepProblems = [];
+let sweepScanned = 0;
+let sweepInputs = 0;
+for (const root of SWEEP_ROOTS) {
+    if (!byName.has(root)) continue; // a synthetic root without the CLI has no sweep to order
+    for (const name of productionClosure(root, byName)) {
+        const entry = byName.get(name);
+        const inputs = typeCheckInputsOf(entry, 'build');
+        if (inputs === null) continue;
+        sweepScanned++;
+        sweepInputs += inputs.length;
+        const ownClosure = productionClosure(name, byName);
+        for (const [dep, { file, spec }] of typeCheckedImports(inputs)) {
+            if (ownClosure.has(dep) || typedAt.has(dep)) continue;
+            const depEntry = byName.get(dep);
+            if (!depEntry) continue;
+            const target = uncommittedTypesTarget(depEntry, spec, dep);
+            if (!target) continue;
+            sweepProblems.push(
+                `\`${root} build --with-dependencies\` builds ${name}, whose tsc compiles ` +
+                    `${relative(ROOT, file).split(sep).join('/')} — it imports '${spec}', but ${dep} is not ` +
+                    `in ${name}'s production closure and no \`build:infra\` clause emits it, so the sweep may ` +
+                    'build it later (#1775: TS2307 on a cold tree). Make it a `dependencies` entry, emit it in ' +
+                    '`build:infra`, or drop the import (a spec can reach GLib/Gio through `gi://`).',
+            );
+        }
+    }
+}
+// Blind only in rule 2's shape: configs that resolve to no files. A synthetic root
+// without configs has nothing to order; the e2e suite asserts the real count.
+if (sweepScanned && !sweepInputs) {
+    console.error('::error::the sweep rule resolved tsconfigs in the CLI closure but expanded them to zero files.');
+    process.exit(1);
+}
+console.log(`build-infra-order: sweep rule read ${sweepScanned} package(s) in the CLI's production closure.`);
+for (const p of sweepProblems) console.error(`  ✗ ${p}`);
+
+const total = problems.length + orderProblems.length + sweepProblems.length;
 if (total) {
     console.error(`build-infra-order: ${total} problem(s).`);
     process.exit(1);
