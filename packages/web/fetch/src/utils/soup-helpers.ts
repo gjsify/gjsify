@@ -27,8 +27,60 @@ export async function soupSendAsync(
 }
 
 /**
- * Converts a `Gio.InputStream` to a Node.js `Readable` stream.
+ * Close a `Gio.InputStream` without blocking the main loop. Resolves once the
+ * close has finished; never rejects — a close failure leaves nothing for the
+ * caller to recover, and the stream is unusable either way.
+ */
+function closeInputStream(inputStream: Gio.InputStream): Promise<void> {
+    return new Promise<void>((resolve) => {
+        inputStream.close_async(GLib.PRIORITY_DEFAULT, null, (_self, res) => {
+            try {
+                inputStream.close_finish(res);
+            } catch {
+                /* already closed, or the connection died — nothing to release */
+            }
+            resolve();
+        });
+    });
+}
+
+/**
+ * Converts a `Gio.InputStream` to a Node.js `Readable` stream, closing the
+ * input stream once the body is consumed or the Readable is destroyed.
+ *
+ * The close is load-bearing for Soup response bodies: libsoup 3 returns the
+ * connection to the session's pool only when the body stream is CLOSED —
+ * reading to EOF merely marks the body done. Left open, each response pins its
+ * connection IN_USE until the stream happens to be GC-finalized; keep-alive
+ * reuse never happens, and once `max-conns` are pinned the next request queues
+ * forever (socket.io's polling transport stalled on exactly that).
  */
 export function inputStreamToReadable(inputStream: Gio.InputStream, options: ReadableOptions = {}): Readable {
-    return Readable.from(inputStreamAsyncIterator(inputStream), options);
+    let closing: Promise<void> | null = null;
+    const close = (): Promise<void> => {
+        if (closing) return closing;
+        // A read still in flight owns the stream (close would fail with
+        // G_IO_ERROR_PENDING); the generator's `finally` closes it once that
+        // read settles.
+        if (inputStream.has_pending()) return Promise.resolve();
+        closing = closeInputStream(inputStream);
+        return closing;
+    };
+
+    async function* chunks(): AsyncGenerator<Uint8Array> {
+        try {
+            yield* inputStreamAsyncIterator(inputStream);
+        } finally {
+            // Awaited, so 'end' (and with it text()/arrayBuffer()) is only
+            // observed after the connection is back in the pool — a follow-up
+            // request to the same host can then reuse it.
+            await close();
+        }
+    }
+
+    const readable = Readable.from(chunks(), options);
+    // A destroyed Readable (abort, consumer gave up) may never resume the
+    // generator, so its `finally` would not run — close from here as well.
+    readable.once('close', () => void close());
+    return readable;
 }

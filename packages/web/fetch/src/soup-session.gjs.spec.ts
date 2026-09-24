@@ -167,6 +167,68 @@ export default async () => {
             });
         });
 
+        // Regression: libsoup 3 hands a connection back to the pool only when the
+        // response body stream is CLOSED — reading it to EOF merely marks the body
+        // done. @gjsify/fetch read bodies to EOF and never closed the stream, so
+        // every fetch pinned its connection IN_USE until SpiderMonkey happened to
+        // finalize the stream. Keep-alive reuse never happened, and once the
+        // shared session's `max-conns` (64) were pinned against servers that had
+        // since gone away, the next fetch queued forever. socket.io's polling
+        // transport hit that wall ~30 tests into its integration suite on macOS,
+        // where GC ran too rarely to rescue it.
+        await describe('@gjsify/fetch — body streams release their pooled connection', async () => {
+            const startServer = () => {
+                const ports: number[] = [];
+                const server = new Soup.Server({});
+                server.add_handler(null, (_s: unknown, msg: SoupNS.ServerMessage) => {
+                    ports.push((msg.get_remote_address() as GioNS.InetSocketAddress).get_port());
+                    msg.set_status(200, null);
+                    msg.set_response('text/plain', Soup.MemoryUse.COPY, new TextEncoder().encode('ok'));
+                });
+                server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+                return { server, ports, base: server.get_uris()[0].to_string() };
+            };
+
+            await it('reuses the keep-alive connection once a body has been read', async () => {
+                const { server, ports, base } = startServer();
+                // fetch defaults to `Connection: close` (node-fetch heritage), so
+                // opt into keep-alive to observe the connection going back to the pool.
+                const init = { headers: { Connection: 'keep-alive' } };
+                try {
+                    await (await fetchFn(base, init)).text();
+                    await (await fetchFn(base, init)).arrayBuffer();
+                    await (await fetchFn(base, init)).text();
+                    expect(ports.length).toBe(3);
+                    // One client port = one connection, handed back and reused.
+                    expect(new Set(ports).size).toBe(1);
+                } finally {
+                    server.disconnect();
+                }
+            });
+
+            await it('does not exhaust the pool against servers that have gone away', async () => {
+                // More servers than the shared session's default max-conns (64):
+                // each leaves one idle keep-alive connection behind. Idle ones are
+                // reclaimable; pinned ones made fetch #65 wait forever.
+                let completed = 0;
+                for (let i = 0; i < 70; i++) {
+                    const { server, base } = startServer();
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 2000);
+                    try {
+                        await (await fetchFn(base, { signal: ctrl.signal })).text();
+                        completed++;
+                    } catch {
+                        break;
+                    } finally {
+                        clearTimeout(timer);
+                        server.disconnect();
+                    }
+                }
+                expect(completed).toBe(70);
+            });
+        });
+
         // Regression: @gjsify/fetch re-parsed the already-encoded request URL
         // with `GLib.UriFlags.NONE`, which DECODES a second time — collapsing an
         // escaped `%2F` inside a path segment back to a literal `/`. That sent
