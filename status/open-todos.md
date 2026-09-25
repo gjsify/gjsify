@@ -7076,13 +7076,15 @@ Windows ships (ADR 0056 § 7), and a live Icecast stream decodes on every bundle
 bundle can detect that ahead of time. Not measured on such a host. On the Server 2025
 runner the DLLs were present before the optional feature was installed.
 
-**The library route, as an upstream change.** A `libmpg123` project in `wingtk/gvsbuild`
-would let win32 use `mpg123audiodec`, like darwin, and drop the OS dependency. The patch is
-prepared (see `status/upstream-patch-candidates.md`) and not filed, because it has not been
-built on MSVC yet. Read at the pinned `2026.6.0` and at `2026.8.0`: no `mpg123` or `flac`
-module; gvsbuild's ffmpeg has no mp3 decoder; gst-plugins-rs 0.15.2 has none; gst-plugins-ugly
-1.28.4 dropped `mad`. The `mpg123` gap keeps its `upstream` bound, so the catalogue rule
-reds the day the project exists.
+**The library route, as an upstream change, is now filed.** A `libmpg123` project in
+`wingtk/gvsbuild` would let win32 use `mpg123audiodec`, like darwin, and drop the OS
+dependency. Read at the pinned `2026.6.0` and at `2026.8.0`: no `mpg123` or `flac` module;
+gvsbuild's ffmpeg has no mp3 decoder; gst-plugins-rs 0.15.2 has none; gst-plugins-ugly 1.28.4
+dropped `mad`. **Filed**: [wingtk/gvsbuild#1849](https://github.com/wingtk/gvsbuild/pull/1849),
+out of the `add-mpg123` branch of our `gjsify/gvsbuild` fork, adds `libmpg123` in exactly that
+shape and makes `gst-plugins-good` depend on it — the standing task that PR creates is tracked
+in `status/upstream-patch-candidates.md`. Until it merges and a pin bump picks it up, the
+`mpg123` gap keeps its `upstream` bound, so the catalogue rule reds the day the project exists.
 
 **AAC may already decode on win32 and is not claimed.** The same plugin registers `mfaacdec`.
 Claiming it needs an M4A fixture and a decode test like the MP3 ones in `gst-elements.test.mjs`.
