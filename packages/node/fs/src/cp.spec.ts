@@ -41,13 +41,14 @@ export default async () => {
         });
 
         await it('refuses to copy a directory into itself, however the path is spelled', async () => {
-            // The check prefix-matched `src + '/'` on the raw strings: `src/./sub` slipped past
-            // it and the copy walked into its own output, and on win32 the literal `/` missed
-            // every backslash-separated destination. Both sides are resolved first now, as in Node.
+            // The check prefix-matched `src + '/'` on the raw strings: `<tmp>/./src/sub` slipped
+            // past it and the copy walked into its own output, and on win32 the literal `/` missed
+            // every backslash-separated destination. Both sides are resolved first now, as in Node,
+            // which answers ERR_FS_CP_EINVAL (the old check threw ELOOP).
             const tmp = makeTmp();
             mkdirSync(join(tmp, 'src'));
             writeFileSync(join(tmp, 'src', 'a.txt'), 'a');
-            for (const dest of [join(tmp, 'src', 'sub'), `${join(tmp, 'src')}/./sub`]) {
+            for (const dest of [join(tmp, 'src', 'sub'), `${tmp}/./src/sub`]) {
                 let code: unknown;
                 try {
                     cpSync(join(tmp, 'src'), dest, { recursive: true });
