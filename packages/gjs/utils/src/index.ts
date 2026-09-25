@@ -20,3 +20,4 @@ export * from './file.js';
 export * from './fs.js';
 export * from './gio.js';
 export * from './path.js';
+export * from './socket-service.js';

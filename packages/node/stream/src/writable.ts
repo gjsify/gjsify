@@ -69,7 +69,6 @@ export class Writable_ extends Stream_ {
     private _writeImpl: ((this: Writable_, chunk: unknown, encoding: string, cb: ErrCallback) => void) | undefined;
     private _writev: ((this: Writable_, chunks: WriteVChunk[], cb: ErrCallback) => void) | undefined;
     private _finalImpl: ((this: Writable_, cb: ErrCallback) => void) | undefined;
-    private _destroyImpl: ((this: Writable_, error: Error | null, cb: ErrCallback) => void) | undefined;
     private _constructImpl: ((this: Writable_, cb: ErrCallback) => void) | undefined;
     private _decodeStrings: boolean;
     private _defaultEncoding = 'utf8';
@@ -106,8 +105,9 @@ export class Writable_ extends Stream_ {
         if (opts?.writev)
             this._writev = opts.writev as unknown as (this: Writable_, c: WriteVChunk[], cb: ErrCallback) => void;
         if (opts?.final) this._finalImpl = opts.final as unknown as (this: Writable_, cb: ErrCallback) => void;
-        if (opts?.destroy)
-            this._destroyImpl = opts.destroy as unknown as (this: Writable_, e: Error | null, cb: ErrCallback) => void;
+        // An INSTANCE property, as Node's constructor does: `opts.destroy` then
+        // shadows a subclass's prototype `_destroy` instead of hiding behind it.
+        if (opts?.destroy) this._destroy = opts.destroy as unknown as Writable_['_destroy'];
         if (opts?.construct)
             this._constructImpl = opts.construct as unknown as (this: Writable_, cb: ErrCallback) => void;
 
@@ -153,20 +153,15 @@ export class Writable_ extends Stream_ {
     }
 
     /**
-     * Default `_destroy` impl — delegates to the constructor-opt `destroy`
-     * callback if one was provided. Subclasses can override this method
-     * (Node-spec convention: see lib/internal/streams/writable.js's
-     * `_destroy`), and the destroy() machinery will pick up the override
-     * automatically. Without this hook, packages like execa that wrap
+     * Default `_destroy`. Subclasses override it (Node-spec convention: see
+     * lib/internal/streams/writable.js's `_destroy`) and a constructor-opt
+     * `destroy` replaces it on the instance; destroy() dispatches virtually
+     * either way. Without this hook, packages like execa that wrap
      * `subprocessStdin._destroy` to spy on cleanup-time exitCode have no
      * way to intercept teardown.
      */
     _destroy(error: Error | null, callback: ErrCallback): void {
-        if (this._destroyImpl) {
-            this._destroyImpl.call(this, error, callback);
-        } else {
-            callback(error);
-        }
+        callback(error);
     }
 
     private _maybeFlush(): void {
@@ -439,18 +434,23 @@ export class Writable_ extends Stream_ {
         // Store the error so finished() can retrieve it if called after destroy() but before 'error' fires
         if (error) this._err = error;
 
+        // Once-only, like `onDestroy` in Node's destroy.js: a `_destroy` that both
+        // throws and calls back, or calls back twice, must not emit twice.
+        let called = false;
         const cb: ErrCallback = (err) => {
+            if (called) return;
+            called = true;
             if (err) nextTick(() => this.emit('error', err));
             nextTick(() => this.emit('close'));
         };
 
-        // Call _destroy (subclass-overridable) instead of _destroyImpl
-        // directly. The default _destroy in the base class delegates to
-        // _destroyImpl for backwards compatibility with the constructor-opt
-        // pattern; subclass overrides take precedence via normal JS
-        // prototype lookup. Matches Node's `Writable.destroy() → this._destroy()`
-        // dispatch in `lib/internal/streams/destroy.js`.
-        this._destroy(error ?? null, cb);
+        // Virtual dispatch, matching Node's `Writable.destroy() → this._destroy()`
+        // in `lib/internal/streams/destroy.js`; a throw counts as the error.
+        try {
+            this._destroy(error ?? null, cb);
+        } catch (thrown) {
+            cb(thrown as Error);
+        }
 
         return this;
     }

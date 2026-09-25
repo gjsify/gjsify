@@ -29,7 +29,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | https | — | Partial | Agent, stub request/get. browser:`partial` — root re-exports `TLSSocket`+`createSecureContext` from `@gjsify/tls` (`browser:"none"`): a user agent terminates TLS below JS |
 | inspector | — | Stub | Session stub |
 | module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire. browser:`partial` — `createRequire` returns an always-throwing require (no sync CJS loader in a browser ESM bundle) |
-| net | Gio | Full | Socket(Gio.SocketClient), Server(Gio.SocketService) |
+| net | Gio | Full | Socket(Gio.SocketClient), Server(Gio.SocketService). Never close an fd a Gio op still polls (darwin GLib `select(2)` fails the whole iteration with EBADF): `destroy()` waits for in-flight ops; why in `socket.ts`/`server.ts` |
 | os | GLib | Full | homedir, hostname, cpus |
 | path | — | Full | POSIX + Win32 |
 | perf_hooks | — | Full | performance (Web API / GLib fallback) |
@@ -38,7 +38,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | querystring | — | Full | parse/stringify |
 | readline | — | Full | Interface, question/prompt, async iterator, `Interface[Symbol.dispose]`=close() |
 | sqlite | Gda 6.0 | Partial | node:sqlite via `gi://Gda?version=6.0` (libgda SQLite provider). URL + Uint8Array paths, param binding, typed readers, error codes. **Parse ONLY through `parseSql()` — `Gda.SqlParser.parse_string()` aborts the PROCESS** (its `remain` out-param is an interior pointer the GIR declares `transfer full`, so GJS `g_free()`s it); string params are BOUND to holders, never spliced into SQL — libgda reads `\` as an escape inside `'…'` and SQLite does not. Both incidents documented in `sqlite/src/parse-sql.ts`. browser:`partial` — `DatabaseSync` throws from ctor (no engine without shipping a WASM SQLite; `node:sqlite` is sync while OPFS sync handles are worker-only; honest future shape = `./browser-worker` subpath `polyfill`, `./browser` stays `partial`) |
-| stream | — | Full | Readable (protected `_autoClose` hook), Writable, Duplex, Transform, PassThrough, pipeline/finished; FIFO write-ordering across drain re-entry; serialized concurrent I/O; `[Symbol.asyncDispose]` |
+| stream | — | Full | `destroy()` dispatches the prototype `_destroy` on Readable/Duplex too (Node). Readable (protected `_autoClose` hook), Writable, Duplex, Transform, PassThrough, pipeline/finished; FIFO write-ordering across drain re-entry; serialized concurrent I/O; `[Symbol.asyncDispose]` |
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming |
 | sys | — | Full | deprecated alias for util |
 | timers | — | Full | setTimeout/Interval/Immediate + promises — GLib-source-safe: uses `GLib.timeout_add` to avoid the SpiderMonkey-GC race on GLib.Source BoxedInstances |

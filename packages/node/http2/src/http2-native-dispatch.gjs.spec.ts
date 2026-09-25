@@ -77,6 +77,35 @@ export default async function () {
                 expect(threw!.message).toMatch(/native dispatcher/i);
             });
 
+            await it('close() leaves no GSource polling the closed listener', async () => {
+                // stop()+close() back to back left the cancelled accept's source on a
+                // closed fd for one iteration. Silent on Linux (poll(2) flags
+                // POLLNVAL); GLib on darwin polls via select(2), which fails with
+                // EBADF and warns "poll(2) failed due to: Bad file descriptor.".
+                // A log writer can be installed once per process — this is the one.
+                const GLib = (await import('gi://GLib?version=2.0' as string)).default as any;
+                const warnings: string[] = [];
+                const decoder = new TextDecoder();
+                GLib.log_set_writer_func((level: number, fields: Record<string, unknown>) => {
+                    try {
+                        const raw = fields.MESSAGE;
+                        const message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
+                        if ((level & GLib.LogLevelFlags.LEVEL_MASK) <= GLib.LogLevelFlags.LEVEL_WARNING)
+                            warnings.push(message);
+                        (globalThis as any).printerr(message);
+                    } catch {
+                        /* a throw here is logged, which would re-enter this writer */
+                    }
+                    return GLib.LogWriterOutput.HANDLED;
+                });
+                const { server } = await startServer((_req, res) => {
+                    res.end('ok');
+                });
+                await closeServer(server);
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                expect(warnings.filter((m) => m.includes('Bad file descriptor'))).toStrictEqual([]);
+            });
+
             await it('Soup path is used for createServer() default (HTTP/1.1)', async () => {
                 const { server } = await startServer((_req, res) => {
                     res.end('ok');

@@ -81,7 +81,6 @@ export class Readable_ extends Stream_ {
 
     private _readablePending = false;
     private _readImpl: ((this: Readable_, size: number) => void) | undefined;
-    private _destroyImpl: ((this: Readable_, error: Error | null, cb: ErrCallback) => void) | undefined;
     private _constructImpl: ((this: Readable_, cb: ErrCallback) => void) | undefined;
 
     constructor(opts?: ReadableOptions) {
@@ -92,8 +91,9 @@ export class Readable_ extends Stream_ {
         this._readableState.highWaterMark = this.readableHighWaterMark;
         this._readableState.objectMode = this.readableObjectMode;
         if (opts?.read) this._readImpl = opts.read as unknown as (this: Readable_, size: number) => void;
-        if (opts?.destroy)
-            this._destroyImpl = opts.destroy as unknown as (this: Readable_, e: Error | null, cb: ErrCallback) => void;
+        // An INSTANCE property, as Node's constructor does: `opts.destroy` then
+        // shadows a subclass's prototype `_destroy` instead of hiding behind it.
+        if (opts?.destroy) this._destroy = opts.destroy as unknown as Readable_['_destroy'];
         if (opts?.construct)
             this._constructImpl = opts.construct as unknown as (this: Readable_, cb: ErrCallback) => void;
 
@@ -396,11 +396,7 @@ export class Readable_ extends Stream_ {
     }
 
     _destroy(error: Error | null, callback: ErrCallback): void {
-        if (this._destroyImpl) {
-            this._destroyImpl.call(this, error, callback);
-        } else {
-            callback(error ?? undefined);
-        }
+        callback(error ?? undefined);
     }
 
     destroy(error?: Error): this {
@@ -411,24 +407,31 @@ export class Readable_ extends Stream_ {
         // Store the error so finished() can retrieve it if called after destroy() but before 'error' fires
         if (error) this._err = error;
 
+        // Once-only, like `onDestroy` in Node's destroy.js: a `_destroy` that both
+        // throws and calls back, or calls back twice, must not emit twice.
+        let called = false;
         const cb: ErrCallback = (err) => {
+            if (called) return;
+            called = true;
             // Emit error and close in separate nextTick calls (matches Node.js behavior)
             // so an unhandled error doesn't prevent 'close' from firing
             if (err) nextTick(() => this.emit('error', err));
             nextTick(() => this.emit('close'));
         };
 
-        // Dispatch virtually ONLY when the user overrode _destroy on the instance
-        // (e.g. tests: `stream._destroy = fn`). Do NOT call a subclass prototype
-        // _destroy: net.Socket's prototype `_destroy` synchronously cancels in-flight
-        // Gio I/O and would break tests that call destroy() during pending writes.
-        // The opts.destroy path still runs via _destroyImpl as before.
-        if (Object.prototype.hasOwnProperty.call(this, '_destroy')) {
-            (this as Readable_)._destroy(error ?? null, cb);
-        } else if (this._destroyImpl) {
-            this._destroyImpl.call(this, error ?? null, cb);
-        } else {
-            cb(error);
+        // Dispatch virtually, like `Writable_.destroy` and Node's
+        // `lib/internal/streams/destroy.js`: a subclass's prototype `_destroy` is
+        // where it releases what it holds. This used to call only an INSTANCE
+        // override, so every prototype `_destroy` below a Readable/Duplex was dead
+        // code — `net.Socket.destroy()` closed no descriptor (the peer never saw
+        // EOF) and `fs.ReadStream` / child_process pipes never cancelled their
+        // in-flight Gio reads.
+        // `opts.destroy` is an instance property (see the constructor), so it
+        // shadows the prototype exactly as in Node.
+        try {
+            this._destroy(error ?? null, cb);
+        } catch (thrown) {
+            cb(thrown as Error);
         }
 
         return this;

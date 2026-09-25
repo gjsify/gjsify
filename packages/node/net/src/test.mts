@@ -6,5 +6,14 @@ import serverTestSuite from './server.spec.js';
 import timeoutTestSuite from './timeout.spec.js';
 import errorTestSuite from './error.spec.js';
 import throughputTestSuite from './throughput.spec.js';
+import teardownTestSuite from './teardown.spec.js';
 
-run({ testSuiteNet, extendedTestSuite, serverTestSuite, timeoutTestSuite, errorTestSuite, throughputTestSuite });
+run({
+    testSuiteNet,
+    extendedTestSuite,
+    serverTestSuite,
+    timeoutTestSuite,
+    errorTestSuite,
+    throughputTestSuite,
+    teardownTestSuite,
+});
