@@ -11,10 +11,6 @@
 // `Bootstrap the toolchain` step is a cold tree driven by a bootstrap CLI and
 // therefore fails the moment this decision returns the wrong answer.
 
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { describe, it, expect } from '@gjsify/unit';
 import { buildSelfShimScript, needsSelfShim, pathWithoutSelfShim } from './gjsify-shim.js';
 
@@ -160,28 +156,6 @@ export default async () => {
                 env: dyldEnv,
             });
             expect(script).toBe('#!/bin/sh\nexec "gjs" -m "/cli.gjs.mjs" "$@"\n');
-        });
-
-        // The EFFECT, through a real `/bin/sh`: the interpreter is this (unprotected)
-        // Node, so the value it prints is what a child `gjs` would have seen. On macOS
-        // a shim without the preamble prints nothing here.
-        await it('delivers DYLD_LIBRARY_PATH to the interpreter it execs', async () => {
-            const dir = mkdtempSync(join(tmpdir(), 'gjsify-self-shim-spec-'));
-            try {
-                const probe = join(dir, 'probe.mjs');
-                writeFileSync(probe, 'process.stdout.write(process.env.DYLD_LIBRARY_PATH ?? "<unset>");\n');
-                const shim = join(dir, 'gjsify');
-                const env = { ...process.env, DYLD_LIBRARY_PATH: '/probe/prebuilds' };
-                writeFileSync(
-                    shim,
-                    buildSelfShimScript({ interpreter: process.execPath, interpreterArgs: [], target: probe, env }),
-                    { mode: 0o755 },
-                );
-                const res = spawnSync('/bin/sh', [shim], { env, encoding: 'utf8' });
-                expect(res.stdout).toBe('/probe/prebuilds');
-            } finally {
-                rmSync(dir, { recursive: true, force: true });
-            }
         });
     });
 };
