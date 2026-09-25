@@ -14,6 +14,7 @@ import { GamepadButton } from './gamepad-button.js';
 import { Gamepad } from './gamepad.js';
 import { GamepadEvent } from './gamepad-event.js';
 import { ManetteSource } from './manette-source.js';
+import { SdlSource } from './sdl-source.js';
 import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
 
 /** Internal mutable state for a single connected gamepad. */
@@ -93,7 +94,11 @@ export class GamepadManager {
             // The USE site says it, once per process — the capability query stays
             // silent (see the header of `backend.ts`).
             reportGamepadBackendOnce(backend);
-            if (backend.module === null) {
+            if (backend.status === 'sdl') {
+                source = new SdlSource(backend.module);
+            } else if (backend.status === 'manette') {
+                source = new ManetteSource(backend.module);
+            } else {
                 // No usable backend here. `getGamepads()` keeps answering the W3C
                 // shape (see its doc for why that is correct rather than a silent
                 // failure) and `hasGamepadBackend()` is the machine-readable form of
@@ -101,7 +106,6 @@ export class GamepadManager {
                 this._initialized = true;
                 return;
             }
-            source = new ManetteSource(backend.module);
         }
         // Assigned BEFORE start(): a start that throws half-way may already hold
         // native handles, and dispose() releases them through this field.
