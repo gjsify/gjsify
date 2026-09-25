@@ -6,7 +6,9 @@
 // void" — measured on macOS 27 arm64 with Homebrew json-glib absent, where the
 // rolldown engine is `gjsify build` itself. `probeNativeLibrary()`
 // (`@gjsify/utils/core`) is the one place that turns that into the file and the
-// dependency the loader could not find.
+// dependency the loader could not find, and `loadOptionalNativeModule()` — what
+// every optional bridge loader calls — carries that same error instead of
+// silently reading the bridge as absent.
 //
 // The missing dependency is REAL, not simulated: the committed rolldown prebuild
 // for this host is copied WITHOUT its cargo sibling (`libgjsify_rolldown`), which
@@ -34,7 +36,7 @@ import {
 
 const SUITE = 'native-library-missing-dep';
 const PREBUILD = prebuildDir('infra', 'rolldown-native', HOST_TARGET);
-const PROBE_MODULE = join(MONOREPO_ROOT, 'packages', 'gjs', 'utils', 'lib', 'esm', 'native-library-probe.js');
+const PROBE_MODULE = join(MONOREPO_ROOT, 'packages', 'gjs', 'utils', 'lib', 'esm', 'native-library.js');
 const EXT = process.platform === 'darwin' ? 'dylib' : 'so';
 const VALA_LIB = `libgjsifyrolldown.${EXT}`;
 const CARGO_LIB = `libgjsify_rolldown.${EXT}`;
@@ -42,7 +44,7 @@ const CARGO_LIB = `libgjsify_rolldown.${EXT}`;
 const skip = e2eSkipReason(SUITE, [
     ['`gjs` on PATH', hasCommand('gjs')],
     [`a committed rolldown-native prebuild for ${HOST_TARGET}`, existsSync(join(PREBUILD, VALA_LIB))],
-    ['@gjsify/utils built (lib/esm/native-library-probe.js)', existsSync(PROBE_MODULE)],
+    ['@gjsify/utils built (lib/esm/native-library.js)', existsSync(PROBE_MODULE)],
 ]);
 
 /** Stage the typelib + Vala library (and optionally the cargo sibling) into a fresh dir; run the probe there. */
@@ -58,13 +60,19 @@ function probe(root, name, { withSibling }) {
     writeFileSync(
         script,
         [
-            `import { probeNativeLibrary, NativeLibraryLoadError } from ${JSON.stringify(pathToFileURL(PROBE_MODULE).href)};`,
+            `import { loadOptionalNativeModule, probeNativeLibrary, NativeLibraryLoadError } from ${JSON.stringify(pathToFileURL(PROBE_MODULE).href)};`,
             'const repository = imports.gi.GIRepository.Repository.dup_default();',
             `repository.prepend_search_path(${JSON.stringify(dir)});`,
             `repository.prepend_library_path(${JSON.stringify(dir)});`,
             'void imports.gi.GjsifyRolldown;',
             "const failure = probeNativeLibrary('GjsifyRolldown');",
-            'print(JSON.stringify({ failure, message: failure ? new NativeLibraryLoadError(failure).message : null }));',
+            "const load = loadOptionalNativeModule('GjsifyRolldown', ['Bundler']);",
+            'print(JSON.stringify({',
+            '    failure,',
+            '    message: failure ? new NativeLibraryLoadError(failure).message : null,',
+            '    loaded: load.module !== null,',
+            '    loadError: load.error && { name: load.error.name, message: load.error.message },',
+            '}));',
         ].join('\n'),
     );
     // No inherited search path may reach the REAL prebuild directory, or the
@@ -96,7 +104,7 @@ describe('probeNativeLibrary names the library and its missing dependency', { sk
     after(() => root && cleanupTestEnvironment(root));
 
     it('reports the colocated library and the dependency the loader could not find', () => {
-        const { dir, failure, message } = probe(root, 'missing', { withSibling: false });
+        const { dir, failure, message, loaded, loadError } = probe(root, 'missing', { withSibling: false });
         assert.ok(failure, 'the probe reported no failure for a library whose dependency is absent');
         assert.equal(failure.namespace, 'GjsifyRolldown');
         assert.equal(failure.library, join(dir, VALA_LIB));
@@ -104,10 +112,15 @@ describe('probeNativeLibrary names the library and its missing dependency', { sk
         assert.ok(failure.reason.includes(CARGO_LIB), failure.reason);
         assert.ok(message.includes(`the native library ${join(dir, VALA_LIB)} could not be loaded`), message);
         assert.ok(message.includes(`It needs ${CARGO_LIB}`), message);
+        // The optional-loader path reads the bridge as absent AND keeps the diagnosis.
+        assert.equal(loaded, false);
+        assert.deepEqual(loadError, { name: 'NativeLibraryLoadError', message });
     });
 
     it('reports nothing when the dependency is present', () => {
-        const { failure } = probe(root, 'complete', { withSibling: true });
+        const { failure, loaded, loadError } = probe(root, 'complete', { withSibling: true });
         assert.equal(failure, null);
+        assert.equal(loaded, true);
+        assert.equal(loadError, null);
     });
 });

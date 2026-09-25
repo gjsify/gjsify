@@ -38,5 +38,4 @@ export * from './structured-clone.js';
 export * from './host-process.js';
 export * from './main-loop.js';
 export * from './native-library.js';
-export * from './native-library-probe.js';
 export * from './next-tick.js';
