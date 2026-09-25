@@ -289,5 +289,53 @@ export default async () => {
         });
     });
 
+    // One connection has to survive as many executions as a caller cares to make. On GJS
+    // every execution used to leave libgda prepared-statement objects registered on the
+    // connection, each holding a GWeakRef to the SQLite provider, and GLib caps those at
+    // 65535 per object. Past the cap the connection went bad without an exception and a
+    // later SELECT came back wrong. The counts below cross that cap for the code that
+    // leaked (run() left four references, get() one, an INSERT through exec() two), so a
+    // regression shows as a wrong count rather than as a slow test.
+    await describe('a long-lived connection', async () => {
+        await it('still reads every row after 15,000 run() + get() pairs', async () => {
+            const n = 15_000;
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, val TEXT)');
+            const insert = db.prepare('INSERT INTO t (val) VALUES (?)');
+            const lookup = db.prepare('SELECT val FROM t WHERE id = ?');
+            let mismatches = 0;
+            let result = { changes: 0 as number | bigint, lastInsertRowid: 0 as number | bigint };
+            for (let i = 1; i <= n; i++) {
+                result = insert.run(`v${i}`);
+                const row = lookup.get(i) as { val: string } | undefined;
+                if (row?.val !== `v${i}`) mismatches++;
+            }
+            expect(mismatches).toBe(0);
+            expect(result.changes).toBe(1);
+            expect(result.lastInsertRowid).toBe(n);
+            const count = db.prepare('SELECT count(*) AS c FROM t').get() as { c: number };
+            expect(count.c).toBe(n);
+            const rows = db.prepare('SELECT id, val FROM t').all() as { id: number; val: string }[];
+            expect(rows.length).toBe(n);
+            expect(rows[n - 1].val).toBe(`v${n}`);
+            db.close();
+        });
+
+        await it('still reads every row after 40,000 statements through exec()', async () => {
+            const calls = 10_000;
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, val TEXT)');
+            for (let i = 0; i < calls; i++) {
+                db.exec(`INSERT INTO t (val) VALUES ('a${i}'); INSERT INTO t (val) VALUES ('b${i}');
+                         INSERT INTO t (val) VALUES ('c${i}'); INSERT INTO t (val) VALUES ('d${i}');`);
+            }
+            const count = db.prepare('SELECT count(*) AS c FROM t').get() as { c: number };
+            expect(count.c).toBe(calls * 4);
+            const last = db.prepare('SELECT val FROM t ORDER BY id DESC LIMIT 1').get() as { val: string };
+            expect(last.val).toBe(`d${calls - 1}`);
+            db.close();
+        });
+    });
+
     cleanup();
 };
