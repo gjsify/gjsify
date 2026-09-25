@@ -39,6 +39,12 @@ for (const pad of gamepads) {
 }
 ```
 
+`vibrationActuator` follows the spec on both backends: parameters default to 0, an
+out-of-range one rejects with `TypeError`, an effect the pad lacks with
+`NotSupportedError`. `playEffect()` resolves `'complete'` once the effect has played
+(`startDelay + duration`, at most 5 s), or `'preempted'` when a later `playEffect()` or
+`reset()` interrupts it.
+
 ## Platform support
 
 | host | backend | status |

@@ -54,6 +54,16 @@ class FakeSdlDevice implements GjsifyGamepadDevice {
     }
 }
 
+/** The reason `promise` rejected with; fails the test if it fulfilled instead. */
+async function rejection(promise: Promise<unknown>): Promise<unknown> {
+    try {
+        await promise;
+    } catch (error) {
+        return error;
+    }
+    throw new Error('expected the promise to reject');
+}
+
 type Handler = (monitor: GjsifyGamepadMonitor, device: GjsifyGamepadDevice) => void;
 
 /**
@@ -274,35 +284,99 @@ export default async () => {
             expect(errors[0]).toContain('no HID manager');
         });
 
-        await it('drives dual-rumble and trigger-rumble through the shim, and resets both', async () => {
+        await it('drives dual-rumble and trigger-rumble through the shim, resolving once played', async () => {
             const pad = new FakeSdlDevice('Rumble Pad', { rumble: true, triggers: true });
             const { module } = fakeGjsifyGamepad([pad]);
             const manager = new GamepadManager({ source: new SdlSource(module) });
             const actuator = manager.getGamepads()[0]!.vibrationActuator!;
             expect(actuator.effects).toStrictEqual(['dual-rumble', 'trigger-rumble']);
 
-            await actuator.playEffect('dual-rumble', { duration: 100, strongMagnitude: 1, weakMagnitude: 0 });
-            await actuator.playEffect('trigger-rumble', { duration: 50, leftTrigger: 0.5, rightTrigger: 2 });
-            await actuator.reset();
+            const started = Date.now();
+            expect(
+                await actuator.playEffect('dual-rumble', { duration: 60, strongMagnitude: 1, weakMagnitude: 0 }),
+            ).toBe('complete');
+            // Resolved when the effect has PLAYED, not when it was sent.
+            expect(Date.now() - started).toBeGreaterThanOrEqual(50);
+            // trigger-rumble carries the body motors too (the spec's parameters do).
+            expect(
+                await actuator.playEffect('trigger-rumble', {
+                    duration: 20,
+                    strongMagnitude: 0.25,
+                    leftTrigger: 0.5,
+                    rightTrigger: 1,
+                }),
+            ).toBe('complete');
             expect(pad.rumbles).toStrictEqual([
-                [65535, 0, 100],
+                [65535, 0, 60],
+                [16384, 0, 20],
+            ]);
+            expect(pad.triggerRumbles).toStrictEqual([[32768, 65535, 20]]);
+            manager.dispose();
+        });
+
+        await it('preempts an effect in flight on reset() and on a later playEffect()', async () => {
+            const pad = new FakeSdlDevice('Rumble Pad', { rumble: true, triggers: true });
+            const { module } = fakeGjsifyGamepad([pad]);
+            const manager = new GamepadManager({ source: new SdlSource(module) });
+            const actuator = manager.getGamepads()[0]!.vibrationActuator!;
+
+            const first = actuator.playEffect('dual-rumble', { duration: 4000, strongMagnitude: 1 });
+            const second = actuator.playEffect('dual-rumble', { duration: 4000, weakMagnitude: 1 });
+            expect(await first).toBe('preempted');
+            expect(await actuator.reset()).toBe('complete');
+            expect(await second).toBe('preempted');
+            // Each preemption stops every motor the controller has.
+            expect(pad.rumbles).toStrictEqual([
+                [65535, 0, 4000],
+                [0, 0, 0],
+                [0, 65535, 4000],
                 [0, 0, 0],
             ]);
-            // 0.5 → half intensity; an out-of-range 2 is clamped, not wrapped past uint16.
             expect(pad.triggerRumbles).toStrictEqual([
-                [32768, 65535, 50],
+                [0, 0, 0],
                 [0, 0, 0],
             ]);
             manager.dispose();
         });
 
-        await it('offers no effect a controller cannot play, and plays nothing for it', async () => {
+        await it('waits for startDelay before it starts the motors', async () => {
+            const pad = new FakeSdlDevice('Rumble Pad', { rumble: true });
+            const { module } = fakeGjsifyGamepad([pad]);
+            const manager = new GamepadManager({ source: new SdlSource(module) });
+            const actuator = manager.getGamepads()[0]!.vibrationActuator!;
+            const played = actuator.playEffect('dual-rumble', { startDelay: 30, duration: 10, strongMagnitude: 1 });
+            expect(pad.rumbles).toStrictEqual([]);
+            expect(await played).toBe('complete');
+            expect(pad.rumbles).toStrictEqual([[65535, 0, 10]]);
+            manager.dispose();
+        });
+
+        await it('rejects an invalid effect with a TypeError, and plays nothing', async () => {
+            const pad = new FakeSdlDevice('Rumble Pad', { rumble: true, triggers: true });
+            const { module } = fakeGjsifyGamepad([pad]);
+            const manager = new GamepadManager({ source: new SdlSource(module) });
+            const actuator = manager.getGamepads()[0]!.vibrationActuator!;
+            for (const params of [
+                { duration: 50, rightTrigger: 2 },
+                { duration: 50, strongMagnitude: -0.1 },
+                { duration: 4000, startDelay: 1001 },
+            ]) {
+                const error = await rejection(actuator.playEffect('trigger-rumble', params));
+                expect(error instanceof TypeError).toBe(true);
+            }
+            expect(pad.rumbles).toStrictEqual([]);
+            expect(pad.triggerRumbles).toStrictEqual([]);
+            manager.dispose();
+        });
+
+        await it('rejects an effect a controller cannot play with NotSupportedError', async () => {
             const pad = new FakeSdlDevice('Quiet Pad');
             const { module } = fakeGjsifyGamepad([pad]);
             const manager = new GamepadManager({ source: new SdlSource(module) });
             const actuator = manager.getGamepads()[0]!.vibrationActuator!;
             expect(actuator.effects).toStrictEqual([]);
-            expect(await actuator.playEffect('dual-rumble', { duration: 100 })).toBe('complete');
+            const error = await rejection(actuator.playEffect('dual-rumble', { duration: 100 }));
+            expect((error as { name?: string }).name).toBe('NotSupportedError');
             expect(pad.rumbles).toStrictEqual([]);
             manager.dispose();
         });
