@@ -3618,7 +3618,7 @@ workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next
 three entries.
 
-### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); darwin is built, the rest is open
+### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); every leg is built, hardware checks are open
 
 Decided in `docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md`: SDL3 behind
 a GObject shim, reached through a device-source seam. **Landed with the ADR:** the seam
@@ -3643,13 +3643,23 @@ own permission decision; SDL3 is adopted for nothing else.
    and `otool -L` are in the ADR amendment. **Still open here:** the first-publish bootstrap of the
    three names (`status/pending-npm-bootstrap.json`), and `commit-prebuilds` landing the first
    darwin artifacts. The first CI run of the leg needs the `ci:macos` label.
-2. **Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin. Only GJS was measured.
-3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
-   On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
+2. **Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin. Only GJS was measured
+   there; on Linux the node-gi probe (`test/probe-node-gi.mjs`) passes locally and on win32 it
+   is the CI load test.
+3. **Built:** the linux-x64/arm64 and win32-x64 legs (`@gjsify/gamepad-native-{linux-x64,
+   linux-arm64,win32-x64}`), with `elf-deps`, valgrind at 1 vs 20 cycles, a uinput virtual pad
+   (`gamepad-native-uinput` job), the win32 message-queue measurement and a ViGEmBus virtual
+   XInput pad. `@gjsify/gamepad` uses the shim on win32; on Linux
+   `GJSIFY_GAMEPAD_BACKEND=manette|sdl|compare` (default `manette`). **Still open here:** the
+   first-publish bootstrap of the three names and `commit-prebuilds` landing the artifacts.
 4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
-   reporting input and disconnecting — before `gjsify.os.<os>` moves. No runner has one.
-5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
-   libmanette dependency.
+   reporting input and disconnecting — before `gjsify.os.<os>` moves. Linux:
+   `gjsify workspace @gjsify/gamepad run hardware-check` (both backends side by side, a
+   recording, rumble) and `examples/dom/gamepad-snes` with `GJSIFY_GAMEPAD_BACKEND=compare`.
+   Enumeration of an 8BitDo N30 Pro 2 (Bluetooth) is measured: both backends see it, SDL on
+   its evdev driver; the recording is Pascal's.
+5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table, the
+   libmanette dependency and `ComparingSource`.
 
 Why the ADR needs both Apple input paths (and so chose the library that already has both):
 

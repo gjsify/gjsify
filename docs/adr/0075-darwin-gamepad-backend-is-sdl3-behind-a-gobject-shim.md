@@ -3,8 +3,8 @@
 - Status: **Proposed** — amended 2026-09-25, see § Amendment 1 (SDL3 becomes the gamepad
   backend on every OS, not only darwin)
 - Scope: stage 1 (the seam and the honest darwin answer) shipped with this ADR; stages 3 and 4
-  are built for darwin (§ Amendment 1). The hardware check and the linux and win32 legs are
-  open work in `status/open-todos.md`.
+  are built for darwin, linux and win32 (§ Amendment 1). The hardware checks, and on Linux
+  the libmanette comparison, are open work in `status/open-todos.md`.
 - Date: 2026-09-25
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native package distribution)](0017-native-package-distribution.md),
@@ -305,3 +305,41 @@ The darwin branch of the probe now imports `gi://GjsifyGamepad`. A host without 
 still answers an honest `absent`, now with advice about the prebuild and the typelib path
 instead of the ADR, and `gjsify.os.darwin` is `partial` until the hardware check.
 
+
+### Stage 3 and 4 on linux and win32 — what was built, and the measurement
+
+The same C source and `meson.build` now build for `linux-x64`, `linux-arm64` and
+`win32-x64` (`@gjsify/gamepad-native-<target>`). What the darwin notes left open was
+settled as follows:
+
+- **Linux keeps SDL private** with `--exclude-libs,ALL` and a version script, because ELF
+  has one flat namespace. `SDL_DEPS_SHARED` keeps libudev and D-Bus out of `DT_NEEDED`;
+  SDL also needs `SDL_UNIX_CONSOLE_BUILD=ON`, or it refuses to configure without X11 or
+  Wayland headers even with video off.
+- **win32 keeps DirectInput.** SDL checks `dinput.h` only inside `if(SDL_DIRECTX)`,
+  which needs audio or video; left alone, the DirectInput joystick and haptic drivers
+  compile out without a word, and every generic HID pad that is neither XInput nor a
+  HIDAPI vendor controller disappears. `HAVE_DINPUT_H=1` is supplied and `dinput8` (an
+  OS DLL) linked. The GIR is scanned on Linux and compiled beside the DLL, as for
+  `webview2-native`; the API is exported through a `dllexport` macro in the header.
+- **The Windows message pump.** From SDL 3.4's source: `SDL_Init` creates one
+  message-only helper window (DirectInput's cooperative-level HWND, `DefWindowProc`) on
+  the calling thread, and the joystick driver runs device notification and raw input on
+  its own thread with its own `GetMessage` loop (`SDL_HINT_JOYSTICK_THREAD`, default on).
+  XInput and HIDAPI are polled from `SDL_UpdateGamepads()`. `test/win32-message-queue.c`
+  measures what is left on a thread that never pumps, as in a GLib process; its CI
+  result is recorded below.
+- **The Linux switch.** `@gjsify/gamepad` keeps libmanette as the Linux default.
+  `GJSIFY_GAMEPAD_BACKEND=sdl` uses the shim; `=compare` runs the shim beside libmanette
+  on the same controllers (`ComparingSource`) and reports every disagreement that holds
+  for two polls. win32 probes the shim like darwin.
+
+Measured on Fedora 44 x86-64 (local build, `buildtype=minsize`):
+
+| | |
+|---|---|
+| `libgjsifygamepad.so` | 1,767,360 bytes as linked (1,457,608 after `strip --strip-unneeded`) |
+| `readelf -d` NEEDED | `libglib-2.0.so.0`, `libgobject-2.0.so.0`, `libm.so.6`, `libc.so.6`; exports: 21 symbols, all `gjsify_gamepad_*` |
+| valgrind | 0 bytes lost at 1 and at 20 cycles; reachable 16,223 B / 84 blocks both times. A source leaked in `close()` makes it grow (+38 blocks) and fail |
+| uinput | a virtual Xbox 360 pad connects, reports A, the left stick and the left trigger, and disconnects through SDL's evdev driver; swapping two rows of the W3C table fails it |
+| a real controller | an 8BitDo N30 Pro 2 over Bluetooth (`2dc8:2865`) enumerates in both backends with the same name; SDL uses its **evdev** driver (no HIDAPI marker in the GUID; `/dev/hidraw*` is root-only on this host) and reports no rumble, as libmanette does. Until the pad sends its first report, the kernel holds its axes at 0 of 0..255, which SDL reports as -1 and libmanette does not report at all; `compare` shows it |
