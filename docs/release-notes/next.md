@@ -47,3 +47,16 @@ engine packages.
 written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
 Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
 file exactly as it is, so run one plain install and commit the updated lockfile.
+
+## `node:sqlite` connections no longer wear out
+
+On GJS, every statement a `DatabaseSync` connection executed left libgda objects registered on
+it: a cached prepared statement for each execution, a hidden `SELECT` that libgda ran after
+every `INSERT`, and the data model of every read until the garbage collector reached it. Each of
+those holds a weak reference to the SQLite provider, and GLib allows 65,535 of them per object.
+A connection that crossed the limit logged "Too many GWeakRef registered" and then answered
+reads wrongly without throwing. A mail sync of about 5,000 messages was enough, because each
+`run()` cost four references.
+
+Each execution now releases what it created before it returns, so a connection stays usable no
+matter how long it lives. A read that libgda can no longer type throws instead of returning rows.

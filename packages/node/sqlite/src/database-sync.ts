@@ -14,6 +14,7 @@ import {
     SqliteError,
     sqliteErrorMessage,
 } from './errors.ts';
+import { executeStatement } from './execution.ts';
 import { convertParameterSyntax } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
 import { StatementSync } from './statement-sync.ts';
@@ -244,7 +245,7 @@ export class DatabaseSync {
             const statements = this.#splitStatements(sql);
             for (const stmtSql of statements) {
                 const [stmt] = this.#parseSql(stmtSql);
-                this.#executeStatement(stmt);
+                executeStatement(this.#connection!, stmt, null, () => undefined);
             }
         } catch (e: unknown) {
             if (isNodeSqliteError(e)) {
@@ -319,13 +320,11 @@ export class DatabaseSync {
     }
 
     #applyPragmas(): void {
-        const conn = this.#connection!;
-
-        // PRAGMAs in Gda are treated as SELECT statements (type UNKNOWN=11).
-        // Must use statement_execute_select, not execute_non_select_command.
+        // A PRAGMA reaches libgda as UNKNOWN; executeStatement() runs it once and releases
+        // whatever it produced, like every other statement on this connection.
         const runPragma = (pragma: string) => {
             const [stmt] = this.#parseSql(pragma);
-            conn.statement_execute_select(stmt, null);
+            executeStatement(this.#connection!, stmt, null, () => undefined);
         };
 
         // Foreign keys: enabled by default
@@ -338,23 +337,6 @@ export class DatabaseSync {
         // Busy timeout
         if (this.#options.timeout !== undefined && this.#options.timeout > 0) {
             runPragma(`PRAGMA busy_timeout = ${this.#options.timeout}`);
-        }
-    }
-
-    #executeStatement(stmt: Gda.Statement): void {
-        const stmtType = stmt.get_statement_type();
-
-        // Gda treats PRAGMAs and some other statements as UNKNOWN (type 11).
-        // Try non-select first; fall back to select on error.
-        if (stmtType === Gda.SqlStatementType.SELECT) {
-            this.#connection!.statement_execute_select(stmt, null);
-        } else {
-            try {
-                this.#connection!.statement_execute_non_select(stmt, null);
-            } catch {
-                // Fallback: statement might be a PRAGMA or other "select-like" statement
-                this.#connection!.statement_execute_select(stmt, null);
-            }
         }
     }
 
