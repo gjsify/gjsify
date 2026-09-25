@@ -12,6 +12,8 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer } from 'node:http';
+import { createServer as createNetServer, type Socket } from 'node:net';
+import { createHash } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 
 interface SoupLogWatch {
@@ -105,6 +107,62 @@ async function withPair(mode: Mode, body: (pair: Pair, log: SoupLogWatch) => Pro
         log.stop();
         pair?.teardown();
     }
+}
+
+/** A server that speaks just enough RFC 6455 to open, send one Close frame
+ *  with `code`, and read the client's answering Close. The peer must not be
+ *  Soup: on GJS a Soup endpoint refuses to send 1012–1014 at all. */
+async function rawClosingServer(
+    code: number,
+    reason: string,
+): Promise<{ port: number; echoed: Promise<number | null>; close(): void }> {
+    let resolveEcho!: (code: number | null) => void;
+    const echoed = new Promise<number | null>((resolve) => (resolveEcho = resolve));
+    const sockets: Socket[] = [];
+    const server = createNetServer((socket: Socket) => {
+        sockets.push(socket);
+        let buf = Buffer.alloc(0);
+        let upgraded = false;
+        socket.on('data', (chunk: Buffer) => {
+            buf = Buffer.concat([buf, chunk]);
+            if (!upgraded) {
+                const end = buf.indexOf('\r\n\r\n');
+                if (end < 0) return;
+                const key = /sec-websocket-key: *(\S+)/i.exec(buf.subarray(0, end).toString())?.[1] ?? '';
+                buf = buf.subarray(end + 4);
+                upgraded = true;
+                const accept = createHash('sha1')
+                    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+                    .digest('base64');
+                socket.write(
+                    'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+                        `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+                );
+                const payload = Buffer.concat([Buffer.from([code >> 8, code & 0xff]), Buffer.from(reason)]);
+                socket.write(Buffer.concat([Buffer.from([0x88, payload.length]), payload]));
+            }
+            // The client's frame is masked: 2 header bytes, 4 mask bytes, payload.
+            if (buf.length < 2 || (buf[0] & 0x0f) !== 0x08) return;
+            const len = buf[1] & 0x7f;
+            if (buf.length < 6 + len) return;
+            const mask = buf.subarray(2, 6);
+            const body = Buffer.from(buf.subarray(6, 6 + len).map((b, i) => b ^ mask[i % 4]));
+            resolveEcho(len >= 2 ? body.readUInt16BE(0) : null);
+            socket.end();
+        });
+        socket.on('error', () => {});
+    });
+    const port = await new Promise<number>((resolve) =>
+        server.listen(0, '127.0.0.1', () => resolve((server.address() as any).port)),
+    );
+    return {
+        port,
+        echoed,
+        close() {
+            for (const s of sockets) s.destroy();
+            server.close();
+        },
+    };
 }
 
 export default async () => {
@@ -247,8 +305,9 @@ export default async () => {
                     await it.failing(
                         title,
                         body,
-                        'libsoup sends only 1000-1003, 1007-1011 and 3000-4999, 1010 from clients and ' +
-                            '1011 from servers; we send 1002 instead (status/upstream-patch-candidates.md)',
+                        "libsoup's soup_websocket_connection_close() refuses 1011 from a client and 1010 " +
+                            'from a server, and close_connection() 1012-1014 from either; soupCloseCode() ' +
+                            'sends 1002 instead (status/upstream-patch-candidates.md)',
                         { when: IS_GJS },
                     );
                 } else {
@@ -333,6 +392,48 @@ export default async () => {
                     wss.close();
                 }
             });
+        }
+    });
+    // Regression: libsoup answers a peer's Close by echoing its code through
+    // the same close_connection() that refuses 1012–1014, so a server's
+    // "service restart" reached the ws client as an 'error' as well.
+    await describe("a peer's close(1012..1014)", async () => {
+        for (const code of [1012, 1013, 1014]) {
+            await it(`the client reports ${code} as 'close' alone`, async () => {
+                const peer = await rawClosingServer(code, 'restart');
+                const log = watchSoupLog();
+                try {
+                    const client = new WebSocket(`ws://127.0.0.1:${peer.port}/`);
+                    const errors: Error[] = [];
+                    client.on('error', (err: Error) => errors.push(err));
+                    const seen = await closeEvents(client);
+                    expect(seen.length).toBe(1);
+                    expect(seen[0].code).toBe(code);
+                    expect(seen[0].reason).toBe('restart');
+                    expect(errors.map((e) => e.message).join('; ')).toBe('');
+                    expect(log.count()).toBe(0);
+                } finally {
+                    log.stop();
+                    peer.close();
+                }
+            });
+
+            await it.failing(
+                `the client echoes ${code} back`,
+                async () => {
+                    const peer = await rawClosingServer(code, 'restart');
+                    try {
+                        const client = new WebSocket(`ws://127.0.0.1:${peer.port}/`);
+                        client.on('error', () => {});
+                        expect(await peer.echoed).toBe(code);
+                    } finally {
+                        peer.close();
+                    }
+                },
+                "libsoup's close_connection() (soup-websocket-connection.c) rejects 1012-1014 and " +
+                    'echoes 1002 instead (status/upstream-patch-candidates.md)',
+                { when: IS_GJS },
+            );
         }
     });
 };

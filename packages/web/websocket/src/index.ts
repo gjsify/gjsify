@@ -6,10 +6,10 @@ import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
-import { ABORT_CODE, abortConnection, isTransportFailure, kClose, soupCloseCode } from './abort.js';
+import { ABORT_CODE, abortConnection, isRefusedEcho, isTransportFailure, kClose, soupCloseCode } from './abort.js';
 
 export { MessageEvent, CloseEvent };
-export { abortConnection, isTransportFailure, kClose, soupCloseCode };
+export { abortConnection, isRefusedEcho, isTransportFailure, kClose, soupCloseCode };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
@@ -246,7 +246,8 @@ export class WebSocket extends EventTarget {
                         this._onClosed();
                     });
 
-                    this._connection.connect('error', (_conn: Soup.WebsocketConnection, error: GLib.Error) => {
+                    this._connection.connect('error', (conn: Soup.WebsocketConnection, error: GLib.Error) => {
+                        if (isRefusedEcho(conn, error)) return;
                         this._onError(error);
                     });
 

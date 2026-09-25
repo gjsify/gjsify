@@ -42,6 +42,22 @@ export function soupCloseCode(conn: Soup.WebsocketConnection, code: number): num
     return 1002;
 }
 
+/** Whether an error Soup emitted is its own refusal to echo a peer's valid
+ *  close code. On a received Close, libsoup answers through the same
+ *  close_connection() that rejects 1012–1014 (see soupCloseCode), so a peer's
+ *  "service restart" raises a protocol error although the peer broke nothing.
+ *  The close still carries the peer's code; only the 'error' is spurious — for
+ *  the W3C API and npm ws alike.
+ *  @internal */
+export function isRefusedEcho(conn: Soup.WebsocketConnection, error: GLib.Error): boolean {
+    const peerCode = conn.get_close_code();
+    return (
+        error.matches(Soup.websocket_error_quark(), Soup.WebsocketCloseCode.PROTOCOL_ERROR) &&
+        peerCode >= 1012 &&
+        peerCode <= 1014
+    );
+}
+
 /** Whether an error Soup's WebsocketConnection emitted is the transport
  *  failing — a reset, a TLS EOF — rather than the peer breaking the protocol
  *  (Soup.WebsocketError). npm ws reports only the latter as 'error'; the

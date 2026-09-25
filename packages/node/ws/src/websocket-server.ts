@@ -27,7 +27,7 @@ import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
 import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
-import { abortConnection, isTransportFailure, soupCloseCode } from '@gjsify/websocket';
+import { abortConnection, isRefusedEcho, isTransportFailure, soupCloseCode } from '@gjsify/websocket';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { createNodeError, ensureMainLoop } from '@gjsify/utils/core';
@@ -183,11 +183,12 @@ class ServerSideWebSocket extends EventEmitter {
             this.emit('close', code, Buffer.from(reason));
         });
 
-        conn.connect('error', (_c: Soup.WebsocketConnection, err: GLib.Error) => {
+        conn.connect('error', (c: Soup.WebsocketConnection, err: GLib.Error) => {
             // ws reports only what its receiver finds wrong in the frames; a
-            // peer's reset ends in 'close' alone. Emitting it would also
-            // throw out of this signal handler with no 'error' listener.
-            if (isTransportFailure(err)) return;
+            // peer's reset ends in 'close' alone, and a peer's 1012–1014 is
+            // no fault at all. Emitting either would also throw out of this
+            // signal handler with no 'error' listener.
+            if (isTransportFailure(err) || isRefusedEcho(c, err)) return;
             this.emit('error', new Error(err.message));
         });
     }
