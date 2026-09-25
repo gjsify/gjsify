@@ -770,4 +770,74 @@ export default async () => {
             expect(typeof console.error).toBe('function');
         });
     });
+
+    // Node ≥21 ships `navigator` without a DOM; these run against Node's own on the node leg, so
+    // they pin its shape, and against @gjsify/node-globals/register/navigator on GJS.
+    await describe('navigator (global)', async () => {
+        const nav = () => (globalThis as any).navigator;
+
+        await it('is an instance of the global Navigator', async () => {
+            expect(typeof nav()).toBe('object');
+            expect(typeof (globalThis as any).Navigator).toBe('function');
+            expect(nav() instanceof (globalThis as any).Navigator).toBe(true);
+        });
+
+        await it('Navigator cannot be constructed', async () => {
+            expect(() => new (globalThis as any).Navigator()).toThrow(TypeError);
+        });
+
+        await it('getters brand-check their receiver', async () => {
+            expect(() => (globalThis as any).Navigator.prototype.userAgent).toThrow(TypeError);
+            expect(() => (globalThis as any).Navigator.prototype.language).toThrow(TypeError);
+        });
+
+        await it('exposes its getters as enumerable prototype properties', async () => {
+            const keys = Object.keys(Object.getPrototypeOf(nav()));
+            for (const key of ['hardwareConcurrency', 'language', 'languages', 'userAgent', 'platform']) {
+                expect(keys.includes(key)).toBe(true);
+            }
+        });
+
+        await it('userAgent names the runtime and its version', async () => {
+            expect(/^[A-Za-z.]+\/\d+(\.\d+)*$/.test(nav().userAgent)).toBe(true);
+        });
+
+        await it('language is the engine default locale', async () => {
+            expect(nav().language).toBe(new Intl.DateTimeFormat().resolvedOptions().locale);
+        });
+
+        await it('languages is a frozen [language]', async () => {
+            const languages = nav().languages;
+            expect(Array.isArray(languages)).toBe(true);
+            expect(languages.length).toBe(1);
+            expect(languages[0]).toBe(nav().language);
+            expect(Object.isFrozen(languages)).toBe(true);
+            expect(nav().languages).toBe(languages);
+        });
+
+        await it('hardwareConcurrency is a positive integer', async () => {
+            const n = nav().hardwareConcurrency;
+            expect(Number.isInteger(n)).toBe(true);
+            expect(n >= 1).toBe(true);
+        });
+
+        await it('platform uses the browser spelling', async () => {
+            const { platform, arch } = (globalThis as any).process;
+            const expected: Record<string, string> = {
+                'linux-x64': 'Linux x86_64',
+                'linux-arm64': 'Linux arm64',
+                'darwin-x64': 'MacIntel',
+                'darwin-arm64': 'MacIntel',
+                'win32-x64': 'Win32',
+                'win32-arm64': 'Win32',
+            };
+            const want = expected[`${platform}-${arch}`];
+            if (want !== undefined) expect(nav().platform).toBe(want);
+            else expect(typeof nav().platform).toBe('string');
+        });
+
+        await it('has no onLine: a library probing it must take its offline-less path', async () => {
+            expect('onLine' in nav()).toBe(false);
+        });
+    });
 };
