@@ -11,7 +11,8 @@
 // whose lifetime SpiderMonkey GC cannot race against. Same pattern as
 // `@gjsify/webrtc-native`.
 
-import type Gio from '@girs/gio-2.0';
+import Gio from '@girs/gio-2.0';
+import Soup from '@girs/soup-3.0';
 import type { Socket } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
@@ -26,6 +27,13 @@ import { ServerRequestSocket } from './server-request-socket.js';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils/core';
 import { STATUS_CODES } from './constants.js';
 import { IncomingMessage } from './incoming-message.js';
+import {
+    createTrustDatabase,
+    removeFile,
+    resolveServerTls,
+    type ServerTlsOptions,
+    type ServerTlsSettings,
+} from './server-tls.js';
 
 /**
  * OutgoingMessage — Base class for ServerResponse and ClientRequest.
@@ -297,6 +305,12 @@ export class Server extends EventEmitter {
     requestTimeout = 300000;
 
     private _bridge: BridgeServer | null = null;
+    /** Set through `_useTls()` by `https.Server`; null serves plain HTTP. */
+    private _tls: ServerTlsSettings | null = null;
+    /** An https.Server without a certificate must not fall back to plain HTTP. */
+    private _tlsRequested = false;
+    /** Backs the client-certificate database while listening; see createTrustDatabase. */
+    private _trustFile: Gio.File | null = null;
     private _address: { port: number; family: string; address: string } | null = null;
 
     /** Exposes the underlying Soup.Server so consumers (e.g. WebSocketServer
@@ -320,6 +334,15 @@ export class Server extends EventEmitter {
         if (listener) this.on('request', listener);
     }
 
+    /**
+     * @internal `https.Server`'s hand-off, not part of Node's http.Server: from now on
+     * `listen()` terminates TLS with these `https.createServer()` options.
+     */
+    _useTls(options: ServerTlsOptions): void {
+        this._tlsRequested = true;
+        this._tls = resolveServerTls(options);
+    }
+
     listen(port?: number, hostname?: string, backlog?: number, callback?: () => void): this;
     listen(port?: number, hostname?: string, callback?: () => void): this;
     listen(port?: number, callback?: () => void): this;
@@ -332,6 +355,13 @@ export class Server extends EventEmitter {
             if (typeof arg === 'number') port = arg;
             else if (typeof arg === 'string') hostname = arg;
             else if (typeof arg === 'function') callback = arg as () => void;
+        }
+
+        if (this._tlsRequested && !this._tls) {
+            // Without a certificate Node still listens and fails every handshake; libsoup cannot
+            // listen for HTTPS without one. Refuse loudly rather than serve plain text.
+            deferEmit(this, 'error', new Error('https.Server: no certificate — pass key and cert (PEM)'));
+            return this;
         }
 
         if (callback) this.once('listening', callback);
@@ -354,12 +384,14 @@ export class Server extends EventEmitter {
                 this.emit('error', new Error(msg));
             });
 
-            this._bridge.listen(port, hostname);
+            const boundPort = this._tls
+                ? this._listenTls(this._bridge, port)
+                : this._listenPlain(this._bridge, port, hostname);
 
             ensureMainLoop();
 
             this.listening = true;
-            this._address = { port: this._bridge.port, family: 'IPv4', address: this._bridge.address || hostname };
+            this._address = { port: boundPort, family: 'IPv4', address: this._bridge.address || hostname };
             _activeServers.add(this);
             deferEmit(this, 'listening');
         } catch (err: unknown) {
@@ -368,6 +400,58 @@ export class Server extends EventEmitter {
         }
 
         return this;
+    }
+
+    private _listenPlain(bridge: BridgeServer, port: number, hostname: string): number {
+        bridge.listen(port, hostname);
+        return bridge.port;
+    }
+
+    /**
+     * Listens with TLS on the bridge's Soup.Server. The bridge's own `listen()` has no HTTPS
+     * option, so this drives the Soup.Server it exposes for exactly this kind of caller (see
+     * server.vala): Soup.Server is a GObject, and setting its TLS properties or listening on it
+     * passes no libsoup boxed type through JS — the GC race the bridge exists to avoid stays
+     * C-side, since requests still arrive through the bridge's handler. The client-certificate
+     * hook below sees each connection's first Soup.ServerMessage, which is a GObject as well.
+     */
+    private _listenTls(bridge: BridgeServer, port: number): number {
+        const tls = this._tls as ServerTlsSettings;
+        const soup = bridge.soup_server;
+        soup.tls_certificate = tls.certificate;
+        soup.tls_auth_mode = tls.authenticationMode;
+        if (tls.clientCa.length > 0) {
+            const trust = createTrustDatabase(tls.clientCa);
+            soup.tls_database = trust.database;
+            this._trustFile = trust.file;
+        }
+        if (tls.authenticationMode !== Gio.TlsAuthenticationMode.NONE) {
+            // GIO accepts a client certificate on the server side only when an
+            // 'accept-certificate' handler returns true — even one the database verified — and
+            // libsoup forwards that signal to the connection's first ServerMessage. `errors` is
+            // the database's verdict: REQUIRED (requestCert + rejectUnauthorized) takes only a
+            // verified certificate, REQUESTED (rejectUnauthorized: false) takes any, as Node's
+            // tls.Server does. A client that sends none never reaches this handler.
+            const required = tls.authenticationMode === Gio.TlsAuthenticationMode.REQUIRED;
+            soup.connect('request-started', (_server: Soup.Server, msg: Soup.ServerMessage) => {
+                msg.connect(
+                    'accept-certificate',
+                    (_msg: Soup.ServerMessage, _cert: Gio.TlsCertificate, errors: Gio.TlsCertificateFlags) =>
+                        !required || errors === Gio.TlsCertificateFlags.NO_FLAGS,
+                );
+            });
+        }
+        // IPV4_ONLY mirrors bridge.listen(), so http and https bind the same way.
+        try {
+            soup.listen_local(port, Soup.ServerListenOptions.IPV4_ONLY | Soup.ServerListenOptions.HTTPS);
+        } catch (err) {
+            // No close() follows a failed listen, so the anchors file goes now.
+            if (this._trustFile) removeFile(this._trustFile);
+            this._trustFile = null;
+            throw err;
+        }
+        const local = soup.get_listeners()[0]?.get_local_address() as Gio.InetSocketAddress | undefined;
+        return local?.get_port() ?? port;
     }
 
     private _handleRequest(bridgeReq: BridgeRequest, bridgeRes: BridgeResponse): void {
@@ -400,6 +484,7 @@ export class Server extends EventEmitter {
             this._address?.address ?? '127.0.0.1',
             this._address?.port ?? 0,
             bridgeRes,
+            this._tls !== null,
         ) as unknown as Socket;
 
         // Push body bytes (pre-buffered by libsoup) and EOF. Body is exposed
@@ -524,8 +609,15 @@ export class Server extends EventEmitter {
         if (callback) this.once('close', callback);
 
         if (this._bridge) {
-            this._bridge.close();
+            // A TLS listener was started on the Soup.Server directly, so the bridge does not
+            // count itself as listening and its close() would be a no-op.
+            if (this._tls) this._bridge.soup_server.disconnect();
+            else this._bridge.close();
             this._bridge = null;
+        }
+        if (this._trustFile) {
+            removeFile(this._trustFile);
+            this._trustFile = null;
         }
 
         this.listening = false;

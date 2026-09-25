@@ -1,6 +1,14 @@
 // GLib MainLoop management: an implicit event loop analogous to Node's.
 
 import type GLib from '@girs/glib-2.0';
+// isGJS, not a raw `imports.gi` probe: @gjsify/node-gi injects that global on
+// Node too (the reverse bridge), where `GLib.MainLoop.prototype.runAsync` is
+// NOT implemented (node-gi special-cases `runAsync` for Gio.Application only) —
+// so `arm()` below threw `<loop>.runAsync is not a function` for every
+// net/http/http2 server that reached `listen()` under node-gi on Node.
+// `isGJS` already orders its probes so node-gi reads as Node (see
+// packages/gjs/runtime/src/detect.js).
+import { isGJS } from '@gjsify/runtime';
 
 /** The single loop this module owns. `null` until something first asks for one. */
 let _loop: GLib.MainLoop | null = null;
@@ -21,8 +29,9 @@ interface _GjsImports {
     imports?: { gi?: { GLib?: typeof GLib } };
 }
 
-/** The GJS `GLib` binding, or `undefined` when not running under GJS. */
+/** The GJS `GLib` binding, or `undefined` when not running on the GJS engine. */
 function glib(): typeof GLib | undefined {
+    if (!isGJS) return undefined;
     return (globalThis as unknown as _GjsImports).imports?.gi?.GLib;
 }
 

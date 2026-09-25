@@ -124,8 +124,9 @@ console.log(action.get_name());   // 'greet'  — introspected method
 action.enabled = false;           // property set → set_property
 
 const cancellable = new Gio.Cancellable();
-cancellable.connect('cancelled', () => console.log('cancelled'));
+cancellable.connect_after('cancelled', () => console.log('cancelled'));
 cancellable.cancel();             // fires the signal
+// (plain `connect` is Cancellable's OWN g_cancellable_connect(cb), as on gjs)
 
 console.log(Gio.BusType.SESSION); // 2 — enums, flags and constants
 const file = Gio.File.new_for_path('/usr/bin/gjs');

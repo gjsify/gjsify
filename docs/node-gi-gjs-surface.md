@@ -225,8 +225,9 @@ console.log(action.get_name());    // 'greet'   (method)
 action.enabled = false;            // property set → set_property
 
 const c = new Gio.Cancellable();
-c.connect('cancelled', () => console.log('cancelled'));
+c.connect_after('cancelled', () => console.log('cancelled'));
 c.cancel();                        // fires the signal
+// (plain `connect` is Cancellable's OWN g_cancellable_connect(cb), as on gjs)
 
 // enums, flags and constants (GJS-style UPPER_CASE members)
 console.log(GLib.PRIORITY_DEFAULT);        // 0

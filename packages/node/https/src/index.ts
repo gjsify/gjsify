@@ -2,7 +2,7 @@
 // Thin wrapper — Soup.Session handles HTTPS natively via GnuTLS.
 // Reference: Node.js lib/https.js
 
-import type { ClientRequest, IncomingMessage } from 'node:http';
+import type { ClientRequest, IncomingMessage, ServerResponse } from 'node:http';
 import { request as httpRequest, get as httpGet, Server as HttpServer } from 'node:http';
 import { TLSSocket, createSecureContext } from 'node:tls';
 import { URL } from 'node:url';
@@ -102,35 +102,38 @@ export interface HttpsServerOptions extends RequestOptions {
     requestCert?: boolean;
 }
 
+type HttpsRequestListener = (req: IncomingMessage, res: ServerResponse) => void;
+
+/** @gjsify/http's hand-off for https — see `_useTls` in its server.ts. */
+interface TlsHandOff {
+    _useTls(options: HttpsServerOptions): void;
+}
+
 /**
- * HTTPS Server — wraps TLS server with HTTP request handling.
- * Uses tls.createServer for the TLS layer and processes HTTP
- * requests on top.
+ * HTTPS Server — an http.Server whose listener terminates TLS with `options.key`/`options.cert`.
+ * Reference: Node.js lib/https.js. The Gio side (certificate, client-certificate verification,
+ * the HTTPS listener) lives in @gjsify/http, so this package stays a layer over `node:http`.
  */
 export class Server extends HttpServer {
-    constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void) {
-        super(requestListener);
+    constructor(options?: HttpsServerOptions, requestListener?: HttpsRequestListener);
+    constructor(requestListener?: HttpsRequestListener);
+    constructor(optionsOrListener?: HttpsServerOptions | HttpsRequestListener, requestListener?: HttpsRequestListener) {
+        const options = typeof optionsOrListener === 'function' ? {} : (optionsOrListener ?? {});
+        super(typeof optionsOrListener === 'function' ? optionsOrListener : requestListener);
+        (this as unknown as TlsHandOff)._useTls(options);
     }
 }
 
 /**
- * Create an HTTPS server.
- * In GJS, Soup.Server can handle HTTPS natively if configured with
- * a TLS certificate. For API compatibility, this wraps the TLS server
- * infrastructure.
+ * Create an HTTPS server that presents `options.key`/`options.cert`.
  */
+export function createServer(options?: HttpsServerOptions, requestListener?: HttpsRequestListener): Server;
+export function createServer(requestListener?: HttpsRequestListener): Server;
 export function createServer(
-    options?: HttpsServerOptions,
-    requestListener?: (req: IncomingMessage, res: unknown) => void,
-): Server;
-export function createServer(requestListener?: (req: IncomingMessage, res: unknown) => void): Server;
-export function createServer(
-    optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: unknown) => void),
-    requestListener?: (req: IncomingMessage, res: unknown) => void,
+    optionsOrListener?: HttpsServerOptions | HttpsRequestListener,
+    requestListener?: HttpsRequestListener,
 ): Server {
-    if (typeof optionsOrListener === 'function') {
-        return new Server(undefined, optionsOrListener);
-    }
+    if (typeof optionsOrListener === 'function') return new Server(optionsOrListener);
     return new Server(optionsOrListener, requestListener);
 }
 

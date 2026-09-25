@@ -50,6 +50,13 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
             return;
         }
 
+        // net.Socket starts its read loop on the raw stream right after emitting 'connect'.
+        // That read would stay pending under GnuTLS's handshake reads (G_IO_ERROR_PENDING,
+        // "stream has outstanding operation") and swallow the server's handshake bytes, so the
+        // handshake claims the loop here; it is restarted on the TLS streams once the
+        // handshake has finished.
+        (socket as unknown as SocketInternals)._reading = true;
+
         try {
             const connectable = Gio.NetworkAddress.new(servername, port);
             const tlsConn = Gio.TlsClientConnection.new(rawConnection as unknown as Gio.IOStream, connectable);

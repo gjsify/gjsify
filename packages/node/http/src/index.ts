@@ -5,6 +5,7 @@
 export { STATUS_CODES, METHODS } from './constants.js';
 export { IncomingMessage } from './incoming-message.js';
 export { OutgoingMessage, Server, ServerResponse } from './server.js';
+export type { ServerTlsOptions } from './server-tls.js';
 export { ClientRequest } from './client-request.js';
 export { validateHeaderName, validateHeaderValue } from './validators.js';
 import { validateHeaderName, validateHeaderValue } from './validators.js';
