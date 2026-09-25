@@ -1404,7 +1404,7 @@ async function installGlobalAndLink(specs: string[], opts: { verbose: boolean; p
         // A global install of `@gjsify/cli` must also lay down the GJS bundler engine
         // + the sibling format/CSS bridges. They are OPTIONAL PEERS of the CLI (so a
         // plain `npm install @gjsify/cli` on Node does not force a prebuild) and the
-        // native backend does not resolve peerDependencies at all, so without this
+        // native backend, like npm ≥ 7, installs required peers only, so without this
         // they never arrive and `gjsify build` hard-fails under GJS with "no usable
         // bundler engine". Pinned to the CLI's resolved version so they move in
         // lockstep with the bundle; a platform with no published prebuild warns.
@@ -1480,8 +1480,8 @@ export interface EnsureProjectGjsEngineDeps {
  *
  * The engine is an OPTIONAL PEER of `@gjsify/cli` on purpose — a plain
  * `npm install @gjsify/cli` on Node must not fetch prebuilds — but nobody resolves
- * it for a project: npm 7+ skips optional peers and the native backend does not
- * resolve `peerDependencies` at all. Under GJS there is no npm `rolldown`
+ * it for a project: npm 7+ skips optional peers and so does the native backend
+ * (it installs REQUIRED peers only). Under GJS there is no npm `rolldown`
  * fallback, so `gjsify build` had nothing to load.
  *
  * Four conditions, and (b) is the one worth reading:

@@ -28,6 +28,15 @@ export interface PackumentVersion {
     dist: PackumentDist;
     dependencies?: Record<string, string>;
     optionalDependencies?: Record<string, string>;
+    /**
+     * Typed for the same reason as `os`/`cpu`/`libc` below: reachable only through
+     * the index signature, nothing said the installer had to read it, and it did not
+     * — npm ≥ 7 installs every peer not marked optional, so a `wxt` consumer got no
+     * `vite` at all.
+     */
+    peerDependencies?: Record<string, string>;
+    /** `{ <name>: { optional: true } }` marks a peer npm ≥ 7 does NOT install. */
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>;
     bin?: string | Record<string, string>;
     deprecated?: string;
     /**

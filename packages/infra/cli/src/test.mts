@@ -67,6 +67,7 @@ import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
 import installOptionalEdgesSuite from './utils/install-optional-edges.spec.js';
+import installPeerEdgesSuite from './utils/install-peer-edges.spec.js';
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
 import giSearchPathSuite from './utils/gi-search-path.spec.js';
 import systemGiSuite from './utils/system-gi.spec.js';
@@ -319,6 +320,7 @@ run(
         installLockSuite,
         installBackendNativeWarnSuite,
         installOptionalEdgesSuite,
+        installPeerEdgesSuite,
         detectNativePackagesSuite,
         giSearchPathSuite,
         systemGiSuite,
