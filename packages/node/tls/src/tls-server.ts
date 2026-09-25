@@ -334,6 +334,15 @@ export class TLSServer extends Server {
                         tlsSocket._setupTlsStreams(tlsConn);
                         tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
 
+                        // `socket` (the accepted plaintext socket, its streams
+                        // claimed above) is what `net.Server` tracks for
+                        // `close()`/`getConnections()`; nothing else ever
+                        // destroys it, so without this `server.close()` waited
+                        // forever for a connection whose transport the
+                        // TLSSocket had long closed. Its fields are null, so
+                        // destroying it only emits its 'close'.
+                        tlsSocket.once('close', () => socket.destroy());
+
                         const internals = tlsSocket as unknown as SocketInternals;
                         internals._startReading();
 

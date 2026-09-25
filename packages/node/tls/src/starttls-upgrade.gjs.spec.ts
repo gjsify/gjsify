@@ -25,6 +25,7 @@ import tls from 'node:tls';
 import { Buffer } from 'node:buffer';
 import type { Socket } from 'node:net';
 import type { Server as NetServer } from 'node:net';
+import type { TLSSocket } from 'node:tls';
 import { type SocketInternals } from './tls-socket.js';
 // Relative import, not `node:tls`: needs the impl's own `SecureContext`
 // (which carries `.certificate`), not `@types/node`'s opaque public shape —
@@ -84,11 +85,10 @@ XeP46WXXpYJLgQljoQ159Rk=
 -----END PRIVATE KEY-----
 `;
 
-// See `given-socket.spec.ts`'s matching comment: a real handshake plus a
-// multi-message plaintext exchange comfortably finishes under 10s on an
-// idle host, but @gjsify/unit's own default `it()` timeout is 5s.
-const TIMEOUT_MS = 25_000;
-const ITEST_TIMEOUT_MS = 30_000;
+// Hang detectors, not performance budgets — see `given-socket.spec.ts`'s
+// matching comment.
+const TIMEOUT_MS = 8_000;
+const ITEST_TIMEOUT_MS = 10_000;
 
 /**
  * A minimal STARTTLS-shaped server, standing in for a real one (imap/smtp/
@@ -97,8 +97,14 @@ const ITEST_TIMEOUT_MS = 30_000;
  * whatever the client sends, prefixed, to prove the round trip actually
  * went through the encrypted channel.
  */
-function startStarttlsServer(certificate: Gio.TlsCertificate): Promise<{ server: NetServer; port: number }> {
+function startStarttlsServer(
+    certificate: Gio.TlsCertificate,
+): Promise<{ server: NetServer; port: number; conns: Set<Socket> }> {
+    // Accepted connections, so the test can tear them down: `server.close()`
+    // only calls back once every accepted connection has closed.
+    const conns = new Set<Socket>();
     const server = net.createServer((conn: Socket) => {
+        conns.add(conn);
         let buffered = '';
         const onGreetingReply = (chunk: Buffer) => {
             buffered += chunk.toString('utf8');
@@ -123,7 +129,7 @@ function startStarttlsServer(certificate: Gio.TlsCertificate): Promise<{ server:
         server.once('error', reject);
         server.listen(0, '127.0.0.1', () => {
             const { port } = server.address() as { port: number };
-            resolve({ server, port });
+            resolve({ server, port, conns });
         });
     });
 }
@@ -202,7 +208,8 @@ export default async () => {
                         const certificate = createSecureContext({ cert: CERT_PEM, key: KEY_PEM }).certificate;
                         if (!certificate) throw new Error('test fixture: failed to parse the embedded cert/key');
 
-                        const { server, port } = await startStarttlsServer(certificate);
+                        const { server, port, conns } = await startStarttlsServer(certificate);
+                        let secure: TLSSocket | null = null;
                         try {
                             const result = await withTimeout(
                                 new Promise<{ reply: string; plaintextAfterUpgrade: boolean }>((resolve, reject) => {
@@ -228,7 +235,7 @@ export default async () => {
                                             // SAME already-connected socket to
                                             // tls.connect() rather than opening a
                                             // second connection.
-                                            const secure = tls.connect({
+                                            secure = tls.connect({
                                                 socket: plain,
                                                 servername: 'localhost',
                                                 rejectUnauthorized: false,
@@ -261,6 +268,8 @@ export default async () => {
                             expect(result.reply).toBe('ECHO:hello-over-tls');
                             expect(result.plaintextAfterUpgrade).toBe(false);
                         } finally {
+                            secure?.destroy();
+                            for (const conn of conns) conn.destroy();
                             await new Promise<void>((resolve) => server.close(() => resolve()));
                         }
                     },

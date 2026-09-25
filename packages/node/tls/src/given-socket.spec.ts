@@ -84,16 +84,15 @@ XeP46WXXpYJLgQljoQ159Rk=
 -----END PRIVATE KEY-----
 `;
 
-// A real handshake (RSA-2048) plus the plaintext TCP round trips these
-// tests drive is fast on an idle host, but @gjsify/unit's own default
-// `it()` timeout is 5s — too tight for a genuine network test under load
-// (measured on a host also running a concurrent CPU-heavy build/test job:
-// well over 10s per case). `ITEST_TIMEOUT_MS` raises the per-`it()`
-// ceiling generously rather than tuning it to one machine's contention;
-// `TIMEOUT_MS` (used by `withTimeout` below) stays under it so a genuine
-// hang fails with OUR message instead of the framework's generic one.
-const TIMEOUT_MS = 25_000;
-const ITEST_TIMEOUT_MS = 30_000;
+// One case (RSA-2048 handshake plus the TCP round trips) takes ~0.1 s on
+// GJS. The ceilings are hang detectors, not performance budgets: a round
+// trip needing seconds is a bug. The earlier 25 s/30 s were sized for "a
+// loaded host" and hid a real hang — TLS `end()` sent no close_notify, so
+// 'end' never arrived. `TIMEOUT_MS` (used by `withTimeout`) stays under the
+// per-`it()` ceiling so a hang fails with OUR label instead of the
+// framework's generic message.
+const TIMEOUT_MS = 8_000;
+const ITEST_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
     return new Promise<T>((resolve, reject) => {
@@ -228,9 +227,6 @@ export default async () => {
                         'already-connected socket',
                     );
                 },
-                // A real handshake (RSA-2048) plus the TCP round trips takes
-                // longer than @gjsify/unit's 5s default under load — well
-                // under this ceiling when the host isn't contended.
                 ITEST_TIMEOUT_MS,
             );
 
@@ -312,9 +308,7 @@ export default async () => {
                 ITEST_TIMEOUT_MS,
             );
         },
-        // Four sequential real-handshake tests — give the suite itself
-        // enough room even if every one of them needs its full per-`it()`
-        // budget under load.
+        // Four sequential real-handshake tests, each bounded by its own ceiling.
         4 * ITEST_TIMEOUT_MS,
     );
 };

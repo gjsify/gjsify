@@ -62,6 +62,9 @@ export interface SocketInternals {
     _outputStream: Gio.OutputStream | null;
     _reading: boolean;
     _startReading(): void;
+    /** In-flight Gio operations `_destroy` waits for before closing the connection. */
+    _pendingIo: number;
+    _ioSettled(): void;
     /**
      * Stop the read loop and cancel any in-flight read, resolving once
      * settled — see `@gjsify/net`'s `Socket._detachReader()` for the full
@@ -433,6 +436,43 @@ export class TLSSocket extends Socket {
         } catch (err: unknown) {
             destroyWithClaimedConnection(err instanceof Error ? err : new Error(String(err)));
         }
+    }
+
+    /**
+     * `end()` on a TLS socket must send TLS close_notify — the peer's TLS
+     * layer only reports EOF on that alert, never on a bare TCP half-close.
+     * `@gjsify/net`'s `_final` half-closes via `get_socket().shutdown()`,
+     * which a `Gio.TlsConnection` (stored in `_connection`) doesn't have:
+     * the call threw, was swallowed, and nothing reached the peer, so an
+     * `end()` with the default `allowHalfOpen: false` on both sides waited
+     * forever for the other side's 'end'. Closing the TLS output stream
+     * sends close_notify and closes the base stream's write side
+     * (glib-networking's `g_tls_connection_base_close_internal`), while
+     * the read side stays open for the peer's reply.
+     */
+    override _final(callback: (error?: Error | null) => void): void {
+        const tlsConn = this._tlsConnection;
+        if (!tlsConn) {
+            super._final(callback);
+            return;
+        }
+        const internals = this as unknown as SocketInternals;
+        const output = tlsConn.get_output_stream();
+        // Counted as in-flight I/O so a concurrent `destroy()` defers closing
+        // the connection until this close settles (a sync close while an
+        // async one is pending fails with G_IO_ERROR_PENDING and leaks the fd).
+        internals._pendingIo++;
+        output.close_async(GLib.PRIORITY_DEFAULT, null, (_source: Gio.OutputStream | null, result: Gio.AsyncResult) => {
+            try {
+                output.close_finish(result);
+            } catch {
+                // The peer may already be gone (EPIPE/ECONNRESET on the
+                // close_notify write) — not an error of end() itself, same
+                // as `@gjsify/net`'s `_final` ignoring a failed shutdown.
+            }
+            internals._ioSettled();
+            callback();
+        });
     }
 
     /**
