@@ -177,8 +177,14 @@ jobs:
       # `cairo` formula — on Fedora it is `gobject-introspection`'s file
       # (`rpm -qf` says so), and `napi.yml` already installs that formula on
       # macOS for the same reason.
+      #
+      # `json-glib` is the node-free step's: `libgjsifyrolldown.dylib`, the
+      # GJS-hosted CLI's bundler engine, links `@rpath/libjson-glib-1.0.0.dylib`
+      # (`check-system-deps.ts` declares it for `@gjsify/rolldown-native`).
+      # Without it every node-free build died in the typelib's dlopen — MEASURED
+      # on the first run of that step; a developer Mac hid it by having it.
       - name: Install GJS + SpiderMonkey via Homebrew
-        run: brew install gjs librsvg gobject-introspection
+        run: brew install gjs librsvg gobject-introspection json-glib
 
       # THE ENV-FREE REPAIR, AND WHY IT MUST BE ENV-FREE.
       #
