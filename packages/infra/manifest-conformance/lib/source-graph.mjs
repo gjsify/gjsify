@@ -71,6 +71,13 @@ export const IMPORTS_LEGACY_RE =
  * short-circuits to `undefined` where the global does not exist.
  */
 export const GJS_IMPORTS_GUARD_RE = /\.imports\??\.gi\b/;
+/**
+ * A call into `@gjsify/utils/core`'s native-library loader — the same guarded
+ * binding, moved into the one helper every bridge now loads through: it reads
+ * `imports?.gi` itself and yields null off GJS. A bridge whose source spells
+ * neither `gi://` nor `imports.gi` any more is still GJS-bound through it.
+ */
+export const NATIVE_LIBRARY_LOADER_RE = /\b(?:loadOptionalNativeModule|openNativeLibrary)\s*(?:<[^>]*>)?\s*\(/;
 
 export const IMPORT_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;'"]*?from\s*['"]([^'"]+)['"]/g;
 export const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
