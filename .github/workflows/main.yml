@@ -1664,6 +1664,7 @@ jobs:
           --include @gjsify/integration-pkg-types
           --include @gjsify/integration-rolldown-native
           --include @gjsify/integration-rollup-pluginutils
+          --include @gjsify/integration-socket.io
           --include @gjsify/integration-streamx
           --include @gjsify/integration-typescript-tsc
           --include @gjsify/integration-worker-stress

@@ -187,6 +187,11 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
 
     // HTTP fetch step 5 — handle redirects
     if (isRedirect(statusCode)) {
+        // A redirect response never reaches the caller, so nothing else will
+        // consume or close its body — and an unclosed Soup body stream pins its
+        // connection until GC (see inputStreamToReadable). Drain it when
+        // following, so the connection is back in the pool before the next hop
+        // (usually to the same host) asks for one; destroy it on every error exit.
         const location = headers.get('Location');
 
         let locationURL: URL | null = null;
@@ -194,6 +199,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
             locationURL = location === null ? null : new URL(location, request.url);
         } catch {
             if (request.redirect !== 'manual') {
+                readable.destroy();
                 finalize();
                 throw new FetchError(
                     `uri requested responds with an invalid redirect URL: ${location}`,
@@ -204,6 +210,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
 
         switch (request.redirect) {
             case 'error':
+                readable.destroy();
                 finalize();
                 throw new FetchError(
                     `uri requested responds with a redirect, redirect mode is set to error: ${request.url}`,
@@ -220,6 +227,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
                 }
 
                 if (request.counter >= request.follow) {
+                    readable.destroy();
                     finalize();
                     throw new FetchError(`maximum redirect reached at: ${request.url}`, 'max-redirect');
                 }
@@ -254,6 +262,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
 
                 // Cannot follow redirect with body being a readable stream
                 if (statusCode !== 303 && request.body && init.body instanceof Stream.Readable) {
+                    readable.destroy();
                     finalize();
                     throw new FetchError(
                         'Cannot follow redirect with body being a readable stream',
@@ -274,11 +283,18 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
                     requestOptions.referrerPolicy = responseReferrerPolicy;
                 }
 
+                // 'close', not 'end': it also fires when an abort destroys the body mid-drain.
+                await new Promise<void>((resolve) => {
+                    readable.once('close', () => resolve());
+                    readable.resume();
+                });
                 finalize();
                 return fetch(new Request(locationURL, requestOptions as unknown as RequestInit));
             }
 
             default:
+                readable.destroy();
+                finalize();
                 throw new TypeError(`Redirect option '${request.redirect}' is not a valid value of RequestRedirect`);
         }
     }
