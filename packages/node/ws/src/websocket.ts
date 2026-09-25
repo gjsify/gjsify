@@ -140,7 +140,17 @@ export class WebSocket extends EventEmitter {
      *  this bundle ends up (GJS browser-like globals vs. Node's undici). */
     private _native: NativeWebSocketLike | null = null;
 
-    constructor(address: string | URL | null, protocols?: string | string[], options: ClientOptions = {}) {
+    // ws's real constructor is overloaded — `new WebSocket(address, options)`
+    // is just as valid as the three-arg form (`@types/ws` declares both). The
+    // single implementation signature below accepts either shape at the type
+    // level; the runtime normalisation that tells them apart lives in the body.
+    constructor(address: string | URL | null, options?: ClientOptions);
+    constructor(address: string | URL | null, protocols?: string | string[], options?: ClientOptions);
+    constructor(
+        address: string | URL | null,
+        protocols?: string | string[] | ClientOptions,
+        options: ClientOptions = {},
+    ) {
         super();
         // `new WebSocket(null)` is used by ws for pre-connected sockets fed via
         // options.socket (e.g. WebSocketServer-accepted clients). We don't support
@@ -152,8 +162,24 @@ export class WebSocket extends EventEmitter {
 
         this.url = typeof address === 'string' ? address : String(address);
 
-        const protos = this._resolveProtocols(protocols, options);
-        this._openNative(this.url, protos, options);
+        // Upstream ws (refs/ws/lib/websocket.js `initAsClient`) accepts
+        // `new WebSocket(address, options)` — a plain object as the SECOND
+        // argument is the options bag, not a protocol list. We used to wrap
+        // it straight into `[options]` (an array containing an object), which
+        // Soup rejected with "Invalid element in string array" and the socket
+        // closed 1006 before the Origin/headers ever reached the wire. Mirror
+        // ws's own normalisation: only a string or an array of strings is
+        // `protocols`; a non-null, non-array object is `options` instead.
+        let opts = options;
+        let effectiveProtocols: string | string[] | undefined;
+        if (typeof protocols === 'string' || Array.isArray(protocols)) {
+            effectiveProtocols = protocols;
+        } else if (protocols !== undefined && protocols !== null) {
+            opts = protocols;
+        }
+
+        const protos = this._resolveProtocols(effectiveProtocols, opts);
+        this._openNative(this.url, protos, opts);
     }
 
     /** Merge `protocols` arg and `options.protocols` / `options.protocol`. */

@@ -128,7 +128,28 @@ export class WebSocket extends EventTarget {
     }
 
     private _connect(options?: WebSocketOptions): void {
-        const uri = GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
+        let uri = GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
+        if (!uri.get_path()) {
+            // WHATWG URL treats ws/wss as special schemes and normalizes a missing
+            // path to "/" (`new URL('ws://h:1').pathname === '/'`) — upstream ws
+            // relies on this (`lib/websocket.js` stores `parsedUrl.href`/`.pathname`
+            // after `new URL(address)`). GLib.Uri does not normalize: `ws://h:1`
+            // parses with an EMPTY path, so the upgrade request line carried no
+            // path at all. @gjsify/ws's WebSocketServer registers its Soup handler
+            // at "/" (the default `path` option), so the empty-path request never
+            // matched it and Soup rejected the handshake — surfaced to callers as
+            // close code 1006, "Soup.WebsocketError: ... handshake not accepted".
+            uri = GLib.Uri.build(
+                GLib.UriFlags.NONE,
+                uri.get_scheme(),
+                uri.get_userinfo(),
+                uri.get_host(),
+                uri.get_port(),
+                '/',
+                uri.get_query(),
+                uri.get_fragment(),
+            );
+        }
         const msg = new Soup.Message({ method: 'GET', uri });
 
         // Apply custom upgrade-request headers (e.g. Cookie, Authorization).

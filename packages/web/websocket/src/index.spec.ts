@@ -153,6 +153,40 @@ export default async () => {
             server.disconnect();
         });
 
+        await it('should connect when the URL has no path (normalizes to "/")', async () => {
+            // Regression: `ws://host:port` (no trailing slash) reached the
+            // server with an EMPTY request path — GLib.Uri doesn't normalize a
+            // missing path to "/" the way WHATWG URL (and upstream ws) does.
+            // The server's handler is registered at "/", the default path, so
+            // an unnormalized empty-path request never matched it and the
+            // handshake was rejected (close 1006).
+            const server = new Soup.Server({});
+            server.add_websocket_handler(
+                '/',
+                null,
+                null,
+                (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, connection: Soup.WebsocketConnection) => {
+                    connection.send_text('no-path-ok');
+                },
+            );
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
+
+            const result = await new Promise<string>((resolve, reject) => {
+                // No path, no trailing slash — the exact form that failed.
+                const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+                ws.onmessage = (event: MessageEvent<string>) => {
+                    ws.close();
+                    resolve(event.data);
+                };
+                ws.onerror = () => reject(new Error('WebSocket error'));
+                setTimeout(() => reject(new Error('Timeout')), 5000);
+            });
+
+            expect(result).toBe('no-path-ok');
+            server.disconnect();
+        });
+
         await it('should report close code', async () => {
             const server = new Soup.Server({});
             server.add_websocket_handler(
