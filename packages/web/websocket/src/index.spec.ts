@@ -3,7 +3,7 @@
 // Note: @gjsify/websocket uses Soup 3.0 — tests run only on GJS
 
 import { describe, it, expect } from '@gjsify/unit';
-import type GLib from '@girs/glib-2.0';
+import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
 import { WebSocket, MessageEvent, CloseEvent } from 'websocket';
@@ -274,6 +274,86 @@ export default async () => {
             expect(error.message).toBe('Opening handshake has timed out');
 
             service.stop();
+        });
+    });
+
+    // --- Closing handshake ---
+    // Regression: Soup answers a peer's Close frame on its own, but 'closed'
+    // only fires once the TCP stream ends. readyState stayed OPEN in that
+    // window, so a close() or send() reached Soup after its Close frame —
+    // `libsoup-CRITICAL: soup_websocket_connection_close: assertion
+    // '!priv->close_sent' failed`, ~24 per socket.io suite run (engine.io's
+    // failed upgrade probe closes its transport exactly there).
+    await describe('WebSocket closing handshake', async () => {
+        await it('is CLOSING after the peer closed, and close()/send() stay off Soup', async () => {
+            // A hand-rolled server that sends its Close frame and then holds the
+            // TCP stream open: the client sits in the closing window for as
+            // long as the test needs instead of one loopback round trip.
+            const service = new Gio.SocketService();
+            const port = service.add_any_inet_port(null);
+            const held: Gio.SocketConnection[] = [];
+            service.connect('incoming', (_svc: Gio.SocketService, conn: Gio.SocketConnection) => {
+                held.push(conn);
+                let request = '';
+                const readMore = () =>
+                    conn.get_input_stream().read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null, (_s, res) => {
+                        request += new TextDecoder().decode(conn.get_input_stream().read_bytes_finish(res).toArray());
+                        if (!request.includes('\r\n\r\n')) return readMore();
+                        const key = /Sec-WebSocket-Key: *(\S+)/i.exec(request)?.[1] ?? '';
+                        const sha1 = new GLib.Checksum(GLib.ChecksumType.SHA1);
+                        sha1.update(new TextEncoder().encode(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'));
+                        const hex = sha1.get_string() ?? '';
+                        const digest = new Uint8Array(hex.length / 2).map((_, i) =>
+                            parseInt(hex.slice(i * 2, i * 2 + 2), 16),
+                        );
+                        const head =
+                            'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+                            `Sec-WebSocket-Accept: ${GLib.base64_encode(digest)}\r\n\r\n`;
+                        // Close frame, code 4001, reason "bye".
+                        const frame = [0x88, 0x05, 0x0f, 0xa1, 0x62, 0x79, 0x65];
+                        conn.get_output_stream().write_all(
+                            new Uint8Array([...new TextEncoder().encode(head), ...frame]),
+                            null,
+                        );
+                    });
+                readMore();
+                return true;
+            });
+            service.start();
+
+            let criticals = 0;
+            const levels = GLib.LogLevelFlags.LEVEL_CRITICAL | GLib.LogLevelFlags.LEVEL_WARNING;
+            const handler = GLib.log_set_handler('libsoup', levels, () => {
+                criticals++;
+            });
+
+            const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+            const closed = new Promise<CloseEvent>((resolve) => {
+                ws.onclose = (event: CloseEvent) => resolve(event);
+            });
+            await new Promise<void>((resolve, reject) => {
+                ws.onopen = () => resolve();
+                ws.onerror = () => reject(new Error('WebSocket error'));
+            });
+            // Soup's own close timeout is 5 s; give up well before it.
+            const deadline = Date.now() + 2000;
+            while (ws.readyState === WebSocket.OPEN && Date.now() < deadline) {
+                await new Promise((r) => setTimeout(r, 5));
+            }
+            expect(ws.readyState).toBe(WebSocket.CLOSING);
+
+            ws.close();
+            ws.send('late');
+            expect(ws.bufferedAmount).toBe(4);
+
+            for (const conn of held) conn.close(null);
+            const event = await closed;
+            GLib.log_remove_handler('libsoup', handler);
+            service.stop();
+
+            expect(event.code).toBe(4001);
+            expect(event.reason).toBe('bye');
+            expect(criticals).toBe(0);
         });
     });
 
