@@ -180,17 +180,21 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
             data = flipped;
         }
 
+        // A core profile has no ALPHA/LUMINANCE/LUMINANCE_ALPHA: store RED/RG and
+        // swizzle (see legacy-formats.ts). `null` wherever the driver takes them.
+        const legacy = this._legacyFormatStorage(format, type);
+
         // Need to check for out of memory error
         this._saveError();
 
         this._gl.texImage2D(
             target,
             level,
-            this._nativeFloatInternalFormat(internalFormat, type),
+            legacy ? legacy.internalFormat : this._nativeFloatInternalFormat(internalFormat, type),
             width,
             height,
             border,
-            format,
+            legacy ? legacy.format : format,
             type,
             Uint8ArrayToVariant(data),
         );
@@ -200,6 +204,8 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
         if (error !== this.NO_ERROR) {
             return;
         }
+
+        this._setTextureSwizzle(target, texture, legacy ? legacy.swizzle : null);
 
         // Save width and height at level
         texture._levelWidth[level] = width;
@@ -281,6 +287,11 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
             return;
         }
 
+        if (this._legacySubImageMismatch(texture, format)) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
         if (type === this.FLOAT && !this._extensions.oes_texture_float) {
             this.setError(this.INVALID_ENUM);
             return;
@@ -325,7 +336,19 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
             data = flipped;
         }
 
-        this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
+        // Same RED/RG layout the core-profile emulation stored the image in.
+        const transferFormat = this._legacyFormatStorage(format, type)?.format ?? format;
+        this._gl.texSubImage2D(
+            target,
+            level,
+            xoffset,
+            yoffset,
+            width,
+            height,
+            transferFormat,
+            type,
+            Uint8ArrayToVariant(data),
+        );
     },
 };
 

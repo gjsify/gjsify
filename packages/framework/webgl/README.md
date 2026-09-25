@@ -251,6 +251,27 @@ refuses to `#define` a `GL_` name; the `#extension` line is commented out (`: re
 an error there); a consumer name desktop GLSL claims (`uniform sampler2D texture;`) is renamed;
 `#line` keeps every consumer line at its own number in compile errors.
 
+**What a core profile removed, WebGL still has, so the bridge supplies it.** The profile is
+asked of the context (`GL_CONTEXT_PROFILE_MASK`, `_isCoreProfile()`), never read off the OS,
+so GLES and compatibility profiles keep the driver's own behaviour. Measured on macOS 27 /
+Apple Silicon / GL 4.1 core: `test:conformance` went from 202/209 to 209/209.
+
+- `ALPHA` / `LUMINANCE` / `LUMINANCE_ALPHA` textures are stored as `R8`/`RG8` (`R32F`/`RG32F`,
+  `R16F`/`RG16F` for float types) plus a texture swizzle (`(0,0,0,R)`, `(R,R,R,1)`,
+  `(R,R,R,G)`), which is how ANGLE does it (`context/texture-management/legacy-formats.ts`).
+  The swizzle is texture state, so re-specifying the texture in another format resets it.
+  `copyTex(Sub)Image2D` and `copyTexSubImage3D` into `ALPHA`/`LUMINANCE_ALPHA` read the region
+  back, because no GL copy moves the framebuffer's alpha into a red or green channel. What the
+  R/RG storage cannot say itself is checked from the format JS records, on every context: a
+  sub-upload in another format is `INVALID_OPERATION`, and a legacy texture is never a complete
+  color attachment (WebGL 2 included). WebGL 2's `TEXTURE_SWIZZLE_*` pnames are `INVALID_ENUM`.
+- `GENERATE_MIPMAP_HINT` is kept in JS: `hint()` records it and `getParameter` reports it,
+  which is all a hint obliges an implementation to do.
+- Three program rules are WebGL's (GLES 2.0 §2.10.3) and are checked in TypeScript, because a
+  desktop linker may accept what they forbid (macOS does): one shader per stage, no link
+  without both a vertex and a fragment shader, no `useProgram` on a program whose last link
+  failed. These run on every context; a GLES driver gives the same answers.
+
 For the dialect rewrite itself — including why **win32 is rewritten too**, which this file
 predicted wrongly once — see [Platform coverage](#platform-coverage) above. Host diagnosis:
 `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a
