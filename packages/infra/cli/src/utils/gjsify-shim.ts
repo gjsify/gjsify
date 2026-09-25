@@ -42,10 +42,11 @@
 
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, delimiter, relative, isAbsolute } from 'node:path';
+import { join, delimiter, relative, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
-import { buildLauncherShims } from './bin-shim.js';
+import { buildLauncherShims, buildNativeEnvPreamble, buildShLauncher } from './bin-shim.js';
+import { detectNativePackages } from './detect-native-packages.js';
 import { resolveBinOnPath } from './install-global.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
@@ -144,10 +145,22 @@ export function ensureGjsifyShimOnPath(): void {
     // `process.execPath`: the batch member cannot quote an interpreter argument
     // (`<interpreter> "<target>" %*`), so `C:\Program Files\nodejs\node.exe` splits.
     const interpreter = gjs ? process.env.GJS_CONSOLE || 'gjs' : 'node';
-    const interpreterArgs = gjs ? ['-m'] : [];
-    const argv = interpreterArgs.length > 0 ? `${interpreterArgs.join(' ')} ` : '';
 
-    writeFileSync(shim, `#!/bin/sh\nexec "${interpreter}" ${argv}"${selfEntry}" "$@"\n`, { mode: 0o755 });
+    // Under GJS the shim is the SAME launcher `gjsify install` writes, preamble
+    // included (`selfShimPreamble`). A bare `exec gjs -m` is not enough on a Mac:
+    // it runs behind `/bin/sh`, and SIP strips every `DYLD_*` from a protected
+    // binary's environment, so a nested `gjsify` found its typelibs through the
+    // surviving GI_TYPELIB_PATH and none of their libraries. Reported by the
+    // beifahrer consumer on macOS: `gjsify workspace <pkg> build` died in
+    // `get columns` with "Unsupported type void".
+    const envPreamble = gjs ? selfShimPreamble(selfEntry) : '';
+    writeFileSync(
+        shim,
+        gjs
+            ? buildShLauncher(selfEntry, { isGjsBundle: true, envPreamble, gjs: interpreter })
+            : `#!/bin/sh\nexec "${interpreter}" "${selfEntry}" "$@"\n`,
+        { mode: 0o755 },
+    );
     chmodSync(shim, 0o755);
 
     // cmd.exe and pwsh cannot run the extension-less member: not on PATHEXT, and
@@ -155,7 +168,7 @@ export function ensureGjsifyShimOnPath(): void {
     // three-sibling answer, including the IF/ELSE ERRORLEVEL handling that
     // `&&`/`||` chaining gets wrong.
     if (!gjs && process.platform === 'win32') {
-        const { cmd, ps1 } = buildLauncherShims({ interpreter, interpreterArgs, target: selfEntry });
+        const { cmd, ps1 } = buildLauncherShims({ interpreter, interpreterArgs: [], target: selfEntry });
         writeFileSync(`${shim}.cmd`, cmd);
         writeFileSync(`${shim}.ps1`, ps1);
     }
@@ -164,7 +177,35 @@ export function ensureGjsifyShimOnPath(): void {
     process.env.GJSIFY_SHIM_DIR = dir;
     process.env.PATH = dir + delimiter + (process.env.PATH ?? '');
 
-    writeNodeShim(dir, gjs, selfEntry);
+    writeNodeShim(dir, gjs, selfEntry, envPreamble);
+}
+
+/**
+ * The tree whose `node_modules` holds the running CLI and its prebuilds: the
+ * install prefix above the first `node_modules` segment, or the workspace root
+ * for an in-repo CLI (`packages/infra/cli/dist/cli.gjs.mjs`).
+ */
+export function selfShimScanRoot(selfEntry: string): string {
+    // Both separators: the entry is a HOST path, and win32 spells it with a backslash.
+    const at = selfEntry.search(/[\\/]node_modules[\\/]/);
+    if (at > 0) return selfEntry.slice(0, at);
+    return findWorkspaceRoot(dirname(selfEntry)) ?? dirname(selfEntry);
+}
+
+/**
+ * The env preamble for a shim re-invoking `selfEntry` — {@link buildNativeEnvPreamble}
+ * with the inputs `gjsify install -g` gives it: the prefix to glob at launch, and
+ * the prebuild dirs the walk finds above it (a hoisted ancestor's `node_modules`).
+ */
+export function selfShimPreamble(selfEntry: string): string {
+    let baked: string[] = [];
+    try {
+        baked = detectNativePackages(dirname(selfEntry)).map((p) => p.prebuildsDir);
+    } catch {
+        // The walk is filesystem I/O (EACCES on an unreadable node_modules). The
+        // launch-time glob of the scan root still runs; only ancestors go unseen.
+    }
+    return buildNativeEnvPreamble(selfShimScanRoot(selfEntry), baked);
 }
 
 /** Deliberately NOT the shim dir itself — see {@link nodeShimDir}. */
@@ -216,7 +257,7 @@ export function nodeShimDir(): string | null {
  * resolves NOWHERE, and it is reachable only from a package script's PATH (see
  * {@link nodeShimDir}).
  */
-function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
+function writeNodeShim(dir: string, gjs: boolean, selfEntry: string, envPreamble: string): void {
     if (!gjs) return;
     const sub = join(dir, NODE_SHIM_SUBDIR);
     if (existsSync(join(sub, 'node'))) return; // inherited from a parent gjsify
@@ -237,6 +278,8 @@ function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
             '      echo "gjsify: got: node $*" >&2\n' +
             '      exit 127 ;;\n' +
             'esac\n' +
+            // The same hop as the `gjsify` shim, so the same preamble.
+            envPreamble +
             `exec "${interpreter}" -m "${selfEntry}" run --node-script "$@"\n`,
         { mode: 0o755 },
     );

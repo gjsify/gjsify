@@ -632,20 +632,31 @@ export function pickBinMap(
  */
 export function buildShLauncher(
     targetAbs: string,
-    opts: { envPreamble?: string; isGjsBundle: boolean; nodeFallbackAbs?: string },
+    opts: {
+        envPreamble?: string;
+        isGjsBundle: boolean;
+        nodeFallbackAbs?: string;
+        /**
+         * The gjs to exec — `GJS_CONSOLE` for the CLI's self-shim. NAMED rather
+         * than pathed by default, so a missing interpreter fails the same way on
+         * every OS.
+         */
+        gjs?: string;
+    },
 ): string {
     const preamble = opts.isGjsBundle ? (opts.envPreamble ?? '') : '';
+    const gjs = opts.gjs === undefined || opts.gjs === 'gjs' ? 'gjs' : shQuote(opts.gjs);
     if (opts.isGjsBundle && opts.nodeFallbackAbs !== undefined) {
         // The preamble only ever configures the GI search path, so it stays
         // inside the gjs branch — exporting it around a Node exec would be
         // inert at best and misleading to anyone reading the shim.
         return (
-            `#!/bin/sh\nif command -v gjs >/dev/null 2>&1; then\n${preamble}` +
-            `exec gjs -m ${shQuote(targetAbs)} "$@"\nfi\n` +
+            `#!/bin/sh\nif command -v ${gjs} >/dev/null 2>&1; then\n${preamble}` +
+            `exec ${gjs} -m ${shQuote(targetAbs)} "$@"\nfi\n` +
             `exec node ${shQuote(opts.nodeFallbackAbs)} "$@"\n`
         );
     }
-    const exec = opts.isGjsBundle ? `exec gjs -m ${shQuote(targetAbs)} "$@"` : `exec ${shQuote(targetAbs)} "$@"`;
+    const exec = opts.isGjsBundle ? `exec ${gjs} -m ${shQuote(targetAbs)} "$@"` : `exec ${shQuote(targetAbs)} "$@"`;
     return `#!/bin/sh\n${preamble}${exec}\n`;
 }
 
