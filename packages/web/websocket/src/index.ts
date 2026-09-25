@@ -6,16 +6,20 @@ import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
-import { abortConnection, kAbort } from './abort.js';
+import { abortConnection, isTransportFailure, kAbort, kClose, soupCloseCode } from './abort.js';
 
 export { MessageEvent, CloseEvent };
-export { abortConnection, kAbort };
+export { abortConnection, isTransportFailure, kAbort, kClose, soupCloseCode };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSING = 2;
 const CLOSED = 3;
+
+/** The error a close() before the handshake finished reports — npm ws's
+ *  wording, which @gjsify/ws surfaces verbatim. */
+const CLOSED_BEFORE_ESTABLISHED = 'WebSocket was closed before the connection was established';
 
 // libsoup exposes an extension's spec name only as a class-level C field that
 // GI doesn't surface on the JS object. Map by constructor for the one
@@ -58,6 +62,16 @@ export interface WebSocketOptions {
     /** Abort the opening handshake after this many milliseconds. Fires an
      *  'error' event with message "Opening handshake has timed out". */
     handshakeTimeout?: number;
+    /** `false` accepts any server certificate on a `wss:` URL — npm ws's
+     *  (and Node TLS's) option of the same name. Applies to this connection's
+     *  upgrade message only. Unset, `NODE_TLS_REJECT_UNAUTHORIZED=0` opts
+     *  out as it does in Node; `true` keeps verification regardless. */
+    rejectUnauthorized?: boolean;
+}
+
+function acceptsAnyCertificate(rejectUnauthorized: boolean | undefined): boolean {
+    if (rejectUnauthorized !== undefined) return !rejectUnauthorized;
+    return GLib.getenv('NODE_TLS_REJECT_UNAUTHORIZED') === '0';
 }
 
 /**
@@ -97,8 +111,11 @@ export class WebSocket extends EventTarget {
     private _connection: Soup.WebsocketConnection | null = null;
     private _session: Soup.Session;
     private _protocols: string[];
-    private _cancellable: Gio.Cancellable | null = null;
-    private _handshakeTimedOut = false;
+    // Always present: close() during the handshake cancels the connect just
+    // as a handshakeTimeout does.
+    private _cancellable = new Gio.Cancellable();
+    /** Why the handshake is being abandoned; the failure path reports it. */
+    private _failReason: string | null = null;
     private _handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(url: string | URL, protocols?: string | string[], options?: WebSocketOptions) {
@@ -164,15 +181,18 @@ export class WebSocket extends EventTarget {
             }
         }
 
+        // Per message, never on the session: an opt-out must not leak to
+        // other connections.
+        if (uri.get_scheme() === 'wss' && acceptsAnyCertificate(options?.rejectUnauthorized)) {
+            msg.connect('accept-certificate', () => true);
+        }
+
         // Set up handshake timeout via Gio.Cancellable so we can abort the async
         // connect operation after the caller-specified deadline.
         if (options?.handshakeTimeout) {
-            this._cancellable = new Gio.Cancellable();
-            const cancellable = this._cancellable;
             this._handshakeTimer = setTimeout(() => {
-                this._handshakeTimedOut = true;
                 this._handshakeTimer = null;
-                cancellable.cancel();
+                this._failConnecting('Opening handshake has timed out');
             }, options.handshakeTimeout);
         }
 
@@ -189,7 +209,14 @@ export class WebSocket extends EventTarget {
                 }
 
                 try {
-                    this._connection = this._session.websocket_connect_finish(asyncRes);
+                    const connection = this._session.websocket_connect_finish(asyncRes);
+                    if (this._failReason !== null) {
+                        // The cancel lost the race against a completed
+                        // handshake: drop what arrived instead of opening it.
+                        abortConnection(connection);
+                        throw new Error(this._failReason);
+                    }
+                    this._connection = connection;
                     // Soup's built-in default is 128 KB — too low for large frames
                     // (Autobahn 9.1.* sends single frames up to 16 MB; npm ws defaults
                     // to 100 MB). Set before wiring signals so the limit is in place
@@ -230,11 +257,7 @@ export class WebSocket extends EventTarget {
                 } catch (error: unknown) {
                     this.readyState = CLOSED;
 
-                    const errorMessage = this._handshakeTimedOut
-                        ? 'Opening handshake has timed out'
-                        : error instanceof Error
-                          ? error.message
-                          : String(error);
+                    const errorMessage = this._failReason ?? (error instanceof Error ? error.message : String(error));
                     const err = new Error(errorMessage);
 
                     // Attach error info to the event so wrapper layers (e.g. @gjsify/ws)
@@ -248,11 +271,9 @@ export class WebSocket extends EventTarget {
                     this.dispatchEvent(errorEvent);
                     if (this.onerror) this.onerror.call(this, errorEvent);
 
-                    const closeEvent = new CloseEvent('close', {
-                        code: 1006,
-                        reason: errorMessage,
-                        wasClean: false,
-                    });
+                    // The spec's failed connection closes with 1006 and no
+                    // reason; the cause travels on the error event.
+                    const closeEvent = new CloseEvent('close', { code: 1006, reason: '', wasClean: false });
                     this.dispatchEvent(closeEvent);
                     if (this.onclose) this.onclose.call(this, closeEvent);
                 }
@@ -277,8 +298,13 @@ export class WebSocket extends EventTarget {
         if (this.onmessage) this.onmessage.call(this, event);
     }
 
-    private _onError(_error: GLib.Error): void {
-        const event = new Event('error');
+    private _onError(error: GLib.Error): void {
+        // Same payload as the handshake failure: wrappers read `error`, and
+        // its `cause` keeps Soup's GLib.Error so @gjsify/ws can tell a
+        // transport failure from a protocol one (see isTransportFailure).
+        const event = new Event('error') as Event & { error?: Error; message?: string };
+        event.error = new Error(error.message, { cause: error });
+        event.message = error.message;
         this.dispatchEvent(event);
         if (this.onerror) this.onerror.call(this, event);
     }
@@ -348,29 +374,37 @@ export class WebSocket extends EventTarget {
      * Close the WebSocket connection.
      */
     close(code?: number, reason?: string): void {
-        if (this.readyState === CLOSED || this.readyState === CLOSING) return;
-
         if (code !== undefined && code !== 1000 && (code < 3000 || code > 4999)) {
             throw new DOMException(
                 `The code must be either 1000, or between 3000 and 4999. ${code} is neither.`,
                 'InvalidAccessError',
             );
         }
+        if (reason !== undefined && new TextEncoder().encode(reason).byteLength > 123) {
+            throw new DOMException('The close reason must not be greater than 123 UTF-8 bytes.', 'SyntaxError');
+        }
+        this[kClose](code, reason);
+    }
+
+    /** @internal close() without the W3C restriction on `code`: any status
+     *  RFC 6455 lets an endpoint send (1000–1003, 1007–1014, 3000–4999),
+     *  which is what npm ws accepts. The caller validates. Codes libsoup
+     *  cannot send go out as 1002 (see soupCloseCode). See {@link kClose}. */
+    [kClose](code?: number, reason?: string): void {
+        if (this.readyState === CLOSED || this.readyState === CLOSING) return;
+
+        if (!this._connection) {
+            // Spec: fail the connection while CONNECTING — the pending
+            // handshake is cancelled, and error + close (1006) follow.
+            this._failConnecting(CLOSED_BEFORE_ESTABLISHED);
+            return;
+        }
 
         this.readyState = CLOSING;
-
-        if (this._connection) {
-            // A second soup_websocket_connection_close() is a CRITICAL, not a
-            // no-op; Soup may already be closing without having told us.
-            if (!this._isSoupOpen()) return;
-            this._connection.close(code ?? 1000, reason ?? null);
-        } else {
-            // Connection never established
-            this.readyState = CLOSED;
-            const event = new CloseEvent('close', { code: 1006, wasClean: false });
-            this.dispatchEvent(event);
-            if (this.onclose) this.onclose.call(this, event);
-        }
+        // A second soup_websocket_connection_close() is a CRITICAL, not a
+        // no-op; Soup may already be closing without having told us.
+        if (!this._isSoupOpen()) return;
+        this._connection.close(soupCloseCode(this._connection, code ?? 1000), reason ?? null);
     }
 
     /** @internal Drop the connection without a Close frame (npm ws's
@@ -379,11 +413,25 @@ export class WebSocket extends EventTarget {
         if (this.readyState === CLOSED) return;
         if (!this._connection) {
             // Still handshaking: nothing to tear down but the pending open.
-            this.close();
+            this._failConnecting(CLOSED_BEFORE_ESTABLISHED);
             return;
         }
         this.readyState = CLOSING;
         abortConnection(this._connection);
+    }
+
+    /** Abandon the handshake. The connect callback runs with the cancel
+     *  error and reports `reason` — asynchronously, as the spec's "fail the
+     *  WebSocket connection" queues its events. The first reason wins. */
+    private _failConnecting(reason: string): void {
+        if (this.readyState === CLOSED || this._failReason !== null) return;
+        this._failReason = reason;
+        this.readyState = CLOSING;
+        if (this._handshakeTimer !== null) {
+            clearTimeout(this._handshakeTimer);
+            this._handshakeTimer = null;
+        }
+        this._cancellable.cancel();
     }
 
     private _isSoupOpen(): boolean {
