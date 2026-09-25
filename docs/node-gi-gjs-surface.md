@@ -193,6 +193,19 @@ const Greeter = registerClass('Greeter', 'Gio', 'SimpleAction', {
 constructType(Greeter, { name: 'greet' }); // logs "constructed: greet"
 ```
 
+A vfunc with OUT/INOUT parameters takes GJS's shape: a pure OUT is not a JS argument,
+an INOUT passes its current value, and the override answers through its return value —
+one output as itself, several as an array (the return value first, then the OUT/INOUT
+parameters in declaration order). `Gtk.Widget.vfunc_measure(orientation, forSize)`
+returns `[minimum, natural, minBaseline, natBaseline]`. A GI callback with OUT
+parameters (a JS function passed where C expects one) answers the same way. An array of
+the wrong length throws a `TypeError`. If the function throws or an answer does not
+convert, every unanswered pure OUT is zeroed, so C never reads an uninitialised
+variable. Ownership follows the annotation: a transfer-full object answer hands C its
+own reference. A caller-allocates record is copied into the caller's storage, and a
+GValue is deep-copied. Under L1 (`registerClass` from `@gjsify/node-gi/gi`) GObject
+arguments arrive as the same wrappers the rest of the program sees, as `this` does.
+
 
 ## L1 — GJS-shaped surface (`@gjsify/node-gi/gi`)
 

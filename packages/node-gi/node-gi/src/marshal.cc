@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <cmath>
+#include <cstring>
 #include <unordered_map>
 #include <utility>
 
@@ -1677,6 +1678,291 @@ static size_t BoxedInfoSize(GIBaseInfo* info) {
   if (GI_IS_STRUCT_INFO(info)) return gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(info));
   if (GI_IS_UNION_INFO(info)) return gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(info));
   return 0;
+}
+
+static bool ByValueRecordToCell(Napi::Env env, GITypeInfo* elem, Napi::Value v, void* dst,
+                                size_t elemSize, gpointer* writeBackTo);
+static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer transfer,
+                       gpointer* outPtr, long* outCount, std::vector<gpointer>* writeBack);
+
+// ---- a call C makes INTO JS: OUT / INOUT parameters and the answer ---------
+//
+// C calls a JS `vfunc_*` override or a GI callback with a POINTER for each OUT/INOUT
+// parameter and reads the answer back through it. Both trampolines used to hand those
+// pointers to JS as if they were IN values and never wrote anything back, so every
+// override with an OUT parameter answered zeros: `Gtk.LayoutManager.vfunc_measure`
+// returned `[min, nat, minBaseline, natBaseline]` from JS and GTK read `0, 0, 0, 0`.
+// That is what left a React Native `<ScrollView horizontal>` rail zero-height under
+// node-gi while the same code measured correctly on gjs. One class serves both
+// trampolines so the two cannot answer in different shapes.
+//
+// The shape is gjs's (gi/function.cpp callback_closure_inner): a pure OUT is not a
+// JS argument, an INOUT passes its current value, a `void`-typed OUT is skipped
+// entirely; one output (the return, or a lone OUT) is the JS return value itself,
+// several are an array — the return first, then the OUT/INOUT in declaration order.
+//
+// OWNERSHIP follows the parameter's transfer, through the same JsToGIArgument the IN
+// path uses: on EVERYTHING the C caller adopts the value, so an object gets its own
+// ref and a boxed its own copy; on NOTHING it borrows the wrapper's. Only the slot's
+// own bytes are copied out of the union (CInElementSize), never all eight, because the
+// destination is the caller's `int`/`gboolean`/enum variable and not a GIArgument.
+
+namespace {
+
+// How many bytes one scalar-shaped OUT/INOUT slot's variable holds, or 0 when it is
+// not one: a by-value record not marked caller-allocates, a GType and the containers
+// have no element write here (a self-delimiting OUT array has its own, in WriteOut),
+// and are refused with the parameter's name rather than half-written.
+size_t OutSlotSize(GITypeInfo* ti) {
+  if (IsByValueRecordElement(ti)) return 0;
+  size_t size = CInElementSize(ti);
+  return size <= sizeof(GIArgument) ? size : 0;
+}
+
+// How many bytes to zero in an unanswered pure OUT: its scalar size, or one pointer
+// for a container, whose variable is the pointer the caller would free.
+size_t OutZeroSize(GITypeInfo* ti) {
+  switch (gi_type_info_get_tag(ti)) {
+    case GI_TYPE_TAG_ARRAY:
+    case GI_TYPE_TAG_GLIST:
+    case GI_TYPE_TAG_GSLIST:
+    case GI_TYPE_TAG_GHASH:
+    case GI_TYPE_TAG_ERROR: return sizeof(gpointer);
+    case GI_TYPE_TAG_GTYPE: return sizeof(GType);
+    default: return OutSlotSize(ti);
+  }
+}
+
+// GObject qdata quark for the GPtrArray of transfer-none string answers tied to an
+// object's lifetime (AssociateStringWithObject below). A function-local static is
+// safe here — g_quark_from_static_string is idempotent and already how this file's
+// other qdata keys are declared (see class.cc's NodeGiClassDataQuark).
+static GQuark NodeGiInstanceStringsQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-instance-strings");
+  return q;
+}
+
+// Record `str` (already g_strdup'd) to be freed when `obj` is finalized. Mirrors
+// gjs's ObjectInstance::associate_string (refs/gjs/gi/object.cpp): a GPtrArray hung
+// off the object's own qdata, created on first use and freed automatically by
+// g_object_set_qdata_full's destroy notify.
+static void AssociateStringWithObject(GObject* obj, char* str) {
+  auto* strings = static_cast<GPtrArray*>(g_object_get_qdata(obj, NodeGiInstanceStringsQuark()));
+  if (strings == nullptr) {
+    strings = g_ptr_array_new_with_free_func(g_free);
+    g_object_set_qdata_full(obj, NodeGiInstanceStringsQuark(), strings,
+                            reinterpret_cast<GDestroyNotify>(g_ptr_array_unref));
+  }
+  g_ptr_array_add(strings, str);
+}
+
+// A string C keeps. A transfer-full one is C's to free, so it gets its own copy. A
+// transfer-none one must outlive this frame with NOBODY freeing it — a JsToGIArgument
+// string would point into a std::string that dies here.
+//
+// `owner` (the vfunc's instance, when there is one) gets first refusal: tying the
+// string to ITS lifetime bounds the cost to that object's lifetime, exactly as gjs
+// does. Without an owner (a plain GI callback has none) g_intern_string is the only
+// option — valid forever, one copy per distinct value — and that IS gjs's own
+// fallback there too. Interning unconditionally (this file's previous approach) is
+// the wrong default for the common vfunc case: a JS override that answers a FRESH
+// transfer-none string every call (e.g. Gtk.Editable's vfunc_get_text on a
+// live-updating buffer) would intern one string PER CALL, forever, for the life of
+// the process — unbounded growth a real widget hits on every keystroke.
+char* StringForC(Napi::Value v, GITransfer transfer, GObject* owner) {
+  if (!v.IsString()) return nullptr;
+  std::string s = v.As<Napi::String>().Utf8Value();
+  if (transfer != GI_TRANSFER_NOTHING) return g_strdup(s.c_str());
+  if (owner != nullptr) {
+    char* dup = g_strdup(s.c_str());
+    AssociateStringWithObject(owner, dup);
+    return dup;
+  }
+  return const_cast<char*>(g_intern_string(s.c_str()));
+}
+
+bool JsToAnswerArgument(Napi::Env env, Napi::Value v, GITypeInfo* ti, GITransfer transfer,
+                        GIArgument* out, const char* argName, GObject* owner) {
+  memset(out, 0, sizeof(*out));
+  GITypeTag tag = gi_type_info_get_tag(ti);
+  if (tag == GI_TYPE_TAG_UTF8 || tag == GI_TYPE_TAG_FILENAME) {
+    out->v_string = StringForC(v, transfer, owner);
+    return true;
+  }
+  std::string held;
+  return JsToGIArgument(env, v, ti, out, &held, transfer, nullptr, nullptr, nullptr, nullptr,
+                        nullptr, argName);
+}
+
+}  // namespace
+
+CToJsCall::CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label, GObject* owner)
+    : env_(env), ci_(ci), label_(std::move(label)), owner_(owner) {}
+
+CToJsCall::~CToJsCall() {
+  for (const Slot& s : outs_) {
+    gi_base_info_unref(s.ti);
+    gi_base_info_unref(s.ai);
+  }
+}
+
+void CToJsCall::ThrowUnsupported(const Slot& s) const {
+  Napi::TypeError::New(env_, label_ + ": OUT/INOUT parameter '" +
+                                 gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(s.ai)) +
+                                 "' has a type node-gi cannot write back from JS")
+      .ThrowAsJavaScriptException();
+}
+
+bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_value>* jsArgs) {
+  unsigned int n = gi_callable_info_get_n_args(ci_);
+  jsArgs->reserve(n);
+  // After a failed conversion the loop keeps going, recording only the OUT slots, so
+  // WriteAnswer can still zero every one of them — JS will not run to answer.
+  bool failed = false;
+  for (unsigned int i = 0; i < n; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci_, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    GIArgument* ffiSlot = static_cast<GIArgument*>(args[i + offset]);
+    GIDirection dir = gi_arg_info_get_direction(ai);
+    if (dir == GI_DIRECTION_IN || gi_type_info_get_tag(ti) == GI_TYPE_TAG_VOID) {
+      if (dir == GI_DIRECTION_IN && !failed) {
+        Napi::Value v = GIArgumentToJs(env_, ti, ffiSlot, GI_TRANSFER_NOTHING);
+        failed = env_.IsExceptionPending();
+        if (!failed) jsArgs->push_back(v);
+      }
+      gi_base_info_unref(ti);
+      gi_base_info_unref(ai);
+      continue;
+    }
+    // The ffi slot of an OUT/INOUT holds the caller's pointer: to its variable, or for
+    // a caller-allocates record to the record itself.
+    outs_.push_back({ai, ti, ffiSlot->v_pointer});
+    if (dir != GI_DIRECTION_INOUT || failed) continue;
+    const Slot& s = outs_.back();
+    GIArgument cur;
+    memset(&cur, 0, sizeof(cur));
+    if (s.dest == nullptr) {
+      jsArgs->push_back(env_.Null());
+      continue;
+    }
+    if (gi_arg_info_is_caller_allocates(ai)) {
+      cur.v_pointer = s.dest;
+    } else {
+      size_t size = OutSlotSize(ti);
+      if (size == 0) {
+        ThrowUnsupported(s);
+        failed = true;
+        continue;
+      }
+      memcpy(&cur, s.dest, size);
+    }
+    Napi::Value v = GIArgumentToJs(env_, ti, &cur, GI_TRANSFER_NOTHING);
+    failed = env_.IsExceptionPending();
+    if (!failed) jsArgs->push_back(v);
+  }
+  return !failed;
+}
+
+bool CToJsCall::WriteOut(const Slot& s, Napi::Value v) {
+  // A nullable OUT the caller passed NULL for: it did not ask, so there is nothing to
+  // write and nothing to refuse.
+  if (s.dest == nullptr) return true;
+  const char* name = gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(s.ai));
+  if (gi_arg_info_is_caller_allocates(s.ai)) {
+    // The caller owns the storage and wants the record's BYTES in it. The by-value
+    // array-cell writer already does exactly that and checks the handle is the SAME
+    // record type first — copying the destination's size out of a smaller handle of
+    // another type would read past its end. A GValue is initialised and deep-copied
+    // rather than aliased, which is also gjs's one caller-allocates case here.
+    GIBaseInfo* iface = gi_type_info_get_tag(s.ti) == GI_TYPE_TAG_INTERFACE
+                            ? gi_type_info_get_interface(s.ti)
+                            : nullptr;
+    size_t size = BoxedInfoSize(iface);
+    if (iface != nullptr) gi_base_info_unref(iface);
+    if (size == 0) {
+      ThrowUnsupported(s);
+      return false;
+    }
+    return ByValueRecordToCell(env_, s.ti, v, s.dest, size, nullptr);
+  }
+  GITransfer transfer = gi_arg_info_get_ownership_transfer(s.ai);
+  unsigned int lengthIndex = 0;
+  if (gi_type_info_get_tag(s.ti) == GI_TYPE_TAG_ARRAY &&
+      !gi_type_info_get_array_length_index(s.ti, &lengthIndex)) {
+    // A self-delimiting array (zero-terminated, fixed-size, or a GArray/GPtrArray/
+    // GByteArray) is one pointer the caller reads, built the way an IN array is. One
+    // with a separate length parameter is refused below: that length is a second OUT
+    // gjs would expect in the answer too, and writing it from the array is its own
+    // decision, not a side effect of this one.
+    gpointer arr = nullptr;
+    long count = 0;
+    if (!JsToCArray(env_, v, s.ti, transfer, &arr, &count, nullptr)) return false;
+    *static_cast<gpointer*>(s.dest) = arr;
+    return true;
+  }
+  size_t size = OutSlotSize(s.ti);
+  if (size == 0) {
+    ThrowUnsupported(s);
+    return false;
+  }
+  GIArgument a;
+  if (!JsToAnswerArgument(env_, v, s.ti, transfer, &a, name, owner_)) return false;
+  memcpy(s.dest, &a, size);
+  return true;
+}
+
+void CToJsCall::WriteAnswer(napi_value ret, void* result) {
+  GITypeInfo* retType = gi_callable_info_get_return_type(ci_);
+  GITypeTag rtag = gi_type_info_get_tag(retType);
+  bool hasRet = rtag != GI_TYPE_TAG_VOID;
+  size_t nAnswers = outs_.size() + (hasRet ? 1 : 0);
+  size_t written = 0;
+  if (nAnswers > 0 && ret != nullptr && !env_.IsExceptionPending()) {
+    Napi::Value rv(env_, ret);
+    std::vector<Napi::Value> answers;
+    if (nAnswers == 1) {
+      answers.push_back(rv);
+    } else if (rv.IsArray() && rv.As<Napi::Array>().Length() == nAnswers) {
+      Napi::Array arr = rv.As<Napi::Array>();
+      for (uint32_t k = 0; k < nAnswers && !env_.IsExceptionPending(); k++)
+        answers.push_back(arr.Get(k));
+    } else {
+      Napi::TypeError::New(env_, label_ + " must return an array of " +
+                                     std::to_string(nAnswers) +
+                                     " values (its return value and OUT parameters)")
+          .ThrowAsJavaScriptException();
+    }
+    if (answers.size() == nAnswers && !env_.IsExceptionPending()) {
+      size_t k = 0;
+      bool ok = true;
+      if (hasRet) {
+        GIArgument a;
+        ok = JsToAnswerArgument(env_, answers[k++], retType,
+                                gi_callable_info_get_caller_owns(ci_), &a, "return value",
+                                owner_);
+        // The ffi return slot is at least ffi_arg wide and was zeroed by the caller,
+        // so the whole union can go in: libffi reads the low bytes it needs.
+        if (ok && result != nullptr) *static_cast<GIArgument*>(result) = a;
+      }
+      while (ok && written < outs_.size()) {
+        ok = WriteOut(outs_[written], answers[k++]);
+        if (ok) written++;
+      }
+    }
+  }
+  // Whatever was not answered — JS threw, returned the wrong shape, or a value did
+  // not convert — must not leave C reading an uninitialised variable: a pure OUT is
+  // one the caller need not have initialised. Zero it (the return slot already is);
+  // the JS exception stays pending for the trampoline to surface or propagate.
+  for (size_t i = written; i < outs_.size(); i++) {
+    const Slot& s = outs_[i];
+    if (s.dest == nullptr || gi_arg_info_get_direction(s.ai) != GI_DIRECTION_OUT ||
+        gi_arg_info_is_caller_allocates(s.ai))
+      continue;
+    size_t size = OutZeroSize(s.ti);
+    if (size != 0) memset(s.dest, 0, size);
+  }
+  gi_base_info_unref(retType);
 }
 
 // Write ONE by-value record element straight into its C-array cell.

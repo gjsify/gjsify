@@ -452,7 +452,8 @@ jobs:
               test/widgets.test.mjs test/gtksource-smoke.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
               test/gtk-template-signals.test.mjs \
-              test/strv-construct.test.mjs test/interface-props.test.mjs
+              test/strv-construct.test.mjs test/interface-props.test.mjs \
+              test/vfunc-out-params.test.mjs
 
       # The ONE leg with a WAYLAND display, and the only place the #1145 guard can
       # run: every other GTK step here pins GDK_BACKEND=x11, and GdkX11's event

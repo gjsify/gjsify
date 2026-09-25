@@ -711,18 +711,26 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
   after three wrong proxies (an issue number, then "#1438 closes", then "the release
   carrying it"). What it is actually failing on, measured on run 35423439012 against a
   published 0.51.1 and none of it #1438:
-  - **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
-    bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
-    `a real tree, through a real reconciler` case that walks up from a child dies on it. One
-    is a natural-size read — `Expected 0 to be greater than 0` on the content box that
-    should stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`,
-    on the `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+  - **darwin-arm64 — 7 of 655, six of them FIXED in the tree and waiting on a node-gi
+    release.** They were one node-gi defect with two halves, neither darwin-specific (this
+    probe is simply the only place the React Native suite runs on node-gi). A JS `vfunc_*`
+    override received its GObject arguments as raw engine handles (`gi.js`), which is the
+    five `t.get_ancestor is not a function` in the rail's `RailLayout.vfunc_measure`; and
+    the addon's vfunc trampoline never wrote OUT parameters back, so GTK read 0 for every
+    size that override answered — the sixth, `Expected 0 to be greater than 0`. The gi.js
+    half reaches the probe immediately; the C++ half needs the next published
+    `@gjsify/node-gi`, and until then the same six stay red as size mismatches. Measured
+    on a real macOS 27 arm64 host: 649/655 on the published addon, all six green on a
+    locally built one (test: `packages/node-gi/node-gi/test/vfunc-out-params.test.mjs`).
+    The seventh, a GTK diagnostic under `tabs` on the `Adw.ViewSwitcher` moving to a
+    bottom bar, did not reproduce on that host.
   - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
     `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
     chrome`. A different and worse shape than arm64's seven, and not attributed.
 
-  Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
-  x64 death needs a local reproduction before it can be counted as anything.
+  Whoever picks this up: re-measure arm64 once a node-gi release carries the vfunc OUT
+  write-back, and the x64 death needs a local reproduction before it can be counted as
+  anything.
 - `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
   Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
   clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
@@ -858,6 +866,23 @@ of the conformance corpus (nothing pins the current behaviour as correct
 either), and the day a consumer needs the throw, the place to add it is the
 `vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
 engine addressing the slot.
+
+### node-gi: an interface's vfuncs are not installed from a JS class
+
+`registerClass` installs a `vfunc_*` override only into the CLASS struct of an
+ancestor. A class that `Implements: [Gio.ActionGroup]` and defines
+`vfunc_query_action` gets the warning "registerClass vfunc 'query_action' not found
+on any ancestor" and C never calls it: the interface struct
+(`GActionGroupInterface`) is never looked up. gjs fills it in its interface init.
+The C→JS half is ready — `CToJsCall` (marshal.cc) already answers class vfuncs and
+GI callbacks in gjs's OUT/INOUT shape; what is missing is the lookup in the
+implemented interfaces and an ffi closure per slot in the interface init. Found
+while fixing the class-vfunc OUT write-back; no consumer has hit it yet.
+
+`CToJsCall` also still refuses two OUT shapes with a TypeError naming the parameter:
+an OUT array with a separate LENGTH parameter (the length is a second OUT, and
+whether the JS answer carries it is a decision gjs has not made either), and
+GList/GSList/GHashTable OUTs.
 
 ### node-gi: two `GLib.Error` shapes, and they answer `instanceof` differently
 
