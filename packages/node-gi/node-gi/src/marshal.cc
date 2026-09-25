@@ -1816,6 +1816,36 @@ void CToJsCall::ThrowUnsupported(const Slot& s) const {
 bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_value>* jsArgs) {
   unsigned int n = gi_callable_info_get_n_args(ci_);
   jsArgs->reserve(n);
+  // Every arg's C value, indexed like the callable's args, so a length-annotated
+  // C-array arg can read its companion length (ReadOutOrReturn's `slots`). Without
+  // it such an array is not zero-terminated and reads as EMPTY — measured: a JS
+  // Gio.OutputStream's vfunc_write_fn(buffer) got [] and returned 0 where gjs
+  // 1.88.1 hands it all 3 bytes, a silent short write (write_all would spin).
+  // An ffi slot holds the value at its own width; OutSlotSize is that width for a
+  // scalar and 0 for anything that can never be a length.
+  // `isLength` marks those companions: gjs never hands one to JS (the array carries
+  // its length), so the handler's later args keep their gjs positions —
+  // vfunc_write_fn(buffer, cancellable), not (buffer, count, cancellable).
+  std::vector<GIArgument> slots(n);
+  std::vector<bool> isLength(n, false);
+  for (unsigned int i = 0; i < n; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci_, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    GIDirection dir = gi_arg_info_get_direction(ai);
+    unsigned int lenIdx = 0;
+    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY &&
+        gi_type_info_get_array_length_index(ti, &lenIdx) && lenIdx < n)
+      isLength[lenIdx] = true;
+    size_t size = gi_type_info_get_tag(ti) == GI_TYPE_TAG_VOID ? 0 : OutSlotSize(ti);
+    void* src = args[i + offset];
+    if (dir == GI_DIRECTION_INOUT && src != nullptr && !gi_arg_info_is_caller_allocates(ai))
+      src = static_cast<GIArgument*>(src)->v_pointer;
+    else if (dir == GI_DIRECTION_OUT)
+      src = nullptr;
+    if (src != nullptr && size > 0) memcpy(&slots[i], src, size);
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
   // After a failed conversion the loop keeps going, recording only the OUT slots, so
   // WriteAnswer can still zero every one of them — JS will not run to answer.
   bool failed = false;
@@ -1825,18 +1855,15 @@ bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_v
     GIArgument* ffiSlot = static_cast<GIArgument*>(args[i + offset]);
     GIDirection dir = gi_arg_info_get_direction(ai);
     if (dir == GI_DIRECTION_IN || gi_type_info_get_tag(ti) == GI_TYPE_TAG_VOID) {
-      if (dir == GI_DIRECTION_IN && !failed) {
+      if (dir == GI_DIRECTION_IN && !failed && !isLength[i]) {
         // ReadOutOrReturn, not GIArgumentToJs directly: a C-invoked callback's
         // IN argument can be a container too (Soup.ServerCallback's trailing
         // `query` is a GHashTable, GI_TYPE_TAG_GHASH) — GIArgumentToJs's switch
         // has no ARRAY/GLIST/GSLIST/GHASH arm and threw "Unsupported return
         // type tag 19" on EVERY invocation, aborting the callback (and, for a
         // scope=call libsoup request handler, the connection) before the JS
-        // side ever ran. slots=nullptr: no companion length-arg vector here, so
-        // a length-annotated fixed C-array arg degrades to a zero-terminated
-        // scan instead of throwing — GArray/GPtrArray/GByteArray/GList/GSList/
-        // GHash all carry their own length and are unaffected.
-        Napi::Value v = ReadOutOrReturn(env_, ci_, ti, ffiSlot, GI_TRANSFER_NOTHING, nullptr);
+        // side ever ran. `slots` resolves a length-annotated C array (above).
+        Napi::Value v = ReadOutOrReturn(env_, ci_, ti, ffiSlot, GI_TRANSFER_NOTHING, &slots);
         failed = env_.IsExceptionPending();
         if (!failed) jsArgs->push_back(v);
       }
@@ -1868,7 +1895,7 @@ bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_v
     }
     // Same container gap as the IN-arg read above (an INOUT container arg is
     // rarer, but the fix is identical): ReadOutOrReturn, not GIArgumentToJs.
-    Napi::Value v = ReadOutOrReturn(env_, ci_, ti, &cur, GI_TRANSFER_NOTHING, nullptr);
+    Napi::Value v = ReadOutOrReturn(env_, ci_, ti, &cur, GI_TRANSFER_NOTHING, &slots);
     failed = env_.IsExceptionPending();
     if (!failed) jsArgs->push_back(v);
   }
