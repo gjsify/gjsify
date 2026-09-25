@@ -2192,7 +2192,9 @@ jobs:
     needs: scope
     if: ${{ needs.scope.outputs.engine == 'true' }}
     runs-on: windows-latest
-    timeout-minutes: 40
+    # Measured 2026-09-25: ~7 min before the consumer-harness steps, ~11 min with
+    # them (install + build:infra ≈ 3.5 min, package builds ≈ 1 min). 30 leaves ~2.5×.
+    timeout-minutes: 30
     env:
       GVSBUILD_VERSION: '2026.6.0'
       # Extract to gvsbuild's canonical build prefix so its .pc files' baked
@@ -2316,6 +2318,39 @@ jobs:
           name: node-gi-prebuild-win32-x64
           path: packages/node-gi/node-gi/prebuilds/win32-x64/node_gi.node
           if-no-files-found: error
+
+      # The consumer harness on the one host where `process.platform` is `win32`.
+      # Everything above proves node-gi's OWN surface; nothing ran a gjsify
+      # package's suite through it on Windows, and a pure-TS package is where a
+      # win32 divergence shows without GTK in the way: `@gjsify/path` picks its
+      # flavour from the host, so on Linux every one of these runs measures posix.
+      # Same bootstrap as windows-suites.yml (the published CLI installs the tree
+      # and builds this checkout's CLI), then the addon built above is linked in.
+      - name: Fetch the published CLI (consumer harness)
+        run: node scripts/npm-install-published.mjs -- --no-save --prefix "$env:RUNNER_TEMP\bootstrap-cli" @gjsify/cli@latest
+
+      - name: Install the workspace + build this checkout's CLI
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cli = "$env:RUNNER_TEMP\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js"
+          node $cli install --immutable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node $cli run build:infra
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # A junction, not a symlink: it needs no Developer Mode or elevation.
+          if (-not (Test-Path node_modules\@gjsify\node-gi)) {
+            New-Item -ItemType Junction -Path node_modules\@gjsify\node-gi -Target "$PWD\packages\node-gi\node-gi" | Out-Null
+          }
+
+      - name: Build the harness packages (+ workspace deps)
+        run: |
+          foreach ($p in '@gjsify/unit', '@gjsify/path', '@gjsify/string_decoder') {
+            node packages\infra\cli\lib\index.js workspace $p build:gjsify --with-dependencies
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Run the node-gi consumer harness (pure-TS set, --require-pass)
+        run: node scripts/node-gi-consumer-harness.mjs @gjsify/path @gjsify/string_decoder --runtimes node --require-pass
 
   # Windows Phase 2 — BUILD the batteries-included GTK runtime bundle. Reuses the
   # `windows` job's gvsbuild download/cache steps as the closure SOURCE (build-time
