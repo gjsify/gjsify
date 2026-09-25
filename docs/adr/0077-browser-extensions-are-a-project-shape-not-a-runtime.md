@@ -4,7 +4,7 @@
 - Date: 2026-09-25
 - Deciders: Pascal Garber
 - Related: [ADR 0024](0024-ship-installable-artifacts.md) (the rasterizer and the ZIP writer
-  this reuses), ADR 0076 in #1812 (`gjsify exec`, which moves `web-ext` off Node), `packages/infra/cli/src/commands/webext.ts`,
+  this reuses), ADR 0076 in #1812 (`gjsify exec`, which moves `web-ext` off Node), `packages/infra/cli/src/commands/webext/`,
   `packages/infra/cli/src/utils/webext/`, `examples/web/webext-hello/`
 
 ## Context

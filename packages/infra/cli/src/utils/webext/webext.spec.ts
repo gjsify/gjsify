@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { tinyPng } from '../ship/icon-fixture.spec.js';
 import { buildWebext, zipEntriesOf, zipTimestamp, type BundleRequest } from './build.js';
@@ -151,12 +151,14 @@ export default async () => {
                 '<script type="module" src="./main.ts"></script>',
                 '<script src="./legacy.js"></script>',
             ].join('\n');
-            const plan = planPage('popup', '/p/entrypoints/popup/index.html', html);
+            // Resolved, not spelled: on win32 an absolute path carries a drive and backslashes.
+            const p = (...parts: string[]): string => resolve('/p', ...parts);
+            const plan = planPage('popup', p('entrypoints/popup/index.html'), html);
             expect(plan.scripts).toStrictEqual([
-                { entry: '/p/entrypoints/popup/main.ts', format: 'esm', output: 'popup.js' },
-                { entry: '/p/entrypoints/popup/legacy.js', format: 'iife', output: 'popup-2.js' },
+                { entry: p('entrypoints/popup/main.ts'), format: 'esm', output: 'popup.js' },
+                { entry: p('entrypoints/popup/legacy.js'), format: 'iife', output: 'popup-2.js' },
             ]);
-            expect(plan.stylesheets).toStrictEqual([{ source: '/p/src/ui/style.css', output: 'style.css' }]);
+            expect(plan.stylesheets).toStrictEqual([{ source: p('src/ui/style.css'), output: 'style.css' }]);
             expect(plan.html).toContain('<script type="module" src="popup.js"></script>');
             expect(plan.html).toContain('<script src="popup-2.js"></script>');
             expect(plan.html).toContain('<link rel="stylesheet" href="style.css" />');

@@ -8,17 +8,17 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 
-import type { Command } from '../types/index.js';
-import { buildWebext, type BundleRequest } from '../utils/webext/build.js';
-import { resolveWebextConfig, selectTargets, type ResolvedWebext } from '../utils/webext/config.js';
+import type { Command } from '../../types/index.js';
+import { buildWebext, type BundleRequest } from '../../utils/webext/build.js';
+import { resolveWebextConfig, selectTargets, type ResolvedWebext } from '../../utils/webext/config.js';
 import {
     defaultDevProfile,
     resolveWebExt,
     WEB_EXT_MISSING,
     webExtRunArgs,
     type WebExtCommand,
-} from '../utils/webext/launch.js';
-import type { WebextTarget } from '../utils/webext/targets.js';
+} from '../../utils/webext/launch.js';
+import type { WebextTarget } from '../../utils/webext/targets.js';
 
 interface WebextArgs {
     target?: string[];
@@ -51,7 +51,7 @@ function effectiveDefines(config: ResolvedWebext, flags: readonly string[]): Rec
 
 /** One bundle, through the ordinary build command in this process. */
 async function bundleInProcess(request: BundleRequest): Promise<void> {
-    const { runCli } = await import('../cli-app.js');
+    const { runCli } = await import('../../cli-app.js');
     const argv = ['build', request.entry, '--app', 'browser', '--format', request.format, '--outfile', request.outfile];
     for (const [key, value] of Object.entries(request.define)) argv.push('--define', `${key}=${value}`);
     if (!request.minify) argv.push('--no-minify');
@@ -90,7 +90,7 @@ async function runBuild(args: WebextArgs, zip: boolean): Promise<void> {
     });
 }
 
-const webextBuildCommand: Command<unknown, WebextArgs> = {
+export const webextBuildCommand: Command<unknown, WebextArgs> = {
     command: 'build',
     description: 'Build one extension folder per target: bundles, pages, icons, locales and the manifest.',
     builder: (yargs) =>
@@ -107,7 +107,7 @@ const webextBuildCommand: Command<unknown, WebextArgs> = {
     handler: (args) => runBuild(args, false),
 };
 
-const webextZipCommand: Command<unknown, WebextArgs> = {
+export const webextZipCommand: Command<unknown, WebextArgs> = {
     command: 'zip',
     description: 'Production build, then one store-ready <name>-<version>-<target>.zip per target.',
     builder: (yargs) =>
@@ -140,7 +140,7 @@ function devWatchTargets(config: ResolvedWebext, outDir: string): { path: string
     return out;
 }
 
-const webextDevCommand: Command<unknown, WebextArgs> = {
+export const webextDevCommand: Command<unknown, WebextArgs> = {
     command: 'dev',
     description:
         'Build one target in development mode, launch it in a browser via web-ext, and rebuild in place on change.',
@@ -199,7 +199,7 @@ const webextDevCommand: Command<unknown, WebextArgs> = {
                 headless: args.headless,
             });
             console.log(`[webext] launching ${target.id} with profile ${profile}`);
-            const { spawnSupervised } = await import('../utils/watch-loop.js');
+            const { spawnSupervised } = await import('../../utils/watch-loop.js');
             browser = await spawnSupervised(webExt.cmd, argv, webExt.env);
             browser.on('exit', (code) => {
                 console.log(`[webext] browser closed (${code ?? 0}) — stopping`);
@@ -207,7 +207,7 @@ const webextDevCommand: Command<unknown, WebextArgs> = {
             });
         };
 
-        const { runWatchLoop } = await import('../utils/watch-loop.js');
+        const { runWatchLoop } = await import('../../utils/watch-loop.js');
         await runWatchLoop({
             dir: cwd,
             dirLabel: '.',
@@ -232,31 +232,4 @@ const webextDevCommand: Command<unknown, WebextArgs> = {
             debounceMs: args.debounce,
         });
     },
-};
-
-export const webextCommand: Command = {
-    command: 'webext <subcommand>',
-    description: 'Browser extensions: build, zip and develop one WebExtension for Chrome, Edge, Firefox and Safari.',
-    builder: (yargs) =>
-        yargs
-            .command(
-                webextBuildCommand.command as string,
-                webextBuildCommand.description,
-                webextBuildCommand.builder!,
-                webextBuildCommand.handler!,
-            )
-            .command(
-                webextZipCommand.command as string,
-                webextZipCommand.description,
-                webextZipCommand.builder!,
-                webextZipCommand.handler!,
-            )
-            .command(
-                webextDevCommand.command as string,
-                webextDevCommand.description,
-                webextDevCommand.builder!,
-                webextDevCommand.handler!,
-            )
-            .demandCommand(1)
-            .strict(),
 };
