@@ -4,7 +4,7 @@ import { DocumentFragment } from '../document-fragment.js';
 import { DOMTokenList } from '../dom-token-list.js';
 import { Text } from '../text.js';
 import { defineGlobal, defineGlobalIfMissing } from './helpers.js';
-import { installWindowEventBus, type WindowEventBusHost } from './window-event-bus.js';
+import '@gjsify/dom-events/register/global-event-target';
 
 defineGlobal('Text', Text);
 defineGlobal('Comment', Comment);
@@ -32,11 +32,9 @@ defineGlobalIfMissing('window', globalThis);
 defineGlobalIfMissing('focus', () => {});
 defineGlobalIfMissing('blur', () => {});
 
-// Unconditional (idempotent) on purpose: the window-scope bus must be the gjsify singleton the
-// GTK→DOM event bridge dispatches on. Bun/Deno ship a native `globalThis.addEventListener`, and an
-// install-only-when-missing guard split the bus there — window listeners on the native target, the
-// bridge dispatching into a never-installed one, keyboard dead. Rationale: ./window-event-bus.ts.
-installWindowEventBus(globalThis as WindowEventBusHost);
+// The window-scope bus the GTK→DOM event bridge dispatches on comes from the
+// @gjsify/dom-events/register/global-event-target import above (rationale in its
+// window-event-bus.ts): the same register any bundle calling `window.addEventListener` gets.
 
 // A widget-less default of 1, not a claim about the display: the ratio belongs to the surface a
 // widget sits on and changes when a window moves between monitors. It is NOT 1 because GTK skips
