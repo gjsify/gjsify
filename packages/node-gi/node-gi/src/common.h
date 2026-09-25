@@ -413,6 +413,13 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse u
 // function-invoke path (calls.cc) and the vfunc chain-up path (class.cc).
 bool IsSupportedOutType(GITypeInfo* type, std::string* why);
 size_t CElementSize(GITypeInfo* elem);
+// A JS vfunc override's OUT/INOUT parameters (class.cc NodeGiVFuncTrampoline): read an
+// INOUT's current value from the caller's pointer, and write a JS result through it.
+// Both throw a TypeError naming the parameter for a type with no write path.
+Napi::Value VfuncInoutSlotToJs(Napi::Env env, GIArgInfo* ai, GITypeInfo* ti, gpointer src,
+                               const char* vfuncName);
+bool JsToVfuncOutSlot(Napi::Env env, Napi::Value v, GIArgInfo* ai, GITypeInfo* ti, gpointer dest,
+                      const char* vfuncName);
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);
 
 // One IN length-argument autofill, remembered so a SECOND array naming the same length

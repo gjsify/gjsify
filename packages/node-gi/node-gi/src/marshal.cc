@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <cmath>
+#include <cstring>
 #include <unordered_map>
 #include <utility>
 
@@ -1677,6 +1678,87 @@ static size_t BoxedInfoSize(GIBaseInfo* info) {
   if (GI_IS_STRUCT_INFO(info)) return gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(info));
   if (GI_IS_UNION_INFO(info)) return gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(info));
   return 0;
+}
+
+// ---- vfunc override OUT / INOUT parameters -------------------------------
+//
+// C calls a JS `vfunc_*` override with a POINTER for each OUT/INOUT parameter and
+// reads the answer back through it. The trampoline used to hand those pointers to JS
+// as if they were IN values and never wrote anything back, so every override with an
+// OUT parameter answered zeros: `Gtk.LayoutManager.vfunc_measure` returned
+// `[min, nat, minBaseline, natBaseline]` from JS and GTK read `0, 0, 0, 0`. That is
+// what left a React Native `<ScrollView horizontal>` rail zero-height under node-gi
+// while the same code measured correctly on gjs.
+//
+// One slot is one ELEMENT-shaped value — a scalar, an enum, a string, an object or a
+// boxed pointer — so the write reuses ElementToGIArgument, whose transfer rules are
+// already the right ones: on EVERYTHING the C caller adopts the value, so an object
+// gets its own ref and a boxed its own copy; on NOTHING it borrows. Only the slot's
+// own bytes are copied out of the union (CInElementSize), never all eight, because
+// the destination is the caller's `int`/`gboolean`/enum variable and not a GIArgument.
+
+// Whether this OUT/INOUT slot type has a write path here. A by-value record that is
+// not caller-allocated, a GType and the containers are not element-shaped; they are
+// refused with the parameter's name rather than half-written.
+static bool VfuncSlotSize(GITypeInfo* ti, size_t* size) {
+  if (IsByValueRecordElement(ti)) return false;
+  *size = CInElementSize(ti);
+  return *size != 0 && *size <= sizeof(GIArgument);
+}
+
+static void ThrowUnsupportedVfuncSlot(Napi::Env env, GIArgInfo* ai, const char* vfuncName) {
+  std::string msg = "vfunc '";
+  msg += vfuncName;
+  msg += "': OUT/INOUT parameter '";
+  msg += gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai));
+  msg += "' has a type node-gi cannot write back from a JS override";
+  Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+}
+
+Napi::Value VfuncInoutSlotToJs(Napi::Env env, GIArgInfo* ai, GITypeInfo* ti, gpointer src,
+                               const char* vfuncName) {
+  if (src == nullptr) return env.Null();
+  size_t size = 0;
+  if (!VfuncSlotSize(ti, &size)) {
+    ThrowUnsupportedVfuncSlot(env, ai, vfuncName);
+    return env.Undefined();
+  }
+  GIArgument a;
+  memset(&a, 0, sizeof(a));
+  memcpy(&a, src, size);
+  return GIArgumentToJs(env, ti, &a, GI_TRANSFER_NOTHING);
+}
+
+bool JsToVfuncOutSlot(Napi::Env env, Napi::Value v, GIArgInfo* ai, GITypeInfo* ti, gpointer dest,
+                      const char* vfuncName) {
+  // A nullable OUT the caller passed NULL for: it did not ask, so there is nothing to
+  // write and nothing to refuse.
+  if (dest == nullptr) return true;
+  if (gi_arg_info_is_caller_allocates(ai)) {
+    // The caller owns the storage and wants the record's BYTES in it, which is what a
+    // boxed handle holds. A shallow copy, as for any caller-allocates record.
+    GIBaseInfo* iface =
+        gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE ? gi_type_info_get_interface(ti) : nullptr;
+    size_t size = BoxedInfoSize(iface);
+    if (iface != nullptr) gi_base_info_unref(iface);
+    gpointer src = nullptr;
+    if (size == 0 || !TryGetBoxedPtr(v, &src) || src == nullptr) {
+      ThrowUnsupportedVfuncSlot(env, ai, vfuncName);
+      return false;
+    }
+    memcpy(dest, src, size);
+    return true;
+  }
+  size_t size = 0;
+  if (!VfuncSlotSize(ti, &size)) {
+    ThrowUnsupportedVfuncSlot(env, ai, vfuncName);
+    return false;
+  }
+  GIArgument a;
+  memset(&a, 0, sizeof(a));
+  if (!ElementToGIArgument(env, ti, v, &a, gi_arg_info_get_ownership_transfer(ai))) return false;
+  memcpy(dest, &a, size);
+  return true;
 }
 
 // Write ONE by-value record element straight into its C-array cell.
