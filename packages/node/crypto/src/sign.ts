@@ -348,12 +348,20 @@ function rsaPem(key: KeyObject): string {
     return key.export({ format: 'pem', type: key.type === 'private' ? 'pkcs1' : 'spki' }) as string;
 }
 
+/** EdDSA fixes its own hash: Node (OpenSSL) refuses any digest name for it. */
+function rejectDigestForEdDSA(algorithm: string | null | undefined): void {
+    if (algorithm !== null && algorithm !== undefined) {
+        throw codedError('ERR_OSSL_INVALID_DIGEST', 'error:1C80007A:Provider routines::invalid digest');
+    }
+}
+
 function oneShotSign(algorithm: string | null | undefined, data: Uint8Array, key: SignKeyInput): Buffer {
     const keyObject = toKeyObject(key, 'private');
     const okp = okpKeyMaterial(keyObject);
     if (okp) {
         if (okp.curve !== 'ed25519')
             rejectOkpKey({ type: 'okp-private', curve: okp.curve, priv: okp.priv as Uint8Array });
+        rejectDigestForEdDSA(algorithm);
         return Buffer.from(ed25519Sign(okp.priv as Uint8Array, data, contextOf(key)));
     }
     const signer = new Sign(algorithm ?? 'sha256');
@@ -371,6 +379,7 @@ function oneShotVerify(
     const okp = okpKeyMaterial(keyObject);
     if (okp) {
         if (okp.curve !== 'ed25519') rejectOkpKey({ type: 'okp-public', curve: okp.curve, pub: okp.pub });
+        rejectDigestForEdDSA(algorithm);
         return ed25519Verify(okp.pub, data, signature, contextOf(key));
     }
     const verifier = new Verify(algorithm ?? 'sha256');

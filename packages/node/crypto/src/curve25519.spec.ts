@@ -14,6 +14,7 @@ import { promisify } from 'node:util';
 import { ED25519_SIGN_INPUT } from './fixtures/ed25519-sign-input.js';
 import { WYCHEPROOF_X25519 } from './fixtures/wycheproof-x25519.js';
 import { WPT_ED25519_SMALL_ORDER } from './fixtures/wpt-ed25519-small-order.js';
+import { generateOkpPrivateKey } from './curve25519.js';
 
 const c = crypto as any;
 
@@ -136,6 +137,12 @@ export default async () => {
             expect(
                 throwsCode(() => crypto.createVerify('SHA256').update('Test123').verify(ED25519_PUBLIC_PEM, 'sig')),
             ).toBe('ERR_CRYPTO_UNSUPPORTED_OPERATION');
+        });
+
+        await it('refuses a digest name for Ed25519, as OpenSSL does', async () => {
+            const sig = c.sign(null, data, ED25519_PRIVATE_PEM) as Buffer;
+            expect(throwsCode(() => c.sign('sha256', data, ED25519_PRIVATE_PEM))).toBe('ERR_OSSL_INVALID_DIGEST');
+            expect(throwsCode(() => c.verify('sha512', data, ED25519_PUBLIC_PEM, sig))).toBe('ERR_OSSL_INVALID_DIGEST');
         });
 
         await it('refuses X25519 keys for signing', async () => {
@@ -442,6 +449,12 @@ export default async () => {
             );
         });
 
+        await it('rejects an RFC 8410 SPKI whose AlgorithmIdentifier carries NULL parameters', async () => {
+            // SEQUENCE { SEQUENCE { OID 1.3.101.112, NULL }, BIT STRING } — valid DER, invalid per RFC 8410 § 3.
+            const der = hex('302c300706032b65700500032100' + '11'.repeat(32));
+            expect(throwsCode(() => crypto.createPublicKey({ key: der, format: 'der', type: 'spki' }))).toBeDefined();
+        });
+
         await it('distinguishes curves in equals()', async () => {
             const ed = crypto.createPublicKey({
                 key: hex(SPKI_PREFIX.ed25519 + '00'.repeat(31) + '01'),
@@ -454,6 +467,32 @@ export default async () => {
                 type: 'spki',
             });
             expect(ed.equals(x)).toBe(false);
+        });
+    });
+
+    // Unit-level: the key generator itself, with the entropy source injected. The Node leg runs
+    // the same GJS implementation here, since the module is imported directly, not via node:crypto.
+    await describe('generateOkpPrivateKey entropy guard', async () => {
+        await it('refuses a non-cryptographic random source', async () => {
+            for (const source of ['math', 'glib'] as const) {
+                const fill = (view: Uint8Array) => {
+                    view.fill(7);
+                    return source;
+                };
+                expect(throwsCode(() => generateOkpPrivateKey('ed25519', fill))).toBe('ERR_CRYPTO_INSECURE_RANDOM');
+                expect(throwsCode(() => generateOkpPrivateKey('x25519', fill))).toBe('ERR_CRYPTO_INSECURE_RANDOM');
+            }
+        });
+
+        await it('accepts a secure source and clamps the X25519 scalar', async () => {
+            const fill = (view: Uint8Array) => {
+                view.fill(0xff);
+                return 'urandom' as const;
+            };
+            expect(generateOkpPrivateKey('ed25519', fill)[0]).toBe(0xff);
+            const x = generateOkpPrivateKey('x25519', fill);
+            expect(x[0]).toBe(0xf8);
+            expect(x[31]).toBe(0x7f);
         });
     });
 };

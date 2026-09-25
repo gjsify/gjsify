@@ -18,7 +18,8 @@
 
 import { ed25519, ed25519ctx, x25519 } from '@noble/curves/ed25519.js';
 import { sha512 } from '@noble/hashes/sha2.js';
-import { randomBytes } from './random.js';
+import { fillRandomBytes, isSecureRandomSource, type RandomSource } from '@gjsify/webcrypto/random';
+import { codedError } from './crypto-utils.js';
 
 export type OkpCurve = 'ed25519' | 'x25519';
 
@@ -39,9 +40,28 @@ function clampX25519(k: Uint8Array): Uint8Array {
     return k;
 }
 
-/** A fresh private key: the Ed25519 seed, or the (clamped) X25519 scalar. */
-export function generateOkpPrivateKey(curve: OkpCurve): Uint8Array {
-    const k = new Uint8Array(randomBytes(OKP_KEY_BYTES));
+/**
+ * A fresh private key: the Ed25519 seed, or the (clamped) X25519 scalar.
+ *
+ * Long-term keys refuse the non-cryptographic tail of the entropy chain
+ * (GLib.Random, Math.random) that `randomBytes` falls back to with only a
+ * warning: a key from those is guessable, and nothing downstream could tell.
+ * `fill` is the seam the spec uses to exercise that refusal.
+ */
+export function generateOkpPrivateKey(
+    curve: OkpCurve,
+    fill: (view: Uint8Array) => RandomSource = fillRandomBytes,
+): Uint8Array {
+    const k = new Uint8Array(OKP_KEY_BYTES);
+    const source = fill(k);
+    if (!isSecureRandomSource(source)) {
+        k.fill(0);
+        throw codedError(
+            'ERR_CRYPTO_INSECURE_RANDOM',
+            `Refusing to generate a ${curve} key: no cryptographically secure random source ` +
+                `(got "${source}"; expected WebCrypto or /dev/urandom)`,
+        );
+    }
     return curve === 'x25519' ? clampX25519(k) : k;
 }
 

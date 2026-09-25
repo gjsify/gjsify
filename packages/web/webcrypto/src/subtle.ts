@@ -54,6 +54,7 @@ import {
     hashSize,
     validateUsages,
     checkUsage,
+    checkAlgorithmMatch,
     base64urlEncode,
     base64urlDecode,
     toUint8Array,
@@ -692,8 +693,9 @@ export class SubtleCrypto {
 
     async sign(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         await cryptoReady;
-        checkUsage(key, 'sign');
         const alg = normalizeAlgorithm(algorithm);
+        checkAlgorithmMatch(key, alg.name);
+        checkUsage(key, 'sign');
         const name = alg.name.toUpperCase();
         const bytes = toUint8Array(data);
 
@@ -749,8 +751,9 @@ export class SubtleCrypto {
         data: BufferSource,
     ): Promise<boolean> {
         await cryptoReady;
-        checkUsage(key, 'verify');
         const alg = normalizeAlgorithm(algorithm);
+        checkAlgorithmMatch(key, alg.name);
+        checkUsage(key, 'verify');
         const name = alg.name.toUpperCase();
         const bytes = toUint8Array(data);
         const sig = toUint8Array(signature);
@@ -811,6 +814,7 @@ export class SubtleCrypto {
     ): Promise<ArrayBuffer> {
         await cryptoReady;
         const alg = normalizeAlgorithm(algorithm);
+        checkAlgorithmMatch(baseKey, alg.name);
         const name = alg.name.toUpperCase();
 
         switch (name) {

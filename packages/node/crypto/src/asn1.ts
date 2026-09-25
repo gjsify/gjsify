@@ -241,6 +241,11 @@ function algorithmOid(algIdSeq: DerValue | undefined): Uint8Array {
     if (!oid || oid.tag !== ASN1_OID) {
         throw new Error('Invalid AlgorithmIdentifier');
     }
+    // RFC 8410 § 3: the parameters MUST be absent for these OIDs — not even NULL.
+    // OpenSSL (Node) refuses such a key; accepting it would parse what Node rejects.
+    if (okpCurveForOid(oid.data) && (algIdSeq?.children?.length ?? 0) !== 1) {
+        throw new Error('Invalid AlgorithmIdentifier: parameters must be absent (RFC 8410)');
+    }
     return oid.data;
 }
 

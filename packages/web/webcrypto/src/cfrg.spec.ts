@@ -341,4 +341,23 @@ export default async () => {
             ).toBe('InvalidAccessError');
         });
     });
+
+    await describe('SubtleCrypto key/algorithm mismatch', async () => {
+        await it('rejects a key used under another algorithm with InvalidAccessError', async () => {
+            const ed = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as Pair;
+            const x = (await subtle.generateKey({ name: 'X25519' }, true, ['deriveBits'])) as Pair;
+            const data = new Uint8Array(4);
+            expect(await rejectsWith(subtle.sign('HMAC', ed.privateKey, data))).toBe('InvalidAccessError');
+            expect(await rejectsWith(subtle.sign('Ed25519', x.privateKey, data))).toBe('InvalidAccessError');
+            expect(await rejectsWith(subtle.verify('Ed25519', x.publicKey, new Uint8Array(64), data))).toBe(
+                'InvalidAccessError',
+            );
+            expect(
+                await rejectsWith(subtle.deriveBits({ name: 'X25519', public: x.publicKey }, ed.privateKey, 256)),
+            ).toBe('InvalidAccessError');
+            expect(
+                await rejectsWith(subtle.deriveBits({ name: 'X25519', public: ed.publicKey }, x.privateKey, 256)),
+            ).toBe('InvalidAccessError');
+        });
+    });
 };
