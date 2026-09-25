@@ -1321,6 +1321,14 @@ function wrapInstance(handle, userProto) {
                 const up = t[USER_PROTO];
                 const own = up !== undefined ? findProtoDescriptor(up, prop) : undefined;
                 if (own !== undefined) return typeof own.get === 'function' ? own.get.call(proxy) : own.value;
+                // An INTERFACE method under the name never reaches a class prototype
+                // when the concrete type is private: GSocks5Proxy wraps as its nearest
+                // introspectable ancestor (GObject.Object), yet on gjs 1.88.1
+                // `socks5.connect` IS g_proxy_connect (Gio.Proxy, 3 IN args) — measured.
+                // The same native walk the GI-method fallback below uses sees it.
+                if (instanceHasMethod(handle, prop)) {
+                    return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+                }
             }
             switch (prop) {
                 case '$typeName':

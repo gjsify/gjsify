@@ -73,6 +73,18 @@ test('a signal handler receives the emitter as its first arg (GJS parity)', () =
     // toggle-ref-canonical proxy as `action`.
     assert.equal(argCount, 2, 'emitter plus the signal\'s own declared param');
     assert.equal(sawEmitter, action, 'the emitter is the connected-to instance (identity)');
+
+    // The no-param shape the pre-#1810 version of this test pinned: 'cancelled'
+    // declares none, so the handler gets exactly the emitter. connect_after is the
+    // generic signal API on Cancellable too (no g_cancellable_connect_after).
+    const c = new Gio.Cancellable();
+    let noParamArgs = null;
+    c.connect_after('cancelled', (...args) => {
+        noParamArgs = args;
+    });
+    c.emit('cancelled');
+    assert.equal(noParamArgs?.length, 1, 'no-param signal still passes the emitter');
+    assert.equal(noParamArgs[0], c, 'and it is the canonical wrapper');
 });
 
 test('notify:: handler receives (object, pspec) — GJS parity', () => {
