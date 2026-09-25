@@ -32,7 +32,9 @@ export function createHmac(algorithm: string, key: string | Buffer | Uint8Array)
 // exports above are available before the browserify modules initialize.
 
 export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
-export { Sign, Verify, createSign, createVerify } from './sign.js';
+export { Sign, Verify, createSign, createVerify, sign, verify } from './sign.js';
+export { generateKeyPair, generateKeyPairSync } from './keygen.js';
+export { diffieHellman } from './dh-stateless.js';
 export {
     createDiffieHellman,
     getDiffieHellman,
@@ -57,7 +59,9 @@ import { pbkdf2, pbkdf2Sync } from './pbkdf2.js';
 import { hkdf, hkdfSync } from './hkdf.js';
 import { scrypt, scryptSync } from './scrypt.js';
 import { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
-import { Sign, Verify, createSign, createVerify } from './sign.js';
+import { Sign, Verify, createSign, createVerify, sign, verify } from './sign.js';
+import { generateKeyPair, generateKeyPairSync } from './keygen.js';
+import { diffieHellman } from './dh-stateless.js';
 import {
     createDiffieHellman,
     getDiffieHellman,
@@ -103,6 +107,11 @@ export default {
     Verify,
     createSign,
     createVerify,
+    sign,
+    verify,
+    generateKeyPair,
+    generateKeyPairSync,
+    diffieHellman,
     createDiffieHellman,
     getDiffieHellman,
     DiffieHellman,

@@ -16,7 +16,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
 | constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
-| crypto | GLib | Full | Hash(GLib.Checksum), Hmac(GLib.Hmac), randomBytes/UUID (entropy via `@gjsify/webcrypto/random` — see webcrypto row), PBKDF2/HKDF/scrypt, AES, DH/ECDH, Sign/Verify, KeyObject JWK, X509Certificate. browser:`partial` — `Hash.digest()` throws `ENOTSUP_SYNC_DIGEST` (WebCrypto digest is async-only); DH/publicEncrypt/X509 have no WebCrypto pendant |
+| crypto | GLib | Full | Hash(GLib.Checksum), Hmac(GLib.Hmac), randomBytes/UUID (entropy via `@gjsify/webcrypto/random` — see webcrypto row), PBKDF2/HKDF/scrypt, AES, DH/ECDH, Sign/Verify, Ed25519/X25519 (arithmetic `@noble/curves`; Ed25519 verify is OpenSSL's cofactorless rule, in `curve25519.ts` — noble's own verify is cofactored and disagrees on the WPT small-order vectors), KeyObject PEM/DER/JWK, X509Certificate. browser:`partial` — `Hash.digest()` throws `ENOTSUP_SYNC_DIGEST` (WebCrypto digest is async-only); DH/publicEncrypt/X509 have no WebCrypto pendant |
 | dgram | Gio | Full | UDP via Gio.Socket |
 | diagnostics_channel | — | Full | Channel, TracingChannel |
 | dns | Gio | Full | lookup/resolve*/reverse via Gio.Resolver. browser:`partial` — `resolve*`/`reverse` ENOTSUP (no browser DNS resolver; IP literals + `localhost` via `lookup`) |

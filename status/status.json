@@ -100,7 +100,7 @@
     },
     "@gjsify/crypto": {
       "status": "full",
-      "note": "Hash (SHA256/384/512, MD5, SHA1; GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID/Int, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, publicEncrypt/privateDecrypt, KeyObject (JWK import/export), X509Certificate, timingSafeEqual, getHashes/getCiphers/getCurves, constants. Entropy via the `@gjsify/webcrypto/random` chain. NativeScript entry (`@gjsify/crypto/nativescript`): sync createHash/createHmac (7 algorithms via `@noble/hashes`), random, timingSafeEqual; ENOTSUP for AES/DH/ECDH/Sign/PBKDF2/RSA. Browser slot is `partial` (sync `Hash.digest()` impossible over async-only WebCrypto)."
+      "note": "Hash (SHA256/384/512, MD5, SHA1; GLib.Checksum), Hmac (GLib.Hmac), randomBytes/UUID/Int, PBKDF2, HKDF, scrypt, AES (CBC/CTR/ECB/GCM), DH, ECDH, Sign/Verify, one-shot sign/verify, Ed25519 + X25519 (generateKeyPair(Sync), sign/verify incl. Ed25519ctx, diffieHellman; curve arithmetic from `@noble/curves`, verification rule OpenSSL's), publicEncrypt/privateDecrypt, KeyObject (PEM/DER/JWK import/export; RSA + ed25519/x25519), X509Certificate, timingSafeEqual, getHashes/getCiphers/getCurves, constants. Entropy via the `@gjsify/webcrypto/random` chain. NativeScript entry (`@gjsify/crypto/nativescript`): sync createHash/createHmac (7 algorithms via `@noble/hashes`), random, timingSafeEqual; ENOTSUP for AES/DH/ECDH/Sign/PBKDF2/RSA. Browser slot is `partial` (sync `Hash.digest()` impossible over async-only WebCrypto)."
     },
     "@gjsify/devtools": {
       "status": "full",
@@ -513,7 +513,7 @@
     },
     "@gjsify/webcrypto": {
       "status": "full",
-      "note": "SubtleCrypto (digest, AES-CBC/CTR/GCM, AES-KW (RFC 3394), HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, generateKey, importKey/exportKey, deriveBits/deriveKey, wrapKey/unwrapKey), CryptoKey, getRandomValues, randomUUID. Owns the workspace entropy chain: `@gjsify/webcrypto/random` (leaf subpath) exports `fillRandomBytes()` with an ordered, reported source chain (WebCrypto → /dev/urandom via Gio → GLib.random_int_range → Math.random; the last two warn once) + `isSecureRandomSource(tier)`."
+      "note": "SubtleCrypto (digest, AES-CBC/CTR/GCM, AES-KW (RFC 3394), HMAC, ECDSA, RSA-PSS, RSA-OAEP, PBKDF2, HKDF, ECDH, Ed25519, X25519, generateKey, importKey/exportKey, deriveBits/deriveKey, wrapKey/unwrapKey), CryptoKey, getRandomValues, randomUUID. Owns the workspace entropy chain: `@gjsify/webcrypto/random` (leaf subpath) exports `fillRandomBytes()` with an ordered, reported source chain (WebCrypto → /dev/urandom via Gio → GLib.random_int_range → Math.random; the last two warn once) + `isSecureRandomSource(tier)`."
     },
     "@gjsify/webgl": {
       "status": "full",

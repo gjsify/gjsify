@@ -1,11 +1,32 @@
-// Sign/Verify — RSA PKCS#1 v1.5 signature scheme for GJS
+// Sign/Verify — RSA PKCS#1 v1.5 signature scheme for GJS, plus the one-shot
+// crypto.sign / crypto.verify (RSA via the classes, Ed25519 via curve25519.ts)
 // Reference: refs/browserify-sign/browser/sign.js, refs/browserify-sign/browser/verify.js
 // Reimplemented for GJS using native BigInt (ES2024)
 
 import { Buffer } from 'node:buffer';
 import { Hash } from './hash.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
+import type { ParsedKey } from './asn1.js';
 import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
+import { codedError } from './crypto-utils.js';
+import { ed25519Sign, ed25519Verify } from './curve25519.js';
+import { KeyObject, okpKeyMaterial, toKeyObject } from './key-object.js';
+
+/**
+ * Node's streaming Sign/Verify cannot drive a pure EdDSA key (the message is
+ * hashed inside the algorithm), and an X25519 key cannot sign at all — the two
+ * refuse with different codes, OpenSSL's for the latter.
+ */
+function rejectOkpKey(parsed: ParsedKey): void {
+    if (parsed.type !== 'okp-public' && parsed.type !== 'okp-private') return;
+    if (parsed.curve === 'ed25519') {
+        throw codedError('ERR_CRYPTO_UNSUPPORTED_OPERATION', 'Unsupported crypto operation');
+    }
+    throw codedError(
+        'ERR_OSSL_EVP_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE',
+        'error:03000096:digital envelope routines::operation not supported for this keytype',
+    );
+}
 
 // PKCS#1 v1.5 DigestInfo structures
 
@@ -115,6 +136,7 @@ export class Sign {
         // Parse the private key
         const pem = extractPem(privateKey);
         const parsed = parsePemKey(pem);
+        rejectOkpKey(parsed);
         if (parsed.type !== 'rsa-private') {
             throw new Error('privateKey must be an RSA private key');
         }
@@ -207,6 +229,7 @@ export class Verify {
         // Parse the public key
         const pem = extractPem(publicKey);
         const parsed = parsePemKey(pem);
+        rejectOkpKey(parsed);
 
         let n: bigint;
         let e: bigint;
@@ -298,4 +321,105 @@ export function createSign(algorithm: string): Sign {
  */
 export function createVerify(algorithm: string): Verify {
     return new Verify(algorithm);
+}
+
+// One-shot sign / verify
+
+type SignKeyInput = KeyObject | string | Buffer | { key: unknown; context?: Uint8Array; [k: string]: unknown };
+
+function contextOf(key: SignKeyInput): Uint8Array | undefined {
+    if (typeof key !== 'object' || key === null || key instanceof KeyObject || Buffer.isBuffer(key)) return undefined;
+    const context = (key as { context?: Uint8Array }).context;
+    return context === undefined ? undefined : new Uint8Array(context);
+}
+
+function toBytes(data: string | ArrayBufferView, name: string): Uint8Array {
+    if (typeof data === 'string') return Buffer.from(data, 'utf8');
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    throw codedError(
+        'ERR_INVALID_ARG_TYPE',
+        `The "${name}" argument must be an instance of Buffer, TypedArray, or DataView.`,
+        TypeError,
+    );
+}
+
+/** PEM of a KeyObject for the RSA class path, which parses PEM. */
+function rsaPem(key: KeyObject): string {
+    return key.export({ format: 'pem', type: key.type === 'private' ? 'pkcs1' : 'spki' }) as string;
+}
+
+function oneShotSign(algorithm: string | null | undefined, data: Uint8Array, key: SignKeyInput): Buffer {
+    const keyObject = toKeyObject(key, 'private');
+    const okp = okpKeyMaterial(keyObject);
+    if (okp) {
+        if (okp.curve !== 'ed25519')
+            rejectOkpKey({ type: 'okp-private', curve: okp.curve, priv: okp.priv as Uint8Array });
+        return Buffer.from(ed25519Sign(okp.priv as Uint8Array, data, contextOf(key)));
+    }
+    const signer = new Sign(algorithm ?? 'sha256');
+    signer.update(Buffer.from(data));
+    return signer.sign(rsaPem(keyObject)) as Buffer;
+}
+
+function oneShotVerify(
+    algorithm: string | null | undefined,
+    data: Uint8Array,
+    key: SignKeyInput,
+    signature: Uint8Array,
+): boolean {
+    const keyObject = toKeyObject(key, 'public');
+    const okp = okpKeyMaterial(keyObject);
+    if (okp) {
+        if (okp.curve !== 'ed25519') rejectOkpKey({ type: 'okp-public', curve: okp.curve, pub: okp.pub });
+        return ed25519Verify(okp.pub, data, signature, contextOf(key));
+    }
+    const verifier = new Verify(algorithm ?? 'sha256');
+    verifier.update(Buffer.from(data));
+    return verifier.verify(rsaPem(keyObject), signature);
+}
+
+/**
+ * crypto.sign(algorithm, data, key[, callback]). For Ed25519 `algorithm` is
+ * null/undefined (EdDSA fixes its own hash); a `{ key, context }` input selects
+ * Ed25519ctx, an empty context is plain Ed25519 — both as in Node.
+ */
+export function sign(
+    algorithm: string | null | undefined,
+    data: string | ArrayBufferView,
+    key: SignKeyInput,
+    callback?: (err: Error | null, signature?: Buffer) => void,
+): Buffer | void {
+    const bytes = toBytes(data, 'data');
+    if (callback === undefined) return oneShotSign(algorithm, bytes, key);
+    let result: Buffer;
+    try {
+        result = oneShotSign(algorithm, bytes, key);
+    } catch (err) {
+        // The callback form reports failures through the callback, never by throwing.
+        setTimeout(() => callback(err as Error), 0);
+        return;
+    }
+    setTimeout(() => callback(null, result), 0);
+}
+
+/** crypto.verify(algorithm, data, key, signature[, callback]). */
+export function verify(
+    algorithm: string | null | undefined,
+    data: string | ArrayBufferView,
+    key: SignKeyInput,
+    signature: ArrayBufferView,
+    callback?: (err: Error | null, result?: boolean) => void,
+): boolean | void {
+    const bytes = toBytes(data, 'data');
+    const sig = toBytes(signature, 'signature');
+    if (callback === undefined) return oneShotVerify(algorithm, bytes, key, sig);
+    let result: boolean;
+    try {
+        result = oneShotVerify(algorithm, bytes, key, sig);
+    } catch (err) {
+        // The callback form reports failures through the callback, never by throwing.
+        setTimeout(() => callback(err as Error), 0);
+        return;
+    }
+    setTimeout(() => callback(null, result), 0);
 }
