@@ -7,7 +7,11 @@ import '@girs/gtk-4.0';
 
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { Canvas2DBridge } from '@gjsify/canvas2d';
+import { describeGamepadBackend } from '@gjsify/gamepad';
+import '@gjsify/gamepad/register';
+import { createDebugPanel } from '../debug-panel.js';
 import { start } from '../snes-gamepad-demo.js';
 
 const app = new Adw.Application({
@@ -19,7 +23,7 @@ app.connect('activate', () => {
     const win = new Adw.ApplicationWindow({
         application: app,
         default_width: 700,
-        default_height: 500,
+        default_height: 640,
         title: 'SNES Gamepad Tester',
     });
 
@@ -28,10 +32,17 @@ app.connect('activate', () => {
     canvasWidget.set_vexpand(true);
     canvasWidget.installGlobals();
 
+    const { label: debug, rumbleButton } = createDebugPanel(describeGamepadBackend());
+
+    const content = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+    content.append(canvasWidget);
+    content.append(debug);
+
     const headerBar = new Adw.HeaderBar();
+    headerBar.pack_end(rumbleButton);
     const toolbarView = new Adw.ToolbarView();
     toolbarView.add_top_bar(headerBar);
-    toolbarView.set_content(canvasWidget);
+    toolbarView.set_content(content);
     win.set_content(toolbarView);
 
     canvasWidget.onReady((canvas) => {
@@ -44,4 +55,6 @@ app.connect('activate', () => {
     win.present();
 });
 
-app.run([]);
+// runAsync, not run(): the sync loop blocks promise continuations, and the gamepad
+// backend is probed and started asynchronously (a sync run() never connects a pad).
+await app.runAsync([]);
