@@ -145,9 +145,8 @@ export function ensureGjsifyShimOnPath(): void {
     // (`<interpreter> "<target>" %*`), so `C:\Program Files\nodejs\node.exe` splits.
     const interpreter = gjs ? process.env.GJS_CONSOLE || 'gjs' : 'node';
     const interpreterArgs = gjs ? ['-m'] : [];
-    const argv = interpreterArgs.length > 0 ? `${interpreterArgs.join(' ')} ` : '';
 
-    writeFileSync(shim, `#!/bin/sh\nexec "${interpreter}" ${argv}"${selfEntry}" "$@"\n`, { mode: 0o755 });
+    writeFileSync(shim, buildSelfShimScript({ interpreter, interpreterArgs, target: selfEntry }), { mode: 0o755 });
     chmodSync(shim, 0o755);
 
     // cmd.exe and pwsh cannot run the extension-less member: not on PATHEXT, and
@@ -165,6 +164,16 @@ export function ensureGjsifyShimOnPath(): void {
     process.env.PATH = dir + delimiter + (process.env.PATH ?? '');
 
     writeNodeShim(dir, gjs, selfEntry);
+}
+
+/** The POSIX `sh` body of the self-shim: re-invoke `target` under `interpreter`. */
+export function buildSelfShimScript(opts: {
+    interpreter: string;
+    interpreterArgs: readonly string[];
+    target: string;
+}): string {
+    const argv = opts.interpreterArgs.length > 0 ? `${opts.interpreterArgs.join(' ')} ` : '';
+    return `#!/bin/sh\nexec "${opts.interpreter}" ${argv}"${opts.target}" "$@"\n`;
 }
 
 /** Deliberately NOT the shim dir itself — see {@link nodeShimDir}. */
