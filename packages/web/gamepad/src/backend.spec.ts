@@ -73,6 +73,13 @@ const BROKEN_LIBRARY_MESSAGE = 'Unsupported type void, deriving from fundamental
 const ABSENT_NAMESPACE = 'GjsifyGamepadNoSuchNamespace';
 const ABSENT_SPECIFIER = `gi://${ABSENT_NAMESPACE}`;
 
+/**
+ * Pin the probe to the Manette branch. Every importer-driven case below is about how
+ * `gi://Manette` loads, and on a Mac the probe would otherwise take the darwin branch
+ * (ADR 0075) and never call the importer — which is the darwin cases' job to prove.
+ */
+const onLinux = () => 'linux' as const;
+
 /** A Manette stand-in: only `Monitor` is touched by the probe. */
 function fakeManetteModule(): typeof Manette {
     class Monitor {
@@ -139,7 +146,7 @@ export default async () => {
             _resetGamepadBackendCache();
             const fake = fakeManetteModule();
             const captured = await capturingConsole(async () => {
-                const backend = await loadGamepadBackend({ importer: importerResolving(fake) });
+                const backend = await loadGamepadBackend({ hostOs: onLinux, importer: importerResolving(fake) });
                 expect(backend.status).toBe('manette');
                 expect(backend.module).toBe(fake);
                 expect(backend.error).toBeNull();
@@ -161,7 +168,10 @@ export default async () => {
             // the OPERATION. This is the assertion that keeps it there.
             let backend: GamepadBackend | null = null;
             const quiet = await capturingConsole(async () => {
-                backend = await loadGamepadBackend({ importer: importerThrowing(new Error(ABSENT_MESSAGE)) });
+                backend = await loadGamepadBackend({
+                    hostOs: onLinux,
+                    importer: importerThrowing(new Error(ABSENT_MESSAGE)),
+                });
                 expect(await hasGamepadBackend()).toBe(false);
             });
             expect(quiet.warnings).toStrictEqual([]);
@@ -179,6 +189,7 @@ export default async () => {
             _resetGamepadBackendCache();
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerThrowing(new Error(ABSENT_MESSAGE)),
                 });
                 expect(backend.status).toBe('absent');
@@ -231,7 +242,7 @@ export default async () => {
             // gets this right, which is why the default is fault.
             const broken = new Error(BROKEN_LIBRARY_MESSAGE);
             const captured = await capturingConsole(async () => {
-                const backend = await loadGamepadBackend({ importer: importerThrowing(broken) });
+                const backend = await loadGamepadBackend({ hostOs: onLinux, importer: importerThrowing(broken) });
                 expect(backend.status).toBe('failed');
                 expect(backend.error).toBe(broken);
                 expect(await hasGamepadBackend()).toBe(false);
@@ -251,6 +262,7 @@ export default async () => {
             // missing while Manette itself is installed stays loud.
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerThrowing(
                         new Error("Typelib file for namespace 'GObject' (any version) not found"),
                     ),
@@ -266,6 +278,7 @@ export default async () => {
             _resetGamepadBackendCache();
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerThrowing(
                         new Error('Version 0.2 of GI module Manette already loaded, cannot load version 9.9'),
                     ),
@@ -292,7 +305,7 @@ export default async () => {
                 },
             });
             const captured = await capturingConsole(async () => {
-                const backend = await loadGamepadBackend({ importer: importerResolving(lazy) });
+                const backend = await loadGamepadBackend({ hostOs: onLinux, importer: importerResolving(lazy) });
                 expect(backend.status).toBe('absent');
                 expect(await hasGamepadBackend()).toBe(false);
                 reportGamepadBackendOnce(backend);
@@ -314,6 +327,7 @@ export default async () => {
             });
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerResolving(
                         new Proxy(Object.create(null) as object, {
                             get() {
@@ -344,7 +358,7 @@ export default async () => {
             // original defect inverted. Exactly the module the bundler emits:
             const stub = {};
             const captured = await capturingConsole(async () => {
-                const backend = await loadGamepadBackend({ importer: importerResolving(stub) });
+                const backend = await loadGamepadBackend({ hostOs: onLinux, importer: importerResolving(stub) });
                 expect(backend.status).toBe('absent');
                 expect(backend.module).toBeNull();
                 expect(backend.diagnostic).toBeNull();
@@ -362,6 +376,7 @@ export default async () => {
             // namespace object exposes all 16 Manette entries eagerly.)
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerResolving({ Device: class {}, MAJOR_VERSION: 0 }),
                 });
                 expect(backend.status).toBe('failed');
@@ -372,6 +387,57 @@ export default async () => {
             expect(captured.errors[0]).toContain('without a Monitor class');
         });
 
+        await it('answers darwin with an honest absent, without probing gi://Manette', async () => {
+            _resetGamepadBackendCache();
+            // ADR 0075: libmanette cannot exist on macOS and the SDL3 shim that
+            // replaces it is not built yet. The one wrong answer here is a stand-in
+            // that reports success with zero devices — a backend that can never see
+            // a controller must say `false`. And the importer must NOT run: its
+            // failure text would send a Mac user to a Linux package manager.
+            let imported = 0;
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: () => 'darwin',
+                    importer: () => {
+                        imported++;
+                        return Promise.resolve({ default: fakeManetteModule() });
+                    },
+                });
+                expect(backend.status).toBe('absent');
+                expect(backend.module).toBeNull();
+                expect(backend.error).toBeNull();
+                expect(await hasGamepadBackend()).toBe(false);
+                // The capability query stays quiet on darwin too…
+            });
+            expect(captured.warnings).toStrictEqual([]);
+            expect(imported).toBe(0);
+            // …and the manager, the USE site, says why exactly once.
+            const spoken = await capturingConsole(async () => {
+                const manager = new GamepadManager();
+                expect(manager.getGamepads()).toStrictEqual([]);
+                await flushMicrotasks();
+                manager.dispose();
+            });
+            expect(spoken.errors).toStrictEqual([]);
+            expect(spoken.warnings).toHaveLength(1);
+            expect(spoken.warnings[0]).toContain('No gamepad backend on macOS yet');
+            expect(spoken.warnings[0]).toContain('0075');
+            expect(spoken.warnings[0]).toContain('hasGamepadBackend()');
+            // Not the Linux advice.
+            expect(spoken.warnings[0]).not.toContain('gir1.2-manette');
+        });
+
+        await it('keeps probing gi://Manette when the host OS is unknown', async () => {
+            _resetGamepadBackendCache();
+            // `hostOs()` is undefined where no `process` global answers. Unknown is
+            // not "darwin" and not "not darwin": the Manette probe classifies itself
+            // from the loader's own error, so it is the safe default.
+            const fake = fakeManetteModule();
+            const backend = await loadGamepadBackend({ hostOs: () => undefined, importer: importerResolving(fake) });
+            expect(backend.status).toBe('manette');
+            expect(backend.module).toBe(fake);
+        });
+
         await it('probes once, and refuses a late importer instead of ignoring it', async () => {
             _resetGamepadBackendCache();
             let calls = 0;
@@ -380,7 +446,7 @@ export default async () => {
                     calls++;
                     return Promise.reject(new Error(ABSENT_MESSAGE));
                 };
-                const first = await loadGamepadBackend({ importer });
+                const first = await loadGamepadBackend({ hostOs: onLinux, importer });
                 expect(await loadGamepadBackend()).toBe(first);
                 await hasGamepadBackend();
                 reportGamepadBackendOnce(first);
@@ -394,7 +460,7 @@ export default async () => {
             // that forgot the reset assert against the previous test's module.
             let threw = false;
             try {
-                await loadGamepadBackend({ importer: importerResolving(fakeManetteModule()) });
+                await loadGamepadBackend({ hostOs: onLinux, importer: importerResolving(fakeManetteModule()) });
             } catch {
                 threw = true;
             }
@@ -409,7 +475,7 @@ export default async () => {
             const captured = await capturingConsole(async () => {
                 // Prime the shared probe as "absent" — the manager and the
                 // capability export cannot disagree about it.
-                await loadGamepadBackend({ importer: importerThrowing(new Error(ABSENT_MESSAGE)) });
+                await loadGamepadBackend({ hostOs: onLinux, importer: importerThrowing(new Error(ABSENT_MESSAGE)) });
                 const manager = new GamepadManager();
                 const pads = manager.getGamepads();
                 // Conformant W3C answer, NOT a throw and NOT four fabricated
@@ -450,6 +516,7 @@ export default async () => {
             };
             const captured = await capturingConsole(async () => {
                 await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerResolving({
                         Monitor: class {
                             iterate() {
@@ -489,6 +556,7 @@ export default async () => {
             const boom = new Error('GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: no udev');
             const captured = await capturingConsole(async () => {
                 await loadGamepadBackend({
+                    hostOs: onLinux,
                     importer: importerResolving({
                         Monitor: class {
                             constructor() {

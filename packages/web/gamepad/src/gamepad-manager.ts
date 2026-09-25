@@ -1,49 +1,72 @@
-// Gamepad Web API — bridges libmanette's event-driven model (gi://Manette) to the
-// W3C polling-based Gamepad API.
+// Gamepad Web API — the W3C polling surface over a platform device source.
 // Reference: https://w3c.github.io/gamepad/
+//
+// This file owns what the SPEC defines — `[[gamepads]]` index selection, button/axis
+// state, snapshots, the connected/disconnected events. What a platform's subsystem
+// speaks (libmanette's signals and kernel codes, SDL's layout) lives in a
+// `GamepadSource` (`source.ts`, ADR 0075), so there is one copy of this logic however
+// many backends exist.
 
-import type Manette from '@girs/manette-0.2';
 import { loadGamepadBackend, reportGamepadBackendOnce, reportGamepadMonitorFault } from './backend.js';
+import { W3C_AXIS_COUNT } from './axis-mapping.js';
+import { W3C_BUTTON_COUNT } from './button-mapping.js';
 import { GamepadButton } from './gamepad-button.js';
 import { Gamepad } from './gamepad.js';
 import { GamepadEvent } from './gamepad-event.js';
-import { ManetteHapticActuator } from './haptic-actuator.js';
-import { MANETTE_TO_W3C_BUTTON, W3C_BUTTON_COUNT } from './button-mapping.js';
-import { MANETTE_TO_W3C_AXIS, ManetteAxis, W3C_AXIS_COUNT, TRIGGER_PRESS_THRESHOLD } from './axis-mapping.js';
-import { W3CButton } from './button-mapping.js';
+import { ManetteSource } from './manette-source.js';
+import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
 
 /** Internal mutable state for a single connected gamepad. */
 interface DeviceState {
-    device: Manette.Device;
+    device: GamepadSourceDevice;
     index: number;
     connected: boolean;
     timestamp: number;
     buttons: Float64Array;
     buttonsPressed: boolean[];
     axes: Float64Array;
-    hapticActuator: ManetteHapticActuator;
-    signalIds: number[];
+}
+
+export interface GamepadManagerOptions {
+    /**
+     * Drive this source instead of probing the host's backend. For tests — it is how the
+     * manager is exercised with no controller and no typelib — and for an embedder that
+     * already owns an input stack.
+     */
+    source?: GamepadSource;
 }
 
 /**
- * Singleton manager wrapping `Manette.Monitor`. libmanette fires GObject signals on
- * button/axis changes, so this caches the latest state and `getGamepads()` returns a
- * snapshot, matching the W3C polling model.
+ * The W3C polling model over a {@link GamepadSource}: the source reports changes as they
+ * happen, this caches the latest state, and `getGamepads()` returns a snapshot.
  */
 export class GamepadManager {
-    private _monitor: Manette.Monitor | null = null;
     /**
      * The spec's `Navigator.[[gamepads]]` — an EMPTY list until something
      * connects, then one entry per index ever handed out, `null` where the slot
      * is free. Never pre-filled: see the note on {@link getGamepads}.
      */
     private _slots: (DeviceState | null)[] = [];
-    private _monitorSignalIds: number[] = [];
-    private _ManetteModule: typeof Manette | null = null;
+    private readonly _injectedSource: GamepadSource | null;
+    private _source: GamepadSource | null = null;
+    /** Whether `_source.start()` RETURNED — a source whose start threw is never polled. */
+    private _started = false;
     private _initPromise: Promise<void> | null = null;
     private _initialized = false;
 
-    /** Lazily initialize the `Manette.Monitor`, on the first `getGamepads()`. */
+    /** The one sink every source reports through. */
+    private readonly _sink: GamepadSourceSink = {
+        connected: (device) => this._onDeviceConnected(device),
+        disconnected: (device) => this._onDeviceDisconnected(device),
+        button: (device, index, value, pressed) => this._onButton(device, index, value, pressed),
+        axis: (device, index, value) => this._onAxis(device, index, value),
+    };
+
+    constructor(options: GamepadManagerOptions = {}) {
+        this._injectedSource = options.source ?? null;
+    }
+
+    /** Lazily start the device source, on the first `getGamepads()`. */
     private _ensureInit(): void {
         if (this._initialized) return;
         if (this._initPromise) return;
@@ -51,12 +74,11 @@ export class GamepadManager {
         // `_init()` is deliberately NOT awaited — `getGamepads()` is synchronous per the
         // W3C polling contract — so a rejection here would be an UNHANDLED rejection:
         // unattributable on GJS and a process kill under Node's default
-        // `--unhandled-rejections=throw`. Everything past the backend probe
-        // (`new Monitor()`, `iterate()`, `connect()`) can throw a GError; only that class
-        // reaches here, because the probe returns a classified result instead of
-        // rejecting — hence a monitor fault, not a failed load.
+        // `--unhandled-rejections=throw`. Only `source.start()` can throw here, because
+        // the probe returns a classified result instead of rejecting — hence a monitor
+        // fault, not a failed load.
         this._initPromise = this._init().catch((error: unknown) => {
-            reportGamepadMonitorFault(error);
+            reportGamepadMonitorFault(error, this._source);
             // Mark done rather than leaving `_initialized` false with a live
             // `_initPromise`: the retry gate would block re-entry anyway, so say so
             // explicitly instead of relying on that side effect.
@@ -65,45 +87,32 @@ export class GamepadManager {
     }
 
     private async _init(): Promise<void> {
-        const backend = await loadGamepadBackend();
-        // The USE site says it, once per process — the capability query stays silent
-        // (see the header of `backend.ts`).
-        reportGamepadBackendOnce(backend);
-        if (backend.module === null) {
-            // No usable backend here. `getGamepads()` keeps answering the W3C shape (see
-            // its doc for why that is correct rather than a silent failure) and
-            // `hasGamepadBackend()` is the machine-readable form of the same fact.
-            this._initialized = true;
-            return;
-        }
-        this._ManetteModule = backend.module;
-
-        const monitor = new this._ManetteModule.Monitor();
-        this._monitor = monitor;
-
-        const iter = monitor.iterate();
-        let result = iter.next();
-        while (result[0]) {
-            const device = result[1];
-            if (device) {
-                this._onDeviceConnected(device);
+        let source = this._injectedSource;
+        if (source === null) {
+            const backend = await loadGamepadBackend();
+            // The USE site says it, once per process — the capability query stays
+            // silent (see the header of `backend.ts`).
+            reportGamepadBackendOnce(backend);
+            if (backend.module === null) {
+                // No usable backend here. `getGamepads()` keeps answering the W3C
+                // shape (see its doc for why that is correct rather than a silent
+                // failure) and `hasGamepadBackend()` is the machine-readable form of
+                // the same fact.
+                this._initialized = true;
+                return;
             }
-            result = iter.next();
+            source = new ManetteSource(backend.module);
         }
-
-        this._monitorSignalIds.push(
-            monitor.connect('device-connected', (_monitor: Manette.Monitor, device: Manette.Device) => {
-                this._onDeviceConnected(device);
-            }),
-            monitor.connect('device-disconnected', (_monitor: Manette.Monitor, device: Manette.Device) => {
-                this._onDeviceDisconnected(device);
-            }),
-        );
-
+        // Assigned BEFORE start(): a start that throws half-way may already hold
+        // native handles, and dispose() releases them through this field.
+        this._source = source;
+        source.start(this._sink);
+        this._started = true;
         this._initialized = true;
     }
 
-    private _onDeviceConnected(device: Manette.Device): void {
+    private _onDeviceConnected(device: GamepadSourceDevice): void {
+        if (this._findState(device)) return;
         // "Select an unused gamepad index for gamepad" (W3C Gamepad,
         // § Selecting an unused gamepad index): the first `null` slot, and
         // otherwise APPEND. There is no upper bound in the algorithm, so there is
@@ -122,126 +131,41 @@ export class GamepadManager {
             buttons: new Float64Array(W3C_BUTTON_COUNT),
             buttonsPressed: Array.from<boolean>({ length: W3C_BUTTON_COUNT }).fill(false),
             axes: new Float64Array(W3C_AXIS_COUNT),
-            hapticActuator: new ManetteHapticActuator(device),
-            signalIds: [],
         };
-
-        state.signalIds.push(
-            device.connect('button-press-event', (_device: Manette.Device, event: Manette.Event) => {
-                this._onButtonPress(state, event);
-            }),
-            device.connect('button-release-event', (_device: Manette.Device, event: Manette.Event) => {
-                this._onButtonRelease(state, event);
-            }),
-            device.connect('absolute-axis-event', (_device: Manette.Device, event: Manette.Event) => {
-                this._onAxisChange(state, event);
-            }),
-            device.connect('hat-axis-event', (_device: Manette.Device, event: Manette.Event) => {
-                this._onHatChange(state, event);
-            }),
-            device.connect('disconnected', () => {
-                this._onDeviceDisconnected(device);
-            }),
-        );
-
         this._slots[slotIndex] = state;
 
-        const snapshot = this._createSnapshot(state);
-        if (snapshot) {
-            globalThis.dispatchEvent?.(new GamepadEvent('gamepadconnected', { gamepad: snapshot }) as unknown as Event);
-        }
+        globalThis.dispatchEvent?.(
+            new GamepadEvent('gamepadconnected', { gamepad: this._createSnapshot(state) }) as unknown as Event,
+        );
     }
 
-    private _onDeviceDisconnected(device: Manette.Device): void {
-        const state = this._findStateByDevice(device);
+    private _onDeviceDisconnected(device: GamepadSourceDevice): void {
+        const state = this._findState(device);
         if (!state) return;
-
-        for (const id of state.signalIds) {
-            device.disconnect(id);
-        }
 
         state.connected = false;
         const snapshot = this._createSnapshot(state);
         this._slots[state.index] = null;
 
-        if (snapshot) {
-            globalThis.dispatchEvent?.(
-                new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event,
-            );
-        }
+        globalThis.dispatchEvent?.(new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event);
     }
 
-    private _onButtonPress(state: DeviceState, event: Manette.Event): void {
-        const [ok, button] = event.get_button();
-        if (!ok) return;
-
-        const w3cIdx = MANETTE_TO_W3C_BUTTON.get(button);
-        if (w3cIdx === undefined) return;
-
-        state.buttons[w3cIdx] = 1.0;
-        state.buttonsPressed[w3cIdx] = true;
+    private _onButton(device: GamepadSourceDevice, index: number, value: number, pressed: boolean): void {
+        const state = this._findState(device);
+        if (!state || !Number.isInteger(index) || index < 0 || index >= W3C_BUTTON_COUNT) return;
+        state.buttons[index] = value;
+        state.buttonsPressed[index] = pressed;
         state.timestamp = performance.now();
     }
 
-    private _onButtonRelease(state: DeviceState, event: Manette.Event): void {
-        const [ok, button] = event.get_button();
-        if (!ok) return;
-
-        const w3cIdx = MANETTE_TO_W3C_BUTTON.get(button);
-        if (w3cIdx === undefined) return;
-
-        state.buttons[w3cIdx] = 0.0;
-        state.buttonsPressed[w3cIdx] = false;
+    private _onAxis(device: GamepadSourceDevice, index: number, value: number): void {
+        const state = this._findState(device);
+        if (!state || !Number.isInteger(index) || index < 0 || index >= W3C_AXIS_COUNT) return;
+        state.axes[index] = value;
         state.timestamp = performance.now();
     }
 
-    private _onAxisChange(state: DeviceState, event: Manette.Event): void {
-        const [ok, axis, value] = event.get_absolute();
-        if (!ok) return;
-
-        const w3cAxisIdx = MANETTE_TO_W3C_AXIS.get(axis);
-        if (w3cAxisIdx !== undefined) {
-            // Stick axis → axes array
-            state.axes[w3cAxisIdx] = value;
-        } else if (axis === ManetteAxis.LEFT_TRIGGER) {
-            // Left trigger (SDL idx 4) → buttons[6] with analog value
-            const normalized = (value + 1) / 2; // libmanette: -1..1 → 0..1
-            state.buttons[W3CButton.LEFT_TRIGGER] = normalized;
-            state.buttonsPressed[W3CButton.LEFT_TRIGGER] = normalized > TRIGGER_PRESS_THRESHOLD;
-        } else if (axis === ManetteAxis.RIGHT_TRIGGER) {
-            // Right trigger (SDL idx 5) → buttons[7] with analog value
-            const normalized = (value + 1) / 2;
-            state.buttons[W3CButton.RIGHT_TRIGGER] = normalized;
-            state.buttonsPressed[W3CButton.RIGHT_TRIGGER] = normalized > TRIGGER_PRESS_THRESHOLD;
-        }
-
-        state.timestamp = performance.now();
-    }
-
-    private _onHatChange(state: DeviceState, event: Manette.Event): void {
-        const [ok, hatAxis, hatValue] = event.get_hat();
-        if (!ok) return;
-
-        // Hat axes: 0 = horizontal (left/right), 1 = vertical (up/down)
-        // Values: -1, 0, 1
-        if (hatAxis === 0) {
-            // Horizontal: negative = left, positive = right
-            state.buttonsPressed[W3CButton.DPAD_LEFT] = hatValue < 0;
-            state.buttons[W3CButton.DPAD_LEFT] = hatValue < 0 ? 1.0 : 0.0;
-            state.buttonsPressed[W3CButton.DPAD_RIGHT] = hatValue > 0;
-            state.buttons[W3CButton.DPAD_RIGHT] = hatValue > 0 ? 1.0 : 0.0;
-        } else if (hatAxis === 1) {
-            // Vertical: negative = up, positive = down
-            state.buttonsPressed[W3CButton.DPAD_UP] = hatValue < 0;
-            state.buttons[W3CButton.DPAD_UP] = hatValue < 0 ? 1.0 : 0.0;
-            state.buttonsPressed[W3CButton.DPAD_DOWN] = hatValue > 0;
-            state.buttons[W3CButton.DPAD_DOWN] = hatValue > 0 ? 1.0 : 0.0;
-        }
-
-        state.timestamp = performance.now();
-    }
-
-    private _findStateByDevice(device: Manette.Device): DeviceState | null {
+    private _findState(device: GamepadSourceDevice): DeviceState | null {
         for (const state of this._slots) {
             if (state && state.device === device) return state;
         }
@@ -261,14 +185,16 @@ export class GamepadManager {
         }
 
         return new Gamepad({
-            id: state.device.get_name() ?? `Gamepad (${state.device.get_guid()})`,
+            id: state.device.id,
             index: state.index,
             connected: state.connected,
             timestamp: state.timestamp,
+            // Every source maps to the standard layout before it reaches the sink
+            // (see `source.ts`), so this is a property of the contract, not a guess.
             mapping: 'standard',
             axes: Array.from(state.axes),
             buttons,
-            vibrationActuator: state.hapticActuator,
+            vibrationActuator: state.device.vibrationActuator,
         });
     }
 
@@ -318,30 +244,21 @@ export class GamepadManager {
      */
     getGamepads(): (Gamepad | null)[] {
         this._ensureInit();
+        // A pull backend refreshes at the W3C polling moment; a push backend has
+        // already delivered everything through the sink.
+        if (this._started) this._source?.poll?.();
 
         return this._slots.map((state) => (state ? this._createSnapshot(state) : null));
     }
 
-    /** Cleanup — disconnect all signal handlers. */
+    /** Stop the source and drop every index. */
     dispose(): void {
-        for (const state of this._slots) {
-            if (state) {
-                for (const id of state.signalIds) {
-                    state.device.disconnect(id);
-                }
-            }
-        }
+        this._source?.stop();
+        this._source = null;
+        this._started = false;
         // Drop every index too, not just its contents: `[[gamepads]]` is back to
         // the empty list a fresh manager starts from.
         this._slots.length = 0;
-
-        if (this._monitor) {
-            for (const id of this._monitorSignalIds) {
-                this._monitor.disconnect(id);
-            }
-            this._monitorSignalIds = [];
-            this._monitor = null;
-        }
 
         this._initialized = false;
         this._initPromise = null;

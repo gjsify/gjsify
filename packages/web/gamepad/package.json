@@ -43,7 +43,8 @@
         "controller"
     ],
     "dependencies": {
-        "@gjsify/dom-events": "workspace:^"
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@girs/gjs": "5.4.0",
@@ -60,6 +61,15 @@
             "node": "partial",
             "browser": "native",
             "nativescript": "native"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "darwin": "No backend reads a controller on macOS yet: libmanette links the Linux-only libevdev, and the replacement decided in ADR 0075 (SDL3 behind a GObject shim, @gjsify/gamepad-native) is not built. The package loads, getGamepads() answers the conformant empty list and hasGamepadBackend() reports false.",
+            "win32": "No backend on Windows: libmanette links the Linux-only libevdev. getGamepads() answers the conformant empty list and hasGamepadBackend() reports false. ADR 0075's shim is portable C over SDL3, which also covers Windows, but no win32 target is decided."
         },
         "tier": 1
     },

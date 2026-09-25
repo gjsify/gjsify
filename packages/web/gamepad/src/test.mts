@@ -7,9 +7,11 @@ import testSuiteGamepad from './gamepad.spec.js';
 // situation this package is about. See the header of `register.spec.ts` for how
 // that is kept true, and `status/open-todos.md` for the measurement.
 import testSuiteRegister from './register.spec.js';
+// The device-source seam (ADR 0075), driven by fakes — no controller, no typelib.
+import testSuiteSource from './source.spec.js';
 // LAST on purpose: the backend suite injects fake `gi://Manette` modules into the
 // shared probe cache. It hands the cache back at the end, but ordering it after
 // the suites that read the real host keeps that independent of its own cleanup.
 import testSuiteBackend from './backend.spec.js';
 
-run({ testSuiteGamepad, testSuiteRegister, testSuiteBackend });
+run({ testSuiteGamepad, testSuiteRegister, testSuiteSource, testSuiteBackend });
