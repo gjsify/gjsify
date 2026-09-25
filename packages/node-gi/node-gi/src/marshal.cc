@@ -1733,24 +1733,60 @@ size_t OutZeroSize(GITypeInfo* ti) {
   }
 }
 
+// GObject qdata quark for the GPtrArray of transfer-none string answers tied to an
+// object's lifetime (AssociateStringWithObject below). A function-local static is
+// safe here — g_quark_from_static_string is idempotent and already how this file's
+// other qdata keys are declared (see class.cc's NodeGiClassDataQuark).
+static GQuark NodeGiInstanceStringsQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-instance-strings");
+  return q;
+}
+
+// Record `str` (already g_strdup'd) to be freed when `obj` is finalized. Mirrors
+// gjs's ObjectInstance::associate_string (refs/gjs/gi/object.cpp): a GPtrArray hung
+// off the object's own qdata, created on first use and freed automatically by
+// g_object_set_qdata_full's destroy notify.
+static void AssociateStringWithObject(GObject* obj, char* str) {
+  auto* strings = static_cast<GPtrArray*>(g_object_get_qdata(obj, NodeGiInstanceStringsQuark()));
+  if (strings == nullptr) {
+    strings = g_ptr_array_new_with_free_func(g_free);
+    g_object_set_qdata_full(obj, NodeGiInstanceStringsQuark(), strings,
+                            reinterpret_cast<GDestroyNotify>(g_ptr_array_unref));
+  }
+  g_ptr_array_add(strings, str);
+}
+
 // A string C keeps. A transfer-full one is C's to free, so it gets its own copy. A
 // transfer-none one must outlive this frame with NOBODY freeing it — a JsToGIArgument
-// string would point into a std::string that dies here — so it is interned, which
-// keeps it valid forever and costs one copy per distinct value rather than one per
-// call (gjs interns the same way when there is no object to tie the string to).
-char* StringForC(Napi::Value v, GITransfer transfer) {
+// string would point into a std::string that dies here.
+//
+// `owner` (the vfunc's instance, when there is one) gets first refusal: tying the
+// string to ITS lifetime bounds the cost to that object's lifetime, exactly as gjs
+// does. Without an owner (a plain GI callback has none) g_intern_string is the only
+// option — valid forever, one copy per distinct value — and that IS gjs's own
+// fallback there too. Interning unconditionally (this file's previous approach) is
+// the wrong default for the common vfunc case: a JS override that answers a FRESH
+// transfer-none string every call (e.g. Gtk.Editable's vfunc_get_text on a
+// live-updating buffer) would intern one string PER CALL, forever, for the life of
+// the process — unbounded growth a real widget hits on every keystroke.
+char* StringForC(Napi::Value v, GITransfer transfer, GObject* owner) {
   if (!v.IsString()) return nullptr;
   std::string s = v.As<Napi::String>().Utf8Value();
-  if (transfer == GI_TRANSFER_NOTHING) return const_cast<char*>(g_intern_string(s.c_str()));
-  return g_strdup(s.c_str());
+  if (transfer != GI_TRANSFER_NOTHING) return g_strdup(s.c_str());
+  if (owner != nullptr) {
+    char* dup = g_strdup(s.c_str());
+    AssociateStringWithObject(owner, dup);
+    return dup;
+  }
+  return const_cast<char*>(g_intern_string(s.c_str()));
 }
 
 bool JsToAnswerArgument(Napi::Env env, Napi::Value v, GITypeInfo* ti, GITransfer transfer,
-                        GIArgument* out, const char* argName) {
+                        GIArgument* out, const char* argName, GObject* owner) {
   memset(out, 0, sizeof(*out));
   GITypeTag tag = gi_type_info_get_tag(ti);
   if (tag == GI_TYPE_TAG_UTF8 || tag == GI_TYPE_TAG_FILENAME) {
-    out->v_string = StringForC(v, transfer);
+    out->v_string = StringForC(v, transfer, owner);
     return true;
   }
   std::string held;
@@ -1760,8 +1796,8 @@ bool JsToAnswerArgument(Napi::Env env, Napi::Value v, GITypeInfo* ti, GITransfer
 
 }  // namespace
 
-CToJsCall::CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label)
-    : env_(env), ci_(ci), label_(std::move(label)) {}
+CToJsCall::CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label, GObject* owner)
+    : env_(env), ci_(ci), label_(std::move(label)), owner_(owner) {}
 
 CToJsCall::~CToJsCall() {
   for (const Slot& s : outs_) {
@@ -1870,7 +1906,7 @@ bool CToJsCall::WriteOut(const Slot& s, Napi::Value v) {
     return false;
   }
   GIArgument a;
-  if (!JsToAnswerArgument(env_, v, s.ti, transfer, &a, name)) return false;
+  if (!JsToAnswerArgument(env_, v, s.ti, transfer, &a, name, owner_)) return false;
   memcpy(s.dest, &a, size);
   return true;
 }
@@ -1902,7 +1938,8 @@ void CToJsCall::WriteAnswer(napi_value ret, void* result) {
       if (hasRet) {
         GIArgument a;
         ok = JsToAnswerArgument(env_, answers[k++], retType,
-                                gi_callable_info_get_caller_owns(ci_), &a, "return value");
+                                gi_callable_info_get_caller_owns(ci_), &a, "return value",
+                                owner_);
         // The ffi return slot is at least ffi_arg wide and was zeroed by the caller,
         // so the whole union can go in: libffi reads the low bytes it needs.
         if (ok && result != nullptr) *static_cast<GIArgument*>(result) = a;

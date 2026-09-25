@@ -418,7 +418,11 @@ size_t CElementSize(GITypeInfo* elem);
 // trampoline's stack under its HandleScope; `ci` is borrowed.
 class CToJsCall {
  public:
-  CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label);
+  // `owner` is the vfunc's instance (class.cc passes args[0]'s GObject*); nullptr for a
+  // plain GI callback (calls.cc), which has no natural object. Only used to tie a
+  // transfer-none string ANSWER's lifetime to something bounded (StringForC,
+  // marshal.cc) — gjs's own fallback (g_intern_string, unbounded) when there is none.
+  CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label, GObject* owner = nullptr);
   ~CToJsCall();
   CToJsCall(const CToJsCall&) = delete;
   CToJsCall& operator=(const CToJsCall&) = delete;
@@ -442,6 +446,7 @@ class CToJsCall {
   Napi::Env env_;
   GICallableInfo* ci_;
   std::string label_;
+  GObject* owner_;  // borrowed; see the constructor comment
   std::vector<Slot> outs_;
 };
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);

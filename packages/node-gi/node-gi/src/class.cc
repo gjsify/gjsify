@@ -223,14 +223,16 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
 
   GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
   // args[0] is the instance; declared args follow at args[1..].
-  Napi::Value recv = WrapGObject(
-      napiEnv, static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer),
-      GI_TRANSFER_NOTHING);
+  GObject* instance = static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer);
+  Napi::Value recv = WrapGObject(napiEnv, instance, GI_TRANSFER_NOTHING);
 
   // Arguments and the answer in gjs's OUT/INOUT shape, shared with the GI-callback
   // trampoline (CToJsCall, marshal.cc). args[0] is the instance, so the declared
-  // arguments start at offset 1.
-  CToJsCall call(napiEnv, ci, "vfunc '" + vf->name + "'");
+  // arguments start at offset 1. `instance` is also the owner a transfer-none string
+  // answer ties its lifetime to (StringForC, marshal.cc) instead of interning it
+  // forever — a real vfunc can answer a fresh string every call (e.g.
+  // Gtk.Editable's vfunc_get_text on a live-updating buffer).
+  CToJsCall call(napiEnv, ci, "vfunc '" + vf->name + "'", instance);
   std::vector<napi_value> jsArgs;
   bool ok = call.MarshalArgs(args, 1, &jsArgs);
 
