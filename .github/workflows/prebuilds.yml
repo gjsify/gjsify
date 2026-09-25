@@ -100,6 +100,10 @@ on:
       - 'packages/node/terminal-native/meson.build'
       - 'packages/framework/webkit-native/src/objc/**'
       - 'packages/framework/webkit-native/meson.build'
+      - 'packages/web/gamepad-native/src/**'
+      - 'packages/web/gamepad-native/test/**'
+      - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
+      - 'packages/web/gamepad-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -186,6 +190,10 @@ on:
       - 'packages/node/terminal-native/meson.build'
       - 'packages/framework/webkit-native/src/objc/**'
       - 'packages/framework/webkit-native/meson.build'
+      - 'packages/web/gamepad-native/src/**'
+      - 'packages/web/gamepad-native/test/**'
+      - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
+      - 'packages/web/gamepad-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -1195,8 +1203,14 @@ jobs:
           #                rolldown's options/output across as JSON)
           #   gtk4, libepoxy → @gjsify/webgl (Gtk.GLArea + the GL entry points;
           #                libepoxy is what the generated Vala calls into)
+          #   cmake      → @gjsify/gamepad-native (meson builds the pinned SDL3
+          #                through its CMake module)
+          #   gjs        → @gjsify/gamepad-native's meson test runs the typelib
+          #                under gjs; meson registers that test only when it finds
+          #                gjs at setup, so it has to be here before the build and
+          #                not only in the load-test step below
           brew install gobject-introspection vala meson ninja pkgconf gnutls libsoup libnghttp2 json-glib \
-            gtk4 libepoxy
+            gtk4 libepoxy cmake gjs
           BREW_PREFIX="$(brew --prefix)"
           # libnghttp2 is keg-only on macOS (the OS ships its own copy for curl),
           # so it is NOT symlinked into the brew prefix. http2-native reaches it
@@ -1360,6 +1374,42 @@ jobs:
         with:
           name: webkit-native-prebuilds-darwin-${{ matrix.arch }}
           path: packages/framework/webkit-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      # -------- @gjsify/gamepad-native (GjsifyGamepad, darwin only so far) --------
+      # A C shim over SDL3, which meson downloads (pinned + sha256-checked by
+      # `subprojects/sdl3.wrap`) and links STATICALLY, trimmed to the input
+      # subsystems (ADR 0075 Amendment 1) — so it adds `cmake` to the brew closure
+      # and nothing to the runtime: the library needs system frameworks and the
+      # host's GLib, no Homebrew SDL.
+      - name: Build @gjsify/gamepad-native (C shim + static SDL3)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      # The zero-device path, against the real library and a real SDL: C and gjs
+      # lifecycles, and the C one again under `leaks --atExit` (0 leaks or red).
+      # A runner has no controller, so this is all CI can prove; input from a
+      # real device is ADR 0075's hardware check.
+      - name: Test @gjsify/gamepad-native (lifecycle, gjs, leaks)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: meson test -C build --print-errorlogs
+
+      - name: Collect @gjsify/gamepad-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      - name: Upload @gjsify/gamepad-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gamepad-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/web/gamepad-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -3987,6 +4037,13 @@ jobs:
           name: webkit-native-prebuilds-darwin-arm64
           path: packages/framework/webkit-native-darwin-arm64/prebuilds/darwin-arm64/
 
+      - name: Download gamepad-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-prebuilds-darwin-arm64
+          path: packages/web/gamepad-native-darwin-arm64/prebuilds/darwin-arm64/
+
       # -------- darwin-x64 (macOS, Intel) --------
       # The SAME eight packages as the arm64 block above, because both come from
       # the one matrixed `build-prebuilds-macos` job — the sets cannot drift.
@@ -4052,6 +4109,13 @@ jobs:
         with:
           name: webkit-native-prebuilds-darwin-x64
           path: packages/framework/webkit-native-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download gamepad-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-prebuilds-darwin-x64
+          path: packages/web/gamepad-native-darwin-x64/prebuilds/darwin-x64/
 
       # Two scratch paths, named ONCE, both OUTSIDE the repository so nothing
       # parked in them can be staged by accident. Four steps and two scripts have

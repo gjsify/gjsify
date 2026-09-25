@@ -195,6 +195,10 @@ async function scanSourceTree(pkgDir) {
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
         globals_mjs_browser_safe: false,
         file_count: 0,
+        // A meson build of its own: a GObject library + typelib, reached through
+        // `gi://`. NOT `binding.gyp` — a Node addon (`@gjsify/node-gi`) is the node
+        // slot's implementation, the opposite shape.
+        has_gi_build: existsSync(join(pkgDir, 'meson.build')),
     };
     if (signals.has_browser_polyfill) {
         const browserSrc = existsSync(join(srcDir, 'browser.ts'))
@@ -382,6 +386,16 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
 
     // Infra ships the toolchain itself, so it is outside the triplet model entirely.
     if (axis === 'infra') return null;
+
+    // A GI bridge with NO JavaScript at all — only a prebuilt library and its typelib
+    // (`@gjsify/gamepad-native`, `@gjsify/webkit-native`). It has no runtime surface
+    // of its own: a consumer reaches it through `gi://`, which is the GJS slot. The
+    // pillar heuristics below would read "no GJS-binding signal" as "pure TS, portable
+    // everywhere" and suggest a web-API triplet for a package that contains nothing to
+    // run on Node or in a browser.
+    if (signals.file_count === 0 && signals.has_gi_build) {
+        return { gjs: 'polyfill', node: 'none', browser: 'none' };
+    }
 
     // GJS-only by construction. (A PURE-TS framework contract — no GJS-binding
     // signal at all, e.g. `@gjsify/stories` / `@gjsify/storybook-core` — may
