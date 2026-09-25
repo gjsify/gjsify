@@ -248,6 +248,44 @@ export default async () => {
                 gl.deleteTexture(tex);
             });
 
+            await it('refuses a sub-upload in another format than the legacy image', async () => {
+                const tex = gl.createTexture()!;
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.LUMINANCE,
+                    1,
+                    1,
+                    0,
+                    gl.LUMINANCE,
+                    gl.UNSIGNED_BYTE,
+                    new Uint8Array([90]),
+                );
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1, 1, gl.ALPHA, gl.UNSIGNED_BYTE, new Uint8Array([7]));
+                expect(gl.getError()).toBe(gl.INVALID_OPERATION);
+                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([7, 7, 7, 7]));
+                expect(gl.getError()).toBe(gl.INVALID_OPERATION);
+                expect(rgba(sampleTexture(gl, program, tex))).toStrictEqual([90, 90, 90, 255]);
+                gl.deleteTexture(tex);
+            });
+
+            await it('a legacy-format texture is no complete color attachment', async () => {
+                const tex = gl.createTexture()!;
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, 2, 2, 0, gl.ALPHA, gl.UNSIGNED_BYTE, null);
+                const fb = gl.createFramebuffer()!;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                expect(gl.checkFramebufferStatus(gl.FRAMEBUFFER)).not.toBe(gl.FRAMEBUFFER_COMPLETE);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.deleteFramebuffer(fb);
+                gl.deleteTexture(tex);
+                gl.getError();
+            });
+
             await it('GENERATE_MIPMAP_HINT starts at DONT_CARE and reports what hint() set', async () => {
                 expect(gl.getParameter(gl.GENERATE_MIPMAP_HINT)).toBe(gl.DONT_CARE);
                 gl.hint(gl.GENERATE_MIPMAP_HINT, gl.NICEST);
@@ -293,6 +331,21 @@ export default async () => {
 
                 gl.useProgram(null);
                 gl.deleteProgram(current);
+                gl.deleteProgram(prog);
+                gl.deleteShader(vs);
+            });
+
+            await it('a link WebGL refuses keeps an error queued before it', async () => {
+                const vs = gl.createShader(gl.VERTEX_SHADER)!;
+                gl.shaderSource(vs, VS);
+                gl.compileShader(vs);
+                const prog = gl.createProgram()!;
+                gl.attachShader(prog, vs);
+                gl.getError();
+                gl.hint(0x1234, gl.NICEST); // queues INVALID_ENUM
+                gl.linkProgram(prog);
+                expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBe(false);
+                expect(gl.getError()).toBe(gl.INVALID_ENUM);
                 gl.deleteProgram(prog);
                 gl.deleteShader(vs);
             });
@@ -356,6 +409,86 @@ export default async () => {
                 destroyTestFBO(gl, fbo);
                 expect(rgba(pixel)).toStrictEqual([0, 0, 0, 77]);
                 gl2.deleteTexture(tex);
+                gl2.deleteProgram(program);
+            });
+
+            await it('copyTexSubImage3D takes the framebuffer alpha into an ALPHA array layer', async () => {
+                const program = makeProgram(gl, VS_300, FS_ARRAY_300);
+                const tex = gl2.createTexture()!;
+                gl2.bindTexture(gl2.TEXTURE_2D_ARRAY, tex);
+                gl2.texImage3D(
+                    gl2.TEXTURE_2D_ARRAY,
+                    0,
+                    gl2.ALPHA,
+                    1,
+                    1,
+                    1,
+                    0,
+                    gl2.ALPHA,
+                    gl2.UNSIGNED_BYTE,
+                    new Uint8Array([0]),
+                );
+                gl2.texParameteri(gl2.TEXTURE_2D_ARRAY, gl2.TEXTURE_MIN_FILTER, gl2.NEAREST);
+                gl2.texParameteri(gl2.TEXTURE_2D_ARRAY, gl2.TEXTURE_MAG_FILTER, gl2.NEAREST);
+                const src = makeTestFBO(gl, 1, 1);
+                gl2.clearColor(1, 1, 1, 0.4); // alpha 102
+                gl2.clear(gl2.COLOR_BUFFER_BIT);
+                gl2.bindTexture(gl2.TEXTURE_2D_ARRAY, tex);
+                gl2.copyTexSubImage3D(gl2.TEXTURE_2D_ARRAY, 0, 0, 0, 0, 0, 0, 1, 1);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                destroyTestFBO(gl, src);
+                const fbo = makeTestFBO(gl, 4, 4);
+                gl2.clearColor(0.5, 0.5, 0.5, 0.5);
+                gl2.clear(gl2.COLOR_BUFFER_BIT);
+                gl2.useProgram(program);
+                drawTriangle(gl);
+                const pixel = readPixel(gl, 0, 0);
+                destroyTestFBO(gl, fbo);
+                expect(rgba(pixel)).toStrictEqual([0, 0, 0, 102]);
+                gl2.deleteTexture(tex);
+                gl2.deleteProgram(program);
+            });
+
+            await it('an unsized LUMINANCE texture is no complete color attachment', async () => {
+                const tex = gl2.createTexture()!;
+                gl2.bindTexture(gl2.TEXTURE_2D, tex);
+                gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.LUMINANCE, 2, 2, 0, gl2.LUMINANCE, gl2.UNSIGNED_BYTE, null);
+                const fb = gl2.createFramebuffer()!;
+                gl2.bindFramebuffer(gl2.FRAMEBUFFER, fb);
+                gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, tex, 0);
+                expect(gl2.checkFramebufferStatus(gl2.FRAMEBUFFER)).toBe(gl2.FRAMEBUFFER_INCOMPLETE_ATTACHMENT);
+                gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, null, 0);
+                gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+                gl2.deleteFramebuffer(fb);
+                gl2.deleteTexture(tex);
+                gl2.getError();
+            });
+
+            await it('refuses TEXTURE_SWIZZLE_* and keeps a failed texStorage2D from resetting one', async () => {
+                const tex = gl2.createTexture()!;
+                gl2.bindTexture(gl2.TEXTURE_2D_ARRAY, tex);
+                gl2.texParameteri(gl2.TEXTURE_2D_ARRAY, 0x8e42 /* TEXTURE_SWIZZLE_R */, gl2.ONE);
+                expect(gl2.getError()).toBe(gl2.INVALID_ENUM);
+                gl2.deleteTexture(tex);
+
+                const program = makeProgram(gl, VS, FS);
+                const lum = gl2.createTexture()!;
+                gl2.bindTexture(gl2.TEXTURE_2D, lum);
+                gl2.texImage2D(
+                    gl2.TEXTURE_2D,
+                    0,
+                    gl2.LUMINANCE,
+                    1,
+                    1,
+                    0,
+                    gl2.LUMINANCE,
+                    gl2.UNSIGNED_BYTE,
+                    new Uint8Array([90]),
+                );
+                gl2.texStorage2D(gl2.TEXTURE_2D, 1, gl2.ALPHA, 1, 1); // unsized: refused
+                expect(gl2.getError()).not.toBe(gl2.NO_ERROR);
+                expect(rgba(sampleTexture(gl, program, lum))).toStrictEqual([90, 90, 90, 255]);
+                gl2.deleteTexture(lum);
                 gl2.deleteProgram(program);
             });
 

@@ -287,6 +287,11 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
             return;
         }
 
+        if (this._legacySubImageMismatch(texture, format)) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
         if (type === this.FLOAT && !this._extensions.oes_texture_float) {
             this.setError(this.INVALID_ENUM);
             return;

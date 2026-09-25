@@ -260,8 +260,11 @@ Apple Silicon / GL 4.1 core: `test:conformance` went from 202/209 to 209/209.
   `R16F`/`RG16F` for float types) plus a texture swizzle (`(0,0,0,R)`, `(R,R,R,1)`,
   `(R,R,R,G)`), which is how ANGLE does it (`context/texture-management/legacy-formats.ts`).
   The swizzle is texture state, so re-specifying the texture in another format resets it.
-  `copyTexImage2D` into `ALPHA`/`LUMINANCE_ALPHA` reads the region back, because no GL copy
-  moves the framebuffer's alpha into a red or green channel.
+  `copyTex(Sub)Image2D` and `copyTexSubImage3D` into `ALPHA`/`LUMINANCE_ALPHA` read the region
+  back, because no GL copy moves the framebuffer's alpha into a red or green channel. What the
+  R/RG storage cannot say itself is checked from the format JS records, on every context: a
+  sub-upload in another format is `INVALID_OPERATION`, and a legacy texture is never a complete
+  color attachment (WebGL 2 included). WebGL 2's `TEXTURE_SWIZZLE_*` pnames are `INVALID_ENUM`.
 - `GENERATE_MIPMAP_HINT` is kept in JS: `hint()` records it and `getParameter` reports it,
   which is all a hint obliges an implementation to do.
 - Three program rules are WebGL's (GLES 2.0 §2.10.3) and are checked in TypeScript, because a

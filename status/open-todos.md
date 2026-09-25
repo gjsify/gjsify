@@ -3544,9 +3544,10 @@ What is still open:
 - **No CI leg runs the GL specs on macOS**, so only a hand run on a Mac shows a desktop-CORE
   regression. `on('Gl')` realizes a GDK GL context and asks (`@gjsify/unit`'s `canRealizeGl` +
   probe) rather than assuming `linux && DISPLAY`, so the specs do run wherever a display exists.
-- **`copyTexSubImage3D` into an `ALPHA`/`LUMINANCE_ALPHA` 3D or array texture moves R/G, not A,
-  on a core profile.** The 2D copies read back (`legacy-formats.ts`), but WebGL2 keeps no JS
-  record of a 3D texture's format to route on; tracking it per 3D/array binding would close it.
+- **`framebufferTextureLayer` of an `ALPHA`/`LUMINANCE` 3D or array texture renders on a core
+  profile.** WebGL says legacy formats are never color-renderable; the 2D attachment path refuses
+  them from the recorded format, but `framebufferTextureLayer` goes straight to the driver with no
+  JS attachment record, and the emulated R8/RG8 storage is renderable there.
 
 Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`
 (negotiated API/version, scale factor, logical-vs-device sizes, shader-dialect matrix, shader-free

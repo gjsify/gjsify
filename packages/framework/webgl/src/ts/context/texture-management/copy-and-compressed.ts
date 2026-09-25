@@ -6,10 +6,16 @@
 // Original: see context/texture-management.ts pre-split.
 
 import * as bits from 'bit-twiddle';
+import type GLib from '@girs/glib-2.0';
 import type { WebGLContextBase } from '../../webgl-context-base.js';
 import { Uint8ArrayToVariant, arrayToUint8Array } from '../../utils.js';
 import type { TypedArray } from '../../types/index.js';
-import { coreStorageForLegacyFormat, extractLegacyChannels, isLegacyFormat } from './legacy-formats.js';
+import {
+    coreStorageForLegacyFormat,
+    extractLegacyChannels,
+    isLegacyFormat,
+    type LegacyFormatStorage,
+} from './legacy-formats.js';
 
 const RGBA = 0x1908;
 const UNSIGNED_BYTE = 0x1401;
@@ -78,16 +84,12 @@ export interface CopyAndCompressedTextureMethods {
         data: TypedArray,
     ): void;
     _copyLegacyChannels(
-        target: GLenum,
-        level: GLint,
         format: GLenum,
-        xoffset: GLint,
-        yoffset: GLint,
         x: GLint,
         y: GLint,
         width: GLsizei,
         height: GLsizei,
-        allocate: boolean,
+        upload: (storage: LegacyFormatStorage, channels: GLib.Variant) => void,
     ): void;
 }
 
@@ -142,7 +144,19 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
 
         this._saveError();
         if (legacy && internalFormat !== this.LUMINANCE) {
-            this._copyLegacyChannels(target, level, internalFormat, 0, 0, x, y, width, height, true);
+            this._copyLegacyChannels(internalFormat, x, y, width, height, (storage, channels) =>
+                this._gl.texImage2D(
+                    target,
+                    level,
+                    storage.internalFormat,
+                    width,
+                    height,
+                    0,
+                    storage.format,
+                    UNSIGNED_BYTE,
+                    channels,
+                ),
+            );
         } else {
             this._gl.copyTexImage2D(
                 target,
@@ -161,9 +175,9 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
         if (error === this.NO_ERROR) {
             texture._levelWidth[level] = width;
             texture._levelHeight[level] = height;
-            // Record the legacy format where it is emulated: its RED/RG storage
-            // would otherwise pass as color-renderable, which WebGL says it is not.
-            texture._format = legacy ? internalFormat : this.RGBA;
+            // Record a legacy format as itself: WebGL says it is not color-renderable
+            // (on every context), and emulated RED/RG storage would pass as if it were.
+            texture._format = isLegacyFormat(internalFormat) ? internalFormat : this.RGBA;
             texture._type = this.UNSIGNED_BYTE;
             this._setTextureSwizzle(target, texture, legacy ? legacy.swizzle : null);
         }
@@ -197,7 +211,19 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
             (texture._format === this.ALPHA || texture._format === this.LUMINANCE_ALPHA) &&
             this._legacyFormatStorage(texture._format, this.UNSIGNED_BYTE)
         ) {
-            this._copyLegacyChannels(target, level, texture._format, xoffset, yoffset, x, y, width, height, false);
+            this._copyLegacyChannels(texture._format, x, y, width, height, (storage, channels) =>
+                this._gl.texSubImage2D(
+                    target,
+                    level,
+                    xoffset,
+                    yoffset,
+                    width,
+                    height,
+                    storage.format,
+                    UNSIGNED_BYTE,
+                    channels,
+                ),
+            );
             return;
         }
 
@@ -206,25 +232,21 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
 
     /**
      * Copy a framebuffer region into core-profile legacy-format storage by
-     * reading it back as RGBA and uploading the legacy channels as R/RG — the
-     * one copy the driver cannot do, since it only ever moves R→R and G→G.
-     * `allocate` specifies the level (copyTexImage2D); otherwise the region is
-     * written into the existing one (copyTexSubImage2D). Reads through
-     * `readPixels`, so a region outside the framebuffer copies zeros, as WebGL
-     * requires of copyTex*Image2D.
+     * reading it back as RGBA and handing the legacy channels, in the RED/RG
+     * layout, to `upload` — the one copy the driver cannot do, since it only
+     * ever moves R→R and G→G. `upload` specifies or updates the image (2D or
+     * 3D) with the pixel-store state pinned to tight packing. Reads through
+     * `readPixels`, so a WebGL 1 region outside the framebuffer copies zeros,
+     * as WebGL requires of copyTex*Image2D.
      */
     _copyLegacyChannels(
         this: WebGLContextBase,
-        target: GLenum,
-        level: GLint,
         format: GLenum,
-        xoffset: GLint,
-        yoffset: GLint,
         x: GLint,
         y: GLint,
         width: GLsizei,
         height: GLsizei,
-        allocate: boolean,
+        upload: (storage: LegacyFormatStorage, channels: GLib.Variant) => void,
     ): void {
         const storage = isLegacyFormat(format) ? coreStorageForLegacyFormat(format, UNSIGNED_BYTE) : null;
         if (!storage) return;
@@ -248,32 +270,7 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
         try {
             const rgba = new Uint8Array(Math.max(0, width * height * 4));
             if (rgba.length > 0) this.readPixels(x, y, width, height, RGBA, UNSIGNED_BYTE, rgba);
-            const channels = Uint8ArrayToVariant(extractLegacyChannels(rgba, format));
-            if (allocate) {
-                this._gl.texImage2D(
-                    target,
-                    level,
-                    storage.internalFormat,
-                    width,
-                    height,
-                    0,
-                    storage.format,
-                    UNSIGNED_BYTE,
-                    channels,
-                );
-            } else {
-                this._gl.texSubImage2D(
-                    target,
-                    level,
-                    xoffset,
-                    yoffset,
-                    width,
-                    height,
-                    storage.format,
-                    UNSIGNED_BYTE,
-                    channels,
-                );
-            }
+            upload(storage, Uint8ArrayToVariant(extractLegacyChannels(rgba, format)));
         } finally {
             this._packAlignment = savedPackAlignment;
             PINNED_PIXEL_STORE.forEach(([pname], i) => this._gl.pixelStorei(pname, saved[i]));
@@ -292,6 +289,7 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
         border: GLint,
         data: TypedArray,
     ): void {
+        this._saveError();
         this._gl.compressedTexImage2D(
             target,
             level,
@@ -301,6 +299,16 @@ const copyAndCompressedTextureMethods: ThisType<WebGLContextBase> & Record<strin
             border,
             Uint8ArrayToVariant(arrayToUint8Array(data)),
         );
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+        // The image is no legacy format any more: drop the record and the
+        // emulation swizzle a former ALPHA/LUMINANCE image left (texImage2D).
+        const texture = this._getTexImage(target);
+        if (texture) {
+            texture._format = internalFormat;
+            this._setTextureSwizzle(target, texture, null);
+        }
     },
 
     compressedTexSubImage2D(

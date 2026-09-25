@@ -440,6 +440,19 @@ export abstract class WebGLContextBase {
     }
 
     /**
+     * Must a sub-upload of `format` into `texture` be refused (INVALID_OPERATION)
+     * because it does not match the image's legacy format? WebGL, like GLES, wants
+     * the format of a legacy image's sub-upload to be that legacy format. Only a
+     * GLES driver says so itself: emulated RED storage cannot tell ALPHA from
+     * LUMINANCE or from a genuine R8, and a desktop driver (core or compatibility)
+     * converts any format — so the check is made here, on every context, from the
+     * format JS recorded.
+     */
+    _legacySubImageMismatch(texture: WebGLTexture, format: GLenum): boolean {
+        return (isLegacyFormat(format) || isLegacyFormat(texture._format)) && format !== texture._format;
+    }
+
+    /**
      * Point the texture bound to `target` at `swizzle` (`null` = identity).
      *
      * The swizzle is TEXTURE state, so it must follow the image: a texture that
@@ -447,10 +460,11 @@ export abstract class WebGLContextBase {
      * (R, R, R, 1). WebGL exposes no swizzle of its own (not even WebGL 2), so
      * the emulation owns this state outright — no consumer value to preserve.
      * `_swizzled` spares the four calls on the common path, where a texture
-     * never held a legacy format; without a texture to ask, it always writes.
+     * never held a legacy format; without a texture to ask, an emulating
+     * context always writes, and any other never has a swizzle to reset.
      */
     _setTextureSwizzle(target: GLenum, texture: WebGLTexture | null, swizzle: Swizzle | null): void {
-        if (!swizzle && texture && !texture._swizzled) return;
+        if (!swizzle && (texture ? !texture._swizzled : !this._emulatesLegacyFormats())) return;
         const values = swizzle ?? IDENTITY_SWIZZLE;
         const paramTarget = textureParameterTarget(target);
         for (let i = 0; i < 4; ++i) {

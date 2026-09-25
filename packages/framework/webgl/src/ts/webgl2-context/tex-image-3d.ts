@@ -11,7 +11,24 @@
 // Original: see webgl2-rendering-context.ts pre-split.
 
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
+import type { WebGLTexture } from '../webgl-texture.js';
 import { Uint8ArrayToVariant } from '../utils.js';
+
+const TEXTURE_3D = 0x806f;
+const TEXTURE_2D_ARRAY = 0x8c1a;
+const TEXTURE_BINDING_3D = 0x806a;
+const TEXTURE_BINDING_2D_ARRAY = 0x8c1d;
+
+/**
+ * The texture bound to a 3D/array `target` on the active unit. JS keeps no
+ * per-unit record of these bindings, so the driver is asked; its answer also
+ * follows a delete, which unbinds the texture natively.
+ */
+function boundTexture3D(ctx: WebGL2RenderingContext, target: GLenum): WebGLTexture | null {
+    const pname =
+        target === TEXTURE_3D ? TEXTURE_BINDING_3D : target === TEXTURE_2D_ARRAY ? TEXTURE_BINDING_2D_ARRAY : 0;
+    return pname ? (ctx._textures[ctx._gl.getParameteri(pname)] ?? null) : null;
+}
 
 export interface TexImage3DMethods {
     texImage3D(
@@ -139,11 +156,15 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         }
         const error = this.getError();
         this._restoreError(error);
-        // No JS-side record of 3D/array textures exists to say whether this one
-        // was swizzled before, so where the emulation runs every upload writes its swizzle.
-        if (error === this.NO_ERROR && this._emulatesLegacyFormats()) {
-            this._setTextureSwizzle(target, null, legacy ? legacy.swizzle : null);
+        if (error !== this.NO_ERROR) return;
+        // The format is recorded as for 2D (texImage2D): the sub-upload,
+        // copy and framebuffer paths route legacy images on it.
+        const texture = boundTexture3D(this, target);
+        if (texture) {
+            texture._format = format;
+            texture._type = type;
         }
+        this._setTextureSwizzle(target, texture, legacy ? legacy.swizzle : null);
     },
 
     texSubImage3D(
@@ -161,6 +182,11 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         pixels: ArrayBufferView | null,
     ): void {
         if (pixels === null) return;
+        const texture = boundTexture3D(this, target);
+        if (texture && this._legacySubImageMismatch(texture, format)) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
         this._native2.texSubImage3D(
             target,
             level,
@@ -188,6 +214,7 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         _imageSize: GLsizei,
         data: ArrayBufferView,
     ): void {
+        this._saveError();
         this._native2.compressedTexImage3D(
             target,
             level,
@@ -198,6 +225,13 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
             border,
             Uint8ArrayToVariant(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)),
         );
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+        // No legacy format any more: drop the record and an emulation swizzle.
+        const texture = boundTexture3D(this, target);
+        if (texture) texture._format = internalformat;
+        this._setTextureSwizzle(target, texture, null);
     },
 
     compressedTexSubImage3D(
@@ -240,6 +274,35 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         width: GLsizei,
         height: GLsizei,
     ): void {
+        // Into emulated ALPHA / LUMINANCE_ALPHA storage the framebuffer's ALPHA
+        // must land in R/G, which no GL copy moves — read back as in 2D
+        // (copyTexSubImage2D), one layer deep.
+        const format = boundTexture3D(this, target)?._format ?? 0;
+        if (
+            (format === this.ALPHA || format === this.LUMINANCE_ALPHA) &&
+            this._legacyFormatStorage(format, this.UNSIGNED_BYTE)
+        ) {
+            if (width < 0 || height < 0) {
+                this.setError(this.INVALID_VALUE);
+                return;
+            }
+            this._copyLegacyChannels(format, x, y, width, height, (storage, channels) =>
+                this._native2.texSubImage3D(
+                    target,
+                    level,
+                    xoffset,
+                    yoffset,
+                    zoffset,
+                    width,
+                    height,
+                    1,
+                    storage.format,
+                    this.UNSIGNED_BYTE,
+                    channels,
+                ),
+            );
+            return;
+        }
         this._native2.copyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height);
     },
 
@@ -251,7 +314,13 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         width: GLsizei,
         height: GLsizei,
     ): void {
+        this._saveError();
         this._native2.texStorage2D(target, levels, internalformat, width, height);
+        const error = this.getError();
+        this._restoreError(error);
+        // A refused call (an unsized ALPHA, an already immutable texture) leaves
+        // the texture — and a legacy-format swizzle it carries — as it was.
+        if (error !== this.NO_ERROR) return;
         // Update JS-side metadata so _updateFramebufferAttachments / _preCheckFramebufferStatus
         // can see valid dimensions. Without this, w/h stay 0 and the attachment is cleared.
         const texture = this._getTexImage(target);
@@ -276,9 +345,18 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         height: GLsizei,
         depth: GLsizei,
     ): void {
+        this._saveError();
         this._native2.texStorage3D(target, levels, internalformat, width, height, depth);
-        // Immutable storage is never a legacy format; see texImage3D for why this always writes.
-        if (this._emulatesLegacyFormats()) this._setTextureSwizzle(target, null, null);
+        const error = this.getError();
+        this._restoreError(error);
+        if (error !== this.NO_ERROR) return;
+        // Immutable storage is never a legacy format: drop the record and an emulation swizzle.
+        const texture = boundTexture3D(this, target);
+        if (texture) {
+            texture._format = this.RGBA; // base format, as texStorage2D records it
+            texture._type = this.UNSIGNED_BYTE;
+        }
+        this._setTextureSwizzle(target, texture, null);
     },
 };
 

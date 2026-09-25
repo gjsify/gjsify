@@ -98,6 +98,8 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
                 program._linkStatus = false;
                 program._uniforms = [];
                 program._linkInfoLog = `link failed: no ${missing} shader attached`;
+                // A failed link raises no error; the one read above stays queued.
+                this.setError(prevError);
                 return;
             }
             this._harmoniseShaderSpelling(shaders);
