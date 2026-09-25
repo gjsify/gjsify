@@ -3593,7 +3593,31 @@ workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next
 three entries.
 
-### A darwin gamepad backend is the only route to macOS support, and it is a separate project
+### The darwin gamepad backend is decided (ADR 0075); the SDL3 shim itself is open
+
+Decided in `docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md`: SDL3 behind
+a GObject shim, reached through a device-source seam. **Landed with the ADR:** the seam
+(`packages/web/gamepad/src/source.ts`; the libmanette code moved unchanged into
+`manette-source.ts`; the manager's W3C state handling is now tested through a scripted fake source
+in `source.spec.ts`, where before it had no test at all) and the honest darwin answer (the probe
+branches on `hostOs()`, never imports `gi://Manette` on darwin, returns `absent` with a diagnostic
+naming the ADR, and `gjsify.os.darwin` is declared `none`). `docs/poc/gamepad-darwin-probe.m`
+measured the zero-device path on macOS 27 arm64: GCF, IOKit HID on a private dispatch queue and
+SDL 3.4.16 all initialise, enumerate zero devices and tear down in a non-bundled GMainLoop process,
+20 cycles each, `leaks` 0; and the main dispatch queue — where GCF delivers — is NOT serviced by a
+bare GMainLoop. **Still open, in the order they gate each other:**
+
+1. `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (ADR 0017): the C shim, GI namespace
+   `GjsifyGamepad-1.0`, SDL3 linked statically with only joystick/gamepad/haptic/HIDAPI, a
+   CFRunLoop drain in its update tick (PoC row 1 — without it SDL's GCF driver never sees a
+   GCF-only controller), `build-prebuilds-macos` wiring, and the first-publish bootstrap of the
+   three names. Its own `gjs` suite on the macOS leg asserts what the PoC asserts in C.
+2. `sdl-source.ts` with the SDL → W3C table, and the darwin branch importing `gi://GjsifyGamepad`
+   with the same absent-vs-fault classification the Manette branch has.
+3. A hardware check — a real controller, and a GCF-only one, connecting, reporting input and
+   disconnecting under `gjs` on macOS — before `gjsify.os.darwin` leaves `none`. No runner has one.
+
+Why the ADR needs both Apple input paths (and so chose the library that already has both):
 
 `GameController.framework` alone is NOT sufficient, and the reference implementations both say so by
 shipping two paths. WebKit's `Source/WebCore/platform/gamepad/` holds `cocoa/`
@@ -3621,7 +3645,8 @@ Second, larger piece of work: `packages/web/gamepad/src/button-mapping.ts` maps 
 libmanette 0.2 actually transmits) to W3C indices. Nothing on macOS produces those numbers — GCF
 gives named `GCControllerButtonInput` properties, IOKit gives HID usage pages — so a darwin backend
 needs a SECOND source vocabulary mapped to the same `W3CButton`/`W3CAxis` targets, not a new row in
-the existing table. `hasGamepadBackend()` returning `false` is the honest interim answer.
+the existing table. The seam puts that vocabulary inside its own `GamepadSource` (step 2 above).
+`hasGamepadBackend()` returning `false` is the honest interim answer.
 
 ### libmanette is not portable and upstream has never considered it
 

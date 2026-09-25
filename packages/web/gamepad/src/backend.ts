@@ -32,6 +32,9 @@
 // {@link NODE_GI_BRIDGE}.
 
 import type Manette from '@girs/manette-0.2';
+import { hostOs, type TargetOs } from '@gjsify/utils/core';
+
+import type { GamepadSource } from './source.js';
 
 /** The GI namespace this package binds; every wording below is scoped to it. */
 const GI_NAMESPACE = 'Manette';
@@ -70,6 +73,11 @@ export interface LoadGamepadBackendOptions {
      * runner this package is tested on.
      */
     importer?: () => Promise<{ default: typeof Manette }>;
+    /**
+     * Override the host OS the probe branches on. Tests only — it is how the darwin
+     * branch is exercised on a Linux runner and the Manette branch on a Mac.
+     */
+    hostOs?: () => TargetOs | undefined;
 }
 
 /** Absent-vs-fault plus the text the use site should print (`null` = silence). */
@@ -137,6 +145,17 @@ function noBridgeText(): string {
         `(npm install ${NODE_GI_BRIDGE}, plus libmanette + its typelib). Gate on hasGamepadBackend().`
     );
 }
+
+/**
+ * macOS: not "install something" — there is nothing to install yet. libmanette cannot
+ * exist here, and the backend that replaces it is decided (ADR 0075) but not built. The
+ * text says both, so nobody goes looking for a Homebrew formula that is not there.
+ */
+const DARWIN_NO_BACKEND_TEXT =
+    '[@gjsify/gamepad] No gamepad backend on macOS yet — getGamepads() reports no controllers no matter what is ' +
+    'plugged in. libmanette cannot exist here (it links the Linux-only libevdev), and the darwin backend that ' +
+    'replaces it — SDL3 behind a GObject shim, docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md ' +
+    '— is not built yet. Gate on hasGamepadBackend().';
 
 /**
  * The backend is there in principle but did not come up. A FAULT, not a platform gap —
@@ -221,6 +240,20 @@ export function _diagnoseGiLoadError(error: unknown, namespace: string = GI_NAME
 }
 
 async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<GamepadBackend> {
+    // THE PLATFORM BRANCH (ADR 0075). darwin does not probe `gi://Manette` at all: that
+    // typelib cannot exist there, so the import could only ever fail, and its failure
+    // text would send the reader to a Linux package manager. Its source — the SDL3
+    // shim — is not built yet, and until it is the answer is an honest `absent`, NOT a
+    // stand-in that reports success with zero devices: `hasGamepadBackend()` must stay
+    // `false` where nothing can read a controller.
+    //
+    // An UNKNOWN host (`undefined`: no `process` global to ask) keeps the Manette probe,
+    // which classifies itself from the loader's own error — never assume "not darwin".
+    const os = (options.hostOs ?? hostOs)();
+    if (os === 'darwin') {
+        return { status: 'absent', module: null, error: null, diagnostic: DARWIN_NO_BACKEND_TEXT };
+    }
+
     // The specifier is a LITERAL, not built from `GI_NAMESPACE`: every plugin that claims
     // `gi://*` (`gjsGiNodePlugin`, `gjsImportsEmptyPlugin`, the `--app gjs` externals
     // predicate) matches the resolved specifier at BUILD time, so a template literal
@@ -265,10 +298,10 @@ async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<
  */
 export function loadGamepadBackend(options: LoadGamepadBackendOptions = {}): Promise<GamepadBackend> {
     if (cached !== null) {
-        if (options.importer) {
+        if (options.importer || options.hostOs) {
             throw new Error(
-                'loadGamepadBackend({ importer }) called after the probe already ran — the probe is cached per ' +
-                    'process, so the importer would be ignored. Call _resetGamepadBackendCache() first (tests only).',
+                'loadGamepadBackend({ importer, hostOs }) called after the probe already ran — the probe is cached per ' +
+                    'process, so the override would be ignored. Call _resetGamepadBackendCache() first (tests only).',
             );
         }
         return cached;
@@ -304,17 +337,22 @@ export function reportGamepadBackendOnce(backend: GamepadBackend): void {
 }
 
 /**
- * The backend loaded and then the monitor did not come up — a DIFFERENT failure from a
- * failed load: everything after the probe (`new Manette.Monitor()`, the device walk,
- * `connect()`) needs udev and `/dev/input`, which a sandbox can withhold from a process
- * whose typelib and shared library are both fine. Routing it through the load-failure text
- * would re-create the same conflation one layer up.
+ * The backend loaded and then its device source did not come up — a DIFFERENT failure
+ * from a failed load: everything after the probe (`new Manette.Monitor()`, the device
+ * walk, `connect()`) needs udev and `/dev/input`, which a sandbox can withhold from a
+ * process whose typelib and shared library are both fine. Routing it through the
+ * load-failure text would re-create the same conflation one layer up.
+ *
+ * The advice comes from the SOURCE (`startRequirements`), because it is per backend:
+ * udev is the right hint for Manette and the wrong one for anything else.
  */
-export function reportGamepadMonitorFault(error: unknown): void {
+export function reportGamepadMonitorFault(error: unknown, source: GamepadSource | null = null): void {
+    const name = source?.name ?? 'gamepad';
+    const requirements = source?.startRequirements ? `${source.startRequirements} ` : '';
     console.error(
-        `[@gjsify/gamepad] The gi://${GI_NAMESPACE} backend loaded but the gamepad monitor could not be started — ` +
-            'a fault AFTER the backend was available, not a missing backend. Manette.Monitor needs udev and ' +
-            '/dev/input access, which a sandbox can withhold (flatpak: --device=input). ' +
+        `[@gjsify/gamepad] The ${name} backend loaded but the gamepad monitor could not be started — ` +
+            'a fault AFTER the backend was available, not a missing backend. ' +
+            requirements +
             'getGamepads() reports no controllers until it is fixed.',
         error,
     );
@@ -328,7 +366,8 @@ export function reportGamepadMonitorFault(error: unknown): void {
  * the same list either way. Answerable without constructing a monitor, and QUIET.
  *
  * `false` on every host without libmanette, which today means macOS and Windows:
- * libmanette links libevdev unconditionally and libevdev is Linux/FreeBSD-only. Reports
+ * libmanette links libevdev unconditionally and libevdev is Linux/FreeBSD-only. macOS
+ * gets its own backend under ADR 0075 and answers `false` until it ships. Reports
  * that the BRIDGE is usable, not that every later call succeeds — a monitor can still fail
  * to start (see {@link reportGamepadMonitorFault}).
  */

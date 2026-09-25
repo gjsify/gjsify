@@ -1,4 +1,5 @@
-// Gamepad Web API for GJS — original implementation using libmanette
+// Gamepad Web API for GJS — original implementation; libmanette on Linux, one device
+// source per platform behind `GamepadSource` (ADR 0075)
 // Reference: https://w3c.github.io/gamepad/
 
 export { GamepadButton } from './gamepad-button.js';
@@ -13,6 +14,10 @@ export type {
 export { GamepadEvent } from './gamepad-event.js';
 export type { GamepadEventInit } from './gamepad-event.js';
 export { GamepadManager } from './gamepad-manager.js';
+export type { GamepadManagerOptions } from './gamepad-manager.js';
+// The device-source seam (ADR 0075): what a platform backend implements, and what a
+// test or an embedder hands `new GamepadManager({ source })`.
+export type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
 // The platform-capability query the W3C surface has no word for: an all-null
 // getGamepads() means BOTH "no controller connected" and "no gamepad backend on
 // this host", and only this tells them apart. Same role as
