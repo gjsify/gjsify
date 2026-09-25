@@ -140,48 +140,31 @@ later run to exist, which an edit authored with `GITHUB_TOKEN` would not produce
 here holds `pull-requests: write` today, so the refusal path is reasoned and fixtured but has
 never fired.
 
-### The darwin bundle ships the GNOME typeface and cannot put it on the font map
+### macOS fonts: what a Mac WITHOUT Homebrew resolves is still unmeasured
 
-The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
-`@gjsify/gtk-host`'s `initFonts()` registers them with `pango_font_map_add_font_file()`. That
-works on fontconfig-backed Pango (Linux) and on win32, where it is the ONLY thing that works —
-pangowin32 reads no fontconfig path at all.
+`add_font_file` is a vfunc the CoreText map does not implement, so on macOS every face used to
+answer `G_IO_ERROR_NOT_SUPPORTED`. Two of the three processes that hit that are closed:
 
-**It does not work on macOS.** `add_font_file` is a vfunc the CoreText map does not implement, so
-every face answers `G_IO_ERROR_NOT_SUPPORTED` — measured on the darwin-arm64 windowing proof:
-`Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
-reported that as `declined` rather than as a failure, and the reasoning written there is about an
-application's OWN faces in a shipped `.app`, where `ATSApplicationFontsPath` has already
-activated the directory before any code runs. That reasoning does not extend to the RUNTIME
-bundle's faces: nothing points `ATSApplicationFontsPath` at `gtk/share/fonts`.
+- **The bundled windowing runtime** selects `PANGOCAIRO_BACKEND=fc` (ADR 0038 § Amendment 3), so
+  `initFonts()` registers both the runtime's Adwaita faces and the application's.
+- **`gjsify run` on a Homebrew GTK** — no `.app`, so no `ATSApplicationFontsPath` — now falls back:
+  `initFonts()` builds a fontconfig map, registers the declined faces there and makes it the
+  default, only when fontconfig is configured, `PANGOCAIRO_BACKEND` is unset and the family is not
+  already on the CoreText map (ADR 0038 § Amendment 5). Measured on macOS 27 arm64: `Round9x13`
+  goes from `absent` to `exact`, `fonts.spec.ts` runs its discriminator suite as plain assertions.
 
-So on macOS today the bundle carries ~7.3 MB of faces that no process can reach, and
-`adwaitaUiFontAvailability()` correctly answers `absent` — a preferences dialog will not offer
-the `adwaita` policy there, which is the honest outcome but not the intended one. The size half
-is unaffected: macOS measures 18.8 px against GNOME's 19.0 and needs no correction.
+**Still open.** Both routes put the font supply behind fontconfig, and the darwin bundle ships no
+`etc/fonts` (§ Amendment 4, *What this control does NOT prove*). Every Mac measured so far had
+Homebrew's `fonts.conf`; `font-script-coverage.test.mjs` simulates the no-Homebrew case, and until
+someone runs a shipped `.app` on a clean Mac, this line stays. A shipped `.app` on a CoreText map
+relies on `ATSApplicationFontsPath` alone; no leg here launches one, so that activation is Apple's
+documented behaviour rather than a measurement.
 
-Two routes, neither taken here:
-
-- **`ATSApplicationFontsPath`**, which is how `gjsify ship` already activates an application's own
-  staged faces. It names ONE directory relative to `Contents/Resources`, so covering both would
-  mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
-  change, in the layer that owns the `.app` layout, not in the runtime.
-- **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. TAKEN, 2026-09-14
-  (ADR 0038 § Amendment 3): `maybeWireGtkWindowingEnv()` sets it for a windowing bundle, and the
-  objection recorded here — that it changes text rendering for the whole application, which is
-  not a decision a runtime bundle may take for its consumer — is overruled there, on the ground
-  that the bundle was already making that choice by compiled-in ordering. What is NOT measured is
-  the result on a real Mac, as opposed to a macOS CI runner: the `macos-gtk-windowing` leg runs
-  the script-coverage proof, but every runner has Homebrew, so a green leg says nothing about the
-  machine a stranger downloads the `.app` to. The simulated no-Homebrew case in
-  `font-script-coverage.test.mjs` is what stands in for it; until someone runs a shipped `.app` on
-  a clean Mac, this line stays.
-
-The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
-future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
-rather than passing over it, so the day a darwin map starts accepting registration the count
-stops matching and the row says so.
+**Also open:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default map
+itself and swallows the error, so a Canvas `FontFace` on a CoreText map (e.g.
+`excalibur-jelly-jumper` under `gjsify run` on macOS) still falls back to the default sans unless
+`initFonts()` ran first and adopted the fc map. The fix is to route it through the same fallback
+without making `dom-elements` depend on `@gjsify/gtk-host`.
 
 ### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
 
