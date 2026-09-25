@@ -162,6 +162,11 @@ reasons), because the package branches on the OS (ADR 0018).
   about a GCF-only controller. This mirrors `gjsify_webkit_pump_run_loop`.
   `SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1` is set before `SDL_Init`, because a `gjs`
   process is never the foreground app.
+- **One thread.** `SDL_Init`, `update()` and `SDL_Quit` all run on the thread that owns the
+  JS context. SDL's IOKit driver schedules its `IOHIDManager` on the run loop of the thread
+  that called `SDL_Init`, in a private mode it drains itself inside the update, so IOKit
+  hotplug needs no pump from us. Only GCF's main-queue delivery does (row 1), and a `gjs`
+  script's JS thread is the main thread, which is where that drain has to happen.
 - **Deployment floor** is the one ADR 0074 declares for every darwin binary.
 
 ### 4. `sdl-source.ts` and the darwin branch goes live (open)
@@ -183,9 +188,14 @@ input and disconnects under `gjs` on macOS. The PR that flips it records that ch
 - The Manette-1 migration (`open-todos`) becomes a new `ManetteSource`, and the manager does
   not change.
 - Windows gets a decided path, but not a decision. The shim is portable C over a portable
-  library, and a `win32-x64` target is a later, separate call.
-- Cost: one statically linked SDL3 (smaller than the 2.5 MB dylib, since only the input
-  subsystems are compiled in) and three new published package names.
+  library, and a `win32-x64` target is a later, separate call. It would take the per-target
+  sibling shape ADR 0073 gives win32 (`@gjsify/gamepad-native-win32-x64`), and its consumer is
+  Node + `@gjsify/node-gi`, since Windows has no GJS host
+  ([ADR 0024 § 4](0024-ship-installable-artifacts.md)). The CFRunLoop drain is darwin-only;
+  whether SDL's RawInput/WGI drivers need anything from that process shape is unmeasured.
+- Cost: one statically linked SDL3 and three new published package names. It is expected to
+  be smaller than Homebrew's 2.5 MB dylib, since only the input subsystems are compiled in;
+  stage 3 measures it.
 
 ## Verification without hardware
 
