@@ -3618,7 +3618,7 @@ workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next
 three entries.
 
-### The darwin gamepad backend is decided (ADR 0075); the SDL3 shim itself is open
+### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); the shim itself is open
 
 Decided in `docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md`: SDL3 behind
 a GObject shim, reached through a device-source seam. **Landed with the ADR:** the seam
@@ -3632,15 +3632,24 @@ SDL 3.4.16 all initialise, enumerate zero devices and tear down in a non-bundled
 20 cycles each, `leaks` 0; and the main dispatch queue — where GCF delivers — is NOT serviced by a
 bare GMainLoop. **Still open, in the order they gate each other:**
 
+Amendment 1 (2026-09-25) widened the decision: SDL3 — static, trimmed to joystick/gamepad,
+events, haptic, sensor and HIDAPI, runtime deps = the OS only — is the ONE backend on darwin,
+linux and win32. No Steam Input; WebHID over the same HIDAPI build is a future option needing its
+own permission decision; SDL3 is adopted for nothing else.
+
 1. `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (ADR 0017): the C shim, GI namespace
-   `GjsifyGamepad-1.0`, SDL3 linked statically with only joystick/gamepad/haptic/HIDAPI, a
-   CFRunLoop drain in its update tick (PoC row 1 — without it SDL's GCF driver never sees a
-   GCF-only controller), `build-prebuilds-macos` wiring, and the first-publish bootstrap of the
-   three names. Its own `gjs` suite on the macOS leg asserts what the PoC asserts in C.
+   `GjsifyGamepad-1.0`, SDL3 linked statically and trimmed as above, a CFRunLoop drain in its
+   update tick (PoC row 1 — without it SDL's GCF driver never sees a GCF-only controller),
+   `build-prebuilds-macos` wiring, and the first-publish bootstrap of the new names. Its own
+   `gjs` suite on the macOS leg asserts what the PoC asserts in C.
 2. `sdl-source.ts` with the SDL → W3C table, and the darwin branch importing `gi://GjsifyGamepad`
    with the same absent-vs-fault classification the Manette branch has.
-3. A hardware check — a real controller, and a GCF-only one, connecting, reporting input and
-   disconnecting under `gjs` on macOS — before `gjsify.os.darwin` leaves `none`. No runner has one.
+3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
+   On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
+4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
+   reporting input and disconnecting — before `gjsify.os.<os>` moves. No runner has one.
+5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
+   libmanette dependency.
 
 Why the ADR needs both Apple input paths (and so chose the library that already has both):
 
@@ -3699,7 +3708,12 @@ And the dependency it hard-requires is not available: homebrew-core's `libevdev`
 `platforms = lib.platforms.linux ++ lib.platforms.freebsd`. Porting libmanette is therefore a
 libevdev port first; that is why the darwin work above is a NEW backend, not a build fix.
 
-### A forced migration is coming: `Manette-1`
+### The `Manette-1` migration is superseded (ADR 0075 Amendment 1)
+
+Not to be done: libmanette is being REMOVED (step 5 of the entry above), so porting to its 1.0 API
+would be work on a backend with an end date. Kept for the record of what 1.0 changes, in case the
+Linux SDL comparison fails and the decision is revisited.
+
 
 libmanette `main` is `version: '1.0.alpha'` with `libmanette_api_version = '1'`, i.e. the typelib
 becomes `Manette-1` and `@gjsify/gamepad`'s current `gi://Manette` (0.2) namespace is a different
