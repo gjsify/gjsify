@@ -31,7 +31,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Task | Commands |
 |---|---|
 | Start a project | [`create`](#gjsify-create) |
-| Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
+| Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`exec`](#gjsify-exec) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
 | Dependencies | [`install`](#gjsify-install) · [`link`](#gjsify-link) · [`unlink`](#gjsify-unlink) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
 | Monorepos | [`foreach`](#gjsify-foreach) · [`workspace`](#gjsify-workspace) · [`affected`](#gjsify-affected) |
 | Code quality | [`check`](#gjsify-check) · [`tsc`](#gjsify-tsc) · [`format`](#gjsify-format) · [`lint`](#gjsify-lint) · [`fix`](#gjsify-fix) · [`barrels`](#gjsify-barrels) |
@@ -492,6 +492,38 @@ gjsify env LC_ALL=C GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs
 Every flag after the command belongs to the command, a `--` included. The exit code is the command's own.
 
 The destination is treated as a directory when it ends in `/`, when you pass several sources, or when a source has a wildcard. Otherwise it is the exact target path. Missing parent directories are created. `*` and `?` work in the last segment of a source.
+
+### `gjsify exec`
+
+Run a bin your project installed, like `npx <bin>`, on the runtime gjsify itself runs on. Under Node, Bun or Deno the bin runs unchanged. Under GJS, which cannot load an npm bin directly, gjsify rebuilds the bin `--app gjs` once, caches the result, and runs it with `gjs`.
+
+```bash
+gjsify exec semver 1.2.3 -r '>=1.0.0'
+gjsify exec json5 --version
+gjsify exec --runtime node prettier --check .   # run it on Node, whatever gjsify runs on
+gjsify exec --rebuild wxt --version             # ignore the cached rebuild
+```
+
+| Argument / Option | Default | Description |
+|---|---|---|
+| `<bin> [args..]` | — | The bin name, then its own arguments. Every flag after the bin belongs to the bin. |
+| `--runtime <gjs\|node\|bun\|deno>` | the runtime gjsify runs on | Run the bin on this runtime instead. |
+| `--rebuild` | off | Rebuild for GJS even when a cached build matches. |
+| `--verbose` | off | Show the bundler's warnings during a rebuild, and the command that runs the bin. |
+
+gjsify's own options go **before** the bin name. `gjsify exec wxt --runtime x` hands `--runtime x` to wxt.
+
+The bin is looked up like `npx` does it: your project's own `package.json#bin`, then every `node_modules` from the current directory up. A package that ships its own GJS bundle (`gjsify.bin`) runs that bundle under GJS and is not rebuilt. An unknown bin exits with 127.
+
+Arguments, the working directory, the environment, stdin/stdout/stderr and the exit code all pass through unchanged.
+
+#### The GJS rebuild
+
+The rebuilt bundle is cached in `node_modules/.cache/gjsify/exec/`. It is reused while the package version, the project's lockfile and the gjsify version stay the same, and rebuilt when any of them changes. Your project's own bin and linked workspace packages are rebuilt on every run, because their code changes without a version bump. `.node` addons load through `@gjsify/napi`.
+
+If the rebuild fails, `gjsify exec` prints the bundler's diagnostics and runs nothing. It never falls back to Node on its own. Pass `--runtime node` when that is what you want.
+
+Not every Node bin runs under GJS yet. The rebuild uses the same Node polyfills as `gjsify build`, so a bin that needs an API they lack fails, and the failure names it. Which bins were checked, and what failed, is listed in the [bundled toolchains notes](https://github.com/gjsify/gjsify/blob/main/docs/bundled-toolchains.md).
 
 ## Configure it in `package.json`
 
