@@ -4,6 +4,17 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/https`'s Server does not terminate TLS
+
+`https.createServer({ cert, key })` returns an `http.Server` that ignores the certificate and
+listens in plain text (`packages/node/https/src/index.ts`), so on GJS no `https.Server` can
+carry a `wss:` endpoint or serve HTTPS at all. The ws spec for TLS
+(`packages/node/ws/src/wss-lifecycle.spec.ts`) attaches a TLS `Soup.Server` through ws's
+`{ server }` mode on GJS for that reason, while its Node leg uses `https.createServer`. The
+likely shape: hand the PEM pair to the http-soup-bridge's `Soup.Server` as `tls-certificate`
+and listen with `Soup.ServerListenOptions.HTTPS`. Done when that spec uses
+`https.createServer` on both legs.
+
 ### NativeScript `Gtk.Box` grants no spare space to an expanding child
 
 `hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
