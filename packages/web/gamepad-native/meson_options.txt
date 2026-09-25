@@ -1,0 +1,2 @@
+option('prebuilt_gir', type: 'string', value: '',
+       description: 'win32 only: directory holding GjsifyGamepad-1.0.gir, scanned on Linux by the same CI run')

@@ -391,8 +391,9 @@ void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self)
         return;
     /* A signal handler below may drop the caller's last reference (a JS wrapper
      * going away inside `device-removed`); this one keeps @self alive until the
-     * emissions are done. */
-    g_autoptr(GjsifyGamepadMonitor) guard = g_object_ref(self);
+     * emissions are done. Explicit refs and unrefs throughout, not g_autoptr:
+     * that is GCC/Clang's cleanup attribute, and MSVC builds this file too. */
+    g_object_ref(self);
 
 #ifdef __APPLE__
     drain_main_run_loop();
@@ -408,8 +409,8 @@ void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self)
 
     int n = 0;
     SDL_JoystickID *ids = SDL_GetGamepads(&n);
-    g_autoptr(GPtrArray) removed = g_ptr_array_new_with_free_func(g_object_unref);
-    g_autoptr(GPtrArray) added = g_ptr_array_new_with_free_func(g_object_unref);
+    GPtrArray *removed = g_ptr_array_new_with_free_func(g_object_unref);
+    GPtrArray *added = g_ptr_array_new_with_free_func(g_object_unref);
 
     for (guint i = self->devices->len; i > 0; i--) {
         GjsifyGamepadDevice *device = g_ptr_array_index(self->devices, i - 1);
@@ -438,6 +439,10 @@ void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self)
         g_signal_emit(self, monitor_signals[SIGNAL_DEVICE_REMOVED], 0, g_ptr_array_index(removed, i));
     for (guint i = 0; i < added->len; i++)
         g_signal_emit(self, monitor_signals[SIGNAL_DEVICE_ADDED], 0, g_ptr_array_index(added, i));
+
+    g_ptr_array_unref(added);
+    g_ptr_array_unref(removed);
+    g_object_unref(self);
 }
 
 GPtrArray *gjsify_gamepad_monitor_get_devices(GjsifyGamepadMonitor *self)

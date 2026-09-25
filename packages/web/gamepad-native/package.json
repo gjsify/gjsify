@@ -7,7 +7,10 @@
     "gjsify": {
         "platforms": [
             "darwin-x64",
-            "darwin-arm64"
+            "darwin-arm64",
+            "linux-x64",
+            "linux-arm64",
+            "win32-x64"
         ],
         "runtimes": {
             "gjs": "polyfill",
@@ -16,14 +19,14 @@
             "nativescript": "none"
         },
         "os": {
-            "linux": "none",
+            "linux": "partial",
             "darwin": "partial",
-            "win32": "none"
+            "win32": "partial"
         },
         "osNotes": {
-            "linux": "Not built for Linux yet. ADR 0075 Amendment 1 makes this shim the gamepad backend on every OS; its Linux leg is open work, and until it lands and is compared against libmanette, @gjsify/gamepad uses gi://Manette there.",
+            "linux": "Builds for linux-x64 and linux-arm64 with only libc, libm and the host GLib as load-time dependencies (libudev and D-Bus are dlopen()ed by SDL). A virtual uinput controller connects, reports buttons and axes, and disconnects in CI; a real controller has not been checked yet, and until SDL is compared against libmanette on real hardware (ADR 0075 Amendment 1) @gjsify/gamepad keeps libmanette as the Linux default.",
             "darwin": "Builds, loads and enumerates on macOS 15+ with only system frameworks and the host GLib as runtime dependencies (measured on arm64; darwin-x64 is built by CI). Input from a real controller has not been verified yet (ADR 0075 stage 4).",
-            "win32": "Not built for Windows yet. The same C source is meant to build there as @gjsify/gamepad-native-win32-x64 (ADR 0075 Amendment 1, ADR 0073's per-package shape); until it does, @gjsify/gamepad has no backend on Windows."
+            "win32": "Builds with MSVC as @gjsify/gamepad-native-win32-x64, linking only Windows system DLLs, and initialises, enumerates zero devices and shuts down under Node through @gjsify/node-gi in CI. Input from a real controller has not been verified yet (ADR 0075 stage 4)."
         },
         "tier": 1
     },
@@ -35,7 +38,7 @@
         "build": "echo 'native only — see build:prebuilds'",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
-        "test": "echo 'native only — see test:meson (runs on the macOS prebuild leg)'",
+        "test": "echo 'native only — see test:meson (runs on every prebuild leg)'",
         "test:meson": "meson test -C build --print-errorlogs"
     },
     "keywords": [
@@ -44,7 +47,9 @@
         "sdl3",
         "controller",
         "darwin",
-        "macos"
+        "macos",
+        "linux",
+        "windows"
     ],
     "license": "MIT",
     "repository": {
@@ -58,6 +63,9 @@
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/gamepad-native#readme",
     "optionalDependencies": {
         "@gjsify/gamepad-native-darwin-arm64": "workspace:*",
-        "@gjsify/gamepad-native-darwin-x64": "workspace:*"
+        "@gjsify/gamepad-native-darwin-x64": "workspace:*",
+        "@gjsify/gamepad-native-linux-arm64": "workspace:*",
+        "@gjsify/gamepad-native-linux-x64": "workspace:*",
+        "@gjsify/gamepad-native-win32-x64": "workspace:*"
     }
 }
