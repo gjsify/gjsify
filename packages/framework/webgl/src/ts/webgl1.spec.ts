@@ -593,6 +593,302 @@ export default async () => {
                 expect(ext).not.toBeNull();
             });
 
+            // Advertising an extension is a promise; the four below keep it by
+            // USING the feature and reading the answer back through an RGBA8
+            // target. Each value is chosen so the tempting wrong implementation
+            // fails: an 8-bit store clamps 1.5 and -1.0 and quantises 0.3, a
+            // float texture that is not filterable samples as black, and 32-bit
+            // indices read as 16-bit collapse the quad into degenerate triangles.
+            // Desktop GL folds all four into core instead of listing them, which
+            // is how a macOS context once answered null for three of them.
+
+            const FULLSCREEN_VS = 'attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }';
+
+            /** Upload a float RGBA texture, sample its centre, return the verdict pixel. */
+            const sampleFloatTexture = (texels: number[], width: number, filter: number, fs: string): Uint8Array => {
+                const fbo = makeTestFBO(gl, 1, 1);
+                const tex = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array(texels));
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                const prog = makeProgram(gl, FULLSCREEN_VS, fs);
+                gl.useProgram(prog);
+                gl.uniform1i(gl.getUniformLocation(prog, 't'), 0);
+                drawTriangle(gl);
+                const pixel = readPixel(gl);
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+                destroyTestFBO(gl, fbo);
+                return pixel;
+            };
+
+            await it('OES_texture_float stores texels outside [0, 1] at full precision', async () => {
+                expect(gl.getExtension('OES_texture_float')).not.toBeNull();
+                const pixel = sampleFloatTexture(
+                    [1.5, -1.0, 0.3, 1.0],
+                    1,
+                    gl.NEAREST,
+                    `precision highp float;
+                    uniform sampler2D t;
+                    void main() {
+                        vec4 v = texture2D(t, vec2(0.5));
+                        gl_FragColor = vec4(
+                            v.r > 1.25 ? 1.0 : 0.0,
+                            v.g < -0.5 ? 1.0 : 0.0,
+                            abs(v.b - 0.3) < 0.001 ? 1.0 : 0.0,
+                            1.0);
+                    }`,
+                );
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(pixelClose(pixel, [255, 255, 255, 255])).toBeTruthy();
+            });
+
+            await it('OES_texture_float_linear filters a float texture', async () => {
+                expect(gl.getExtension('OES_texture_float')).not.toBeNull();
+                expect(gl.getExtension('OES_texture_float_linear')).not.toBeNull();
+                // Two texels, 0 and 4: the centre of a LINEAR sample is exactly 2.
+                const pixel = sampleFloatTexture(
+                    [0, 0, 0, 1, 4, 0, 0, 1],
+                    2,
+                    gl.LINEAR,
+                    `precision highp float;
+                    uniform sampler2D t;
+                    void main() {
+                        float r = texture2D(t, vec2(0.5, 0.5)).r;
+                        gl_FragColor = vec4(abs(r - 2.0) < 0.01 ? 1.0 : 0.0, 0.0, 0.0, 1.0);
+                    }`,
+                );
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(pixelClose(pixel, [255, 0, 0, 255])).toBeTruthy();
+            });
+
+            await it('OES_standard_derivatives compiles and evaluates dFdx', async () => {
+                const ext = gl.getExtension('OES_standard_derivatives') as {
+                    FRAGMENT_SHADER_DERIVATIVE_HINT_OES: number;
+                } | null;
+                expect(ext).not.toBeNull();
+                gl.hint(ext!.FRAGMENT_SHADER_DERIVATIVE_HINT_OES, gl.NICEST);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                const fbo = makeTestFBO(gl, 4, 4);
+                const prog = makeProgram(
+                    gl,
+                    FULLSCREEN_VS,
+                    `#extension GL_OES_standard_derivatives : enable
+                    precision highp float;
+                    void main() {
+                    // The ES front end defines this wherever the extension is
+                    // supported; a shader that branches on it must see it.
+                    #ifdef GL_OES_standard_derivatives
+                        // gl_FragCoord.x steps by exactly one per pixel.
+                        float d = dFdx(gl_FragCoord.x);
+                    #else
+                        float d = 0.0;
+                    #endif
+                        gl_FragColor = vec4(abs(d - 1.0) < 0.01 ? 1.0 : 0.0, 0.0, 0.0, 1.0);
+                    }`,
+                );
+                expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBe(true);
+                gl.useProgram(prog);
+                drawTriangle(gl);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(pixelClose(readPixel(gl, 1, 1), [255, 0, 0, 255])).toBeTruthy();
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                destroyTestFBO(gl, fbo);
+            });
+
+            // Where the ES front end cannot compile a derivative (macOS), the
+            // fragment shader is respelled in desktop GLSL, and a driver refuses
+            // to link that beside an ES-dialect vertex shader. One vertex shader
+            // OBJECT shared by a derivative program and a plain one must link
+            // into both, in either order — the spelling follows each program.
+            await it('a vertex shader shared with a derivative program still links beside ES stages', async () => {
+                gl.getExtension('OES_standard_derivatives');
+                const compile = (type: number, src: string) => {
+                    const sh = gl.createShader(type)!;
+                    gl.shaderSource(sh, src);
+                    gl.compileShader(sh);
+                    expect(gl.getShaderParameter(sh, gl.COMPILE_STATUS)).toBe(true);
+                    return sh;
+                };
+                const link = (vs: WebGLShader, fs: WebGLShader) => {
+                    const prog = gl.createProgram()!;
+                    gl.attachShader(prog, vs);
+                    gl.attachShader(prog, fs);
+                    gl.bindAttribLocation(prog, 0, 'position');
+                    gl.linkProgram(prog);
+                    return prog;
+                };
+                const vs = compile(gl.VERTEX_SHADER, FULLSCREEN_VS);
+                const derivFs = compile(
+                    gl.FRAGMENT_SHADER,
+                    '#extension GL_OES_standard_derivatives : enable\nprecision mediump float;\n' +
+                        'void main() { gl_FragColor = vec4(fwidth(gl_FragCoord.x), 0.0, 0.0, 1.0); }',
+                );
+                const plainFs = compile(gl.FRAGMENT_SHADER, 'void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }');
+
+                const first = link(vs, plainFs);
+                const deriv = link(vs, derivFs);
+                const again = link(vs, plainFs);
+                expect(gl.getProgramParameter(first, gl.LINK_STATUS)).toBe(true);
+                expect(gl.getProgramParameter(deriv, gl.LINK_STATUS)).toBe(true);
+                expect(gl.getProgramParameter(again, gl.LINK_STATUS)).toBe(true);
+                expect(gl.getShaderParameter(vs, gl.COMPILE_STATUS)).toBe(true);
+
+                const fbo = makeTestFBO(gl, 2, 2);
+                gl.useProgram(again);
+                drawTriangle(gl);
+                expect(pixelClose(readPixel(gl), [0, 255, 0, 255])).toBeTruthy();
+                gl.useProgram(deriv);
+                drawTriangle(gl);
+                expect(pixelClose(readPixel(gl), [255, 0, 0, 255])).toBeTruthy();
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                gl.useProgram(null);
+                for (const p of [first, deriv, again]) gl.deleteProgram(p);
+                for (const sh of [vs, derivFs, plainFs]) gl.deleteShader(sh);
+                destroyTestFBO(gl, fbo);
+            });
+
+            await it('OES_element_index_uint draws with 32-bit indices', async () => {
+                expect(gl.getExtension('OES_element_index_uint')).not.toBeNull();
+                const fbo = makeTestFBO(gl, 8, 8);
+                gl.clearColor(1, 0, 0, 1);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                const prog = makeProgram(gl, FULLSCREEN_VS, 'void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }');
+                gl.useProgram(prog);
+                const vbuf = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+                gl.enableVertexAttribArray(0);
+                gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+                const ebuf = gl.createBuffer();
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebuf);
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array([0, 1, 2, 2, 1, 3]), gl.STATIC_DRAW);
+
+                gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                const pixels = new Uint8Array(fbo.width * fbo.height * 4);
+                gl.readPixels(0, 0, fbo.width, fbo.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                let allGreen = true;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    if (!pixelClose(pixels.subarray(i, i + 4), [0, 255, 0, 255], 0)) allGreen = false;
+                }
+                expect(allGreen).toBeTruthy();
+
+                gl.disableVertexAttribArray(0);
+                gl.bindBuffer(gl.ARRAY_BUFFER, null);
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+                gl.deleteBuffer(vbuf);
+                gl.deleteBuffer(ebuf);
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                destroyTestFBO(gl, fbo);
+            });
+
+            // The respelling's edge cases on a REAL compiler: `: require` (which a
+            // desktop front end rejects for an ES extension name) and a sampler
+            // the consumer named `texture` (a desktop built-in). Both are
+            // ordinary WebGL1; on a host whose ES front end handles derivatives
+            // they take the untouched path and must pass all the same.
+            await it('a derivative shader with `: require` and a sampler named `texture` draws', async () => {
+                gl.getExtension('OES_standard_derivatives');
+                const fbo = makeTestFBO(gl, 4, 4);
+                const tex = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.RGBA,
+                    1,
+                    1,
+                    0,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    new Uint8Array([0, 255, 0, 255]),
+                );
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                const prog = makeProgram(
+                    gl,
+                    FULLSCREEN_VS,
+                    `#extension GL_OES_standard_derivatives : require
+                    precision highp float;
+                    uniform sampler2D texture;
+                    void main() {
+                        float d = dFdx(gl_FragCoord.x);
+                        gl_FragColor = texture2D(texture, vec2(0.5)) * (abs(d - 1.0) < 0.01 ? 1.0 : 0.0);
+                    }`,
+                );
+                expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBe(true);
+                gl.useProgram(prog);
+                gl.uniform1i(gl.getUniformLocation(prog, 'texture'), 0);
+                drawTriangle(gl);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(pixelClose(readPixel(gl, 1, 1), [0, 255, 0, 255])).toBeTruthy();
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+                destroyTestFBO(gl, fbo);
+            });
+
+            // Looked up without the driver's `GL_` prefix, these two once never
+            // matched on any driver; MIN/MAX blending is core desktop GL besides.
+            await it('EXT_blend_minmax is advertised and MAX blends', async () => {
+                const ext = gl.getExtension('EXT_blend_minmax') as { MAX_EXT: number } | null;
+                expect(ext).not.toBeNull();
+                expect(gl.getSupportedExtensions()).toContain('EXT_blend_minmax');
+                const fbo = makeTestFBO(gl, 1, 1);
+                gl.clearColor(0.2, 0.8, 0.0, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                const prog = makeProgram(
+                    gl,
+                    FULLSCREEN_VS,
+                    'precision mediump float; void main() { gl_FragColor = vec4(0.6, 0.4, 0.0, 1.0); }',
+                );
+                gl.useProgram(prog);
+                gl.enable(gl.BLEND);
+                gl.blendEquation(ext!.MAX_EXT);
+                gl.blendFunc(gl.ONE, gl.ONE);
+                drawTriangle(gl);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                // max((0.2, 0.8), (0.6, 0.4)) = (0.6, 0.8); FUNC_ADD would give (0.8, 1.0).
+                expect(pixelClose(readPixel(gl), [153, 204, 0, 255])).toBeTruthy();
+                gl.blendEquation(gl.FUNC_ADD);
+                gl.disable(gl.BLEND);
+                gl.useProgram(null);
+                gl.deleteProgram(prog);
+                destroyTestFBO(gl, fbo);
+            });
+
+            await it('EXT_texture_filter_anisotropic is advertised and takes its parameter', async () => {
+                const ext = gl.getExtension('EXT_texture_filter_anisotropic') as {
+                    TEXTURE_MAX_ANISOTROPY_EXT: number;
+                    MAX_TEXTURE_MAX_ANISOTROPY_EXT: number;
+                } | null;
+                expect(ext).not.toBeNull();
+                expect(gl.getSupportedExtensions()).toContain('EXT_texture_filter_anisotropic');
+                const max = gl.getParameter(ext!.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+                expect(max).toBeGreaterThan(1);
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texParameterf(gl.TEXTURE_2D, ext!.TEXTURE_MAX_ANISOTROPY_EXT, 2);
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+                expect(gl.getTexParameter(gl.TEXTURE_2D, ext!.TEXTURE_MAX_ANISOTROPY_EXT)).toBe(2);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+            });
+
             await it('getSupportedExtensions returns an array', async () => {
                 const exts = gl.getSupportedExtensions();
                 expect(Array.isArray(exts)).toBeTruthy();

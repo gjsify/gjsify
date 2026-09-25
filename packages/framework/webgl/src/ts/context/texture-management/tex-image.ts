@@ -186,7 +186,7 @@ const texImage2DMethods: ThisType<WebGLContextBase> & Record<string, Function> =
         this._gl.texImage2D(
             target,
             level,
-            internalFormat,
+            this._nativeFloatInternalFormat(internalFormat, type),
             width,
             height,
             border,

@@ -47,8 +47,12 @@ function build(name, app) {
 }
 
 /** Run a built bundle on the given interpreter and return `{ status, output }`. */
-function runBundle(argv0, args) {
-    const r = spawnSync(argv0, args, { encoding: 'utf-8', timeout: 2 * 60 * 1000 });
+function runBundle(argv0, args, env = {}) {
+    const r = spawnSync(argv0, args, {
+        encoding: 'utf-8',
+        timeout: 2 * 60 * 1000,
+        env: { ...process.env, GJSIFY_TEST_EXPECT_AXES: '', ...env },
+    });
     return { status: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
@@ -78,6 +82,28 @@ describe('@gjsify/unit requireAxes declaration', { timeout: 15 * 60 * 1000 }, ()
         // not be held to it.
         const { output } = runBundle(process.execPath, [build('unexercised', 'node')]);
         assert.doesNotMatch(output, /declared axis 'Gjs'/);
+    });
+
+    // `GJSIFY_TEST_EXPECT_AXES` is the other half: `requireAxes` holds only axes
+    // the host MATCHES, so a capability that stood down (a Linux xvfb leg whose
+    // GL probe broke) would skip every suite behind it and exit 0. The variable
+    // is the CI step saying "this host HAS it"; asserted with a runtime identity
+    // because that is the one axis whose answer a test host cannot change.
+    it('fails the node leg when an expected axis a gate named stood down', () => {
+        const { status, output } = runBundle(process.execPath, [build('expected', 'node')], {
+            GJSIFY_TEST_EXPECT_AXES: 'Gjs',
+        });
+        assert.equal(status, 1, `expected a non-zero exit, got ${status}:\n${output}`);
+        assert.match(output, /axis 'Gjs' is expected on this host \(GJSIFY_TEST_EXPECT_AXES\) but stood down/);
+    });
+
+    it('passes the node leg when the expected axis matched, or no gate named it', () => {
+        for (const expected of ['Node.js', 'Deno', '']) {
+            const { status, output } = runBundle(process.execPath, [build('expected', 'node')], {
+                GJSIFY_TEST_EXPECT_AXES: expected,
+            });
+            assert.equal(status, 0, `GJSIFY_TEST_EXPECT_AXES=${expected}: exit ${status}:\n${output}`);
+        }
     });
 
     it('fails the gjs leg when a declared axis exercised nothing', { skip: !hasGjs() && 'no gjs on PATH' }, () => {
