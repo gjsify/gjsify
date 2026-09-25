@@ -3618,7 +3618,7 @@ workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next
 three entries.
 
-### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); the shim itself is open
+### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); darwin is built, the rest is open
 
 Decided in `docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md`: SDL3 behind
 a GObject shim, reached through a device-source seam. **Landed with the ADR:** the seam
@@ -3637,13 +3637,13 @@ events, haptic, sensor and HIDAPI, runtime deps = the OS only — is the ONE bac
 linux and win32. No Steam Input; WebHID over the same HIDAPI build is a future option needing its
 own permission decision; SDL3 is adopted for nothing else.
 
-1. `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (ADR 0017): the C shim, GI namespace
-   `GjsifyGamepad-1.0`, SDL3 linked statically and trimmed as above, a CFRunLoop drain in its
-   update tick (PoC row 1 — without it SDL's GCF driver never sees a GCF-only controller),
-   `build-prebuilds-macos` wiring, and the first-publish bootstrap of the new names. Its own
-   `gjs` suite on the macOS leg asserts what the PoC asserts in C.
-2. `sdl-source.ts` with the SDL → W3C table, and the darwin branch importing `gi://GjsifyGamepad`
-   with the same absent-vs-fault classification the Manette branch has.
+1. **Built:** `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (C shim, `GjsifyGamepad-1.0`,
+   SDL 3.4.16 static + trimmed, CFRunLoop drain, `build-prebuilds-macos` wiring, meson tests incl.
+   `leaks`) and `sdl-source.ts` with the darwin branch importing `gi://GjsifyGamepad`. Measured size
+   and `otool -L` are in the ADR amendment. **Still open here:** the first-publish bootstrap of the
+   three names (`status/pending-npm-bootstrap.json`), and `commit-prebuilds` landing the first
+   darwin artifacts. The first CI run of the leg needs the `ci:macos` label.
+2. **Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin. Only GJS was measured.
 3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
    On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
 4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
