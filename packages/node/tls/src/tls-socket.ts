@@ -203,6 +203,24 @@ export class TLSSocket extends Socket {
     private async _adoptConnection(providedSocket: Socket): Promise<boolean> {
         if (this.destroyed || providedSocket.destroyed) return false;
         const src = providedSocket as unknown as SocketInternals;
+
+        // Node's real `tls.connect({socket})` accepts ANY Duplex; we can
+        // only adopt a `@gjsify/net` Socket today — its Gio connection is
+        // what gets handed to Gio.TlsClientConnection, and a foreign
+        // Duplex has none. Feature-detect rather than let a bare
+        // `_claimConnection is not a function` TypeError surface three
+        // calls deep: reached in practice when a build aliases `node:tls`
+        // to this polyfill but leaves `node:net` on a runtime's own
+        // native module (e.g. `@gjsify/node-gi`'s consumer harness, which
+        // forces `runtimes.node === "native"` deps onto their polyfill
+        // body but `@gjsify/net` declares `"none"`, so it stays native —
+        // see status/open-todos.md). Generic-Duplex support is tracked
+        // there too.
+        if (typeof src._claimConnection !== 'function' || typeof src._detachReader !== 'function') {
+            this.destroy(_foreignSocketError());
+            return false;
+        }
+
         const claimed = src._claimConnection();
         const leftover = await src._detachReader();
         if (this.destroyed) {
@@ -629,6 +647,25 @@ function _upgradeRaceError(): Error & { code: string } {
             'the handshake. This should not happen for a well-behaved STARTTLS peer.',
     ) as Error & { code: string };
     err.code = 'ERR_GJSIFY_TLS_UPGRADE_RACE';
+    return err;
+}
+
+/**
+ * Error surfaced by `TLSSocket._adoptConnection()` when `options.socket` /
+ * the constructor's `socket` argument doesn't carry a `@gjsify/net` Gio
+ * connection (`_claimConnection`/`_detachReader` missing). Node's real
+ * `tls.connect({socket})` accepts any Duplex; adopting a foreign one needs
+ * a Duplex→Gio.IOStream adapter this package doesn't have yet — tracked in
+ * status/open-todos.md, next to the SNI-peek entry.
+ */
+function _foreignSocketError(): Error & { code: string } {
+    const err = new Error(
+        'tls.connect({socket}) / new tls.TLSSocket(socket, …) can only upgrade a @gjsify/net ' +
+            "Socket today — the given socket doesn't carry the Gio connection needed to build a " +
+            "Gio.TlsClientConnection. Generic Duplex support (Node's real contract) is tracked in " +
+            'status/open-todos.md.',
+    ) as Error & { code: string };
+    err.code = 'ERR_GJSIFY_TLS_FOREIGN_SOCKET';
     return err;
 }
 

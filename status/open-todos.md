@@ -7290,3 +7290,20 @@ handshake on GJS today. Fix needs either a custom `GObject.registerClass`-based
 `GPollableInputStream` wrapper that preserves the peeked bytes while staying pollable, or a
 non-consuming kernel-level peek (the `Gio.Socket.receive_message(MSG_PEEK)` route the original
 comment already ruled out as non-introspectable in GJS) revisited against a newer GJS/GIR.
+
+### `tls.connect({socket})` only adopts a `@gjsify/net` Socket, not any Duplex
+
+Node's real `tls.connect({socket})` accepts any Duplex; `@gjsify/tls`'s given-socket adoption
+(`TLSSocket._adoptConnection`) only works for a `@gjsify/net` `Socket`, because it needs that
+class's Gio connection (`_claimConnection`) to build a `Gio.TlsClientConnection` — there is no
+Duplex-generic path to a `Gio.IOStream`. A foreign socket is now detected and rejected with a
+clear `ERR_GJSIFY_TLS_FOREIGN_SOCKET` (`tls-socket.ts`) instead of a bare
+`_claimConnection is not a function` TypeError; it does not yet WORK. Hit for real by
+`@gjsify/node-gi`'s consumer harness: its `--alias node:tls=@gjsify/tls` retargets `node:tls`
+onto this polyfill for the package under test, but `@gjsify/net` declares `runtimes.node:
+"none"` (not `"native"`), so the harness's "force every native dep onto its polyfill body" rule
+doesn't catch it and `node:net` stays the runtime's own native module —
+`given-socket.spec.ts`'s two data-round-trip cases assert either full success or exactly this
+error code so the node-gi leg stays green rather than silently skipped. Fix is a
+Duplex→`Gio.IOStream` adapter (pump `.write()`/`'data'` through a custom stream pair) so a
+foreign socket can be adopted like a native one; no such adapter exists in this package yet.
