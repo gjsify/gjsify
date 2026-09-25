@@ -1,3 +1,5 @@
 /subprojects/packagecache/
 /subprojects/SDL3-*/
 /subprojects/.wraplock
+/gir-export/
+/_gir/

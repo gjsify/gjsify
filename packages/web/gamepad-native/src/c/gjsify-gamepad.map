@@ -1,0 +1,8 @@
+/* The ELF export list of libgjsifygamepad.so: the GObject API and nothing else.
+ * SDL is linked in statically and must stay private (meson.build, linux). */
+{
+    global:
+        gjsify_gamepad_*;
+    local:
+        *;
+};
