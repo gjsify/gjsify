@@ -301,7 +301,7 @@ export function loadGamepadBackend(options: LoadGamepadBackendOptions = {}): Pro
         if (options.importer || options.hostOs) {
             throw new Error(
                 'loadGamepadBackend({ importer, hostOs }) called after the probe already ran — the probe is cached per ' +
-                    'process, so the importer would be ignored. Call _resetGamepadBackendCache() first (tests only).',
+                    'process, so the override would be ignored. Call _resetGamepadBackendCache() first (tests only).',
             );
         }
         return cached;
