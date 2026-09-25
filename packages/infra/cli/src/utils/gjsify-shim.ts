@@ -45,7 +45,7 @@ import { tmpdir } from 'node:os';
 import { join, delimiter, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
-import { buildLauncherShims } from './bin-shim.js';
+import { buildLauncherShims, shQuoteArg } from './bin-shim.js';
 import { resolveBinOnPath } from './install-global.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
@@ -166,14 +166,42 @@ export function ensureGjsifyShimOnPath(): void {
     writeNodeShim(dir, gjs, selfEntry);
 }
 
-/** The POSIX `sh` body of the self-shim: re-invoke `target` under `interpreter`. */
+/**
+ * The POSIX `sh` body of the self-shim: re-invoke `target` under `interpreter`.
+ *
+ * On darwin it RE-EXPORTS the running CLI's `DYLD_*` values first. SIP strips every
+ * `DYLD_*` variable when a protected binary is exec'd, and `/bin/sh` — this shim —
+ * is one, so the child `gjs` otherwise starts without the loader path the install
+ * launcher gave the parent (see `buildNativeEnvPreamble`). `GI_TYPELIB_PATH` is not a
+ * `DYLD_*` name and survives, so the child finds a prebuild's typelib and then fails
+ * the bare-leaf `dlopen` it names: `gjsify workspace <pkg> build` died with
+ * `Failed to load shared library 'libgjsifyterminal.dylib'` while the same script run
+ * through the tree's own launcher worked.
+ *
+ * Baking the values is not the snapshot `buildNativeEnvPreamble` warns about: this
+ * shim lives in a temp dir for ONE process tree and carries exactly the environment
+ * that tree's root was started with.
+ */
 export function buildSelfShimScript(opts: {
     interpreter: string;
     interpreterArgs: readonly string[];
     target: string;
+    platform?: string;
+    env?: Record<string, string | undefined>;
 }): string {
     const argv = opts.interpreterArgs.length > 0 ? `${opts.interpreterArgs.join(' ')} ` : '';
-    return `#!/bin/sh\nexec "${opts.interpreter}" ${argv}"${opts.target}" "$@"\n`;
+    const preamble = dyldCarryPreamble(opts.platform ?? process.platform, opts.env ?? process.env);
+    return `#!/bin/sh\n${preamble}exec "${opts.interpreter}" ${argv}"${opts.target}" "$@"\n`;
+}
+
+/** `export` lines restoring each set `DYLD_*` variable on darwin; `''` elsewhere. */
+export function dyldCarryPreamble(platform: string, env: Record<string, string | undefined>): string {
+    if (platform !== 'darwin') return '';
+    return Object.keys(env)
+        .filter((name) => /^DYLD_[A-Z_]+$/.test(name) && env[name])
+        .sort()
+        .map((name) => `${name}=${shQuoteArg(env[name] as string)}\nexport ${name}\n`)
+        .join('');
 }
 
 /** Deliberately NOT the shim dir itself — see {@link nodeShimDir}. */
@@ -241,6 +269,8 @@ function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
     writeFileSync(
         shim,
         '#!/bin/sh\n' +
+            // Same SIP hop as the self-shim — see `buildSelfShimScript`.
+            dyldCarryPreamble(process.platform, process.env) +
             'case "$1" in\n' +
             '  -*) echo "gjsify: this host has no node; the gjsify shim runs a SCRIPT FILE only" >&2\n' +
             '      echo "gjsify: got: node $*" >&2\n' +
