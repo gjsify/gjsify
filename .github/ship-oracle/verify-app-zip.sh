@@ -93,6 +93,18 @@ require() {
 # green having read nothing.
 require zipinfo unzip stat find sort awk cmp
 
+# `stat`'s mode flag is not portable: GNU (the CI image, and every Linux dev
+# machine) takes `-c '%a'`; BSD (darwin — a developer's own Mac, and
+# `macos-latest`) rejects `-c` outright ("illegal option -- c") and wants
+# `-f '%Lp'` instead. Detected once against this script itself rather than
+# per file: the flag a `stat` binary accepts does not change between calls in
+# the same run, and this script's own path always exists.
+if stat -c '%a' "$0" >/dev/null 2>&1; then
+    stat_mode() { stat -c '%a' "$1"; }
+else
+    stat_mode() { stat -f '%Lp' "$1"; }
+fi
+
 [ -f "$ZIP" ] || fail "$ZIP does not exist"
 [ -d "$BUNDLE" ] || fail "$BUNDLE is not a directory — this script compares the archive against the $KIND artifact"
 
@@ -157,7 +169,7 @@ while read -r perms _ver _os _size _tx _csize _method _date _time name; do
     rel=${name#"$APP"/}
     disk="$BUNDLE/$rel"
     [ -f "$disk" ] || fail "$name is in the archive and not in $BUNDLE — the two formats pack different trees"
-    want=$(stat -c '%a' "$disk")
+    want=$(stat_mode "$disk")
     # `zipinfo`'s permission string → the octal the file has on disk. Only the
     # nine mode bits are compared: setuid/sticky have no meaning for a payload
     # this writer can produce and `zip.ts` masks to 0o7777 anyway.

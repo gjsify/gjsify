@@ -47,7 +47,18 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    cpSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -85,6 +96,17 @@ const ZIP_NAME = `${BINARY}-1.2.3-1.macos.${ARCH}.zip`;
 /** The ZIP writer itself, for the two red runs no CLI invocation can produce. */
 const { buildZip } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'zip.js')).href
+);
+
+/**
+ * `defaultFormatIds`, for the assertion that a bare `gjsify ship` follows THIS
+ * host rather than a hardcoded one. This suite runs on whatever
+ * `macos-suites.yml` and a developer's own Mac give it — `process.platform` is
+ * `darwin` on both — and on `ubuntu-latest` it is `linux`; a test that assumed
+ * one of the two would be asserting a host it never ran on.
+ */
+const { defaultFormatIds } = await import(
+    pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'formats.js')).href
 );
 
 /** The `--app node` project both phases of this suite pack. */
@@ -364,19 +386,29 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
 
     // ── what the two rows must NOT have changed ───────────────────────────
 
-    it('a bare `gjsify ship` on Linux still defaults to exactly deb and rpm', () => {
-        // The regression these rows are most able to cause. Both are
-        // `finishOn: 'any'`, so on that criterion alone a bare `gjsify ship` on
-        // Linux would now emit SIX artifacts; `defaultFormatIds` filters on
-        // `layoutOs` as a second criterion, which is what keeps this list at two.
-        // `tests/e2e/ship-layout` asserts the same thing on a `--app gjs` project,
-        // and this one adds the `--app node` half — the interpreter filter added
-        // for the darwin rows runs on the linux list too.
+    it(`a bare \`gjsify ship\` still defaults to exactly this host's own two rows (${process.platform})`, () => {
+        // The regression this row set is most able to cause. Every macOS and
+        // Windows row is ALSO `finishOn: 'any'`, so on that criterion alone a
+        // bare `gjsify ship` would emit every row that wraps a layout that
+        // `hostLayout()` did not choose; `defaultFormatIds` filters on
+        // `layoutOs` as a second criterion, which is what keeps this list at
+        // two. A bare `gjsify ship` has no `<os>` positional, so
+        // `commands/ship.ts` resolves the layout with `hostLayout()` —
+        // `process.platform` — and NOT with the `linux` this file happened to
+        // run on when it was written: on a real Mac (this suite's own
+        // `macos-suites.yml` leg, or a developer running it directly) that is
+        // `darwin`, and the two rows are `macos-app`/`macos-app-zip`, never
+        // `deb`/`rpm`. `defaultFormatIds(process.platform)` is the same
+        // function the command calls, so this asserts the CLI's own claim
+        // rather than a second, hand-copied one that can drift from it.
+        // `tests/e2e/ship-layout` asserts the same thing on a `--app gjs`
+        // project, and this one adds the `--app node` half — the interpreter
+        // filter added for the darwin rows runs on the linux list too.
         runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage', '--out', 'ship-default'], { cwd: projectDir });
         const manifest = JSON.parse(
             readFileSync(join(projectDir, 'ship-default', 'stage', STAGE_MANIFEST_FILE), 'utf-8'),
         );
-        assert.deepEqual(manifest.formats, ['deb', 'rpm']);
+        assert.deepEqual(manifest.formats, defaultFormatIds(process.platform));
     });
 
     it('tells a stage with NO recorded formats what could pack it', () => {
@@ -748,7 +780,16 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         // so the answer is a fact about the STAGING and not about the machine.
         const bundleFile = join(stageDir, `${APP_NAME}.app`, 'Contents', 'Resources', 'lib', 'app.node.mjs');
         const resolved = createRequire(bundleFile).resolve('@gjsify/node-gi/gi');
-        assert.ok(resolved.startsWith(join(stageDir, `${APP_NAME}.app`)), `resolved outside the bundle: ${resolved}`);
+        // `realpathSync`, not the raw join, on the EXPECTED prefix: Node's own
+        // resolver returns a REALPATH, and on macOS `os.tmpdir()` answers
+        // `/var/folders/…`, itself a symlink to `/private/var/folders/…` — so
+        // `resolved` reads back `/private/var/…` while `stageDir` never had
+        // that prefix, and a literal `startsWith` failed on a bundle that
+        // resolved exactly where it should. Linux's `/tmp` is no symlink, so
+        // `realpathSync` here is a no-op there — the same call either way,
+        // never a platform branch.
+        const bundlePrefix = realpathSync(join(stageDir, `${APP_NAME}.app`));
+        assert.ok(resolved.startsWith(bundlePrefix), `resolved outside the bundle: ${resolved}`);
     });
 
     it("holds the staging rule against the REAL package's exports map", () => {
@@ -977,16 +1018,20 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
 // ── M4: the `.dmg` around the bundle ──────────────────────────────────────────
 //
 // WHAT THIS HALF CAN CLAIM AND WHERE THE REST LIVES. A `.dmg` is a UDIF image
-// over an HFS+ volume, `hdiutil` is the only writer of one, and `hdiutil` is
-// macOS-only — so on the host this suite runs on there is no image to read and
-// nothing here pretends otherwise. What IS checkable from Linux is the half that
-// decides whether the darwin leg can succeed at all, and every assertion below
-// is a hazard that would otherwise surface two jobs later as an inscrutable
-// failure on a machine no contributor here has:
+// over an HFS+ volume and `hdiutil` is the only writer of one — `finishOn:
+// ['darwin']` in `formats.ts`, read by `assertHostCanFinish(format)` with its
+// default `host = process.platform`. So which half of this describe block is
+// live is not a suite setting, it is a FACT about the machine `node --test` runs
+// on: `ubuntu-latest` (`macos-suites.yml`'s Linux leg, and this repo's own CI)
+// has no `hdiutil` and the format is refused; a real Mac — `macos-suites.yml`'s
+// darwin leg, or a developer running this file directly — has one and the pack
+// SUCCEEDS. `process.platform === 'darwin'` is the same fact `assertHostCanFinish`
+// reads, so branching on it here asserts the CLI's own claim on whichever host
+// is real, rather than assuming the ubuntu leg is the only one that ever runs
+// this file.
 //
-//   * the REFUSAL. `--target macos-app-dmg` on Linux must stop before the
-//     project's build script runs and must name the two-phase route, or the
-//     first person who tries it reads "unsupported".
+// The assertions that never depended on the finish phase stay unconditional:
+//
 //   * the STAGE. `--stage` must still assemble — assembly is not host-bound
 //     (ADR 0024 § A1) — and the sidecar must carry this format's own licence
 //     OVERLAY. Without it the Mac gets a stage `assertOverlayIsLicensed` refuses,
@@ -995,13 +1040,15 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
 //     `.dmg` has to be byte-identical to the one the `.app` is packed from, or
 //     ADR 0024 § 2's claim is false at exactly the row that first tested it.
 //
-// The artifact itself is read back by `.github/ship-oracle/verify-dmg.py` on the
-// bare-ubuntu leg — `7z l`, `7z t`, `dmg2img` and `fsck.hfsplus -f -n`, three
-// implementations and none of them `hdiutil` — and the listing goes against the
-// sidecar by name, size AND mode. Its red runs are there too, because the byte
-// each one flips has to be flipped in a real image.
+// On ubuntu the artifact itself is read back by `.github/ship-oracle/verify-dmg.py`
+// on a bare-ubuntu leg one job over — `7z l`, `7z t`, `dmg2img` and
+// `fsck.hfsplus -f -n`, three implementations and none of them `hdiutil` — and
+// the listing goes against the sidecar by name, size AND mode. That oracle needs
+// tools this suite does not install, so the darwin half below checks the pack
+// SUCCEEDED and produced exactly one `.dmg`, and leaves reading the image's
+// internals to that separate leg.
 
-describe('CLI ship macOS .dmg E2E (the Linux half)', { timeout: 10 * 60 * 1000 }, () => {
+describe(`CLI ship macOS .dmg E2E (this host: ${process.platform})`, { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
     let projectDir;
 
@@ -1015,35 +1062,88 @@ describe('CLI ship macOS .dmg E2E (the Linux half)', { timeout: 10 * 60 * 1000 }
         if (!process.env.GJSIFY_E2E_KEEP_TEMP) rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it('refuses to pack a .dmg here, and names the host and the route', () => {
-        const refusal = shipExpectingFailure(
-            ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--target', 'macos-app-dmg'],
-            projectDir,
-        );
-        assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
-        // A refusal that stops at "no" sends the reader looking for a feature
-        // flag. These two words are the whole answer.
-        assert.match(refusal, /--stage/);
-        assert.match(refusal, /--from-stage/);
-        // …and it must not be the TOOL refusal, which is a different fix. On this
-        // host `hdiutil` is absent too, so a check that ran the two assertions in
-        // the wrong order would report a missing package to somebody whose problem
-        // is the operating system.
-        assert.doesNotMatch(refusal, /is not on PATH/);
-    });
+    it(
+        process.platform === 'darwin'
+            ? 'packs a .dmg here, because hdiutil is real on this host'
+            : 'refuses to pack a .dmg here, and names the host and the route',
+        () => {
+            if (process.platform === 'darwin') {
+                // `assertHostCanFinish` reads `process.platform` itself, so a
+                // real Mac is the one host where this format is not refused —
+                // proving the row the `else` branch otherwise only ever sees
+                // turned down.
+                runCliSync(
+                    CLI_ENTRY,
+                    [
+                        'ship',
+                        'darwin',
+                        '--skip-build',
+                        '--arch',
+                        ARCH,
+                        '--target',
+                        'macos-app-dmg',
+                        '--out',
+                        'dmg-direct',
+                    ],
+                    { cwd: projectDir },
+                );
+                const dmgs = readdirSync(join(projectDir, 'dmg-direct', 'out')).filter((name) => name.endsWith('.dmg'));
+                assert.equal(dmgs.length, 1, `expected exactly one .dmg, found: ${dmgs.join(', ') || '(none)'}`);
+            } else {
+                const refusal = shipExpectingFailure(
+                    ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--target', 'macos-app-dmg'],
+                    projectDir,
+                );
+                assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
+                // A refusal that stops at "no" sends the reader looking for a
+                // feature flag. These two words are the whole answer.
+                assert.match(refusal, /--stage/);
+                assert.match(refusal, /--from-stage/);
+                // …and it must not be the TOOL refusal, which is a different fix.
+                // On this host `hdiutil` is absent too, so a check that ran the
+                // two assertions in the wrong order would report a missing
+                // package to somebody whose problem is the operating system.
+                assert.doesNotMatch(refusal, /is not on PATH/);
+            }
+        },
+    );
 
-    it('refuses BEFORE the project build, not after it', () => {
-        // `gjsify ship` runs the project's own `build` script first, and finding
-        // out afterwards that the host is wrong costs the whole build. The
-        // discriminator is the scaffold's real build script: it writes
-        // `dist/gjs.js`, so a file that stays deleted is a build that never ran.
-        // Without `--skip-build`, deliberately — this is the one assertion in the
-        // suite for which the flag would remove the subject.
-        const built = join(projectDir, 'dist', 'gjs.js');
-        rmSync(built, { force: true });
-        shipExpectingFailure(['ship', 'darwin', '--arch', ARCH, '--target', 'macos-app-dmg'], projectDir);
-        assert.ok(!existsSync(built), 'the project was built before the host refusal — the refusal is too late');
-    });
+    it(
+        process.platform === 'darwin'
+            ? 'builds the project before packing the .dmg, because the host can finish here'
+            : 'refuses BEFORE the project build, not after it',
+        () => {
+            // `gjsify ship` runs the project's own `build` script first. The
+            // discriminator on both hosts is the scaffold's real build script:
+            // it writes `dist/gjs.js`, so whether that file exists says whether
+            // the build ran. Without `--skip-build`, deliberately — this is the
+            // one assertion in the suite for which the flag would remove the
+            // subject.
+            const built = join(projectDir, 'dist', 'gjs.js');
+            rmSync(built, { force: true });
+            if (process.platform === 'darwin') {
+                // On a Mac the pack goes ahead, so the build must have run
+                // BEFORE it — the same ordering the Linux branch protects, read
+                // from the other side: a host that CAN finish must still build
+                // first, not skip straight to packing whatever `dist/` happens
+                // to hold.
+                runCliSync(
+                    CLI_ENTRY,
+                    ['ship', 'darwin', '--arch', ARCH, '--target', 'macos-app-dmg', '--out', 'dmg-build'],
+                    { cwd: projectDir },
+                );
+                assert.ok(existsSync(built), 'the project was never built before the real .dmg pack ran');
+            } else {
+                // Finding out AFTER the build that the host is wrong costs the
+                // whole build, so the refusal has to land before it runs.
+                shipExpectingFailure(['ship', 'darwin', '--arch', ARCH, '--target', 'macos-app-dmg'], projectDir);
+                assert.ok(
+                    !existsSync(built),
+                    'the project was built before the host refusal — the refusal is too late',
+                );
+            }
+        },
+    );
 
     it('stages the .dmg payload anyway, because assembly is not host-bound', () => {
         // ADR 0024 § A1's rule, as behaviour: a container is produced where its
@@ -1101,18 +1201,38 @@ describe('CLI ship macOS .dmg E2E (the Linux half)', { timeout: 10 * 60 * 1000 }
         assert.deepEqual(formatsOf(appStage), ['macos-app']);
     });
 
-    it('refuses the finish phase here too, so a Linux CI leg cannot pack one by accident', () => {
-        // The SECOND refusal, on the other entry point. `--from-stage` resolves
-        // its formats from the sidecar rather than from a flag, so a check that
-        // only guarded the `--target` path would let a stage assembled for the
-        // `.dmg` be packed by whatever host downloaded it — and `hdiutil`'s
-        // absence would be the only thing stopping it.
-        const refusal = shipExpectingFailure(
-            ['ship', '--from-stage', join(projectDir, 'dmg', 'stage'), '--out', 'nope'],
-            projectDir,
-        );
-        assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
-    });
+    it(
+        process.platform === 'darwin'
+            ? 'finishes a .dmg from a stage too, the same as the direct pack'
+            : 'refuses the finish phase here too, so a Linux CI leg cannot pack one by accident',
+        () => {
+            // The SECOND route, on the other entry point. `--from-stage`
+            // resolves its formats from the sidecar rather than from a flag, so
+            // a check that only guarded the `--target` path would let a stage
+            // assembled for the `.dmg` be packed by whatever host downloaded it
+            // — on Linux `hdiutil`'s absence would be the only thing stopping
+            // it; on a Mac this route has to actually finish, or `--from-stage`
+            // and a direct `--target` would disagree about which hosts can pack
+            // this format.
+            if (process.platform === 'darwin') {
+                runCliSync(
+                    CLI_ENTRY,
+                    ['ship', '--from-stage', join(projectDir, 'dmg', 'stage'), '--out', 'dmg-from-stage'],
+                    { cwd: projectDir },
+                );
+                const dmgs = readdirSync(join(projectDir, 'dmg-from-stage', 'out')).filter((name) =>
+                    name.endsWith('.dmg'),
+                );
+                assert.equal(dmgs.length, 1, `expected exactly one .dmg, found: ${dmgs.join(', ') || '(none)'}`);
+            } else {
+                const refusal = shipExpectingFailure(
+                    ['ship', '--from-stage', join(projectDir, 'dmg', 'stage'), '--out', 'nope'],
+                    projectDir,
+                );
+                assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
+            }
+        },
+    );
 
     it('a bare darwin stage still names only the two rows that need no Mac', () => {
         // The regression the third row is most able to cause. It is host-bound, so

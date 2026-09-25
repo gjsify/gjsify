@@ -43,6 +43,16 @@ import { mount as vueMount } from './adapters/vue.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import type { HostElement, WidgetDescriptor } from './types.js';
 
+// The SAME algorithm `gjsify run`'s launcher uses to repair the darwin
+// bare-leaf `dlopen` gap (`@gjsify/cli`'s `buildNativeEnv()` →
+// `packages/infra/cli/src/utils/system-gi.ts`), reused here rather than
+// copied: `@gjsify/utils/core` holds the canonical, PURE port of the same
+// rule (ADR 0014), meant for exactly a caller that is not the CLI itself —
+// see `status/open-todos.md` § "`systemGiLibraryDirs()` lives in three
+// places". `runInChild` below needs it because it spawns a RAW `gjs -m`
+// child with no launcher in front of it at all.
+import { dyldDefaultFallbackDirs, hostPlatform, systemGiLibraryDirs } from '@gjsify/utils/core';
+
 const widgetOf = (el: HostElement) => materialize(el) as unknown as Gtk.Widget;
 
 /**
@@ -63,6 +73,52 @@ function rooted(): { window: Adw.Window; parent: HostElement; box: Gtk.Box } {
 /** POSIX signal 6. Spelled once, so the assertion below reads as the name it means. */
 const SIGABRT = 6;
 
+/** POSIX signal 5 — see {@link FATAL_SIGNAL}. */
+const SIGTRAP = 5;
+
+/**
+ * The signal `adw_dialog_root()`'s `g_error()` actually kills the child
+ * with, which is SIGABRT (`abort()`) everywhere EXCEPT a real macOS host,
+ * where it is SIGTRAP instead.
+ *
+ * NOT "WHATEVER HAPPENED" — the mechanism, read from the exact header this
+ * host's `g_error()` expands against (Homebrew glib 2.90.0,
+ * `glib/gbacktrace.h`, `G_BREAKPOINT()`):
+ *
+ * ```c
+ * #if (defined (__i386__) || defined (__x86_64__)) && defined (__GNUC__) …
+ * #  define G_BREAKPOINT()   G_STMT_START{ __asm__ __volatile__ ("int $03"); }G_STMT_END
+ * …
+ * #elif defined (__APPLE__) || (defined(_WIN32) && (defined(__clang__) || defined(__GNUC__)))
+ * #  define G_BREAKPOINT()   G_STMT_START{ __builtin_trap(); }G_STMT_END
+ * #else
+ * #  define G_BREAKPOINT()   G_STMT_START{ raise (SIGTRAP); }G_STMT_END
+ * #endif
+ * ```
+ * documented right above it: "`SIGTRAP` is used rather than `abort()` to
+ * allow breakpoints to be skipped past in a debugger." `gmessages.h`'s
+ * `g_error()` macro/inline-fn ends in an explicit, unconditional `abort()`
+ * — but that line is only REACHED if glib's own fatal-log handling inside
+ * `g_log()`/`g_logv()` did not already end the process; on a host whose
+ * `G_BREAKPOINT()` traps (every Apple target, via `__builtin_trap()`), the
+ * kernel reports THAT trap — SIGTRAP — before the macro's trailing `abort()`
+ * ever runs, and on a host where it doesn't (this repo's Linux CI, where the
+ * explicit `abort()` is what actually fires), the signal is plain SIGABRT.
+ * `refs/` carries no glib checkout to cite by line number, so this reads the
+ * installed header directly rather than a submodule — the artifact this
+ * comment cites is reproducible by anyone with Homebrew glib on PATH.
+ *
+ * MEASURED too, independent of this suite's own launcher: `env -i … gjs -m
+ * case.js` running the exact body below exits 133 (128 + 5) on this host —
+ * `$?` alone, no `Gio.Subprocess` in the loop — and prints the same
+ * `Adwaita-ERROR` this suite already asserts. Naming the REAL signal per
+ * host is what keeps this the falsifiable claim the comment above
+ * `runInChild` says it has to be — a hardcoded `SIGABRT` here would make the
+ * negative control fail on every real Mac forever, which is the opposite of
+ * catching a regression.
+ */
+const FATAL_SIGNAL = hostPlatform() === 'darwin' ? SIGTRAP : SIGABRT;
+
 /**
  * The interpreter the child cases need, or null.
  *
@@ -74,6 +130,71 @@ const SIGABRT = 6;
  * gjs stops reproducing the abort.
  */
 const GJS = GLib.find_program_in_path('gjs');
+
+/**
+ * The CHILD's whole environment (a `KEY=VALUE` list for `set_environ()`), or
+ * `null` where nothing here applies (every non-darwin host, or a darwin host
+ * with no GI stack installed at all) and `runInChild` spawns exactly as it
+ * did before this fix.
+ *
+ * A REPLACEMENT, not a patch over the inherited environment, and that is the
+ * measured half. The first attempt only added `DYLD_FALLBACK_LIBRARY_PATH`
+ * (this host's GI libdirs) and cleared `GI_TYPELIB_PATH`, and it still
+ * crashed: `test:gjs-on-node` runs under node-gi, whose
+ * `NODE_GI_NATIVE=prebuild` branch (`gtk-runtime.js`) additionally sets
+ * `GIO_MODULE_DIR` at its own staged closure — for a re-exec of NODE that
+ * never happens here — and a bare Homebrew `gjs` inheriting THAT loads
+ * node-gi's own `libgio-2.0.0.dylib` a second time when GIO enumerates its
+ * extension modules (`GNotificationCenterDelegate`, macOS's notification
+ * backend, is one). Two images of the same library means two separate
+ * ObjC/GType registries in one process: measured stderr —
+ * "objc[…]: Class GNotificationCenterDelegate is implemented in both
+ * /opt/homebrew/…/libgio-2.0.0.dylib and …/node-gi/…/gtk/lib/libgio-2.0.0.dylib"
+ * — followed by GObject criticals and a SIGTRAP instead of the SIGABRT the
+ * seam is supposed to be the only one of. `gtk-runtime.js` sets at least
+ * eight such variables (`GSETTINGS_SCHEMA_DIR`, `GDK_PIXBUF_MODULEDIR`,
+ * `XDG_DATA_DIRS`, `GIO_MODULE_DIR`, …), none of them exported anywhere as a
+ * list this file could clear one by one — and a hand-kept list would be
+ * exactly the kind of second copy that drifts the day a ninth one is added.
+ * Replacing the whole environment needs no such list: a bare `gjs -m
+ * case.js`, which is what this suite claims to run, gets PATH and HOME (so
+ * it can find itself and read `$HOME/.cache` et al.) and this host's own
+ * `DYLD_FALLBACK_LIBRARY_PATH` — nothing any launcher, gjsify's or node-gi's,
+ * left lying around in the parent's env.
+ */
+const NATIVE_ENV: readonly string[] | null = (() => {
+    const existsDir = (dir: string): boolean => {
+        try {
+            return GLib.file_test(dir, GLib.FileTest.IS_DIR);
+        } catch {
+            return false;
+        }
+    };
+    // NO `typelibPath` — this reads no env var the current process may have
+    // set; see above. The question is only which SYSTEM libdirs exist.
+    const dirs = systemGiLibraryDirs({ platform: hostPlatform(), existsDir });
+    if (dirs.length === 0) return null;
+    // `DYLD_FALLBACK_LIBRARY_PATH` is consulted only AFTER dyld's normal
+    // search fails, and setting it REPLACES dyld's own default tail rather
+    // than extending it — `dyld(1)`: `$HOME/lib`, `/usr/local/lib`, `/lib`,
+    // `/usr/lib`. Carrying that tail here is what keeps this child's search
+    // no SMALLER than an unset variable would have given it.
+    // `dyldDefaultFallbackDirs()`, not a fourth hand-rolled copy of the same
+    // four-entry array: `@gjsify/utils/core` holds it for exactly this
+    // caller (a launcher replacing the environment, so there is no CURRENT
+    // value of the variable to fold in — the other half of `@gjsify/cli`'s
+    // `composeDyldFallback()` in `utils/system-gi.ts`), and
+    // `system-gi.spec.ts` now pins this copy against the other two rather
+    // than letting a fourth one drift unseen.
+    const home = GLib.getenv('HOME');
+    const path = GLib.getenv('PATH');
+    return [
+        ...(path ? [`PATH=${path}`] : []),
+        ...(home ? [`HOME=${home}`] : []),
+        `DYLD_FALLBACK_LIBRARY_PATH=${[...new Set([...dirs, ...dyldDefaultFallbackDirs(home ? { HOME: home } : {})])].join(':')}`,
+    ];
+})();
+
 /**
  * An argv prefix that keeps the abort and drops the 2.8 MB it writes.
  *
@@ -139,10 +260,18 @@ function runInChild(body: string): ChildOutcome {
     GLib.file_set_contents(path, new TextEncoder().encode(source));
     try {
         const run = [GJS as string, '-m', path];
-        const proc = Gio.Subprocess.new(
-            CORE_FREE ? [CORE_FREE, '--core=0', ...run] : run,
-            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-        );
+        // A LAUNCHER, not `Gio.Subprocess.new`, so `NATIVE_ENV` can REPLACE the
+        // inherited environment outright. `set_environ()` is a full swap and
+        // not a patch, which is what `NATIVE_ENV`'s own doc comment measures
+        // the need for; the launcher's default inherit-everything behaviour
+        // is untouched on every host `NATIVE_ENV` is `null` on, which is what
+        // keeps this byte-identical to a plain `Gio.Subprocess.new(argv,
+        // flags)` there.
+        const launcher = new Gio.SubprocessLauncher({
+            flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+        });
+        if (NATIVE_ENV) launcher.set_environ([...NATIVE_ENV]);
+        const proc = launcher.spawnv(CORE_FREE ? [CORE_FREE, '--core=0', ...run] : run);
         const [, stdout, stderr] = proc.communicate_utf8(null, null);
         const signalled = proc.get_if_signaled();
         return {
@@ -1102,7 +1231,7 @@ export default async () => {
                     // not abort" in this file is unfalsifiable — a harness that
                     // cannot see an abort reports the same green either way.
                     expect(outcome.signalled).toBe(true);
-                    expect(outcome.termSig).toBe(SIGABRT);
+                    expect(outcome.termSig).toBe(FATAL_SIGNAL);
                     expect(outcome.stderr).toMatch(/Adwaita-ERROR/);
                     expect(outcome.stdout.includes('SURVIVED')).toBe(false);
                 },
