@@ -175,7 +175,7 @@ const SELF = 'scripts/check-blueprint-corpus-counts.mjs';
  * says, not a filter on what it is allowed to say.
  */
 const SITES = [
-    { file: 'status/open-todos.md', states: ['rules', 'probes', 'goldens', 'refusals'] },
+    { file: 'status/open-todos/blueprint.md', states: ['rules', 'probes', 'goldens', 'refusals'] },
     { file: 'packages/infra/blueprint/README.md', states: ['probes'] },
     { file: `${CORPUS}/manifest.mjs`, states: ['probes'] },
     { file: `${CORPUS}/expectations.mjs`, states: ['probes'] },
@@ -257,12 +257,12 @@ const DATED_LINES = [
         why: '"there were then" — an explicitly dated reading of ADR 0053 clause 3',
     },
     {
-        file: 'status/open-todos.md',
+        file: 'status/open-todos/blueprint.md',
         text: '**0 of the 11 real `.blp` files this repo builds round-trip through `SharedNode`**, and the',
         why: 'quoted from ADR 0058 § Context, read at `702470a628`, which the sentence above it attributes',
     },
     {
-        file: 'status/open-todos.md',
+        file: 'status/open-todos/blueprint.md',
         text: 'The census, over the 38 corpus files (27 written rule files, 11 real `.blp`) at',
         why: 'anchored at `702470a628` on the line below it — a measurement over that tree',
     },
@@ -289,7 +289,7 @@ const EVENT_REF = /#\d{2,5}\b|\b[0-9a-f]{7,40}\b/;
 
 const HISTORICAL_LINES = [
     {
-        file: 'status/open-todos.md',
+        file: 'status/open-todos/blueprint.md',
         text: '#1694 took the corpus to 35 rule files and 47 corpus files, which records what that PR did',
         why: 'what #1694 took the corpus to, named on the line; the totals now are measured a paragraph above',
     },

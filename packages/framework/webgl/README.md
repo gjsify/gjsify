@@ -196,7 +196,7 @@ platform, not from the bridge:
   they are gated on `epoxy_gl_version() >= 43` because libepoxy aborts rather than returning
   null.
 
-Remaining darwin gaps are tracked in [`status/open-todos.md`](../../../status/open-todos.md).
+Remaining darwin gaps are tracked in [`status/open-todos/webgl.md`](../../../status/open-todos/webgl.md).
 
 ### The darwin GL 4.1 ceiling
 
