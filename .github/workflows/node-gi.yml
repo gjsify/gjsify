@@ -2977,7 +2977,19 @@ jobs:
       # does not list. Measured on windows-latest (run 36029738694): the feature was
       # `Available`, not `Installed`, and mfplat.dll and mp3dmod.dll were present anyway.
       # The step installs it regardless and prints before/after, so a red MP3 test on a
-      # future image can be told apart from a missing OS component.
+      # future image can be told apart from a missing OS component. The MP3 tests run once
+      # BEFORE the install and only log their result: installing the feature must not be
+      # what makes the proof pass unseen, since a consumer's machine never gets that step.
+      - name: Audio proof — MP3 before Server-Media-Foundation is installed (logged, not gating)
+        working-directory: packages/node-gi/node-gi
+        shell: pwsh
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: |
+          node --test --test-name-pattern MP3 test/gst-elements.test.mjs
+          Write-Host "MP3 decode without the Server-Media-Foundation feature: node --test exited $LASTEXITCODE"
+          exit 0
+
       - name: Enable Media Foundation on the runner (the OS decoder mfmp3dec wraps)
         shell: pwsh
         run: |
