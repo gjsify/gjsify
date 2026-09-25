@@ -110,11 +110,17 @@ function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
     });
 }
 
-/** Start a `tls.createServer` that replies 'Hello' and ends, run `body`, then always close it. */
-async function withServer<T>(body: (port: number) => Promise<T>): Promise<T> {
-    const server = tls.createServer({ key: KEY_PEM, cert: CERT_PEM }, (socket: TLSSocket) => {
-        socket.end('Hello');
-    }) as unknown as TlsServer;
+/**
+ * Start a `tls.createServer` (default handler: reply 'Hello' and end), run
+ * `body`, then always close it.
+ */
+async function withServer<T>(
+    body: (port: number) => Promise<T>,
+    onSecure: (socket: TLSSocket) => void = (socket) => socket.end('Hello'),
+): Promise<T> {
+    const server = tls.createServer({ key: KEY_PEM, cert: CERT_PEM }, onSecure) as unknown as TlsServer;
+    // A client refusing the certificate aborts the handshake — expected here.
+    server.on('tlsClientError', () => {});
 
     await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
@@ -172,6 +178,39 @@ function isForeignSocket(socket: Socket): boolean {
  */
 function usesGjsifyTls(): boolean {
     return typeof (tls.TLSSocket.prototype as unknown as { _adoptConnection?: unknown })._adoptConnection === 'function';
+}
+
+/** Server handler: answer the first chunk with `echo:<chunk>` and end. */
+function echoOnce(socket: TLSSocket): void {
+    socket.once('data', (chunk: Buffer) => socket.end(`echo:${chunk.toString('utf8')}`));
+}
+
+/** Resolve with the error a handshake fails with; reject if it succeeds instead. */
+function expectHandshakeError(client: TLSSocket): Promise<NodeJS.ErrnoException> {
+    return new Promise((resolve, reject) => {
+        client.once('secureConnect', () => reject(new Error('handshake succeeded, expected a certificate error')));
+        client.once('error', (err: NodeJS.ErrnoException) => resolve(err));
+    });
+}
+
+/** A plain TCP server that accepts and never answers — a stalled TLS peer. */
+async function withSilentServer<T>(body: (port: number) => Promise<T>): Promise<T> {
+    const conns = new Set<Socket>();
+    const server = net.createServer((conn: Socket) => {
+        conns.add(conn);
+        conn.on('error', () => {});
+    });
+    await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', () => resolve());
+    });
+    const { port } = server.address() as { port: number };
+    try {
+        return await body(port);
+    } finally {
+        for (const conn of conns) conn.destroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
 }
 
 function waitConnect(socket: Socket): Promise<void> {
@@ -307,8 +346,126 @@ export default async () => {
                 },
                 ITEST_TIMEOUT_MS,
             );
+
+            await it(
+                'buffers write() made before secureConnect (fresh connect)',
+                async () => {
+                    await withTimeout(
+                        withServer(async (port) => {
+                            const client = tls.connect({ port, host: '127.0.0.1', rejectUnauthorized: false });
+                            client.write('ping');
+                            expect(await readAll(client)).toBe('echo:ping');
+                        }, echoOnce),
+                        'write before secureConnect',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'buffers end(data) made before secureConnect (adopted socket)',
+                async () => {
+                    await withTimeout(
+                        withServer(async (port) => {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await waitConnect(raw);
+                            if (usesGjsifyTls() && isForeignSocket(raw)) return;
+                            const client = tls.connect({ socket: raw, rejectUnauthorized: false });
+                            client.end('ping');
+                            expect(await readAll(client)).toBe('echo:ping');
+                        }, echoOnce),
+                        'end before secureConnect',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'rejects a self-signed certificate on an adopted socket',
+                async () => {
+                    await withTimeout(
+                        withServer(async (port) => {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await waitConnect(raw);
+                            if (usesGjsifyTls() && isForeignSocket(raw)) return;
+                            const client = tls.connect({ socket: raw, servername: 'localhost' });
+                            const err = await expectHandshakeError(client);
+                            expect(err.code).toBe('DEPTH_ZERO_SELF_SIGNED_CERT');
+                            expect(client.authorized).toBe(false);
+                        }),
+                        'self-signed rejected',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'rejects a servername the certificate does not cover on an adopted socket',
+                async () => {
+                    await withTimeout(
+                        withServer(async (port) => {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await waitConnect(raw);
+                            if (usesGjsifyTls() && isForeignSocket(raw)) return;
+                            const client = tls.connect({ socket: raw, servername: 'wrong.example', ca: CERT_PEM });
+                            const err = await expectHandshakeError(client);
+                            expect(err.code).toBe('ERR_TLS_CERT_ALTNAME_INVALID');
+                        }),
+                        'wrong servername rejected',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'verifies the certificate against `ca` on an adopted socket',
+                async () => {
+                    await withTimeout(
+                        withServer(async (port) => {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await waitConnect(raw);
+                            if (usesGjsifyTls() && isForeignSocket(raw)) return;
+                            const client = tls.connect({ socket: raw, servername: 'localhost', ca: CERT_PEM });
+                            expect(await readAll(client)).toBe('Hello');
+                            expect(client.authorized).toBe(true);
+                        }),
+                        'verified against ca',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'destroying mid-handshake against a stalled peer closes once, never secureConnects',
+                async () => {
+                    await withTimeout(
+                        withSilentServer(async (port) => {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await waitConnect(raw);
+                            if (usesGjsifyTls() && isForeignSocket(raw)) return;
+                            const client = tls.connect({ socket: raw, rejectUnauthorized: false });
+                            let closes = 0;
+                            let secured = false;
+                            client.on('close', () => closes++);
+                            client.on('secureConnect', () => {
+                                secured = true;
+                            });
+                            client.on('error', () => {});
+                            // Let the ClientHello go out; the peer never answers.
+                            await new Promise((r) => setTimeout(r, 100));
+                            client.destroy();
+                            await waitClose(client as unknown as { destroyed: boolean; once: Socket['once'] });
+                            await new Promise((r) => setTimeout(r, 100));
+                            expect(closes).toBe(1);
+                            expect(secured).toBe(false);
+                        }),
+                        'destroy mid-handshake',
+                    );
+                },
+                ITEST_TIMEOUT_MS,
+            );
         },
-        // Four sequential real-handshake tests, each bounded by its own ceiling.
-        4 * ITEST_TIMEOUT_MS,
+        // Sequential real-handshake tests, each bounded by its own ceiling.
+        10 * ITEST_TIMEOUT_MS,
     );
 };

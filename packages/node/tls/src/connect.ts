@@ -36,6 +36,8 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
         const port = options.port || 443;
         const host = options.host || 'localhost';
         socket.servername = options.servername || host;
+        // Writes made before 'secureConnect' wait for the encrypted streams.
+        socket._awaitingSecure = true;
         socket.once('connect', () => socket._performHandshake(options));
         socket.connect({ port, host });
     }

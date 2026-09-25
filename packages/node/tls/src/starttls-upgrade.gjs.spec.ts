@@ -278,5 +278,114 @@ export default async () => {
             },
             ITEST_TIMEOUT_MS,
         );
+
+        await describe(
+            'upgrade teardown — Gio-level guarantees',
+            async () => {
+                for (const adopted of [false, true]) {
+                    await it(
+                        `destroy mid-handshake closes the raw connection (${adopted ? 'adopted' : 'fresh'} socket)`,
+                        async () => {
+                            const { server, port, conns } = await startSilentServer();
+                            try {
+                                const raw = adopted ? net.connect(port, '127.0.0.1') : null;
+                                if (raw) await new Promise((r) => raw.once('connect', r));
+                                const client = raw
+                                    ? tls.connect({ socket: raw, rejectUnauthorized: false })
+                                    : tls.connect({ port, host: '127.0.0.1', rejectUnauthorized: false });
+                                client.on('error', () => {});
+                                const claimed = captureClaim(client);
+                                await new Promise((r) => setTimeout(r, 100));
+                                const connection = claimed();
+                                expect(connection !== null).toBe(true);
+                                expect(connection?.is_closed()).toBe(false);
+
+                                const closed = new Promise((r) => client.once('close', r));
+                                client.destroy();
+                                await withTimeout(closed, 'close after destroy');
+                                expect(connection?.is_closed()).toBe(true);
+                            } finally {
+                                for (const conn of conns) conn.destroy();
+                                await new Promise<void>((resolve) => server.close(() => resolve()));
+                            }
+                        },
+                        ITEST_TIMEOUT_MS,
+                    );
+                }
+
+                await it(
+                    'plaintext bytes that raced the upgrade fail with ERR_GJSIFY_TLS_UPGRADE_RACE',
+                    async () => {
+                        const { server, port, conns } = await startSilentServer();
+                        try {
+                            const raw = net.connect(port, '127.0.0.1');
+                            await new Promise((r) => raw.once('connect', r));
+                            // Deterministic stand-in for a peer pipelining bytes right
+                            // after its STARTTLS reply: the real detach settles, then
+                            // reports what a read that won the race would have pulled
+                            // off the wire.
+                            const internals = raw as unknown as SocketInternals;
+                            const detach = internals._detachReader.bind(raw);
+                            let claimedConnection: Gio.SocketConnection | null = null;
+                            const claim = internals._claimConnection.bind(raw);
+                            internals._claimConnection = () => {
+                                const claimed = claim();
+                                claimedConnection = claimed.connection;
+                                return claimed;
+                            };
+                            internals._detachReader = async () => {
+                                await detach();
+                                return Buffer.from('* pipelined\r\n');
+                            };
+
+                            const client = tls.connect({ socket: raw, rejectUnauthorized: false });
+                            const err = await withTimeout(
+                                new Promise<NodeJS.ErrnoException>((resolve) => client.once('error', resolve)),
+                                'upgrade race error',
+                            );
+                            expect(err.code).toBe('ERR_GJSIFY_TLS_UPGRADE_RACE');
+                            expect((claimedConnection as Gio.SocketConnection | null)?.is_closed()).toBe(true);
+                        } finally {
+                            for (const conn of conns) conn.destroy();
+                            await new Promise<void>((resolve) => server.close(() => resolve()));
+                        }
+                    },
+                    ITEST_TIMEOUT_MS,
+                );
+            },
+            3 * ITEST_TIMEOUT_MS,
+        );
     });
 };
+
+/** A plain TCP server that accepts and never answers — a stalled TLS peer. */
+function startSilentServer(): Promise<{ server: NetServer; port: number; conns: Set<Socket> }> {
+    const conns = new Set<Socket>();
+    const server = net.createServer((conn: Socket) => {
+        conns.add(conn);
+        conn.on('error', () => {});
+    });
+    return new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address() as { port: number };
+            resolve({ server, port, conns });
+        });
+    });
+}
+
+/**
+ * Record the raw connection `_performHandshake` claims from `client`, by
+ * shadowing `_claimConnection` on the instance.
+ */
+function captureClaim(client: TLSSocket): () => Gio.SocketConnection | null {
+    const internals = client as unknown as SocketInternals;
+    const claim = internals._claimConnection.bind(client);
+    let connection: Gio.SocketConnection | null = null;
+    internals._claimConnection = () => {
+        const claimed = claim();
+        if (claimed.connection) connection = claimed.connection;
+        return claimed;
+    };
+    return () => connection;
+}

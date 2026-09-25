@@ -65,6 +65,8 @@ export interface SocketInternals {
     /** In-flight Gio operations `_destroy` waits for before closing the connection. */
     _pendingIo: number;
     _ioSettled(): void;
+    /** Cancelled by `destroy()`; guards every Gio operation on this socket. */
+    _cancellable: Gio.Cancellable;
     /**
      * Stop the read loop and cancel any in-flight read, resolving once
      * settled — see `@gjsify/net`'s `Socket._detachReader()` for the full
@@ -134,6 +136,26 @@ export class TLSSocket extends Socket {
      */
     _adoptedSocket: Socket | null = null;
 
+    /**
+     * @internal True from the moment a client handshake is scheduled
+     * (`tls.connect()`, `new TLSSocket(socket)`) until `_setupTlsStreams()`
+     * wires the encrypted streams. While set, `_write`/`_final` wait in
+     * `_afterSecure` instead of reaching the plaintext transport — Node
+     * buffers `tls.connect(...).write(req)` the same way.
+     */
+    _awaitingSecure = false;
+    /** Writes/end() queued while `_awaitingSecure`; run in order once secure. */
+    private _afterSecure: Array<{ run: () => void; abort: () => void }> = [];
+    /**
+     * The raw streams `_performHandshake` claimed, held here (not in a
+     * closure) while the handshake runs so `_destroy` can hand them back to
+     * `@gjsify/net`'s release path — otherwise a `destroy()` mid-handshake
+     * leaked the descriptor.
+     */
+    private _handshakeClaim: ReturnType<SocketInternals['_claimConnection']> | null = null;
+    /** Why 'accept-certificate' refused the peer, as Node's error code + message. */
+    private _certRejection: { code: string; message: string } | null = null;
+
     constructor(socket?: Socket, options?: TlsConnectOptions) {
         super();
         if (socket) {
@@ -153,6 +175,7 @@ export class TLSSocket extends Socket {
     private _startClient(providedSocket: Socket, options: TlsConnectOptions): void {
         this.servername = options.servername || options.host || 'localhost';
         this._adoptedSocket = providedSocket;
+        this._awaitingSecure = true;
 
         // Destroying this TLSSocket also tears down the socket it borrowed
         // the connection from — mirrors Node's `TLSWrap.close()`, which
@@ -300,26 +323,18 @@ export class TLSSocket extends Socket {
         // Gio.InputStream `handshake_async()` below is about to read
         // from. For the given-socket path this is a harmless re-clear
         // (already claimed by `_adoptConnection`).
-        const claimed = (this as unknown as SocketInternals)._claimConnection();
+        const internals = this as unknown as SocketInternals;
+        const claimed = internals._claimConnection();
         const rawConnection = claimed.connection;
         if (!rawConnection) {
             this.destroy(new Error('No underlying connection for TLS upgrade'));
             return;
         }
-
-        // `this`'s own connection fields are null right now (claimed
-        // above). `destroy()` → `_release()` only closes what it can
-        // still see there, so a failure before `_setupTlsStreams()` runs
-        // (which re-wires them to the TLS-wrapped streams) would leak
-        // `rawConnection` — restore the claimed fields first so the
-        // existing close-on-destroy path picks it up.
-        const destroyWithClaimedConnection = (err: Error): void => {
-            const internals = this as unknown as SocketInternals;
-            internals._connection = claimed.connection;
-            internals._ioStream = claimed.ioStream;
-            internals._inputStream = claimed.inputStream;
-            internals._outputStream = claimed.outputStream;
-            this.destroy(err);
+        // Held on `this` until the handshake settles — see `_handshakeClaim`
+        // and `_destroy`.
+        this._handshakeClaim = claimed;
+        const fail = (err: unknown): void => {
+            this.destroy(err instanceof Error ? err : new Error(String(err)));
         };
 
         try {
@@ -365,77 +380,144 @@ export class TLSSocket extends Socket {
             // `rejectUnauthorized: false`, accept everything.
             tlsConn.connect(
                 'accept-certificate',
-                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => {
+                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, errors: Gio.TlsCertificateFlags): boolean => {
                     if (!rejectUnauthorized) return true;
-                    if (ctx.caCertificates.length === 0) return false;
+                    let flags = errors;
                     for (const ca of ctx.caCertificates) {
                         try {
-                            const flags = peerCert.verify(connectable, ca);
+                            flags = peerCert.verify(connectable, ca);
                             if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
                         } catch {
                             /* try next */
                         }
                     }
+                    this._certRejection = _certRejection(peerCert, flags, servername);
                     return false;
                 },
             );
 
-            const cancellable = new Gio.Cancellable();
+            // `this._cancellable` is what `destroy()` cancels, and the
+            // pending-I/O count makes its release wait for this callback
+            // before closing the raw connection (see `_destroy`).
+            internals._pendingIo++;
             tlsConn.handshake_async(
                 GLib.PRIORITY_DEFAULT,
-                cancellable,
+                internals._cancellable,
                 (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+                    let handshakeError: unknown = null;
                     try {
                         tlsConn.handshake_finish(asyncResult);
-                        this.authorized = true;
-                        this._setupTlsStreams(tlsConn);
-                        this.alpnProtocol = this.getAlpnProtocol();
-
-                        // Custom server-identity check (post-handshake, mirrors Node).
-                        if (customCheckServerIdentity) {
-                            const peer = this.getPeerCertificate();
-                            const idErr = customCheckServerIdentity(servername, peer);
-                            if (idErr) {
-                                this.authorized = false;
-                                this.authorizationError = idErr.message;
-                                if (rejectUnauthorized) {
-                                    this.destroy(idErr);
-                                    return;
-                                }
-                            }
-                        }
-
-                        const internals = this as unknown as SocketInternals;
-                        internals._reading = false;
-                        internals._startReading();
-
-                        // Phase 2: emit 'session' after the handshake so
-                        // consumers can cache the session blob for the next
-                        // connect call. No-op when the native bridge is
-                        // unavailable (`getSession()` returns undefined).
-                        if (hasTlsSessionAccess()) {
-                            const session = this.getSession();
-                            if (session) {
-                                this.emit('session', session);
-                            }
-                        }
-
-                        this.emit('secureConnect');
                     } catch (err: unknown) {
-                        this.authorized = false;
-                        this.authorizationError = err instanceof Error ? err.message : String(err);
-                        if (rejectUnauthorized) {
-                            destroyWithClaimedConnection(err instanceof Error ? err : new Error(String(err)));
-                        } else {
-                            this._setupTlsStreams(tlsConn);
-                            this.emit('secureConnect');
-                        }
+                        handshakeError = err;
                     }
+                    // Destroyed while the handshake ran: `_destroy` already
+                    // handed the raw streams back for release. Never emit
+                    // 'secureConnect' after 'close'.
+                    if (this.destroyed) {
+                        internals._ioSettled();
+                        return;
+                    }
+                    this._handshakeClaim = null;
+                    internals._ioSettled();
+                    if (handshakeError) {
+                        this.authorized = false;
+                        const rejection = this._certRejection;
+                        const err = rejection
+                            ? Object.assign(new Error(rejection.message), { code: rejection.code })
+                            : handshakeError;
+                        this.authorizationError = err instanceof Error ? err.message : String(err);
+                        // The raw streams go back onto `this` so the release
+                        // path closes them.
+                        internals._connection = claimed.connection;
+                        internals._ioStream = claimed.ioStream;
+                        fail(err);
+                        return;
+                    }
+                    this._secureEstablished(tlsConn, servername, rejectUnauthorized, customCheckServerIdentity);
                 },
             );
         } catch (err: unknown) {
-            destroyWithClaimedConnection(err instanceof Error ? err : new Error(String(err)));
+            fail(err);
         }
+    }
+
+    private _secureEstablished(
+        tlsConn: Gio.TlsConnection,
+        servername: string,
+        rejectUnauthorized: boolean,
+        customCheckServerIdentity: TlsConnectOptions['checkServerIdentity'],
+    ): void {
+        this.authorized = true;
+        this._setupTlsStreams(tlsConn);
+        this.alpnProtocol = this.getAlpnProtocol();
+
+        // Custom server-identity check (post-handshake, mirrors Node).
+        if (customCheckServerIdentity) {
+            const peer = this.getPeerCertificate();
+            const idErr = customCheckServerIdentity(servername, peer);
+            if (idErr) {
+                this.authorized = false;
+                this.authorizationError = idErr.message;
+                if (rejectUnauthorized) {
+                    this.destroy(idErr);
+                    return;
+                }
+            }
+        }
+
+        const internals = this as unknown as SocketInternals;
+        internals._reading = false;
+        internals._startReading();
+
+        // Phase 2: emit 'session' after the handshake so consumers can cache
+        // the session blob for the next connect call. No-op when the native
+        // bridge is unavailable (`getSession()` returns undefined).
+        if (hasTlsSessionAccess()) {
+            const session = this.getSession();
+            if (session) {
+                this.emit('session', session);
+            }
+        }
+
+        this.emit('secureConnect');
+        this._flushAfterSecure();
+    }
+
+    override _write(chunk: unknown, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+        if (this._awaitingSecure) {
+            this._afterSecure.push({
+                run: () => super._write(chunk, encoding, callback),
+                abort: () => callback(_destroyedError()),
+            });
+            return;
+        }
+        super._write(chunk, encoding, callback);
+    }
+
+    private _flushAfterSecure(): void {
+        const queued = this._afterSecure;
+        this._afterSecure = [];
+        for (const op of queued) op.run();
+    }
+
+    /**
+     * Hands a mid-handshake connection back to `@gjsify/net`'s release path:
+     * `super._destroy` cancels `_cancellable` (aborting `handshake_async`)
+     * and, since the handshake counts as pending I/O, closes the restored
+     * raw connection only once that callback has settled.
+     */
+    override _destroy(err: Error | null, callback: (error?: Error | null) => void): void {
+        const claim = this._handshakeClaim;
+        if (claim) {
+            this._handshakeClaim = null;
+            const internals = this as unknown as SocketInternals;
+            internals._connection = claim.connection;
+            internals._ioStream = claim.ioStream;
+        }
+        const queued = this._afterSecure;
+        this._afterSecure = [];
+        for (const op of queued) op.abort();
+        super._destroy(err, callback);
     }
 
     /**
@@ -451,6 +533,11 @@ export class TLSSocket extends Socket {
      * the read side stays open for the peer's reply.
      */
     override _final(callback: (error?: Error | null) => void): void {
+        if (this._awaitingSecure) {
+            // Node never runs `_final` after destroy; nothing to call back.
+            this._afterSecure.push({ run: () => this._final(callback), abort: () => {} });
+            return;
+        }
         const tlsConn = this._tlsConnection;
         if (!tlsConn) {
             super._final(callback);
@@ -480,6 +567,7 @@ export class TLSSocket extends Socket {
      * so that read/write operations go through the encrypted channel.
      */
     _setupTlsStreams(tlsConn: Gio.TlsConnection): void {
+        this._awaitingSecure = false;
         this._tlsConnection = tlsConn;
         const internals = this as unknown as SocketInternals;
         internals._inputStream = tlsConn.get_input_stream();
@@ -680,6 +768,40 @@ export class TLSSocket extends Socket {
  * owns and reads its base stream itself — there is no equivalent
  * "receive these bytes I already read" call to replay them into.
  */
+/** Node's error for a write that a destroy aborted (`ERR_STREAM_DESTROYED`). */
+function _destroyedError(): Error & { code: string } {
+    const err = new Error('Cannot call write after a stream was destroyed') as Error & { code: string };
+    err.code = 'ERR_STREAM_DESTROYED';
+    return err;
+}
+
+/**
+ * Map a refused peer certificate to the error Node's OpenSSL binding
+ * reports, so callers can branch on the same `code` on both runtimes.
+ */
+function _certRejection(
+    peerCert: Gio.TlsCertificate,
+    flags: Gio.TlsCertificateFlags,
+    servername: string,
+): { code: string; message: string } {
+    if (flags & Gio.TlsCertificateFlags.BAD_IDENTITY) {
+        return {
+            code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+            message: `Hostname/IP does not match certificate's altnames: Host: ${servername}. is not in the cert's altnames`,
+        };
+    }
+    if (flags & Gio.TlsCertificateFlags.EXPIRED) {
+        return { code: 'CERT_HAS_EXPIRED', message: 'certificate has expired' };
+    }
+    if (flags & Gio.TlsCertificateFlags.NOT_ACTIVATED) {
+        return { code: 'CERT_NOT_YET_VALID', message: 'certificate is not yet valid' };
+    }
+    if (peerCert.subjectName && peerCert.subjectName === peerCert.issuerName) {
+        return { code: 'DEPTH_ZERO_SELF_SIGNED_CERT', message: 'self-signed certificate' };
+    }
+    return { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', message: 'unable to verify the first certificate' };
+}
+
 function _upgradeRaceError(): Error & { code: string } {
     const err = new Error(
         'tls: data arrived on the socket before the TLS handshake could take over reading its ' +
