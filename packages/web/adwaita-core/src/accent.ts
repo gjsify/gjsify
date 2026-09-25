@@ -21,6 +21,10 @@
 // `conformance/accent.ts` were READ OUT OF libadwaita 1.9.2 through
 // introspection rather than derived from a reading of the C.
 //
+// The reverse direction lives here too: `nearestAccent` snaps an arbitrary system
+// colour to one of the nine, as libadwaita does with every accent a desktop
+// reports (ADR 0078).
+//
 // PLATFORM-NEUTRAL: applying an accent is the renderer's job — GTK has
 // `Adw.StyleManager:accent-color`, a browser sets the two custom properties, and
 // NativeScript has to generate a stylesheet.
@@ -81,12 +85,45 @@ export function isAdwAccentColorName(value: string): value is AdwAccentColorName
     return (ADW_ACCENT_COLOR_NAMES as readonly string[]).includes(value);
 }
 
+/** An sRGB colour with each channel in 0…1 — the shape of a `GdkRGBA` without alpha. */
+export interface AdwRgb {
+    readonly red: number;
+    readonly green: number;
+    readonly blue: number;
+}
+
 /** `#rrggbb` → the three sRGB channels in 0…1. Returns `null` for anything else. */
 function parseHex(hex: string): [number, number, number] | null {
     const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
     if (!match) return null;
     const value = Number.parseInt(match[1], 16);
     return [((value >> 16) & 0xff) / 255, ((value >> 8) & 0xff) / 255, (value & 0xff) / 255];
+}
+
+const RGB_FUNCTION = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i;
+
+/**
+ * Parse the colour spellings a system hands over: `#rgb`, `#rrggbb`, and the
+ * `rgb(r, g, b)` / `rgb(r g b)` form `getComputedStyle` serialises a resolved
+ * colour to (alpha is ignored — an accent is opaque). `null` for anything else,
+ * including a channel outside 0…255.
+ */
+export function parseAdwRgb(css: string): AdwRgb | null {
+    const text = css.trim();
+    const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(text);
+    if (short) return parseAdwRgb(`#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`);
+    const hex = parseHex(text);
+    if (hex) return { red: hex[0], green: hex[1], blue: hex[2] };
+    const fn = RGB_FUNCTION.exec(text);
+    if (!fn) return null;
+    const channels = [fn[1], fn[2], fn[3]].map(Number);
+    if (channels.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) return null;
+    return { red: channels[0] / 255, green: channels[1] / 255, blue: channels[2] / 255 };
+}
+
+/** An {@link AdwRgb} as `#rrggbb`, each channel clamped to 0…1 and rounded like `rgba_to_hex`. */
+export function formatAdwRgb(rgb: AdwRgb): string {
+    return toHex(rgb.red, rgb.green, rgb.blue);
 }
 
 function toHex(red: number, green: number, blue: number): string {
@@ -146,6 +183,44 @@ export function adwaitaStandaloneColor(background: string, dark: boolean): strin
     const [red, green, blue] = oklabToLinear(clamped, aStar, bStar);
 
     return toHex(fromLinear(red), fromLinear(green), fromLinear(blue));
+}
+
+/**
+ * `adw_accent_color_nearest_from_rgba` — snap an arbitrary system colour to one
+ * of the nine accents.
+ *
+ * This is what libadwaita does with EVERY system accent it reads: the portal's
+ * `accent-color` on Linux (`adw-settings-impl-portal.c`), WinRT's
+ * `UIColorType_Accent` on Windows and `NSColor.controlAccentColor` on macOS all
+ * go through it, so an Adwaita surface never paints the raw system colour — it
+ * paints the palette entry closest in HUE. The rule is a hue ladder in OkLCh,
+ * not a distance: anything with chroma under 0.04 is slate, whatever its
+ * lightness, which is why white, black and every grey land there.
+ *
+ * libadwaita computes in single-precision `float`; this uses doubles. The two
+ * can disagree only for a colour whose hue lies within float rounding of one of
+ * the eight thresholds — none of the reference cases in
+ * `conformance/accent.ts#NEAREST_ACCENT_VECTORS` does.
+ *
+ * Reference: refs/libadwaita/src/adw-accent-color.c#adw_accent_color_nearest_from_rgba
+ * Reference: refs/libadwaita/src/adw-color-utils.c#oklab_to_oklch
+ */
+export function nearestAccent(rgb: AdwRgb): AdwAccentColorName {
+    const [, aStar, bStar] = linearToOklab(toLinear(rgb.red), toLinear(rgb.green), toLinear(rgb.blue));
+    const chroma = Math.hypot(aStar, bStar);
+    let hue = ((Math.atan2(bStar, aStar) * 180) / Math.PI) % 360;
+    if (hue < 0) hue += 360;
+
+    if (chroma < 0.04) return 'slate';
+    if (hue > 345) return 'pink';
+    if (hue > 280) return 'purple';
+    if (hue > 230) return 'blue';
+    if (hue > 175) return 'teal';
+    if (hue > 115) return 'green';
+    if (hue > 75.5) return 'yellow';
+    if (hue > 35) return 'orange';
+    if (hue > 10) return 'red';
+    return 'pink';
 }
 
 /** The `--accent-bg-color` for an accent name. */

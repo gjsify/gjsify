@@ -95,6 +95,7 @@ the TODO records the *what's left*.
 | [0072](0072-value-lists-become-a-typed-extensions-field.md) | String lists and dialog responses become a typed `extensions` field | Proposed |
 | [0074](0074-one-declared-macos-floor.md) | Every shipped darwin binary targets one declared macOS floor: 15.0 | Accepted |
 | [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam (Amendment 1: SDL3 on every OS) | Proposed |
+| [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

@@ -10,6 +10,7 @@
 import { run } from '@gjsify/unit';
 
 import aboutDialogSuite from './about-dialog.spec.js';
+import appearanceReaderSuite from './appearance/reader.spec.js';
 import iconThemeSuite from './icon-theme.spec.js';
 
-run({ aboutDialogSuite, iconThemeSuite });
+run({ aboutDialogSuite, appearanceReaderSuite, iconThemeSuite });

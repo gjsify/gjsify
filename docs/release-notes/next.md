@@ -69,3 +69,27 @@ failure was reported as an empty result. A millisecond timestamp was enough. Suc
 are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
 fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
 larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
+
+## Web pages follow the desktop's accent
+
+Pages styled with `@gjsify/adwaita-web` can now follow the accent colour and colour
+scheme the user picked for the desktop, the way a native Adwaita window already does
+(ADR 0078, #1821).
+
+- **From a gjsify server.** `@gjsify/adwaita-app/appearance` reads the desktop without
+  opening a window. On Linux it asks the XDG Settings portal, which answers on GNOME, KDE
+  and inside a Flatpak, and falls back to GSettings. On Windows it reads the registry, and
+  on macOS the global defaults. `renderAppearanceMeta()` turns the answer into two
+  `<meta>` tags that adwaita-web applies on load. `watchDesktopAppearance()` reports each
+  change, which the page applies with `applyDesktopAppearance(json)`.
+- **From the browser alone.** `applySystemAccent()` follows the CSS system colour
+  `AccentColor` where the engine resolves it. Engines differ here, and some report a fixed
+  blue, so the server handoff ranks above it.
+
+Every source is snapped to the nearest of libadwaita's nine accents with the new
+`nearestAccent()` in `@gjsify/adwaita-core`. It is a port of libadwaita's own function,
+tested against libadwaita's reference cases. Your own `applyAdwaitaAccent()` still wins
+over all of it.
+
+The Linux reader is measured, in CI too. The Windows and macOS readers have not yet run
+on those systems.

@@ -95,6 +95,85 @@ applyAdwaitaAccent('teal', { target: panel, dark: true });
 clearAdwaitaAccent();                            // back to the stylesheet's own value
 ```
 
+## Follow the desktop's accent
+
+A native Adwaita window follows the accent the user picked in Settings. A web page
+can do the same, from whichever of these sources it has, highest first:
+
+1. **Your own choice.** `applyAdwaitaAccent(name)` wins over everything below, and
+   `clearAdwaitaAccent()` hands the page back.
+2. **A server handoff.** Two tags in `<head>`, read on import and whenever they change:
+
+   ```html
+   <meta name="adw-accent" content="purple">
+   <meta name="adw-color-scheme" content="dark">
+   ```
+
+   For live updates, send the same values as JSON over a channel your app already
+   has and pass them to `applyDesktopAppearance(json)`.
+3. **The browser's `AccentColor`**, once you call `applySystemAccent()`, or when the
+   tag says `content="system"`.
+4. **Adwaita blue**, the stylesheet's own value.
+
+Every source is snapped to the nearest of the nine accents, which is what libadwaita
+does with the system colour. The page then matches a native window on the same desktop.
+
+```ts
+import { adwaitaAccentSource, applyDesktopAppearance, applySystemAccent } from '@gjsify/adwaita-web';
+
+applySystemAccent();                     // follow AccentColor where the browser resolves it
+new EventSource('/appearance').onmessage = (event) => applyDesktopAppearance(JSON.parse(event.data));
+adwaitaAccentSource();                   // 'app' | 'handoff' | 'system' | 'default'
+```
+
+Prefer the handoff when you can. Browser support for `AccentColor` is uneven, and a
+browser may report a fixed default rather than the user's accent. On a GNOME desktop
+set to purple, the headless Firefox and Chromium that Playwright ships both reported a
+blue. A page cannot tell such a default from a real accent.
+
+### Serve the handoff from GJS
+
+A gjsify server can read the desktop without opening a window, on Linux through the
+XDG Settings portal (GNOME, KDE, Flatpak) with a GSettings fallback, and on Windows and
+macOS from the system settings:
+
+```ts
+import { createServer, type ServerResponse } from 'node:http';
+import { type DesktopAppearance, renderAppearanceMeta, watchDesktopAppearance } from '@gjsify/adwaita-app/appearance';
+
+let appearance: DesktopAppearance = {};
+const clients = new Set<ServerResponse>();
+
+const server = createServer((req, res) => {
+    if (req.url === '/appearance') {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(`data: ${JSON.stringify(appearance)}\n\n`);
+        clients.add(res);
+        req.on('close', () => clients.delete(res));
+        return;
+    }
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(`<!doctype html><head>${renderAppearanceMeta(appearance)}</head><body>…</body>`);
+});
+server.listen(3000); // before the first await, see below
+
+// Reports the first read, then every change. Keep `stop`: it keeps the watch alive.
+const stop = watchDesktopAppearance((next) => {
+    appearance = next;
+    for (const client of clients) client.write(`data: ${JSON.stringify(next)}\n\n`);
+});
+```
+
+Start listening before your module awaits anything. On GJS today, a server started
+after a top-level await exits as soon as the module finishes loading.
+The [example](https://github.com/gjsify/gjsify/tree/main/examples/node/net-adwaita-appearance)
+is a complete server.
+
+A field the desktop does not report is left out, so the page falls through to its
+next source. The Windows and macOS readers have not been verified on those systems
+yet; the [package README](https://github.com/gjsify/gjsify/tree/main/packages/framework/adwaita-app#desktop-appearance-gjsifyadwaita-appappearance)
+lists what is measured where.
+
 ## The tokens
 
 The values below are the light defaults, read out of the stylesheet that declares

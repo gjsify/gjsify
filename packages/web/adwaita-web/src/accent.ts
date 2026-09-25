@@ -58,17 +58,40 @@ export function isAdwaitaDark(element: HTMLElement): boolean {
     return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 }
 
-/** Set the accent custom properties for `name`. */
-export function applyAdwaitaAccent(name: AdwAccentColorName, options: ApplyAccentOptions = {}): void {
-    const target = options.target ?? document.documentElement;
-    const dark = options.dark ?? isAdwaitaDark(target);
+/**
+ * Elements whose accent the APP chose. The desktop-appearance follower
+ * (`appearance.ts`) never writes over one: an explicit choice outranks every
+ * source it reads (ADR 0078). A WeakSet, so a removed element is not kept alive.
+ */
+const appChosen = new WeakSet<HTMLElement>();
 
+/** Whether the app has chosen `target`'s accent with {@link applyAdwaitaAccent}. */
+export function hasAppChosenAccent(target: HTMLElement): boolean {
+    return appChosen.has(target);
+}
+
+/** Write the two properties — the one place they are set, for the app's choice and the follower's alike. */
+export function writeAdwaitaAccent(name: AdwAccentColorName, target: HTMLElement, dark: boolean): void {
     target.style.setProperty(ACCENT_BG_PROPERTY, adwaitaAccentBgColor(name));
     target.style.setProperty(ACCENT_PROPERTY, adwaitaAccentColor(name, dark));
 }
 
-/** Drop the properties, so the stylesheet's own values apply again. */
+/**
+ * Set the accent custom properties for `name` — the app's own choice, which
+ * from now on wins over the desktop's appearance on this element.
+ */
+export function applyAdwaitaAccent(name: AdwAccentColorName, options: ApplyAccentOptions = {}): void {
+    const target = options.target ?? document.documentElement;
+    appChosen.add(target);
+    writeAdwaitaAccent(name, target, options.dark ?? isAdwaitaDark(target));
+}
+
+/**
+ * Drop the properties, so the stylesheet's own values apply again, and hand
+ * the element back to the desktop's appearance.
+ */
 export function clearAdwaitaAccent(target: HTMLElement = document.documentElement): void {
+    appChosen.delete(target);
     target.style.removeProperty(ACCENT_BG_PROPERTY);
     target.style.removeProperty(ACCENT_PROPERTY);
 }

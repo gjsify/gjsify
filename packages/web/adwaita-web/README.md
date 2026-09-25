@@ -151,6 +151,40 @@ surface + light/dark `color-scheme` by adding the `adw-root` class to `<body>`
 `--window-fg-color` + `color-scheme: light dark` to the page and changes nothing
 about the individual components.
 
+## Following the desktop's accent
+
+A page follows the desktop's accent and colour scheme from these sources, highest
+first ([ADR 0078](../../../docs/adr/0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md)):
+
+1. **your own choice**: `applyAdwaitaAccent('green')`. Nothing below overrides it;
+   `clearAdwaitaAccent()` hands the page back.
+2. **a server handoff**: `<meta name="adw-accent" content="purple">` and
+   `<meta name="adw-color-scheme" content="dark">` in `<head>`, read on import and
+   whenever they change, or `applyDesktopAppearance(json)` for live updates. A gjsify
+   server writes the tags with `renderAppearanceMeta` from
+   `@gjsify/adwaita-app/appearance`.
+3. **the CSS system colour `AccentColor`**, once you call `applySystemAccent()` or
+   the tag says `content="system"` (#1821).
+4. **Adwaita blue**, the stylesheet's own value.
+
+```ts
+import { applyDesktopAppearance, applySystemAccent } from '@gjsify/adwaita-web';
+
+applySystemAccent(); // follow AccentColor where the engine resolves it; returns the accent or null
+new EventSource('/appearance').onmessage = (event) => applyDesktopAppearance(JSON.parse(event.data));
+```
+
+Every source is snapped to one of the nine accents with `nearestAccent`, as libadwaita
+does, so the page matches a native Adwaita window on the same desktop.
+`adwaitaAccentSource()` tells you which source won. Only `<html>` follows.
+
+`AccentColor` support differs between engines and has not been verified everywhere.
+Chrome announced shipping it only in 2026. On a GNOME desktop set to purple,
+Playwright's headless Firefox 151 resolved it to `rgb(0, 96, 223)` and headless
+Chromium 149 to `rgb(0, 117, 255)`: both blue, neither the desktop's accent. A page
+cannot tell such a default from a real accent, which is why the server handoff ranks
+above it.
+
 ## Icons, and the ones the stylesheet does not ship
 
 A `<gtk-image icon-name="go-next">` is a CSS mask: the box takes its colour from

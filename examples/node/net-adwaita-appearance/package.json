@@ -1,0 +1,24 @@
+{
+  "name": "@gjsify/example-node-net-adwaita-appearance",
+  "description": "A GJS server that hands the desktop's accent and colour scheme to an adwaita-web page (GJS only)",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "scripts": {
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+    "check": "gjsify tsc --noEmit",
+    "start": "gjsify run dist/index.gjs.js",
+    "build": "gjsify run build:page && gjsify run build:gjs",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:page": "gjsify build src/page.ts --app browser --outfile dist/page.js"
+  },
+  "devDependencies": {
+    "@gjsify/adwaita-app": "workspace:^",
+    "@gjsify/adwaita-web": "workspace:^",
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "private": true,
+  "version": "0.52.0"
+}
