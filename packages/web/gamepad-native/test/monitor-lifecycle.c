@@ -13,7 +13,15 @@
 
 #include <gjsify-gamepad.h>
 
-#define CYCLES 20
+#define DEFAULT_CYCLES 20
+
+/* GJSIFY_GAMEPAD_CYCLES overrides the count: test/valgrind-growth.py runs 1 and
+ * 20 and compares what each leaves reachable. */
+static guint cycles(void)
+{
+    const char *value = g_getenv("GJSIFY_GAMEPAD_CYCLES");
+    return value != NULL ? (guint) g_ascii_strtoull(value, NULL, 10) : DEFAULT_CYCLES;
+}
 
 static guint expected_devices(void)
 {
@@ -40,8 +48,8 @@ static void test_cycles(void)
 {
     const guint expected = expected_devices();
 
-    for (guint cycle = 0; cycle < CYCLES; cycle++) {
-        g_autoptr(GError) error = NULL;
+    for (guint cycle = 0, n = cycles(); cycle < n; cycle++) {
+        GError *error = NULL;
         guint added = 0;
         GjsifyGamepadMonitor *monitor = gjsify_gamepad_monitor_new(&error);
         g_assert_no_error(error);
@@ -50,9 +58,10 @@ static void test_cycles(void)
         g_signal_connect(monitor, "device-added", G_CALLBACK(on_device), &added);
         pump(monitor, 5);
 
-        g_autoptr(GPtrArray) devices = gjsify_gamepad_monitor_get_devices(monitor);
+        GPtrArray *devices = gjsify_gamepad_monitor_get_devices(monitor);
         g_assert_cmpuint(devices->len, ==, expected);
         g_assert_cmpuint(added, ==, expected);
+        g_ptr_array_unref(devices);
 
         gjsify_gamepad_monitor_close(monitor);
         /* Idempotent, and a closed monitor's update is a no-op. */
@@ -66,7 +75,7 @@ static void test_cycles(void)
  * take SDL away from the other. */
 static void test_two_monitors(void)
 {
-    g_autoptr(GError) error = NULL;
+    GError *error = NULL;
     GjsifyGamepadMonitor *first = gjsify_gamepad_monitor_new(&error);
     g_assert_no_error(error);
     GjsifyGamepadMonitor *second = gjsify_gamepad_monitor_new(&error);
@@ -75,8 +84,9 @@ static void test_two_monitors(void)
     pump(first, 2);
     gjsify_gamepad_monitor_close(first);
     pump(second, 2);
-    g_autoptr(GPtrArray) devices = gjsify_gamepad_monitor_get_devices(second);
+    GPtrArray *devices = gjsify_gamepad_monitor_get_devices(second);
     g_assert_cmpuint(devices->len, ==, expected_devices());
+    g_ptr_array_unref(devices);
 
     g_object_unref(first);
     g_object_unref(second);
@@ -86,7 +96,7 @@ static void test_two_monitors(void)
  * dispose has to release SDL on its own. */
 static void test_dispose_without_close(void)
 {
-    g_autoptr(GError) error = NULL;
+    GError *error = NULL;
     GjsifyGamepadMonitor *monitor = gjsify_gamepad_monitor_new(&error);
     g_assert_no_error(error);
     pump(monitor, 2);

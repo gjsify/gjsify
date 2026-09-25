@@ -12,6 +12,23 @@
 
 #include <glib-object.h>
 
+/* The library's API is its ONLY export. On ELF and Mach-O that is enforced at
+ * link time (a version script, `-exported_symbol`; see meson.build), which hides
+ * the statically linked SDL. A PE DLL exports nothing unless told to, so on
+ * win32 every declaration below carries dllexport while the library itself is
+ * compiled and dllimport for whoever links against it (the tests). Placed
+ * before G_DECLARE_FINAL_TYPE it applies to the `_get_type()` that macro
+ * declares first, which is the symbol GI resolves to register each class. */
+#if defined(_WIN32)
+#  if defined(GJSIFY_GAMEPAD_COMPILATION)
+#    define GJSIFY_GAMEPAD_API __declspec(dllexport)
+#  else
+#    define GJSIFY_GAMEPAD_API __declspec(dllimport)
+#  endif
+#else
+#  define GJSIFY_GAMEPAD_API
+#endif
+
 G_BEGIN_DECLS
 
 /**
@@ -21,7 +38,7 @@ G_BEGIN_DECLS
  * the #GjsifyGamepadMonitorError enumeration.
  */
 #define GJSIFY_GAMEPAD_MONITOR_ERROR (gjsify_gamepad_monitor_error_quark())
-GQuark gjsify_gamepad_monitor_error_quark(void);
+GJSIFY_GAMEPAD_API GQuark gjsify_gamepad_monitor_error_quark(void);
 
 /**
  * GjsifyGamepadMonitorError:
@@ -47,10 +64,10 @@ typedef enum {
 } GjsifyGamepadSensor;
 
 #define GJSIFY_GAMEPAD_TYPE_DEVICE (gjsify_gamepad_device_get_type())
-G_DECLARE_FINAL_TYPE(GjsifyGamepadDevice, gjsify_gamepad_device, GJSIFY_GAMEPAD, DEVICE, GObject)
+GJSIFY_GAMEPAD_API G_DECLARE_FINAL_TYPE(GjsifyGamepadDevice, gjsify_gamepad_device, GJSIFY_GAMEPAD, DEVICE, GObject)
 
 #define GJSIFY_GAMEPAD_TYPE_MONITOR (gjsify_gamepad_monitor_get_type())
-G_DECLARE_FINAL_TYPE(GjsifyGamepadMonitor, gjsify_gamepad_monitor, GJSIFY_GAMEPAD, MONITOR, GObject)
+GJSIFY_GAMEPAD_API G_DECLARE_FINAL_TYPE(GjsifyGamepadMonitor, gjsify_gamepad_monitor, GJSIFY_GAMEPAD, MONITOR, GObject)
 
 /**
  * gjsify_gamepad_device_get_name:
@@ -59,7 +76,7 @@ G_DECLARE_FINAL_TYPE(GjsifyGamepadMonitor, gjsify_gamepad_monitor, GJSIFY_GAMEPA
  * Returns: (transfer none): the controller's name, as SDL's mapping database
  *   knows it, or a generic name when it has none.
  */
-const gchar *gjsify_gamepad_device_get_name(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API const gchar *gjsify_gamepad_device_get_name(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_get_guid:
@@ -67,7 +84,7 @@ const gchar *gjsify_gamepad_device_get_name(GjsifyGamepadDevice *self);
  *
  * Returns: (transfer none): SDL's 32-hex-digit GUID for the controller model.
  */
-const gchar *gjsify_gamepad_device_get_guid(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API const gchar *gjsify_gamepad_device_get_guid(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_get_vendor:
@@ -75,7 +92,7 @@ const gchar *gjsify_gamepad_device_get_guid(GjsifyGamepadDevice *self);
  *
  * Returns: the USB vendor ID, or 0 when SDL does not know it.
  */
-guint16 gjsify_gamepad_device_get_vendor(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API guint16 gjsify_gamepad_device_get_vendor(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_get_product:
@@ -83,7 +100,7 @@ guint16 gjsify_gamepad_device_get_vendor(GjsifyGamepadDevice *self);
  *
  * Returns: the USB product ID, or 0 when SDL does not know it.
  */
-guint16 gjsify_gamepad_device_get_product(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API guint16 gjsify_gamepad_device_get_product(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_is_connected:
@@ -92,7 +109,7 @@ guint16 gjsify_gamepad_device_get_product(GjsifyGamepadDevice *self);
  * Returns: %FALSE once #GjsifyGamepadMonitor::device-removed has been emitted
  *   for this device, or its monitor was closed.
  */
-gboolean gjsify_gamepad_device_is_connected(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_is_connected(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_get_buttons:
@@ -105,7 +122,7 @@ gboolean gjsify_gamepad_device_is_connected(GjsifyGamepadDevice *self);
  *
  * Returns: (array length=n_buttons) (transfer full): the values.
  */
-gdouble *gjsify_gamepad_device_get_buttons(GjsifyGamepadDevice *self, gsize *n_buttons);
+GJSIFY_GAMEPAD_API gdouble *gjsify_gamepad_device_get_buttons(GjsifyGamepadDevice *self, gsize *n_buttons);
 
 /**
  * gjsify_gamepad_device_get_axes:
@@ -118,7 +135,7 @@ gdouble *gjsify_gamepad_device_get_buttons(GjsifyGamepadDevice *self, gsize *n_b
  *
  * Returns: (array length=n_axes) (transfer full): the values.
  */
-gdouble *gjsify_gamepad_device_get_axes(GjsifyGamepadDevice *self, gsize *n_axes);
+GJSIFY_GAMEPAD_API gdouble *gjsify_gamepad_device_get_axes(GjsifyGamepadDevice *self, gsize *n_axes);
 
 /**
  * gjsify_gamepad_device_has_rumble:
@@ -126,7 +143,7 @@ gdouble *gjsify_gamepad_device_get_axes(GjsifyGamepadDevice *self, gsize *n_axes
  *
  * Returns: whether gjsify_gamepad_device_rumble() can drive this controller.
  */
-gboolean gjsify_gamepad_device_has_rumble(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_has_rumble(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_has_trigger_rumble:
@@ -135,7 +152,7 @@ gboolean gjsify_gamepad_device_has_rumble(GjsifyGamepadDevice *self);
  * Returns: whether gjsify_gamepad_device_rumble_triggers() can drive this
  *   controller.
  */
-gboolean gjsify_gamepad_device_has_trigger_rumble(GjsifyGamepadDevice *self);
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_has_trigger_rumble(GjsifyGamepadDevice *self);
 
 /**
  * gjsify_gamepad_device_rumble:
@@ -147,7 +164,7 @@ gboolean gjsify_gamepad_device_has_trigger_rumble(GjsifyGamepadDevice *self);
  *
  * Returns: %FALSE when the controller has no rumble or is disconnected.
  */
-gboolean gjsify_gamepad_device_rumble(GjsifyGamepadDevice *self,
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_rumble(GjsifyGamepadDevice *self,
                                       guint16 low_frequency,
                                       guint16 high_frequency,
                                       guint32 duration_ms);
@@ -161,7 +178,7 @@ gboolean gjsify_gamepad_device_rumble(GjsifyGamepadDevice *self,
  *
  * Returns: %FALSE when the controller has no trigger rumble or is disconnected.
  */
-gboolean gjsify_gamepad_device_rumble_triggers(GjsifyGamepadDevice *self,
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_rumble_triggers(GjsifyGamepadDevice *self,
                                                guint16 left,
                                                guint16 right,
                                                guint32 duration_ms);
@@ -173,7 +190,7 @@ gboolean gjsify_gamepad_device_rumble_triggers(GjsifyGamepadDevice *self,
  *
  * Returns: whether the controller carries @sensor.
  */
-gboolean gjsify_gamepad_device_has_sensor(GjsifyGamepadDevice *self, GjsifyGamepadSensor sensor);
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_has_sensor(GjsifyGamepadDevice *self, GjsifyGamepadSensor sensor);
 
 /**
  * gjsify_gamepad_device_set_sensor_enabled:
@@ -186,7 +203,7 @@ gboolean gjsify_gamepad_device_has_sensor(GjsifyGamepadDevice *self, GjsifyGamep
  *
  * Returns: %FALSE when the controller does not carry @sensor or is disconnected.
  */
-gboolean gjsify_gamepad_device_set_sensor_enabled(GjsifyGamepadDevice *self,
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_set_sensor_enabled(GjsifyGamepadDevice *self,
                                                   GjsifyGamepadSensor sensor,
                                                   gboolean enabled);
 
@@ -203,7 +220,7 @@ gboolean gjsify_gamepad_device_set_sensor_enabled(GjsifyGamepadDevice *self,
  * Returns: %FALSE when the sensor is absent, not enabled, or the controller is
  *   disconnected; the out values are then 0.
  */
-gboolean gjsify_gamepad_device_get_sensor_data(GjsifyGamepadDevice *self,
+GJSIFY_GAMEPAD_API gboolean gjsify_gamepad_device_get_sensor_data(GjsifyGamepadDevice *self,
                                                GjsifyGamepadSensor sensor,
                                                gfloat *x,
                                                gfloat *y,
@@ -242,7 +259,7 @@ gboolean gjsify_gamepad_device_get_sensor_data(GjsifyGamepadDevice *self,
  *
  * Returns: (transfer full): a new monitor, or %NULL with @error set.
  */
-GjsifyGamepadMonitor *gjsify_gamepad_monitor_new(GError **error);
+GJSIFY_GAMEPAD_API GjsifyGamepadMonitor *gjsify_gamepad_monitor_new(GError **error);
 
 /**
  * gjsify_gamepad_monitor_update:
@@ -255,7 +272,7 @@ GjsifyGamepadMonitor *gjsify_gamepad_monitor_new(GError **error);
  * it. Call it at the moment the state is read (W3C's getGamepads()); the
  * monitor's own timeout calls it in between. A no-op once closed.
  */
-void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self);
+GJSIFY_GAMEPAD_API void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self);
 
 /**
  * gjsify_gamepad_monitor_get_devices:
@@ -264,7 +281,7 @@ void gjsify_gamepad_monitor_update(GjsifyGamepadMonitor *self);
  * Returns: (transfer container) (element-type GjsifyGamepadDevice): the
  *   connected controllers, in the order they connected.
  */
-GPtrArray *gjsify_gamepad_monitor_get_devices(GjsifyGamepadMonitor *self);
+GJSIFY_GAMEPAD_API GPtrArray *gjsify_gamepad_monitor_get_devices(GjsifyGamepadMonitor *self);
 
 /**
  * gjsify_gamepad_monitor_close:
@@ -275,6 +292,6 @@ GPtrArray *gjsify_gamepad_monitor_get_devices(GjsifyGamepadMonitor *self);
  * finalize; call it explicitly so SDL is released when the JS side stops, not
  * when the garbage collector gets to the wrapper.
  */
-void gjsify_gamepad_monitor_close(GjsifyGamepadMonitor *self);
+GJSIFY_GAMEPAD_API void gjsify_gamepad_monitor_close(GjsifyGamepadMonitor *self);
 
 G_END_DECLS
