@@ -15,6 +15,7 @@
 // yet (status/open-todos.md).
 
 import { describe, it, expect } from '@gjsify/unit';
+import { isGJS } from '@gjsify/runtime';
 import { createServer as createHttpsServer } from 'node:https';
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -79,8 +80,10 @@ interface TlsServer {
 }
 
 async function startTlsServer(): Promise<TlsServer> {
-    const gi = (globalThis as any).imports?.gi;
-    if (gi) {
+    // isGJS, not `imports.gi`: node-gi injects that on Node, where `ws` is npm
+    // ws and needs a real https.Server.
+    if (isGJS) {
+        const gi = (globalThis as any).imports.gi;
         const { Soup, Gio } = gi;
         const soup = new Soup.Server({});
         soup.set_tls_certificate(Gio.TlsCertificate.new_from_pem(SELF_SIGNED_CERT_AND_KEY, -1));

@@ -11,6 +11,9 @@
 // real npm `ws` on Node, which pins the semantics we mirror.
 
 import { describe, it, expect } from '@gjsify/unit';
+// isGJS, not `imports.gi`: node-gi injects that on Node too, where `ws` is still
+// npm ws, so the libsoup markers and log watch must not apply there.
+import { isGJS } from '@gjsify/runtime';
 import { createServer } from 'node:http';
 import { createServer as createNetServer, type Socket } from 'node:net';
 import { createHash } from 'node:crypto';
@@ -24,7 +27,7 @@ interface SoupLogWatch {
 /** Counts libsoup CRITICAL/WARNING records while active. Node has no libsoup,
  *  so there the count is trivially zero and only the ws semantics are checked. */
 function watchSoupLog(): SoupLogWatch {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = isGJS ? (globalThis as any).imports.gi.GLib : null;
     if (!GLib) return { count: () => 0, stop: () => {} };
     let records = 0;
     const levels = GLib.LogLevelFlags.LEVEL_CRITICAL | GLib.LogLevelFlags.LEVEL_WARNING;
@@ -33,8 +36,6 @@ function watchSoupLog(): SoupLogWatch {
     });
     return { count: () => records, stop: () => GLib.log_remove_handler('libsoup', id) };
 }
-
-const IS_GJS = typeof (globalThis as any).imports?.gi === 'object';
 
 /** Close codes ws sends that libsoup will not put on the wire from that role. */
 const SOUP_UNSENDABLE = { client: [1011, 1012, 1013, 1014], server: [1010, 1012, 1013, 1014] };
@@ -308,7 +309,7 @@ export default async () => {
                         "libsoup's soup_websocket_connection_close() refuses 1011 from a client and 1010 " +
                             'from a server, and close_connection() 1012-1014 from either; soupCloseCode() ' +
                             'sends 1002 instead (status/upstream-patch-candidates.md)',
-                        { when: IS_GJS },
+                        { when: isGJS },
                     );
                 } else {
                     await it(title, body);
@@ -432,7 +433,7 @@ export default async () => {
                 },
                 "libsoup's close_connection() (soup-websocket-connection.c) rejects 1012-1014 and " +
                     'echoes 1002 instead (status/upstream-patch-candidates.md)',
-                { when: IS_GJS },
+                { when: isGJS },
             );
         }
     });
