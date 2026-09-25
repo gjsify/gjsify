@@ -639,21 +639,27 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             }
         }
 
+        // WebGL 2 keeps the unsized ALPHA/LUMINANCE/LUMINANCE_ALPHA (internal
+        // format === format); a core profile does not — see legacy-formats.ts.
+        const legacy = internalFormat === format ? this._legacyFormatStorage(format, type) : null;
+
         this._saveError();
         this._gl.texImage2D(
             target,
             level,
-            internalFormat,
+            legacy ? legacy.internalFormat : internalFormat,
             width,
             height,
             border,
-            format,
+            legacy ? legacy.format : format,
             type,
             Uint8ArrayToVariant(data),
         );
         const error = this.getError();
         this._restoreError(error);
         if (error !== this.NO_ERROR) return;
+
+        this._setTextureSwizzle(target, texture, legacy ? legacy.swizzle : null);
 
         texture._levelWidth[level] = width;
         texture._levelHeight[level] = height;
@@ -773,7 +779,19 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             }
         }
 
-        this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
+        // Same RED/RG layout the core-profile emulation stored the image in.
+        const transferFormat = this._legacyFormatStorage(format, type)?.format ?? format;
+        this._gl.texSubImage2D(
+            target,
+            level,
+            xoffset,
+            yoffset,
+            width,
+            height,
+            transferFormat,
+            type,
+            Uint8ArrayToVariant(data),
+        );
     }
 
     /** WebGL1 getUniform falls to default:null for UNSIGNED_INT types. Handle them here. */

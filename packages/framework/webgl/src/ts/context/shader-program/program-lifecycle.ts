@@ -59,6 +59,13 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
             this._gl.useProgram(0);
             return;
         } else if (this._checkWrapper(program, WebGLProgram)) {
+            // WebGL (GLES 2.0 §2.10.3) refuses a program whose last link failed.
+            // Checked here rather than left to the driver: a desktop driver may
+            // have linked what WebGL rejects (see linkProgram), and then accepts it.
+            if (!program._linkStatus) {
+                this.setError(this.INVALID_OPERATION);
+                return;
+            }
             if (this._activeProgram !== program) {
                 this._switchActiveProgram(this._activeProgram);
                 this._activeProgram = program;
@@ -76,9 +83,24 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
             program._linkCount += 1;
             program._attributes = [];
             const prevError = this.getError();
-            this._harmoniseShaderSpelling(
-                program._references.filter((s): s is WebGLShader => s instanceof WebGLShader),
-            );
+            const shaders = program._references.filter((s): s is WebGLShader => s instanceof WebGLShader);
+            // WebGL requires exactly one vertex AND one fragment shader to link
+            // (GLES 2.0 §2.10.3; no separable programs in WebGL 2 either). A
+            // desktop linker is entitled to accept a vertex-only program — macOS
+            // does — so the rule is WebGL's to enforce, before the driver sees it.
+            // The driver keeps its previous executable, as a failed GLES link does.
+            const missing = !shaders.some((s) => s._type === this.VERTEX_SHADER)
+                ? 'vertex'
+                : !shaders.some((s) => s._type === this.FRAGMENT_SHADER)
+                  ? 'fragment'
+                  : null;
+            if (missing) {
+                program._linkStatus = false;
+                program._uniforms = [];
+                program._linkInfoLog = `link failed: no ${missing} shader attached`;
+                return;
+            }
+            this._harmoniseShaderSpelling(shaders);
             // Deferred compilation: recompile any shader whose source changed since last compile
             for (const s of program._references) {
                 if (s instanceof WebGLShader && s._needsRecompile) {
@@ -121,7 +143,12 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
             this._checkOwns(program) &&
             this._checkOwns(shader)
         ) {
-            if (!program._linked(shader)) {
+            // One shader per stage (GLES 2.0 §2.10.3). Desktop GL allows several
+            // shaders of a type in a program, so the driver does not refuse this.
+            const sameStage = program._references.some(
+                (s) => s instanceof WebGLShader && s !== shader && s._type === shader._type,
+            );
+            if (!program._linked(shader) && !sameStage) {
                 this._saveError();
                 this._gl.attachShader(program._ | 0, shader._ | 0);
                 const error = this.getError();
@@ -199,7 +226,9 @@ const programLifecycleMethods: ThisType<WebGLContextBase> & Record<string, Funct
                     return program._linkStatus;
 
                 case this.VALIDATE_STATUS:
-                    return !!this._gl.getProgramParameter(program._, pname);
+                    // A program WebGL failed to link is never valid, whatever
+                    // executable the driver still holds for it (see linkProgram).
+                    return program._linkStatus && !!this._gl.getProgramParameter(program._, pname);
 
                 case this.ATTACHED_SHADERS:
                     return this._gl.getProgramParameter(program._, pname);

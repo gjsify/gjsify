@@ -10,6 +10,8 @@ export class WebGLTexture extends Linkable implements WebGLTexture {
     _format = 0;
     _type = 0;
     _complete = true;
+    /** Does the driver-side swizzle currently differ from identity (core-profile legacy-format emulation)? */
+    _swizzled = false;
     constructor(_: number, ctx: WebGLContextBase) {
         super(_);
         this._ctx = ctx;

@@ -105,21 +105,44 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         type: GLenum,
         pixels: ArrayBufferView | null,
     ): void {
+        // The unsized legacy formats are valid 3D/array uploads in WebGL 2 too;
+        // a core profile stores them as RED/RG + swizzle (legacy-formats.ts).
+        const legacy = internalformat === format ? this._legacyFormatStorage(format, type) : null;
+        const nativeInternal = legacy ? legacy.internalFormat : internalformat;
+        const nativeFormat = legacy ? legacy.format : format;
+        this._saveError();
         if (pixels === null) {
-            this._native2.texImage3DNull(target, level, internalformat, width, height, depth, border, format, type);
-        } else {
-            this._native2.texImage3D(
+            this._native2.texImage3DNull(
                 target,
                 level,
-                internalformat,
+                nativeInternal,
                 width,
                 height,
                 depth,
                 border,
-                format,
+                nativeFormat,
+                type,
+            );
+        } else {
+            this._native2.texImage3D(
+                target,
+                level,
+                nativeInternal,
+                width,
+                height,
+                depth,
+                border,
+                nativeFormat,
                 type,
                 Uint8ArrayToVariant(new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength)),
             );
+        }
+        const error = this.getError();
+        this._restoreError(error);
+        // No JS-side record of 3D/array textures exists to say whether this one
+        // was swizzled before, so where the emulation runs every upload writes its swizzle.
+        if (error === this.NO_ERROR && this._emulatesLegacyFormats()) {
+            this._setTextureSwizzle(target, null, legacy ? legacy.swizzle : null);
         }
     },
 
@@ -147,7 +170,7 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
             width,
             height,
             depth,
-            format,
+            this._legacyFormatStorage(format, type)?.format ?? format,
             type,
             Uint8ArrayToVariant(new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength)),
         );
@@ -239,6 +262,8 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
             }
             texture._format = this.RGBA; // base format; type varies but unused by our completeness check
             texture._type = this.UNSIGNED_BYTE;
+            // Immutable storage is never a legacy format: drop an emulation swizzle.
+            this._setTextureSwizzle(target, texture, null);
         }
     },
 
@@ -252,6 +277,8 @@ const texImage3DMethods: TexImage3DMethods & ThisType<WebGL2RenderingContext> = 
         depth: GLsizei,
     ): void {
         this._native2.texStorage3D(target, levels, internalformat, width, height, depth);
+        // Immutable storage is never a legacy format; see texImage3D for why this always writes.
+        if (this._emulatesLegacyFormats()) this._setTextureSwizzle(target, null, null);
     },
 };
 
