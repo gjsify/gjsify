@@ -26,7 +26,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate, queueMicrotask |
 | http | Soup 3.0 | Partial | Server(Soup.Server, chunked+upgrade), ClientRequest, IncomingMessage (close-only-via-destroy per Node semantics), Agent. browser:`partial` — `createServer`/`Server`/`ServerResponse` ENOTSUP (no inbound TCP); client half rides native `fetch()` |
 | http2 | Soup 3.0 | Partial | createServer/createSecureServer/connect + compat layer + session API. createServer()=HTTP/1.1 only (no h2c); createSecureServer()=h2 via ALPN. pushStream/stream-IDs/flow-control = Phase 2 (Vala/nghttp2) |
-| https | — | Partial | Agent, stub request/get. browser:`partial` — root re-exports `TLSSocket`+`createSecureContext` from `@gjsify/tls` (`browser:"none"`): a user agent terminates TLS below JS |
+| https | Soup 3.0 | Partial | Agent stub, request/get; createServer terminates TLS on the bridge's Soup.Server (PEM key/cert, requestCert+ca). browser:`partial` — root re-exports `TLSSocket`+`createSecureContext` from `@gjsify/tls` (`browser:"none"`): a user agent terminates TLS below JS |
 | inspector | — | Stub | Session stub |
 | module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire. browser:`partial` — `createRequire` returns an always-throwing require (no sync CJS loader in a browser ESM bundle) |
 | net | Gio | Full | Socket(Gio.SocketClient), Server(Gio.SocketService) |
