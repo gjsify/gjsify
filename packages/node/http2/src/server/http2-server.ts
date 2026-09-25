@@ -133,7 +133,12 @@ export class Http2Server extends EventEmitter {
                 this._handleRequest(msg);
             });
 
-            this._soupServer.listen_local(port, Soup.ServerListenOptions.IPV4_ONLY);
+            // A certificate _configureSoupServer set (Http2SecureServer) is only used with the
+            // HTTPS listen flag — without it libsoup listens in plain text and ignores the cert.
+            const listenOptions = this._soupServer.is_https()
+                ? Soup.ServerListenOptions.IPV4_ONLY | Soup.ServerListenOptions.HTTPS
+                : Soup.ServerListenOptions.IPV4_ONLY;
+            this._soupServer.listen_local(port, listenOptions);
             ensureMainLoop();
 
             const listeners = this._soupServer.get_listeners();
