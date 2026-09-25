@@ -59,9 +59,9 @@ commented-out assertions whose only trace was the marker above them.
   `gitlab.gnome.org/GNOME/gjs/-/issues/523`, which is better tracked than any
   local number; a rule that flagged it would teach people to delete the most
   useful reference in the file
-- `open-todos` — an entry in `status/open-todos.md`, which the `status-data`
-  conformance rule already validates on every PR and which rejects resolved-TODO
-  corpses, so the ledger cannot rot
+- `open-todos` — an entry under `status/open-todos/` (one file per area), which
+  the `status-data` conformance rule already validates on every PR and which
+  rejects resolved-TODO corpses, so the ledger cannot rot
 - `fixed upstream in …` — the temporary consumer-side shim note
 
 Preferred over all four: fix it in the PR that exposed it (§ Governance,

@@ -19,9 +19,10 @@
  *
  *   - `status/status.json`                       per-package status + notes
  *   - `status/integration-coverage.md`           per-suite notes (## <dir>)
- *   - `status/open-todos.md`                     open work (### <title>)
+ *   - `status/open-todos/*.md`                   open work, one file per area (### <title>)
  *   - `status/upstream-patch-candidates.md`      upstream workaround table
  *   - `status/sections/*.md`                     fixed set of free-form sections
+ *   - `status/priorities/*.md`                   ordered priority list, one file per item
  *
  * `node scripts/generate-status.mjs` (`npm run status:generate`) renders the
  * whole snapshot into STATUS.md on demand.
@@ -90,14 +91,18 @@ const PACKAGE_ENTRY_KEYS = new Set(['status', 'note', 'working', 'missing']);
  * The generator renders exactly these, in this order at their anchor points;
  * an unknown file in the directory is a validation failure so a new section
  * cannot be added without also being rendered.
+ *
+ * `priorities.md` used to live here as a single fixed file, but it and
+ * `open-todos.md` were the two files nearly every PR touched — any two open
+ * PRs editing either went DIRTY on the other's merge (a rebase + a full CI
+ * run each time). Both are now split one-file-per-topic instead:
+ * `status/open-todos/<area>.md` ({@link readOpenTodos}) and
+ * `status/priorities/<order>-<slug>.md` ({@link loadPriorities}) — ordered by
+ * front-matter `order`, not by file position, so unrelated PRs touch
+ * different files and git merges them without conflict. See
+ * `status/open-todos/README.md` and `status/priorities/README.md`.
  */
-export const SECTION_FILES = [
-    'summary-notes.md',
-    'webrtc-status.md',
-    'adwaita-web-roadmap.md',
-    'webgl-known-issues.md',
-    'priorities.md',
-];
+export const SECTION_FILES = ['summary-notes.md', 'webrtc-status.md', 'adwaita-web-roadmap.md', 'webgl-known-issues.md'];
 
 // ─── Repo scanning (all derived facts come from here) ───────────────────────
 
@@ -391,7 +396,42 @@ export function collectPackageFacts(root) {
 // ─── Open-TODO anchors ──────────────────────────────────────────────────────
 
 /**
- * The `### <title>` sections of `status/open-todos.md`, each with the BODY up to the
+ * Read every area file under `status/open-todos/` and concatenate them into the
+ * same shape the single `open-todos.md` used to be: a flat run of `### <title>`
+ * sections. ONE READER, so `loadStatusData` below and
+ * `scripts/check-adwaita-conformance-drivers.mjs` (which only needs to ask "does
+ * an entry with this title exist") never carry two copies of the directory-walk
+ * that could disagree about which files count.
+ *
+ * Concatenation order is filename-alphabetical (by area), which regroups entries
+ * that used to sit at whatever position they were appended to the monolithic
+ * file — a strict readability improvement (same-topic entries now sit together)
+ * at the cost of the render no longer matching the OLD file's entry order byte
+ * for byte. Content is unaffected: every entry that existed still exists,
+ * unchanged, exactly once (verified at migration time by a line-multiset diff,
+ * not re-checked here — that guarantee is a property of the one-time move, not
+ * an ongoing invariant this reader could re-assert without re-reading history).
+ *
+ * `README.md` in the directory is the human-facing convention doc, not data,
+ * and is skipped.
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+export function readOpenTodos(root) {
+    const dir = join(root, 'status', 'open-todos');
+    if (!existsSync(dir)) return '';
+    const files = readdirSync(dir)
+        .filter((f) => f.endsWith('.md') && f !== 'README.md')
+        .sort();
+    return files
+        .map((f) => readFileSync(join(dir, f), 'utf8').replace(/^<!--[\s\S]*?-->\n+/, '').trim())
+        .filter(Boolean)
+        .join('\n\n');
+}
+
+/**
+ * The `### <title>` sections of the concatenated open-TODO text, each with the BODY up to the
  * next heading.
  *
  * ONE parse, TWO consumers: this file resolves deferral markers against the headings,
@@ -424,6 +464,116 @@ export function todoSections(text) {
 export function todoAnchorMatches(sections, anchor) {
     const plain = (text) => text.replaceAll(/[`*_]/g, '');
     return sections.filter((section) => plain(section.heading).includes(plain(anchor)));
+}
+
+// ─── Priorities (ordered list, one file per item) ──────────────────────────
+
+/**
+ * Parse the tiny front matter every `status/priorities/` item file carries:
+ * ```
+ * ---
+ * order: 1
+ * tier: high
+ * ---
+ * **Title.** body…
+ * ```
+ * Returns `null` when the shape does not match at all (missing/malformed
+ * fence) — the caller turns that into a failure with the file name attached,
+ * which this function does not have.
+ *
+ * @param {string} text
+ * @returns {{order: string, tier: string, body: string}|null}
+ */
+function parsePriorityFrontMatter(text) {
+    const m = text.match(/^---\n([\s\S]*?)\n---\n+([\s\S]*)$/);
+    if (!m) return null;
+    const fm = {};
+    for (const line of m[1].split('\n')) {
+        const kv = line.match(/^(\w+):\s*(.*)$/);
+        if (kv) fm[kv[1]] = kv[2].trim();
+    }
+    return { order: fm.order, tier: fm.tier, body: m[2].trimEnd() };
+}
+
+/**
+ * Load `status/priorities/` and render it back into the single blob the
+ * `## Priorities / Next Steps` section used to be, so the rest of the
+ * generator (and every consumer of `data.sections['priorities.md']`) needs no
+ * change. AUTHORED as one file per item instead of one growing file for the
+ * same reason `open-todos.md` was split — see {@link SECTION_FILES}'s header.
+ *
+ * Layout: `_intro.md` (required, the section heading + the ordering-policy
+ * paragraph), any number of `<NN>-<slug>.md` item files each carrying
+ * `order:`/`tier:` front matter (`tier` is `high` or `low`), and an optional
+ * `_outro.md` (trailing prose after the last item, e.g. a closing note that
+ * spans several items). Numbering in the rendered list comes from `order`,
+ * NOT from position in the directory listing or the filename's own digits —
+ * a file can be renamed without renumbering, and two files landing on the
+ * same `order` is a reported failure rather than a silent collision.
+ *
+ * @param {string} root
+ * @param {string[]} failures
+ * @returns {string}
+ */
+function loadPriorities(root, failures) {
+    const dir = join(root, 'status', 'priorities');
+    if (!existsSync(dir)) {
+        failures.push(
+            'status/priorities/ is missing — it is an authored input of scripts/generate-status.mjs (fixed ' +
+                'layout: _intro.md, one <NN>-<slug>.md per item with order/tier front matter, optional _outro.md; ' +
+                'see status/priorities/README.md).',
+        );
+        return '';
+    }
+    const introPath = join(dir, '_intro.md');
+    if (!existsSync(introPath)) failures.push('status/priorities/_intro.md is missing.');
+    const intro = existsSync(introPath) ? readFileSync(introPath, 'utf8').trim() : '';
+    const outroPath = join(dir, '_outro.md');
+    const outro = existsSync(outroPath) ? readFileSync(outroPath, 'utf8').trim() : '';
+
+    const itemFiles = readdirSync(dir)
+        .filter((f) => f.endsWith('.md') && !f.startsWith('_') && f !== 'README.md')
+        .sort();
+    /** @type {{file: string, order: number, tier: string, body: string}[]} */
+    const items = [];
+    for (const file of itemFiles) {
+        const parsed = parsePriorityFrontMatter(readFileSync(join(dir, file), 'utf8'));
+        const order = parsed ? Number(parsed.order) : NaN;
+        if (!parsed || !Number.isInteger(order) || order <= 0) {
+            failures.push(
+                `status/priorities/${file}: needs front matter \`order: <positive integer>\` and \`tier: high|low\`.`,
+            );
+            continue;
+        }
+        if (parsed.tier !== 'high' && parsed.tier !== 'low') {
+            failures.push(`status/priorities/${file}: front matter \`tier\` must be \`high\` or \`low\`, got \`${parsed.tier}\`.`);
+            continue;
+        }
+        items.push({ file, order, tier: parsed.tier, body: parsed.body });
+    }
+    const seenOrders = new Map();
+    for (const item of items) {
+        const prior = seenOrders.get(item.order);
+        if (prior) {
+            failures.push(`status/priorities/${item.file}: \`order: ${item.order}\` collides with ${prior} — orders must be unique.`);
+        }
+        seenOrders.set(item.order, item.file);
+    }
+    items.sort((a, b) => a.order - b.order);
+
+    const render = (tier) =>
+        items
+            .filter((i) => i.tier === tier)
+            .map((i) => `${i.order}. ${i.body}`)
+            .join('\n\n');
+    const high = render('high');
+    const low = render('low');
+
+    const parts = [intro];
+    if (high) parts.push('### High priority', '', high);
+    if (low) parts.push('### Low priority', '', low);
+    if (outro) parts.push(outro);
+    return parts.filter(Boolean).join('\n\n');
 }
 
 // ─── Authored-data loading + validation ─────────────────────────────────────
@@ -545,18 +695,27 @@ export function loadStatusData(root, facts) {
         }
     }
 
-    // Open TODOs: `### <title>` sections; a resolved TODO is DELETED, never
-    // struck through — that rule is now machine-checked instead of remembered.
-    const todosMd = read('open-todos.md');
+    // Open TODOs: `### <title>` sections, authored one file per area under
+    // `status/open-todos/` (not a single file — see {@link readOpenTodos}). A
+    // resolved TODO is DELETED, never struck through — that rule is now
+    // machine-checked instead of remembered.
+    const todosDir = join(statusDir, 'open-todos');
+    if (!existsSync(todosDir)) {
+        failures.push(
+            'status/open-todos/ is missing — it is an authored input of scripts/generate-status.mjs and must ' +
+                'exist (one `### <title>` per open item, one file per area; see status/open-todos/README.md).',
+        );
+    }
+    const todosMd = readOpenTodos(root);
     const todoSectionList = todoSections(todosMd);
     const todoHeadings = todoSectionList.map((section) => section.heading);
-    if (todosMd && todoHeadings.length === 0) {
-        failures.push('status/open-todos.md has no `### <title>` sections — one heading per open TODO.');
+    if (existsSync(todosDir) && todoHeadings.length === 0) {
+        failures.push('status/open-todos/ has no `### <title>` sections across its area files — one heading per open TODO.');
     }
     for (const heading of todoHeadings) {
         if (heading.includes('~~') || /^Completed\b/.test(heading) || heading.includes('✓')) {
             failures.push(
-                `status/open-todos.md: "${heading}" looks resolved (strike-through / ✓ / Completed). A resolved ` +
+                `status/open-todos/: "${heading}" looks resolved (strike-through / ✓ / Completed). A resolved ` +
                     'TODO is DELETED — its record is the commit + CHANGELOG that closed it (AGENTS.md § Project ' +
                     'status & CHANGELOG.md maintenance).',
             );
@@ -564,7 +723,9 @@ export function loadStatusData(root, facts) {
     }
     // A heading inside an HTML comment is silently dropped by the generator (regex /^### /gm
     // matches line-start only, and comment-wrapped text does not export to STATUS.md). The error
-    // is completely silent — the entry vanishes with no warning. Catch it here.
+    // is completely silent — the entry vanishes with no warning. Catch it here. (Each area
+    // file's own leading convention comment is stripped by {@link readOpenTodos} before this
+    // text is built, so only a heading accidentally wrapped in a comment MID-FILE reaches here.)
     const commentMatch = todosMd.match(/<!--[\s\S]*?-->/);
     if (commentMatch) {
         const commentText = commentMatch[0];
@@ -572,7 +733,7 @@ export function loadStatusData(root, facts) {
         for (const match of inCommentHeadings) {
             const headingText = match[1].trim();
             failures.push(
-                `status/open-todos.md has a \`### ${headingText}\` heading inside an HTML comment. ` +
+                `status/open-todos/ has a \`### ${headingText}\` heading inside an HTML comment. ` +
                     'The generator silently drops headings in comments — they do not render in STATUS.md. ' +
                     'Move the heading and its section outside the comment block.',
             );
@@ -643,7 +804,7 @@ export function loadStatusData(root, facts) {
                     const line = text.slice(0, m.index).split('\n').length;
                     failures.push(
                         `${relative(root, file)}:${line}: deferral marker anchors to "open-todos: ${anchor}", ` +
-                            'but no `### ` heading in status/open-todos.md contains that text. Either the entry was ' +
+                            'but no `### ` heading under status/open-todos/ contains that text. Either the entry was ' +
                             'renamed or deleted (re-point or remove the marker), or the marker is the only record ' +
                             'left and the entry needs writing.',
                     );
@@ -689,6 +850,13 @@ export function loadStatusData(root, facts) {
             );
         }
     }
+
+    // Priorities: an ORDERED list, authored one file per item under
+    // `status/priorities/` rather than as a single section — see {@link loadPriorities}.
+    // Rendered into the same `sections['priorities.md']` slot the fixed-section
+    // model used before the split, so the anchor point in `renderStatus` needs
+    // no change.
+    sections['priorities.md'] = loadPriorities(root, failures);
 
     return {
         data: {
@@ -1085,8 +1253,8 @@ export function renderStatus(root, facts, data) {
     out.push('');
     out.push('<!-- GENERATED, UNTRACKED FILE — DO NOT EDIT BY HAND, DO NOT COMMIT.');
     out.push('     Rendered by: node scripts/generate-status.mjs (npm run status:generate)');
-    out.push('     Authored inputs: status/ (status.json, integration-coverage.md, open-todos.md,');
-    out.push('     upstream-patch-candidates.md, sections/*.md) — those ARE tracked and are');
+    out.push('     Authored inputs: status/ (status.json, integration-coverage.md, open-todos/*.md,');
+    out.push('     upstream-patch-candidates.md, sections/*.md, priorities/*.md) — those ARE tracked and are');
     out.push('     validated on every PR by audit-runtimes --check, rule `status-data`.');
     out.push('     Everything else here is DERIVED from the package manifests + the tree at the');
     out.push('     moment you ran the command, which is why this file is gitignored: a committed');
@@ -1121,7 +1289,7 @@ export function renderStatus(root, facts, data) {
     out.push(
         '> **Showcases** and **Integration test suites** are counted from directories: `Full` equals `Total` ' +
             'by construction and asserts only that the directory is there. Which of them any CI event actually ' +
-            'runs is a separate question — see the Integration Test Coverage section and `status/open-todos.md`.',
+            'runs is a separate question — see the Integration Test Coverage section and `status/open-todos/`.',
     );
     out.push('');
     if (data.sections['summary-notes.md']) out.push(data.sections['summary-notes.md'], '');
@@ -1209,7 +1377,8 @@ export function renderStatus(root, facts, data) {
     out.push('');
     out.push(
         'Tracked follow-up work that has been deliberately deferred. Every "out of scope" / "follow-up" note from ' +
-            'a PR must end up here (authored in [`status/open-todos.md`](status/open-todos.md)). A resolved TODO is ' +
+            'a PR must end up here (authored one file per area under [`status/open-todos/`](status/open-todos/), ' +
+            'see its README for which file). A resolved TODO is ' +
             'DELETED — its record is the commit + CHANGELOG that closed it; the `status-data` check rejects ' +
             'struck-through or "Completed" headings.',
     );

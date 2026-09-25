@@ -316,7 +316,7 @@ jobs:
       # This is the SAME script and the same enumeration as `verify-release-closure` in
       # release.yml, one round earlier — not a second checker. Its detection was never
       # missing, only late: that job sits after the tag and the release record, the
-      # shape `status/sections/priorities.md` § 2 calls out as reading identically to a
+      # shape `status/priorities/02-make-gates-prove-claims.md` § 2 calls out as reading identically to a
       # check that passed. The phase selects the ASSERTIONS, not the wording — the
       # registry predicate relaxes to "the NAME exists" and the
       # `status/pending-npm-bootstrap.json` ledger keeps the policy's "or queued as the

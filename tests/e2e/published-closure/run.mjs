@@ -661,7 +661,7 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
     // ── `--phase pre-release`: the same enumeration, one round earlier ───────
     //
     // The post-release job reports at the END of `release.yml`, after the tag and
-    // the release record, which `status/sections/priorities.md` § 2 calls out as
+    // the release record, which `status/priorities/02-make-gates-prove-claims.md` § 2 calls out as
     // reading identically to a check that passed. #1494 added two brand-new npm
     // names and nothing in the tree asked for their manual bootstrap; the only
     // thing carrying the requirement was a paragraph in a pull-request body.

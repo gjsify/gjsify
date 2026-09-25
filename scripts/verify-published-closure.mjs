@@ -26,7 +26,7 @@
  * `release.yml`. `--phase pre-release` runs the same enumeration on every pull
  * request and every push to `main`, from `audit-runtimes.yml`. It exists because a
  * report that arrives at the END of `release.yml` arrives after the tag and after
- * the release record — the second shape `status/sections/priorities.md` § 2 names,
+ * the release record — the second shape `status/priorities/02-make-gates-prove-claims.md` § 2 names,
  * "a job that runs only AFTER the merge … is simply absent from the PR, which reads
  * identically" to one that passed. Measured on #1494, which added two brand-new npm
  * names (`@gjsify/webview2-native` and its win32-x64 target): nothing in the tree

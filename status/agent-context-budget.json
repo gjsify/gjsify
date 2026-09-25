@@ -1,16 +1,16 @@
 {
-    "AGENTS.md": 20737,
+    "AGENTS.md": 20755,
     "packages/dom/AGENTS.md": 2081,
-    "packages/framework/AGENTS.md": 21698,
+    "packages/framework/AGENTS.md": 21704,
     "packages/infra/AGENTS.md": 1131,
-    "packages/infra/cli/AGENTS.md": 32479,
+    "packages/infra/cli/AGENTS.md": 32498,
     "packages/infra/resolve-npm/AGENTS.md": 7939,
-    "packages/infra/rolldown-plugin-gjsify/AGENTS.md": 26916,
+    "packages/infra/rolldown-plugin-gjsify/AGENTS.md": 26925,
     "packages/napi/AGENTS.md": 7179,
-    "packages/nativescript-bridge/AGENTS.md": 19084,
-    "packages/node-gi/AGENTS.md": 22248,
+    "packages/nativescript-bridge/AGENTS.md": 19097,
+    "packages/node-gi/AGENTS.md": 22256,
     "packages/node-runtime/AGENTS.md": 8770,
-    "packages/node/AGENTS.md": 19998,
+    "packages/node/AGENTS.md": 20011,
     "packages/web/AGENTS.md": 10857,
-    "tests/AGENTS.md": 11390
+    "tests/AGENTS.md": 11388
 }
