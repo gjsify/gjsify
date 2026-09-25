@@ -69,3 +69,34 @@ failure was reported as an empty result. A millisecond timestamp was enough. Suc
 are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
 fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
 larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
+
+## Browser extensions
+
+`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
+(ADR 0077). You declare the extension in `package.json#gjsify.webext`, and one command writes one
+folder per target:
+
+- a `manifest.json` composed for that target, from a `manifest.ts` function or a JSON template
+  with per-target overrides. gjsify converts no keys between Manifest V2 and V3,
+- every script bundled once as a classic IIFE, so the same file runs as a content script, an
+  injected file, an MV2 background script or an MV3 service worker,
+- pages with their local scripts bundled and stylesheets copied,
+- icons rendered from SVG to PNG through librsvg for Chromium, and the SVGs themselves for
+  Firefox,
+- `_locales/` and `public/` copied.
+
+Before a zip is written, the build checks each folder the way the browser would. A file the
+manifest names but the build did not write, a `manifest_version` that does not match the
+target, or a `default_locale` without `_locales/` stops the build with the target named.
+
+```bash
+gjsify webext build   # .output/<target>/
+gjsify webext zip     # plus <name>-<version>-<target>.zip, byte-identical across rebuilds
+gjsify webext dev     # web-ext opens the browser, gjsify rebuilds in place on save
+```
+
+The build runs on GJS as well as Node, so an extension no longer needs Node or Vite to build.
+Only `webext dev` still uses Node, because it launches the browser through `web-ext`. The
+browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
+Signing and store submission come next. The guide is at
+[Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).

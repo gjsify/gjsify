@@ -39,6 +39,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Environment | [`system-check`](#gjsify-system-check) · [`info`](#gjsify-info) |
 | Explore | [`showcase`](#gjsify-showcase) |
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
+| Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) |
 | Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
@@ -1382,6 +1383,34 @@ gjsify browse https://localhost:8080 --screenshot shot.png
 | `--build-only` | `false` | Build the bundle without launching it. |
 
 The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge. It is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane. That is the full Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
+
+## Browser extensions
+
+### `gjsify webext`
+
+Build a WebExtension for several browsers from one source: one folder per target, each with its own manifest, plus a zip per target for the stores. The whole configuration lives in `package.json#gjsify.webext`. The [Browser Extensions guide](/gjsify/guides/browser-extensions/) walks through it.
+
+```bash
+gjsify webext build                        # one folder per target under .output/
+gjsify webext build --target firefox-mv2   # only this target
+gjsify webext zip                          # production build + <name>-<version>-<target>.zip each
+gjsify webext dev                          # build, open Firefox with the extension, rebuild on change
+gjsify webext dev --target chrome-mv3 --browser-binary ~/chrome-for-testing/chrome
+gjsify webext dev --no-launch              # rebuild in place, load the folder yourself
+```
+
+| Option | Applies to | Description |
+|---|---|---|
+| `--target <t..>` | all | Targets to build, from `gjsify.webext.targets`. `dev` takes one; default the first Firefox target. |
+| `--out-dir <dir>` | all | Output directory. Default `gjsify.webext.outDir`, else `.output`; `dev` appends `-dev`. |
+| `--define KEY=VALUE` | all | Compile-time constant for every bundle, on top of `gjsify.webext.define`. |
+| `--mode <production\|development>` | `build` | Passed to the manifest as `ctx.mode`. `development` also skips minification. |
+| `--no-launch` | `dev` | Rebuild on change without starting a browser. |
+| `--browser-binary <path>` | `dev` | The Firefox or Chromium executable web-ext starts. |
+| `--profile <dir>` | `dev` | Browser profile. Default `$XDG_CACHE_HOME/gjsify/webext/<name>/<target>`, kept between runs. |
+| `--headless` | `dev` | Start the browser without a window. |
+
+Targets are `<browser>-mv<2|3>` with browser `chrome`, `edge`, `firefox` or `safari`. `chrome-mv2` and `edge-mv2` are refused because both browsers have removed Manifest V2. `dev` launches the browser through [`web-ext`](https://github.com/mozilla/web-ext), which it looks for in the project's `node_modules/.bin`, then on `PATH`.
 
 ## Ship it
 
