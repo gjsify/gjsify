@@ -392,6 +392,14 @@ jobs:
       - name: '@gjsify/cli'
         run: node packages/infra/cli/lib/index.js workspace @gjsify/cli run test
 
+      # A native bridge whose library will not load must name the file and the
+      # dependency, on the platform where that first happened (Homebrew
+      # json-glib absent under `gjsify build`). The suite drops the rolldown
+      # prebuild's cargo sibling for a real dyld failure; its CONTROL run keeps
+      # the sibling and must load, which needs the json-glib installed above.
+      - name: A native library that will not load is named
+        run: node --test tests/e2e/native-library-missing-dep/run.mjs
+
       # The NODE-FREE toolchain — the path the three darwin engine prebuilds
       # exist for, and which every step above is blind to because each one
       # starts the CLI under Node. These suites start `dist/cli.gjs.mjs` under
