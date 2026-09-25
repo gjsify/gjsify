@@ -58,6 +58,7 @@ import { activateNativePrebuilds } from './gi-search-path.js';
 import { nodeBinary } from './run-node.js';
 import { spawnToCompletion } from './spawn.js';
 import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { openNativeLibrary } from '@gjsify/utils/core';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
 
@@ -248,6 +249,8 @@ interface NativeOxfmtSurface {
 }
 
 let _nativeOxfmtProbe: Promise<NativeOxfmtSurface | null> | null = null;
+/** Why the bridge's library would not open, when `tryLoadNativeOxfmt()` measured it. */
+let _nativeOxfmtLoadError: Error | null = null;
 
 /**
  * Try to load `@gjsify/oxfmt-native` (GJS only). Same multi-anchor
@@ -272,6 +275,12 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
             const target = pathToFileURL(resolved).href;
             const mod = (await import(/* @vite-ignore */ target)) as NativeOxfmtSurface;
             if (!mod.hasNativeOxfmt()) return null;
+            // The typelib resolved; its library opens at the first class access.
+            // Open it now, beside that typelib — the wrapper cannot, for the reason
+            // `bundler-pick.ts`'s `tryLoadNative()` gives — so a library that will
+            // not load names itself instead of failing inside `runOxfmt()`.
+            _nativeOxfmtLoadError = openNativeLibrary('GjsifyOxfmt');
+            if (_nativeOxfmtLoadError) return null;
             return mod;
         } catch {
             return null;
@@ -297,7 +306,8 @@ export async function shouldUseNativeOxfmt(): Promise<boolean> {
         const native = await tryLoadNativeOxfmt();
         if (!native) {
             throw new Error(
-                'GJSIFY_OXFMT=native but @gjsify/oxfmt-native is not loadable (no prebuild for this architecture, or not running under GJS).',
+                'GJSIFY_OXFMT=native but @gjsify/oxfmt-native is not loadable (no prebuild for this architecture, or not running under GJS).' +
+                    (_nativeOxfmtLoadError ? `\n${_nativeOxfmtLoadError.message}` : ''),
             );
         }
         return true;

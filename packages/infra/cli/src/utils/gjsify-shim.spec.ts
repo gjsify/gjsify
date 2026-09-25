@@ -12,7 +12,7 @@
 // therefore fails the moment this decision returns the wrong answer.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { needsSelfShim, pathWithoutSelfShim } from './gjsify-shim.js';
+import { needsSelfShim, pathWithoutSelfShim, selfShimScanRoot } from './gjsify-shim.js';
 
 export default async () => {
     await describe('needsSelfShim', async () => {
@@ -90,6 +90,24 @@ export default async () => {
                     workspaceRoot: '/c/a/gjsify/gjsify',
                 }),
             ).toBe(true);
+        });
+    });
+
+    // The self-shim globs this tree's `node_modules` for prebuilds at launch, the
+    // way the global launcher globs its prefix — so it must be the INSTALL root.
+    await describe('selfShimScanRoot', async () => {
+        await it('is the prefix above an installed CLI', async () => {
+            expect(selfShimScanRoot('/home/u/.local/share/gjsify/node_modules/@gjsify/cli/dist/cli.gjs.mjs')).toBe(
+                '/home/u/.local/share/gjsify',
+            );
+        });
+
+        // pnpm nests the package under `.pnpm/<id>/node_modules`; the project's
+        // own `node_modules` above it is where its direct native deps are linked.
+        await it('is the OUTERMOST prefix in a nested layout', async () => {
+            expect(
+                selfShimScanRoot('/p/node_modules/.pnpm/@gjsify+cli@1/node_modules/@gjsify/cli/dist/cli.gjs.mjs'),
+            ).toBe('/p');
         });
     });
 

@@ -453,6 +453,12 @@ export default async () => {
             expect(buildShLauncher("/o'brien/x.mjs", { isGjsBundle: true })).toContain(`'/o'\\''brien/x.mjs'`);
         });
 
+        // The CLI's self-shim honours GJS_CONSOLE; a path with a space must stay one word.
+        await it('execs a named gjs interpreter, quoted', async () => {
+            const sh = buildShLauncher('/opt/p/dist/cli.gjs.mjs', { isGjsBundle: true, gjs: '/opt/my gjs/bin/gjs' });
+            expect(sh).toContain(`exec '/opt/my gjs/bin/gjs' -m '/opt/p/dist/cli.gjs.mjs' "$@"`);
+        });
+
         await it('dispatches at run time when a Node fallback is given', async () => {
             const sh = buildShLauncher('/opt/p/dist/cli.gjs.mjs', {
                 envPreamble: 'export GI_TYPELIB_PATH=/x\n',

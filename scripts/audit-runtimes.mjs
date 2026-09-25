@@ -69,6 +69,7 @@ import {
     GJS_IMPORTS_GUARD_RE,
     IMPORTS_LEGACY_RE,
     isPlatformPackageManifest,
+    NATIVE_LIBRARY_LOADER_RE,
     listSourceFiles,
     packagesUnder,
     renderPrebuildLibcSummary,
@@ -274,7 +275,7 @@ async function walkSource(dir, signals) {
         if (GI_URL_RE.test(text)) signals.gi_url = true;
         if (DYNAMIC_GI_RE.test(text)) signals.dynamic_gi = true;
         if (IMPORTS_LEGACY_RE.test(text)) signals.imports_legacy = true;
-        if (GJS_IMPORTS_GUARD_RE.test(text)) signals.gjs_imports_guard = true;
+        if (GJS_IMPORTS_GUARD_RE.test(text) || NATIVE_LIBRARY_LOADER_RE.test(text)) signals.gjs_imports_guard = true;
     }
 }
 

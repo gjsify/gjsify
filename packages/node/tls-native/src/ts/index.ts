@@ -4,7 +4,7 @@
 // loader works from both library code and runtime entry points. Absent typelib
 // is not an error: `hasNativeTls()` returns `false` and callers degrade.
 
-import { colocateNativeLibrary } from '@gjsify/utils/core';
+import { loadOptionalNativeModule } from '@gjsify/utils/core';
 
 /** Parsed OCSP response from `Tls.parse_ocsp_response`. */
 export interface OcspResponseInfo {
@@ -99,30 +99,10 @@ export interface GjsifyTlsModule {
     ChannelBindingType: typeof TlsChannelBindingType;
 }
 
-let _mod: GjsifyTlsModule | null = null;
-
-/** Module-local typed view of the GJS legacy `imports.gi` host slot. */
-interface _GjsImportsHost {
-    imports?: { gi?: Record<string, unknown> };
-}
-
-const _gi: Record<string, unknown> | undefined = (globalThis as unknown as _GjsImportsHost).imports?.gi;
-if (_gi) {
-    try {
-        const ns = _gi['GjsifyTls'] as GjsifyTlsModule;
-        // The typelib is loaded; the library opens on the first class access.
-        // Name its directory in between (see `colocateNativeLibrary`), then
-        // touch both classes HERE: with the typelib found and the library not,
-        // every later access throws, and `hasNativeTls()` would be a lie.
-        colocateNativeLibrary('GjsifyTls');
-        void ns.Tls;
-        void ns.SessionAccess;
-        _mod = ns;
-    } catch {
-        // Typelib not installed, or its library cannot be opened — consumers
-        // gate on `hasNativeTls()`.
-    }
-}
+// Opens the library before the first class access: a typelib found without a
+// loadable library reads as absent, so `hasNativeTls()` never lies.
+const _load = loadOptionalNativeModule<GjsifyTlsModule>('GjsifyTls', ['Tls', 'SessionAccess']);
+const _mod: GjsifyTlsModule | null = _load.module;
 
 /** The native GjsifyTls module, or `null` if not installed. */
 export const nativeTls: GjsifyTlsModule | null = _mod;
@@ -130,6 +110,15 @@ export const nativeTls: GjsifyTlsModule | null = _mod;
 /** Returns `true` when the GjsifyTls native library is available. */
 export function hasNativeTls(): boolean {
     return _mod !== null;
+}
+
+/**
+ * Why {@link nativeTls} is `null`: girepository's "not found" when the prebuild
+ * is not installed, a `NativeLibraryLoadError` naming the missing dependency
+ * when it is installed but its library will not open.
+ */
+export function getNativeTlsLoadError(): Error | null {
+    return _load.error;
 }
 
 /**

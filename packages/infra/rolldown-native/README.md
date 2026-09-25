@@ -71,32 +71,26 @@ the lock — regenerate it in the same commit as the submodule pin and the npm `
 | `linux-x64` | ✅ `.so` + `.gir` + `.typelib` | native runner |
 | `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ❌ | not built — the rolldown crate graph is too slow under QEMU |
-| macOS (`darwin-arm64`) | ⏳ source-ready, no prebuild yet | pending a green `prebuilds.yml` macOS leg |
-| macOS (`darwin-x64`) | ❌ | — |
+| macOS (`darwin-arm64`) | ✅ `.dylib` + `.gir` + `.typelib` | native runner |
+| macOS (`darwin-x64`) | ✅ | native runner |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
 
 All prebuilds are produced by [`.github/workflows/prebuilds.yml`](../../../.github/workflows/prebuilds.yml)
 and committed back to the repository.
 
-### macOS status
+### Runtime system dependency: json-glib
 
-The **Rust-level blocker is gone.** The core used to wake the GLib main loop through three
-`libc::eventfd(2)` descriptors — a Linux syscall the `libc` crate does not even expose on
-Apple targets, so `cargo build` could not compile at all there. The wakeup channel is now a
-plain anonymous pipe (`src/rust/src/wakeup.rs`), one portable implementation used on every
-platform, so the crate cross-compiles: `cargo check --target aarch64-apple-darwin` is green.
-`meson.build` was already macOS-ready (`.dylib` naming, `@loader_path` rpath).
+The prebuild links **json-glib** (`BundlerSession` peeks at the hook name and request id of each
+Rust-emitted JSON envelope before routing it), and it is a SYSTEM library on every target, like
+GLib itself: `libjson-glib-1.0.so.0` on Linux, `@rpath/libjson-glib-1.0.0.dylib` on macOS, where
+the rpath list ends in the Homebrew prefix ([docs/prebuilds.md](../../../docs/prebuilds.md)). Homebrew's
+`gjs` formula does not pull it in, so a Mac needs `brew install json-glib`; `gjsify system-check`
+lists it with the install command for the host.
 
-What is still missing is a **native macOS build**: the `.dylib` + `.gir` + `.typelib` have to
-be produced and load-tested by the `prebuilds.yml` darwin leg (Homebrew `vala`, `gobject-
-introspection`, `json-glib`, `gjs`) before `darwin-arm64` is added to `package.json`'s
-`gjsify.platforms` and a prebuild is committed. Until that leg is green, treat macOS as
-unproven — a cross-`check` does not exercise linking, the GIR/typelib step, or `gi://` load.
-
-Because `@gjsify/rolldown-native` is the only bundler engine available to `gjsify build`
-under GJS, it is the last package gating a Node-free gjsify toolchain on macOS —
-`@gjsify/lightningcss-native` and `@gjsify/oxfmt-native` already ship `darwin-arm64`
-prebuilds.
+Without it the typelib still resolves and the library fails to open. GJS reports that at the first
+class access as `Unsupported type void, deriving from fundamental void`, so `gjsify build` probes
+the library before choosing the engine (`probeNativeLibrary()` in `@gjsify/utils/core`) and prints
+the file that failed, the dependency the loader named, and the install command.
 
 ### Wakeup channel (implementation note)
 

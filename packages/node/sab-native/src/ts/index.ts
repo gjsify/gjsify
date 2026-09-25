@@ -13,6 +13,8 @@
 // GJS-only by construction: on Node, or any build without the prebuild, the lazy
 // load yields null and consumers MUST gate on `hasNativeSab()`.
 
+import { openNativeLibrary, type NativeLibraryGiView } from '@gjsify/utils/core';
+
 export interface NativeSharedBuffer {
     readonly fd: number;
     readonly byte_length: number;
@@ -94,6 +96,15 @@ export function resolveNativeSab(gi: Record<string, unknown> | undefined): Gjsif
         return null;
     }
     if (!candidate || typeof candidate !== 'object') return null;
+    // The typelib is loaded; the shape check below is the first class access,
+    // which opens the library. Open it here instead, beside the typelib that was
+    // found — a library that will not load then says which dependency it lacks
+    // (`G_MESSAGES_DEBUG=Gjs-Console`) rather than throwing from the check.
+    const loadError = openNativeLibrary('GjsifySabNative', gi as NativeLibraryGiView);
+    if (loadError) {
+        console.debug(loadError.message);
+        return null;
+    }
     const mod = candidate as Partial<GjsifySabNativeModule>;
     if (typeof mod.SharedBuffer?.create !== 'function') return null;
     if (typeof mod.FdChannel?.make_pair !== 'function') return null;
