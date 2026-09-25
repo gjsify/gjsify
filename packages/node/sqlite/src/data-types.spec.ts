@@ -299,6 +299,25 @@ export default async () => {
             db.close();
         });
 
+        await it('reads a large value that follows small and NULL ones in the same result', async () => {
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, seq INTEGER, loose)');
+            db.exec(`INSERT INTO t (seq, loose) VALUES (1, 1), (NULL, NULL), (2147483648, 2147483648),
+                     (NULL, NULL), (9007199254740991, 9007199254740991)`);
+            // A fresh statement, so this one all() is also the statement's first probe.
+            const rows = db.prepare('SELECT seq, loose FROM t ORDER BY id').all() as {
+                seq: number | null;
+                loose: number | null;
+            }[];
+            const expected = [1, null, 2147483648, null, 9007199254740991];
+            expect(rows.length).toBe(expected.length);
+            for (let i = 0; i < expected.length; i++) {
+                expect(rows[i].seq).toBe(expected[i]);
+                expect(rows[i].loose).toBe(expected[i]);
+            }
+            db.close();
+        });
+
         await it('returns a rowid past 2^31 as lastInsertRowid', async () => {
             const db = new DatabaseSync(':memory:');
             db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)');
