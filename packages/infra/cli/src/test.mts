@@ -93,6 +93,7 @@ import htmlEntrySuite from './utils/html-entry.spec.js';
 import autoGlobalsSuite from './auto-globals.spec.js';
 import aliasPluginSuite from './alias-plugin.spec.js';
 import napiNodeAddonSuite from './napi-node-addon.spec.js';
+import nodeNativeExternalSuite from './node-native-external.spec.js';
 import nodeGiExternalsSuite from './node-gi-externals.spec.js';
 import nodeReverseRegistersSuite from './node-reverse-registers.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
@@ -339,6 +340,7 @@ run(
         autoGlobalsSuite,
         aliasPluginSuite,
         napiNodeAddonSuite,
+        nodeNativeExternalSuite,
         nodeGiExternalsSuite,
         nodeReverseRegistersSuite,
         externalsPluginSuite,

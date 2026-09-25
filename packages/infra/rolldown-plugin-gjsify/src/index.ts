@@ -63,6 +63,7 @@ export {
     AddonNotBuiltError,
 } from './plugins/napi-node-addon.js';
 export type { NapiNodeAddonPluginOptions, AddonPackageJson } from './plugins/napi-node-addon.js';
+export { nodeNativeExternalPlugin, isNodeAddonPackage, packageNameOf } from './plugins/node-native-external.js';
 export {
     platformResolvePlugin,
     nativescriptSuffixChain,
