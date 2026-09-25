@@ -159,16 +159,14 @@ jobs:
 
       # gjs pulls spidermonkey (mozjs-140) + glib + gobject-introspection
       # transitively — the same GJS/SM pairing the Fedora image ships, so a
-      # difference here is a difference in the OS and not in the engine. `gtk4`
-      # is NOT installed: every suite in this leg is Node-pillar and reaches at
-      # most GLib/Gio/GioUnix, and a leg that installs a toolkit it does not use
-      # buys 10x-billed minutes for nothing.
+      # difference here is a difference in the OS and not in the engine. The
+      # package suites are Node-pillar and reach at most GLib/Gio/GioUnix; the
+      # one toolkit consumer is the node-free step below (see `gtk4` there).
       # `librsvg` and `gobject-introspection` ride along for ONE reason, and it
       # is not a toolkit: since `gjsify ship` renders the app icon itself,
       # staging an app needs to `import gi://Rsvg` AND `gi://cairo`, and a host
       # without them now REFUSES to stage rather than shipping an iconless
-      # bundle. The gtk4 argument above still stands and is untouched — that is
-      # a toolkit this leg does not use; these are the renderer it does.
+      # bundle.
       #
       # BOTH ROWS ARE MEASURED, and the second one cost a CI round: with only
       # `librsvg` added, this leg still failed, and the error moved from
@@ -183,8 +181,15 @@ jobs:
       # (`check-system-deps.ts` declares it for `@gjsify/rolldown-native`).
       # Without it every node-free build died in the typelib's dlopen — MEASURED
       # on the first run of that step; a developer Mac hid it by having it.
+      #
+      # `gtk4` is the node-free step's too: `node-script/run.mjs` proves that a
+      # `--node-script` with no declared globals gets the DOM register (#1053),
+      # and that register loads `gi://Gdk?version=4.0` at bundle load. Without
+      # gtk4 that one case died in `Typelib file for namespace 'Gdk', version
+      # '4.0' not found` on both darwin legs — MEASURED; pango + gdk-pixbuf
+      # already come in with librsvg, so Gdk was the only missing typelib.
       - name: Install GJS + SpiderMonkey via Homebrew
-        run: brew install gjs librsvg gobject-introspection json-glib
+        run: brew install gjs librsvg gobject-introspection json-glib gtk4
 
       # THE ENV-FREE REPAIR, AND WHY IT MUST BE ENV-FREE.
       #
