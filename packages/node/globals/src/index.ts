@@ -5,9 +5,10 @@
 // `globalThis`. Use `@gjsify/node-globals/register` (or add the relevant
 // identifiers to the `--globals` CLI flag) to actually set process,
 // Buffer, setImmediate/clearImmediate, btoa/atob, structuredClone,
-// queueMicrotask, global, URL, URLSearchParams as globals.
+// queueMicrotask, navigator, global, URL, URLSearchParams as globals.
 //
 // Web APIs like fetch, AbortController, Headers, Request, Response are
 // provided by `@gjsify/web-globals` — not this package.
 
 export { ensureMainLoop } from '@gjsify/utils/core';
+export { Navigator, navigator, getNavigatorPlatform } from './navigator.js';

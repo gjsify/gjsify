@@ -10,3 +10,4 @@ import './register/encoding.js';
 import './register/url.js';
 import './register/structured-clone.js';
 import './register/microtask.js';
+import './register/navigator.js';
