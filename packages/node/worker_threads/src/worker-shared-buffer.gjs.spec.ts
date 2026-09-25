@@ -12,16 +12,16 @@ import { SharedBuffer, atomics, hasNativeSab } from '@gjsify/sab-native';
 // guarded away, because the previous shape was a lie: with no prebuild the suite
 // substituted an `it('skipped …')` whose only assertion was `expect(true)`, so a
 // platform with ZERO cross-process shared memory reported a passing suite. Scoping
-// the expectation keeps both halves — on Linux with the prebuild these are ordinary
+// the expectation keeps both halves — on Linux/macOS with the prebuild these are ordinary
 // `it()` that must pass, and on a platform without one they still RUN and fail the
 // run the day they start working, which is when the marker should go.
 const NO_NATIVE_SAB =
-    '@gjsify/sab-native declares linux only (ADR 0013) and every one of its five declared ' +
-    'targets ships a committed prebuild, so hasNativeSab() is false exactly on darwin and ' +
-    'win32, where SharedBuffer.create() throws NATIVE_SAB_UNAVAILABLE. There is no ' +
-    'in-engine fallback to degrade to: SharedArrayBuffer and Atomics are both undefined under ' +
-    'GJS (measured on gjs 1.88.1), which is why the native bridge exists at all. Tracked in ' +
-    'status/open-todos.md — "Two packages have no darwin target at all".';
+    '@gjsify/sab-native declares linux-* and darwin-{arm64,x64} (ADR 0013), so hasNativeSab() is ' +
+    'false only where no prebuild for the host is installed — win32, where GJS itself does not run, ' +
+    'or a build of the bridge from source that was never staged — and SharedBuffer.create() then ' +
+    'throws NATIVE_SAB_UNAVAILABLE. There is no in-engine fallback to degrade to: SharedArrayBuffer ' +
+    'and Atomics are both undefined under GJS (measured on gjs 1.88.1), which is why the native ' +
+    'bridge exists at all.';
 
 export default async () => {
     await on('Gjs', async () => {

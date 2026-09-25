@@ -32,12 +32,12 @@ if (isMainThread) {
 
 Stock GJS has no usable `SharedArrayBuffer`: SpiderMonkey gates the constructor behind a COOP/COEP-equivalent opt-in that GJS does not flip, and even if it did, SAB backing stores live in the per-runtime heap — which a subprocess `Worker` does not share. The substitute is **`SharedBuffer`** from the optional [`@gjsify/sab-native`](../sab-native/README.md) bridge, transferred to a worker by passing it through `workerData` or `postMessage`.
 
-**Cross-process `SharedBuffer` is Linux-only today.** See [ADR 0013](../../../docs/adr/0013-sab-native-platform-scope.md) for the reasoning.
+**Cross-process `SharedBuffer` works on Linux and macOS 14.4+.** See [ADR 0013](../../../docs/adr/0013-sab-native-platform-scope.md) for the reasoning.
 
 | Platform | Cross-process `SharedBuffer` |
 |---|---|
 | Linux (`x86_64`, `aarch64`, `ppc64`, `s390x`, `riscv64`) | ✅ Supported — `memfd_create(2)` + `mmap(MAP_SHARED)`, `SYS_futex` for `wait`/`notify`, `SCM_RIGHTS` to hand the descriptor to the child |
-| macOS | ❌ Not yet — planned via `shm_open` + `os_sync_wait_on_address` (macOS 14.4+), blocked on a macOS prebuild |
+| macOS (`arm64`, `x86_64`) | ✅ Supported (macOS 14.4+) — `shm_open` + immediate `shm_unlink`, `os_sync_wait_on_address` with the `_SHARED` flag, `SCM_RIGHTS` over a stream socket pair |
 | Windows | ❌ Not supported — GJS does not run on Windows, and Windows has no cross-process address-keyed wait primitive |
 
 ### What happens without it

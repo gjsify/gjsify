@@ -1,14 +1,15 @@
 // @gjsify/sab-native — optional GjsifySabNative GI module loader + JS façade.
 //
 // Cross-process shared memory for @gjsify/worker_threads: `SharedBuffer.create()`
-// makes a memfd_create + mmap(MAP_SHARED) region whose `.fd` travels to a child via
-// SCM_RIGHTS, and `SharedBuffer.fromFd()` reattaches it there. Access is through
+// makes an anonymous mmap(MAP_SHARED) region (memfd_create on Linux, an unlinked
+// shm_open object on macOS) whose `.fd` travels to a child via SCM_RIGHTS, and
+// `SharedBuffer.fromFd()` reattaches it there. Access is through
 // typed accessors and the `atomics` namespace — never `Atomics.*`, see there.
 //
-// Platform scope is Linux-only (ADR 0013): memfd_create(2), the non-private
-// SYS_futex flavour and SCM_RIGHTS. macOS is a decided but unimplemented port
-// (shm_open + os_sync_wait_on_address, 14.4+); Windows is blocked outright, having
-// no cross-process address-keyed wait primitive at all.
+// Platform scope is Linux + macOS (ADR 0013): memfd_create(2), the non-private
+// SYS_futex flavour and SCM_RIGHTS on Linux; shm_open + os_sync_wait_on_address
+// with the _SHARED flag (macOS 14.4+) and SCM_RIGHTS on macOS. Windows is blocked
+// outright, having no cross-process address-keyed wait primitive at all.
 //
 // GJS-only by construction: on Node, or any build without the prebuild, the lazy
 // load yields null and consumers MUST gate on `hasNativeSab()`.
@@ -76,7 +77,7 @@ const _runtime = globalThis as unknown as _GjsRuntimeGlobals;
 /**
  * Resolve the `GjsifySabNative` GI module, normalising EVERY unavailable case to
  * `null`: no `gi` at all (not GJS), a throwing property access (typelib not on
- * `GI_TYPELIB_PATH` — the macOS/Windows case), and a value that is not the module
+ * `GI_TYPELIB_PATH` — the Windows case, or a target with no prebuild), and a value that is not the module
  * we expect (stale, partial or shadowed typelib). The third needs the shape check:
  * a partial value otherwise leaves `hasNativeSab()` reporting `true` and fails with
  * an opaque `TypeError` at first use.
@@ -107,7 +108,7 @@ export const nativeSab: GjsifySabNativeModule | null = _mod;
 
 /**
  * THE gate for cross-process `SharedBuffer`, and platform-conditional by design:
- * `true` only on Linux (ADR 0013), `false` on macOS, Windows, Node and the browser.
+ * `true` only on Linux and macOS (ADR 0013), `false` on Windows, Node and the browser.
  * Guard every use of `SharedBuffer` / `atomics` / `fdChannel` with it.
  */
 export function hasNativeSab(): boolean {
@@ -122,11 +123,12 @@ export function hasNativeSab(): boolean {
  */
 export const NATIVE_SAB_UNAVAILABLE =
     '@gjsify/sab-native: the native backend is not available on this platform. ' +
-    'Cross-process SharedBuffer is currently Linux-only (memfd_create + futex + SCM_RIGHTS); ' +
-    'prebuilds ship for linux-{x64,arm64,ppc64,s390x,riscv64} only — ' +
-    'macOS support is planned and Windows is unsupported (see docs/adr/0013-sab-native-platform-scope.md). ' +
+    'Cross-process SharedBuffer is supported on Linux (memfd_create + futex + SCM_RIGHTS; ' +
+    'prebuilds for linux-{x64,arm64,ppc64,s390x,riscv64}) and on macOS 14.4+ (shm_open + ' +
+    'os_sync_wait_on_address; prebuilds for darwin-{arm64,x64}) — ' +
+    'Windows is unsupported (see docs/adr/0013-sab-native-platform-scope.md). ' +
     'Guard with hasNativeSab() before using SharedBuffer. ' +
-    'On Linux, a missing prebuild can be built locally with `gjsify workspace @gjsify/sab-native build:prebuilds`.';
+    'On Linux or macOS, a missing prebuild can be built locally with `gjsify workspace @gjsify/sab-native build:prebuilds`.';
 
 /**
  * A shared-memory region backed by an anonymous memfd and mmap(MAP_SHARED). The

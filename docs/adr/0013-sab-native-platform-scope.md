@@ -1,6 +1,6 @@
 # ADR 0013 — `@gjsify/sab-native` stays address-keyed; Linux ships, macOS is the one reachable port, Windows is blocked
 
-- **Status:** Accepted (2026-07-26)
+- **Status:** Accepted (2026-07-26) — amended 2026-09-24: [the macOS port landed](#amendment-2026-09-24--the-macos-port-landed-and-one-fact-in-3-was-wrong), and one fact in §3 was wrong
 - **Scope:** `@gjsify/sab-native` (Tier 1, Node pillar) and its only consumer `@gjsify/worker_threads`. Binds the published `SharedBuffer` / `atomics` / `hasNativeSab()` contract and the `prebuilds/` platform matrix.
 
 ## Context
@@ -201,3 +201,48 @@ This is the part that lands now. The rule is:
    `package.json#gjsify.platforms` gains `darwin-arm64`. Re-run the sab-native spec
    suite on the macOS leg; the cross-process specs are the acceptance gate.
 4. Windows: no work item. Revisit only via a new ADR.
+
+## Amendment (2026-09-24) — the macOS port landed, and one fact in §3 was wrong
+
+Implementation steps 2 and 3 are done. The gate §3 named — "a macOS prebuild job
+exists" — was met by `prebuilds.yml`'s `build-prebuilds-macos` (both arches, one
+job body), and the port was built and its suite run on real hardware (macOS 27,
+Apple silicon) before it was declared, not CI-only as §3 anticipated.
+`gjsify.platforms` gains `darwin-arm64` AND `darwin-x64`, because that job's matrix
+builds both from the same steps and the declared-vs-built invariant is symmetric.
+
+§1, the region design and the wait design stand exactly as decided:
+`shm_open(O_CREAT|O_EXCL)` + immediate `shm_unlink` for the region, and
+`os_sync_wait_on_address` / `os_sync_wake_by_address_any` with the `_SHARED` flags.
+The package's GJS suite now carries the check §3 called the acceptance gate: a
+child's `wait32` woken by the parent's `notify32` across two processes that map the
+region at different addresses. It passes on darwin, and it is the same spec on Linux.
+
+**What §3 got wrong: descriptor transfer is NOT "unchanged".** Measured on macOS
+27, `socketpair(AF_UNIX, SOCK_SEQPACKET)` fails with `EPROTONOSUPPORT` — Darwin has
+no Unix-domain SEQPACKET — and neither `SOCK_CLOEXEC` nor `MSG_CMSG_CLOEXEC` exists.
+`SCM_RIGHTS` itself does port. The darwin `FdChannel` therefore uses `SOCK_STREAM`
+with a fixed frame (one 4-byte tag carrying one fd; `recv_fd` reads exactly four
+bytes) and sets `FD_CLOEXEC` after the fact. `SOCK_DGRAM` was measured and rejected:
+it keeps message boundaries, but a closed peer surfaces as one `ECONNRESET` and then a
+recv that blocks forever, which loses `recv_fd`'s "0 = orderly EOF". The published
+`FdChannel` contract (fd + tag per message, 0 on EOF) is identical on both platforms.
+
+Two further darwin-only differences in the shim, neither visible in the contract:
+
+- `os_sync_wait_on_address` reports "the value differed" as success, the same as a
+  wake, so `wait32`'s `'not-equal'` comes from a compare in the shim before the wait.
+  The race window can only turn a would-be `'not-equal'` into `'ok'`, which is
+  indistinguishable from a notify arriving just after the sleep began.
+- `os_sync_wake_by_address_all` does not report how many it woke, and `notify32`
+  returns that count, so the shim wakes one waiter at a time until `ENOENT`.
+
+Also found on the way: Darwin defines no `CMSG_ALIGN` and aligns control messages
+to 4 bytes, so the musl-safe `CMSG_NXTHDR` replacement the Linux path carries (which
+falls back to `size_t` alignment) would walk the wrong header there. The darwin path
+uses the system macro; there is no second libc to stay compatible with.
+
+The first darwin artifacts reach the repo the way every other darwin prebuild does:
+`commit-prebuilds` lands them on main, and `clear-committed-platform-exemptions.mjs`
+drops the two per-target packages' `platformsUncommitted` entries in the same commit.
+

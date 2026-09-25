@@ -23,7 +23,8 @@
  * ───────
  * `atomic_*_i32` family operates with SEQ_CST memory ordering via GCC
  * `__atomic_*` builtins. `futex_wait` / `futex_wake` give cross-process
- * wait/notify via Linux SYS_futex (FUTEX_*_PRIVATE flavour).
+ * wait/notify: Linux SYS_futex (the NON-private flavour) and, on macOS,
+ * os_sync_wait_on_address with the _SHARED flag — see sab-helpers.c.
  *
  * Buffer ownership: read_bytes returns a GLib.Bytes that borrows the
  * mmap'd memory (no copy) and ref-counts the region so the mapping
@@ -173,7 +174,7 @@ namespace GjsifySabNative {
         }
 
         /**
-         * Linux futex_wait. Compares *((int32_t*)region+offset) to @expected;
+         * Address-keyed wait (futex on Linux, os_sync on macOS). Compares *((int32_t*)region+offset) to @expected;
          * if equal, blocks until woken or timeout. timeout_ms < 0 = infinite.
          *
          * Return: 0 woken, -1 not-equal (EAGAIN), -2 timed-out, -3 interrupted,

@@ -1,8 +1,16 @@
 /*
  * sab-helpers.c — see sab-helpers.h for the contract.
  *
- * Linux-only. Compile with -D_GNU_SOURCE so memfd_create, MFD_CLOEXEC,
- * and the FUTEX_*_PRIVATE constants are visible.
+ * Two backends behind one contract (ADR 0013 §1: the seam is this shim, not
+ * the primitive — every platform supplies an ADDRESS-KEYED compare-and-wait):
+ *
+ *   Linux  — memfd_create + non-private SYS_futex + SOCK_SEQPACKET. Compile
+ *            with -D_GNU_SOURCE so memfd_create, MFD_CLOEXEC and the FUTEX_*
+ *            constants are visible.
+ *   darwin — shm_open + immediate shm_unlink, os_sync_wait_on_address with
+ *            the _SHARED flag (macOS 14.4+), SOCK_STREAM with fixed 4-byte
+ *            frames. Every darwin difference is marked `#if defined(__APPLE__)`
+ *            at the point it applies, with the measured reason next to it.
  *
  * ONE ARTIFACT MUST SERVE BOTH LIBCS — no glibc-private symbols.
  *
@@ -37,18 +45,81 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/futex.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
-#include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
+
+#if defined(__APPLE__)
+#  include <os/clock.h>
+#  include <os/os_sync_wait_on_address.h>
+#  include <sys/stat.h>
+#else
+#  include <linux/futex.h>
+#  include <sys/syscall.h>
+#endif
+
+#if defined(__APPLE__)
+
+/* ── darwin: anonymous shared memory ────────────────────────────────────
+ *
+ * Darwin has neither memfd_create nor FreeBSD's SHM_ANON, so the closest
+ * equivalent of an anonymous memfd is a POSIX shm object that is unlinked
+ * the moment it exists: the fd stays valid, mmap/SCM_RIGHTS work on it as on
+ * any descriptor, and the object dies with its last reference (ADR 0013 §3).
+ *
+ * The name is visible in a global namespace only between shm_open and
+ * shm_unlink; a crash inside that window leaks one object until reboot —
+ * the documented difference from the Linux backend. PSHMNAMLEN caps names at
+ * 31 bytes, hence a short random name rather than a descriptive one, and
+ * O_EXCL + retry so two processes can never open each other's region. */
+static int
+gjsify_shm_anonymous (void)
+{
+  for (int attempt = 0; attempt < 16; attempt++) {
+    char name[32];
+    g_snprintf (name, sizeof name, "/gsab.%x.%08x",
+                (unsigned) getpid (), (unsigned) g_random_int ());
+    /* POSIX sets FD_CLOEXEC on a shm_open descriptor. */
+    int fd = shm_open (name, O_CREAT | O_EXCL | O_RDWR, 0600);
+    if (fd >= 0) {
+      shm_unlink (name);
+      return fd;
+    }
+    if (errno != EEXIST) return -1;
+  }
+  errno = EEXIST;
+  return -1;
+}
+
+/* Plain fcntl: darwin has no LFS redirect (the musl concern below is a
+ * Linux one), and syscall(2) is deprecated there. */
+static int
+gjsify_dup_cloexec (int fd)
+{
+  return fcntl (fd, F_DUPFD_CLOEXEC, 0);
+}
+
+/* Darwin's CMSG_* macros align to 4 bytes (__DARWIN_ALIGN32) and it defines
+ * no CMSG_ALIGN, so the size_t-aligned fallback the Linux path carries would
+ * compute the WRONG next header here. There is no second libc to stay
+ * compatible with on darwin, so the system macro is the correct one. */
+#define gjsify_cmsg_nxthdr(msg, cmsg) CMSG_NXTHDR ((msg), (cmsg))
+
+static gboolean
+gjsify_set_cloexec (int fd)
+{
+  int flags = fcntl (fd, F_GETFD);
+  return flags >= 0 && fcntl (fd, F_SETFD, flags | FD_CLOEXEC) == 0;
+}
+
+#else /* Linux */
 
 /* glibc < 2.27 doesn't expose memfd_create() as a libc wrapper. We use the
  * raw syscall to stay portable across the prebuild distro matrix. */
@@ -97,6 +168,8 @@ gjsify_cmsg_nxthdr (const struct msghdr *msg, struct cmsghdr *cmsg)
   return (struct cmsghdr *) next;
 }
 
+#endif /* __APPLE__ */
+
 /* ────────────────────────────────────────────────────────────────────── *
  * GjsifySabRegion: opaque shared-memory region
  * ────────────────────────────────────────────────────────────────────── */
@@ -139,7 +212,11 @@ gjsify_sab_region_new_anonymous (gsize size)
 {
   if (size == 0) { errno = EINVAL; return NULL; }
 
+#if defined(__APPLE__)
+  int fd = gjsify_shm_anonymous ();
+#else
   int fd = gjsify_memfd_create ("gjsify-sab", MFD_CLOEXEC);
+#endif
   if (fd < 0) return NULL;
 
   if (ftruncate (fd, (off_t) size) < 0) {
@@ -378,6 +455,39 @@ gjsify_sab_region_futex_wait (GjsifySabRegion *region,
   BOUNDS_CHECK (region, offset, 4);
   int32_t *addr = (int32_t *) ((guint8 *) region->ptr + offset);
 
+#if defined(__APPLE__)
+  /* os_sync_wait_on_address reports "value differed" as SUCCESS, exactly
+   * like a wake, so the not-equal answer has to come from our own compare.
+   * The window between this load and the kernel's compare only ever turns
+   * a would-be 'not-equal' into 'ok' — indistinguishable from a notify that
+   * landed just after we slept, which Atomics.wait already permits. */
+  if (__atomic_load_n (addr, __ATOMIC_SEQ_CST) != expected) return -1;
+  /* A zero timeout is EINVAL to the timed variant, and a 0 ms wait on a
+   * matching value is by definition an immediate time-out. */
+  if (timeout_ms == 0) return -2;
+
+  /* _SHARED is the darwin spelling of Linux's non-private FUTEX_WAIT: the
+   * address lives in a region other processes map at other addresses, and
+   * the wake may come from one of them. */
+  int ret;
+  if (timeout_ms < 0) {
+    ret = os_sync_wait_on_address (addr, (uint64_t) (uint32_t) expected, 4,
+                                   OS_SYNC_WAIT_ON_ADDRESS_SHARED);
+  } else {
+    ret = os_sync_wait_on_address_with_timeout (addr, (uint64_t) (uint32_t) expected, 4,
+                                                OS_SYNC_WAIT_ON_ADDRESS_SHARED,
+                                                OS_CLOCK_MACH_ABSOLUTE_TIME,
+                                                (uint64_t) timeout_ms * 1000000ULL);
+  }
+  if (ret >= 0) return 0;
+  int e = errno;
+  if (e == ETIMEDOUT) return -2;
+  /* Apple documents EFAULT and ENOMEM as TRANSIENT early returns the caller
+   * should retry after re-reading the value (the address itself is already
+   * bounds-checked) — the same contract as EINTR. */
+  if (e == EINTR || e == EFAULT || e == ENOMEM) return -3;
+  return -e;
+#else
   struct timespec ts;
   struct timespec *ts_ptr = NULL;
   if (timeout_ms >= 0) {
@@ -399,6 +509,7 @@ gjsify_sab_region_futex_wait (GjsifySabRegion *region,
   if (e == ETIMEDOUT) return -2;
   if (e == EINTR)     return -3;
   return -e;
+#endif
 }
 
 gint
@@ -408,9 +519,25 @@ gjsify_sab_region_futex_wake (GjsifySabRegion *region,
 {
   BOUNDS_CHECK (region, offset, 4);
   int32_t *addr = (int32_t *) ((guint8 *) region->ptr + offset);
+#if defined(__APPLE__)
+  /* FUTEX_WAKE returns how many it woke; os_sync_wake_by_address_all does
+   * not, and notify32's return value is that count. So wake one at a time:
+   * each successful _any wakes exactly one waiter, and ENOENT means none is
+   * left — which also makes `count` a real upper bound, as on Linux. */
+  gint woken = 0;
+  while (woken < count) {
+    if (os_sync_wake_by_address_any (addr, 4, OS_SYNC_WAKE_BY_ADDRESS_SHARED) != 0) {
+      if (errno == ENOENT) break;
+      return woken > 0 ? woken : -errno;
+    }
+    woken++;
+  }
+  return woken;
+#else
   long ret = syscall (SYS_futex, addr, FUTEX_WAKE, count,
                       NULL, NULL, 0);
   return (gint) ret;
+#endif
 }
 
 /* ────────────────────────────────────────────────────────────────────── *
@@ -421,9 +548,35 @@ gboolean
 gjsify_sab_socketpair (gint *parent_fd, gint *child_fd)
 {
   int sv[2];
+#if defined(__APPLE__)
+  /* Measured on macOS 27: socketpair(AF_UNIX, SOCK_SEQPACKET) fails with
+   * EPROTONOSUPPORT, and SOCK_CLOEXEC does not exist. SOCK_DGRAM keeps
+   * message boundaries but reports a closed peer as ECONNRESET once and then
+   * blocks forever, losing recv_fd's "0 = orderly EOF". SOCK_STREAM keeps the
+   * EOF, and the boundaries come back by framing: every message is exactly
+   * one 4-byte tag carrying one SCM_RIGHTS fd, and recv reads exactly 4. */
+  if (socketpair (AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
+    return FALSE;
+  }
+  /* Not atomic with creation as SOCK_CLOEXEC is: a fork() on another thread
+   * in between would leak the pair into that child. Nothing forks
+   * concurrently with FdChannel.make_pair in a GJS process. */
+  for (int i = 0; i < 2; i++) {
+    int one = 1;
+    if (!gjsify_set_cloexec (sv[i])
+        || setsockopt (sv[i], SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one) < 0) {
+      int e = errno;
+      close (sv[0]);
+      close (sv[1]);
+      errno = e;
+      return FALSE;
+    }
+  }
+#else
   if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sv) < 0) {
     return FALSE;
   }
+#endif
   *parent_fd = sv[0];
   *child_fd  = sv[1];
   return TRUE;
@@ -462,6 +615,17 @@ gjsify_sab_send_fd (gint socket_fd, gint fd_to_send, guint32 tag)
   do {
     n = sendmsg (socket_fd, &msg, MSG_NOSIGNAL);
   } while (n < 0 && errno == EINTR);
+#if defined(__APPLE__)
+  /* SOCK_STREAM (see gjsify_sab_socketpair) may accept a frame short; the
+   * receiver reads exactly four bytes per frame, so a missing tail would shift
+   * every later tag. The fd already travelled with the first byte. */
+  while (n >= 0 && (size_t) n < sizeof tag_be) {
+    ssize_t m = send (socket_fd, (guint8 *) &tag_be + n, sizeof tag_be - (size_t) n, 0);
+    if (m < 0 && errno == EINTR) continue;
+    if (m < 0) return FALSE;
+    n += m;
+  }
+#endif
   return n >= 0;
 }
 
@@ -488,12 +652,44 @@ gjsify_sab_recv_fd (gint socket_fd, guint32 *tag)
   msg.msg_controllen = sizeof cmsg_buf.buf;
 
   ssize_t n;
+#if defined(__APPLE__)
+  /* No MSG_CMSG_CLOEXEC on darwin — the received fd gets FD_CLOEXEC below. */
+  do {
+    n = recvmsg (socket_fd, &msg, 0);
+  } while (n < 0 && errno == EINTR);
+#else
   do {
     n = recvmsg (socket_fd, &msg, MSG_CMSG_CLOEXEC);
   } while (n < 0 && errno == EINTR);
+#endif
 
   if (n == 0) return 0;       /* orderly EOF */
   if (n < 0)  return -1;      /* error — errno preserved */
+
+#if defined(__APPLE__)
+  /* SOCK_STREAM (see gjsify_sab_socketpair): a frame may in principle arrive
+   * short. The fd rides on the frame's first byte, so it is already in the
+   * control buffer; only the rest of the tag is still to read. */
+  while ((size_t) n < sizeof tag_be) {
+    ssize_t m = recv (socket_fd, (guint8 *) &tag_be + n, sizeof tag_be - (size_t) n, 0);
+    if (m < 0 && errno == EINTR) continue;
+    if (m <= 0) {
+      int e = m == 0 ? EBADMSG : errno;
+      /* The frame's fd was already installed in this process by the first
+       * recvmsg; the caller never sees it on this path, so close it here. */
+      for (struct cmsghdr *cm = CMSG_FIRSTHDR (&msg); cm != NULL; cm = gjsify_cmsg_nxthdr (&msg, cm)) {
+        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) {
+          int fd;
+          memcpy (&fd, CMSG_DATA (cm), sizeof (int));
+          close (fd);
+        }
+      }
+      errno = e;
+      return -1;
+    }
+    n += m;
+  }
+#endif
 
   *tag = GUINT32_FROM_BE (tag_be);
 
@@ -502,6 +698,9 @@ gjsify_sab_recv_fd (gint socket_fd, guint32 *tag)
     if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) {
       int fd;
       memcpy (&fd, CMSG_DATA (cm), sizeof (int));
+#if defined(__APPLE__)
+      gjsify_set_cloexec (fd);
+#endif
       return fd;
     }
   }

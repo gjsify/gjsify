@@ -33,7 +33,7 @@ the TODO records the *what's left*.
 | [0010](0010-adwaita-web-style-isolation.md) | adwaita-web style isolation — light-DOM boundary reset + token contract | Accepted |
 | [0011](0011-napi-host-in-gjs.md) | N-API host in GJS (`@gjsify/napi`) | Accepted |
 | [0012](0012-framework-register-ownership.md) | Global registration ownership for GTK/WebKit-backed DOM classes | Accepted |
-| [0013](0013-sab-native-platform-scope.md) | `@gjsify/sab-native` stays address-keyed; Linux ships, macOS is the one reachable port, Windows is blocked | Accepted |
+| [0013](0013-sab-native-platform-scope.md) | `@gjsify/sab-native` stays address-keyed; Linux ships, macOS is the one reachable port, Windows is blocked (amended: the macOS port landed) | Accepted |
 | [0014](0014-utils-core-subpath-and-platform-entry-routing.md) | Cross-runtime reachability — `@gjsify/utils/core` subpath, `polyfill`-slot platform-entry routing, machine-checked invariant | Accepted |
 | [0015](0015-headless-package-contract.md) | Headless package contract — `gjsify.headless` as a declared, machine-checked promise about the root entry | Accepted |
 | [0016](0016-status-as-data.md) | Status as data — authored status data (`status/`) + derived facts, gated by the `status-data` conformance rule; the rendered STATUS.md is generated, not committed (amended) | Accepted |

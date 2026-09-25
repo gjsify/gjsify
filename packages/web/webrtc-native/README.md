@@ -13,7 +13,7 @@ This is an internal native bridge package — installed automatically as a depen
 import { RTCPeerConnection } from '@gjsify/webrtc';
 ```
 
-The `@gjsify/webrtc-native` prebuild (`.so` + `.typelib`) is loaded automatically by `gjsify run` via the `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` detection in the CLI.
+The `@gjsify/webrtc-native` prebuild (library + `.typelib`) is loaded automatically by `gjsify run` via the CLI's native-package detection, which sets `GI_TYPELIB_PATH` and the host's loader variable (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS).
 
 ## Platform coverage
 
@@ -22,19 +22,16 @@ The `@gjsify/webrtc-native` prebuild (`.so` + `.typelib`) is loaded automaticall
 | `linux-x64` | ✅ `.so` + `.typelib` | native runner |
 | `linux-arm64` | ✅ | native runner |
 | `linux-ppc64`, `linux-s390x`, `linux-riscv64` | ✅ | QEMU emulation |
-| macOS (`darwin-arm64` / `darwin-x64`) | ❌ | **unverified, see below** |
+| macOS (`darwin-arm64` / `darwin-x64`) | ✅ `.dylib` + `.typelib` | native runners (`build-prebuilds-macos`) |
 | Windows | ❌ | — no Vala/GI bridge in this repo targets Windows |
 
 All prebuilds are produced by [`.github/workflows/prebuilds.yml`](../../../.github/workflows/prebuilds.yml)
 and committed back to the repository.
 
-**macOS is not blocked — it is unverified.** The bridge needs `gstreamer-sdp-1.0` and
-`gstreamer-webrtc-1.0`, which come from gst-plugins-base/bad inside Homebrew's unified
-`gstreamer` formula; whether that formula exports both `.pc` files has not been confirmed.
-`meson.build` already emits the correct `.dylib` typelib leaf, so the only open question is
-the Homebrew dependency closure. The manual-dispatch
-`build-prebuilds-macos-experimental` job in the prebuilds workflow exists to answer it —
-run it, read the `pkg-config` report it prints, then promote or document the result.
+On macOS the bridge builds against Homebrew's unified `gstreamer` formula, which carries
+`gstreamer-sdp-1.0` and `gstreamer-webrtc-1.0`; at runtime `@gjsify/webrtc` additionally needs
+`brew install libnice-gstreamer` for ICE. Measured on macOS 27 arm64: `@gjsify/webrtc`'s GJS
+suite passes 309/309 against the darwin prebuild.
 
 ## License
 
