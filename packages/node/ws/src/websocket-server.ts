@@ -27,11 +27,12 @@ import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
 import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
-import { abortConnection } from '@gjsify/websocket';
+import { abortConnection, isTransportFailure, soupCloseCode } from '@gjsify/websocket';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { createNodeError, ensureMainLoop } from '@gjsify/utils/core';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
+import { closeReason } from './validation.js';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const WS_KEY_REGEX = /^[+/0-9A-Za-z]{22}==$/;
@@ -183,6 +184,10 @@ class ServerSideWebSocket extends EventEmitter {
         });
 
         conn.connect('error', (_c: Soup.WebsocketConnection, err: GLib.Error) => {
+            // ws reports only what its receiver finds wrong in the frames; a
+            // peer's reset ends in 'close' alone. Emitting it would also
+            // throw out of this signal handler with no 'error' listener.
+            if (isTransportFailure(err)) return;
             this.emit('error', new Error(err.message));
         });
     }
@@ -233,15 +238,14 @@ class ServerSideWebSocket extends EventEmitter {
 
     close(code?: number, reason?: string | Buffer): void {
         if (this.readyState === CLOSED || this.readyState === CLOSING) return;
+        const reasonStr = closeReason(code, reason);
         this.readyState = CLOSING;
         // Soup's own state is the authority: it may have sent its Close frame
         // without a 'closing' signal (protocol-error path), and a second
         // soup_websocket_connection_close() is a CRITICAL, not a no-op.
         if (!this._soupOpen()) return;
         try {
-            const reasonStr =
-                reason === undefined ? null : Buffer.isBuffer(reason) ? reason.toString('utf8') : String(reason);
-            this._conn.close(code ?? 1000, reasonStr);
+            this._conn.close(soupCloseCode(this._conn, code ?? 1000), reasonStr ?? null);
         } catch (err) {
             this.emit('error', err instanceof Error ? err : new Error(String(err)));
         }
