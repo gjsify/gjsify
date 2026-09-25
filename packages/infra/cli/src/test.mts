@@ -123,6 +123,7 @@ import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import devPlanSuite from './utils/dev-plan.spec.js';
 import watchLoopSuite from './utils/watch-loop.spec.js';
+import webextSuite from './utils/webext/webext.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
@@ -370,6 +371,7 @@ run(
         runtimesSuite,
         devPlanSuite,
         watchLoopSuite,
+        webextSuite,
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,

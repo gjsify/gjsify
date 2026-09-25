@@ -65,6 +65,7 @@ import {
     devCommand as dev,
     debugCommand as debug,
     browseCommand as browse,
+    webextCommand as webext,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
 import { isBun, isDeno, isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -189,6 +190,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(dev.command, dev.description, dev.builder, dev.handler)
         .command(debug.command, debug.description, debug.builder, debug.handler)
         .command(browse.command, browse.description, browse.builder, browse.handler)
+        .command(webext.command, webext.description, webext.builder, webext.handler)
         .demandCommand(1)
         .epilogue(`Running on ${runtimeLabel()}`)
         .help()

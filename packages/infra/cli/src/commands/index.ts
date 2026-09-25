@@ -41,3 +41,4 @@ export * from './storybook.js';
 export * from './dev.js';
 export * from './debug.js';
 export * from './browse.js';
+export { webextCommand } from './webext.js';

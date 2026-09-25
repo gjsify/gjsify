@@ -25,6 +25,7 @@ gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify show
 gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consumer against a LOCAL gjsify checkout (ADR 0065)
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
+gjsify webext build|zip|dev [--target <t>..]   # WebExtension, one folder per target (ADR 0077)
 ```
 
 **`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag

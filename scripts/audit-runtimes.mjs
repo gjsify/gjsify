@@ -1583,6 +1583,9 @@ const CHECK_RULES = [
     // three, which is exactly the half a single-OS runner can be trusted with.
     'os-axis',
     'storybook',
+    // ADR 0077. Reads the block and stats the paths it names — no build — so a misspelled
+    // extension entry fails here and not only in the build of an affected example.
+    'webext',
     // There is no iOS CI anywhere in this repo, so "does the declared platform have an
     // implementation at all" is the only half of that promise any machine here can hold.
     'nativescript-platforms',
@@ -1765,6 +1768,7 @@ async function main() {
         const portableScripts = byId.get('portable-scripts');
         const osAxis = byId.get('os-axis');
         const storybook = byId.get('storybook');
+        const webext = byId.get('webext');
         const nativescriptPlatforms = byId.get('nativescript-platforms');
         const releaseTrain = byId.get('release-train');
         const coverage = byId.get('field-coverage');
@@ -1820,6 +1824,7 @@ async function main() {
             console.log(portableScripts.summary);
             console.log(osAxis.summary);
             console.log(storybook.summary);
+            console.log(webext.summary);
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
@@ -2055,6 +2060,11 @@ async function main() {
                     'so it is advisory). Fix by pointing `stories` at the directory that actually holds them, or by ' +
                     'dropping the declaration if the package no longer ships stories.',
             );
+            console.error('');
+        }
+        if ((webext.failures ?? []).length > 0) {
+            console.error(`WEBEXT-DECLARATION FAILURES on ${webext.failures.length} path(s):`);
+            for (const line of webext.failures) console.error(`  - ${line}`);
             console.error('');
         }
         if ((nativescriptPlatforms.failures ?? []).length > 0) {
@@ -2345,6 +2355,7 @@ async function main() {
             // `after:bump` hook and the accountant below is the only reason its
             // 11 findings were visible at all.
             'storybook',
+            'webext',
             'nativescript-platforms',
             'release-train',
             'field-coverage',
