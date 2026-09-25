@@ -59,7 +59,7 @@ Universal terminal-color package (every CLI tool depends on chalk). Three ported
 
 Fresh suite (no API key) against `@anthropic-ai/claude-agent-sdk@0.3.181` — the ground-truth compatibility check for building AI-agent tooling on GNOME. **Node: 123/123 green. GJS: 125/125 green.** Exercises Explicit Resource Management (`using`/`await using` → the `Symbol.dispose`/`asyncDispose` GJS-banner polyfill; stream/readline/FileHandle dispose), zod-v4 + the MCP SDK (`createSdkMcpServer`/`tool` via `InMemoryTransport`), fs session readers + `CLAUDE_CONFIG_DIR`, os/path/process.env.
 
-**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS throws at module load — `ReferenceError: SharedArrayBuffer is not defined`, inside `__esmMin`, before any test executes. Needs the SharedArrayBuffer constructor opt-in tracked in `status/open-todos.md`. The Node leg is green (123). Documented above as `GJS: 125/125 green`.
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS throws at module load — `ReferenceError: SharedArrayBuffer is not defined`, inside `__esmMin`, before any test executes. Needs the SharedArrayBuffer constructor opt-in tracked in `status/open-todos/runtime-apis.md`. The Node leg is green (123). Documented above as `GJS: 125/125 green`.
 
 ## cosmiconfig
 

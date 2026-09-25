@@ -132,6 +132,7 @@ import {
     TS_SOURCE_EXTENSIONS,
     sourceExtensionRe,
 } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+import { readOpenTodos } from './generate-status.mjs';
 
 // Every repo-relative path below is COMPARED against a `/`-spelled literal and printed into a
 // finding. On win32 `relative()` hands back `packages\web\…`, so the module arm matched nothing
@@ -151,7 +152,10 @@ const RENDERERS = [
     { label: 'adwaita-web', dir: join(ROOT, 'packages/web/adwaita-web/src') },
     { label: 'nativescript', dir: join(ROOT, 'packages/nativescript-bridge/adwaita/src') },
 ];
-const OPEN_TODOS = join(ROOT, 'status/open-todos.md');
+// `status/open-todos.md` was split one-file-per-area into `status/open-todos/`
+// (nearly every PR touched the single file, DIRTYing every other open PR on
+// merge); read through the shared helper so this file and
+// `generate-status.mjs` cannot disagree about which area files count.
 
 /**
  * THE THIRD KIND OF DRIVER — a TREE driver (ADR 0051).
@@ -892,7 +896,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
 // reported "156 tables, every one driven or explained" said nothing about any of them.
 const conformanceFiles = walk(CONFORMANCE_DIR);
 const conformanceSource = conformanceFiles.map((file) => readFileSync(file, 'utf8')).join('\n');
-const openTodos = readFileSync(OPEN_TODOS, 'utf8');
+const openTodos = readOpenTodos(ROOT);
 
 /** Does this module export anything a renderer could be held to? */
 const HAS_BEHAVIOUR = /^export\s+(?:async\s+)?(?:const|function|class|let|var|enum|default)\b/m;

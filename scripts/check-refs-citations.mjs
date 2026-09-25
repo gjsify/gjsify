@@ -116,7 +116,7 @@ const SELF = 'scripts/check-refs-citations.mjs';
  *           within the cited range. This is the half that catches a citation wrong
  *           AT BIRTH, which RANGE cannot: 551-562 exists, it simply says something
  *           else. It is opt-in per citation, and that is a deliberate limit rather
- *           than an oversight — see the note in `status/open-todos.md`.
+ *           than an oversight — see the note in `status/open-todos/docs-refs.md`.
  *
  * WHAT WAS MEASURED AND REJECTED: deriving the anchor from the citing prose — take
  * the backticked tokens near the coordinate and require one of them at the cited
@@ -124,7 +124,7 @@ const SELF = 'scripts/check-refs-citations.mjs';
  * backticked token nearby, and reading them, they are overwhelmingly prose that
  * merely MENTIONS a name rather than quoting the cited source (`SHORTCUT_LABEL_VECTORS`
  * is the citing file's own constant; `.rpm` is a sentence). That is the same
- * quote-versus-mention wall `status/sections/priorities.md` records at 42 of 98 for
+ * quote-versus-mention wall `status/priorities/03-keep-ledger-measurable.md` records at 42 of 98 for
  * the ledger, reached independently here. A guard with that flag rate gets switched
  * off and then proves nothing, so it is not built.
  */
@@ -463,7 +463,7 @@ if (lineCitations.length === 0) {
     // The ANCHOR arm is the only one that catches a citation wrong at birth, and an
     // opt-in arm with nothing opted in is an arm that cannot fail. One real anchored
     // citation keeps it exercised; retrofitting the rest is ledgered in
-    // `status/open-todos.md`.
+    // `status/open-todos/docs-refs.md`.
     failures.push(
         'no line citation in the tracked tree carries an `#anchor`, so the arm that verifies WHAT is at a cited ' +
             'line can fire nowhere. Anchor at least one — `refs/<sub>/<path>:<line>#<token at that line>`.',
