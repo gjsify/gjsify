@@ -96,6 +96,7 @@ const onLinux = () => 'linux' as const;
 function fakeSdlModule(name: string): GjsifyGamepadNamespace {
     const device = {
         get_name: () => name,
+        get_guid: () => '00000000000000000000000000000000',
         get_buttons: () => Array.from<number>({ length: 17 }).fill(0),
         get_axes: () => [0, 0, 0, 0],
         has_rumble: () => false,
@@ -482,6 +483,7 @@ export default async () => {
             _resetGamepadBackendCache();
             const device = {
                 get_name: () => 'Shim Pad',
+                get_guid: () => '00000000000000000000000000000000',
                 get_buttons: () => Array.from<number>({ length: 17 }).fill(0),
                 get_axes: () => [0, 0, 0, 0],
                 has_rumble: () => false,

@@ -20,6 +20,18 @@
 import type { GamepadHapticActuator } from './gamepad.js';
 
 /**
+ * `vvvv:pppp` from an SDL-style joystick GUID (libmanette and SDL both use that layout:
+ * little-endian 16-bit bus, CRC, vendor, 0, product, …), or `undefined` when the GUID
+ * carries no vendor (SDL then stores a name hash there instead).
+ */
+export function modelFromGuid(guid: string | null | undefined): string | undefined {
+    if (!guid || guid.length < 20) return undefined;
+    const le16 = (at: number) => guid.slice(at + 2, at + 4) + guid.slice(at, at + 2);
+    const vendor = le16(8);
+    return vendor === '0000' ? undefined : `${vendor}:${le16(16)}`.toLowerCase();
+}
+
+/**
  * One physical device, as a source reports it. The OBJECT is the identity: the manager
  * keys its slot on it, so a source must hand the same object to every call about the
  * same device.
@@ -29,6 +41,12 @@ export interface GamepadSourceDevice {
     readonly id: string;
     /** Becomes `Gamepad.vibrationActuator`; `null` when the source cannot drive one. */
     readonly vibrationActuator: GamepadHapticActuator | null;
+    /**
+     * The controller MODEL as `vvvv:pppp` (USB vendor and product, hex), read from the
+     * SDL-style GUID both libmanette and SDL report. Optional: only `ComparingSource`
+     * reads it, to pair one controller across two backends that name it differently.
+     */
+    readonly model?: string;
 }
 
 /**

@@ -97,12 +97,29 @@ function differences(primary: Mirror, shadow: Mirror): string[] {
 }
 
 /**
+ * One controller as each backend sees it. By `model` (USB vendor:product) first, since
+ * the two backends name the same pad differently and enumerate several pads in
+ * different orders — measured with a uinput pad beside a real one, where pairing by
+ * order compared each pad with the other. What is left is paired by connection order.
+ */
+function pairUp(primary: Mirror[], shadow: Mirror[]): [Mirror, Mirror][] {
+    const pairs: [Mirror, Mirror][] = [];
+    const rest = [...shadow];
+    const unmatched: Mirror[] = [];
+    for (const a of primary) {
+        const at = a.device.model === undefined ? -1 : rest.findIndex((b) => b.device.model === a.device.model);
+        if (at >= 0) pairs.push([a, rest.splice(at, 1)[0]]);
+        else unmatched.push(a);
+    }
+    for (let i = 0; i < Math.min(unmatched.length, rest.length); i++) pairs.push([unmatched[i], rest[i]]);
+    return pairs;
+}
+
+/**
  * The primary drives the page; the shadow is compared against it.
  *
- * Devices are paired by connection ORDER — the n-th controller each backend still
- * has. Neither backend can name the other's device (Manette's is an evdev node, SDL's
- * a joystick instance id), and a pair connected one after the other is paired
- * correctly by order in both. A count mismatch is itself reported.
+ * Devices are paired by model, then by connection order ({@link pairUp}). A count
+ * mismatch is itself reported.
  *
  * A difference is reported when it has held for two consecutive polls, and again
  * only when the set of differences changes. Manette pushes from the main loop while
@@ -172,10 +189,10 @@ export class ComparingSource implements GamepadSource {
                 `${this._primary.name} sees ${primary.length} controller(s), ${this._shadow.name} sees ${shadow.length}`,
             );
         }
-        for (let i = 0; i < Math.min(primary.length, shadow.length); i++) {
-            const found = differences(primary[i], shadow[i]);
+        for (const [a, b] of pairUp(primary, shadow)) {
+            const found = differences(a, b);
             if (found.length > 0) {
-                lines.push(`"${primary[i].device.id}" vs "${shadow[i].device.id}": ${found.join(', ')}`);
+                lines.push(`"${a.device.id}" vs "${b.device.id}": ${found.join(', ')}`);
             }
         }
         const key = lines.join('\n');

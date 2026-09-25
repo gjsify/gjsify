@@ -19,7 +19,7 @@ import { ManetteAxis, W3CAxis } from './axis-mapping.js';
 import { GamepadManager } from './gamepad-manager.js';
 import type { GamepadEvent } from './gamepad-event.js';
 import { ManetteSource } from './manette-source.js';
-import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
+import { modelFromGuid, type GamepadSource, type GamepadSourceDevice, type GamepadSourceSink } from './source.js';
 
 /** A device as a source reports it. */
 function fakeDevice(id: string): GamepadSourceDevice {
@@ -334,7 +334,41 @@ export default async () => {
         });
     });
 
+    await describe('modelFromGuid', async () => {
+        await it('reads vendor:product from the GUIDs both backends reported for one pad', async () => {
+            // Measured: an 8BitDo N30 Pro 2 over Bluetooth, libmanette vs SDL3 (CRC differs).
+            expect(modelFromGuid('05000000c82d00006528000000010000')).toBe('2dc8:2865');
+            expect(modelFromGuid('05004c0cc82d00006528000000010000')).toBe('2dc8:2865');
+            expect(modelFromGuid('030081b85e0400008e02000014010000')).toBe('045e:028e');
+            expect(modelFromGuid('05000000000000000000000000000000')).toBeUndefined();
+            expect(modelFromGuid(null)).toBeUndefined();
+        });
+    });
+
     await describe('ManetteSource', async () => {
+        await it('reads the right stick from ABS_RX/ABS_RY, the codes libmanette actually emits', async () => {
+            // Literal evdev codes, NOT the ManetteAxis constants: a mapped libmanette
+            // device reports `rightx`/`righty` as ABS_RX (3) / ABS_RY (4) — its mapping
+            // table (manette-mapping.c) and a uinput pad measured through
+            // gi://Manette agree. The constants once said 2/3, so the right stick's X
+            // landed on W3C axis 3 and its Y on the left trigger, and a test written
+            // against the constants could not see it (an 8BitDo N30 Pro 2 did).
+            const device = new FakeManetteDevice('Manette Pad');
+            const { module } = fakeManette([device]);
+            const manager = new GamepadManager({ source: new ManetteSource(module) });
+            expect(manager.getGamepads()[0]?.id).toBe('Manette Pad');
+            device.emit('absolute-axis-event', axisEvent(3 /* ABS_RX */, 0.5));
+            device.emit('absolute-axis-event', axisEvent(4 /* ABS_RY */, -0.25));
+            device.emit('absolute-axis-event', axisEvent(1 /* ABS_Y */, 0.125));
+            const snap = manager.getGamepads()[0]!;
+            expect(snap.axes[W3CAxis.RIGHT_STICK_X]).toBe(0.5);
+            expect(snap.axes[W3CAxis.RIGHT_STICK_Y]).toBe(-0.25);
+            expect(snap.axes[W3CAxis.LEFT_STICK_Y]).toBe(0.125);
+            expect(snap.buttons[W3CButton.LEFT_TRIGGER].value).toBe(0);
+            expect(snap.buttons[W3CButton.RIGHT_TRIGGER].value).toBe(0);
+            manager.dispose();
+        });
+
         await it('maps libmanette buttons, hats, sticks and triggers to the standard layout', async () => {
             const device = new FakeManetteDevice('Manette Pad');
             const { module } = fakeManette([device]);
