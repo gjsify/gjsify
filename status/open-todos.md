@@ -3541,18 +3541,12 @@ What is still open:
 - **The HiDPI path stays unproven on darwin.** The VM reports scale factor 1 (its LaunchAgent pins
   `res:1920x1080 scaling:off`), so `clientWidth × devicePixelRatio === canvas.width` holds
   trivially and this host cannot falsify the drawing-buffer bug class. Only a real HiDPI Mac can.
-- **The WebGL conformance suite is 202/209 on a Mac; the seven are desktop-CORE gaps, not
-  darwin quirks.** `on('Gl')` used to be `linux && DISPLAY`, so no GL spec had ever run on macOS;
-  it now realizes a GDK GL context and asks (`@gjsify/unit`'s `canRealizeGl` + probe). Measured
-  on macOS 27 / Apple Silicon / GTK 4.24 / GL 4.1 core: `test` 134/134, `test:conformance`
-  202/209, the same seven before and after the WebGL1-extension fix. All seven are what a core
-  profile removed or never checked, so win32's Mesa core context owes the same answers:
-  `ALPHA`/`LUMINANCE`/`LUMINANCE_ALPHA` do not exist as texture formats in core (ANGLE stores
-  `RED`/`RG` plus a texture swizzle); `GENERATE_MIPMAP_HINT` was removed, so its initial
-  `getParameter` is wrong; and three program checks WebGL requires and the macOS linker does not
-  make — a second vertex shader attached, a program with no fragment shader linking, `useProgram`
-  on an unlinked program. The last three belong in the TypeScript layer, since the driver is
-  entitled to accept them. No CI leg runs GL on macOS, so nothing but a hand run shows these.
+- **No CI leg runs the GL specs on macOS**, so only a hand run on a Mac shows a desktop-CORE
+  regression. `on('Gl')` realizes a GDK GL context and asks (`@gjsify/unit`'s `canRealizeGl` +
+  probe) rather than assuming `linux && DISPLAY`, so the specs do run wherever a display exists.
+- **`copyTexSubImage3D` into an `ALPHA`/`LUMINANCE_ALPHA` 3D or array texture moves R/G, not A,
+  on a core profile.** The 2D copies read back (`legacy-formats.ts`), but WebGL2 keeps no JS
+  record of a 3D texture's format to route on; tracking it per 3D/array binding would close it.
 
 Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`
 (negotiated API/version, scale factor, logical-vs-device sizes, shader-dialect matrix, shader-free
