@@ -3,8 +3,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, cpSync
 import { resolve, join } from 'node:path';
 import { discoverTemplates, findTemplate, type TemplateInfo } from './discover-templates.js';
 import {
-    INSTALL_ARGV,
     defaultRuntimeFor,
+    installCommandLine,
     hostRuntime,
     packageManagersForRuntime,
     runScriptCommand,
@@ -17,6 +17,7 @@ export type { TemplateInfo } from './discover-templates.js';
 export {
     PACKAGE_MANAGERS,
     INSTALL_ARGV,
+    installCommandLine,
     RUNTIME_PACKAGE_MANAGERS,
     RUNTIME_DESCRIPTIONS,
     packageManagersForRuntime,
@@ -171,8 +172,8 @@ export async function createProject(options: CreateProjectOptions): Promise<void
     substituteTemplateSentinels(targetDir, projectName);
 
     if (install) {
-        const argv = [...INSTALL_ARGV[packageManager]];
-        console.log(`Running ${packageManager} ${argv[0]}...`);
+        const commandLine = installCommandLine(packageManager);
+        console.log(`Running ${commandLine}...`);
         // `shell: true` is what makes this work on Windows, where `npm` is
         // `npm.cmd`: `CreateProcess` appends only `.exe` when it searches PATH
         // for a bare name, so `spawnSync('npm', …)` is ENOENT there — and
@@ -183,8 +184,10 @@ export async function createProject(options: CreateProjectOptions): Promise<void
         // `@gjsify/cli`'s `utils/spawn.ts` sanctions for exactly this case. It
         // applies to every manager here: npm/yarn/pnpm/gjsify ship as `.cmd`
         // shims on Windows, and bun/deno as `.exe`, which the bare-name search
-        // finds — but the shell path is correct for both and costs nothing.
-        const result = spawnSync(packageManager, argv, {
+        // finds — but the shell path is correct for both and costs nothing. The
+        // command goes in as one LINE, not an argv: `shell` plus an args array is
+        // DEP0190 (see `installCommandLine`).
+        const result = spawnSync(commandLine, {
             cwd: targetDir,
             stdio: 'inherit',
             shell: true,

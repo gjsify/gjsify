@@ -184,6 +184,32 @@ function needsFilenameDecl(src: string, flags: TokenFlags): boolean {
     return flags.hasFilename && !FILENAME_DECL_RE.test(src);
 }
 
+// The local name the file-URL → path conversion is imported under. Prefixed so it
+// cannot collide with a `fileURLToPath` the dep declares itself.
+const URL_TO_PATH = '__gjsifyFileURLToPath';
+
+/**
+ * A path expression for the file URL `url`, with `fileURLToPath` semantics.
+ *
+ * It used to be `new URL(…).pathname`, which is a URL PATH, not a filesystem path, and
+ * the two part ways twice: percent-escapes stay encoded (`/my%20app/x.js` on any OS),
+ * and on win32 the drive comes out as `/C:/…`, which no Windows API accepts. Every
+ * target has a `fileURLToPath` behind `node:url` (Node's own; `@gjsify/url` on GJS and
+ * in the browser), and the case-1 shim already relies on it.
+ *
+ * `dir` strips the trailing separator the directory URL leaves behind — either one,
+ * since win32 answers `\`.
+ */
+function urlToPathExpr(url: string, dir = false): string {
+    const path = `${URL_TO_PATH}(${url})`;
+    return dir ? `${path}.replace(/[\\\\/]$/, "")` : path;
+}
+
+/** The import the {@link urlToPathExpr} preamble lines need, when there are any. */
+function urlToPathHeader(preamble: readonly string[]): string | undefined {
+    return preamble.length > 0 ? `import { fileURLToPath as ${URL_TO_PATH} } from "node:url";` : undefined;
+}
+
 /** Prepend preamble + (optional) shim import to the source. */
 function withPreamble(src: string, lines: string[], importHeader?: string): string {
     const parts = importHeader ? [importHeader, ...lines, src] : [...lines, src];
@@ -227,15 +253,15 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
     const preamble: string[] = [];
     if (needsDirnameDecl(src, flags)) {
         preamble.push(
-            `var __dirname = new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`,
+            `var __dirname = ${urlToPathExpr(`new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url)`, true)};`,
         );
     }
     if (needsFilenameDecl(src, flags)) {
-        preamble.push(`var __filename = new URL(${JSON.stringify(relPath)}, import.meta.url).pathname;`);
+        preamble.push(`var __filename = ${urlToPathExpr(`new URL(${JSON.stringify(relPath)}, import.meta.url)`)};`);
     }
 
     const code = src.replace(/\bimport\.meta\.url\b/g, `new URL(${JSON.stringify(relPath)}, import.meta.url).href`);
-    return { code: withPreamble(code, preamble), moduleType: moduleTypeForPath(path) };
+    return { code: withPreamble(code, preamble, urlToPathHeader(preamble)), moduleType: moduleTypeForPath(path) };
 }
 
 /**
@@ -245,12 +271,12 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
 function rewriteZipResident(src: string, path: string, flags: TokenFlags): RewriteResult {
     const preamble: string[] = [];
     if (needsDirnameDecl(src, flags)) {
-        preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
+        preamble.push(`var __dirname = ${urlToPathExpr('new URL(".", import.meta.url)', true)};`);
     }
     if (needsFilenameDecl(src, flags)) {
-        preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
+        preamble.push(`var __filename = ${urlToPathExpr('import.meta.url')};`);
     }
-    return { code: withPreamble(src, preamble), moduleType: moduleTypeForPath(path) };
+    return { code: withPreamble(src, preamble, urlToPathHeader(preamble)), moduleType: moduleTypeForPath(path) };
 }
 
 /**

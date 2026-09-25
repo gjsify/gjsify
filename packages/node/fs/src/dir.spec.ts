@@ -4,8 +4,19 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { Dir, opendirSync, opendir, promises, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+    Dir,
+    type Dirent,
+    opendirSync,
+    opendir,
+    promises,
+    mkdirSync,
+    readdirSync,
+    writeFileSync,
+    mkdtempSync,
+    rmSync,
+} from 'node:fs';
+import { basename, join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
 function makeTmp(): string {
@@ -28,6 +39,22 @@ export default async () => {
             const dir = opendirSync(tmp);
             expect(dir.path).toBe(tmp);
             dir.closeSync();
+            rmSync(tmp, { recursive: true, force: true });
+        });
+
+        await it('Dirent.parentPath is the path as the caller spelled it', async () => {
+            // Node hands the opened path through verbatim. Ours rebuilt it from a
+            // child path glued on with `'/'` and then normalised it, so a trailing
+            // separator vanished here — and on win32 the glue itself was the wrong
+            // separator.
+            const tmp = makeTmp();
+            writeFileSync(join(tmp, 'a.txt'), 'a');
+            for (const spelled of [tmp, tmp + sep, join(tmp, '..', basename(tmp))]) {
+                const dir = opendirSync(spelled);
+                expect(dir.readSync()?.parentPath).toBe(spelled);
+                dir.closeSync();
+                expect((readdirSync(spelled, { withFileTypes: true })[0] as Dirent).parentPath).toBe(spelled);
+            }
             rmSync(tmp, { recursive: true, force: true });
         });
 

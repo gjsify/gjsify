@@ -3,6 +3,8 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+import { join } from 'node:path';
+
 import { normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
 import { createNodeError, requireCallback } from './errors.js';
@@ -36,8 +38,8 @@ export class Dir {
             if (info === null) return null;
             const name = info.get_name();
             const fileType = info.get_file_type();
-            const childPath = this.path.endsWith('/') ? this.path + name : this.path + '/' + name;
-            return new Dirent(childPath, name, fileType);
+            // `join`, not `'/'`: on win32 a hand-glued slash left `C:\\dir/name`.
+            return new Dirent(join(this.path, name), name, fileType, undefined, this.path);
         } catch (err: unknown) {
             throw createNodeError(err, 'readdir', this.path);
         }

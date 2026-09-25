@@ -243,11 +243,28 @@ function stageTestAssets(dir, distDir, runGjsify, timeout) {
         const source = join(dir, name);
         const staged = join(distDir, name);
         if (!existsSync(source) || existsSync(staged)) continue;
-        try {
-            symlinkSync(`../${name}`, staged, 'dir');
-        } catch {
-            /* best-effort — a broken link surfaces as the asset-load failure it bridges */
-        }
+        linkAssetDir(`../${name}`, staged);
+    }
+}
+
+/**
+ * Link `staged` to the directory `target` (relative to `staged`'s parent), and throw
+ * when that cannot be done.
+ *
+ * On win32 a `'dir'` symlink needs Developer Mode or an elevated shell, and the call
+ * used to sit in a swallowing `catch`, so an ordinary Windows host staged nothing and
+ * reported the suite's asset reads as the package's own failures. A junction needs no
+ * privilege; it only takes an absolute target, which Node derives from a relative one.
+ * A link that still fails is a broken HARNESS, and it now says so instead of passing
+ * the blame to the package under test.
+ */
+function linkAssetDir(target, staged, platform = process.platform) {
+    try {
+        symlinkSync(target, staged, platform === 'win32' ? 'junction' : 'dir');
+    } catch (err) {
+        throw new Error(`cannot stage test assets: link ${staged} -> ${target} failed (${err.code ?? err.message})`, {
+            cause: err,
+        });
     }
 }
 
@@ -742,4 +759,5 @@ export {
     gjsifyRunner,
     parseSummary,
     stageTestAssets,
+    linkAssetDir,
 };
