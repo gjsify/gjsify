@@ -10,7 +10,7 @@
 // Everything lands under the gitignored `.gi-tests/`:
 //   .gi-tests/src/    the upstream checkout at PINNED_REV
 //   .gi-tests/build/  the meson out-of-tree build dir
-//   .gi-tests/lib/    the collected artifacts (*.typelib + lib*.so) + rev stamp
+//   .gi-tests/lib/    the collected artifacts (*.typelib + lib*.{so,dylib,dll}) + rev stamp
 //
 // Idempotent: a second run with the stamp matching PINNED_REV and the key
 // artifacts present is a no-op. Cairo is disabled (-Dcairo=false) to keep the
@@ -44,13 +44,22 @@ const stampPath = join(libDir, '.pinned-rev');
 // The refs checkout inside the gjsify repo (packages/node-gi/node-gi → repo root).
 const refsCheckout = join(pkgRoot, '..', '..', '..', 'refs', 'gjs', 'subprojects', 'gobject-introspection-tests');
 
+// meson names the shared-library artifact after the HOST, not after Linux — on
+// darwin it links `libgimarshallingtests.dylib`, never `.so`, so a build there
+// produced everything the oracle needs while this collector reported it missing.
+// Mirrors `@gjsify/manifest-conformance`'s `LIB_EXT` map (not imported: that
+// package is workspace-private and node-gi/node-gi installs standalone via its
+// own `npm install`, per node-gi.yml — it has no workspace node_modules to find
+// it in).
+const LIB_SUFFIX = { linux: '.so', darwin: '.dylib', win32: '.dll' }[process.platform] ?? '.so';
+
 // Artifacts that MUST exist for the oracle to run; everything the build
 // produces is collected, but these gate the idempotence check.
 const REQUIRED_ARTIFACTS = [
     'GIMarshallingTests-1.0.typelib',
-    'libgimarshallingtests.so',
+    `libgimarshallingtests${LIB_SUFFIX}`,
     'Regress-1.0.typelib',
-    'libregress.so',
+    `libregress${LIB_SUFFIX}`,
 ];
 
 function run(cmd, args, opts = {}) {
@@ -148,11 +157,12 @@ function collectArtifacts() {
     rmSync(libDir, { recursive: true, force: true });
     mkdirSync(libDir, { recursive: true });
     // All targets land flat in the build root (typelibs + shared libraries);
-    // collect every one so Regress's dependencies (Utility-1.0, libutility.so, …)
-    // travel along. Files only — meson also creates lib*.so.p/ object dirs.
+    // collect every one so Regress's dependencies (Utility-1.0, libutility.*, …)
+    // travel along. Files only — meson also creates lib*.{so,dylib}.p/ object dirs.
     const artifacts = readdirSync(buildDir, { withFileTypes: true })
         .filter(
-            (e) => e.isFile() && (e.name.endsWith('.typelib') || (e.name.startsWith('lib') && e.name.endsWith('.so'))),
+            (e) =>
+                e.isFile() && (e.name.endsWith('.typelib') || (e.name.startsWith('lib') && e.name.endsWith(LIB_SUFFIX))),
         )
         .map((e) => e.name);
     for (const f of artifacts) cpSync(join(buildDir, f), join(libDir, f));
