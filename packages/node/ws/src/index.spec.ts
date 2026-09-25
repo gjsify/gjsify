@@ -155,6 +155,36 @@ export default async () => {
         });
     });
 
+    // Regression, measured 2026-09-25: `ws://host:port` (no path, no trailing
+    // slash) failed the handshake against a @gjsify/ws WebSocketServer on Gjs
+    // — GLib.Uri does not normalize a missing path to "/" the way WHATWG URL
+    // (and upstream ws, via `new URL(address)`) does, so the request never
+    // matched the server's handler (registered at the default path "/") and
+    // Soup rejected the upgrade. Fixed in @gjsify/websocket (the client
+    // @gjsify/ws delegates to); covered end-to-end here through `ws`. Placed
+    // before `makeDeadSocket()` below for the same cross-test timing reason
+    // as "WebSocket constructor argument forms" above.
+    await describe('WebSocket client URL with no path', async () => {
+        await it('connects to ws://host:port with no trailing slash', async () => {
+            const wss = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+            await new Promise<void>((r) => wss.once('listening', () => r()));
+            const port = (wss.address() as { port: number }).port;
+
+            const opened = await new Promise<boolean>((resolve) => {
+                const client = new WebSocket(`ws://127.0.0.1:${port}`);
+                client.on('open', () => {
+                    client.close();
+                    resolve(true);
+                });
+                client.on('error', () => resolve(false));
+                setTimeout(() => resolve(false), 3_000);
+            });
+
+            expect(opened).toBe(true);
+            wss.close();
+        });
+    });
+
     await describe('WebSocket constants', async () => {
         await it('exposes readyState constants on the class', async () => {
             expect(WebSocket.CONNECTING).toBe(0);
