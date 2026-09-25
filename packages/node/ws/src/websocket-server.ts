@@ -29,7 +29,7 @@ import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
-import { ensureMainLoop } from '@gjsify/utils/core';
+import { createNodeError, ensureMainLoop } from '@gjsify/utils/core';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -462,7 +462,13 @@ export class WebSocketServer extends EventEmitter {
                 queueMicrotask(() => this.emit('listening'));
             }
         } catch (err) {
-            queueMicrotask(() => this.emit('error', err instanceof Error ? err : new Error(String(err))));
+            // Map the Gio.IOErrorEnum listen failure to a Node-style ErrnoException
+            // (EADDRINUSE + errno/syscall), same as @gjsify/http and @gjsify/net —
+            // a bare `new Error(gioMessage)` left consumer code that branches on
+            // `err.code === 'EADDRINUSE'` unable to tell a busy port from any other
+            // failure, and surfaced the raw (LOCALIZED) Gio message instead.
+            const nodeErr = createNodeError(err, 'listen', { address: options.host, port: options.port });
+            queueMicrotask(() => this.emit('error', nodeErr));
         }
     }
 

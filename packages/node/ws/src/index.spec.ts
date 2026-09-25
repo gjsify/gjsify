@@ -185,6 +185,41 @@ export default async () => {
         });
     });
 
+    // Regression, measured 2026-09-25: a WebSocketServer that fails to bind a
+    // busy port emitted a bare Error — `{ code: undefined, errno: undefined,
+    // syscall: undefined }`, message the RAW (LOCALIZED — German in the
+    // measurement) Gio.IOErrorEnum text — instead of Node's `EADDRINUSE`
+    // ErrnoException, so consumer code branching on `err.code` couldn't tell
+    // a busy port from any other failure. @gjsify/http and @gjsify/net
+    // already map Gio.IOErrorEnum through `createNodeError`; @gjsify/ws's
+    // WebSocketServer had no such mapping. Placed before `makeDeadSocket()`
+    // below for the same cross-test timing reason as the describes above.
+    await describe('WebSocketServer listen error', async () => {
+        await it('emits error with EADDRINUSE when the port is already in use', async () => {
+            const wss1 = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+            await new Promise<void>((r) => wss1.once('listening', () => r()));
+            const port = (wss1.address() as { port: number }).port;
+
+            try {
+                const error = await new Promise<NodeJS.ErrnoException & { port?: number }>((resolve, reject) => {
+                    const wss2 = new WebSocketServer({ port, host: '127.0.0.1' });
+                    wss2.on('error', resolve);
+                    wss2.on('listening', () => {
+                        wss2.close();
+                        reject(new Error('Expected EADDRINUSE but server started successfully'));
+                    });
+                });
+
+                expect(error.code).toBe('EADDRINUSE');
+                expect(error.syscall).toBe('listen');
+                expect(error.message).toContain('EADDRINUSE');
+                expect(error.message).toContain('listen');
+            } finally {
+                wss1.close();
+            }
+        });
+    });
+
     await describe('WebSocket constants', async () => {
         await it('exposes readyState constants on the class', async () => {
             expect(WebSocket.CONNECTING).toBe(0);
