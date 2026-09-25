@@ -21,7 +21,7 @@ Three things stand in the way:
 1. **The browser barely knows.** The CSS system colour `AccentColor` is the only standard
    route. Engine support is uneven (Chrome announced shipping it only in 2026; what Firefox
    resolves it to on Linux is not established; Firefox 156 on macOS 27 resolves it to
-   `rgb(0, 122, 255)`), and a page cannot tell a real accent from an engine's fixed default.
+   `rgb(0, 122, 255)` for the default accent and to `rgb(149, 61, 150)` for purple, so there it is real), and a page cannot tell a real accent from an engine's fixed default.
    Measured on a GNOME 50 desktop set to purple: Playwright's headless Firefox 151 resolves
    `AccentColor` to `rgb(0, 96, 223)` and its headless Chromium 149 to `rgb(0, 117, 255)`.
    Both are blue, and neither is the desktop's accent. #1821 asks adwaita-web to use it
@@ -59,7 +59,7 @@ means unknown**, never a guessed default, so a consumer can tell "the user picke
 
 | OS | Source | Change detection |
 |---|---|---|
-| Linux, every free desktop | Portal `org.freedesktop.portal.Settings.ReadAll(["org.freedesktop.appearance"])`, then GSettings `org.gnome.desktop.interface` for any field the portal left unknown | `SettingChanged`, `changed::<key>` |
+| Linux, every free desktop | Portal `org.freedesktop.portal.Settings.ReadAll(["org.freedesktop.appearance"])`, then, only when `XDG_CURRENT_DESKTOP` names GNOME, GSettings `org.gnome.desktop.interface` for any field the portal left unknown | `SettingChanged`, `changed::<key>` |
 | Windows | `reg.exe query` for `Explorer\Accent AccentPalette` (entry 3 is WinRT's `UIColorType_Accent`), falling back to `DWM AccentColor`, plus `Themes\Personalize AppsUseLightTheme` | polling, every 3 s while watched |
 | macOS | `defaults read -g` for `AppleAccentColor`, `AppleInterfaceStyle`, `AppleInterfaceStyleSwitchesAutomatically` | a debounced monitor on `~/Library/Preferences`, then a re-read |
 
@@ -77,6 +77,10 @@ Why each spelling was chosen:
 - **`defaults` instead of parsing the plist.** cfprefsd owns the preferences and writes
   `.GlobalPreferences.plist` late and by replacing the file. `defaults` asks cfprefsd. The
   monitor watches the directory because a replaced file can escape a file monitor.
+- **GSettings only on GNOME.** KDE, Xfce and Homebrew on macOS install the schema but never
+  write it, so `get_string` answers the schema default. Measured on a Mac set to purple
+  (`AppleAccentColor = 5`): GSettings said `blue`. Outside GNOME its answer is unknown, and
+  the macOS reader never consults GSettings.
 - **macOS absence is a value, measured.** On a fresh macOS 27 account all three keys are
   absent, which means multicolour (blue) and light. The one exception is Auto appearance,
   where a missing `AppleInterfaceStyle` no longer proves light, so the scheme stays unknown

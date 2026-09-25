@@ -13,6 +13,7 @@
 // or times out contributes nothing, and a field no source could answer is
 // absent from the result.
 
+import GLib from 'gi://GLib?version=2.0';
 import type { DesktopAppearance } from '@gjsify/adwaita-core';
 
 import { readDarwinAppearance, watchDarwinAppearance } from './darwin.js';
@@ -22,7 +23,7 @@ import {
     readGnomeSettings,
     watchGnomeSettings,
 } from './gnome-settings.js';
-import { mergeAppearance, sameAppearance } from './mapping.js';
+import { isGnomeDesktop, mergeAppearance, sameAppearance } from './mapping.js';
 import { type PortalEndpoint, readPortalAppearance, sessionPortalEndpoint, watchPortalAppearance } from './portal.js';
 import { readWin32Appearance, watchWin32Appearance } from './win32.js';
 
@@ -34,6 +35,11 @@ export interface DesktopAppearanceOptions {
     readonly portal?: PortalEndpoint | null;
     /** Linux: the GSettings fallback. Default: `org.gnome.desktop.interface` if installed; `null` skips it. */
     readonly gnomeSettings?: GnomeSettingsSource | null;
+    /**
+     * Linux: `XDG_CURRENT_DESKTOP`, read from the environment by default. GSettings is
+     * consulted only when it names GNOME: elsewhere the schema answers its defaults.
+     */
+    readonly currentDesktop?: string | null;
 }
 
 interface Backend {
@@ -56,7 +62,13 @@ function linuxBackend(options: DesktopAppearanceOptions): Backend {
     const sources = () => {
         resolved ??= (async () => ({
             portal: options.portal !== undefined ? options.portal : await sessionPortalEndpoint(),
-            settings: options.gnomeSettings !== undefined ? options.gnomeSettings : gnomeSettingsSource(),
+            settings: !isGnomeDesktop(
+                options.currentDesktop !== undefined ? options.currentDesktop : GLib.getenv('XDG_CURRENT_DESKTOP'),
+            )
+                ? null
+                : options.gnomeSettings !== undefined
+                  ? options.gnomeSettings
+                  : gnomeSettingsSource(),
         }))();
         return resolved;
     };

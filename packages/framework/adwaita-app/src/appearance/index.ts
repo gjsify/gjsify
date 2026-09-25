@@ -13,6 +13,7 @@ export {
     appearanceFromMacDefaults,
     appearanceFromPortal,
     appearanceFromWindowsRegistry,
+    isGnomeDesktop,
     MACOS_ACCENT_COLORS,
     mergeAppearance,
     parseRegQuery,

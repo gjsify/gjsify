@@ -274,7 +274,7 @@ A reported colour is snapped to one of libadwaita's nine accents with
 
 | OS | Reads | Follows changes by | Measured |
 |---|---|---|---|
-| Linux (GNOME, KDE, Flatpak) | XDG Settings portal `org.freedesktop.appearance`, then GSettings `org.gnome.desktop.interface` for what the portal left unknown | `SettingChanged`, `changed::` | yes, in CI, against a fake portal on a peer D-Bus connection |
+| Linux (GNOME, KDE, Flatpak) | XDG Settings portal `org.freedesktop.appearance`, then GSettings `org.gnome.desktop.interface` for what the portal left unknown, only when `XDG_CURRENT_DESKTOP` names GNOME (elsewhere the schema answers its defaults) | `SettingChanged`, `changed::` | yes, in CI, against a fake portal on a peer D-Bus connection |
 | Windows | `reg.exe query`: `Explorer\Accent AccentPalette` (else `DWM AccentColor`), `Personalize AppsUseLightTheme` | polling every 3 s | mapping only; reg.exe not run on Windows |
 | macOS | `defaults read -g AppleAccentColor / AppleInterfaceStyle / AppleInterfaceStyleSwitchesAutomatically` | a debounced monitor on `~/Library/Preferences` | mapping only; not run end to end on a Mac |
 

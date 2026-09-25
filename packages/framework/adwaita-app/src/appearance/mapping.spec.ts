@@ -8,6 +8,7 @@ import {
     appearanceFromMacDefaults,
     appearanceFromPortal,
     appearanceFromWindowsRegistry,
+    isGnomeDesktop,
     MACOS_ACCENT_COLORS,
     mergeAppearance,
     parseRegQuery,
@@ -57,6 +58,18 @@ export default async () => {
                 colorScheme: 'no-preference',
             });
             expect(appearanceFromGnomeSettings({ accentColor: null, colorScheme: null })).toStrictEqual({});
+        });
+    });
+
+    await describe('isGnomeDesktop (XDG_CURRENT_DESKTOP)', async () => {
+        await it('accepts GNOME anywhere in the list and nothing else', () => {
+            expect(isGnomeDesktop('GNOME')).toBe(true);
+            expect(isGnomeDesktop('ubuntu:GNOME')).toBe(true);
+            expect(isGnomeDesktop('GNOME-Classic:GNOME')).toBe(true);
+            expect(isGnomeDesktop('KDE')).toBe(false);
+            expect(isGnomeDesktop('X-Cinnamon')).toBe(false);
+            expect(isGnomeDesktop('')).toBe(false);
+            expect(isGnomeDesktop(undefined)).toBe(false);
         });
     });
 

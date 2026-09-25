@@ -167,6 +167,7 @@ export default async () => {
                 platform: 'linux',
                 portal: portal.endpoint,
                 gnomeSettings: settings,
+                currentDesktop: 'GNOME',
             });
             expect(appearance).toStrictEqual({ accent: 'teal', colorScheme: 'light' });
             portal.close();
@@ -180,8 +181,33 @@ export default async () => {
                 platform: 'linux',
                 portal: portal.endpoint,
                 gnomeSettings: settings,
+                currentDesktop: 'GNOME',
             });
             expect(appearance).toStrictEqual({ accent: 'green', colorScheme: 'no-preference' });
+        });
+
+        await it('never takes a GSettings default outside GNOME: schema present, desktop KDE → unknown', async () => {
+            // KDE, Xfce and Homebrew on macOS install the schema but never write it, so
+            // 'blue' here is the schema default, not the user's accent.
+            const settings = fakeGnomeSettings({ 'accent-color': 'blue', 'color-scheme': 'default' });
+            for (const currentDesktop of ['KDE', 'XFCE', '', null]) {
+                expect(
+                    await readDesktopAppearance({
+                        platform: 'linux',
+                        portal: null,
+                        gnomeSettings: settings,
+                        currentDesktop,
+                    }),
+                ).toStrictEqual({});
+            }
+            expect(
+                await readDesktopAppearance({
+                    platform: 'linux',
+                    portal: null,
+                    gnomeSettings: settings,
+                    currentDesktop: 'ubuntu:GNOME',
+                }),
+            ).toStrictEqual({ accent: 'blue', colorScheme: 'no-preference' });
         });
 
         await it('answers {} when there is no source at all', async () => {
@@ -226,6 +252,7 @@ export default async () => {
                 platform: 'linux',
                 portal: null,
                 gnomeSettings: settings,
+                currentDesktop: 'GNOME',
             });
             await nthReport(reports, 1);
             settings.set('accent-color', 'slate');

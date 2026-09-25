@@ -86,6 +86,21 @@ export function appearanceFromPortal(namespace: Readonly<Record<string, unknown>
 }
 
 /**
+ * Whether GSettings `org.gnome.desktop.interface` describes THIS desktop, from
+ * `XDG_CURRENT_DESKTOP` (a colon-separated list such as `ubuntu:GNOME`).
+ *
+ * The schema is installed far beyond GNOME: KDE and Xfce ship
+ * gsettings-desktop-schemas, and so does Homebrew on macOS. There nobody writes
+ * the keys, so `get_string` answers the schema DEFAULT, and a reader that took it
+ * would report `blue` for a desktop set to purple (measured on macOS with
+ * `AppleAccentColor = 5`, JumpLink/beifahrer#19). Outside GNOME the answer is
+ * therefore "unknown", never the default.
+ */
+export function isGnomeDesktop(currentDesktop: string | null | undefined): boolean {
+    return (currentDesktop ?? '').split(':').some((name) => name.trim().toUpperCase() === 'GNOME');
+}
+
+/**
  * GSettings `org.gnome.desktop.interface` — the fallback where no portal
  * answers. `accent-color` (GNOME 47+) is already one of the nine NAMES, so no
  * snapping and no colour; `color-scheme` (GNOME 42+) is `default`,
