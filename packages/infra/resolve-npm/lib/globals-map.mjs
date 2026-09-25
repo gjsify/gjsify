@@ -79,6 +79,9 @@ export const GJS_GLOBALS_GROUPS = {
         'KeyboardEvent',
         'WheelEvent',
         'FocusEvent',
+        'addEventListener',
+        'removeEventListener',
+        'dispatchEvent',
         'EventSource',
         'WebSocket',
         'WebAssembly',
@@ -199,6 +202,11 @@ export const GJS_GLOBALS_MAP = {
     KeyboardEvent: 'dom-events/register/ui-events',
     WheelEvent: 'dom-events/register/ui-events',
     FocusEvent: 'dom-events/register/ui-events',
+    // GJS's global IS a `window` (GJS defines it, non-configurable), so browser branches call
+    // `window.addEventListener`; a window is an EventTarget (ADR 0079).
+    addEventListener: 'dom-events/register/global-event-target',
+    removeEventListener: 'dom-events/register/global-event-target',
+    dispatchEvent: 'dom-events/register/global-event-target',
     EventSource: 'eventsource/register',
 
     // --- WebSocket ---------------------------------------------------------
@@ -429,6 +437,9 @@ export const BROWSER_NATIVE_IDENTS = new Set([
     'KeyboardEvent',
     'WheelEvent',
     'FocusEvent',
+    'addEventListener',
+    'removeEventListener',
+    'dispatchEvent',
     'EventSource',
     'WebSocket',
     'WebAssembly',

@@ -94,6 +94,7 @@ the TODO records the *what's left*.
 | [0071](0071-a-slot-is-a-placement-a-renderer-answers-to.md) | A slot is a placement, and a renderer either answers to its name or refuses it | Proposed |
 | [0072](0072-value-lists-become-a-typed-extensions-field.md) | String lists and dialog responses become a typed `extensions` field | Proposed |
 | [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam (Amendment 1: SDL3 on every OS) | Proposed |
+| [0079](0079-window-follows-the-runtime.md) | `window` follows the runtime: no define on Node, an EventTarget on GJS | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

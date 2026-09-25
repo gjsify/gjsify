@@ -23,7 +23,14 @@
 // already declares the plugin as a dependency.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { isRegisterSubpath, isGjsifyShim, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
+import {
+    isRegisterSubpath,
+    isGjsifyShim,
+    createGjsExternalsPredicate,
+    setupForGjs,
+    setupForNode,
+} from '@gjsify/rolldown-plugin-gjsify';
+import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
 import {
     detectAutoGlobals,
     detectNodeGiGlobals,
@@ -269,6 +276,45 @@ export default async () => {
             const result = detectFreeGlobals(code);
             expect(result.has('navigator')).toBe(false);
             expect(result.has('fetch')).toBe(true);
+        });
+    });
+
+    // ADR 0079. `window: 'globalThis'` in `--app node`'s define turned every
+    // `typeof window === 'undefined'` guard false: @mtcute/web's exit hook took its browser
+    // branch and threw `globalThis.addEventListener is not a function` from a node bundle whose
+    // source run passes on Node. On GJS the same branch runs because GJS defines `window` itself.
+    await describe('window: no define on node, an EventTarget on GJS (ADR 0079)', async () => {
+        const defineOf = (options: unknown) =>
+            (options as { transform?: { define?: Record<string, string> } }).transform?.define ?? {};
+
+        await it('--app node does not define window', async () => {
+            const { options } = await setupForNode({ output: { file: 'dist/x.mjs' }, pluginOptions: {} });
+            expect('window' in defineOf(options)).toBe(false);
+            expect(defineOf(options).global).toBe('globalThis');
+        });
+
+        await it('--app gjs keeps the identity define (GJS owns a non-configurable window)', async () => {
+            const { options } = await setupForGjs({ output: { file: 'dist/x.js' }, pluginOptions: {} });
+            expect(defineOf(options).window).toBe('globalThis');
+        });
+
+        await it('maps the global EventTarget methods to the global-event-target register', () => {
+            const map = GJS_GLOBALS_MAP as Record<string, string>;
+            for (const name of ['addEventListener', 'removeEventListener', 'dispatchEvent']) {
+                expect(map[name]).toBe('dom-events/register/global-event-target');
+            }
+        });
+
+        await it('window.addEventListener (define-rewritten to globalThis.) is detected', () => {
+            const code = `
+                if (typeof globalThis === 'undefined') { process.on('exit', f); }
+                else { globalThis.addEventListener('beforeunload', f); }
+            `;
+            expect(detectFreeGlobals(code).has('addEventListener')).toBe(true);
+        });
+
+        await it("an unrelated object's addEventListener is not", () => {
+            expect(detectFreeGlobals(`el.addEventListener('click', f);`).has('addEventListener')).toBe(false);
         });
     });
 
