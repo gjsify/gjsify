@@ -9,7 +9,7 @@ import type Manette from '@girs/manette-0.2';
 import { MANETTE_TO_W3C_AXIS, ManetteAxis, TRIGGER_PRESS_THRESHOLD } from './axis-mapping.js';
 import { MANETTE_TO_W3C_BUTTON, W3CButton } from './button-mapping.js';
 import { ManetteHapticActuator } from './haptic-actuator.js';
-import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
+import { modelFromGuid, type GamepadSource, type GamepadSourceDevice, type GamepadSourceSink } from './source.js';
 
 interface Tracked {
     handle: GamepadSourceDevice;
@@ -67,6 +67,7 @@ export class ManetteSource implements GamepadSource {
         const handle: GamepadSourceDevice = {
             id: device.get_name() ?? `Gamepad (${device.get_guid()})`,
             vibrationActuator: new ManetteHapticActuator(device),
+            model: modelFromGuid(device.get_guid()),
         };
         const tracked: Tracked = { handle, signalIds: [] };
         this._devices.set(device, tracked);

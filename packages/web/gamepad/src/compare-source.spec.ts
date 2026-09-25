@@ -10,8 +10,8 @@ import { ComparingSource } from './compare-source.js';
 import { GamepadManager } from './gamepad-manager.js';
 import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
 
-function device(id: string): GamepadSourceDevice {
-    return { id, vibrationActuator: null };
+function device(id: string, model?: string): GamepadSourceDevice {
+    return { id, vibrationActuator: null, model };
 }
 
 /** Reports `present` on start; the test drives the rest through `sink`. */
@@ -124,6 +124,26 @@ export default async () => {
             source.poll();
             source.poll();
             expect(lines).toContain('gi://Manette sees 2 controller(s), gi://GjsifyGamepad sees 1');
+            source.stop();
+        });
+
+        await it('pairs two controllers by model, not by the order each backend lists them', async () => {
+            const [m360, mN30] = [
+                device('Microsoft X-Box 360 pad', '045e:028e'),
+                device('8BitDo N30 Pro 2', '2dc8:2865'),
+            ];
+            const [sN30, s360] = [device('8BitDo N30 Pro 2', '2dc8:2865'), device('Xbox 360 Controller', '045e:028e')];
+            const manette = new Scripted('gi://Manette', [m360, mN30]);
+            const sdl = new Scripted('gi://GjsifyGamepad', [sN30, s360]);
+            const lines: string[] = [];
+            const source = new ComparingSource(manette, sdl, (line) => lines.push(line));
+            source.start({ connected() {}, disconnected() {}, button() {}, axis() {} });
+            lines.length = 0;
+            manette.sink?.axis(m360, 2, 1);
+            sdl.sink?.axis(s360, 2, 1);
+            source.poll();
+            source.poll();
+            expect(lines).toStrictEqual([]);
             source.stop();
         });
 
