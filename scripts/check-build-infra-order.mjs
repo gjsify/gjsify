@@ -608,7 +608,100 @@ if (sweepScanned && !sweepInputs) {
 console.log(`build-infra-order: sweep rule read ${sweepScanned} package(s) in the CLI's production closure.`);
 for (const p of sweepProblems) console.error(`  ✗ ${p}`);
 
-const total = problems.length + orderProblems.length + sweepProblems.length;
+// ---------------------------------------------------------------------------
+// RULE 4 — a clause may not build (or type-emit) a package before an EXPLICIT
+// `build:infra` clause for one of its own production/peer `workspace:`
+// `@gjsify/*` dependencies.
+//
+// THE RISK
+//
+// Rules 2 and 3 order clauses by what the compiled FILES actually import —
+// precise, but only once some file's import statement names the dependency.
+// The manifest's `dependencies`/`peerDependencies` entry is the contract
+// `build:infra` is supposed to honour regardless of which file first exercises
+// it: if `@gjsify/utils` lists `@gjsify/runtime` as a production dependency,
+// nothing about THIS PR's ordering may assume runtime already exists just
+// because no current file happens to import it yet — the next commit that
+// adds the obvious import (the shape #1133/#1237 already paid for once, see
+// rule 2's header) must not be the first thing to notice the chain is wrong.
+// This rule reads the dependency graph directly off the manifests, so it
+// fires the commit a dependency is DECLARED, not the later one where some
+// file's import finally exercises it.
+//
+// WHAT MAKES A DEPENDENCY "IN THE CHAIN"
+//
+// Only a dependency with its OWN explicit `gjsify workspace <dep> build` or
+// `build:types` clause counts. A package that build:infra never names for
+// itself — reachable only because some UNRELATED package's `-d` happens to
+// sweep it into that package's own production closure — is not a promise
+// `build:infra` makes about WHEN that dependency is ready, so this rule has
+// nothing to order it against (measured against this repo's real chain:
+// `@gjsify/buffer` is a real `dependencies` entry of `@gjsify/cli` that CLI's
+// own tsc does not import — see `packages/infra/cli/src/utils/base64.ts` — and
+// is only ever swept in via `@gjsify/process build -d`; treating it as
+// "in the chain" would flag that deliberate, working arrangement).
+//
+// WHAT MAKES THE CORRESPONDING CLAUSE "EARLIER"
+//
+// `build:types` and `build` are treated as equally suffusing (either one
+// leaves the dependency's declarations behind — every package's own `build`
+// runs `build:gjsify && build:types` or equivalent), so a dependency's
+// EARLIEST explicit clause of either kind, if any, is what must precede the
+// dependent's clause. `-d`/`--with-dependencies` builds the dependent's own
+// production closure as PART of that same clause, so a dependency already in
+// that closure needs no separate earlier clause of its own.
+
+/** Production/peer `workspace:` `@gjsify/*` dependencies of a manifest — never `devDependencies`. */
+function workspaceProdDeps(manifest) {
+    const deps = { ...manifest?.dependencies, ...manifest?.peerDependencies };
+    return Object.entries(deps)
+        .filter(([dep, range]) => dep.startsWith('@gjsify/') && typeof range === 'string' && range.startsWith('workspace:'))
+        .map(([dep]) => dep);
+}
+
+/** Earliest EXPLICIT `build`/`build:types` clause index per package — no `-d` sweep-in. */
+const explicitAt = new Map();
+for (const [i, clause] of clauses.entries()) {
+    const m = /^gjsify workspace (\S+) ([\w:.-]+)/.exec(clause);
+    if (!m || !/^build(?::types)?$/.test(m[2])) continue;
+    if (!explicitAt.has(m[1])) explicitAt.set(m[1], i);
+}
+
+const depOrderProblems = [];
+let depOrderScanned = 0;
+let depsChecked = 0;
+
+for (const [i, clause] of clauses.entries()) {
+    const m = /^gjsify workspace (\S+) ([\w:.-]+)/.exec(clause);
+    if (!m || !/^build(?::types)?$/.test(m[2])) continue;
+    const [, name, script] = m;
+    const entry = byName.get(name);
+    if (!entry) continue; // rule 1 already reported the unresolvable clause
+    depOrderScanned++;
+    const withDeps = /\s(?:-d|--with-dependencies)(?:\s|$)/.test(clause);
+    const ownClosure = withDeps ? productionClosure(name, byName) : new Set([name]);
+    for (const dep of workspaceProdDeps(entry.json)) {
+        if (ownClosure.has(dep)) continue; // this clause's own `-d` builds it first
+        depsChecked++;
+        const at = explicitAt.get(dep);
+        if (at === undefined) continue; // dep has no explicit clause of its own — not "in the chain"
+        if (at < i) continue;
+        depOrderProblems.push(
+            `clause ${i + 1} runs \`${name} ${script}\`, whose production/peer dependency ${dep} has no ` +
+                `earlier clause of its own — its explicit \`build\`/\`build:types\` clause is at position ` +
+                `${at + 1}, not before ${i + 1}. Move a \`build:types\` (or \`build\`) clause for ${dep} ` +
+                `before clause ${i + 1}, or drop the dependency if ${name} does not actually need it there.`,
+        );
+    }
+}
+
+console.log(
+    `build-infra-order: dependency-order rule checked ${depsChecked} production/peer workspace dependency ` +
+        `edge(s) across ${depOrderScanned} clause(s).`,
+);
+for (const p of depOrderProblems) console.error(`  ✗ ${p}`);
+
+const total = problems.length + orderProblems.length + sweepProblems.length + depOrderProblems.length;
 if (total) {
     console.error(`build-infra-order: ${total} problem(s).`);
     process.exit(1);
