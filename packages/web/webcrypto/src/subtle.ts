@@ -38,6 +38,16 @@ import {
 } from './crypto-key.js';
 import { aesKeyWrap, aesKeyUnwrap } from './aes-kw.js';
 import {
+    cfrgName,
+    cfrgGenerateKey,
+    cfrgImportKey,
+    cfrgExportKey,
+    ed25519Sign,
+    ed25519Verify,
+    x25519DeriveBits,
+    type CfrgCrypto,
+} from './cfrg.js';
+import {
     normalizeAlgorithm,
     toNodeHashName,
     toNodeCurveName,
@@ -83,6 +93,7 @@ let _rsaPssVerify: (
 ) => boolean;
 let _rsaOaepEncrypt: (hashAlgo: string, pubKeyPem: string, plaintext: Uint8Array, label?: Uint8Array) => Uint8Array;
 let _rsaOaepDecrypt: (hashAlgo: string, privKeyPem: string, ciphertext: Uint8Array, label?: Uint8Array) => Uint8Array;
+let _cfrg: CfrgCrypto;
 
 async function loadCrypto(): Promise<void> {
     if (_cryptoLoaded) return;
@@ -107,6 +118,14 @@ async function loadCrypto(): Promise<void> {
     _rsaPssVerify = crypto.rsaPssVerify as typeof _rsaPssVerify;
     _rsaOaepEncrypt = crypto.rsaOaepEncrypt as typeof _rsaOaepEncrypt;
     _rsaOaepDecrypt = crypto.rsaOaepDecrypt as typeof _rsaOaepDecrypt;
+    _cfrg = {
+        generateKeyPairSync: crypto.generateKeyPairSync as CfrgCrypto['generateKeyPairSync'],
+        sign: crypto.sign as CfrgCrypto['sign'],
+        verify: crypto.verify as CfrgCrypto['verify'],
+        diffieHellman: crypto.diffieHellman as CfrgCrypto['diffieHellman'],
+        createPrivateKey: crypto.createPrivateKey as CfrgCrypto['createPrivateKey'],
+        createPublicKey: crypto.createPublicKey as CfrgCrypto['createPublicKey'],
+    };
     _cryptoLoaded = true;
 }
 
@@ -140,6 +159,8 @@ export class SubtleCrypto {
         await cryptoReady;
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
+        const cfrg = cfrgName(alg.name);
+        if (cfrg) return cfrgGenerateKey(_cfrg, cfrg, extractable, keyUsages);
 
         switch (name) {
             case 'AES-CBC':
@@ -235,6 +256,8 @@ export class SubtleCrypto {
         await cryptoReady;
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
+        const cfrg = cfrgName(alg.name);
+        if (cfrg) return cfrgImportKey(_cfrg, format, keyData, cfrg, extractable, keyUsages);
 
         switch (name) {
             case 'AES-CBC':
@@ -420,6 +443,7 @@ export class SubtleCrypto {
             throw new DOMException('Key is not extractable', 'InvalidAccessError');
         }
 
+        if (cfrgName(key.algorithm.name)) return cfrgExportKey(format, key);
         const name = key.algorithm.name.toUpperCase();
 
         if (format === 'raw') {
@@ -709,6 +733,8 @@ export class SubtleCrypto {
                 const sig = _rsaPssSign(nodeHash, handle.pem, bytes, saltLen);
                 return (sig.buffer as ArrayBuffer).slice(sig.byteOffset, sig.byteOffset + sig.byteLength);
             }
+            case 'ED25519':
+                return ed25519Sign(_cfrg, key, bytes);
             default:
                 throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
         }
@@ -768,6 +794,8 @@ export class SubtleCrypto {
                 const saltLen = (algorithm as RsaPssParams).saltLength ?? hashSize(hashName);
                 return _rsaPssVerify(nodeHash, handle.pem, sig, bytes, saltLen);
             }
+            case 'ED25519':
+                return ed25519Verify(_cfrg, key, sig, bytes);
             default:
                 throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
         }
@@ -779,7 +807,7 @@ export class SubtleCrypto {
     private async _deriveBitsInternal(
         algorithm: AlgorithmIdentifier,
         baseKey: CryptoKey,
-        length: number,
+        length: number | null,
     ): Promise<ArrayBuffer> {
         await cryptoReady;
         const alg = normalizeAlgorithm(algorithm);
@@ -826,12 +854,18 @@ export class SubtleCrypto {
                     secretBytes.byteOffset + secretBytes.byteLength,
                 );
             }
+            case 'X25519':
+                return x25519DeriveBits(_cfrg, baseKey, (algorithm as EcdhKeyDeriveParams).public, length);
             default:
                 throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
         }
     }
 
-    async deriveBits(algorithm: AlgorithmIdentifier, baseKey: CryptoKey, length: number): Promise<ArrayBuffer> {
+    async deriveBits(
+        algorithm: AlgorithmIdentifier,
+        baseKey: CryptoKey,
+        length: number | null = null,
+    ): Promise<ArrayBuffer> {
         checkUsage(baseKey, 'deriveBits');
         return this._deriveBitsInternal(algorithm, baseKey, length);
     }

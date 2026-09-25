@@ -5,5 +5,6 @@ import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
 import randomSuite from './random.spec.js';
+import cfrgSuite from './cfrg.spec.js';
 
-run({ testSuite, randomSuite });
+run({ testSuite, randomSuite, cfrgSuite });
