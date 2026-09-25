@@ -45,8 +45,20 @@
 //      (v4); without it the fresh-resolve and lockfile paths disagree about one
 //      tree.
 //
-// Out of scope (still deferred): peerDependencies validation, lifecycle scripts,
-// git/file specs.
+// PEER DEPENDENCIES follow npm ≥ 7: every peer NOT marked optional in
+// `peerDependenciesMeta` is installed where the dependent resolves it — as its
+// SIBLING (queued from the dependent's parent, so the dependent and whatever
+// requires it share one instance), reusing any visible copy whose version
+// satisfies the range. Optional peers are never installed, exactly as npm skips
+// them; ADR 0020's `@gjsify/rolldown-native` depends on that. The defect this
+// closes: `wxt` declares `vite` as a required peer, `gjsify install` exited 0
+// without it, and `wxt prepare` died with "Builder not found". A peer edge is a
+// REQUIRED edge for the optionality fixpoint ({@link requiredPeerEntries}), so
+// the lockfile records the peer maps and marks a peer-aware resolve
+// (`Lockfile.peersResolved` says why that is a marker and not a version bump).
+//
+// Out of scope (still deferred): lifecycle scripts, git/file specs, and npm's
+// strict-peer-deps ERESOLVE (a conflicting peer warns, see `resolveDeps`).
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -130,6 +142,10 @@ export interface ResolvedNode {
     /** Ranges keyed by name, as published. */
     dependencies: Record<string, string>;
     optionalDependencies: Record<string, string>;
+    /** As published; absent when the version declares none. Read through {@link requiredPeerEntries}. */
+    peerDependencies?: Record<string, string>;
+    /** As published — `optional: true` here is what keeps a peer from being installed. */
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>;
     bin?: string | Record<string, string>;
     /**
      * The version's `os`/`cpu`/`libc` declaration, as published. Recorded here
@@ -216,6 +232,14 @@ interface LockfileEntry {
      * turned an install npm thins into an EBADPLATFORM.
      */
     optionalDependencies?: Record<string, string>;
+    /**
+     * The entry's `peerDependencies` / `peerDependenciesMeta`, as published, omitted
+     * when empty — npm's `package-lock.json` field names. Persisted for the reason
+     * `optionalDependencies` is: a required peer edge makes its target required, and
+     * {@link computeOptionalFlags} runs on the lockfile path too.
+     */
+    peerDependencies?: Record<string, string>;
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>;
     bin?: string | Record<string, string>;
     /**
      * Platform declaration, omitted when the package declares none (the vast
@@ -236,6 +260,22 @@ interface Lockfile {
     /** Pinned packages keyed by `installPath` (e.g. `node_modules/foo` or
      *  `node_modules/foo/node_modules/bar` for nested entries). */
     packages: Record<string, LockfileEntry>;
+    /**
+     * `true` when the resolve that wrote this file installed required peers. A file
+     * without it came from a CLI that never read `peerDependencies`, so it can lack
+     * a required peer while matching the request exactly — it seeds a
+     * version-preserving resolve instead of short-circuiting it, as a pre-v4 file
+     * does. That re-resolve is what hands an EXISTING consumer the fix; a file obeyed
+     * as-is would keep the `wxt`-without-`vite` tree until a dependency changed.
+     * `--immutable` still consumes such a file verbatim (READABLE_LOCKFILE_VERSIONS).
+     *
+     * A MARKER, NOT A `LOCKFILE_VERSION` BUMP, on purpose: the change is additive (a
+     * CLI that does not know the field reads the file correctly and installs every
+     * entry, peers included), while a bump would make `main` WRITE a format the
+     * published CLI cannot READ — the Node-less bootstrap that
+     * `scripts/check-lockfile-reader-lead.mjs` guards. Fold it into the next bump.
+     */
+    peersResolved?: true;
 }
 
 export interface InstalledTopLevel {
@@ -369,12 +409,16 @@ async function installPackagesNativeLocked(
         !opts.refreshLockfile &&
         existingLock &&
         existingLock.lockfileVersion === LOCKFILE_VERSION &&
+        existingLock.peersResolved === true &&
         lockfileMatchesRequest(existingLock, opts.specs)
     ) {
         log('install: using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
         // A resolve has to run (new/changed/removed dep, or no lockfile yet).
+        //
+        // So does a lockfile without `peersResolved`: it may lack a required peer
+        // (Lockfile.peersResolved).
         //
         // A pre-v4 lockfile lands here too even when it matches the request: each
         // bump added something the verdict is recomputed FROM, so a file lacking it
@@ -809,6 +853,12 @@ async function resolveDeps(
          * final flags (see {@link assertRequiredEdgesResolved}).
          */
         required: boolean;
+        /**
+         * Set on a PEER edge: the package declaring the peer. `from` is then its
+         * PARENT, so the peer lands beside it and it shares one instance with whatever
+         * requires it — which is what distinguishes a peer from a dependency.
+         */
+        peerOf?: ResolvedNode;
     }
     /** See {@link ResolveResult.skippedEdges}. Keyed by {@link edgeKey}. */
     const skippedEdges = new Set<string>();
@@ -889,6 +939,27 @@ async function resolveDeps(
                 continue;
             }
 
+            // A peer must live in ONE directory — beside its dependent. If that slot
+            // already holds a version outside the range, a private copy would give the
+            // dependent a different instance from its requester, which is the thing a
+            // peer exists to prevent. npm ≥ 7 raises ERESOLVE here in strict mode and,
+            // non-strict (`--force`, or a conflict below the root), warns "overriding
+            // peer dependency" and keeps the existing copy. We take the lenient answer:
+            // warn, keep it, install nothing.
+            if (edge.peerOf) {
+                const slot =
+                    edge.from === null ? `node_modules/${edge.name}` : `${edge.from}/node_modules/${edge.name}`;
+                const occupant = byPath.get(slot);
+                if (occupant) {
+                    console.warn(
+                        `[gjsify] warning: peer dependency conflict: ${edge.peerOf.name}@${edge.peerOf.version} ` +
+                            `wants ${edge.name}@${edge.range}, but ${occupant.version} is installed at ` +
+                            `${occupant.installPath} — keeping it (npm's non-strict behaviour).`,
+                    );
+                    continue;
+                }
+            }
+
             // No compatible placement. Resolve a version, preferring one already
             // pinned when it satisfies the range so an add does not bump unchanged
             // deps.
@@ -919,6 +990,8 @@ async function resolveDeps(
                     installPath,
                     dependencies: v.dependencies ?? {},
                     optionalDependencies: v.optionalDependencies ?? {},
+                    peerDependencies: nonEmpty(v.peerDependencies),
+                    peerDependenciesMeta: nonEmpty(v.peerDependenciesMeta),
                     bin: v.bin,
                     // Complete as published: `fetchPkg` reads the FULL document, so all
                     // three fields come from one body — no second fetch, no heuristic.
@@ -944,6 +1017,20 @@ async function resolveDeps(
                 });
 
                 if (!skipDeps) {
+                    // Required peers FIRST, so the peer claims its slot beside the
+                    // dependent before the dependent's own subtree can hoist an
+                    // incompatible copy of the same name into it. Queued from the PARENT
+                    // (`Edge.peerOf`); optional peers are never queued, npm ≥ 7 skips them.
+                    const parent = parentInstallPath(installPath);
+                    for (const [peerName, peerRange] of requiredPeerEntries(node)) {
+                        queue.push({
+                            from: parent,
+                            name: peerName,
+                            range: applyOverride(peerName, peerRange),
+                            required: !node.optional,
+                            peerOf: node,
+                        });
+                    }
                     // REQUIRED edges only — a name this package also lists in
                     // `optionalDependencies` is queued once by the loop below, as
                     // optional (header note, invariant 3). Queuing it here too would
@@ -983,7 +1070,9 @@ async function resolveDeps(
                     // `assertRequiredEdgesResolved` re-judges every entry against the
                     // fixpoint flags, so a genuinely required dependency cannot go missing
                     // just because BFS reached it through an optional edge first.
-                    skippedEdges.add(edgeKey(edge.from, edge.name));
+                    // A peer edge is keyed by its DEPENDENT, not by `from`: the dependent
+                    // is the requester whose final optionality decides the verdict.
+                    skippedEdges.add(edgeKey(edge.peerOf?.installPath ?? edge.from, edge.name));
                     log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, errMsg(e));
                     continue;
                 }
@@ -1096,13 +1185,36 @@ export function requiredDepEntries(
 }
 
 /**
+ * A node's REQUIRED peer edges: its `peerDependencies` minus those
+ * `peerDependenciesMeta` marks `optional` (npm ≥ 7 installs the rest and skips
+ * these) and minus any name it also lists as a dependency — that edge is walked
+ * from the node itself by {@link requiredDepEntries}, or is optional because the
+ * publisher said so in `optionalDependencies`.
+ *
+ * Shared by the resolve walk and the optionality fixpoint, for the reason
+ * {@link requiredDepEntries} is: two readings of one manifest are two answers.
+ */
+export function requiredPeerEntries(
+    node: Pick<ResolvedNode, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>,
+): [string, string][] {
+    const entries: [string, string][] = [];
+    for (const [name, range] of Object.entries(node.peerDependencies ?? {})) {
+        if (node.peerDependenciesMeta?.[name]?.optional === true) continue;
+        if (name in node.dependencies || name in node.optionalDependencies) continue;
+        entries.push([name, range]);
+    }
+    return entries;
+}
+
+/**
  * Recompute every node's `optional` flag as a FIXPOINT over the placed graph. The
  * only writer of the final flag; whatever the nodes arrive carrying is an input
  * nothing checked (a BFS forward guess on the resolve path, a value read out of a
  * file on the lockfile path) and is overwritten unconditionally.
  *
  * DEFINITION: a node is REQUIRED iff reachable from `requiredNames` through
- * REQUIRED edges alone ({@link requiredDepEntries}); every other node is optional.
+ * REQUIRED edges alone ({@link requiredDepEntries} plus {@link requiredPeerEntries} —
+ * a peer npm installs is as mandatory as a dependency); every other node is optional.
  * Optionality is therefore INHERITED — a plain dependency OF an optional package is
  * still optional, which is what npm's `optionalSet` computes.
  *
@@ -1155,7 +1267,7 @@ export function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<s
         if (installPath === undefined) break;
         const node = byPath.get(installPath);
         if (!node) continue;
-        for (const [depName] of requiredDepEntries(node)) {
+        for (const [depName] of [...requiredDepEntries(node), ...requiredPeerEntries(node)]) {
             // Resolve the edge the way the REQUESTER will at runtime — through
             // the ancestor `node_modules` chain — so a nested copy is credited
             // to the requester that nested it and the hoisted one is not
@@ -1394,6 +1506,12 @@ function findVisible(
     return null;
 }
 
+/** The `installPath` whose `node_modules` holds this one; null for a root placement. */
+function parentInstallPath(installPath: string): string | null {
+    const idx = installPath.lastIndexOf('/node_modules/');
+    return idx < 0 ? null : installPath.slice(0, idx);
+}
+
 /**
  * Where to install `name@version` for a request from `requesterPath`: hoist to
  * `node_modules/<name>` when the root slot is empty or already holds this version,
@@ -1458,6 +1576,8 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
             // what the file does not carry (v4, header note invariant 3).
             optionalDependencies:
                 Object.keys(node.optionalDependencies).length > 0 ? node.optionalDependencies : undefined,
+            peerDependencies: nonEmpty(node.peerDependencies),
+            peerDependenciesMeta: nonEmpty(node.peerDependenciesMeta),
             bin: node.bin,
             // The DECLARATION, never the verdict: `inert` is per-host and deliberately
             // absent from the file, since a lockfile recording which packages the
@@ -1472,11 +1592,16 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
         lockfileVersion: LOCKFILE_VERSION,
         requested: [...specs],
         packages,
+        peersResolved: true,
     };
     // Atomic tmp+rename so a crash mid-write, or a reader racing the writer, can never
     // observe a torn gjsify-lock.json — `--immutable` would otherwise hard-fail on the
     // corrupt file with a misleading error.
     atomicWriteStrict(lockfilePath, JSON.stringify(lockfile, null, 2) + '\n');
+}
+
+function nonEmpty<T>(map: Record<string, T> | undefined): Record<string, T> | undefined {
+    return map && Object.keys(map).length > 0 ? map : undefined;
 }
 
 /**
@@ -1530,6 +1655,8 @@ function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
             // blocks reads as required here. `--immutable` consumes it anyway — see
             // READABLE_LOCKFILE_VERSIONS.
             optionalDependencies: entry.optionalDependencies ?? {},
+            peerDependencies: entry.peerDependencies,
+            peerDependenciesMeta: entry.peerDependenciesMeta,
             bin: entry.bin,
             // Rebuilt from the recorded declaration so `applyPlatformFilter` reaches the
             // SAME verdict here as on the fresh-resolve path, for THIS host — generally

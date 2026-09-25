@@ -30,43 +30,20 @@ A worked example is the v0.28.0 release body:
 https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 -->
 
-## Upgrading
+## `gjsify install` installs required peer dependencies
 
-### Blueprint no longer needs `blueprint-compiler`
+npm 7 and later install every `peerDependencies` entry that `peerDependenciesMeta` does not
+mark `optional`. The native install backend ignored `peerDependencies` completely, so an install
+could exit 0 and still leave a package unable to run. The case that exposed it: a project with
+`wxt` as a devDependency got no `vite`, and `wxt prepare` then failed with "Builder not found".
 
-The build now parses `.blp` files itself (#1712) and the `blueprint-compiler` dependency is gone
-(#1715, ADR 0063). Nothing is spawned, so no GNOME toolchain, no Python and no MSYS2 package is
-needed to build an app with Blueprint templates, and `gjsify system-check` no longer asks for one.
+Required peers are now installed beside the package that declares them. If the tree already
+holds a version in range, that copy is reused. If the slot holds a version outside the range,
+the install prints a warning and keeps going, which is what npm does outside strict mode.
+Optional peers are still skipped, the same as npm, so `@gjsify/cli` does not pull in its GJS
+engine packages.
 
-Two things can break on upgrade:
-
-- **A `.blp` the compiler accepted can now fail the build.** Seven constructs are refused rather
-  than turned into XML that looks plausible and is wrong: `internal-child`, `translation-domain`,
-  a multi-step `.parent` lookup chain, an inline `menu`, a flag on a dialog response, an
-  untyped closure, and a namespace no `@girs` vocabulary covers. The build reports the file and
-  line as a `BlueprintSyntaxError` or `BlueprintEmitError`, both exported by `@gjsify/blueprint`.
-- **`@gjsify/vite-plugin-blueprint/resolve` is removed**, along with the root re-exports of
-  `resolveBlueprintCompiler`, `BlueprintCompilerNotFoundError`, `BlueprintCompileError`,
-  `currentBlueprintHost` and `formatMissingBlueprintCompiler`. There is no compiler left to
-  resolve. Catch the two error classes from `@gjsify/blueprint` instead.
-
-### `node:sqlite` raises instead of answering "no rows"
-
-`node:sqlite` now RAISES where it used to answer "no rows".
-
-`StatementSync.get()` wrapped its whole body in `catch { return undefined }` and `all()` in
-`catch { return [] }`, so on GJS every error libgda reported at execution became a wrong answer
-no consumer could tell from an empty table — `SELECT * FROM does_not_exist` came back as
-`undefined`, and kept doing so for the rest of the process's life. Node raises there. Now so do we,
-as a `SqliteError` carrying SQLite's own text and `code === 'ERR_SQLITE_ERROR'`.
-
-This is a behaviour change, and it can surface as a NEW exception in code that has been quietly
-reading nothing back. That is the point: the exception was always the truth, and the previous
-answer was a wrong one wearing the shape of an empty result. If a query in your code starts
-throwing after this upgrade, it has been returning nothing for a reason since the day it was
-written.
-
-`run()` changed shape too, in the same direction. It used to leak libgda's raw `GLib.Error`, whose
-`code` is a numeric GError enum — nothing a `node:sqlite` consumer can branch on. It now raises the
-same `SqliteError` the other two do. And `exec()`/`prepare()` stopped reporting
-`"GLib.Error gda_server_provider_error: no such table: t"` where Node reports `"no such table: t"`.
+`gjsify-lock.json` now records each package's peer maps and a `peersResolved` flag. A lockfile
+written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
+Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
+file exactly as it is, so run one plain install and commit the updated lockfile.
