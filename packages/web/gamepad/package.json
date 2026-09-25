@@ -25,7 +25,7 @@
         "./globals.mjs"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.hardware-check.gjs.mjs",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -34,7 +34,8 @@
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
-        "test:gjs": "gjsify run test.gjs.mjs"
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "hardware-check": "gjsify build src/hardware-check.mts --app gjs --outfile test.hardware-check.gjs.mjs && gjsify run test.hardware-check.gjs.mjs"
     },
     "keywords": [
         "gjs",
