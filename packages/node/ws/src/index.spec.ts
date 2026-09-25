@@ -71,6 +71,7 @@ export default async () => {
             // during a unit test; instance properties are set in the constructor
             // independently of connection state.
             const s = new WebSocket('ws://localhost:1');
+            s.on('error', () => {}); // see makeDeadSocket
             expect(s.CONNECTING).toBe(0);
             expect(s.OPEN).toBe(1);
             expect(s.CLOSING).toBe(2);
@@ -82,6 +83,7 @@ export default async () => {
     await describe('WebSocket construction', async () => {
         await it('stores the url string', async () => {
             const s = new WebSocket('ws://example.invalid:1/path');
+            s.on('error', () => {}); // see makeDeadSocket
             expect(s.url).toBe('ws://example.invalid:1/path');
             s.close();
         });
@@ -89,6 +91,7 @@ export default async () => {
         await it('stores the url from a URL object', async () => {
             const url = new URL('ws://example.invalid:1/u');
             const s = new WebSocket(url);
+            s.on('error', () => {}); // see makeDeadSocket
             expect(s.url).toContain('ws://example.invalid:1');
             s.close();
         });

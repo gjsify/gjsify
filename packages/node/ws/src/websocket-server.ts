@@ -27,6 +27,7 @@ import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
 import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
+import { abortConnection } from '@gjsify/websocket';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { ensureMainLoop } from '@gjsify/utils/core';
@@ -151,9 +152,19 @@ class ServerSideWebSocket extends EventEmitter {
             }
         });
 
+        // Soup answers a peer's Close frame on its own and only emits 'closed'
+        // once the TCP stream is gone — one round trip later. ws reports
+        // CLOSING for that window; without this a close() or send() in it
+        // reaches Soup after its Close frame and trips a libsoup-CRITICAL.
+        conn.connect('closing', () => {
+            if (this.readyState === OPEN) this.readyState = CLOSING;
+        });
+
         conn.connect('closed', () => {
             this.readyState = CLOSED;
-            const code = conn.get_close_code() || 1005;
+            // Soup reports 0 only when no Close frame arrived (an empty one
+            // is already 1005): ws says 1006 then, whichever side tore down.
+            const code = conn.get_close_code() || 1006;
             const reason = conn.get_close_data() || '';
             this.emit('close', code, Buffer.from(reason));
         });
@@ -169,6 +180,17 @@ class ServerSideWebSocket extends EventEmitter {
         cb?: (err?: Error) => void,
     ): void {
         const callback = typeof optionsOrCb === 'function' ? optionsOrCb : cb;
+        if (!this._soupOpen()) {
+            // ws's sendAfterClose: the data is dropped and only a callback
+            // hears about it — no throw, no 'error' event.
+            if (this.readyState === OPEN) this.readyState = CLOSING;
+            if (callback) {
+                const name = this.readyState === CLOSED ? 'CLOSED' : 'CLOSING';
+                const err = new Error(`WebSocket is not open: readyState ${this.readyState} (${name})`);
+                queueMicrotask(() => callback(err));
+            }
+            return;
+        }
         try {
             if (typeof data === 'string') {
                 const bytes = new TextEncoder().encode(data);
@@ -199,6 +221,10 @@ class ServerSideWebSocket extends EventEmitter {
     close(code?: number, reason?: string | Buffer): void {
         if (this.readyState === CLOSED || this.readyState === CLOSING) return;
         this.readyState = CLOSING;
+        // Soup's own state is the authority: it may have sent its Close frame
+        // without a 'closing' signal (protocol-error path), and a second
+        // soup_websocket_connection_close() is a CRITICAL, not a no-op.
+        if (!this._soupOpen()) return;
         try {
             const reasonStr =
                 reason === undefined ? null : Buffer.isBuffer(reason) ? reason.toString('utf8') : String(reason);
@@ -211,11 +237,11 @@ class ServerSideWebSocket extends EventEmitter {
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
-        // soup_websocket_connection_close has no throw path in the GIR (a
-        // double close is a g_return_if_fail warning) and both arguments are
-        // literals — unlike close() above, whose caller-supplied code can fail
-        // gushort marshalling and needs its catch.
-        this._conn.close(1006, null);
+        abortConnection(this._conn);
+    }
+
+    private _soupOpen(): boolean {
+        return this._conn.get_state() === Soup.WebsocketState.OPEN;
     }
 }
 

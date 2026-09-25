@@ -6,8 +6,10 @@ import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
+import { abortConnection, kAbort } from './abort.js';
 
 export { MessageEvent, CloseEvent };
+export { abortConnection, kAbort };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
@@ -184,6 +186,14 @@ export class WebSocket extends EventTarget {
                         },
                     );
 
+                    // Soup answers the peer's Close frame by itself; 'closed'
+                    // follows only once the TCP stream ends. The spec calls
+                    // that window CLOSING, and a close() or send() in it must
+                    // not reach Soup again (libsoup-CRITICAL: '!priv->close_sent').
+                    this._connection.connect('closing', () => {
+                        if (this.readyState === OPEN) this.readyState = CLOSING;
+                    });
+
                     this._connection.connect('closed', () => {
                         this._onClosed();
                     });
@@ -253,9 +263,12 @@ export class WebSocket extends EventTarget {
     }
 
     private _onClosed(): void {
-        const code = this._connection?.get_close_code() ?? 1006;
+        // Soup reports 0 when no Close frame arrived; the spec's code for a
+        // connection that died without one is 1006. wasClean is about the
+        // handshake, not the code: a peer's 4001 is as clean as a 1000.
+        const code = this._connection?.get_close_code() || 1006;
         const reason = this._connection?.get_close_data() ?? '';
-        const wasClean = code === 1000;
+        const wasClean = code !== 1006;
 
         this.readyState = CLOSED;
         this._connection = null;
@@ -278,8 +291,16 @@ export class WebSocket extends EventTarget {
      * `Soup.WebsocketDataType.TEXT` explicitly.
      */
     send(data: string | ArrayBuffer | ArrayBufferView): void {
-        if (this.readyState !== OPEN) {
+        if (this.readyState === CONNECTING) {
             throw new DOMException('WebSocket is not open', 'InvalidStateError');
+        }
+        if (this.readyState !== OPEN || !this._isSoupOpen()) {
+            // Spec: once closing, data is discarded and only bufferedAmount
+            // grows. Soup's own state decides too — it can have sent its
+            // Close frame (protocol-error path) without a 'closing' signal.
+            this.bufferedAmount +=
+                typeof data === 'string' ? new TextEncoder().encode(data).byteLength : data.byteLength;
+            return;
         }
         if (!this._connection) return;
 
@@ -318,6 +339,9 @@ export class WebSocket extends EventTarget {
         this.readyState = CLOSING;
 
         if (this._connection) {
+            // A second soup_websocket_connection_close() is a CRITICAL, not a
+            // no-op; Soup may already be closing without having told us.
+            if (!this._isSoupOpen()) return;
             this._connection.close(code ?? 1000, reason ?? null);
         } else {
             // Connection never established
@@ -326,6 +350,23 @@ export class WebSocket extends EventTarget {
             this.dispatchEvent(event);
             if (this.onclose) this.onclose.call(this, event);
         }
+    }
+
+    /** @internal Drop the connection without a Close frame (npm ws's
+     *  terminate()); 'close' follows with 1006. See {@link kAbort}. */
+    [kAbort](): void {
+        if (this.readyState === CLOSED) return;
+        if (!this._connection) {
+            // Still handshaking: nothing to tear down but the pending open.
+            this.close();
+            return;
+        }
+        this.readyState = CLOSING;
+        abortConnection(this._connection);
+    }
+
+    private _isSoupOpen(): boolean {
+        return this._connection?.get_state() === Soup.WebsocketState.OPEN;
     }
 }
 
