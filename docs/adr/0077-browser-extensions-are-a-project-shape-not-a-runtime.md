@@ -173,8 +173,8 @@ docs point to `@wxt-dev/browser`.
 
 ### 6. The dev loop: watch, rebuild in place, and let `web-ext` reload
 
-`gjsify webext dev` builds one target (`firefox-mv3` by default, or the first configured Firefox
-target) into `<outDir>-dev/<target>` in **development** mode (`ctx.mode` is `"development"`, and
+`gjsify webext dev` builds one target (`--target`, else the first configured Firefox target, else the
+first target) into `<outDir>-dev/<target>` in **development** mode (`ctx.mode` is `"development"`, and
 bundles are not minified), then:
 
 1. After the **first successful** build, it starts `web-ext run --source-dir <that folder>` with a
@@ -269,3 +269,11 @@ Nothing in the build branches on the OS. Everything that does is a child process
 - **Slice 2:** `webext sign` (AMO) and `webext submit` (AMO listed with a sources zip, Chrome Web
   Store, Edge), plus types for the manifest context exported from the CLI.
 - **Slice 3:** Safari packaging on macOS, and `dev` through `gjsify exec` once ADR 0076 ships.
+
+**Parity, measured on slice 1** against a copy of beifahrer's `extension/` (its four icon
+variants committed as SVG, `manifest.ts` given a default export that calls `manifestFor`): the
+same file set in both targets, a byte-identical `manifest.json` in both, and one difference in
+the pages, where the page script stays `type="module"` (bundled as ESM) and beifahrer made it
+classic. Both targets build in 1.8 s on the GJS-hosted CLI, against 5.4 s for beifahrer's own
+script, and the GJS and Node hosts produce the same folders. `webext dev` launched Firefox
+through web-ext with the extension installed as a temporary add-on.
