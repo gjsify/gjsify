@@ -133,6 +133,7 @@ class ServerSideWebSocket extends EventEmitter {
     url = '';
 
     private _conn: Soup.WebsocketConnection;
+    private _terminated = false;
 
     constructor(conn: Soup.WebsocketConnection, url: string) {
         super();
@@ -151,9 +152,19 @@ class ServerSideWebSocket extends EventEmitter {
             }
         });
 
+        // Soup answers a peer's Close frame on its own and only emits 'closed'
+        // once the TCP stream is gone — one round trip later. ws reports
+        // CLOSING for that window; without this a close() or send() in it
+        // reaches Soup after its Close frame and trips a libsoup-CRITICAL.
+        conn.connect('closing', () => {
+            if (this.readyState === OPEN) this.readyState = CLOSING;
+        });
+
         conn.connect('closed', () => {
             this.readyState = CLOSED;
-            const code = conn.get_close_code() || 1005;
+            // Soup reports 0 when no Close frame arrived; ws says 1006 for a
+            // torn-down socket and 1005 for a Close frame without a code.
+            const code = conn.get_close_code() || (this._terminated ? 1006 : 1005);
             const reason = conn.get_close_data() || '';
             this.emit('close', code, Buffer.from(reason));
         });
@@ -169,6 +180,17 @@ class ServerSideWebSocket extends EventEmitter {
         cb?: (err?: Error) => void,
     ): void {
         const callback = typeof optionsOrCb === 'function' ? optionsOrCb : cb;
+        if (!this._soupOpen()) {
+            // ws's sendAfterClose: the data is dropped and only a callback
+            // hears about it — no throw, no 'error' event.
+            if (this.readyState === OPEN) this.readyState = CLOSING;
+            if (callback) {
+                const name = this.readyState === CLOSED ? 'CLOSED' : 'CLOSING';
+                const err = new Error(`WebSocket is not open: readyState ${this.readyState} (${name})`);
+                queueMicrotask(() => callback(err));
+            }
+            return;
+        }
         try {
             if (typeof data === 'string') {
                 const bytes = new TextEncoder().encode(data);
@@ -199,6 +221,10 @@ class ServerSideWebSocket extends EventEmitter {
     close(code?: number, reason?: string | Buffer): void {
         if (this.readyState === CLOSED || this.readyState === CLOSING) return;
         this.readyState = CLOSING;
+        // Soup's own state is the authority: it may have sent its Close frame
+        // without a 'closing' signal (protocol-error path), and a second
+        // soup_websocket_connection_close() is a CRITICAL, not a no-op.
+        if (!this._soupOpen()) return;
         try {
             const reasonStr =
                 reason === undefined ? null : Buffer.isBuffer(reason) ? reason.toString('utf8') : String(reason);
@@ -211,12 +237,44 @@ class ServerSideWebSocket extends EventEmitter {
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
-        // soup_websocket_connection_close has no throw path in the GIR (a
-        // double close is a g_return_if_fail warning) and both arguments are
-        // literals — unlike close() above, whose caller-supplied code can fail
-        // gushort marshalling and needs its catch.
-        this._conn.close(1006, null);
+        this._terminated = true;
+        // ws destroys the socket without a Close frame. Soup's close() cannot
+        // do that — it rejects 1006 with a CRITICAL and sends nothing — so
+        // shut the TCP socket down underneath it: Soup reads EOF, records a
+        // dirty close and emits 'closed' on its own, exactly once.
+        const socket = tcpSocketOf(this._conn.get_io_stream());
+        if (socket) {
+            try {
+                socket.shutdown(true, true);
+            } catch {
+                // The peer shut it down first: Soup is reading that EOF too.
+            }
+        } else if (this._soupOpen()) {
+            // No TCP socket under the stream (a custom Gio.IOStream handed to
+            // handleUpgrade): the closest Soup allows is an immediate Close.
+            this._conn.close(Soup.WebsocketCloseCode.GOING_AWAY, null);
+        }
     }
+
+    private _soupOpen(): boolean {
+        return this._conn.get_state() === Soup.WebsocketState.OPEN;
+    }
+}
+
+/** The Gio.Socket under a WebSocket's stream. Both upgrade paths hand Soup a
+ *  private SoupIOStream (GJS sees only Gio.IOStream), which wraps the real
+ *  connection in its `base-iostream` property; a TLS stream nests one level
+ *  deeper under `base-io-stream`. Shutting the socket down — never closing
+ *  its fd — lets Soup's pending read see EOF: closing the fd under Soup's
+ *  poll source makes GLib poll a dead descriptor and Soup emit 'error'. */
+function tcpSocketOf(stream: Gio.IOStream | null): Gio.Socket | null {
+    let s: Gio.IOStream | null | undefined = stream;
+    for (let depth = 0; s && depth < 4; depth++) {
+        if (s instanceof Gio.SocketConnection) return s.get_socket();
+        const nested = s as unknown as { base_iostream?: Gio.IOStream; base_io_stream?: Gio.IOStream };
+        s = nested.base_iostream ?? nested.base_io_stream;
+    }
+    return null;
 }
 
 // ── WebSocketServer ─────────────────────────────────────────────────────────

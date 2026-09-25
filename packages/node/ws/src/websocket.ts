@@ -28,6 +28,7 @@ export type BinaryType = 'nodebuffer' | 'arraybuffer' | 'fragments' | 'blob';
  *  is `@gjsify/websocket`'s Soup-backed class or the host's native global. */
 interface NativeWebSocketLike {
     binaryType: string;
+    readyState?: number;
     protocol?: string;
     extensions?: string;
     addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: NativeEvent) => void): void;
@@ -311,6 +312,11 @@ export class WebSocket extends EventEmitter {
         if (this.readyState === CONNECTING) {
             throw new Error('WebSocket is not open: readyState 0 (CONNECTING)');
         }
+
+        // The peer's Close frame moves the native socket to CLOSING with no
+        // event; a W3C send() then drops the data silently, where ws reports
+        // it to the callback.
+        if (this.readyState === OPEN && this._native?.readyState === CLOSING) this.readyState = CLOSING;
 
         if (this.readyState !== OPEN) {
             const err = new Error('WebSocket is not open: readyState ' + this.readyState);
