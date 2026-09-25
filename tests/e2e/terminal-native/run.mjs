@@ -16,14 +16,14 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 
-import { e2eSkipReason } from '../helpers.mjs';
+import { e2eSkipReason, HOST_TARGET } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
 // The per-target package, a SIBLING of the bridge since ADR 0017:
 // `@gjsify/terminal-native` ships no `prebuilds/` of its own any more, so a
 // consumer downloads only the binary their machine can load.
-const PREBUILD_DIR = resolve(__dirname, '../../../packages/node/terminal-native-linux-x64/prebuilds/linux-x64');
+const PREBUILD_DIR = resolve(__dirname, `../../../packages/node/terminal-native-${HOST_TARGET}/prebuilds/${HOST_TARGET}`);
 
 function runProbe(withCore) {
     const env = { ...process.env };
