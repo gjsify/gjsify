@@ -6,7 +6,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
-import { WebSocket, MessageEvent, CloseEvent, kAbort, kClose } from 'websocket';
+import { WebSocket, MessageEvent, CloseEvent, kClose } from 'websocket';
 
 export default async () => {
     // --- WebSocket class ---
@@ -396,7 +396,7 @@ export default async () => {
             }
         });
 
-        await it('[kAbort] drops the connection without a Close frame (1006)', async () => {
+        await it('[kClose](1006) drops the connection without a Close frame (1006)', async () => {
             const server = new Soup.Server({});
             const serverClosed = new Promise<number>((resolve) => {
                 server.add_websocket_handler(
@@ -429,7 +429,7 @@ export default async () => {
                     ws.onopen = () => resolve();
                     ws.onerror = () => reject(new Error('WebSocket error'));
                 });
-                ws[kAbort]();
+                ws[kClose](1006);
                 expect(ws.readyState).toBe(WebSocket.CLOSING);
                 const event = await closed;
                 // No Close frame reached the server: Soup reports no code.
@@ -452,7 +452,7 @@ export default async () => {
     // the connect run on, so 'open' could follow 'close'. The spec says fail
     // the connection: CLOSING now, then error + close (1006), never open.
     await describe('WebSocket close() while CONNECTING', async () => {
-        for (const how of ['close', 'kAbort'] as const) {
+        for (const how of ['close', 'kClose(1006)'] as const) {
             await it(`${how} cancels the handshake: error, then close 1006, never open`, async () => {
                 // Accepts TCP but never answers the upgrade, so the socket
                 // stays CONNECTING until the client gives up.
@@ -493,7 +493,7 @@ export default async () => {
                     // Let the TCP connect land so there is a handshake to cancel.
                     await new Promise((r) => setTimeout(r, 50));
                     if (how === 'close') ws.close();
-                    else ws[kAbort]();
+                    else ws[kClose](1006);
                     expect(ws.readyState).toBe(WebSocket.CLOSING);
                     const event = await closed;
                     // The server sees the connection end: the handshake was

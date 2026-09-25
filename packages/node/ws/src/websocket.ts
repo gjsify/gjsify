@@ -17,7 +17,7 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
-import { WebSocket as NativeWebSocket, isTransportFailure, kAbort, kClose } from '@gjsify/websocket';
+import { WebSocket as NativeWebSocket, isTransportFailure, kClose } from '@gjsify/websocket';
 import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
 import { closeReason } from './validation.js';
 
@@ -35,10 +35,9 @@ interface NativeWebSocketLike {
     addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: NativeEvent) => void): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
     close(code?: number, reason?: string): void;
-    /** @gjsify/websocket's no-Close-frame abort; a host's own WebSocket
-     *  (see _openNative) has none. */
-    [kAbort]?(): void;
-    /** @gjsify/websocket's close() without the W3C code restriction. */
+    /** @gjsify/websocket's close() without the W3C code restriction; 1006
+     *  drops the connection with no Close frame. A host's own WebSocket (see
+     *  _openNative) has none. */
     [kClose]?(code?: number, reason?: string): void;
 }
 
@@ -438,15 +437,16 @@ export class WebSocket extends EventEmitter {
     }
 
     /** ws-only: drop the connection without a Close frame; 'close' follows
-     *  with 1006. The W3C close() cannot express that (it rejects 1006), so
-     *  @gjsify/websocket carries an internal hook for it. */
+     *  with 1006. The W3C close() cannot express that (it rejects 1006);
+     *  @gjsify/websocket's close hook reads 1006 — RFC 6455's code for a
+     *  connection closed without a Close frame — as exactly this. */
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
         const native = this._native;
         if (!native) return;
         // A host WebSocket without the hook can only close cleanly.
-        if (native[kAbort]) native[kAbort]();
+        if (native[kClose]) native[kClose](1006);
         else native.close();
     }
 

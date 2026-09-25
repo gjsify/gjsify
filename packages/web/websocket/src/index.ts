@@ -6,10 +6,10 @@ import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
-import { abortConnection, isTransportFailure, kAbort, kClose, soupCloseCode } from './abort.js';
+import { ABORT_CODE, abortConnection, isTransportFailure, kClose, soupCloseCode } from './abort.js';
 
 export { MessageEvent, CloseEvent };
-export { abortConnection, isTransportFailure, kAbort, kClose, soupCloseCode };
+export { abortConnection, isTransportFailure, kClose, soupCloseCode };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
@@ -388,10 +388,16 @@ export class WebSocket extends EventTarget {
 
     /** @internal close() without the W3C restriction on `code`: any status
      *  RFC 6455 lets an endpoint send (1000–1003, 1007–1014, 3000–4999),
-     *  which is what npm ws accepts. The caller validates. Codes libsoup
-     *  cannot send go out as 1002 (see soupCloseCode). See {@link kClose}. */
+     *  which is what npm ws accepts, or {@link ABORT_CODE} to drop the
+     *  connection without a Close frame (ws's terminate()); 'close' then
+     *  follows with 1006. The caller validates. Codes libsoup cannot send go
+     *  out as 1002 (see soupCloseCode). See {@link kClose}. */
     [kClose](code?: number, reason?: string): void {
-        if (this.readyState === CLOSED || this.readyState === CLOSING) return;
+        if (this.readyState === CLOSED) return;
+        const abort = code === ABORT_CODE;
+        // A Close frame is sent once; an abort may still cut a closing
+        // handshake short.
+        if (this.readyState === CLOSING && !abort) return;
 
         if (!this._connection) {
             // Spec: fail the connection while CONNECTING — the pending
@@ -401,23 +407,14 @@ export class WebSocket extends EventTarget {
         }
 
         this.readyState = CLOSING;
+        if (abort) {
+            abortConnection(this._connection);
+            return;
+        }
         // A second soup_websocket_connection_close() is a CRITICAL, not a
         // no-op; Soup may already be closing without having told us.
         if (!this._isSoupOpen()) return;
         this._connection.close(soupCloseCode(this._connection, code ?? 1000), reason ?? null);
-    }
-
-    /** @internal Drop the connection without a Close frame (npm ws's
-     *  terminate()); 'close' follows with 1006. See {@link kAbort}. */
-    [kAbort](): void {
-        if (this.readyState === CLOSED) return;
-        if (!this._connection) {
-            // Still handshaking: nothing to tear down but the pending open.
-            this._failConnecting(CLOSED_BEFORE_ESTABLISHED);
-            return;
-        }
-        this.readyState = CLOSING;
-        abortConnection(this._connection);
     }
 
     /** Abandon the handshake. The connect callback runs with the cancel

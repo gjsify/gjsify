@@ -1,26 +1,26 @@
-// Internal hooks @gjsify/ws needs beyond the W3C API, and the one that tears
-// a Soup WebSocket down without a Close frame — what npm `ws` calls
-// terminate(). Shared by this package's client hook and @gjsify/ws's server
-// socket so the one delicate path through Soup's private stream lives once.
-// Each hook is a Symbol.for() key, so it never collides with the spec's names
+// The internal close hook @gjsify/ws needs beyond the W3C API, and the Soup
+// helpers behind it — above all the one that tears a connection down without
+// a Close frame (npm ws's terminate()). Shared by this package's client and
+// @gjsify/ws's server socket so each delicate path through Soup lives once.
+// The hook is a Symbol.for() key: it never collides with the spec's names,
 // and a host's own WebSocket simply lacks it.
 
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
 
-/** Internal hook on {@link WebSocket} instances: abort the connection with no
- *  Close frame. Not part of the W3C API — the spec's close() rejects 1006 —
- *  it exists for @gjsify/ws's `terminate()`.
- *  @internal */
-export const kAbort: unique symbol = Symbol.for('gjsify.websocket.abort');
-
-/** Internal hook on {@link WebSocket} instances: close() with any status code
- *  RFC 6455 lets an endpoint send. The W3C close() admits only 1000 and
- *  3000–4999 from script; npm ws's close() also sends 1001–1014, so
- *  @gjsify/ws validates by ws's rules and calls this.
+/** The one internal hook on {@link WebSocket} instances: close() without the
+ *  W3C restriction on `code`. The spec's close() admits only 1000 and
+ *  3000–4999 from script; npm ws also sends 1001–1014, and its terminate()
+ *  drops the connection with no Close frame at all. `@gjsify/ws` validates by
+ *  ws's rules and calls this for both. 1006 is RFC 6455's code for "closed
+ *  without a Close frame" and never goes on the wire, so it selects the
+ *  abort: `[kClose](1006)` is terminate(), any other code a Close frame.
  *  @internal */
 export const kClose: unique symbol = Symbol.for('gjsify.websocket.close');
+
+/** The status code that makes {@link kClose} abort instead of closing. */
+export const ABORT_CODE = 1006;
 
 /** The code Soup will actually put in a Close frame for `code`. libsoup's
  *  close_connection() knows only 1000–1003, 1007–1011 and 3000–4999 —
