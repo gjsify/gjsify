@@ -228,6 +228,10 @@ const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-o
  * entry that states only the first reads as explained while the module is held to nothing.
  */
 const MODULE_REASONS = {
+    // Input interpretation, not widget behaviour: it turns macOS's `AppleAccentColor` into
+    // an accent NAME, which the renderers then paint through `accent.ts` (tabled). Its only
+    // caller is `@gjsify/adwaita-app/system-accent`, a reader outside every renderer.
+    'apple-accent': { gap: NO_TABLE_LEDGER },
     breakpoint: { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
