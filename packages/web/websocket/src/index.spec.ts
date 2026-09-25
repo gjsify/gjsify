@@ -6,7 +6,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
-import { WebSocket, MessageEvent, CloseEvent } from 'websocket';
+import { WebSocket, MessageEvent, CloseEvent, kAbort } from 'websocket';
 
 export default async () => {
     // --- WebSocket class ---
@@ -326,34 +326,90 @@ export default async () => {
             const handler = GLib.log_set_handler('libsoup', levels, () => {
                 criticals++;
             });
+            // A failed expectation must not leave the handler installed for the
+            // specs after this one.
+            try {
+                const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                const closed = new Promise<CloseEvent>((resolve) => {
+                    ws.onclose = (event: CloseEvent) => resolve(event);
+                });
+                await new Promise<void>((resolve, reject) => {
+                    ws.onopen = () => resolve();
+                    ws.onerror = () => reject(new Error('WebSocket error'));
+                });
+                // Soup's own close timeout is 5 s; give up well before it.
+                const deadline = Date.now() + 2000;
+                while (ws.readyState === WebSocket.OPEN && Date.now() < deadline) {
+                    await new Promise((r) => setTimeout(r, 5));
+                }
+                expect(ws.readyState).toBe(WebSocket.CLOSING);
 
-            const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-            const closed = new Promise<CloseEvent>((resolve) => {
-                ws.onclose = (event: CloseEvent) => resolve(event);
-            });
-            await new Promise<void>((resolve, reject) => {
-                ws.onopen = () => resolve();
-                ws.onerror = () => reject(new Error('WebSocket error'));
-            });
-            // Soup's own close timeout is 5 s; give up well before it.
-            const deadline = Date.now() + 2000;
-            while (ws.readyState === WebSocket.OPEN && Date.now() < deadline) {
-                await new Promise((r) => setTimeout(r, 5));
+                ws.close();
+                ws.send('late');
+                expect(ws.bufferedAmount).toBe(4);
+
+                for (const conn of held) conn.close(null);
+                const event = await closed;
+
+                expect(event.code).toBe(4001);
+                expect(event.reason).toBe('bye');
+                // The handshake completed; a non-1000 code is still clean.
+                expect(event.wasClean).toBe(true);
+                expect(criticals).toBe(0);
+            } finally {
+                GLib.log_remove_handler('libsoup', handler);
+                service.stop();
             }
-            expect(ws.readyState).toBe(WebSocket.CLOSING);
+        });
 
-            ws.close();
-            ws.send('late');
-            expect(ws.bufferedAmount).toBe(4);
+        await it('[kAbort] drops the connection without a Close frame (1006)', async () => {
+            const server = new Soup.Server({});
+            const serverClosed = new Promise<number>((resolve) => {
+                server.add_websocket_handler(
+                    '/ws',
+                    null,
+                    null,
+                    (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, conn: Soup.WebsocketConnection) => {
+                        conn.connect('closed', () => resolve(conn.get_close_code()));
+                    },
+                );
+            });
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
-            for (const conn of held) conn.close(null);
-            const event = await closed;
-            GLib.log_remove_handler('libsoup', handler);
-            service.stop();
+            let criticals = 0;
+            const levels = GLib.LogLevelFlags.LEVEL_CRITICAL | GLib.LogLevelFlags.LEVEL_WARNING;
+            const handler = GLib.log_set_handler('libsoup', levels, () => {
+                criticals++;
+            });
+            try {
+                const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                let closeCount = 0;
+                const closed = new Promise<CloseEvent>((resolve) => {
+                    ws.onclose = (event: CloseEvent) => {
+                        closeCount++;
+                        resolve(event);
+                    };
+                });
+                await new Promise<void>((resolve, reject) => {
+                    ws.onopen = () => resolve();
+                    ws.onerror = () => reject(new Error('WebSocket error'));
+                });
+                ws[kAbort]();
+                expect(ws.readyState).toBe(WebSocket.CLOSING);
+                const event = await closed;
+                // No Close frame reached the server: Soup reports no code.
+                expect(await serverClosed).toBe(0);
+                await new Promise((r) => setTimeout(r, 50));
 
-            expect(event.code).toBe(4001);
-            expect(event.reason).toBe('bye');
-            expect(criticals).toBe(0);
+                expect(event.code).toBe(1006);
+                expect(event.wasClean).toBe(false);
+                expect(closeCount).toBe(1);
+                expect(criticals).toBe(0);
+            } finally {
+                GLib.log_remove_handler('libsoup', handler);
+                server.disconnect();
+            }
         });
     });
 

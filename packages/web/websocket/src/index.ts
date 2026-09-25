@@ -6,8 +6,10 @@ import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
+import { abortConnection, kAbort } from './abort.js';
 
 export { MessageEvent, CloseEvent };
+export { abortConnection, kAbort };
 
 // WebSocket readyState constants
 const CONNECTING = 0;
@@ -262,10 +264,11 @@ export class WebSocket extends EventTarget {
 
     private _onClosed(): void {
         // Soup reports 0 when no Close frame arrived; the spec's code for a
-        // connection that died without one is 1006.
+        // connection that died without one is 1006. wasClean is about the
+        // handshake, not the code: a peer's 4001 is as clean as a 1000.
         const code = this._connection?.get_close_code() || 1006;
         const reason = this._connection?.get_close_data() ?? '';
-        const wasClean = code === 1000;
+        const wasClean = code !== 1006;
 
         this.readyState = CLOSED;
         this._connection = null;
@@ -347,6 +350,19 @@ export class WebSocket extends EventTarget {
             this.dispatchEvent(event);
             if (this.onclose) this.onclose.call(this, event);
         }
+    }
+
+    /** @internal Drop the connection without a Close frame (npm ws's
+     *  terminate()); 'close' follows with 1006. See {@link kAbort}. */
+    [kAbort](): void {
+        if (this.readyState === CLOSED) return;
+        if (!this._connection) {
+            // Still handshaking: nothing to tear down but the pending open.
+            this.close();
+            return;
+        }
+        this.readyState = CLOSING;
+        abortConnection(this._connection);
     }
 
     private _isSoupOpen(): boolean {
