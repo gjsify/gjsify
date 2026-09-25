@@ -2,8 +2,9 @@
 
 - Status: **Proposed** — amended 2026-09-25, see § Amendment 1 (SDL3 becomes the gamepad
   backend on every OS, not only darwin)
-- Scope: stage 1 (the seam and the honest darwin answer) ships with this ADR; stages 3 and 4
-  are open work in `status/open-todos.md`.
+- Scope: stage 1 (the seam and the honest darwin answer) shipped with this ADR; stages 3 and 4
+  are built for darwin (§ Amendment 1). The hardware check and the linux and win32 legs are
+  open work in `status/open-todos.md`.
 - Date: 2026-09-25
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native package distribution)](0017-native-package-distribution.md),
@@ -264,3 +265,43 @@ this section and the text above disagree, this section wins.
 - **Cost.** Three published names become one bridge plus one per declared target, and each
   new target needs its own first-publish bootstrap. The measured size of the static build is
   recorded by the PR that first builds it (stage 3).
+
+### Stage 3 and 4 on darwin — what was built, and the measurement
+
+Built in `packages/web/gamepad-native` (C shim, meson) and `packages/web/gamepad/src/sdl-source.ts`.
+Three things the sketch above left open were settled while building it:
+
+- **The SDL → W3C table lives in C, not in `sdl-source.ts`.** The shim's snapshot is already
+  17 button values and 4 axis values in W3C order, so the table exists once for every OS and
+  every JS host (GJS, and Node through node-gi), and a poll is two GI calls per device rather
+  than one per control. `sdl-source.ts` decides only `pressed` (the triggers are analog,
+  with the shared threshold) and forwards only what changed, so `Gamepad.timestamp` advances
+  only on new data, as W3C says it should.
+- **Hotplug is a diff of `SDL_GetGamepads()` against the tracked set, not SDL's event
+  queue.** That keeps two monitors from stealing each other's events. `update()` flushes
+  the joystick/gamepad event range so the queue cannot grow.
+  `SDL_HINT_NO_SIGNAL_HANDLERS=1` is set too: without it SDL's events subsystem takes over
+  SIGINT/SIGTERM and the host stops reacting to Ctrl-C.
+- **SDL is pinned as a meson `wrap-file`** (`subprojects/sdl3.wrap`: SDL 3.4.16 release
+  tarball, sha256) and built through meson's CMake module. The module drops SDL's
+  `$<LINK_LIBRARY:FRAMEWORK,…>` link list, so the frameworks are named in `meson.build`.
+  That turns out to be a guard for free: re-enabling a trimmed subsystem fails the link
+  instead of quietly adding a framework to the runtime dependencies. Only `gjsify_gamepad_*`
+  is exported, which keeps SDL's symbols private and lets `-dead_strip` remove what the shim
+  never reaches.
+
+Measured on macOS 27.0 (26A428), arm64, `MACOSX_DEPLOYMENT_TARGET=15.0`, `buildtype=minsize`,
+after `stage-prebuild.mjs`:
+
+| | |
+|---|---|
+| `libgjsifygamepad.dylib` | **1,453,264 bytes** (1.39 MiB); `__TEXT` 1,081,344. For comparison, Homebrew's full `libSDL3.0.dylib` 3.4.16 is 2,520,256 bytes and links 22 libraries |
+| typelib + GIR | 3,040 + 27,567 bytes |
+| `minos` | 15.0 |
+| `otool -L` | CoreFoundation, Foundation, IOKit, ForceFeedback, GameController, CoreHaptics, CoreServices (all `/System/Library/Frameworks`), `/usr/lib/libobjc.A.dylib`, `/usr/lib/libSystem.B.dylib`, plus `@rpath/libglib-2.0.0.dylib` and `@rpath/libgobject-2.0.0.dylib`, which are the GObject shim's own dependencies and are resolved from the host's GLib like every other bridge's. No AppKit, Metal, AVFoundation, CoreAudio or CoreMedia |
+| tests | `meson test`: C lifecycle (20 cycles, two monitors, dispose without close), the same under `gjs` through the typelib, and `leaks --atExit` → **0 leaks** (a deliberately leaked monitor makes it fail) |
+
+The darwin branch of the probe now imports `gi://GjsifyGamepad`. A host without the prebuild
+still answers an honest `absent`, now with advice about the prebuild and the typelib path
+instead of the ADR, and `gjsify.os.darwin` is `partial` until the hardware check.
+

@@ -1,5 +1,5 @@
-// Gamepad Web API for GJS — original implementation; libmanette on Linux, one device
-// source per platform behind `GamepadSource` (ADR 0075)
+// Gamepad Web API for GJS — original implementation; one device source per platform
+// behind `GamepadSource` (ADR 0075): libmanette on Linux, the SDL3 shim on macOS
 // Reference: https://w3c.github.io/gamepad/
 
 export { GamepadButton } from './gamepad-button.js';
