@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/gamepad",
     "version": "0.52.0",
-    "description": "Gamepad Web API for GJS: libmanette on Linux, SDL3 (via @gjsify/gamepad-native) on macOS",
+    "description": "Gamepad Web API for GJS: SDL3 (via @gjsify/gamepad-native) on macOS and Windows, libmanette on Linux until SDL is proven there",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -69,11 +69,11 @@
         "os": {
             "linux": "supported",
             "darwin": "partial",
-            "win32": "none"
+            "win32": "partial"
         },
         "osNotes": {
             "darwin": "The backend is SDL3 behind a GObject shim (@gjsify/gamepad-native, ADR 0075). It builds, loads and enumerates on macOS, but input from a real controller has not been verified yet, and its darwin prebuilds are not published yet. Without the prebuild, getGamepads() answers the conformant empty list and hasGamepadBackend() reports false.",
-            "win32": "No backend on Windows yet: libmanette links the Linux-only libevdev, and the win32 leg of the SDL3 shim that ADR 0075 Amendment 1 makes the backend on every OS is not built. getGamepads() answers the conformant empty list and hasGamepadBackend() reports false."
+            "win32": "The backend is the SDL3 shim (@gjsify/gamepad-native-win32-x64, ADR 0075 Amendment 1), reached from Node through @gjsify/node-gi since Windows has no GJS. It builds, loads and enumerates in CI, and a virtual XInput pad is read there, but input from a real controller has not been verified yet and the win32 prebuild is not published yet. Without it, getGamepads() answers the conformant empty list and hasGamepadBackend() reports false."
         },
         "tier": 1
     },

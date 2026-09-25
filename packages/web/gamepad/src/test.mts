@@ -12,9 +12,18 @@ import testSuiteSource from './source.spec.js';
 // The SDL3 source (ADR 0075) over a fake `gi://GjsifyGamepad` — the real shim is tested in
 // @gjsify/gamepad-native.
 import testSuiteSdlSource from './sdl-source.spec.js';
+// Linux's libmanette-vs-SDL comparison (ADR 0075 Amendment 1), between two scripted sources.
+import testSuiteCompareSource from './compare-source.spec.js';
 // LAST on purpose: the backend suite injects fake `gi://Manette` modules into the
 // shared probe cache. It hands the cache back at the end, but ordering it after
 // the suites that read the real host keeps that independent of its own cleanup.
 import testSuiteBackend from './backend.spec.js';
 
-run({ testSuiteGamepad, testSuiteRegister, testSuiteSource, testSuiteSdlSource, testSuiteBackend });
+run({
+    testSuiteGamepad,
+    testSuiteRegister,
+    testSuiteSource,
+    testSuiteSdlSource,
+    testSuiteCompareSource,
+    testSuiteBackend,
+});
