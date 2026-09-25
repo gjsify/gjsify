@@ -655,7 +655,9 @@ for (const p of sweepProblems) console.error(`  ✗ ${p}`);
 function workspaceProdDeps(manifest) {
     const deps = { ...manifest?.dependencies, ...manifest?.peerDependencies };
     return Object.entries(deps)
-        .filter(([dep, range]) => dep.startsWith('@gjsify/') && typeof range === 'string' && range.startsWith('workspace:'))
+        .filter(
+            ([dep, range]) => dep.startsWith('@gjsify/') && typeof range === 'string' && range.startsWith('workspace:'),
+        )
         .map(([dep]) => dep);
 }
 
