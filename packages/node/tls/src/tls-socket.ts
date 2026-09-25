@@ -19,10 +19,12 @@
 // return (Node's contract for "session feature unavailable").
 
 import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import { Buffer } from 'node:buffer';
 import { Socket } from 'node:net';
+import process from 'node:process';
 import { tlsCertToPeerCert, type PeerCertificate } from './internal/cert-utils.js';
-import type { SecureContext, SecureContextOptions } from './secure-context.js';
+import { createSecureContext, type SecureContext, type SecureContextOptions } from './secure-context.js';
 import { createSessionAccess, hasTlsSessionAccess } from './session-access.js';
 import type { NativeSessionAccess } from './session-access.js';
 
@@ -60,6 +62,45 @@ export interface SocketInternals {
     _outputStream: Gio.OutputStream | null;
     _reading: boolean;
     _startReading(): void;
+    /**
+     * Stop the read loop and cancel any in-flight read, resolving once
+     * settled — see `@gjsify/net`'s `Socket._detachReader()` for the full
+     * contract. Used to hand an already-connected `net.Socket`'s Gio
+     * connection off to a `TLSSocket` (`tls.connect({socket})` / STARTTLS).
+     */
+    _detachReader(): Promise<Buffer | null>;
+    /**
+     * Atomically null out the four stream fields above and return what
+     * they were — see `@gjsify/net`'s `Socket._claimConnection()`. Call
+     * SYNCHRONOUSLY within a 'connect'/'connection' listener to pre-empt
+     * an auto-start that hasn't run yet (nulling `_inputStream` makes it
+     * a no-op); pair with `_detachReader()` when a read may already be
+     * running.
+     */
+    _claimConnection(): {
+        connection: Gio.SocketConnection | null;
+        ioStream: Gio.IOStream | null;
+        inputStream: Gio.InputStream | null;
+        outputStream: Gio.OutputStream | null;
+    };
+}
+
+/**
+ * Internal cast for the address/state fields `@types/node`'s `net.Socket`
+ * type declares read-only (Node's own internals are the only writer).
+ * `_adoptConnection` needs to copy them from the socket it's stealing the
+ * connection from — same "we own the implementation" rationale as
+ * {@link SocketInternals}, kept as a separate type since these fields
+ * aren't Gio-facing.
+ */
+interface SocketAddressFields {
+    remoteAddress?: string;
+    remotePort?: number;
+    remoteFamily?: string;
+    localAddress?: string;
+    localPort?: number;
+    connecting: boolean;
+    pending: boolean;
 }
 
 /**
@@ -83,8 +124,297 @@ export class TLSSocket extends Socket {
      */
     _sessionAccess: NativeSessionAccess | null = null;
 
-    constructor(_socket?: Socket, _options?: SecureContextOptions) {
+    /**
+     * @internal Set while a `net.Socket` given to the constructor (or to
+     * `tls.connect({socket})`) is being — or has been — adopted, so
+     * `destroy()` can tear it down too. See `_startClient`.
+     */
+    _adoptedSocket: Socket | null = null;
+
+    constructor(socket?: Socket, options?: TlsConnectOptions) {
         super();
+        if (socket) {
+            this._startClient(socket, options ?? {});
+        }
+    }
+
+    /**
+     * @internal Adopt `providedSocket` — already connected, or still
+     * connecting — as this TLSSocket's transport, then run the client TLS
+     * handshake over it. Backs both `new tls.TLSSocket(socket, options)`
+     * and `tls.connect({socket, ...})`: Node's `tls.connect` is a thin
+     * wrapper over the TLSSocket constructor plus starting the handshake,
+     * so we fold the two entry points together here instead of keeping
+     * the handshake logic twice (see `connect.ts`).
+     */
+    private _startClient(providedSocket: Socket, options: TlsConnectOptions): void {
+        this.servername = options.servername || options.host || 'localhost';
+        this._adoptedSocket = providedSocket;
+
+        // Destroying this TLSSocket also tears down the socket it borrowed
+        // the connection from — mirrors Node's `TLSWrap.close()`, which
+        // walks up to the wrapping net.Socket and destroys it while it
+        // still owns the handle (`refs/node/lib/internal/tls/wrap.js`).
+        // Harmless once the handshake has adopted the connection: by then
+        // `providedSocket`'s stream fields are already null, so this is a
+        // no-op close.
+        this.once('close', () => {
+            if (!providedSocket.destroyed) providedSocket.destroy();
+        });
+
+        const begin = (): void => {
+            void this._adoptConnection(providedSocket).then((adopted) => {
+                if (adopted) this._performHandshake(options);
+            });
+        };
+
+        if (providedSocket.connecting) {
+            providedSocket.once('connect', begin);
+        } else {
+            // Already connected — defer so the caller can finish wiring
+            // listeners on the TLSSocket it just got back, mirroring
+            // Node's `process.nextTick(initRead, this, socket)`.
+            process.nextTick(begin);
+        }
+    }
+
+    /**
+     * @internal Detach `providedSocket`'s read loop (see
+     * `SocketInternals._detachReader`) and steal its Gio connection/streams
+     * onto `this`. Returns `false` — having already cleaned up — when
+     * either socket was destroyed meanwhile, or when the detach lost the
+     * race to data that had already arrived (see `_detachReader`'s doc):
+     * `Gio.TlsClientConnection` has no API to replay bytes already pulled
+     * off the wire, unlike Node's OpenSSL BIO, so that case is surfaced as
+     * a destroy() error rather than silently dropped.
+     *
+     * Claims the streams (`_claimConnection`, nulling them on
+     * `providedSocket`) SYNCHRONOUSLY, before the `_detachReader` await:
+     * when `_startClient` runs this from `providedSocket`'s OWN 'connect'
+     * listener (the still-connecting case), `Socket.connect()`'s
+     * `_setupConnection()` is about to auto-start reading right after
+     * 'connect' listeners finish — nulling `_inputStream` now makes that a
+     * no-op instead of a second reader racing the handshake this method
+     * goes on to start. For the already-connected case, a read may
+     * already be running; `_detachReader()` (order relative to the claim
+     * doesn't matter — the running loop holds its own local stream
+     * reference, not `providedSocket`'s field) settles that.
+     */
+    private async _adoptConnection(providedSocket: Socket): Promise<boolean> {
+        if (this.destroyed || providedSocket.destroyed) return false;
+        const src = providedSocket as unknown as SocketInternals;
+        const claimed = src._claimConnection();
+        const leftover = await src._detachReader();
+        if (this.destroyed) {
+            // Destroyed while we awaited: nothing was transplanted onto
+            // `this`, and `providedSocket`'s own fields are already null
+            // (claimed above), so it won't close this on its own destroy()
+            // either — close it here or it leaks.
+            try {
+                (claimed.connection ?? claimed.ioStream)?.close(null);
+            } catch {
+                /* ignore */
+            }
+            return false;
+        }
+        if (leftover && leftover.length > 0) {
+            this.destroy(_upgradeRaceError());
+            try {
+                (claimed.connection ?? claimed.ioStream)?.close(null);
+            } catch {
+                /* ignore */
+            }
+            return false;
+        }
+
+        const dst = this as unknown as SocketInternals;
+        dst._connection = claimed.connection;
+        dst._ioStream = claimed.ioStream;
+        dst._inputStream = claimed.inputStream;
+        dst._outputStream = claimed.outputStream;
+
+        // `@types/node`'s net.Socket declares these read-only (only Node's
+        // internals set them) — true of our own `@gjsify/net` Socket too
+        // once type-checked against that ambient `node:net` shape (rather
+        // than its own writable field declarations, visible only from
+        // inside that package). Route the copy through the same
+        // internal-field cast used for `_connection` etc. above.
+        const dstAddr = this as unknown as SocketAddressFields;
+        const srcAddr = providedSocket as unknown as SocketAddressFields;
+        dstAddr.remoteAddress = srcAddr.remoteAddress;
+        dstAddr.remotePort = srcAddr.remotePort;
+        dstAddr.remoteFamily = srcAddr.remoteFamily;
+        dstAddr.localAddress = srcAddr.localAddress;
+        dstAddr.localPort = srcAddr.localPort;
+        dstAddr.connecting = false;
+        dstAddr.pending = false;
+        return true;
+    }
+
+    /**
+     * @internal Perform the client TLS handshake over this socket's Gio
+     * connection — either self-connected via `tls.connect()` (no
+     * `options.socket`), or just adopted from a caller-supplied
+     * `net.Socket` via `_startClient()`. Moved here from `connect.ts` so
+     * both entry points share one implementation.
+     *
+     * Reference: Node.js `lib/internal/tls/wrap.js` `TLSSocket.prototype._init`.
+     */
+    _performHandshake(options: TlsConnectOptions): void {
+        const servername = this.servername || options.servername || options.host || 'localhost';
+        this.servername = servername;
+        const port = options.port || this.remotePort || 443;
+        const rejectUnauthorized = options.rejectUnauthorized !== false;
+
+        const ctx = options.secureContext ?? createSecureContext(options);
+        this._secureContext = ctx;
+        const customCheckServerIdentity = options.checkServerIdentity;
+
+        // Claim (null out) this socket's OWN stream fields SYNCHRONOUSLY,
+        // capturing `_connection` first: for the self-connect path (no
+        // `options.socket`), this runs inside `connect()`'s 'connect'
+        // listener, and `Socket.connect()`'s `_setupConnection()` is about
+        // to auto-start reading right after 'connect' listeners finish —
+        // that would start a second, conflicting reader on the same
+        // Gio.InputStream `handshake_async()` below is about to read
+        // from. For the given-socket path this is a harmless re-clear
+        // (already claimed by `_adoptConnection`).
+        const claimed = (this as unknown as SocketInternals)._claimConnection();
+        const rawConnection = claimed.connection;
+        if (!rawConnection) {
+            this.destroy(new Error('No underlying connection for TLS upgrade'));
+            return;
+        }
+
+        // `this`'s own connection fields are null right now (claimed
+        // above). `destroy()` → `_release()` only closes what it can
+        // still see there, so a failure before `_setupTlsStreams()` runs
+        // (which re-wires them to the TLS-wrapped streams) would leak
+        // `rawConnection` — restore the claimed fields first so the
+        // existing close-on-destroy path picks it up.
+        const destroyWithClaimedConnection = (err: Error): void => {
+            const internals = this as unknown as SocketInternals;
+            internals._connection = claimed.connection;
+            internals._ioStream = claimed.ioStream;
+            internals._inputStream = claimed.inputStream;
+            internals._outputStream = claimed.outputStream;
+            this.destroy(err);
+        };
+
+        try {
+            const connectable = Gio.NetworkAddress.new(servername, port);
+            const tlsConn = Gio.TlsClientConnection.new(rawConnection as unknown as Gio.IOStream, connectable);
+
+            tlsConn.set_server_identity(connectable);
+
+            // Session resumption: inject the prior session blob (if any)
+            // BEFORE handshake_async() so GnuTLS can attempt resumption.
+            // No-op when the native bridge isn't available; consumers get
+            // a full handshake without error.
+            if (options.session && hasTlsSessionAccess()) {
+                try {
+                    // Wire the TLS connection on this socket so
+                    // `_getSessionAccess()` resolves a bridge bound to the
+                    // same `tlsConn` we're about to handshake on.
+                    this._tlsConnection = tlsConn;
+                    this.setSession(options.session);
+                } catch {
+                    // Swallow — resumption is best-effort.
+                }
+            }
+
+            // Client certificate (mTLS)
+            if (ctx.certificate) {
+                try {
+                    tlsConn.set_certificate(ctx.certificate);
+                } catch (err: unknown) {
+                    console.warn('[tls] failed to set client certificate:', err);
+                }
+            }
+
+            // ALPN — set_advertised_protocols is a plain property setter with
+            // no throw path in the GIR; an ALPN-less backend just ignores it.
+            if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
+                tlsConn.set_advertised_protocols(options.ALPNProtocols);
+            }
+
+            // Certificate validation: by default rely on system trust store +
+            // 'accept-certificate' returning false. With a custom CA we accept
+            // peer certs that validate against `ctx.caCertificates`. With
+            // `rejectUnauthorized: false`, accept everything.
+            tlsConn.connect(
+                'accept-certificate',
+                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => {
+                    if (!rejectUnauthorized) return true;
+                    if (ctx.caCertificates.length === 0) return false;
+                    for (const ca of ctx.caCertificates) {
+                        try {
+                            const flags = peerCert.verify(connectable, ca);
+                            if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                        } catch {
+                            /* try next */
+                        }
+                    }
+                    return false;
+                },
+            );
+
+            const cancellable = new Gio.Cancellable();
+            tlsConn.handshake_async(
+                GLib.PRIORITY_DEFAULT,
+                cancellable,
+                (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+                    try {
+                        tlsConn.handshake_finish(asyncResult);
+                        this.authorized = true;
+                        this._setupTlsStreams(tlsConn);
+                        this.alpnProtocol = this.getAlpnProtocol();
+
+                        // Custom server-identity check (post-handshake, mirrors Node).
+                        if (customCheckServerIdentity) {
+                            const peer = this.getPeerCertificate();
+                            const idErr = customCheckServerIdentity(servername, peer);
+                            if (idErr) {
+                                this.authorized = false;
+                                this.authorizationError = idErr.message;
+                                if (rejectUnauthorized) {
+                                    this.destroy(idErr);
+                                    return;
+                                }
+                            }
+                        }
+
+                        const internals = this as unknown as SocketInternals;
+                        internals._reading = false;
+                        internals._startReading();
+
+                        // Phase 2: emit 'session' after the handshake so
+                        // consumers can cache the session blob for the next
+                        // connect call. No-op when the native bridge is
+                        // unavailable (`getSession()` returns undefined).
+                        if (hasTlsSessionAccess()) {
+                            const session = this.getSession();
+                            if (session) {
+                                this.emit('session', session);
+                            }
+                        }
+
+                        this.emit('secureConnect');
+                    } catch (err: unknown) {
+                        this.authorized = false;
+                        this.authorizationError = err instanceof Error ? err.message : String(err);
+                        if (rejectUnauthorized) {
+                            destroyWithClaimedConnection(err instanceof Error ? err : new Error(String(err)));
+                        } else {
+                            this._setupTlsStreams(tlsConn);
+                            this.emit('secureConnect');
+                        }
+                    }
+                },
+            );
+        } catch (err: unknown) {
+            destroyWithClaimedConnection(err instanceof Error ? err : new Error(String(err)));
+        }
     }
 
     /**
@@ -277,6 +607,29 @@ export class TLSSocket extends Socket {
             return false;
         }
     }
+}
+
+/**
+ * Error surfaced by `TLSSocket._adoptConnection()` when a caller-supplied
+ * `net.Socket`'s read loop resolved with real data despite being told to
+ * detach — i.e. the peer sent bytes before the client began the TLS
+ * handshake. A well-behaved STARTTLS peer never does this (it waits for
+ * the client to speak first, which is what makes STARTTLS work at all
+ * without a receive-buffer API); Node can absorb the race because its
+ * OpenSSL binding lets you feed it already-read bytes directly
+ * (`initRead`'s `tlsSocket._handle.receive(buf)` in
+ * `refs/node/lib/internal/tls/wrap.js`), but `Gio.TlsClientConnection`
+ * owns and reads its base stream itself — there is no equivalent
+ * "receive these bytes I already read" call to replay them into.
+ */
+function _upgradeRaceError(): Error & { code: string } {
+    const err = new Error(
+        'tls: data arrived on the socket before the TLS handshake could take over reading its ' +
+            'input stream — Gio.TlsClientConnection has no API to replay already-read bytes into ' +
+            'the handshake. This should not happen for a well-behaved STARTTLS peer.',
+    ) as Error & { code: string };
+    err.code = 'ERR_GJSIFY_TLS_UPGRADE_RACE';
+    return err;
 }
 
 /**
