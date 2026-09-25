@@ -14,10 +14,13 @@
 // classifies and CARRIES the text; `GamepadManager._init()` prints it through
 // {@link reportGamepadBackendOnce}.
 //
-// The load failure is split in two because a host with no libmanette (macOS, Windows:
-// libmanette hard-requires libevdev, which is Linux/FreeBSD-only) and a host with a
-// BROKEN install are different situations. Only the first is expected; the second must be
-// loud.
+// Two backends, one per host family (ADR 0075 + Amendment 1): `gi://GjsifyGamepad`, the
+// SDL3 shim in `@gjsify/gamepad-native`, on darwin; `gi://Manette` everywhere else until
+// the SDL source is proven on Linux and replaces it there too.
+//
+// The load failure is split in two because a host WITHOUT the backend (no libmanette; no
+// gamepad-native prebuild for this target) and a host with a BROKEN install are different
+// situations. Only the first is expected; the second must be loud.
 //
 // node-gi parity: the package declares `node: "partial"` and the same `gi://Manette`
 // import runs under `@gjsify/node-gi`, which cannot be classified by watching the IMPORT
@@ -34,37 +37,42 @@
 import type Manette from '@girs/manette-0.2';
 import { hostOs, type TargetOs } from '@gjsify/utils/core';
 
+import type { GjsifyGamepadNamespace } from './sdl-namespace.js';
 import type { GamepadSource } from './source.js';
-
-/** The GI namespace this package binds; every wording below is scoped to it. */
-const GI_NAMESPACE = 'Manette';
 
 /**
  * What this host has.
  *
  * - `manette` — the Manette-0.2 typelib loaded and exposes `Monitor`.
- * - `absent`  — no backend reachable from here: no libmanette, a `--app node` process
- *   without `@gjsify/node-gi`, or a target where `gi://` is stubbed by design.
+ * - `sdl`     — the GjsifyGamepad-1.0 typelib (`@gjsify/gamepad-native`) loaded and
+ *   exposes `Monitor`.
+ * - `absent`  — no backend reachable from here: no libmanette, no gamepad-native
+ *   prebuild, a `--app node` process without `@gjsify/node-gi`, or a target where
+ *   `gi://` is stubbed by design.
  * - `failed`  — a backend should have been reachable and was not. A fault.
  */
-export type GamepadBackendStatus = 'manette' | 'absent' | 'failed';
+export type GamepadBackendStatus = 'manette' | 'sdl' | 'absent' | 'failed';
 
-/** The resolved backend probe. `module` is non-null iff `status === 'manette'`. */
-export interface GamepadBackend {
-    status: GamepadBackendStatus;
-    module: typeof Manette | null;
+/** What every probe result carries besides the module. */
+interface GamepadBackendReport {
     /** The original load error for `absent`/`failed`; `null` otherwise. */
     error: unknown;
     /**
      * The one-time line the USE site emits, or `null` when there is nothing to say.
-     * Carried rather than printed so the capability query stays silent.
-     *
-     * `'absent'` with a `null` diagnostic is the by-design `gi://` stub (see
-     * {@link isEmptiedGiModule}); `'failed'` always prints, with the original error, and
-     * needs no text here.
+     * Carried rather than printed so the capability query stays silent. `'absent'`
+     * with a `null` diagnostic is the by-design `gi://` stub (see
+     * {@link isEmptiedGiModule}).
      */
     diagnostic: string | null;
 }
+
+/** The resolved backend probe: a module exactly for the two usable states. */
+export type GamepadBackend = GamepadBackendReport &
+    (
+        | { status: 'manette'; module: typeof Manette }
+        | { status: 'sdl'; module: GjsifyGamepadNamespace }
+        | { status: 'absent' | 'failed'; module: null }
+    );
 
 export interface LoadGamepadBackendOptions {
     /**
@@ -73,11 +81,28 @@ export interface LoadGamepadBackendOptions {
      * runner this package is tested on.
      */
     importer?: () => Promise<{ default: typeof Manette }>;
+    /** Override the darwin branch's `gi://GjsifyGamepad` import. Tests only. */
+    sdlImporter?: () => Promise<{ default: GjsifyGamepadNamespace }>;
     /**
      * Override the host OS the probe branches on. Tests only — it is how the darwin
      * branch is exercised on a Linux runner and the Manette branch on a Mac.
      */
     hostOs?: () => TargetOs | undefined;
+}
+
+/**
+ * One `gi://` backend: its namespace, which every wording is scoped to, and its three
+ * texts. Exported (underscored) for `backend.spec.ts`.
+ */
+export interface _GiBackend {
+    status: 'manette' | 'sdl';
+    namespace: string;
+    /** No typelib for {@link namespace} on this host: what to install. */
+    noTypelibText: string;
+    /** No `@gjsify/node-gi` in a `--app node` process: what to install. */
+    noBridgeText: string;
+    /** The load is a fault: said at `error` level, next to the original error. */
+    loadFaultText: string;
 }
 
 /** Absent-vs-fault plus the text the use site should print (`null` = silence). */
@@ -127,45 +152,60 @@ function typelibAbsentNeedle(namespace: string): string {
  */
 const NODE_GI_BRIDGE = '@gjsify/node-gi';
 
-/** No backend on this host — expected, but never silent. Says what to install. */
-function noTypelibText(namespace: string): string {
+/**
+ * A FAULT, not a platform gap — `error` level, carrying the original so the GI/GLib/loader
+ * message is not lost. The wording deliberately does not claim "the typelib is
+ * installed": the same path covers a shared library that will not `dlopen`, a version
+ * conflict and an ABI skew.
+ */
+function loadFaultText(namespace: string, absentCause: string): string {
     return (
-        `[@gjsify/gamepad] No gamepad backend on this host — the ${namespace}-0.2 typelib is absent, so ` +
+        `[@gjsify/gamepad] The gi://${namespace} gamepad backend failed to load — a fault on this host, ` +
+        `NOT ${absentCause}. getGamepads() reports no controllers until it is fixed.`
+    );
+}
+
+/** libmanette 0.2 — every host except darwin, until Amendment 1's Linux comparison. */
+const MANETTE_BACKEND: _GiBackend = {
+    status: 'manette',
+    namespace: 'Manette',
+    noTypelibText:
+        '[@gjsify/gamepad] No gamepad backend on this host — the Manette-0.2 typelib is absent, so ' +
         'getGamepads() reports no controllers no matter what is plugged in. ' +
         'Install libmanette + its typelib (Fedora: libmanette; Debian/Ubuntu: gir1.2-manette-0.2); ' +
-        'macOS and Windows have no libmanette at all. Gate on hasGamepadBackend().'
-    );
-}
-
-/** No bridge in this process — expected on plain Node. Says what to install. */
-function noBridgeText(): string {
-    return (
+        'Windows has no libmanette at all. Gate on hasGamepadBackend().',
+    noBridgeText:
         `[@gjsify/gamepad] No gamepad backend in this process — ${NODE_GI_BRIDGE} is not installed, and it is how ` +
-        `a --app node bundle reaches gi://${GI_NAMESPACE}. getGamepads() reports no controllers until it is added ` +
-        `(npm install ${NODE_GI_BRIDGE}, plus libmanette + its typelib). Gate on hasGamepadBackend().`
-    );
-}
+        'a --app node bundle reaches gi://Manette. getGamepads() reports no controllers until it is added ' +
+        `(npm install ${NODE_GI_BRIDGE}, plus libmanette + its typelib). Gate on hasGamepadBackend().`,
+    loadFaultText: loadFaultText('Manette', 'a platform without libmanette'),
+};
 
 /**
- * macOS: not "install something" — there is nothing to install yet. libmanette cannot
- * exist here, and the backend that replaces it is decided (ADR 0075) but not built. The
- * text says both, so nobody goes looking for a Homebrew formula that is not there.
+ * The SDL3 shim — darwin (ADR 0075). Its typelib and library arrive as the per-target
+ * `@gjsify/gamepad-native-<os>-<arch>` optional dependency, and a GJS process finds them
+ * through the launcher's `GI_TYPELIB_PATH` (`gjsify run`), so "absent" means one of those
+ * two did not happen and the text names both. Never the libmanette advice: there is no
+ * libmanette for macOS, and a search for one finds nothing.
  */
-const DARWIN_NO_BACKEND_TEXT =
-    '[@gjsify/gamepad] No gamepad backend on macOS yet — getGamepads() reports no controllers no matter what is ' +
-    'plugged in. libmanette cannot exist here (it links the Linux-only libevdev), and the darwin backend that ' +
-    'replaces it — SDL3 behind a GObject shim, docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md ' +
-    '— is not built yet. Gate on hasGamepadBackend().';
+const SDL_BACKEND: _GiBackend = {
+    status: 'sdl',
+    namespace: 'GjsifyGamepad',
+    noTypelibText:
+        '[@gjsify/gamepad] No gamepad backend on this host — the GjsifyGamepad-1.0 typelib of ' +
+        '@gjsify/gamepad-native is not on the typelib path, so getGamepads() reports no controllers no matter ' +
+        'what is plugged in. It ships as the optional dependency @gjsify/gamepad-native-<os>-<arch>: check that ' +
+        'it installed, and start the program through `gjsify run` (or put its prebuilds/<os>-<arch> directory ' +
+        'on GI_TYPELIB_PATH). Gate on hasGamepadBackend().',
+    noBridgeText:
+        `[@gjsify/gamepad] No gamepad backend in this process — ${NODE_GI_BRIDGE} is not installed, and it is how ` +
+        'a --app node bundle reaches gi://GjsifyGamepad. getGamepads() reports no controllers until it is added ' +
+        `(npm install ${NODE_GI_BRIDGE}). Gate on hasGamepadBackend().`,
+    loadFaultText: loadFaultText('GjsifyGamepad', 'a host without @gjsify/gamepad-native'),
+};
 
-/**
- * The backend is there in principle but did not come up. A FAULT, not a platform gap —
- * `error` level, carrying the original so the GI/GLib/loader message is not lost. The
- * wording deliberately does not claim "the typelib is installed": the same path covers a
- * shared library that will not `dlopen`, a version conflict and an ABI skew.
- */
-const LOAD_FAULT_TEXT =
-    `[@gjsify/gamepad] The gi://${GI_NAMESPACE} gamepad backend failed to load — a fault on this host, ` +
-    'NOT a platform without libmanette. getGamepads() reports no controllers until it is fixed.';
+/** Both backends, for `backend.spec.ts`; the probe itself picks one by host OS. */
+export const _GI_BACKENDS = { manette: MANETTE_BACKEND, sdl: SDL_BACKEND } as const;
 
 /**
  * The cached probe, one per process. `_resetGamepadBackendCache()` is the only way to run
@@ -225,46 +265,35 @@ function isMissingNodeGiBridge(error: unknown, message: string): boolean {
 /**
  * Classify a `gi://` load failure and pick the text for it. Exported (underscored) for
  * `backend.spec.ts`, which pins the absent wording against the LIVE loader — hence the
- * namespace parameter: the test asks for a namespace that cannot exist and classifies the
+ * backend parameter: the test asks for a namespace that cannot exist and classifies the
  * error the running GJS/girepository produced for it.
  */
-export function _diagnoseGiLoadError(error: unknown, namespace: string = GI_NAMESPACE): GiLoadDiagnosis {
+export function _diagnoseGiLoadError(error: unknown, backend: _GiBackend = MANETTE_BACKEND): GiLoadDiagnosis {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes(typelibAbsentNeedle(namespace))) {
-        return { status: 'absent', diagnostic: noTypelibText(namespace) };
+    if (message.includes(typelibAbsentNeedle(backend.namespace))) {
+        return { status: 'absent', diagnostic: backend.noTypelibText };
     }
     if (isMissingNodeGiBridge(error, message)) {
-        return { status: 'absent', diagnostic: noBridgeText() };
+        return { status: 'absent', diagnostic: backend.noBridgeText };
     }
-    return { status: 'failed', diagnostic: null };
+    return { status: 'failed', diagnostic: backend.loadFaultText };
 }
 
-async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<GamepadBackend> {
-    // THE PLATFORM BRANCH (ADR 0075). darwin does not probe `gi://Manette` at all: that
-    // typelib cannot exist there, so the import could only ever fail, and its failure
-    // text would send the reader to a Linux package manager. Its source — the SDL3
-    // shim — is not built yet, and until it is the answer is an honest `absent`, NOT a
-    // stand-in that reports success with zero devices: `hasGamepadBackend()` must stay
-    // `false` where nothing can read a controller.
-    //
-    // An UNKNOWN host (`undefined`: no `process` global to ask) keeps the Manette probe,
-    // which classifies itself from the loader's own error — never assume "not darwin".
-    const os = (options.hostOs ?? hostOs)();
-    if (os === 'darwin') {
-        return { status: 'absent', module: null, error: null, diagnostic: DARWIN_NO_BACKEND_TEXT };
-    }
+/** What a `gi://` backend import resolves to; both namespaces expose `Monitor`. */
+type GiBackendModule = typeof Manette | GjsifyGamepadNamespace;
 
-    // The specifier is a LITERAL, not built from `GI_NAMESPACE`: every plugin that claims
-    // `gi://*` (`gjsGiNodePlugin`, `gjsImportsEmptyPlugin`, the `--app gjs` externals
-    // predicate) matches the resolved specifier at BUILD time, so a template literal
-    // would leave the import unclaimed on all four targets.
-    const importer =
-        options.importer ?? (() => import('gi://Manette?version=0.2') as Promise<{ default: typeof Manette }>);
-
-    let module: typeof Manette;
+/**
+ * Load one `gi://` backend and classify the outcome. One path for both namespaces: the
+ * absent/fault split, the node-gi member-access guard and the build-time stub are
+ * properties of `gi://`, not of either library.
+ */
+async function probeGi(
+    backend: _GiBackend,
+    importer: () => Promise<{ default: GiBackendModule }>,
+): Promise<GamepadBackend> {
+    let module: GiBackendModule;
     try {
-        const mod = await importer();
-        module = mod.default;
+        module = (await importer()).default;
         // Resolve a member INSIDE the guard — see the node-gi parity note in the module
         // header. It also turns "typelib loaded but carries no Monitor" (an ABI skew)
         // into a classified fault instead of a TypeError at the first getGamepads().
@@ -273,19 +302,50 @@ async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<
                 return { status: 'absent', module: null, error: null, diagnostic: null };
             }
             const error = new Error(
-                `gi://${GI_NAMESPACE} resolved without a Monitor class — unexpected ${GI_NAMESPACE} ABI`,
+                `gi://${backend.namespace} resolved without a Monitor class — unexpected ${backend.namespace} ABI`,
             );
-            return { status: 'failed', module: null, error, diagnostic: null };
+            return { status: 'failed', module: null, error, diagnostic: backend.loadFaultText };
         }
     } catch (error) {
         // The one operation that genuinely fails per host: GI resolving a typelib that may
         // not exist (absent), may not load (fault), or is out of reach because the node-gi
         // bridge is not installed (absent).
-        const { status, diagnostic } = _diagnoseGiLoadError(error);
+        const { status, diagnostic } = _diagnoseGiLoadError(error, backend);
         return { status, module: null, error, diagnostic };
     }
 
-    return { status: 'manette', module, error: null, diagnostic: null };
+    return backend.status === 'sdl'
+        ? { status: 'sdl', module: module as GjsifyGamepadNamespace, error: null, diagnostic: null }
+        : { status: 'manette', module: module as typeof Manette, error: null, diagnostic: null };
+}
+
+async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<GamepadBackend> {
+    // THE PLATFORM BRANCH (ADR 0075). darwin never probes `gi://Manette`: that typelib
+    // cannot exist there, so the import could only fail, and its text would send the
+    // reader to a Linux package manager. It probes the SDL3 shim instead, and a host
+    // without the shim's prebuild answers an honest `absent` — never a stand-in that
+    // reports success with zero devices: `hasGamepadBackend()` must stay `false` where
+    // nothing can read a controller.
+    //
+    // An UNKNOWN host (`undefined`: no `process` global to ask) keeps the Manette probe,
+    // which classifies itself from the loader's own error — never assume "not darwin".
+    //
+    // The specifiers are LITERALS: every plugin that claims `gi://*` (`gjsGiNodePlugin`,
+    // `gjsImportsEmptyPlugin`, the `--app gjs` externals predicate) matches the resolved
+    // specifier at BUILD time, so a template literal would leave the import unclaimed on
+    // all four targets.
+    const os = (options.hostOs ?? hostOs)();
+    if (os === 'darwin') {
+        return probeGi(
+            SDL_BACKEND,
+            options.sdlImporter ??
+                (() => import('gi://GjsifyGamepad?version=1.0') as Promise<{ default: GjsifyGamepadNamespace }>),
+        );
+    }
+    return probeGi(
+        MANETTE_BACKEND,
+        options.importer ?? (() => import('gi://Manette?version=0.2') as Promise<{ default: typeof Manette }>),
+    );
 }
 
 /**
@@ -298,9 +358,9 @@ async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<
  */
 export function loadGamepadBackend(options: LoadGamepadBackendOptions = {}): Promise<GamepadBackend> {
     if (cached !== null) {
-        if (options.importer || options.hostOs) {
+        if (options.importer || options.sdlImporter || options.hostOs) {
             throw new Error(
-                'loadGamepadBackend({ importer, hostOs }) called after the probe already ran — the probe is cached per ' +
+                'loadGamepadBackend({ importer, sdlImporter, hostOs }) called after the probe already ran — the probe is cached per ' +
                     'process, so the override would be ignored. Call _resetGamepadBackendCache() first (tests only).',
             );
         }
@@ -325,7 +385,7 @@ export function reportGamepadBackendOnce(backend: GamepadBackend): void {
     if (reported) return;
     if (backend.status === 'failed') {
         reported = true;
-        console.error(LOAD_FAULT_TEXT, backend.error);
+        console.error(backend.diagnostic, backend.error);
         return;
     }
     // Nothing to say (a healthy backend, or the by-design `gi://` stub). The flag stays
@@ -365,14 +425,15 @@ export function reportGamepadMonitorFault(error: unknown, source: GamepadSource 
  * what is connected — something the W3C surface itself cannot express, since it returns
  * the same list either way. Answerable without constructing a monitor, and QUIET.
  *
- * `false` on every host without libmanette, which today means macOS and Windows:
- * libmanette links libevdev unconditionally and libevdev is Linux/FreeBSD-only. macOS
- * gets its own backend under ADR 0075 and answers `false` until it ships. Reports
- * that the BRIDGE is usable, not that every later call succeeds — a monitor can still fail
- * to start (see {@link reportGamepadMonitorFault}).
+ * `false` on Windows (libmanette links libevdev, which is Linux/FreeBSD-only, and the
+ * SDL3 shim has no win32 leg yet), on Linux without libmanette, and on macOS without the
+ * `@gjsify/gamepad-native` prebuild. Reports that the BRIDGE is usable, not that every
+ * later call succeeds — a monitor can still fail to start (see
+ * {@link reportGamepadMonitorFault}).
  */
 export async function hasGamepadBackend(): Promise<boolean> {
-    return (await loadGamepadBackend()).status === 'manette';
+    const { status } = await loadGamepadBackend();
+    return status === 'manette' || status === 'sdl';
 }
 
 /** Reset the cached probe and its one-time diagnostic — tests only. */

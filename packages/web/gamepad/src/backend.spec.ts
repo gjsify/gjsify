@@ -21,6 +21,7 @@ import type Manette from '@girs/manette-0.2';
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    _GI_BACKENDS,
     _diagnoseGiLoadError,
     _resetGamepadBackendCache,
     hasGamepadBackend,
@@ -30,6 +31,7 @@ import {
     type LoadGamepadBackendOptions,
 } from './backend.js';
 import { GamepadManager } from './gamepad-manager.js';
+import type { GjsifyGamepadNamespace } from './sdl-namespace.js';
 
 /**
  * GJS's wording for a namespace whose typelib is not installed anywhere.
@@ -65,6 +67,15 @@ const ABSENT_MESSAGE = "Requiring Manette, version none: Typelib file for namesp
  * covers this case, and this is the measurement that proves it has to.
  */
 const BROKEN_LIBRARY_MESSAGE = 'Unsupported type void, deriving from fundamental void';
+
+/**
+ * The darwin backend's absent wording. MEASURED on gjs 1.88.1 / macOS 27 arm64 with no
+ * GjsifyGamepad typelib on the path: `await import('gi://GjsifyGamepad?version=1.0')`,
+ * verbatim `error.message`. The versioned form of the template {@link ABSENT_MESSAGE}
+ * shows, and the needle matches both.
+ */
+const SDL_ABSENT_MESSAGE =
+    "Requiring GjsifyGamepad, version 1.0: Typelib file for namespace 'GjsifyGamepad', version '1.0' not found";
 
 /**
  * A namespace no host can have. Built at runtime so neither `tsc` nor the bundler
@@ -224,7 +235,7 @@ export default async () => {
                 liveError = error;
             }
             expect(liveError instanceof Error).toBe(true);
-            const scoped = _diagnoseGiLoadError(liveError, ABSENT_NAMESPACE);
+            const scoped = _diagnoseGiLoadError(liveError, { ..._GI_BACKENDS.manette, namespace: ABSENT_NAMESPACE });
             expect(scoped.status).toBe('absent');
             expect(scoped.diagnostic).toContain('No gamepad backend on this host');
             // And the namespace scoping is real, not decoration: the SAME live
@@ -387,30 +398,31 @@ export default async () => {
             expect(captured.errors[0]).toContain('without a Monitor class');
         });
 
-        await it('answers darwin with an honest absent, without probing gi://Manette', async () => {
+        await it('answers darwin without the shim with an honest absent, never probing gi://Manette', async () => {
             _resetGamepadBackendCache();
-            // ADR 0075: libmanette cannot exist on macOS and the SDL3 shim that
-            // replaces it is not built yet. The one wrong answer here is a stand-in
-            // that reports success with zero devices — a backend that can never see
-            // a controller must say `false`. And the importer must NOT run: its
-            // failure text would send a Mac user to a Linux package manager.
-            let imported = 0;
+            // ADR 0075: libmanette cannot exist on macOS; the SDL3 shim is its backend.
+            // Without the shim's prebuild the one wrong answer is a stand-in that reports
+            // success with zero devices — a backend that can never see a controller must
+            // say `false`. And the Manette importer must NOT run: its failure text would
+            // send a Mac user to a Linux package manager.
+            let manetteImports = 0;
             const captured = await capturingConsole(async () => {
                 const backend = await loadGamepadBackend({
                     hostOs: () => 'darwin',
                     importer: () => {
-                        imported++;
+                        manetteImports++;
                         return Promise.resolve({ default: fakeManetteModule() });
                     },
+                    sdlImporter: () => Promise.reject(new Error(SDL_ABSENT_MESSAGE)),
                 });
                 expect(backend.status).toBe('absent');
                 expect(backend.module).toBeNull();
-                expect(backend.error).toBeNull();
+                expect((backend.error as Error).message).toBe(SDL_ABSENT_MESSAGE);
                 expect(await hasGamepadBackend()).toBe(false);
                 // The capability query stays quiet on darwin too…
             });
             expect(captured.warnings).toStrictEqual([]);
-            expect(imported).toBe(0);
+            expect(manetteImports).toBe(0);
             // …and the manager, the USE site, says why exactly once.
             const spoken = await capturingConsole(async () => {
                 const manager = new GamepadManager();
@@ -420,11 +432,79 @@ export default async () => {
             });
             expect(spoken.errors).toStrictEqual([]);
             expect(spoken.warnings).toHaveLength(1);
-            expect(spoken.warnings[0]).toContain('No gamepad backend on macOS yet');
-            expect(spoken.warnings[0]).toContain('0075');
+            expect(spoken.warnings[0]).toContain('No gamepad backend on this host');
+            expect(spoken.warnings[0]).toContain('@gjsify/gamepad-native');
+            expect(spoken.warnings[0]).toContain('gjsify run');
             expect(spoken.warnings[0]).toContain('hasGamepadBackend()');
             // Not the Linux advice.
-            expect(spoken.warnings[0]).not.toContain('gir1.2-manette');
+            expect(spoken.warnings[0]).not.toContain('libmanette');
+        });
+
+        await it('uses the SDL3 shim on darwin when its typelib loads', async () => {
+            _resetGamepadBackendCache();
+            const device = {
+                get_name: () => 'Shim Pad',
+                get_buttons: () => Array.from<number>({ length: 17 }).fill(0),
+                get_axes: () => [0, 0, 0, 0],
+                has_rumble: () => false,
+                has_trigger_rumble: () => false,
+                rumble: () => false,
+                rumble_triggers: () => false,
+            };
+            class Monitor {
+                static new() {
+                    return new Monitor();
+                }
+                private added: ((monitor: unknown, d: typeof device) => void) | null = null;
+                private reported = false;
+                update() {
+                    if (this.reported) return;
+                    this.reported = true;
+                    this.added?.(this, device);
+                }
+                close() {}
+                connect(signal: string, handler: (monitor: unknown, d: typeof device) => void) {
+                    if (signal === 'device-added') this.added = handler;
+                    return 1;
+                }
+                disconnect() {}
+            }
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: () => 'darwin',
+                    sdlImporter: () => Promise.resolve({ default: { Monitor } as unknown as GjsifyGamepadNamespace }),
+                });
+                expect(backend.status).toBe('sdl');
+                expect(backend.diagnostic).toBeNull();
+                expect(await hasGamepadBackend()).toBe(true);
+                const manager = new GamepadManager();
+                manager.getGamepads();
+                await flushMicrotasks();
+                // Wiring proof: the device can only have come from the injected shim.
+                expect(manager.getGamepads()[0]?.id).toBe('Shim Pad');
+                manager.dispose();
+            });
+            expect(captured.warnings).toStrictEqual([]);
+            expect(captured.errors).toStrictEqual([]);
+        });
+
+        await it('classifies a darwin shim that is present but broken as a fault', async () => {
+            _resetGamepadBackendCache();
+            const broken = new Error(BROKEN_LIBRARY_MESSAGE);
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: () => 'darwin',
+                    sdlImporter: () => Promise.reject(broken),
+                });
+                expect(backend.status).toBe('failed');
+                reportGamepadBackendOnce(backend);
+            });
+            expect(captured.errors).toHaveLength(1);
+            expect(captured.errors[0]).toContain('gi://GjsifyGamepad');
+            expect(captured.errors[0]).toContain('failed to load');
+            expect(captured.errors[0]).toContain(BROKEN_LIBRARY_MESSAGE);
+            expect(captured.errors[0]).not.toContain('libmanette');
+            expect(captured.warnings).toStrictEqual([]);
         });
 
         await it('keeps probing gi://Manette when the host OS is unknown', async () => {

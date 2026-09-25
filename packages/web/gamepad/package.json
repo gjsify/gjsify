@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/gamepad",
     "version": "0.52.0",
-    "description": "Gamepad Web API for GJS using libmanette as backend",
+    "description": "Gamepad Web API for GJS: libmanette on Linux, SDL3 (via @gjsify/gamepad-native) on macOS",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -40,6 +40,7 @@
         "gjs",
         "gamepad",
         "libmanette",
+        "sdl3",
         "controller"
     ],
     "dependencies": {
@@ -55,6 +56,9 @@
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
+    "optionalDependencies": {
+        "@gjsify/gamepad-native": "workspace:^"
+    },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
@@ -64,12 +68,12 @@
         },
         "os": {
             "linux": "supported",
-            "darwin": "none",
+            "darwin": "partial",
             "win32": "none"
         },
         "osNotes": {
-            "darwin": "No backend reads a controller on macOS yet: libmanette links the Linux-only libevdev, and the replacement decided in ADR 0075 (SDL3 behind a GObject shim, @gjsify/gamepad-native) is not built. The package loads, getGamepads() answers the conformant empty list and hasGamepadBackend() reports false.",
-            "win32": "No backend on Windows: libmanette links the Linux-only libevdev. getGamepads() answers the conformant empty list and hasGamepadBackend() reports false. ADR 0075's shim is portable C over SDL3, which also covers Windows, but no win32 target is decided."
+            "darwin": "The backend is SDL3 behind a GObject shim (@gjsify/gamepad-native, ADR 0075). It builds, loads and enumerates on macOS, but input from a real controller has not been verified yet, and its darwin prebuilds are not published yet. Without the prebuild, getGamepads() answers the conformant empty list and hasGamepadBackend() reports false.",
+            "win32": "No backend on Windows yet: libmanette links the Linux-only libevdev, and the win32 leg of the SDL3 shim that ADR 0075 Amendment 1 makes the backend on every OS is not built. getGamepads() answers the conformant empty list and hasGamepadBackend() reports false."
         },
         "tier": 1
     },
