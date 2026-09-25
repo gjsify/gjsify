@@ -238,6 +238,22 @@ more helpful and would show a licence line on Windows that Linux does not.
 - `pickFile(parent, { title?, filters? }): Promise<string | null>` /
   `saveFile(parent, { title?, filters?, initialName? }): Promise<string | null>`
 
+### macOS system accent
+
+A GTK window needs nothing here: libadwaita ≥ 1.6 follows the macOS accent itself,
+and `Adw.StyleManager:accent-color` is read-only. This is for what has no libadwaita
+in the process — a web view (WebKit resolves CSS `AccentColor` to blue whatever the
+setting) or a headless companion process — and it is GTK-free, so import it from
+the `@gjsify/adwaita-app/system-accent` subpath there.
+
+- `readMacosAccentColor(): AdwAccentColorName | null` — runs
+  `defaults read -g AppleAccentColor` and maps it with `@gjsify/adwaita-core`'s
+  `adwAccentFromAppleAccentColor` (graphite → `slate`, Multicolor → `blue`).
+  `null` off macOS or for a value macOS does not define.
+- `onMacosAccentColorChanged(listener, { intervalSeconds? }): () => void` — calls
+  `listener` with the new accent when it changes; re-reads every 5 s by default
+  (there is no change signal GI can reach). Hold and call the returned unsubscribe.
+
 ### Dev hooks
 
 - `readAppDevHooks({ prefix, env? }): { view?, file?, debug }` — the
