@@ -242,22 +242,33 @@ test('an Icecast MP3 stream decodes to PCM on the bundle', { skip: bundleSkip },
 });
 
 // AAC, the format `mediafoundation` closed for MP3 also registers a decoder for
-// (`mfaacdec` beside `mfmp3dec`, ADR 0056 § 7) — but only win32 ever claims it: darwin ships
-// no AAC decoder at all, `faad` (GPL) and `avdec_aac` (the libav closure ADR 0037 refuses)
-// both deliberately excluded, so `gjsify.mediaCapabilities.gaps` stays the honest answer there.
+// (`mfaacdec` beside `mfmp3dec`, ADR 0056 § 7) — claimed PER CONTAINER SHAPE rather than as
+// one format, because the two are not one capability: measured on real win32 CI (run
+// 36100259678), `mfaacdec` decodes the M4A shape (qtdemux hands it raw AAC directly) and does
+// NOT decode the raw ADTS shape through decodebin3 — `try_pull_sample` ran its full 5 s
+// timeout with no sample and no EOS, a STALL rather than the instant "no error, no pad" settle
+// the MP3/M4A negative shape produces, even though `aacparse` resolves as a factory
+// (REQUIRED_ELEMENTS, above) same as it does on every other platform. The cause inside
+// `mfaacdec`'s caps negotiation is not root-caused here; what is asserted is the OUTCOME,
+// per shape. darwin ships no AAC decoder at all for either shape — `faad` (GPL) and
+// `avdec_aac` (the libav closure ADR 0037 refuses) both deliberately excluded — so
+// `gjsify.mediaCapabilities.gaps` stays the honest answer there for both.
+//
 // GATED ON THE CLAIM, unlike the MP3 tests above, which is the opposite of "unconditional on
 // every bundle": MP3 is decoded EVERYWHERE (through different elements) and a bundle silent
-// about it would be the asymmetry #1544 cost; AAC is decoded on ONE platform by design, so
-// asserting success on the others would fail for the reason the manifest already states, and
-// asserting nothing at all would let the claim rot the way the un-tested win32 MP3 claim did.
+// about it would be the asymmetry #1544 cost; each AAC shape decodes on AT MOST one platform
+// by measurement, so asserting success where the manifest does not claim it would fail for a
+// reason already stated, and asserting nothing at all would let a future claim rot untested.
 //
 // Negative controls, run on linux-x64 with the host's three AAC decoders ranked out
 // (`GST_PLUGIN_FEATURE_RANK=avdec_aac:NONE,avdec_aac_fixed:NONE,avdec_aac_latm:NONE,faad:NONE,
-// fdkaacdec:NONE`): both shapes fail with `Internal data stream error` / not-negotiated and 0
-// bytes out — qtdemux for the M4A file, aacparse for the raw stream, matching the element each
-// one's REQUIRED_ELEMENTS entry above names. Ranking out only `qtdemux` empties the M4A
-// pipeline (`No streams to output`) and leaves the ADTS one unaffected; ranking out only
-// `aacparse` fails the ADTS pipeline and leaves the M4A one unaffected.
+// fdkaacdec:NONE`): both shapes fail fast with `Internal data stream error` / not-negotiated
+// and 0 bytes out — qtdemux for the M4A file, aacparse for the raw stream, matching the
+// element each one's REQUIRED_ELEMENTS entry above names. Ranking out only `qtdemux` empties
+// the M4A pipeline (`No streams to output`) and leaves the ADTS one unaffected; ranking out
+// only `aacparse` fails the ADTS pipeline and leaves the M4A one unaffected. On linux-x64
+// WITH a decoder present (the closest reachable stand-in — no Windows host runs `mfaacdec`
+// from this workstation), both shapes decode: M4A to 44101 frames, raw ADTS to 46080.
 const AAC_FRAMES = AAC_FIXTURE_SECONDS * PCM_RATE;
 // Upper slack: an M4A file is trimmed by the container's own edit list (measured 44101 frames
 // for a 44100-sample input, decoder-agnostic — the clipping is qtdemux's segment, not the
@@ -265,24 +276,32 @@ const AAC_FRAMES = AAC_FIXTURE_SECONDS * PCM_RATE;
 // decode includes the encoder's look-ahead delay untrimmed (measured 46080 frames — 45 × 1024,
 // one full AAC-LC frame more than the input). One bound covers both, on the MP3 tests' pattern.
 const AAC_FRAMES_MAX = AAC_FRAMES + 4 * 1024;
-const aacClaim = claim.find((entry) => entry.format.startsWith('AAC'));
-const aacSkip =
-    bundleSkip ||
-    (aacClaim
-        ? false
-        : "this bundle's `gjsify.mediaCapabilities` declares no AAC decoder — see its `gaps`, and ADR 0056 § 7");
 
-test('an M4A podcast episode decodes to PCM where the bundle claims AAC', { skip: aacSkip }, () => {
+const aacM4aClaim = claim.find((entry) => entry.format === 'AAC (M4A)');
+const aacM4aSkip =
+    bundleSkip ||
+    (aacM4aClaim
+        ? false
+        : "this bundle's `gjsify.mediaCapabilities` declares no AAC (M4A) decoder — see its `gaps`, and ADR 0056 § 7");
+
+test('an M4A podcast episode decodes to PCM where the bundle claims AAC (M4A)', { skip: aacM4aSkip }, () => {
     const result = decodeToPcm(readM4aFixture());
     assert.ok(
         result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,
         `decoding a ${AAC_FIXTURE_SECONDS} s M4A produced ${result.frames} frames (eos: ${result.eos}` +
             `${result.error ? `, error: ${result.error}` : ''}); expected ${AAC_FRAMES}..${AAC_FRAMES_MAX}. ` +
-            `The claimed decoder is \`${aacClaim?.element}\`; qtdemux hands it raw AAC with no aacparse in between.`,
+            `The claimed decoder is \`${aacM4aClaim?.element}\`; qtdemux hands it raw AAC with no aacparse in between.`,
     );
 });
 
-test('a raw ADTS AAC stream decodes to PCM where the bundle claims AAC', { skip: aacSkip }, () => {
+const aacAdtsClaim = claim.find((entry) => entry.format === 'AAC (ADTS)');
+const aacAdtsSkip =
+    bundleSkip ||
+    (aacAdtsClaim
+        ? false
+        : "this bundle's `gjsify.mediaCapabilities` declares no AAC (ADTS) decoder — see its `gaps`, and ADR 0056 § 7");
+
+test('a raw ADTS AAC stream decodes to PCM where the bundle claims AAC (ADTS)', { skip: aacAdtsSkip }, () => {
     const result = decodeToPcm(readAdtsFixture());
     assert.ok(
         result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,

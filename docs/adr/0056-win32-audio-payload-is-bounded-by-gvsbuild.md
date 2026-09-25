@@ -210,23 +210,31 @@ catalogue rule names it and win32 can drop the OS dependency. AAC was not claime
 `mfaacdec` shipped alongside `mfmp3dec` from the start: a claim is made where a test decodes
 it, and none did yet.
 
-**AAC now has that test, and win32 claims it too (amended 2026-09-25).** Two fixtures, the
+**AAC now has that test, and win32 claims HALF of it (amended 2026-09-25).** Two fixtures, the
 two shapes an application actually meets: a podcast episode (`.m4a`, AAC-LC in an MP4
 container, decoded through `qtdemux` straight into the decoder — no `aacparse` in that path)
 and a live stream (raw ADTS, decoded through `aacparse` with no container at all). Both are
-generated (ffmpeg's own `aac` encoder over a synthesized sine, never a third-party recording)
-and both decode on win32 with the same negative-control shape MP3 used: with every AAC
-decoder ranked out on linux-x64 (`avdec_aac`/`avdec_aac_fixed`/`avdec_aac_latm`/`faad`/
-`fdkaacdec`, the closest stand-in reachable from this workstation — no Windows host runs
-`mfaacdec`), both fixtures fail with `Internal data stream error` / not-negotiated at 0 bytes
-out, and ranking out only `qtdemux` or only `aacparse` fails exactly the one shape that
-element is on. `gst-elements.test.mjs` runs both fixtures through `decodebin3` on the
-bundle and counts PCM frames, gated on the manifest actually claiming AAC — so it skips
-rather than false-claims on darwin. The manifest claim is `{ format: "AAC (M4A / ADTS)",
-plugin: "mediafoundation", element: "mfaacdec" }`, the same plugin and the same no-library,
-no-redistribution-question shape as the MP3 claim. darwin's AAC entry stays a `gaps` one:
-there is no Media Foundation on macOS, and `faad`/`avdec_aac` remain excluded for the
-reason § "What this does NOT decide" still gives.
+generated (ffmpeg's own `aac` encoder over a synthesized sine, never a third-party recording),
+and the two shapes turned out NOT to be one capability. On linux-x64, with every AAC decoder
+ranked out (`avdec_aac`/`avdec_aac_fixed`/`avdec_aac_latm`/`faad`/`fdkaacdec` — the closest
+stand-in reachable from this workstation, no Windows host runs `mfaacdec`), both fixtures fail
+fast with `Internal data stream error` / not-negotiated at 0 bytes out, and with a decoder
+present both decode (M4A to 44101 frames, raw ADTS to 46080). **On real win32 CI (run
+36100259678, windows-latest) only the M4A shape follows that pattern.** The M4A fixture
+decodes in 20 ms. The raw ADTS fixture does not: `try_pull_sample` ran its full 5 s timeout
+with no sample and no EOS — a STALL, not the instant "no error, no pad" settle a missing
+decoder produces — even though `aacparse` resolves as a factory exactly as it does on every
+other platform (`gst-elements.test.mjs`'s `REQUIRED_ELEMENTS` check passed). The cause inside
+`mfaacdec`'s caps negotiation with `aacparse`'s output is not root-caused here; what is
+declared is the measured outcome, per shape, which is why the manifest now carries TWO claims
+rather than one: `{ format: "AAC (M4A)", plugin: "mediafoundation", element: "mfaacdec" }` (the
+same plugin and no-library, no-redistribution-question shape as the MP3 claim), and `{ format:
+"AAC (ADTS)", why: … }` stays a `gaps` entry with no `plugin` — `mediafoundation` is present,
+the shape is a negotiation outcome rather than a missing file. `gst-elements.test.mjs` gates
+each shape's decode test on its OWN claim, so a future fix (here or upstream) that makes the
+ADTS shape decode turns a skip into a running, green test rather than a silent gap. darwin
+claims neither shape: there is no Media Foundation on macOS, and `faad`/`avdec_aac` remain
+excluded for the reason § "What this does NOT decide" still gives.
 
 **The live stream needed a demuxer as well, on every target.** Measured with the host
 GStreamer against a real Icecast MP3 stream (it answers `icy-metaint: 16000`): souphttpsrc
@@ -345,11 +353,13 @@ out → only the file fails.
 - **Whether FLAC stays a gap once something needs it.** Unlike MP3 it has a route out of this
   catalogue (`claxon`, below), so the entry is a price and not a wall. Its `why` says so, which
   is the difference between the two gaps a consumer can now read off `npm view`.
-- **AAC on darwin**, which stays a gap for the reason ADR 0055 gives: `faad` is GPL and
-  `avdec_aac` brings the libav closure ADR 0037 refuses, so it is the product author's
-  redistribution decision and not this bundle's. win32 claims it instead, through the same
-  OS-decoder route MP3 takes (§ 7, amended 2026-09-25) — there is no equivalent route on
-  macOS, because there is no Media Foundation there.
+- **AAC on darwin, for either container shape**, which stays a gap for the reason ADR 0055
+  gives: `faad` is GPL and `avdec_aac` brings the libav closure ADR 0037 refuses, so it is the
+  product author's redistribution decision and not this bundle's — there is no equivalent
+  route on macOS, because there is no Media Foundation there. win32 claims the M4A shape
+  instead, through the same OS-decoder route MP3 takes (§ 7, amended 2026-09-25); the raw ADTS
+  shape stays a gap on win32 too, but for a DIFFERENT reason — `mediafoundation` is present and
+  `mfaacdec` decodes M4A, it just does not decode that shape (measured, § 7).
 - **Video, capture or encoding.** The vocabulary is still `audioDecode` because that is what
   the bundles carry.
 - **Anything about darwin.** Homebrew's prefix is not bounded this way, and the two builders

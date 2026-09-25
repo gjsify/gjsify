@@ -47,7 +47,7 @@
           "element": "mfmp3dec"
         },
         {
-          "format": "AAC (M4A / ADTS)",
+          "format": "AAC (M4A)",
           "plugin": "mediafoundation",
           "element": "mfaacdec"
         },
@@ -103,6 +103,10 @@
         {
           "plugin": "wasapi2",
           "why": "the modern Windows sink, and the one absence here that costs no format: `directsound` ships and `autoaudiosink` resolves to it. Declared because it is the same silent absence, not because anything breaks."
+        },
+        {
+          "format": "AAC (ADTS)",
+          "why": "the same `mfaacdec` that decodes the M4A shape (see the `AAC (M4A)` claim) does not decode a bare ADTS stream through `decodebin3`: measured on CI (run 36100259678, windows-latest), `aacparse` resolves as a factory same as on every other platform, yet the pipeline never produces a sample or reaches EOS — `try_pull_sample` ran its full 5 s timeout, a STALL rather than the instant no-error/no-pad settle a missing decoder produces elsewhere. The cause inside `mfaacdec`'s caps negotiation with `aacparse`'s output is not root-caused here; what is declared is the measured outcome. `gst-elements.test.mjs` keeps a claim-gated test for this shape, so the day a fix (here or upstream) makes it decode, that test starts running and the claim can move."
         }
       ]
     }

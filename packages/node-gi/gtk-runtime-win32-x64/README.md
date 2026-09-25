@@ -156,15 +156,20 @@ both sufficient and the simplest mechanism.
 
 ## MP3 and AAC depend on the host's Media Foundation
 
-MP3 decodes through `mfmp3dec` and AAC (M4A or raw ADTS) through `mfaacdec` — both out of
+MP3 decodes through `mfmp3dec` and AAC-in-M4A through `mfaacdec` — both out of
 gst-plugins-bad's `mediafoundation`, which wraps the decoders Windows ships instead of
 carrying them (ADR 0056 § 7). Where Media Foundation is missing, the plugin fails to load
 and neither format plays: on Windows **N** editions until the Media Feature Pack is
 installed, and on Windows Server until the optional `Server-Media-Foundation` feature is.
 The symptom matches a bundle with no decoder for either format: `playbin3` never leaves
 READY for a file, and a stream fails with `Internal data stream error`. To check a host,
-look for `%SystemRoot%\System32\mfplat.dll`. Every other format in
+look for `%SystemRoot%\System32\mfplat.dll`. Every other claimed format in
 `gjsify.mediaCapabilities` is decoded by the bundle itself.
+
+**AAC decodes as `.m4a`, not as a bare ADTS stream.** `mfaacdec` takes what `qtdemux` hands
+it out of an M4A/MP4 container; a raw ADTS stream (the live-radio shape, no container) does
+not decode through it — measured: the pipeline never produces a sample or reaches EOS, a
+stall rather than an error. `AAC (ADTS)` stays a declared gap here, same as on darwin.
 
 ## Two closures: display-free (default) + full windowing (`--windowing`)
 
