@@ -87,62 +87,90 @@ function closeEvents(ws: any): Promise<Array<{ code: number; reason: string }>> 
     });
 }
 
+/** Runs one case on a fresh pair with the libsoup log watched, and always
+ *  restores the default log handler and closes the servers — a failed
+ *  expectation must not leave the handler counting in the next spec. */
+async function withPair(mode: Mode, body: (pair: Pair, log: SoupLogWatch) => Promise<void>): Promise<void> {
+    const log = watchSoupLog();
+    let pair: Pair | null = null;
+    try {
+        pair = await connectPair(mode);
+        await body(pair, log);
+    } finally {
+        log.stop();
+        pair?.teardown();
+    }
+}
+
 export default async () => {
     for (const mode of ['port', 'noServer'] as Mode[]) {
         await describe(`server-side WebSocket close lifecycle (${mode})`, async () => {
             await it('close() then terminate() closes once, without a second Close frame', async () => {
-                const log = watchSoupLog();
-                const { server, client, teardown } = await connectPair(mode);
-                const serverClosed = closeEvents(server);
-                const clientClosed = closeEvents(client);
-                server.close(4000, 'done');
-                server.terminate();
-                expect(server.readyState).toBe(WebSocket.CLOSING);
-                const seen = await serverClosed;
-                await clientClosed;
-                log.stop();
-                teardown();
-                expect(seen.length).toBe(1);
-                expect(log.count()).toBe(0);
+                await withPair(mode, async ({ server, client }, log) => {
+                    const serverClosed = closeEvents(server);
+                    const clientClosed = closeEvents(client);
+                    server.close(4000, 'done');
+                    server.terminate();
+                    expect(server.readyState).toBe(WebSocket.CLOSING);
+                    const seen = await serverClosed;
+                    await clientClosed;
+                    expect(seen.length).toBe(1);
+                    expect(log.count()).toBe(0);
+                });
             });
 
             await it('terminate() drops the connection without a Close frame (1006)', async () => {
-                const log = watchSoupLog();
-                const { server, client, teardown } = await connectPair(mode);
-                const serverClosed = closeEvents(server);
-                const clientClosed = closeEvents(client);
-                server.terminate();
-                const seen = await serverClosed;
-                const clientSeen = await clientClosed;
-                log.stop();
-                teardown();
-                expect(seen.length).toBe(1);
-                expect(seen[0].code).toBe(1006);
-                expect(clientSeen[0].code).toBe(1006);
-                expect(log.count()).toBe(0);
+                await withPair(mode, async ({ server, client }, log) => {
+                    const serverClosed = closeEvents(server);
+                    const clientClosed = closeEvents(client);
+                    server.terminate();
+                    const seen = await serverClosed;
+                    const clientSeen = await clientClosed;
+                    expect(seen.length).toBe(1);
+                    expect(seen[0].code).toBe(1006);
+                    expect(clientSeen[0].code).toBe(1006);
+                    expect(log.count()).toBe(0);
+                });
+            });
+
+            // Regression: the client's terminate() called the W3C close(1006),
+            // which throws InvalidAccessError — swallowed, so the connection
+            // stayed open until the server went away.
+            await it('client terminate() drops the connection without a Close frame (1006)', async () => {
+                await withPair(mode, async ({ server, client }, log) => {
+                    const serverClosed = closeEvents(server);
+                    const clientClosed = closeEvents(client);
+                    client.terminate();
+                    expect(client.readyState).toBe(WebSocket.CLOSING);
+                    const clientSeen = await clientClosed;
+                    const seen = await serverClosed;
+                    expect(clientSeen.length).toBe(1);
+                    expect(clientSeen[0].code).toBe(1006);
+                    expect(seen.length).toBe(1);
+                    expect(seen[0].code).toBe(1006);
+                    expect(log.count()).toBe(0);
+                });
             });
 
             await it('close() and send() after the peer closed are quiet no-ops', async () => {
-                const log = watchSoupLog();
-                const { server, client, teardown } = await connectPair(mode);
-                const serverClosed = closeEvents(server);
-                client.close(4001, 'bye');
-                // Hold the server in the peer-closed window: ws is CLOSING
-                // here until the TCP stream ends.
-                await new Promise<void>((resolve) => {
-                    const poll = () => (server.readyState === WebSocket.OPEN ? setTimeout(poll, 1) : resolve());
-                    poll();
+                await withPair(mode, async ({ server, client }, log) => {
+                    const serverClosed = closeEvents(server);
+                    client.close(4001, 'bye');
+                    // Hold the server in the peer-closed window: ws is CLOSING
+                    // here until the TCP stream ends.
+                    await new Promise<void>((resolve) => {
+                        const poll = () => (server.readyState === WebSocket.OPEN ? setTimeout(poll, 1) : resolve());
+                        poll();
+                    });
+                    server.close(1000, 'late');
+                    const sendErr = await new Promise<Error | undefined>((resolve) => server.send('late', resolve));
+                    const seen = await serverClosed;
+                    expect(sendErr instanceof Error).toBe(true);
+                    expect(seen.length).toBe(1);
+                    expect(seen[0].code).toBe(4001);
+                    expect(seen[0].reason).toBe('bye');
+                    expect(log.count()).toBe(0);
                 });
-                server.close(1000, 'late');
-                const sendErr = await new Promise<Error | undefined>((resolve) => server.send('late', resolve));
-                const seen = await serverClosed;
-                log.stop();
-                teardown();
-                expect(sendErr instanceof Error).toBe(true);
-                expect(seen.length).toBe(1);
-                expect(seen[0].code).toBe(4001);
-                expect(seen[0].reason).toBe('bye');
-                expect(log.count()).toBe(0);
             });
         });
     }

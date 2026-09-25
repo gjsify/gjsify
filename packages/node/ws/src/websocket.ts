@@ -17,7 +17,7 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
-import { WebSocket as NativeWebSocket } from '@gjsify/websocket';
+import { WebSocket as NativeWebSocket, kAbort } from '@gjsify/websocket';
 import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
 
 export type BinaryType = 'nodebuffer' | 'arraybuffer' | 'fragments' | 'blob';
@@ -34,6 +34,9 @@ interface NativeWebSocketLike {
     addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: NativeEvent) => void): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
     close(code?: number, reason?: string): void;
+    /** @gjsify/websocket's no-Close-frame abort; a host's own WebSocket
+     *  (see _openNative) has none. */
+    [kAbort]?(): void;
 }
 
 /** Minimal event shape emitted by the native WebSocket. Properties are read
@@ -380,17 +383,17 @@ export class WebSocket extends EventEmitter {
         }
     }
 
-    /** ws-only: force-close without sending a Close frame. On Gjs we can't bypass
-     *  Soup's close handshake, so terminate is approximated as close(1006).
-     *  Known gap vs. ws semantics — documented. */
+    /** ws-only: drop the connection without a Close frame; 'close' follows
+     *  with 1006. The W3C close() cannot express that (it rejects 1006), so
+     *  @gjsify/websocket carries an internal hook for it. */
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
-        try {
-            this._native?.close(1006, 'terminated');
-        } catch {
-            // Swallow; we're tearing down anyway.
-        }
+        const native = this._native;
+        if (!native) return;
+        // A host WebSocket without the hook can only close cleanly.
+        if (native[kAbort]) native[kAbort]();
+        else native.close();
     }
 
     /** Convenience: returns true if the socket is closed or closing. Matches
