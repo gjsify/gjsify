@@ -30,6 +30,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 import { inlineStaticReads } from '../utils/inline-static-reads.js';
+import { hasZipSegment } from '../utils/zip-path.js';
 
 export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
@@ -325,7 +326,7 @@ export function rewriteContents(
 
     // Step 2: dispatch by case (see file header).
     if (flags.hasMetaUrl) {
-        if (relative(bundleDir, args.path).includes('.zip/')) {
+        if (hasZipSegment(relative(bundleDir, args.path))) {
             return rewriteZipResident(src, args.path, flags);
         }
         return runtimeResolve

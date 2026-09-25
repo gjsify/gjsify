@@ -1,10 +1,15 @@
 import { describe, it, expect } from '@gjsify/unit';
+import { sep } from 'node:path';
+import process from 'node:process';
 import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, resolve } from 'node:url';
 
 // Ported from refs/node-test/parallel/test-url-*.js and refs/node-test/parallel/test-whatwg-url-*.js
 // Original: MIT license, Node.js contributors
 // The setter suites below are ported from refs/wpt/url/resources/setters_tests.json
 // Original: Copyright the Web Platform Tests contributors. BSD-3-Clause.
+
+/** Every POSIX literal below says so: left to the host, `file:///foo` names no path on win32. */
+const POSIX = { windows: false } as const;
 
 /** True on real GJS — the same signal `@gjsify/unit` gates its host hooks on. */
 const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
@@ -31,6 +36,9 @@ const NODE_BEFORE_26_8 = (() => {
     const version = (globalThis as { process?: { versions?: { node?: string } } }).process?.versions?.node;
     if (typeof version !== 'string') return false;
     const [major = 0, minor = 0] = version.split('.').map(Number);
+    // 24.20 took the same change as a backport: the Windows leg (24.20.0) answered like 26.8
+    // on both cases while 24.19.0 did not. 25 is end-of-life and never got it.
+    if (major === 24) return minor < 20;
     return major < 26 || (major === 26 && minor < 8);
 })();
 
@@ -2085,11 +2093,11 @@ export default async () => {
 
         for (const tc of testCases) {
             await it(`should convert ${tc.fileURL} to ${tc.path}`, async () => {
-                expect(fileURLToPath(tc.fileURL)).toBe(tc.path);
+                expect(fileURLToPath(tc.fileURL, POSIX)).toBe(tc.path);
             });
 
             await it(`should convert URL object for ${tc.path}`, async () => {
-                expect(fileURLToPath(new URL(tc.fileURL))).toBe(tc.path);
+                expect(fileURLToPath(new URL(tc.fileURL), POSIX)).toBe(tc.path);
             });
         }
 
@@ -2100,28 +2108,31 @@ export default async () => {
 
     await describe('pathToFileURL', async () => {
         await it('should convert absolute path', async () => {
-            const u = pathToFileURL('/foo/bar');
+            const u = pathToFileURL('/foo/bar', POSIX);
             expect(u.protocol).toBe('file:');
             expect(u.pathname).toBe('/foo/bar');
         });
 
         await it('should encode special characters', async () => {
-            const u = pathToFileURL('/foo bar');
+            const u = pathToFileURL('/foo bar', POSIX);
             expect(u.href).toBe('file:///foo%20bar');
         });
 
         await it('should handle root path', async () => {
-            const u = pathToFileURL('/');
-            expect(u.pathname).toBe('/');
+            // Node restores the trailing separator by comparing against the HOST `path.sep`, so
+            // a POSIX root read on win32 is `//` there. A Node quirk, measured on the Windows
+            // leg, and matched here rather than tidied away.
+            const u = pathToFileURL('/', POSIX);
+            expect(u.pathname).toBe(sep === '/' ? '/' : '//');
         });
 
         await it('should handle path with dots', async () => {
-            const u = pathToFileURL('/dir/file.txt');
+            const u = pathToFileURL('/dir/file.txt', POSIX);
             expect(u.pathname).toBe('/dir/file.txt');
         });
 
         await it('should handle deeply nested path', async () => {
-            const u = pathToFileURL('/a/b/c/d/e');
+            const u = pathToFileURL('/a/b/c/d/e', POSIX);
             expect(u.pathname).toBe('/a/b/c/d/e');
             expect(u.protocol).toBe('file:');
         });
@@ -2131,8 +2142,8 @@ export default async () => {
             // `encodeURIComponent` one half of a surrogate pair, which raises
             // `URIError: URI malformed` — so every path containing an emoji threw (#1143).
             // The `fileURLToPath` direction has had a 🚀 case all along; this one did not.
-            expect(pathToFileURL('/🚀').href).toBe('file:///%F0%9F%9A%80');
-            expect(fileURLToPath(pathToFileURL('/dir/🚀.png'))).toBe('/dir/🚀.png');
+            expect(pathToFileURL('/🚀', POSIX).href).toBe('file:///%F0%9F%9A%80');
+            expect(fileURLToPath(pathToFileURL('/dir/🚀.png', POSIX), POSIX)).toBe('/dir/🚀.png');
         });
 
         await it('should not treat a win32 absolute path as relative', async () => {
@@ -2161,9 +2172,86 @@ export default async () => {
 
         await it('should keep the POSIX answer when the shape does not say win32', async () => {
             // The regression guard for the whole change: a POSIX path must be untouched by
-            // the win32 support, on every host.
-            expect(pathToFileURL('/opt/app/dist').href).toBe('file:///opt/app/dist');
-            expect(pathToFileURL('/tmp/back\\slash').href).toBe('file:///tmp/back%5Cslash');
+            // the win32 support.
+            expect(pathToFileURL('/opt/app/dist', POSIX).href).toBe('file:///opt/app/dist');
+            expect(pathToFileURL('/tmp/back\\slash', POSIX).href).toBe('file:///tmp/back%5Cslash');
+        });
+
+        await it('should read a path by the HOST flavour when not told', async () => {
+            // On win32 `/opt/app/dist` is rooted but driveless, so it takes the current drive —
+            // Node's answer, and the reason every case above states its flavour: a POSIX
+            // literal with the host left to decide is only POSIX where the runner is.
+            const windows = process.platform === 'win32';
+            for (const path of ['/opt/app/dist', 'rel/dir/', 'C:\\app\\dist']) {
+                expect(pathToFileURL(path).href).toBe(pathToFileURL(path, { windows }).href);
+            }
+        });
+    });
+
+    await describe('pathToFileURL resolves the path first, as path.resolve does', async () => {
+        // Every expectation read off native Node 24 with the same cwd stubbed in. The cwd is the
+        // input that differs per host — the Linux runner has no current DRIVE — and both Node
+        // and this implementation read `process.cwd()` at call time, so one stub drives both.
+        const withCwd = (cwd: string, fn: () => void): void => {
+            const original = process.cwd;
+            process.cwd = () => cwd;
+            try {
+                fn();
+            } finally {
+                process.cwd = original;
+            }
+        };
+        const WIN = { windows: true } as const;
+
+        await it('gives a relative win32 path the current drive', async () => {
+            // Joined to the cwd with `/`, these named a path under the cwd whatever their shape.
+            withCwd('C:\\work\\dir', () => {
+                expect(pathToFileURL('app\\dist', WIN).href).toBe('file:///C:/work/dir/app/dist');
+                expect(pathToFileURL('..\\x', WIN).href).toBe('file:///C:/work/x');
+                expect(pathToFileURL('\\foo', WIN).href).toBe('file:///C:/foo');
+                expect(pathToFileURL('.', WIN).href).toBe('file:///C:/work/dir');
+            });
+        });
+
+        await it('puts a drive-relative path on its own drive', async () => {
+            withCwd('C:\\work\\dir', () => {
+                expect(pathToFileURL('C:foo', WIN).href).toBe('file:///C:/work/dir/foo');
+                // Another drive's cwd is unknown here, so it is that drive's root.
+                expect(pathToFileURL('Q:foo', WIN).href).toBe('file:///Q:/foo');
+            });
+        });
+
+        await it('normalises a win32 path and keeps a trailing separator', async () => {
+            withCwd('C:\\work\\dir', () => {
+                expect(pathToFileURL('C:\\a\\..\\b', WIN).href).toBe('file:///C:/b');
+                expect(pathToFileURL('C:\\a\\\\b', WIN).href).toBe('file:///C:/a/b');
+                expect(pathToFileURL('C:\\a\\', WIN).href).toBe('file:///C:/a/');
+                expect(pathToFileURL('rel\\', WIN).href).toBe('file:///C:/work/dir/rel/');
+            });
+        });
+
+        await it('strips the long-path prefixes and refuses a UNC path with no share', async () => {
+            expect(pathToFileURL('\\\\?\\UNC\\srv\\sh\\f', WIN).href).toBe('file://srv/sh/f');
+            expect(pathToFileURL('\\\\?\\C:\\x', WIN).href).toBe('file:///C:/x');
+            expect(pathToFileURL('\\\\srv\\sh', WIN).href).toBe('file://srv/sh');
+            for (const bad of ['\\\\srv', '\\\\\\x', '\\\\?\\UNC\\srv']) {
+                let code: unknown;
+                try {
+                    pathToFileURL(bad, WIN);
+                } catch (err) {
+                    code = (err as { code?: unknown }).code;
+                }
+                expect(code).toBe('ERR_INVALID_ARG_VALUE');
+            }
+        });
+
+        await it('resolves and normalises a POSIX path the same way', async () => {
+            withCwd('/work/dir', () => {
+                expect(pathToFileURL('rel', POSIX).href).toBe('file:///work/dir/rel');
+                expect(pathToFileURL('a/b/', POSIX).href).toBe('file:///work/dir/a/b/');
+                expect(pathToFileURL('/a//b', POSIX).href).toBe('file:///a/b');
+                expect(pathToFileURL('/a/./b/..', POSIX).href).toBe('file:///a');
+            });
         });
     });
 

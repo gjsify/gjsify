@@ -40,6 +40,7 @@
     ],
     "dependencies": {
         "@girs/glib-2.0": "5.4.0",
+        "@gjsify/path": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
