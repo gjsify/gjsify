@@ -7,6 +7,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { createSecureServer, type Http2SecureServer } from 'node:http2';
 import { connect, type TLSSocket } from 'node:tls';
+import { connect as connectTcp } from 'node:net';
 
 // The self-signed server pair from @gjsify/https's server-tls.spec.ts (CN=localhost,
 // SAN DNS:localhost + IP:127.0.0.1, valid until 2126).
@@ -112,6 +113,30 @@ function exchange(port: number, trustServer: boolean): Promise<{ fingerprint256?
     });
 }
 
+/**
+ * Sends a plain-text HTTP/1.1 GET to a secure server and returns whatever came back, or null
+ * when the server refused to listen at all. Either way no plain-text answer may be served.
+ */
+function plainTextAnswer(server: Http2SecureServer): Promise<string | null> {
+    return new Promise((resolve) => {
+        server.once('error', () => resolve(null));
+        server.listen(0, '127.0.0.1', () => {
+            const address = server.address();
+            const port = typeof address === 'object' && address ? address.port : 0;
+            let data = '';
+            const socket = connectTcp(port, '127.0.0.1', () => {
+                socket.write('GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+            });
+            socket.setEncoding('utf8');
+            socket.on('data', (chunk: string) => {
+                data += chunk;
+            });
+            socket.on('error', () => socket.destroy());
+            socket.on('close', () => server.close(() => resolve(data)));
+        });
+    });
+}
+
 export default async () => {
     await describe('http2.createSecureServer TLS termination', async () => {
         await it('presents the configured certificate and serves HTTP/1.1 over it', async () => {
@@ -150,6 +175,35 @@ export default async () => {
             } finally {
                 await new Promise<void>((resolve) => server.close(() => resolve()));
             }
+        });
+
+        await it('throws on a key/cert pair that is not PEM', async () => {
+            expect(() => createSecureServer({ key: 'not a key', cert: 'not a certificate' })).toThrow();
+        });
+
+        await it('never answers in plain text without a certificate', async () => {
+            let calls = 0;
+            const server = createSecureServer({ allowHTTP1: true }, (_req, res) => {
+                calls++;
+                res.end(BODY);
+            });
+            const answer = await plainTextAnswer(server);
+            expect((answer ?? '').includes(BODY)).toBe(false);
+            expect(calls).toBe(0);
+        });
+
+        await it('never answers in plain text with allowHTTP1: false', async () => {
+            let calls = 0;
+            const server = createSecureServer(
+                { key: SERVER_KEY, cert: SERVER_CERT, allowHTTP1: false },
+                (_req, res) => {
+                    calls++;
+                    res.end(BODY);
+                },
+            );
+            const answer = await plainTextAnswer(server);
+            expect((answer ?? '').includes(BODY)).toBe(false);
+            expect(calls).toBe(0);
         });
     });
 };

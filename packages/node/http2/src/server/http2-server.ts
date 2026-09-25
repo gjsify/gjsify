@@ -10,7 +10,6 @@
 
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
 import { deferEmit, ensureMainLoop } from '@gjsify/utils/core';
@@ -117,6 +116,11 @@ export class Http2Server extends EventEmitter {
                         'nativeDispatcher cannot be "off" in this configuration',
                 );
             }
+
+            // Checked before either path binds: a secure server that cannot terminate TLS
+            // must fail, never listen in plain text.
+            const tlsError = this._tlsSetupError(wantsNative);
+            if (tlsError) throw tlsError;
 
             if (wantsNative) {
                 this._startNativeListen(port, hostname);
@@ -285,6 +289,11 @@ export class Http2Server extends EventEmitter {
     // Override in Http2SecureServer to set TLS certificate before listen
     protected _configureSoupServer(_server: Soup.Server): void {}
 
+    /** Why this server cannot listen securely; null when it needs no TLS or has all it needs. */
+    protected _tlsSetupError(_nativePath: boolean): Error | null {
+        return null;
+    }
+
     private _handleRequest(soupMsg: Soup.ServerMessage): void {
         const req = new Http2ServerRequest();
         const res = new Http2ServerResponse(soupMsg);
@@ -425,6 +434,25 @@ export class Http2SecureServer extends Http2Server {
         }
     }
 
+    protected _tlsSetupError(nativePath: boolean): Error | null {
+        const options = this._options as SecureServerOptions;
+        if (!this._tlsCert) {
+            // Node listens and fails every handshake; libsoup cannot listen for HTTPS without a
+            // certificate and would otherwise serve plain text.
+            return new Error('http2.createSecureServer: no certificate — pass key and cert (PEM)');
+        }
+        if (nativePath) {
+            // The native dispatcher speaks only cleartext h2c.
+            return new Error('http2.createSecureServer: allowHTTP1: false would serve cleartext h2c');
+        }
+        if (options.requestCert) {
+            // Nothing here verifies client certificates yet; listening would silently accept
+            // every client that the caller asked to authenticate.
+            return new Error('http2.createSecureServer: requestCert is not implemented on GJS');
+        }
+        return null;
+    }
+
     protected _configureSoupServer(server: Soup.Server): void {
         if (this._tlsCert) {
             server.set_tls_certificate(this._tlsCert);
@@ -451,35 +479,8 @@ function _toPemString(value: string | Buffer | Array<string | Buffer>): string {
 }
 
 function _createTlsCertificate(certPem: string, keyPem: string): Gio.TlsCertificate {
-    // Combine cert + key into a single PEM string — Gio.TlsCertificate.new_from_pem() accepts both
+    // Cert + key in one PEM string, parsed in memory: the private key never touches the disk.
+    // A pair that does not parse throws, as Node's createSecureContext does.
     const combined = certPem.trimEnd() + '\n' + keyPem.trimEnd() + '\n';
-    try {
-        return Gio.TlsCertificate.new_from_pem(combined, -1);
-    } catch (err) {
-        void err;
-        // Fall back: write to temp files
-        const tmpDir = GLib.get_tmp_dir();
-        const certPath = GLib.build_filenamev([tmpDir, 'gjsify-http2-cert.pem']);
-        const keyPath = GLib.build_filenamev([tmpDir, 'gjsify-http2-key.pem']);
-        try {
-            GLib.file_set_contents(certPath, certPem);
-            GLib.file_set_contents(keyPath, keyPem);
-            const tlsCert = Gio.TlsCertificate.new_from_files(certPath, keyPath);
-            return tlsCert;
-        } finally {
-            // Best-effort temp-file cleanup: delete(null) throws when the file
-            // was never written (file_set_contents failed above) — that failure
-            // must not mask the certificate result/error leaving this block.
-            try {
-                Gio.File.new_for_path(certPath).delete(null);
-            } catch {
-                // See above.
-            }
-            try {
-                Gio.File.new_for_path(keyPath).delete(null);
-            } catch {
-                // See above.
-            }
-        }
-    }
+    return Gio.TlsCertificate.new_from_pem(combined, -1);
 }
