@@ -104,6 +104,7 @@ on:
       - 'packages/web/gamepad-native/test/**'
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
       - 'packages/web/gamepad-native/meson.build'
+      - 'packages/web/gamepad-native/meson_options.txt'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -194,6 +195,7 @@ on:
       - 'packages/web/gamepad-native/test/**'
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
       - 'packages/web/gamepad-native/meson.build'
+      - 'packages/web/gamepad-native/meson_options.txt'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -441,6 +443,11 @@ jobs:
         # gnutls-devel provides the gnutls.pc + gnutls/ocsp.h that
         # @gjsify/tls-native needs for OCSP-response parsing.
         # `curl` is needed by rustup-init below.
+        # cmake → @gjsify/gamepad-native: meson builds the pinned SDL3 through its
+        # CMake module. systemd-devel + dbus-devel are HEADERS only — SDL dlopen()s
+        # libudev and libdbus at run time, and the leg's `elf-deps` test holds the
+        # library to that (neither may appear in DT_NEEDED). gjs and valgrind run
+        # its meson tests: the typelib under gjs, and the C lifecycle under memcheck.
         # `nodejs` runs `scripts/stage-prebuild.mjs` — the shared stager every
         # collect step below goes through, which is also what runs
         # `checkPrebuildDir()` on what it wrote. It is a build-time tool here,
@@ -474,6 +481,7 @@ jobs:
           libnghttp2-devel
           gnutls-devel
           json-glib-devel
+          cmake systemd-devel dbus-devel gjs valgrind
 
       - name: Install Rust toolchain (rustup, stable)
         # Only the three Rust bridges need it, so it follows the same gate they
@@ -684,6 +692,42 @@ jobs:
         with:
           name: terminal-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/terminal-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/gamepad-native (GjsifyGamepad) --------
+      # The C shim over a static, trimmed SDL3 (ADR 0075 Amendment 1). Its meson
+      # tests are the evidence this leg exists to produce: the C lifecycle, the
+      # same through the typelib under gjs, the C lifecycle again under valgrind,
+      # and `elf-deps`, which reads DT_NEEDED and the dynamic symbol table back
+      # from the built file (libc/libm/GLib only; only `gjsify_gamepad_*`
+      # exported). The `uinput-pad` test skips here — a container has no
+      # /dev/uinput — and runs in `gamepad-native-uinput`, on a VM that does.
+      - name: Build @gjsify/gamepad-native (C shim + static SDL3)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Test @gjsify/gamepad-native (lifecycle, gjs, valgrind, elf-deps)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: meson test -C build --print-errorlogs
+
+      - name: Collect @gjsify/gamepad-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: |
+          node ../../../scripts/stage-prebuild.mjs . --scratch
+          ls -l prebuilds/linux-*/
+
+      - name: Upload @gjsify/gamepad-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gamepad-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/web/gamepad-native/prebuilds/linux-${{ matrix.arch }}/
+          if-no-files-found: error
           retention-days: 30
 
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
@@ -3225,6 +3269,346 @@ jobs:
   # containers are only supported on x64 Linux runners" — and it is also what
   # makes the leg reproducible by hand, since the script takes the whole job.
   # ----------------------------------------------------------------
+  # ════════════════════════════════════════════════════════════════════════════
+  # @gjsify/gamepad-native beyond the matrix legs (ADR 0075 Amendment 1).
+  #
+  # Three jobs, each for something the fedora container legs cannot do:
+  #   gamepad-native-uinput     a virtual controller through the kernel's uinput,
+  #                             which needs a VM (`modprobe`, udev), not a container;
+  #   gamepad-native-gir-linux  the GIR for the win32 build, scanned where
+  #                             g-ir-scanner can build and RUN its dumper (the
+  #                             webview2-native arrangement, same reasons);
+  #   build-prebuilds-win32-gamepad  the MSVC build, its tests, the node-gi load
+  #                             test and the message-pump measurement.
+  # ════════════════════════════════════════════════════════════════════════════
+  gamepad-native-uinput:
+    name: gamepad-native through a virtual uinput controller (linux-x64)
+    needs: [changes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/checkout@v6
+
+      - name: Install the meson/cmake toolchain and the headers SDL builds against
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends meson ninja-build cmake pkg-config gcc \
+            libglib2.0-dev gobject-introspection libgirepository1.0-dev libudev-dev libdbus-1-dev
+
+      # The runner is a VM with udev, so a device uinput creates gets an evdev node
+      # and udev events — the path every non-HIDAPI Linux controller takes. The
+      # module ships in linux-modules-extra on Azure kernels, hence the fallback.
+      # The rule makes the new event node readable without running the test as
+      # root, the way `uaccess` does for a desktop user.
+      - name: Provision /dev/uinput
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        run: |
+          set -euo pipefail
+          sudo modprobe uinput || { sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe uinput; }
+          printf '%s\n' 'KERNEL=="uinput", MODE="0666"' 'SUBSYSTEM=="input", KERNEL=="event*", MODE="0666"' \
+            | sudo tee /etc/udev/rules.d/99-gjsify-gamepad-uinput.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput || true
+          sudo chmod 0666 /dev/uinput
+          ls -l /dev/uinput
+
+      - name: Build @gjsify/gamepad-native (C shim + static SDL3)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      # REQUIRE: without /dev/uinput the test exits 77, which meson reports as a
+      # SKIP and a job reports as green. This job exists for that one test, so a
+      # skip here is a failure.
+      - name: Connect, press, deflect and disconnect a virtual pad through SDL
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        env:
+          GJSIFY_GAMEPAD_REQUIRE_UINPUT: '1'
+        run: meson test -C build --print-errorlogs --verbose uinput-pad
+
+  gamepad-native-gir-linux:
+    name: Emit GjsifyGamepad-1.0.gir for the win32 build (fedora)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    timeout-minutes: 20
+    container:
+      image: ghcr.io/gjsify/ci-fedora:43
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # The baked image has meson, gcc and g-ir-scanner; SDL additionally needs
+      # cmake, and its Linux build the udev/D-Bus headers.
+      - name: Install cmake and the udev/D-Bus headers
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        run: dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 cmake systemd-devel dbus-devel
+
+      - name: Scan GjsifyGamepad-1.0.gir with g-ir-scanner
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: |
+          meson setup _gir .
+          meson compile -C _gir
+
+      # The two signals exist only in what the scanner's dumper run reports; a GIR
+      # without them would compile into a typelib `connect('device-added')` fails on.
+      - name: Export the GIR and assert the dumper ran
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        run: |
+          set -euo pipefail
+          mkdir -p gir-export
+          cp packages/web/gamepad-native/_gir/GjsifyGamepad-1.0.gir gir-export/
+          for want in device-added device-removed; do
+            grep -q "<glib:signal name=\"$want\"" gir-export/GjsifyGamepad-1.0.gir \
+              || { echo "::error::the GIR has no ::$want signal — the scanner's dumper did not run"; exit 1; }
+          done
+          grep -c '<method name=' gir-export/GjsifyGamepad-1.0.gir
+
+      - name: Upload the GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gamepad-native-gir
+          path: gir-export/
+          if-no-files-found: error
+          retention-days: 1
+
+  build-prebuilds-win32-gamepad:
+    name: Build prebuilds (win32-x64) [gamepad-native via MSVC]
+    needs: [changes, gamepad-native-gir-linux]
+    # windows-2022, not -latest: the MSVC toolset and Windows SDK are part of what
+    # this job measures (the DirectInput header, the CRT the DLL imports), so the
+    # image is pinned rather than moved under the job by GitHub.
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      PREBUILD: win32-x64
+      # Shared verbatim with node-gi.yml and the other win32 legs (one cache, one
+      # place that knows how the Windows GTK/GI toolchain is acquired).
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 24
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        if: ${{ steps.cache-gtk.outputs.cache-hit != 'true' && !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install meson + ninja
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        run: python -m pip install --disable-pip-version-check meson ninja
+
+      - name: Download the GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-gir
+          path: packages/web/gamepad-native/gir-export
+
+      # One `cmd` step, because vcvars64.bat exports its environment into the shell
+      # it runs in (see build-prebuilds-win32 for why not $GITHUB_ENV). INCLUDE gets
+      # the gvsbuild prefix's include root, which no .pc names (measured on the webgl
+      # leg). The build type is the project's `minsize`, which on MSVC is the release
+      # CRT (b_vscrt=md) — the redistributable one; the assertion below reads it back.
+      - name: Build @gjsify/gamepad-native with MSVC (C shim + static SDL3)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSPATH=%%i
+          if not defined VSPATH ( echo ::error::vswhere found no Visual Studio installation & exit /b 1 )
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cl 2>&1 | findstr /C:"Version"
+          cmake --version
+          set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
+          meson setup build . -Dprebuilt_gir=gir-export || exit /b 1
+          meson compile -C build || exit /b 1
+          findstr /R "SDL_JOYSTICK_DINPUT SDL_JOYSTICK_XINPUT SDL_JOYSTICK_RAWINPUT SDL_JOYSTICK_WGI SDL_JOYSTICK_HIDAPI SDL_HAPTIC_DINPUT" build\subprojects\SDL3-3.4.16\__CMake_build\include-config-minsizerel\build_config\SDL_build_config.h
+          exit /b 0
+
+      # C lifecycle (20 cycles, two monitors, dispose without close) and the
+      # message-queue measurement: what the shim leaves on the calling thread and
+      # whether anything piles up there with nobody pumping, as in a GLib process.
+      - name: Test @gjsify/gamepad-native (lifecycle, message queue)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/web/gamepad-native
+        run: meson test -C build --print-errorlogs --verbose
+
+      - name: Collect @gjsify/gamepad-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/stage-prebuild.mjs packages/web/gamepad-native --scratch
+          Get-ChildItem "packages/web/gamepad-native/prebuilds/$env:PREBUILD" | Select-Object Name, Length
+
+      - name: Verify the typelib records a .dll leaf
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bytes = [System.IO.File]::ReadAllBytes("packages/web/gamepad-native/prebuilds/$env:PREBUILD/GjsifyGamepad-1.0.typelib")
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch 'gjsifygamepad\.dll') {
+            Write-Host "::error::the compiled typelib does not record a .dll leaf. Strings found: $(($text -split "`0" | Where-Object { $_ -match 'gjsifygamepad' }) -join ', ')"
+            exit 1
+          }
+          Write-Host "typelib records a .dll leaf"
+
+      # The win32 half of Amendment 1's promise, read from the import table: the
+      # release CRT (the debug one may not be redistributed — see
+      # build-prebuilds-win32's incident), GLib/GObject for the shim, and otherwise
+      # only DLLs every Windows ships. SDL's own libraries must not appear at all:
+      # it is compiled in.
+      - name: Assert the prebuild imports only OS DLLs, GLib and the redistributable CRT
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dll = "packages/web/gamepad-native/prebuilds/$env:PREBUILD/gjsifygamepad.dll"
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Hostx64\\x64\\' } | Select-Object -First 1
+          if (-not $dumpbin) { Write-Host "::error::dumpbin.exe not found under $vs"; exit 1 }
+          $imports = & $dumpbin.FullName /dependents $dll |
+            Select-String -Pattern '^\s{4}(\S+\.dll)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          Write-Host "size: $((Get-Item $dll).Length) bytes"
+          Write-Host "imports ($($imports.Count)): $($imports -join ', ')"
+          if ($imports.Count -lt 2) {
+            Write-Host "::error::parsed $($imports.Count) imports from dumpbin — the output format changed; fix the parse rather than trusting the pass."
+            exit 1
+          }
+          $exports = & $dumpbin.FullName /exports $dll | Select-String -Pattern '\s(\w+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value } |
+            Where-Object { $_ -match '^(gjsify_|SDL_)' }
+          $sdlExports = $exports | Where-Object { $_ -match '^SDL_' }
+          Write-Host "exports: $(@($exports | Where-Object { $_ -match '^gjsify_gamepad_' }).Count) gjsify_gamepad_*, $(@($sdlExports).Count) SDL_*"
+          $allowed = '^(glib-2\.0-0|gobject-2\.0-0|vcruntime140(_1)?|api-ms-win-crt-[\w-]+|kernel32|user32|gdi32|advapi32|ole32|oleaut32|setupapi|cfgmgr32|hid|dinput8|winmm|imm32|version|shell32|shlwapi|combase|xinput1_4)\.dll$'
+          $foreign = $imports | Where-Object { $_ -notmatch $allowed }
+          if ($foreign) { Write-Host "::error::imports outside the OS/GLib/CRT set: $($foreign -join ', ')"; exit 1 }
+          if ($sdlExports) { Write-Host "::error::SDL symbols are exported: $(@($sdlExports)[0..4] -join ', ')"; exit 1 }
+          Write-Host "imports are OS DLLs, GLib and the release CRT; only gjsify_gamepad_* is exported"
+
+      # ── THE LOAD TEST, through node-gi ──────────────────────────────────────
+      # Windows has no GJS (ADR 0024 § 4); Node + @gjsify/node-gi is the platform's
+      # GObject path, so this is what a Windows consumer actually runs. node-gi is
+      # built from source against the same gvsbuild prefix (see build-prebuilds-win32).
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+
+      - name: Build @gjsify/node-gi (node-gyp / MSVC)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      - name: Load-test the win32-x64 prebuild through node-gi
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        env:
+          NODE_GI_NATIVE: build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $abs = (Resolve-Path "packages/web/gamepad-native/prebuilds/$env:PREBUILD").Path
+          $env:PATH = "$abs;$env:PATH"
+          $env:GI_TYPELIB_PATH = "$abs;$env:GI_TYPELIB_PATH"
+          node packages/web/gamepad-native/test/probe-node-gi.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload @gjsify/gamepad-native win32-x64 prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gamepad-native-prebuilds-win32-x64
+          path: packages/web/gamepad-native/prebuilds/win32-x64/
+          if-no-files-found: error
+          retention-days: 30
+
+      # ── A VIRTUAL XINPUT PAD: the message-pump question with a device ───────
+      # ViGEmBus (a signed kernel driver) and its client DLL, both from the vgamepad
+      # 0.1.0 sdist, pinned by checksum. The pad holds A and the left stick right;
+      # the probe must see it connect, read both, and see it leave — calling only
+      # update(), never pumping the thread's queue, and with nothing piling up there.
+      - name: Install ViGEmBus + a virtual Xbox 360 pad
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'vgamepad'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          curl.exe -L --fail --retry 3 -o "$dir\vgamepad.tar.gz" 'https://files.pythonhosted.org/packages/source/v/vgamepad/vgamepad-0.1.0.tar.gz'
+          $sha = (Get-FileHash "$dir\vgamepad.tar.gz" -Algorithm SHA256).Hash.ToLower()
+          if ($sha -ne '57f6bd01aec0c172947517fb782d150ef9b285f7f4d524c317374fa5c24a89de') { throw "vgamepad sdist checksum mismatch: $sha" }
+          tar.exe -xzf "$dir\vgamepad.tar.gz" -C $dir
+          $root = "$dir\vgamepad-0.1.0\vgamepad\win\vigem"
+          $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$root\install\x64\ViGEmBusSetup_x64.msi`"", '/qn', '/norestart' -Wait -PassThru
+          Write-Host "msiexec exit: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "ViGEmBus install failed ($($p.ExitCode))" }
+          "VIGEM_CLIENT=$root\client\x64\ViGEmClient.dll" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Read the virtual pad through the shim with no message pump
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        shell: pwsh
+        env:
+          GJSIFY_GAMEPAD_EXPECT_VIRTUAL_PAD: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ready = Join-Path $env:RUNNER_TEMP 'vigem-ready'
+          Remove-Item $ready -ErrorAction SilentlyContinue
+          $pad = Start-Process python -ArgumentList 'packages/web/gamepad-native/test/vigem-pad.py', "`"$env:VIGEM_CLIENT`"", "`"$ready`"", '12' -PassThru -NoNewWindow
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not (Test-Path $ready)) {
+            if ($pad.HasExited) { throw "vigem-pad.py exited before the pad was ready ($($pad.ExitCode))" }
+            if ((Get-Date) -gt $deadline) { throw 'the virtual pad was not ready within 60 s' }
+            Start-Sleep -Milliseconds 200
+          }
+          & packages/web/gamepad-native/build/win32-message-queue.exe
+          $rc = $LASTEXITCODE
+          $pad.WaitForExit()
+          exit $rc
+
+
   build-prebuilds-musl:
     name: Build prebuilds (linux-${{ matrix.arch }}-musl) [Alpine/musl]
     needs: [changes]
@@ -3547,7 +3931,7 @@ jobs:
     # (there is no `always()` here — deliberately; see gate 3 in the comment
     # above), so a leg that skipped itself because it had nothing to build
     # would silently suppress committing everything the OTHER legs produced.
-    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-musl, build-prebuilds-win32, build-prebuilds-win32-webview2]
+    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-musl, build-prebuilds-win32, build-prebuilds-win32-webview2, build-prebuilds-win32-gamepad]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -3656,6 +4040,27 @@ jobs:
           path: packages/framework/webview2-native-win32-x64/prebuilds/win32-x64/
 
       # -------- @gjsify/webrtc-native --------
+      - name: Download gamepad-native win32-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-prebuilds-win32-x64
+          path: packages/web/gamepad-native-win32-x64/prebuilds/win32-x64/
+
+      - name: Download gamepad-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-prebuilds-linux-x64
+          path: packages/web/gamepad-native-linux-x64/prebuilds/linux-x64/
+
+      - name: Download gamepad-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gamepad-native-prebuilds-linux-arm64
+          path: packages/web/gamepad-native-linux-arm64/prebuilds/linux-arm64/
+
       - name: Download webrtc-native x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
         uses: actions/download-artifact@v8
@@ -4492,6 +4897,9 @@ jobs:
       - build-prebuilds-win32
       - webview2-gir-linux
       - build-prebuilds-win32-webview2
+      - gamepad-native-uinput
+      - gamepad-native-gir-linux
+      - build-prebuilds-win32-gamepad
       - build-prebuilds-musl
       - check-committed-musl
       - commit-prebuilds

@@ -14,9 +14,10 @@
 // classifies and CARRIES the text; `GamepadManager._init()` prints it through
 // {@link reportGamepadBackendOnce}.
 //
-// Two backends, one per host family (ADR 0075 + Amendment 1): `gi://GjsifyGamepad`, the
-// SDL3 shim in `@gjsify/gamepad-native`, on darwin; `gi://Manette` everywhere else until
-// the SDL source is proven on Linux and replaces it there too.
+// Two backends (ADR 0075 + Amendment 1): `gi://GjsifyGamepad`, the SDL3 shim in
+// `@gjsify/gamepad-native`, on darwin and win32; `gi://Manette` on Linux until the SDL
+// source is proven there on real controllers and replaces it. Until then Linux can be
+// switched per process with `GJSIFY_GAMEPAD_BACKEND` (see {@link GamepadBackendChoice}).
 //
 // The load failure is split in two because a host WITHOUT the backend (no libmanette; no
 // gamepad-native prebuild for this target) and a host with a BROKEN install are different
@@ -35,7 +36,7 @@
 // {@link NODE_GI_BRIDGE}.
 
 import type Manette from '@girs/manette-0.2';
-import { hostOs, type TargetOs } from '@gjsify/utils/core';
+import { hostEnv, hostOs, type TargetOs } from '@gjsify/utils/core';
 
 import type { GjsifyGamepadNamespace } from './sdl-namespace.js';
 import type { GamepadSource } from './source.js';
@@ -53,6 +54,23 @@ import type { GamepadSource } from './source.js';
  */
 export type GamepadBackendStatus = 'manette' | 'sdl' | 'absent' | 'failed';
 
+/**
+ * Which backend a Linux process uses — `GJSIFY_GAMEPAD_BACKEND`, read once per process.
+ * darwin and win32 have only the SDL3 shim and ignore it.
+ *
+ * - `manette` (the default) — libmanette, as before Amendment 1.
+ * - `sdl`     — the SDL3 shim alone.
+ * - `compare` — libmanette drives the page and the SDL3 shim runs beside it on the
+ *   same controllers; every disagreement is written to stderr (`compare-source.ts`).
+ *   This is the measurement Amendment 1 requires before libmanette is removed.
+ */
+export type GamepadBackendChoice = 'manette' | 'sdl' | 'compare';
+
+/** The environment variable behind {@link GamepadBackendChoice}. */
+export const GAMEPAD_BACKEND_ENV = 'GJSIFY_GAMEPAD_BACKEND';
+
+const CHOICES: readonly GamepadBackendChoice[] = ['manette', 'sdl', 'compare'];
+
 /** What every probe result carries besides the module. */
 interface GamepadBackendReport {
     /** The original load error for `absent`/`failed`; `null` otherwise. */
@@ -64,6 +82,12 @@ interface GamepadBackendReport {
      * {@link isEmptiedGiModule}).
      */
     diagnostic: string | null;
+    /**
+     * `compare` mode only: the SDL3 shim's own probe, run beside the primary. The
+     * manager compares against it when it is `sdl` and reports its diagnostic when it
+     * is not. `null` in every other mode.
+     */
+    shadow: GamepadBackend | null;
 }
 
 /** The resolved backend probe: a module exactly for the two usable states. */
@@ -88,6 +112,8 @@ export interface LoadGamepadBackendOptions {
      * branch is exercised on a Linux runner and the Manette branch on a Mac.
      */
     hostOs?: () => TargetOs | undefined;
+    /** Override the environment read for {@link GAMEPAD_BACKEND_ENV}. Tests only. */
+    env?: (name: string) => string | undefined;
 }
 
 /**
@@ -182,7 +208,7 @@ const MANETTE_BACKEND: _GiBackend = {
 };
 
 /**
- * The SDL3 shim — darwin (ADR 0075). Its typelib and library arrive as the per-target
+ * The SDL3 shim — darwin and win32, and Linux on request (ADR 0075). Its typelib and library arrive as the per-target
  * `@gjsify/gamepad-native-<os>-<arch>` optional dependency, and a GJS process finds them
  * through the launcher's `GI_TYPELIB_PATH` (`gjsify run`), so "absent" means one of those
  * two did not happen and the text names both. Never the libmanette advice: there is no
@@ -196,7 +222,7 @@ const SDL_BACKEND: _GiBackend = {
         '@gjsify/gamepad-native is not on the typelib path, so getGamepads() reports no controllers no matter ' +
         'what is plugged in. It ships as the optional dependency @gjsify/gamepad-native-<os>-<arch>: check that ' +
         'it installed, and start the program through `gjsify run` (or put its prebuilds/<os>-<arch> directory ' +
-        'on GI_TYPELIB_PATH). Gate on hasGamepadBackend().',
+        'on GI_TYPELIB_PATH and on the library search path: PATH on Windows). Gate on hasGamepadBackend().',
     noBridgeText:
         `[@gjsify/gamepad] No gamepad backend in this process — ${NODE_GI_BRIDGE} is not installed, and it is how ` +
         'a --app node bundle reaches gi://GjsifyGamepad. getGamepads() reports no controllers until it is added ' +
@@ -299,53 +325,84 @@ async function probeGi(
         // into a classified fault instead of a TypeError at the first getGamepads().
         if (typeof module?.Monitor !== 'function') {
             if (isEmptiedGiModule(module)) {
-                return { status: 'absent', module: null, error: null, diagnostic: null };
+                return { status: 'absent', module: null, error: null, diagnostic: null, shadow: null };
             }
             const error = new Error(
                 `gi://${backend.namespace} resolved without a Monitor class — unexpected ${backend.namespace} ABI`,
             );
-            return { status: 'failed', module: null, error, diagnostic: backend.loadFaultText };
+            return { status: 'failed', module: null, error, diagnostic: backend.loadFaultText, shadow: null };
         }
     } catch (error) {
         // The one operation that genuinely fails per host: GI resolving a typelib that may
         // not exist (absent), may not load (fault), or is out of reach because the node-gi
         // bridge is not installed (absent).
         const { status, diagnostic } = _diagnoseGiLoadError(error, backend);
-        return { status, module: null, error, diagnostic };
+        return { status, module: null, error, diagnostic, shadow: null };
     }
 
     return backend.status === 'sdl'
-        ? { status: 'sdl', module: module as GjsifyGamepadNamespace, error: null, diagnostic: null }
-        : { status: 'manette', module: module as typeof Manette, error: null, diagnostic: null };
+        ? { status: 'sdl', module: module as GjsifyGamepadNamespace, error: null, diagnostic: null, shadow: null }
+        : { status: 'manette', module: module as typeof Manette, error: null, diagnostic: null, shadow: null };
+}
+
+/**
+ * The Linux choice, from {@link GAMEPAD_BACKEND_ENV}. An unrecognised value keeps the
+ * default and says so through the probe's diagnostic — a typo in a comparison run must
+ * not silently compare nothing.
+ */
+function readBackendChoice(env: (name: string) => string | undefined): {
+    choice: GamepadBackendChoice;
+    note: string | null;
+} {
+    const raw = env(GAMEPAD_BACKEND_ENV);
+    if (raw === undefined || raw === '') return { choice: 'manette', note: null };
+    const value = raw.trim().toLowerCase() as GamepadBackendChoice;
+    if (CHOICES.includes(value)) return { choice: value, note: null };
+    return {
+        choice: 'manette',
+        note:
+            `[@gjsify/gamepad] ${GAMEPAD_BACKEND_ENV}=${JSON.stringify(raw)} is not one of ${CHOICES.join(', ')}; ` +
+            'using manette.',
+    };
 }
 
 async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<GamepadBackend> {
-    // THE PLATFORM BRANCH (ADR 0075). darwin never probes `gi://Manette`: that typelib
-    // cannot exist there, so the import could only fail, and its text would send the
-    // reader to a Linux package manager. It probes the SDL3 shim instead, and a host
-    // without the shim's prebuild answers an honest `absent` — never a stand-in that
-    // reports success with zero devices: `hasGamepadBackend()` must stay `false` where
-    // nothing can read a controller.
-    //
-    // An UNKNOWN host (`undefined`: no `process` global to ask) keeps the Manette probe,
-    // which classifies itself from the loader's own error — never assume "not darwin".
-    //
     // The specifiers are LITERALS: every plugin that claims `gi://*` (`gjsGiNodePlugin`,
     // `gjsImportsEmptyPlugin`, the `--app gjs` externals predicate) matches the resolved
     // specifier at BUILD time, so a template literal would leave the import unclaimed on
     // all four targets.
-    const os = (options.hostOs ?? hostOs)();
-    if (os === 'darwin') {
-        return probeGi(
+    const probeSdl = () =>
+        probeGi(
             SDL_BACKEND,
             options.sdlImporter ??
                 (() => import('gi://GjsifyGamepad?version=1.0') as Promise<{ default: GjsifyGamepadNamespace }>),
         );
-    }
-    return probeGi(
-        MANETTE_BACKEND,
-        options.importer ?? (() => import('gi://Manette?version=0.2') as Promise<{ default: typeof Manette }>),
-    );
+    const probeManette = () =>
+        probeGi(
+            MANETTE_BACKEND,
+            options.importer ?? (() => import('gi://Manette?version=0.2') as Promise<{ default: typeof Manette }>),
+        );
+
+    // THE PLATFORM BRANCH (ADR 0075). darwin and win32 never probe `gi://Manette`: that
+    // typelib cannot exist there (libmanette links the Linux-only libevdev), so the
+    // import could only fail, and its text would send the reader to a Linux package
+    // manager. They probe the SDL3 shim, and a host without the shim's prebuild answers
+    // an honest `absent` — never a stand-in that reports success with zero devices:
+    // `hasGamepadBackend()` must stay `false` where nothing can read a controller.
+    //
+    // An UNKNOWN host (`undefined`: no `process` global to ask) is treated as Linux: the
+    // Manette probe classifies itself from the loader's own error — never assume "not
+    // darwin".
+    const os = (options.hostOs ?? hostOs)();
+    if (os === 'darwin' || os === 'win32') return probeSdl();
+
+    // Linux keeps libmanette until the SDL source is proven there (Amendment 1, point 4).
+    const { choice, note } = readBackendChoice(options.env ?? hostEnv);
+    if (choice === 'sdl') return probeSdl();
+    const primary = await probeManette();
+    if (note !== null) return { ...primary, diagnostic: primary.diagnostic ?? note };
+    if (choice === 'compare') return { ...primary, shadow: await probeSdl() };
+    return primary;
 }
 
 /**
@@ -358,9 +415,9 @@ async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<
  */
 export function loadGamepadBackend(options: LoadGamepadBackendOptions = {}): Promise<GamepadBackend> {
     if (cached !== null) {
-        if (options.importer || options.sdlImporter || options.hostOs) {
+        if (options.importer || options.sdlImporter || options.hostOs || options.env) {
             throw new Error(
-                'loadGamepadBackend({ importer, sdlImporter, hostOs }) called after the probe already ran — the probe is cached per ' +
+                'loadGamepadBackend({ importer, sdlImporter, hostOs, env }) called after the probe already ran — the probe is cached per ' +
                     'process, so the override would be ignored. Call _resetGamepadBackendCache() first (tests only).',
             );
         }
@@ -383,17 +440,32 @@ export function loadGamepadBackend(options: LoadGamepadBackendOptions = {}): Pro
  */
 export function reportGamepadBackendOnce(backend: GamepadBackend): void {
     if (reported) return;
+    // `compare` mode: the shim's own load problem, said next to the primary's (one of
+    // them may be silent). A comparison that quietly compares nothing is the failure
+    // this line exists to prevent.
+    const shadow = backend.shadow;
+    const shadowLine =
+        shadow !== null && shadow.status !== 'sdl'
+            ? `[@gjsify/gamepad] ${GAMEPAD_BACKEND_ENV}=compare, but the SDL3 shim is ${shadow.status}: nothing to compare against. ${shadow.diagnostic ?? ''}`.trim()
+            : null;
     if (backend.status === 'failed') {
         reported = true;
         console.error(backend.diagnostic, backend.error);
+        if (shadowLine !== null) warnWithCause(shadowLine, shadow?.error);
         return;
     }
     // Nothing to say (a healthy backend, or the by-design `gi://` stub). The flag stays
     // down on purpose: it records that a MESSAGE was emitted, and flipping it here would
     // suppress a message that never existed.
-    if (backend.diagnostic === null) return;
+    if (backend.diagnostic === null && shadowLine === null) return;
     reported = true;
-    console.warn(backend.diagnostic);
+    if (backend.diagnostic !== null) console.warn(backend.diagnostic);
+    if (shadowLine !== null) warnWithCause(shadowLine, shadow?.error);
+}
+
+function warnWithCause(line: string, cause: unknown): void {
+    if (cause === null || cause === undefined) console.warn(line);
+    else console.warn(line, cause);
 }
 
 /**
@@ -425,15 +497,26 @@ export function reportGamepadMonitorFault(error: unknown, source: GamepadSource 
  * what is connected — something the W3C surface itself cannot express, since it returns
  * the same list either way. Answerable without constructing a monitor, and QUIET.
  *
- * `false` on Windows (libmanette links libevdev, which is Linux/FreeBSD-only, and the
- * SDL3 shim has no win32 leg yet), on Linux without libmanette, and on macOS without the
- * `@gjsify/gamepad-native` prebuild. Reports that the BRIDGE is usable, not that every
+ * `false` on Linux without libmanette (or, with `GJSIFY_GAMEPAD_BACKEND=sdl`, without the
+ * shim), and on macOS and Windows without the `@gjsify/gamepad-native` prebuild. Reports that the BRIDGE is usable, not that every
  * later call succeeds — a monitor can still fail to start (see
  * {@link reportGamepadMonitorFault}).
  */
 export async function hasGamepadBackend(): Promise<boolean> {
     const { status } = await loadGamepadBackend();
     return status === 'manette' || status === 'sdl';
+}
+
+/**
+ * Which backend this process drives, in words — for a debug panel or a bug report, not
+ * for branching (use {@link hasGamepadBackend} for that). Quiet like the capability query.
+ */
+export async function describeGamepadBackend(): Promise<string> {
+    const backend = await loadGamepadBackend();
+    const names = { manette: 'libmanette (gi://Manette)', sdl: 'SDL3 (gi://GjsifyGamepad)' } as const;
+    if (backend.status === 'absent' || backend.status === 'failed') return `none (${backend.status})`;
+    const name = names[backend.status];
+    return backend.shadow?.status === 'sdl' ? `${name}, compared against ${names.sdl}` : name;
 }
 
 /** Reset the cached probe and its one-time diagnostic — tests only. */

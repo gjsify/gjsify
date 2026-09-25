@@ -13,6 +13,7 @@ import { W3C_BUTTON_COUNT } from './button-mapping.js';
 import { GamepadButton } from './gamepad-button.js';
 import { Gamepad } from './gamepad.js';
 import { GamepadEvent } from './gamepad-event.js';
+import { ComparingSource } from './compare-source.js';
 import { ManetteSource } from './manette-source.js';
 import { SdlSource } from './sdl-source.js';
 import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
@@ -98,6 +99,12 @@ export class GamepadManager {
                 source = new SdlSource(backend.module);
             } else if (backend.status === 'manette') {
                 source = new ManetteSource(backend.module);
+                // `GJSIFY_GAMEPAD_BACKEND=compare` (Linux): the SDL3 shim rides along on
+                // the same controllers and every disagreement is reported. The page
+                // still sees libmanette alone.
+                if (backend.shadow?.status === 'sdl') {
+                    source = new ComparingSource(source, new SdlSource(backend.shadow.module));
+                }
             } else {
                 // No usable backend here. `getGamepads()` keeps answering the W3C
                 // shape (see its doc for why that is correct rather than a silent

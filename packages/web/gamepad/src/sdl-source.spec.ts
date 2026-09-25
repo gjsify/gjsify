@@ -29,6 +29,10 @@ class FakeSdlDevice implements GjsifyGamepadDevice {
         private readonly capabilities: { rumble?: boolean; triggers?: boolean } = {},
     ) {}
 
+    get_guid() {
+        return '03000000c82d00006528000000010000';
+    }
+
     get_name() {
         return this.name;
     }

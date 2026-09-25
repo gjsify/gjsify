@@ -18,10 +18,25 @@
             width: 100%;
             height: 100%;
         }
+        #debug {
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            margin: 0;
+            color: #ddd;
+            font: 12px monospace;
+        }
+        #rumble {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+        }
     </style>
     <script defer src="browser.js"></script>
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <pre id="debug"></pre>
+    <button id="rumble">Rumble</button>
 </body>
 </html>

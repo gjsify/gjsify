@@ -1,6 +1,7 @@
 // The SDL3 device source — `gi://GjsifyGamepad`, the shim in `@gjsify/gamepad-native`
-// (ADR 0075 + Amendment 1). darwin uses it today; win32 and Linux take it as their legs of
-// the shim land (on Linux next to `ManetteSource` first, compared against it).
+// (ADR 0075 + Amendment 1). darwin and win32 use it; Linux uses it with
+// `GJSIFY_GAMEPAD_BACKEND=sdl`, or next to `ManetteSource` with `=compare`, until it is
+// proven there on real controllers.
 //
 // The shim already speaks the W3C standard layout — its snapshot is 17 button values and
 // 4 axis values in W3C order — so the SDL → W3C table lives once, in C, for every OS and
@@ -11,7 +12,7 @@ import { TRIGGER_PRESS_THRESHOLD, W3C_AXIS_COUNT } from './axis-mapping.js';
 import { W3C_BUTTON_COUNT, W3CButton } from './button-mapping.js';
 import { SdlHapticActuator } from './haptic-actuator.js';
 import type { GjsifyGamepadDevice, GjsifyGamepadMonitor, GjsifyGamepadNamespace } from './sdl-namespace.js';
-import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
+import { modelFromGuid, type GamepadSource, type GamepadSourceDevice, type GamepadSourceSink } from './source.js';
 
 interface Tracked {
     handle: GamepadSourceDevice;
@@ -89,6 +90,7 @@ export class SdlSource implements GamepadSource {
         const handle: GamepadSourceDevice = {
             id: device.get_name(),
             vibrationActuator: new SdlHapticActuator(device),
+            model: modelFromGuid(device.get_guid()),
         };
         const tracked: Tracked = {
             handle,

@@ -1,8 +1,9 @@
 # @gjsify/gamepad-native
 
 SDL3's gamepad subsystem behind a small GObject API — the backend of
-[`@gjsify/gamepad`](../gamepad/README.md) on macOS today, and on every OS once the
-linux and win32 legs land.
+[`@gjsify/gamepad`](../gamepad/README.md) on macOS and Windows, and on Linux beside
+libmanette until it has been compared against it on real controllers
+(`GJSIFY_GAMEPAD_BACKEND`, see that README).
 
 Decision and measurements: [ADR 0075](../../../docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md),
 Amendment 1.
@@ -66,14 +67,28 @@ Set `MACOSX_DEPLOYMENT_TARGET` to the repository floor (ADR 0074) for a build yo
 gjsify workspace @gjsify/gamepad-native run test:meson
 ```
 
-Three meson tests cover the zero-device path, which is all a host without a controller
-can prove. None of them uses a fake:
+No test uses a fake. On every OS:
 
 - `monitor-lifecycle`: C. 20 start/update/close cycles, two monitors at once, and a
   dispose without close.
-- `monitor-lifecycle-gjs`: the same through the typelib under `gjs`, which proves the GIR
-  annotations `@gjsify/gamepad` relies on.
-- `monitor-lifecycle-leaks`: the C test under `leaks --atExit`, which must report 0 leaks.
+
+Per OS:
+
+- **darwin**: `monitor-lifecycle-gjs` (the same through the typelib under `gjs`, which
+  proves the GIR annotations `@gjsify/gamepad` relies on) and `monitor-lifecycle-leaks`
+  (the C test under `leaks --atExit`, which must report 0 leaks).
+- **linux**: `monitor-lifecycle-gjs`; `monitor-lifecycle-valgrind`
+  (`test/valgrind-growth.py`: memcheck at 1 and at 20 cycles; nothing lost, and the
+  reachable set must not grow with the count, because most of what this library could
+  leak stays reachable through a static); `elf-deps` (`test/check-elf-deps.py` reads
+  DT_NEEDED and the exported symbols back from the built file); `uinput-pad` (a virtual
+  Xbox 360 pad through the kernel's uinput: connect, A, left stick, left trigger,
+  disconnect, each read through the shim; skipped without a writable `/dev/uinput`
+  unless `GJSIFY_GAMEPAD_REQUIRE_UINPUT=1`). `uinput-pad --serve` drives the same
+  device from stdin, for running the JS sources against it.
+- **win32**: `win32-message-queue` (see below). CI also loads the prebuild under Node
+  through `@gjsify/node-gi` (`test/probe-node-gi.mjs`) and reads a ViGEmBus virtual
+  XInput pad (`test/vigem-pad.py`).
 
 With a controller attached, set `GJSIFY_GAMEPAD_EXPECT_DEVICES=<n>`. The tests assert the
 count rather than assume zero.
@@ -82,57 +97,45 @@ count rather than assume zero.
 
 Change the four version lines in `subprojects/sdl3.wrap` together and take the sha256 from
 the release tarball. Then rebuild, run the tests, and re-measure what ADR 0075 Amendment 1
-records: the size of the dylib and `otool -L`. Only `/System/Library/Frameworks`,
-`/usr/lib` and GLib/GObject may appear.
+records: the size of each library and its dependencies (`otool -L`, `readelf -d` via the
+`elf-deps` test, `dumpbin /dependents` in the win32 job). Only OS libraries and
+GLib/GObject may appear.
 
-## Other platforms — notes for the linux and win32 legs
+## Per-OS build notes
 
-The C source is portable; only the build differs. What each leg has to change:
-
-- **`meson.build`:** drop the `host_machine.system() != 'darwin'` guard. Make the
-  framework list and the darwin link arguments (`-exported_symbol`, `-dead_strip`,
-  `-dead_strip_dylibs`, `-S`, `-headerpad_max_install_names`) darwin-only. The rpath is
-  `$ORIGIN` on ELF (`install_rpath`/`build_rpath`), as the Vala bridges do.
-- **linux, symbol privacy.** ELF has one flat namespace, so SDL's symbols MUST be hidden
-  or another SDL in the process would interpose them. Link with
-  `-Wl,--exclude-libs,ALL` plus a version script that exports only `gjsify_gamepad_*`,
-  and use `-Wl,--gc-sections` with `-ffunction-sections -fdata-sections` in place of
-  `-dead_strip`.
-- **linux, SDL CMake flags.** The same trimmed set, and:
-  - keep `SDL_DEPS_SHARED=ON` (the default), so libudev and D-Bus are `dlopen`ed at run
-    time and never become `DT_NEEDED`;
-  - `SDL_LIBUDEV=ON` (without udev, SDL falls back to inotify on `/dev/input`) and
-    `SDL_DBUS=ON`;
-  - `SDL_HIDAPI_LIBUSB=OFF`, `SDL_IBUS=OFF`, `SDL_LIBURING=OFF`.
-
-  meson's CMake module drops SDL's link list here too. Expect `-lm`, `-ldl` and
-  `-pthread`, and take the exact set from the link errors. Verify with `readelf -d`: the
-  only `NEEDED` entries allowed are libc, libm, libdl, libpthread and GLib/GObject.
-- **linux, hidraw.** SDL's HIDAPI drivers read `/dev/hidraw*`, which is often root-only
-  unless a udev rule (such as the `steam-devices` package) grants access. Check that on
-  the comparison hardware before relying on HIDAPI. The evdev path works without it.
-- **win32 (MSVC, ADR 0073's per-package shape: `@gjsify/gamepad-native-win32-x64`).** The
-  same CMake defines, and one measured trap: `SDL_DIRECTX` depends on
-  `SDL_AUDIO OR SDL_VIDEO`, and `HAVE_DINPUT_H` is checked only inside `if(SDL_DIRECTX)`
-  (SDL 3.4.16 `CMakeLists.txt` around lines 2194–2233). With both off, the DirectInput
-  joystick and haptic drivers compile out and only XInput, RawInput, WGI and HIDAPI
-  remain. Either accept that (it affects legacy DirectInput-only pads, and haptic, which
-  needs DirectInput there), or pre-set the cache (`HAVE_DINPUT_H=1`) and link `dinput8`.
-  Decide it in the win32 PR. meson's CMake module drops SDL's link list on every OS (see
-  the framework list in `meson.build`), so the system libraries must be named by hand:
-  at least `setupapi`, `cfgmgr32`, `hid`, `ole32`, `oleaut32`, `version`, `imm32`, `winmm`,
-  plus `dinput8` if DirectInput stays. Take the exact set from the link errors, as the
-  darwin list was. PE symbols are private by default, so no export list is needed. Record
-  the typelib's `shared-library` exactly as meson emits it, as webview2-native does.
-  Whether RawInput/WGI need a message pump in a GLib-driven process is **unmeasured**,
-  and it is the first thing the leg must measure.
-- **Both.** The CFRunLoop drain is `#ifdef __APPLE__` and compiles away. `leaks` is
-  macOS-only, so the leak test needs its own spelling there (valgrind through
-  `meson test --wrap`, or ASan's LeakSanitizer). Add a CI leg to
-  `prebuilds.yml` (build, `meson test`, stager, load test, upload) and a
-  `darwin-bridges.mjs`-style load row, then declare the target in `gjsify.platforms`
-  with a `platformsUncommitted` entry and add the new name to
-  `status/pending-npm-bootstrap.json`.
+- **One meson.build.** meson's CMake module drops SDL's link list on every OS, so each
+  OS names what the kept subsystems reach: frameworks on darwin, `m`/`dl`/threads on
+  linux, the system import libraries on win32. Re-enabling a trimmed subsystem then
+  fails the link instead of quietly adding a runtime dependency.
+- **linux, symbol privacy.** ELF has one flat namespace, so SDL's symbols must be
+  hidden or another SDL in the process would interpose them: `--exclude-libs,ALL` plus
+  the version script `src/c/gjsify-gamepad.map`, and `--gc-sections` with
+  `-ffunction-sections -fdata-sections` in place of darwin's `-dead_strip`.
+- **linux, SDL CMake flags.** `SDL_DEPS_SHARED=ON` (libudev and D-Bus are `dlopen`ed,
+  never `DT_NEEDED`; the build needs only their headers), `SDL_LIBUDEV=ON` (without
+  udev at run time SDL watches `/dev/input` with inotify), `SDL_DBUS=ON`,
+  `SDL_IBUS/LIBURING=OFF`, and `SDL_UNIX_CONSOLE_BUILD=ON`, without which SDL refuses
+  to configure on a host without X11 or Wayland headers even with video off.
+- **linux, hidraw.** SDL's HIDAPI drivers read `/dev/hidraw*`, often root-only unless a
+  udev rule (such as the `steam-devices` package) grants access. The evdev path works
+  without it; check hidraw access on the comparison hardware.
+- **win32, exports.** A PE DLL exports nothing unless told to, so the header marks the
+  API `GJSIFY_GAMEPAD_API` (dllexport while the library compiles). SDL, linked
+  statically, stays unexported. No `g_autoptr`: MSVC has no cleanup attribute.
+- **win32, DirectInput is kept.** SDL checks for `dinput.h` only inside
+  `if(SDL_DIRECTX)`, which needs audio or video. Left alone, the DirectInput joystick
+  and haptic drivers compile out silently, and every generic HID pad that is neither
+  an XInput device nor a HIDAPI vendor controller disappears. `meson.build` supplies
+  `HAVE_DINPUT_H=1` and links `dinput8`, a DLL every Windows ships.
+- **win32, the GIR** is scanned on Linux by the same CI run (g-ir-scanner has to build
+  and run a dumper against the library) and compiled here with `-Dprebuilt_gir=<dir>`,
+  recording the DLL leaf meson produced.
+- **win32, the message pump.** A GLib main loop dispatches no Windows messages. SDL
+  creates one message-only helper window on the calling thread (DirectInput's
+  cooperative-level HWND, `DefWindowProc`) and runs device notification and raw input
+  on its own thread with its own message loop (`SDL_HINT_JOYSTICK_THREAD`, default on);
+  XInput and HIDAPI are polled from `SDL_UpdateGamepads()`. `test/win32-message-queue.c`
+  measures what that leaves on a thread that never pumps.
 
 ## License
 
