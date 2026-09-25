@@ -254,6 +254,13 @@ const MODULE_REASONS = {
     // gallery `.blp`.
     markup: { table: 'ATTRIBUTE_OF_VECTORS' },
     scrolling: { gap: NO_TABLE_LEDGER },
+    // Half of this module IS driven already: `formatAcceleratorLabel` is a thin wrapper
+    // over `shortcut-label.ts`'s `shortcutKeycaps`, so its GTK-accelerator half rides
+    // `SHORTCUT_LABEL_VECTORS`, driven by the widget in `adwaita-web`. The other half,
+    // `formatManifestShortcut`, parses a WebExtension manifest string (`"Alt+Shift+B"`) —
+    // a grammar no libadwaita widget speaks, so no renderer IN THIS REPO has a shortcut
+    // to hold it against; the browser extension that does (beifahrer) is a separate repo.
+    'shortcut-format': { gap: NO_TABLE_LEDGER },
     source: { gap: NO_TABLE_LEDGER },
     swipe: { gap: NO_TABLE_LEDGER },
     toast: { gap: NO_TABLE_LEDGER },
