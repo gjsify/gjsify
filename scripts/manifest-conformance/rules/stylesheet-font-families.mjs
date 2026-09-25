@@ -93,8 +93,20 @@ import { defineRule, toPosixPath } from '../../../packages/infra/manifest-confor
 /** Where the reasons live. Keyed `<package rel>: <family>`. */
 export const LEDGER_PATH = 'status/stylesheet-font-families.json';
 
-/** Never descend: build inputs of other tools, and vendored trees. */
-const SKIP_DIRS = new Set(['node_modules', '.git', 'refs', 'fixtures', 'test-results', 'playwright-report']);
+/**
+ * Never descend: build inputs of other tools, and vendored trees. `subprojects` is
+ * meson's: `@gjsify/gamepad-native` unpacks the pinned SDL3 release there on `meson
+ * setup` (gitignored), and SDL's own example stylesheets are not a package's decision.
+ */
+const SKIP_DIRS = new Set([
+    'node_modules',
+    '.git',
+    'refs',
+    'subprojects',
+    'fixtures',
+    'test-results',
+    'playwright-report',
+]);
 
 /**
  * CSS generic families and the CSS-wide keywords. A stack that STARTS with one of
