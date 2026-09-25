@@ -24,7 +24,7 @@ export type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './so
 // this host", and only this tells them apart. Same role as
 // `isSecureRandomSource()` in @gjsify/webcrypto/random, `hasNativeSab()` and
 // `hasOcspSupport()`.
-export { hasGamepadBackend } from './backend.js';
+export { describeGamepadBackend, hasGamepadBackend } from './backend.js';
 export type { GamepadBackendChoice, GamepadBackendStatus } from './backend.js';
 export { ManetteHapticActuator } from './haptic-actuator.js';
 export { MANETTE_TO_W3C_BUTTON, ManetteButton, W3CButton, W3C_BUTTON_COUNT } from './button-mapping.js';

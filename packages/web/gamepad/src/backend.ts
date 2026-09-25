@@ -507,6 +507,18 @@ export async function hasGamepadBackend(): Promise<boolean> {
     return status === 'manette' || status === 'sdl';
 }
 
+/**
+ * Which backend this process drives, in words — for a debug panel or a bug report, not
+ * for branching (use {@link hasGamepadBackend} for that). Quiet like the capability query.
+ */
+export async function describeGamepadBackend(): Promise<string> {
+    const backend = await loadGamepadBackend();
+    const names = { manette: 'libmanette (gi://Manette)', sdl: 'SDL3 (gi://GjsifyGamepad)' } as const;
+    if (backend.status === 'absent' || backend.status === 'failed') return `none (${backend.status})`;
+    const name = names[backend.status];
+    return backend.shadow?.status === 'sdl' ? `${name}, compared against ${names.sdl}` : name;
+}
+
 /** Reset the cached probe and its one-time diagnostic — tests only. */
 export function _resetGamepadBackendCache(): void {
     cached = null;
