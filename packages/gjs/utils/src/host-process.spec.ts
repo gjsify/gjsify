@@ -9,9 +9,23 @@
 // that declines by inventing a number.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { hasProcfs, hostExecPath, hostPid, hostPpid, readProcessMemory } from './host-process.js';
+import { hasProcfs, hostEnv, hostExecPath, hostPid, hostPpid, readProcessMemory } from './host-process.js';
 
 export default async () => {
+    await describe('hostEnv', async () => {
+        await it('should read a variable every test host sets', async () => {
+            // PATH is set for every gjs/node the suite runs under; an unanswered read
+            // would be `undefined`, never an empty string.
+            const path = hostEnv('PATH');
+            expect(typeof path).toBe('string');
+            expect((path as string).length > 0).toBe(true);
+        });
+
+        await it('should answer undefined for an unset variable, not an empty string', async () => {
+            expect(hostEnv('GJSIFY_UTILS_HOST_ENV_NEVER_SET_1f3a')).toBeUndefined();
+        });
+    });
+
     await describe('hostPid', async () => {
         await it('should report a real pid or none at all — never 0', async () => {
             const pid = hostPid();

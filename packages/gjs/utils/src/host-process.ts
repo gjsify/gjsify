@@ -32,6 +32,7 @@ interface GjsGlibImports {
                 file_read_link(path: string): string;
                 find_program_in_path(program: string): string | null;
                 get_prgname(): string | null;
+                getenv(variable: string): string | null;
                 spawn_command_line_sync(commandLine: string): [boolean, Uint8Array, Uint8Array, number];
             };
         };
@@ -89,6 +90,22 @@ function shellOut(GLib: HostGlib, commandLine: string): string | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * One environment variable of this process, or `undefined` when it is unset or
+ * nothing can answer.
+ *
+ * `process.env` first — Node, Bun, Deno and a GJS bundle whose `@gjsify/process`
+ * is registered all have it — then GLib's `g_getenv()` for a GJS host without that
+ * singleton. The two read the same environment block, so the order only decides
+ * who answers, never what.
+ */
+export function hostEnv(name: string): string | undefined {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+    const fromProcess = env?.[name];
+    if (typeof fromProcess === 'string') return fromProcess;
+    return hostGlib()?.getenv(name) ?? undefined;
 }
 
 /** Does this host have a readable procfs for the current process? */
