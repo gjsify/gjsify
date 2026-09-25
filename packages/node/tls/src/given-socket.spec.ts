@@ -15,13 +15,16 @@
 // `@xmpp/starttls` and friends need — see `starttls-upgrade.gjs.spec.ts`
 // for the actual plaintext-then-upgrade shape). Also runs, a third way,
 // under `@gjsify/node-gi`'s consumer harness — this polyfill's `tls.connect`
-// driven by a `net.Socket` that ISN'T this polyfill's (see `readOrError`
-// below and status/open-todos.md): the two data-round-trip cases accept
-// either a full adoption or the documented `ERR_GJSIFY_TLS_FOREIGN_SOCKET`.
+// driven by a `net.Socket` that ISN'T this polyfill's (see `isForeignSocket`
+// below and status/open-todos.md): the two data-round-trip cases decide
+// which outcome to expect from the socket itself, BEFORE calling
+// `tls.connect` — never from whichever outcome happens to come back — so a
+// real regression can't silently slide into the "foreign socket" branch.
 
 import { describe, it, expect } from '@gjsify/unit';
 import net from 'node:net';
 import tls from 'node:tls';
+import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import type { Socket } from 'node:net';
 import type { Server as TlsServer, TLSSocket } from 'node:tls';
@@ -129,23 +132,47 @@ async function withServer<T>(body: (port: number) => Promise<T>): Promise<T> {
     }
 }
 
-/**
- * Read to 'end', OR resolve on 'error' instead of rejecting — used by the
- * two data-round-trip tests below, which must ALSO pass when `raw` isn't a
- * `@gjsify/net` Socket (see `status/open-todos.md`'s "only adopts a
- * @gjsify/net Socket" entry: hit for real by `@gjsify/node-gi`'s consumer
- * harness, which aliases `node:tls` onto this polyfill while `node:net`
- * stays the runtime's own native module for that harness run).
- */
-function readOrError(socket: Socket): Promise<{ kind: 'data'; data: string } | { kind: 'error'; code?: string }> {
-    return new Promise((resolve) => {
+function readAll(socket: Socket): Promise<string> {
+    return new Promise((resolve, reject) => {
         let data = '';
         socket.on('data', (chunk: Buffer) => {
             data += chunk.toString('utf8');
         });
-        socket.on('end', () => resolve({ kind: 'data', data }));
-        socket.on('error', (err: NodeJS.ErrnoException) => resolve({ kind: 'error', code: err.code }));
+        socket.on('end', () => resolve(data));
+        socket.on('error', reject);
     });
+}
+
+function waitForError(socket: Socket): Promise<NodeJS.ErrnoException> {
+    return new Promise((resolve) => {
+        socket.once('error', (err: NodeJS.ErrnoException) => resolve(err));
+    });
+}
+
+/**
+ * Whether `socket` carries the `@gjsify/net` internals
+ * `TLSSocket._adoptConnection` needs (`_claimConnection`/`_detachReader`) —
+ * the SAME feature-detection `tls-socket.ts` itself does before adopting.
+ * Read from the socket BEFORE calling `tls.connect`, so the expectation is
+ * decided from what we HAVE, not from whatever `tls.connect` happens to do
+ * with it — see `status/open-todos.md`'s "only adopts a @gjsify/net
+ * Socket" entry: hit for real by `@gjsify/node-gi`'s consumer harness,
+ * whose `net.connect()` returns Node's own native socket because the
+ * harness aliases `node:tls` onto this polyfill but leaves `node:net` on
+ * that runtime's own module for the package under test.
+ */
+function isForeignSocket(socket: Socket): boolean {
+    const internals = socket as unknown as { _claimConnection?: unknown; _detachReader?: unknown };
+    return typeof internals._claimConnection !== 'function' || typeof internals._detachReader !== 'function';
+}
+
+/**
+ * Whether `node:tls` resolved to THIS polyfill. Only then can a socket be
+ * "foreign": Node's own tls adopts any Duplex, so under plain Node the
+ * given-socket cases must succeed like everywhere else.
+ */
+function usesGjsifyTls(): boolean {
+    return typeof (tls.TLSSocket.prototype as unknown as { _adoptConnection?: unknown })._adoptConnection === 'function';
 }
 
 function waitConnect(socket: Socket): Promise<void> {
@@ -172,19 +199,30 @@ export default async () => {
                             const raw = net.connect(port, '127.0.0.1');
                             await waitConnect(raw);
 
+                            // Decide BEFORE calling tls.connect, from the
+                            // socket itself — never from the outcome (that
+                            // would make a real regression indistinguishable
+                            // from the documented foreign-socket case).
+                            const foreign = usesGjsifyTls() && isForeignSocket(raw);
+                            if (typeof process.versions.gjs === 'string') {
+                                // Never true on GJS: `@gjsify/net`'s own
+                                // net.connect() always returns its own
+                                // Socket. If this fires, adoption itself
+                                // regressed — not something to paper over
+                                // by falling into the error branch below.
+                                expect(foreign).toBe(false);
+                            }
+
                             const client = tls.connect({ socket: raw, rejectUnauthorized: false });
                             expect(client.readable).toBe(true);
                             expect(client.writable).toBe(true);
 
-                            const outcome = await readOrError(client);
-                            if (outcome.kind === 'error') {
-                                // `raw` isn't a `@gjsify/net` Socket in this
-                                // environment — documented, specific
-                                // failure (status/open-todos.md), not a
-                                // crash.
-                                expect(outcome.code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
+                            if (foreign) {
+                                const err = await waitForError(client);
+                                expect(err.code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
                             } else {
-                                expect(outcome.data).toBe('Hello');
+                                const data = await readAll(client);
+                                expect(data).toBe('Hello');
                             }
                         }),
                         'already-connected socket',
@@ -202,6 +240,13 @@ export default async () => {
                     await withTimeout(
                         withServer(async (port) => {
                             const raw = net.connect(port, '127.0.0.1');
+                            // Method presence doesn't depend on connection
+                            // state, so this reads fine before 'connect'.
+                            const foreign = usesGjsifyTls() && isForeignSocket(raw);
+                            if (typeof process.versions.gjs === 'string') {
+                                expect(foreign).toBe(false);
+                            }
+
                             // Wrap immediately — before the TCP handshake has even
                             // completed (`raw.connecting` is still true here).
                             // `tls.connect({socket})` must wait for the socket's
@@ -210,11 +255,12 @@ export default async () => {
                             expect(client.readable).toBe(true);
                             expect(client.writable).toBe(true);
 
-                            const outcome = await readOrError(client);
-                            if (outcome.kind === 'error') {
-                                expect(outcome.code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
+                            if (foreign) {
+                                const err = await waitForError(client);
+                                expect(err.code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
                             } else {
-                                expect(outcome.data).toBe('Hello');
+                                const data = await readAll(client);
+                                expect(data).toBe('Hello');
                             }
                         }),
                         'connecting socket',
