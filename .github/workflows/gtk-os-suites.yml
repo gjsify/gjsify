@@ -504,10 +504,17 @@ jobs:
       # bare issue number before that).
       #
       # WHAT IS ACTUALLY RED, measured on run 35423439012 and none of it #1438:
-      #   · darwin-arm64 — 7 of 655. Five are `t.get_ancestor is not a function`: the
-      #     published bridge does not put `Gtk.Widget.get_ancestor` on the instance at all.
-      #     One is a natural-size read of 0 on the content box, one a GTK diagnostic under
-      #     `tabs`. Recorded in `status/open-todos.md`.
+      #   · darwin-arm64 — 7 of 655. Six were ONE node-gi defect, not a darwin one: a JS
+      #     `vfunc_*` override got its GObject ARGUMENTS as raw handles (gi.js — the
+      #     `t.get_ancestor is not a function` five), and its OUT parameters were never
+      #     written back (the addon's vfunc trampoline — GTK read 0 for every size the
+      #     rail's `vfunc_measure` answered, the sixth). Both are fixed in the tree; the
+      #     gi.js half reaches this leg at once, the C++ half only with the first
+      #     published `@gjsify/node-gi` that carries it, so until then the same six stay
+      #     red with size mismatches instead of the TypeError. Measured on a real macOS
+      #     27 arm64 host: 649/655 on the published addon, 655/655 minus one host-only
+      #     icon-theme row on a locally built one. The seventh, a GTK diagnostic under
+      #     `tabs`, did not reproduce there. Recorded in `status/open-todos.md`.
       #   · darwin-x64 — the runner exits 1 with NO summary line, dying after "publishes the
       #     window chrome" (#1546/#1549). That is worse than a count, and it is not the same
       #     defect as arm64's.

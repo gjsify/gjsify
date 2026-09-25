@@ -711,18 +711,26 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
   after three wrong proxies (an issue number, then "#1438 closes", then "the release
   carrying it"). What it is actually failing on, measured on run 35423439012 against a
   published 0.51.1 and none of it #1438:
-  - **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
-    bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
-    `a real tree, through a real reconciler` case that walks up from a child dies on it. One
-    is a natural-size read — `Expected 0 to be greater than 0` on the content box that
-    should stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`,
-    on the `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+  - **darwin-arm64 — 7 of 655, six of them FIXED in the tree and waiting on a node-gi
+    release.** They were one node-gi defect with two halves, neither darwin-specific (this
+    probe is simply the only place the React Native suite runs on node-gi). A JS `vfunc_*`
+    override received its GObject arguments as raw engine handles (`gi.js`), which is the
+    five `t.get_ancestor is not a function` in the rail's `RailLayout.vfunc_measure`; and
+    the addon's vfunc trampoline never wrote OUT parameters back, so GTK read 0 for every
+    size that override answered — the sixth, `Expected 0 to be greater than 0`. The gi.js
+    half reaches the probe immediately; the C++ half needs the next published
+    `@gjsify/node-gi`, and until then the same six stay red as size mismatches. Measured
+    on a real macOS 27 arm64 host: 649/655 on the published addon, all six green on a
+    locally built one (test: `packages/node-gi/node-gi/test/vfunc-out-params.test.mjs`).
+    The seventh, a GTK diagnostic under `tabs` on the `Adw.ViewSwitcher` moving to a
+    bottom bar, did not reproduce on that host.
   - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
     `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
     chrome`. A different and worse shape than arm64's seven, and not attributed.
 
-  Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
-  x64 death needs a local reproduction before it can be counted as anything.
+  Whoever picks this up: re-measure arm64 once a node-gi release carries the vfunc OUT
+  write-back, and the x64 death needs a local reproduction before it can be counted as
+  anything.
 - `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
   Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
   clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
