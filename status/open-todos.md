@@ -867,6 +867,23 @@ either), and the day a consumer needs the throw, the place to add it is the
 `vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
 engine addressing the slot.
 
+### node-gi: an interface's vfuncs are not installed from a JS class
+
+`registerClass` installs a `vfunc_*` override only into the CLASS struct of an
+ancestor. A class that `Implements: [Gio.ActionGroup]` and defines
+`vfunc_query_action` gets the warning "registerClass vfunc 'query_action' not found
+on any ancestor" and C never calls it: the interface struct
+(`GActionGroupInterface`) is never looked up. gjs fills it in its interface init.
+The C→JS half is ready — `CToJsCall` (marshal.cc) already answers class vfuncs and
+GI callbacks in gjs's OUT/INOUT shape; what is missing is the lookup in the
+implemented interfaces and an ffi closure per slot in the interface init. Found
+while fixing the class-vfunc OUT write-back; no consumer has hit it yet.
+
+`CToJsCall` also still refuses two OUT shapes with a TypeError naming the parameter:
+an OUT array with a separate LENGTH parameter (the length is a second OUT, and
+whether the JS answer carries it is a decision gjs has not made either), and
+GList/GSList/GHashTable OUTs.
+
 ### node-gi: two `GLib.Error` shapes, and they answer `instanceof` differently
 
 A GError node-gi hands to JS takes one of two shapes, and they are not the same

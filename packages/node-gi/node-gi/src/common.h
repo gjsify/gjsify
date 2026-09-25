@@ -413,13 +413,37 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse u
 // function-invoke path (calls.cc) and the vfunc chain-up path (class.cc).
 bool IsSupportedOutType(GITypeInfo* type, std::string* why);
 size_t CElementSize(GITypeInfo* elem);
-// A JS vfunc override's OUT/INOUT parameters (class.cc NodeGiVFuncTrampoline): read an
-// INOUT's current value from the caller's pointer, and write a JS result through it.
-// Both throw a TypeError naming the parameter for a type with no write path.
-Napi::Value VfuncInoutSlotToJs(Napi::Env env, GIArgInfo* ai, GITypeInfo* ti, gpointer src,
-                               const char* vfuncName);
-bool JsToVfuncOutSlot(Napi::Env env, Napi::Value v, GIArgInfo* ai, GITypeInfo* ti, gpointer dest,
-                      const char* vfuncName);
+// One call C makes INTO JS — a JS vfunc override (class.cc) or a GI callback
+// (calls.cc) — marshalled in gjs's OUT/INOUT shape (see marshal.cc). Lives on the
+// trampoline's stack under its HandleScope; `ci` is borrowed.
+class CToJsCall {
+ public:
+  CToJsCall(Napi::Env env, GICallableInfo* ci, std::string label);
+  ~CToJsCall();
+  CToJsCall(const CToJsCall&) = delete;
+  CToJsCall& operator=(const CToJsCall&) = delete;
+  // The JS arguments from the ffi args (`args[offset + i]` is declared arg i): IN as
+  // values, INOUT as their current value, pure OUT omitted. False = exception pending.
+  bool MarshalArgs(void** args, unsigned int offset, std::vector<napi_value>* jsArgs);
+  // Write JS's answer back: the return value into `result` (already zeroed by the
+  // caller), the OUT/INOUT through their pointers. A wrong shape or a failed
+  // conversion throws; every pure OUT left unanswered is zeroed, never uninitialised.
+  // `ret` is nullptr when the JS call itself failed.
+  void WriteAnswer(napi_value ret, void* result);
+
+ private:
+  struct Slot {
+    GIArgInfo* ai;   // owned
+    GITypeInfo* ti;  // owned
+    gpointer dest;   // the caller's variable (or caller-allocated record); may be NULL
+  };
+  void ThrowUnsupported(const Slot& s) const;
+  bool WriteOut(const Slot& s, Napi::Value v);
+  Napi::Env env_;
+  GICallableInfo* ci_;
+  std::string label_;
+  std::vector<Slot> outs_;
+};
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);
 
 // One IN length-argument autofill, remembered so a SECOND array naming the same length

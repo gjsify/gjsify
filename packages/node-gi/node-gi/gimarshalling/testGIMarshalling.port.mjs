@@ -1074,17 +1074,40 @@ describeSkip(
     'GValue (deferred IN breadth)',
 );
 // GClosure IN-parameter: a JS function marshalled as a real GClosure (the
-// GClosure-arg primitive). The rest of the Callback suite (callback OUT-params,
-// gclosure_return) stays skipped — those need callback OUT-param marshalling /
-// invokable GObject.Closure returns, separate features.
+// GClosure-arg primitive), and a callback's OUT parameters answered from its return
+// value in gjs's shape (CToJsCall, shared with the vfunc trampoline). gclosure_return
+// and callback_owned_boxed stay skipped — invokable GObject.Closure returns and
+// C-callable boxed callback params are separate features.
 describe('Callback', function () {
     describe('GClosure', function () {
         testInParameter('gclosure', () => 42);
     });
+
+    it('marshals a return value', function () {
+        expect(GIMarshallingTests.callback_return_value_only(() => 42)).toEqual(42);
+    });
+
+    it('marshals one out parameter', function () {
+        expect(GIMarshallingTests.callback_one_out_parameter(() => 43)).toEqual(43);
+    });
+
+    it('marshals multiple out parameters', function () {
+        expect(GIMarshallingTests.callback_multiple_out_parameters(() => [44, 45])).toEqual([44, 45]);
+    });
+
+    it('marshals a return value and one out parameter', function () {
+        expect(GIMarshallingTests.callback_return_value_and_one_out_parameter(() => [46, 47])).toEqual([46, 47]);
+    });
+
+    it('marshals a return value and multiple out parameters', function () {
+        expect(GIMarshallingTests.callback_return_value_and_multiple_out_parameters(() => [48, 49, 50])).toEqual([
+            48, 49, 50,
+        ]);
+    });
 });
 describeSkip(
-    'phase 2.7 callbacks — callback out-params + gclosure_return + owned boxed',
-    'Callback (deferred: callback OUT-params)',
+    'phase 2.7 callbacks — gclosure_return + callback_owned_boxed',
+    'Callback (deferred: GClosure return, owned boxed)',
 );
 describeSkip('phase 2.4 structs — raw gpointer return round-trip', 'Raw pointers');
 
@@ -1336,12 +1359,237 @@ describe('GObject', function () {
     });
 });
 
-// The module-level `VFuncTester = GObject.registerClass(class VFuncTester
-// extends GIMarshallingTests.Object { vfunc_* … })` registration ports together
-// with the vfunc sections below (phase 2.8).
+// gjs's VFuncTester, minus the vfuncs whose C side node-gi does not marshal yet
+// (a GError** vfunc, a callback-typed vfunc param). The OUT/INOUT/return shapes and
+// the object-transfer refcounts are the ones a JS override answers through
+// CToJsCall (marshal.cc).
+const VFuncTester = GObject.registerClass(
+    class VFuncTester extends GIMarshallingTests.Object {
+        vfunc_method_int8_in(i) {
+            this.int = i;
+        }
+
+        vfunc_method_int8_out() {
+            return 40;
+        }
+
+        vfunc_method_int8_arg_and_out_caller(i) {
+            return i + 3;
+        }
+
+        vfunc_method_int8_arg_and_out_callee(i) {
+            return i + 4;
+        }
+
+        vfunc_method_str_arg_out_ret(s) {
+            return [`Called with ${s}`, 41];
+        }
+
+        vfunc_method_with_default_implementation(i) {
+            this.int = i + 2;
+        }
+
+        vfunc_vfunc_return_value_only() {
+            return 42;
+        }
+
+        vfunc_vfunc_one_out_parameter() {
+            return 43;
+        }
+
+        vfunc_vfunc_multiple_out_parameters() {
+            return [44, 45];
+        }
+
+        vfunc_vfunc_return_value_and_one_out_parameter() {
+            return [46, 47];
+        }
+
+        vfunc_vfunc_return_value_and_multiple_out_parameters() {
+            return [48, 49, 50];
+        }
+
+        vfunc_vfunc_array_out_parameter() {
+            return [50, 51];
+        }
+
+        vfunc_vfunc_caller_allocated_out_parameter() {
+            return 52;
+        }
+
+        vfunc_vfunc_return_enum() {
+            return GIMarshallingTests.Enum.VALUE2;
+        }
+
+        vfunc_vfunc_out_enum() {
+            return GIMarshallingTests.Enum.VALUE3;
+        }
+
+        vfunc_vfunc_return_flags() {
+            return GIMarshallingTests.Flags.VALUE2;
+        }
+
+        vfunc_vfunc_out_flags() {
+            return GIMarshallingTests.Flags.VALUE3;
+        }
+
+        vfunc_vfunc_return_object_transfer_none() {
+            if (!this._returnObject) this._returnObject = new GIMarshallingTests.Object({ int: 53 });
+            return this._returnObject;
+        }
+
+        vfunc_vfunc_return_object_transfer_full() {
+            return new GIMarshallingTests.Object({ int: 54 });
+        }
+
+        vfunc_vfunc_out_object_transfer_none() {
+            if (!this._outObject) this._outObject = new GIMarshallingTests.Object({ int: 55 });
+            return this._outObject;
+        }
+
+        vfunc_vfunc_out_object_transfer_full() {
+            return new GIMarshallingTests.Object({ int: 56 });
+        }
+
+        vfunc_vfunc_one_inout_parameter(input) {
+            return input * 5;
+        }
+
+        vfunc_vfunc_multiple_inout_parameters(inputA, inputB) {
+            return [inputA * 5, inputB * -1];
+        }
+
+        vfunc_vfunc_return_value_and_one_inout_parameter(input) {
+            return [49, input * 5];
+        }
+
+        vfunc_vfunc_return_value_and_multiple_inout_parameters(inputA, inputB) {
+            return [49, inputA * 5, inputB * -1];
+        }
+    },
+);
+
+describe('Virtual function', function () {
+    let tester;
+    beforeEach(function () {
+        tester = new VFuncTester();
+    });
+
+    it('marshals an in argument', function () {
+        tester.method_int8_in(39);
+        expect(tester.int).toEqual(39);
+    });
+
+    it('marshals an in argument through a method that indirectly calls the vfunc', function () {
+        tester.int8_in(39);
+        expect(tester.int).toEqual(39);
+    });
+
+    it('marshals an out argument', function () {
+        expect(tester.method_int8_out()).toEqual(40);
+    });
+
+    it('marshals an out argument through a method that indirectly calls the vfunc', function () {
+        expect(tester.int8_out()).toEqual(40);
+    });
+
+    it('marshals a POD out argument', function () {
+        expect(tester.method_int8_arg_and_out_caller(39)).toEqual(42);
+    });
+
+    it('marshals a callee-allocated pointer out argument', function () {
+        expect(tester.method_int8_arg_and_out_callee(38)).toEqual(42);
+    });
+
+    it('marshals a string out argument and return value', function () {
+        expect(tester.method_str_arg_out_ret('a string')).toEqual(['Called with a string', 41]);
+        expect(tester.method_str_arg_out_ret('a 2nd string')).toEqual(['Called with a 2nd string', 41]);
+    });
+
+    it('can override a default implementation in JS', function () {
+        tester.method_with_default_implementation(40);
+        expect(tester.int).toEqual(42);
+    });
+
+    it('marshals a return value', function () {
+        expect(tester.vfunc_return_value_only()).toEqual(42);
+    });
+
+    it('marshals one out parameter', function () {
+        expect(tester.vfunc_one_out_parameter()).toEqual(43);
+    });
+
+    it('marshals multiple out parameters', function () {
+        expect(tester.vfunc_multiple_out_parameters()).toEqual([44, 45]);
+    });
+
+    it('marshals a return value and one out parameter', function () {
+        expect(tester.vfunc_return_value_and_one_out_parameter()).toEqual([46, 47]);
+    });
+
+    it('marshals a return value and multiple out parameters', function () {
+        expect(tester.vfunc_return_value_and_multiple_out_parameters()).toEqual([48, 49, 50]);
+    });
+
+    it('marshals one inout parameter', function () {
+        expect(tester.vfunc_one_inout_parameter(10)).toEqual(50);
+    });
+
+    it('marshals multiple inout parameters', function () {
+        expect(tester.vfunc_multiple_inout_parameters(10, 5)).toEqual([50, -5]);
+    });
+
+    it('marshals a return value and one inout parameter', function () {
+        expect(tester.vfunc_return_value_and_one_inout_parameter(10)).toEqual([49, 50]);
+    });
+
+    it('marshals a return value and multiple inout parameters', function () {
+        expect(tester.vfunc_return_value_and_multiple_inout_parameters(10, -51)).toEqual([49, 50, 51]);
+    });
+
+    it('marshals an array out parameter', function () {
+        expect(tester.vfunc_array_out_parameter()).toEqual([50, 51]);
+    });
+
+    it('marshals a caller-allocated GValue out parameter', function () {
+        expect(tester.vfunc_caller_allocated_out_parameter()).toEqual(52);
+    });
+
+    it('marshals an enum return value', function () {
+        expect(tester.vfunc_return_enum()).toEqual(GIMarshallingTests.Enum.VALUE2);
+    });
+
+    it('marshals an enum out parameter', function () {
+        expect(tester.vfunc_out_enum()).toEqual(GIMarshallingTests.Enum.VALUE3);
+    });
+
+    it('marshals a flags return value', function () {
+        expect(tester.vfunc_return_flags()).toEqual(GIMarshallingTests.Flags.VALUE2);
+    });
+
+    it('marshals a flags out parameter', function () {
+        expect(tester.vfunc_out_flags()).toEqual(GIMarshallingTests.Flags.VALUE3);
+    });
+
+    // 1 reference = the object is owned only by JS; 2 = by JS and the vfunc caller.
+    // A transfer-full answer must hand C its OWN ref: one shared with the wrapper is
+    // dropped by both, and the object is freed while JS still holds it.
+    for (const [mode, transfer, expected] of [
+        ['return', 'none', 1],
+        ['return', 'full', 2],
+        ['out', 'none', 1],
+        ['out', 'full', 2],
+    ]) {
+        it(`marshals an object ${mode} parameter with transfer ${transfer}`, function () {
+            const [refcount, floating] = tester[`get_ref_info_for_vfunc_${mode}_object_transfer_${transfer}`]();
+            expect(floating).toBeFalsy();
+            expect(refcount).toEqual(expected);
+        });
+    }
+});
 describeSkip(
-    'phase 2.8 vfuncs — VFuncTester registerClass subclass: vfunc in/out/inout/error/enum/flags/object marshalling',
-    'Virtual function',
+    'phase 2.8 vfuncs — GError** vfuncs, callback-typed vfunc params, object IN transfer',
+    'Virtual function (deferred: errors, callback params, object IN)',
 );
 describeSkip('phase 2.8 vfuncs — invalid vfunc override shapes must error cleanly', 'Wrong virtual functions');
 describeSkip('phase 2.8 vfuncs — static vfuncs on Object/interfaces', 'Static virtual functions');

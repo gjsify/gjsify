@@ -112,3 +112,20 @@ test('an answer of the wrong shape throws instead of reading back zeros', { skip
         message: /vfunc 'measure' must return an array of 4 values/,
     });
 });
+
+test('an override that throws propagates, and C reads zeros rather than garbage', { skip }, () => {
+    const Throwing = GObject.registerClass(
+        { GTypeName: 'NodeGiVfuncOutThrowingLayout' },
+        class extends Gtk.BoxLayout {
+            vfunc_measure() {
+                throw new RangeError('measure failed');
+            }
+        },
+    );
+    const box = new Gtk.Box();
+    box.set_layout_manager(new Throwing());
+    assert.throws(() => box.measure(Gtk.Orientation.HORIZONTAL, -1), {
+        name: 'RangeError',
+        message: 'measure failed',
+    });
+});

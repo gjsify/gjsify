@@ -227,56 +227,21 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
       napiEnv, static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer),
       GI_TRANSFER_NOTHING);
 
-  unsigned int n = gi_callable_info_get_n_args(ci);
+  // Arguments and the answer in gjs's OUT/INOUT shape, shared with the GI-callback
+  // trampoline (CToJsCall, marshal.cc). args[0] is the instance, so the declared
+  // arguments start at offset 1.
+  CToJsCall call(napiEnv, ci, "vfunc '" + vf->name + "'");
   std::vector<napi_value> jsArgs;
-  jsArgs.reserve(n);
-  // OUT/INOUT parameters, GJS-shaped: an OUT is not a JS argument at all, an INOUT
-  // passes its current value, and both are answered through the RETURN value (see
-  // the read-back below). Their ffi slot holds the caller's pointer, not a value.
-  struct VfuncOut {
-    GIArgInfo* ai;  // owned; unref'd after the write-back
-    GITypeInfo* ti;  // owned
-    gpointer dest;
-  };
-  std::vector<VfuncOut> outs;
-  bool ok = true;
-  for (unsigned int i = 0; i < n; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    GIDirection dir = gi_arg_info_get_direction(ai);
-    if (dir != GI_DIRECTION_IN) {
-      gpointer dest = static_cast<GIArgument*>(args[i + 1])->v_pointer;
-      outs.push_back({ai, ti, dest});
-      if (dir == GI_DIRECTION_INOUT) {
-        Napi::Value v = VfuncInoutSlotToJs(napiEnv, ai, ti, dest, vf->name.c_str());
-        if (napiEnv.IsExceptionPending()) {
-          ok = false;
-          break;
-        }
-        jsArgs.push_back(v);
-      }
-      continue;
-    }
-    Napi::Value v =
-        GIArgumentToJs(napiEnv, ti, static_cast<GIArgument*>(args[i + 1]), GI_TRANSFER_NOTHING);
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-    if (napiEnv.IsExceptionPending()) {
-      ok = false;
-      break;
-    }
-    jsArgs.push_back(v);
-  }
+  bool ok = call.MarshalArgs(args, 1, &jsArgs);
 
   // Zero the result slot first (it is >= ffi_arg wide; narrow returns leave the
   // upper bytes indeterminate otherwise).
   if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
 
-  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  napi_value ret = nullptr;
   if (ok) {
     napi_value fn = nullptr;
     if (napi_get_reference_value(env, vf->fn, &fn) == napi_ok && fn != nullptr) {
-      napi_value ret = nullptr;
       // napi_make_callback drains nextTick/microtasks around the call (Node; on
       // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below); the
       // wrapped instance is the receiver (`this`).
@@ -284,55 +249,10 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
       napi_status st =
           napi_make_callback(env, nullptr, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
       g_loopDispatchDepth--;
-      GITypeTag rtag = gi_type_info_get_tag(retType);
-      bool hasRet = rtag != GI_TYPE_TAG_VOID;
-      // GJS's shape for the answer: ONE output (the return, or a lone OUT) is the
-      // value itself; several are an array, the return first and the OUT/INOUT
-      // parameters after it in declaration order.
-      std::vector<Napi::Value> answers;
-      size_t nAnswers = outs.size() + (hasRet ? 1 : 0);
-      if (st == napi_ok && !napiEnv.IsExceptionPending() && nAnswers > 0) {
-        Napi::Value rv(env, ret);
-        if (nAnswers == 1) {
-          answers.push_back(rv);
-        } else if (rv.IsArray() && rv.As<Napi::Array>().Length() == nAnswers) {
-          Napi::Array arr = rv.As<Napi::Array>();
-          for (uint32_t k = 0; k < nAnswers; k++) answers.push_back(arr.Get(k));
-        } else {
-          Napi::TypeError::New(napiEnv, "vfunc '" + vf->name + "' must return an array of " +
-                                            std::to_string(nAnswers) +
-                                            " values (its return value and OUT parameters)")
-              .ThrowAsJavaScriptException();
-        }
-      }
-      if (answers.size() == nAnswers && nAnswers > 0) {
-        size_t k = 0;
-        if (hasRet) {
-          Napi::Value rv = answers[k++];
-          if (result == nullptr) {
-            // nothing to write into
-          } else if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
-            // Hand the caller an owned copy — a JsToGIArgument string would point
-            // into a std::string that dies with this frame.
-            static_cast<GIArgument*>(result)->v_string =
-                rv.IsString() ? g_strdup(rv.As<Napi::String>().Utf8Value().c_str()) : nullptr;
-          } else {
-            std::string held;
-            JsToGIArgument(napiEnv, rv, retType, static_cast<GIArgument*>(result), &held);
-          }
-        }
-        for (const VfuncOut& o : outs) {
-          if (napiEnv.IsExceptionPending()) break;
-          JsToVfuncOutSlot(napiEnv, answers[k++], o.ai, o.ti, o.dest, vf->name.c_str());
-        }
-      }
+      if (st != napi_ok) ret = nullptr;
     }
   }
-  for (const VfuncOut& o : outs) {
-    gi_base_info_unref(o.ti);
-    gi_base_info_unref(o.ai);
-  }
-  gi_base_info_unref(retType);
+  call.WriteAnswer(ret, result);
   // A pending JS exception surfaces at the next N-API boundary (e.g. when the
   // constructType / method call that triggered this vfunc returns).
   //
