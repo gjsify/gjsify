@@ -41,7 +41,7 @@ import { resolveNpmPackage } from './utils/resolve-npm-package.js';
 // all of which the GJS bundle already carries via `commands/install.ts`.
 import { buildInstallCommand, detectPackageManager, missingSystemDepsFor } from './utils/check-system-deps.js';
 import { activateNativePrebuilds } from './utils/gi-search-path.js';
-import { NativeLibraryLoadError, probeNativeLibrary, type NativeLibraryFailure } from '@gjsify/utils/core';
+import { NativeLibraryLoadError, openNativeLibrary, type NativeLibraryFailure } from '@gjsify/utils/core';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // Loaded lazily: eager module-init loading of the npm crate pulls musl-detection
@@ -511,8 +511,11 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             // opens at the first class access, and a missing system library
             // (Homebrew json-glib on a Mac) would pass here and fail inside
             // `new BundlerSession()` as the nameless "Unsupported type void" —
-            // past `diagnoseNativeEngine()`, which then never runs.
-            _nativeLibraryFailure = probeNativeLibrary('GjsifyRolldown');
+            // past `diagnoseNativeEngine()`, which then never runs. Opened HERE,
+            // beside the typelib that was found, because the wrapper cannot:
+            // this process imports its `lib/` by file URL, and GJS resolves no
+            // bare specifier such as `@gjsify/utils` (see its `index.ts`).
+            _nativeLibraryFailure = openNativeLibrary('GjsifyRolldown')?.failure ?? null;
             if (_nativeLibraryFailure) return null;
             return mod;
         } catch {

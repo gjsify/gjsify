@@ -45,6 +45,7 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
 import type { Targets } from 'lightningcss';
+import { openNativeLibrary } from '@gjsify/utils/core';
 import { isGjs } from '../utils/runtime.js';
 
 export interface CssAsStringOptions {
@@ -72,6 +73,8 @@ interface BundleResult {
 type Bundler = (filename: string, targets: Targets | undefined) => Promise<BundleResult>;
 
 let _bundlerPromise: Promise<Bundler> | null = null;
+/** Why the native bridge's library would not open, when `tryLoadNativeBundler()` measured it. */
+let _nativeLoadError: Error | null = null;
 
 async function pickBundler(): Promise<Bundler> {
     const forced = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
@@ -80,7 +83,11 @@ async function pickBundler(): Promise<Bundler> {
     if (forced === 'npm') return loadNpmBundler();
     if (forced === 'native') {
         const native = await tryLoadNativeBundler();
-        if (!native) throw new Error('GJSIFY_CSS_BACKEND=native but @gjsify/lightningcss-native is not loadable');
+        if (!native)
+            throw new Error(
+                'GJSIFY_CSS_BACKEND=native but @gjsify/lightningcss-native is not loadable' +
+                    (_nativeLoadError ? `\n${_nativeLoadError.message}` : ''),
+            );
         return native;
     }
 
@@ -125,6 +132,14 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         const resolved = createRequire(import.meta.url).resolve(specifier);
         const mod = (await import(/* @vite-ignore */ pathToFileURL(resolved).href)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
+        // The typelib resolved; its library opens at the first class access. Open
+        // it now, beside that typelib: this module cannot leave it to the wrapper,
+        // whose `lib/` is imported by file URL where GJS resolves no bare
+        // specifier. A library that will not load then names its missing
+        // dependency and the npm fallback runs, instead of the nameless
+        // "Unsupported type void" inside `transform()`.
+        _nativeLoadError = openNativeLibrary('GjsifyLightningcss');
+        if (_nativeLoadError) return null;
         return async (filename, targets) => {
             // The native `@gjsify/lightningcss-native` `bundle()` resolves
             // `@import` chains through lightningcss's filesystem-backed
