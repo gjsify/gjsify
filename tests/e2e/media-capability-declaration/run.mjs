@@ -398,13 +398,24 @@ describe('media-capabilities — the three published bundles, in this tree', () 
             assert.ok(!gapFormats(name).includes('Ogg / Vorbis'), `${name} declares Ogg / Vorbis as a gap again`);
         }
 
-        // AAC is the gap every bundle has, and it is the one with no `plugin`: nothing was
-        // ever going to be copied, so no file's arrival can retire it.
-        for (const name of BUNDLE_PACKAGES) {
+        // AAC is the gap that PARTIALLY closed, and closed the same way MP3 did: win32 claims
+        // it through `mfaacdec`, the other decoder `mediafoundation` registers beside
+        // `mfmp3dec` (ADR 0056 § 7) — no library, no redistribution question, because it never
+        // leaves the OS. darwin has no such plugin and stays a gap with no `plugin`: nothing
+        // was ever going to be copied, so no file's arrival can retire it, and `faad`/
+        // `avdec_aac` remain excluded on licence grounds either way.
+        const darwinBundles = BUNDLE_PACKAGES.filter((name) => name !== '@gjsify/gtk-runtime-win32-x64');
+        for (const name of darwinBundles) {
             const aac = byName.get(name).capabilities.gaps.find((gap) => gap.format?.startsWith('AAC'));
             assert.ok(aac, `${name} declares no AAC gap`);
             assert.equal(aac.plugin, undefined, `${name}'s AAC gap names a plugin, which nothing ships`);
         }
+        assert.ok(formats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A / ADTS)'), 'win32 no longer claims AAC');
+        assert.ok(
+            !gapFormats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A / ADTS)'),
+            'win32 still gaps AAC as well as claiming it',
+        );
+        assert.equal(decoderFor('@gjsify/gtk-runtime-win32-x64', 'AAC (M4A / ADTS)'), 'mfaacdec');
     });
 
     it('gives every gap a reason long enough to be one', () => {

@@ -74,8 +74,8 @@
       ],
       "gaps": [
         {
-          "format": "AAC (in M4A)",
-          "why": "`isomp4` demuxes the container and `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's."
+          "format": "AAC (M4A / ADTS)",
+          "why": "`isomp4` demuxes an M4A container and `audioparsers` supplies `aacparse` for a raw ADTS stream, after which either shape reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's. win32 claims this format instead, through `mfaacdec` — the OS's own decoder, wrapped by the same `mediafoundation` plugin that closed MP3 there (ADR 0056 § 7); that route does not exist here, because there is no Media Foundation on macOS."
         }
       ]
     }

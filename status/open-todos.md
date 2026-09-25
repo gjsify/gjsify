@@ -7084,9 +7084,6 @@ module; gvsbuild's ffmpeg has no mp3 decoder; gst-plugins-rs 0.15.2 has none; gs
 1.28.4 dropped `mad`. The `mpg123` gap keeps its `upstream` bound, so the catalogue rule
 reds the day the project exists.
 
-**AAC may already decode on win32 and is not claimed.** The same plugin registers `mfaacdec`.
-Claiming it needs an M4A fixture and a decode test like the MP3 ones in `gst-elements.test.mjs`.
-
 **FLAC is a price, not a wall, and the price is not paid.** `claxon` in gst-plugins-rs is a
 pure-Rust FLAC decoder and gvsbuild already defines that tree (`gst-plugin-gtk4`). Taking it
 means cargo-c plus gtk4 rebuilt from source (gst-plugins-bad is already built there now, for

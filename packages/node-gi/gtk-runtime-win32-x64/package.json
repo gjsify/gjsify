@@ -47,6 +47,11 @@
           "element": "mfmp3dec"
         },
         {
+          "format": "AAC (M4A / ADTS)",
+          "plugin": "mediafoundation",
+          "element": "mfaacdec"
+        },
+        {
           "format": "Ogg / Vorbis",
           "plugin": "vorbis",
           "element": "vorbisdec",
@@ -98,10 +103,6 @@
         {
           "plugin": "wasapi2",
           "why": "the modern Windows sink, and the one absence here that costs no format: `directsound` ships and `autoaudiosink` resolves to it. Declared because it is the same silent absence, not because anything breaks."
-        },
-        {
-          "format": "AAC (in M4A)",
-          "why": "`isomp4` demuxes the container and `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's. NOT MEASURED on this target since the `mediafoundation` plugin arrived for MP3: it registers `mfaacdec` beside `mfmp3dec`, the OS decoder with no redistribution question attached, so AAC may already decode here. It stays a gap until a fixture proves it, because a claim is only made where a test decodes it."
         }
       ]
     }

@@ -25,10 +25,13 @@ import { requireGi } from '../gi.js';
 import { GST_PLUGIN_GAPS, gstAudioDecoders } from '../../scripts/gst-plugins.mjs';
 import { resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import {
+    AAC_FIXTURE_SECONDS,
     MP3_FIXTURE_SECONDS,
     PCM_RATE,
     decodeToPcm,
     icyInterleave,
+    readAdtsFixture,
+    readM4aFixture,
     readMp3Fixture,
     stripId3v2,
 } from './gst-decode.mjs';
@@ -65,6 +68,13 @@ const REQUIRED_ELEMENTS = [
     // The file-side twin: a podcast episode normally opens with an ID3v2 tag, which typefind
     // reports as `application/x-id3` rather than as MPEG audio.
     ['id3demux', 'strips the ID3v2 tag most MP3 files open with'],
+    // AAC's two shapes need DIFFERENT elements ahead of the decoder, measured by ranking each
+    // out in turn: an M4A podcast episode is demuxed by `qtdemux`, which hands the decoder raw
+    // AAC directly (`aacparse` ranked out changes nothing for that file); a live AAC stream
+    // carries no container at all and reaches the decoder only through `aacparse` (`qtdemux`
+    // ranked out changes nothing for that one — there is no container to fail to demux).
+    ['qtdemux', 'demuxes the M4A/MP4 container a podcast episode ships as'],
+    ['aacparse', 'parses raw ADTS AAC, the shape a live stream sends with no container at all'],
 ];
 
 test('the GStreamer registry resolves the audio-path elements', { skip }, () => {
@@ -228,6 +238,57 @@ test('an Icecast MP3 stream decodes to PCM on the bundle', { skip: bundleSkip },
         `an ICY-interleaved MP3 stream produced ${result.frames} frames (eos: ${result.eos}` +
             `${result.error ? `, error: ${result.error}` : ''}); expected ${MP3_FRAMES}..${MP3_FRAMES_MAX}. ` +
             'This is the live-radio path minus the network: icydemux → mpegaudioparse → the MP3 decoder.',
+    );
+});
+
+// AAC, the format `mediafoundation` closed for MP3 also registers a decoder for
+// (`mfaacdec` beside `mfmp3dec`, ADR 0056 § 7) — but only win32 ever claims it: darwin ships
+// no AAC decoder at all, `faad` (GPL) and `avdec_aac` (the libav closure ADR 0037 refuses)
+// both deliberately excluded, so `gjsify.mediaCapabilities.gaps` stays the honest answer there.
+// GATED ON THE CLAIM, unlike the MP3 tests above, which is the opposite of "unconditional on
+// every bundle": MP3 is decoded EVERYWHERE (through different elements) and a bundle silent
+// about it would be the asymmetry #1544 cost; AAC is decoded on ONE platform by design, so
+// asserting success on the others would fail for the reason the manifest already states, and
+// asserting nothing at all would let the claim rot the way the un-tested win32 MP3 claim did.
+//
+// Negative controls, run on linux-x64 with the host's three AAC decoders ranked out
+// (`GST_PLUGIN_FEATURE_RANK=avdec_aac:NONE,avdec_aac_fixed:NONE,avdec_aac_latm:NONE,faad:NONE,
+// fdkaacdec:NONE`): both shapes fail with `Internal data stream error` / not-negotiated and 0
+// bytes out — qtdemux for the M4A file, aacparse for the raw stream, matching the element each
+// one's REQUIRED_ELEMENTS entry above names. Ranking out only `qtdemux` empties the M4A
+// pipeline (`No streams to output`) and leaves the ADTS one unaffected; ranking out only
+// `aacparse` fails the ADTS pipeline and leaves the M4A one unaffected.
+const AAC_FRAMES = AAC_FIXTURE_SECONDS * PCM_RATE;
+// Upper slack: an M4A file is trimmed by the container's own edit list (measured 44101 frames
+// for a 44100-sample input, decoder-agnostic — the clipping is qtdemux's segment, not the
+// decoder's), while raw ADTS carries no edit list and none is applied downstream, so its
+// decode includes the encoder's look-ahead delay untrimmed (measured 46080 frames — 45 × 1024,
+// one full AAC-LC frame more than the input). One bound covers both, on the MP3 tests' pattern.
+const AAC_FRAMES_MAX = AAC_FRAMES + 4 * 1024;
+const aacClaim = claim.find((entry) => entry.format.startsWith('AAC'));
+const aacSkip =
+    bundleSkip ||
+    (aacClaim
+        ? false
+        : "this bundle's `gjsify.mediaCapabilities` declares no AAC decoder — see its `gaps`, and ADR 0056 § 7");
+
+test('an M4A podcast episode decodes to PCM where the bundle claims AAC', { skip: aacSkip }, () => {
+    const result = decodeToPcm(readM4aFixture());
+    assert.ok(
+        result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,
+        `decoding a ${AAC_FIXTURE_SECONDS} s M4A produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${AAC_FRAMES}..${AAC_FRAMES_MAX}. ` +
+            `The claimed decoder is \`${aacClaim?.element}\`; qtdemux hands it raw AAC with no aacparse in between.`,
+    );
+});
+
+test('a raw ADTS AAC stream decodes to PCM where the bundle claims AAC', { skip: aacSkip }, () => {
+    const result = decodeToPcm(readAdtsFixture());
+    assert.ok(
+        result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,
+        `decoding a ${AAC_FIXTURE_SECONDS} s raw ADTS stream produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${AAC_FRAMES}..${AAC_FRAMES_MAX}. ` +
+            'This is the live-radio shape: no container, aacparse is what decodebin3 autoplugs the decoder behind.',
     );
 });
 
