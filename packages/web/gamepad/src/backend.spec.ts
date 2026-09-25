@@ -24,6 +24,7 @@ import {
     _GI_BACKENDS,
     _diagnoseGiLoadError,
     _resetGamepadBackendCache,
+    describeGamepadBackend,
     hasGamepadBackend,
     loadGamepadBackend,
     reportGamepadBackendOnce,
@@ -603,6 +604,7 @@ export default async () => {
             expect(backend.status).toBe('sdl');
             expect(manetteImports).toBe(0);
             expect(await hasGamepadBackend()).toBe(true);
+            expect(await describeGamepadBackend()).toBe('SDL3 (gi://GjsifyGamepad)');
         });
 
         await it('answers win32 without the prebuild as absent, with advice that fits Windows', async () => {
@@ -704,6 +706,9 @@ export default async () => {
             ).toBe(true);
             // A primary that failed to start would be reported here instead.
             expect(captured.errors).toStrictEqual([]);
+            expect(await describeGamepadBackend()).toBe(
+                'libmanette (gi://Manette), compared against SDL3 (gi://GjsifyGamepad)',
+            );
         });
 
         await it('says so when compare mode has no shim to compare against', async () => {
