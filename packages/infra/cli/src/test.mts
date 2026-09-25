@@ -125,6 +125,8 @@ import watchLoopSuite from './utils/watch-loop.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
+import execBinSuite from './utils/exec-bin.spec.js';
+import binRebuildRegressionsSuite from './bin-rebuild-regressions.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import jsxConfigSuite from './utils/jsx-config.spec.js';
@@ -234,6 +236,7 @@ if (!canCreateFileSymlink()) {
     skip['copies a DANGLING link as-is instead of inventing a kind'] = why;
     skip['REFRESHES an existing `pkg` on the POSIX path'] = why;
     skip['still writes a relative symlink on POSIX'] = why;
+    skip['follows a `.bin` symlink to its package'] = why;
 }
 
 if (!hasGjs()) {
@@ -371,6 +374,8 @@ run(
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,
+        execBinSuite,
+        binRebuildRegressionsSuite,
         gjsBundleGuardSuite,
         gjsSourceEscapeSuite,
         jsxConfigSuite,

@@ -25,6 +25,7 @@ import {
     clearCommand as clear,
     copyCommand as copy,
     envCommand as env,
+    execCommand as exec,
     testCommand as test,
     runCommand as run,
     infoCommand as info,
@@ -148,6 +149,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(clear.command, clear.description, clear.builder, clear.handler)
         .command(copy.command, copy.description, copy.builder, copy.handler)
         .command(env.command, env.description, env.builder, env.handler)
+        .command(exec.command, exec.description, exec.builder, exec.handler)
         .command(test.command, test.description, test.builder, test.handler)
         .command(run.command, run.description, run.builder, run.handler)
         .command(dlx.command, dlx.description, dlx.builder, dlx.handler)
