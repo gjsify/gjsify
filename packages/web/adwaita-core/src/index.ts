@@ -158,6 +158,7 @@ export {
     setAdwaitaAccent,
 } from './accent.js';
 export type { AdwAccentColorName } from './accent.js';
+export { APPLE_ACCENT_COLORS, APPLE_MULTICOLOR_ACCENT, adwAccentFromAppleAccentColor } from './apple-accent.js';
 
 // --- Color scheme (light/dark) ---
 export {
