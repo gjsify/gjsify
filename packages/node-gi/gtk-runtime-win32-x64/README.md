@@ -154,6 +154,17 @@ no re-exec and no native `AddDllDirectory` call (which would be chicken-and-egg 
 the addon must already be loaded to call it). PATH-prepend before the `require` is
 both sufficient and the simplest mechanism.
 
+## MP3 depends on the host's Media Foundation
+
+MP3 decodes through `mfmp3dec` (gst-plugins-bad `mediafoundation`), which wraps the
+decoder Windows ships instead of carrying one (ADR 0056 § 7). Where Media Foundation is
+missing, the plugin fails to load and MP3 does not play: on Windows **N** editions until
+the Media Feature Pack is installed, and on Windows Server until the optional
+`Server-Media-Foundation` feature is. The symptom matches a bundle with no MP3 decoder:
+`playbin3` never leaves READY for a file, and a stream fails with
+`Internal data stream error`. To check a host, look for `%SystemRoot%\System32\mfplat.dll`.
+Every other format in `gjsify.mediaCapabilities` is decoded by the bundle itself.
+
 ## Two closures: display-free (default) + full windowing (`--windowing`)
 
 `build-gtk-runtime.mjs` builds one of two supersets into the same `gtk/` dir:

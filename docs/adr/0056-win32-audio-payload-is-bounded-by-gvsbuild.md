@@ -2,7 +2,7 @@
 
 - Status: **Accepted**
 - Date: 2026-09-10, amended 2026-09-11 (§ 6, and the two routes out of the catalogue the first
-  draft never named)
+  draft never named), amended 2026-09-24 (§ 7: MP3 through the OS decoder, the route § 3 missed)
 - Deciders: Pascal Garber
 - Related: [ADR 0037 (the bundles carry the URI source)](0037-gtk-runtime-bundles-carry-the-uri-source.md), [ADR 0055 (a declared media contract)](0055-declared-media-capabilities.md), [ADR 0023 (which GTK a node-gi process uses)](0023-gtk-source-precedence.md)
 
@@ -77,7 +77,7 @@ So step 1 of § 1 is necessary and not sufficient, and the ADR would have been w
 there. A project in the catalogue can still be unbuildable with the toolchain the catalogue
 ships, and only a build says which.
 
-### 3. MP3 and FLAC stay declared gaps, and the reason is availability, not licence
+### 3. MP3 and FLAC stay declared gaps, and the reason is availability, not licence (MP3: superseded by § 7)
 
 Worth stating because the neighbouring AAC gap IS a licensing decision and the two get
 conflated. libmpg123 is LGPL-2.1, libFLAC is BSD-3-Clause, libvorbis and libogg are
@@ -154,6 +154,73 @@ names need a Python parser — a first attempt at that regex silently missed `op
 `dav1d`, and a parser that under-reports turns every absence assertion into a pass. A directory
 listing cannot be wrong in that direction, and a library gvsbuild learns to build arrives as
 its own module, the way `libvorbis.py`, `ogg.py`, `opus.py`, `dav1d.py` and `x264.py` each did.
+
+### 7. MP3 is decoded by Windows itself, through `mediafoundation` (amended 2026-09-24)
+
+§ 3 read every route out of the catalogue that ends in a LIBRARY and missed the one that
+does not. gst-plugins-bad's `mediafoundation` plugin registers `mfmp3dec` (and `mfaacdec`),
+thin wrappers around the decoders Media Foundation ships with Windows. gvsbuild defines
+`gst-plugins-bad` in the same `gstreamer.py` as -base and -good; the plugin is a meson
+`auto` feature that links only OS import libraries (`mf`, `mfplat`, `mfreadwrite`,
+`mfuuid`, `strmiids`, `ole32`) and GStreamer's own. So step 1 of § 1 answers YES without a
+new project, and the invocation change is one project name plus one `--extra-opts`:
+
+```
+gvsbuild build … --skip libnice --skip libsrtp2 --skip webrtc-audio-processing
+  --extra-opts 'gst-plugins-bad:--auto-features=disabled;-Dmediafoundation=enabled' … gst-plugins-bad
+```
+
+`--auto-features=disabled` keeps the other ~100 -bad plugins out of the build and out of
+the DLL closure; `enabled` turns a missing Windows SDK header into a configure error (§ 4's
+rule, applied at the build instead of only at the prefix). The three `--skip`s are -bad's
+declared gvsbuild dependencies, which only its WebRTC plugins use.
+
+**Why this route over the other two.** Route (b), `mpg123` in gst-plugins-good plus
+libmpg123 as a gvsbuild project, is the right UPSTREAM change and is prepared as one
+(`status/upstream-patch-candidates.md`); done here it is the "build beside gvsbuild"
+alternative rejected below. Route (c), gst-libav, stays shut for the reason already given:
+gvsbuild's ffmpeg has no mp3 decoder, and widening it patches a script we do not own.
+Media Foundation adds no library to maintain and no licence to ship — the decoder is the
+OS's, patched by Windows Update, and the only new file is `gstmediafoundation.dll`
+(LGPL, attributed to `gst-plugins-bad`, whose COPYING gvsbuild installs).
+
+**What it costs, and why that is acceptable.** The decoder is an OS component, so the
+claim is conditional on the host in a way no other claim is: Windows N editions lack
+Media Foundation until the Media Feature Pack is installed, and on Windows Server it is
+the optional `Server-Media-Foundation` feature. Where `mfplat.dll` is absent, the plugin
+fails to load, GStreamer skips it, and MP3 is the gap it was before — nothing else in the
+bundle is affected. The target of these bundles is a desktop application on client
+Windows, where Media Foundation is part of the OS. On the windows-latest runner (Server
+2025) the feature read `Available` and `mfplat.dll` and `mp3dmod.dll` were present before
+anything was installed; the leg installs the feature anyway and prints the before/after.
+
+**Measured on run 36029738694**: the prefix assertion found `gstmediafoundation.dll`,
+`gsticydemux.dll` and `gstid3demux.dll`; `gst-elements.test.mjs` passed 10 of 10 on
+windows-latest against the CI-built bundle (both MP3 decode tests included) and on both
+darwin legs. The bundle grew from 133.6 MiB (published 0.52.0) to 134.1 MiB: three
+plugins, plus `gstwinrt-1.0-0.dll`, a -bad library the plugin links, which the first build
+found through the licence-coverage gate.
+
+**What it does not change.** darwin keeps `mpg123audiodec`; the platforms now differ in
+WHICH element decodes MP3, not in whether one does. `mpg123` stays a declared win32 gap
+without a format — with its `upstream` bound — so the day gvsbuild gains libmpg123 the
+catalogue rule names it and win32 can drop the OS dependency. AAC is not claimed although
+`mfaacdec` now ships: a claim is made where a test decodes it, and none does yet.
+
+**The live stream needed a demuxer as well, on every target.** Measured with the host
+GStreamer against a real Icecast MP3 stream (it answers `icy-metaint: 16000`): souphttpsrc
+labels those bytes `application/x-icy`, and with `icydemux` ranked NONE playbin3 fails with
+`Internal data stream error`. No bundle carried `icydemux`, nor `id3demux`, which the ID3v2
+tag in front of most MP3 files needs — the published darwin 0.52.0 tarball has
+`libgstmpg123.dylib` and neither demuxer, so its bundled episode played only because that
+file carries no tag. Both are gst-plugins-good with no library, and both are now in
+`GST_AUDIO_PLUGINS` for all three targets and in the win32 prefix assertion by name.
+
+**The test is the effect.** `gst-elements.test.mjs` decodes a tagged 1 s MP3 fixture and
+the same frames interleaved with ICY metadata through `decodebin3` on every bundle, and
+counts PCM frames. Negative controls on linux-x64 (`GST_PLUGIN_FEATURE_RANK=<f>:NONE`):
+every MP3 decoder out → both fail; `icydemux` out → only the stream fails; `id3demux`
+out → only the file fails.
 
 ## Consequences
 

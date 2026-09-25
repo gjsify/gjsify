@@ -7051,32 +7051,32 @@ already has — *a pattern the caller wrote that matched nothing is an error, a 
 emptied a real set is not* — applied at the selection sites above, `barrels` having taken
 the first of them by hand. The distinction is the whole content of the rule, and it is why
 a blanket "empty is an error" would be wrong for `prune` and `foreach --exclude`.
-### win32 MP3 has no route out of gvsbuild, and the pin is the only moment the claim is re-asked
+### win32 MP3 through the OS decoder: the upstream library route is still open
 
-#1626 closes as a declaration (ADR 0056 § 3, § 6), not as a payload. What stays open is
-upstream work and one accepted blind spot.
+MP3 now decodes on win32 through `mfmp3dec`, gst-plugins-bad's wrapper of the decoder
+Windows ships (ADR 0056 § 7), and a live Icecast stream decodes on every bundle now that
+`icydemux` and `id3demux` ship. Three things stay open.
 
-**The upstream repair nobody has filed.** Closing MP3 on Windows needs a `libmpg123` project
-in `wingtk/gvsbuild` — a single file of the shape `libvorbis.py` already has — and the same
-for `libFLAC`. Measured at the pinned `2026.6.0`, cross-read from the GitHub contents API and
-from the PyPI wheel `pipx install gvsbuild==2026.6.0` unpacks: 95 files, identical lists, 94
-of them project modules beside an `__init__.py`, `libvorbis.py`, `ogg.py` and `opus.py` among
-them and nothing matching `flac` or `mpg123`. `main` carried the same list on the day of the
-reading, and so does the newer `2026.8.0` release — read with the same tooling against that
-tag, nothing added and nothing removed — so a pin bump on its own will not close this. Every
-other route out of that catalogue was read and is shut: gvsbuild's own
-`patches/ffmpeg/build/build.sh` configures ffmpeg `--disable-everything` and enables
-`mp2float`, `wmav2`, `wmapro` as its whole audio set, so `gst-libav` decodes no MP3;
-gst-plugins-rs 0.15.2 has no MP3 decoder; gst-plugins-ugly 1.28.4 ships `ext/` = a52dec,
-cdio, dvdread, mpeg2dec, sidplay, x264, `mad` having been removed upstream. **Nobody has
-opened that gvsbuild PR**, and until somebody does, the one measured third-party consumer
-(a desktop reader whose bundled episode and live radio both fail on Windows) has exactly one
-answer: ship its own MSVC-ABI `gstmpg123.dll` and point `GST_PLUGIN_PATH` at it, which the
-gap's `why` now spells out.
+**Media Foundation is an OS component.** Windows N without the Media Feature Pack has no
+`mfplat.dll`; there the plugin does not load and MP3 is a gap again, and nothing in the
+bundle can detect that ahead of time. Not measured on such a host. On the Server 2025
+runner the DLLs were present before the optional feature was installed.
+
+**The library route, as an upstream change.** A `libmpg123` project in `wingtk/gvsbuild`
+would let win32 use `mpg123audiodec`, like darwin, and drop the OS dependency. The patch is
+prepared (see `status/upstream-patch-candidates.md`) and not filed, because it has not been
+built on MSVC yet. Read at the pinned `2026.6.0` and at `2026.8.0`: no `mpg123` or `flac`
+module; gvsbuild's ffmpeg has no mp3 decoder; gst-plugins-rs 0.15.2 has none; gst-plugins-ugly
+1.28.4 dropped `mad`. The `mpg123` gap keeps its `upstream` bound, so the catalogue rule
+reds the day the project exists.
+
+**AAC may already decode on win32 and is not claimed.** The same plugin registers `mfaacdec`.
+Claiming it needs an M4A fixture and a decode test like the MP3 ones in `gst-elements.test.mjs`.
 
 **FLAC is a price, not a wall, and the price is not paid.** `claxon` in gst-plugins-rs is a
 pure-Rust FLAC decoder and gvsbuild already defines that tree (`gst-plugin-gtk4`). Taking it
-means cargo-c plus gst-plugins-bad and gtk4 rebuilt from source on the leg whose GStreamer
+means cargo-c plus gtk4 rebuilt from source (gst-plugins-bad is already built there now, for
+mediafoundation) on the leg whose GStreamer
 build already runs under a 150-minute timeout. ADR 0056 § Alternatives rejected carries the
 reasoning; revisit when a consumer measures FLAC, or when a Rust toolchain lands in that
 prefix for another reason.

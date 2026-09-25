@@ -667,7 +667,7 @@ const WIN32_MODULE_DLLS = [
  */
 const WIN32_EXECUTABLES = ['gst-plugin-scanner.exe'];
 
-/** What the gvsbuild prefix documents — the 45 directories under the artifact's `licenses/`. */
+/** What the gvsbuild prefix documents: the 45 directories measured under the artifact's `licenses/`, plus `gst-plugins-bad`, which the prefix gains with the mediafoundation build. */
 const WIN32_PREFIX_COMPONENTS = [
     'adwaita-icon-theme',
     'cairo',
@@ -682,6 +682,7 @@ const WIN32_PREFIX_COMPONENTS = [
     'glibmm',
     'gperf',
     'gsettings-desktop-schemas',
+    'gst-plugins-bad',
     'gst-plugins-base',
     'gst-plugins-good',
     'gstreamer',
@@ -775,6 +776,8 @@ test('every binary the win32 bundle ships belongs to a declared license family',
     assert.equal(familyOf('pixbufloader_svg.dll'), 'librsvg');
     assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
     assert.equal(familyOf('gstvorbis.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
+    assert.equal(familyOf('gstmediafoundation.dll'), 'gst-plugins-bad', 'the -bad plugin is not -good');
+    assert.equal(familyOf('gstwinrt-1.0-0.dll'), 'gst-plugins-bad', 'the library the -bad plugin links');
     // The libraries BEHIND those plugins, claimed ahead of any binary matching them. ogg and
     // libvorbis are CMake projects in gvsbuild and CMake defaults to static, so today they link
     // into the plugin and ship no DLL of their own — measured on the prefix, where `opus-0.dll`
@@ -1386,6 +1389,8 @@ test('a plugin the archive never contained is a finding, not a silence', () => {
         'typefindfunctions',
         'playback',
         'audioparsers',
+        'id3demux',
+        'icydemux',
         'wavparse',
         'isomp4',
         'ogg',
@@ -1393,6 +1398,7 @@ test('a plugin the archive never contained is a finding, not a silence', () => {
         'opus',
         'flac',
         'mpg123',
+        'mediafoundation',
         'alaw',
         'mulaw',
         'auparse',
@@ -1407,8 +1413,9 @@ test('a plugin the archive never contained is a finding, not a silence', () => {
         'wasapi2',
         'directsound',
     ]);
-    // The payload the win32 build produces now that gvsbuild is asked for `libvorbis`:
-    // three absences left, each of them declared.
+    // The payload the win32 build produces now that gvsbuild is asked for `libvorbis` and
+    // `gst-plugins-bad`'s mediafoundation: three absences left, each of them declared —
+    // `mpg123` among them although MP3 is claimed, because the claim is `mfmp3dec`'s.
     const asBuilt = complete.filter((f) => !/mpg123|flac|wasapi2/.test(f));
     const gaps = missingBundledGstPlugins(asBuilt, 'win32-x64');
     assert.deepEqual(gaps.undeclared, [], 'every absence on win32 is declared today');
@@ -1519,7 +1526,11 @@ test('the per-target claim is per-target, and every target answers for every for
     const win = gstAudioDecoders('win32-x64').map((row) => row.format);
     const mac = gstAudioDecoders('darwin-arm64').map((row) => row.format);
     assert.ok(mac.includes('MP3'), 'darwin carries mpg123 and must claim MP3');
-    assert.ok(!win.includes('MP3'), 'win32 carries no mpg123 and must not claim MP3');
+    assert.ok(win.includes('MP3'), 'win32 carries mediafoundation and must claim MP3');
+    // …through a different element, which is the asymmetry that remains (ADR 0056 § 7).
+    const decoder = (target) => gstAudioDecoders(target).find((row) => row.format === 'MP3')?.element;
+    assert.equal(decoder('darwin-arm64'), 'mpg123audiodec');
+    assert.equal(decoder('win32-x64'), 'mfmp3dec');
 });
 
 test('a file name the archive spells differently is still read as its plugin', () => {

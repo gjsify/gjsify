@@ -364,15 +364,29 @@ describe('media-capabilities — the three published bundles, in this tree', () 
     it('records the measured platform asymmetry, by name and in both directions', () => {
         // Measured on the published 0.48.0 tarballs from Linux: the darwin bundles carried
         // `mpg123`, `vorbis` and `flac` and the win32 one carried none of the three, all
-        // decoders. Asserted by NAME rather than structurally, because a version of this
+        // decoders. FLAC is the third still open. Asserted by NAME rather than structurally, because a version of this
         // file that compared each declaration to itself would pass while measuring nothing.
         const formats = (name) => byName.get(name).capabilities.audioDecode.map((row) => row.format);
         const gapFormats = (name) => byName.get(name).capabilities.gaps.map((gap) => gap.format);
 
-        assert.ok(formats('@gjsify/gtk-runtime-darwin-arm64').includes('MP3'));
-        assert.ok(formats('@gjsify/gtk-runtime-darwin-x64').includes('MP3'));
-        assert.ok(!formats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
-        assert.ok(gapFormats('@gjsify/gtk-runtime-win32-x64').includes('MP3'));
+        // MP3 is the second third that CLOSED, and not the way § 3 of ADR 0056 expected: no
+        // libmpg123 project arrived. win32 claims it through a DIFFERENT decoder — the OS's,
+        // via `mediafoundation` — and keeps `mpg123` as a plugin-only gap, so the platform
+        // difference is now which element decodes MP3 rather than whether one does (§ 7).
+        const decoderFor = (name, format) =>
+            byName.get(name).capabilities.audioDecode.find((row) => row.format === format)?.element;
+        for (const name of BUNDLE_PACKAGES) {
+            assert.ok(formats(name).includes('MP3'), `${name} no longer claims MP3`);
+            assert.ok(!gapFormats(name).includes('MP3'), `${name} declares MP3 as a gap again`);
+        }
+        assert.equal(decoderFor('@gjsify/gtk-runtime-darwin-arm64', 'MP3'), 'mpg123audiodec');
+        assert.equal(decoderFor('@gjsify/gtk-runtime-darwin-x64', 'MP3'), 'mpg123audiodec');
+        assert.equal(decoderFor('@gjsify/gtk-runtime-win32-x64', 'MP3'), 'mfmp3dec');
+        const winGaps = byName.get('@gjsify/gtk-runtime-win32-x64').capabilities.gaps;
+        const mpg123 = winGaps.find((gap) => gap.plugin === 'mpg123');
+        assert.ok(mpg123, 'win32 no longer declares the absent mpg123 plugin');
+        assert.equal(mpg123.format, undefined, "win32's mpg123 gap names a format the bundle now decodes");
+        assert.equal(mpg123.upstream?.library, 'mpg123', "win32's mpg123 gap lost the upstream bound that retires it");
 
         // Ogg/Vorbis is the third of that asymmetry that CLOSED, and it closed because the
         // library was available and nothing had asked for it: gvsbuild defines a `libvorbis`

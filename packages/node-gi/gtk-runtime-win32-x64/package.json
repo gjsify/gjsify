@@ -42,6 +42,11 @@
           "element": "wavparse"
         },
         {
+          "format": "MP3",
+          "plugin": "mediafoundation",
+          "element": "mfmp3dec"
+        },
+        {
           "format": "Ogg / Vorbis",
           "plugin": "vorbis",
           "element": "vorbisdec",
@@ -72,14 +77,13 @@
       ],
       "gaps": [
         {
-          "format": "MP3",
           "plugin": "mpg123",
           "element": "mpg123audiodec",
           "upstream": {
             "catalogue": "gvsbuild",
             "library": "mpg123"
           },
-          "why": "gst-plugins-good's mpg123 element links libmpg123, and the gvsbuild version this bundle is built from defines no project for that library — so it is not in the prefix and the element cannot be built. That is a different reason from \"nobody asked\": libvorbis IS a gvsbuild project and Ogg/Vorbis moved out of this list once the build named it, which is the whole difference between an omission and an absence. Measured on the published 0.48.0 bundle on Windows 11 with no gvsbuild on the host: `mpg123audiodec` resolves to NULL and `playbin3` never leaves READY for an mp3 while the same pipeline reaches PLAYING for a wav from the same ffmpeg run; a bundled mp3 fails as \"missing a plug-in\" and an mp3 stream as \"Internal data stream error\", which reads like a missing TLS backend and is not (#1544, #1626). The other two routes out of that same pinned catalogue are shut as well, measured at 2026.6.0: gvsbuild's own `patches/ffmpeg/build/build.sh` configures ffmpeg `--disable-everything` and turns on `mp2float`, `wmav2` and `wmapro` as its whole audio set, so `gst-libav` decodes no MP3 either; gst-plugins-rs 0.15.2 — gvsbuild's `gst-plugin-gtk4` — has no MP3 decoder; and gst-plugins-ugly 1.28.4 ships `ext/` = a52dec, cdio, dvdread, mpeg2dec, sidplay, x264, `mad` having been removed upstream. Closing it needs a libmpg123 project in gvsbuild itself. Until then an application making the redistribution decision for itself can add an MSVC-ABI `gstmpg123.dll` of the same GStreamer through `GST_PLUGIN_PATH`, which this runtime deliberately never sets: measured that a second directory named there merges with the bundle's `GST_PLUGIN_SYSTEM_PATH` and the bundle's own elements survive it."
+          "why": "MP3 is DECODED on this target, by `mfmp3dec` out of the `mediafoundation` plugin (gst-plugins-bad), which wraps the MP3 decoder Windows itself ships — see the `MP3` claim. This entry is the OTHER decoder, the one the darwin bundles use: gst-plugins-good's `mpg123` links libmpg123, and the gvsbuild version this bundle is built from defines no project for that library, so the element cannot be built here. It stays declared, with `upstream`, so the day gvsbuild gains the project this bundle can ship the same decoder as darwin and stop depending on the OS component. What the OS route costs, stated because it is not nothing: Media Foundation is absent from Windows N editions until the Media Feature Pack is installed, and is the optional Server-Media-Foundation feature on Windows Server — where mfplat.dll is missing the plugin does not load and MP3 is the gap it was before (ADR 0056 § 7)."
         },
         {
           "format": "FLAC",
@@ -97,7 +101,7 @@
         },
         {
           "format": "AAC (in M4A)",
-          "why": "`isomp4` demuxes the container and `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's."
+          "why": "`isomp4` demuxes the container and `audioparsers` supplies `aacparse`, after which the stream reaches no decoder at all. The two elements that would decode it are `faad` (gst-plugins-bad, GPL) and `avdec_aac` (libav, whose whole closure these bundles refuse), so shipping one is a redistribution decision for whoever ships the product rather than this bundle's. NOT MEASURED on this target since the `mediafoundation` plugin arrived for MP3: it registers `mfaacdec` beside `mfmp3dec`, the OS decoder with no redistribution question attached, so AAC may already decode here. It stays a gap until a fixture proves it, because a claim is only made where a test decodes it."
         }
       ]
     }

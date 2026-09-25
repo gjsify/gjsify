@@ -569,7 +569,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-gst-soup-vorbis-gi-${{ env.GVSBUILD_VERSION }}-x64-v4
+          key: gvsbuild-gtk4-gst-soup-vorbis-mf-gi-${{ env.GVSBUILD_VERSION }}-x64-v5
 
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
         if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -724,9 +724,21 @@ jobs:
           # why ogg was in the payload and vorbis was not. The flag is CMake's own
           # documented escape hatch, aimed at the one project that needs it, and it
           # retires when gvsbuild's libvorbis or the upstream CMakeLists moves (#1626).
+          #
+          # `gst-plugins-bad` IS HERE FOR ONE PLUGIN: `mediafoundation`, whose `mfmp3dec`
+          # wraps the MP3 decoder Windows ships. It is the only MP3 route this catalogue
+          # has — no libmpg123 project, and gvsbuild's ffmpeg is built without mp3
+          # (ADR 0056 § 7). It links only OS import libraries (mf, mfplat, mfreadwrite,
+          # mfuuid, strmiids, ole32) plus GStreamer's own, so it adds no library and no
+          # licence to the payload. `--auto-features=disabled` keeps the other ~100 bad
+          # plugins out of the build and out of the dumpbin closure (d3d11 interop
+          # included — an audio decoder does not need it), and `enabled` makes a missing
+          # Windows SDK header a configure error instead of a green build without the
+          # file. The three `--skip`s are bad's declared gvsbuild dependencies that only
+          # WebRTC plugins use, which the same flag has already switched off.
           gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build --extra-opts 'libvorbis:-DCMAKE_POLICY_VERSION_MINIMUM=3.5' glib-networking libsoup3 libvorbis
           if ($LASTEXITCODE -ne 0) { throw "gvsbuild: the glib-networking/libsoup3/libvorbis invocation exited $LASTEXITCODE" }
-          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build --extra-opts 'gst-plugins-base:-Dvorbis=enabled' --extra-opts 'gst-plugins-good:-Dsoup=enabled' gstreamer gst-plugins-base gst-plugins-good
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --skip libnice --skip libsrtp2 --skip webrtc-audio-processing --build-dir C:\gtk-build --extra-opts 'gst-plugins-base:-Dvorbis=enabled' --extra-opts 'gst-plugins-good:-Dsoup=enabled' --extra-opts 'gst-plugins-bad:--auto-features=disabled;-Dmediafoundation=enabled' gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad
           if ($LASTEXITCODE -ne 0) { throw "gvsbuild: the GStreamer invocation exited $LASTEXITCODE" }
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
@@ -755,7 +767,10 @@ jobs:
           # measured the CMake mismatch (#1626).
           foreach ($named in @(
             @{ leaf = 'gstsoup.dll'; why = 'gst-plugins-good was built without libsoup in the prefix' },
-            @{ leaf = 'gstvorbis.dll'; why = 'gst-plugins-base was built without libvorbis in the prefix' }
+            @{ leaf = 'gstvorbis.dll'; why = 'gst-plugins-base was built without libvorbis in the prefix' },
+            @{ leaf = 'gstmediafoundation.dll'; why = 'gst-plugins-bad was not built, or built without the Windows SDK Media Foundation headers/libs' },
+            @{ leaf = 'gsticydemux.dll'; why = 'gst-plugins-good lost icydemux, the demuxer every Icecast stream needs' },
+            @{ leaf = 'gstid3demux.dll'; why = 'gst-plugins-good lost id3demux, which every ID3-tagged MP3 file needs' }
           )) {
             $p = Join-Path $env:GTK_PREFIX "lib\gstreamer-1.0\$($named.leaf)"
             if (-not (Test-Path $p)) { Write-Host "MISSING $p — $($named.why)"; exit 1 }
