@@ -1826,7 +1826,17 @@ bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_v
     GIDirection dir = gi_arg_info_get_direction(ai);
     if (dir == GI_DIRECTION_IN || gi_type_info_get_tag(ti) == GI_TYPE_TAG_VOID) {
       if (dir == GI_DIRECTION_IN && !failed) {
-        Napi::Value v = GIArgumentToJs(env_, ti, ffiSlot, GI_TRANSFER_NOTHING);
+        // ReadOutOrReturn, not GIArgumentToJs directly: a C-invoked callback's
+        // IN argument can be a container too (Soup.ServerCallback's trailing
+        // `query` is a GHashTable, GI_TYPE_TAG_GHASH) — GIArgumentToJs's switch
+        // has no ARRAY/GLIST/GSLIST/GHASH arm and threw "Unsupported return
+        // type tag 19" on EVERY invocation, aborting the callback (and, for a
+        // scope=call libsoup request handler, the connection) before the JS
+        // side ever ran. slots=nullptr: no companion length-arg vector here, so
+        // a length-annotated fixed C-array arg degrades to a zero-terminated
+        // scan instead of throwing — GArray/GPtrArray/GByteArray/GList/GSList/
+        // GHash all carry their own length and are unaffected.
+        Napi::Value v = ReadOutOrReturn(env_, ci_, ti, ffiSlot, GI_TRANSFER_NOTHING, nullptr);
         failed = env_.IsExceptionPending();
         if (!failed) jsArgs->push_back(v);
       }
@@ -1856,7 +1866,9 @@ bool CToJsCall::MarshalArgs(void** args, unsigned int offset, std::vector<napi_v
       }
       memcpy(&cur, s.dest, size);
     }
-    Napi::Value v = GIArgumentToJs(env_, ti, &cur, GI_TRANSFER_NOTHING);
+    // Same container gap as the IN-arg read above (an INOUT container arg is
+    // rarer, but the fix is identical): ReadOutOrReturn, not GIArgumentToJs.
+    Napi::Value v = ReadOutOrReturn(env_, ci_, ti, &cur, GI_TRANSFER_NOTHING, nullptr);
     failed = env_.IsExceptionPending();
     if (!failed) jsArgs->push_back(v);
   }

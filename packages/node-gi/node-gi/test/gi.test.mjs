@@ -35,34 +35,44 @@ test('property set routes through GObject set_property', () => {
     assert.equal(action.get_enabled(), false);
 });
 
+// Gio.SimpleAction, not Gio.Cancellable: Cancellable introspects its OWN
+// `connect`/`disconnect` (g_cancellable_connect/_disconnect — a DIFFERENT id
+// space from a signal handler id), which on gjs itself already shadows the
+// generic signal API through ordinary prototype lookup (measured, gjs 1.88.1:
+// `Gio.Cancellable.prototype.connect` IS `g_cancellable_connect(callback)`;
+// `cancellable.connect('cancelled', cb)` throws "Expected function for
+// callback argument callback, got string"). SimpleAction has no method under
+// any of these four names, so `.connect()/.emit()/.disconnect()` here stay the
+// generic GObject signal API, on both engines.
 test('signals via .connect()/.emit()/.disconnect()', () => {
     const Gio = requireGi('Gio', '2.0');
-    const c = new Gio.Cancellable();
+    const action = new Gio.SimpleAction({ name: 'fire-1', enabled: true });
     let count = 0;
-    const id = c.connect('cancelled', () => {
+    const id = action.connect('activate', () => {
         count++;
     });
-    c.emit('cancelled');
+    action.emit('activate', null);
     assert.equal(count, 1);
-    c.disconnect(id);
-    c.emit('cancelled');
+    action.disconnect(id);
+    action.emit('activate', null);
     assert.equal(count, 1);
 });
 
 test('a signal handler receives the emitter as its first arg (GJS parity)', () => {
     const Gio = requireGi('Gio', '2.0');
-    const c = new Gio.Cancellable();
+    const action = new Gio.SimpleAction({ name: 'fire-2', enabled: true });
     let sawEmitter = null;
     let argCount = -1;
-    c.connect('cancelled', (...args) => {
+    action.connect('activate', (...args) => {
         argCount = args.length;
         sawEmitter = args[0];
     });
-    c.emit('cancelled');
-    // The 'cancelled' signal has no params, so the handler gets exactly one arg:
-    // the emitter — and it is the SAME cached, toggle-ref-canonical proxy as `c`.
-    assert.equal(argCount, 1, 'no-param signal still passes the emitter');
-    assert.equal(sawEmitter, c, 'the emitter is the connected-to instance (identity)');
+    action.emit('activate', null);
+    // 'activate' declares one param (the nullable GVariant parameter), so the
+    // handler gets emitter + parameter — and the emitter is the SAME cached,
+    // toggle-ref-canonical proxy as `action`.
+    assert.equal(argCount, 2, 'emitter plus the signal\'s own declared param');
+    assert.equal(sawEmitter, action, 'the emitter is the connected-to instance (identity)');
 });
 
 test('notify:: handler receives (object, pspec) — GJS parity', () => {
@@ -83,7 +93,12 @@ test('a cancel() method drives the cancelled signal', () => {
     const Gio = requireGi('Gio', '2.0');
     const c = new Gio.Cancellable();
     let fired = false;
-    c.connect('cancelled', () => {
+    // connect_after, not connect: Cancellable's own `connect` IS
+    // g_cancellable_connect (see above) on both engines. `connect_after` has no
+    // such collision (there is no g_cancellable_connect_after) and stays the
+    // generic signal API — this is a real, gjs-faithful way to observe
+    // 'cancelled', not a node-gi-only workaround (measured, gjs 1.88.1).
+    c.connect_after('cancelled', () => {
         fired = true;
     });
     assert.equal(c.is_cancelled(), false);
