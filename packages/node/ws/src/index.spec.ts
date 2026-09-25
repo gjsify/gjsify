@@ -58,6 +58,103 @@ export default async () => {
         });
     });
 
+    // Regression, measured 2026-09-25: upstream ws accepts
+    // `new WebSocket(address, options)` — a plain object as the SECOND
+    // argument is `options`, not `protocols` (refs/ws/lib/websocket.js
+    // `constructor`: `typeof protocols === 'object' && protocols !== null` ⇒
+    // treat it as `options`). @gjsify/ws wrapped it straight into
+    // `[options]` and handed that to Soup as a protocol list, which Soup
+    // rejected ("Invalid element in string array"), closing 1006 before the
+    // Origin/custom headers ever reached the wire — this worked on Node
+    // (native `ws`/`WebSocket`) and failed only on Gjs. Runs on both
+    // platforms: Node proves the assertions match real ws; Gjs proves our
+    // implementation.
+    //
+    // Also exercises the WebSocketServer 'connection' handler's second
+    // argument: it used to be the raw Soup.ServerMessage on Gjs (no
+    // `.headers`), while ws/Node pass an IncomingMessage-shaped `req.headers`
+    // (lower-cased) — `req.headers.origin` threw "t.headers is undefined" on
+    // Gjs. Fixed by reusing the verifyClient request-builder for 'connection'
+    // too (@gjsify/ws's `websocket-server.ts`).
+    //
+    // Placed here, BEFORE any `makeDeadSocket()` call below: those sockets
+    // deliberately never complete a connection and are `.close()`d while
+    // still CONNECTING, which can leave a stray async socket error to
+    // surface a few ticks later — @gjsify/unit's `it()` yields between tests
+    // (hooks, heartbeat), which is enough of a gap for that stray error to
+    // land on whichever async test happens to be in flight when it fires,
+    // rather than the test that created it. Running before them sidesteps
+    // that pre-existing cross-test timing hazard instead of relying on it
+    // never firing during THIS suite's real network I/O.
+    await describe('WebSocket constructor argument forms', async () => {
+        interface ConnectionReq {
+            headers: Record<string, string | string[]>;
+        }
+
+        async function withServer(
+            run: (port: number, connReq: Promise<ConnectionReq>) => Promise<void>,
+        ): Promise<void> {
+            const wss = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+            await new Promise<void>((r) => wss.once('listening', () => r()));
+            const port = (wss.address() as { port: number }).port;
+            const connReq = new Promise<ConnectionReq>((resolve) => {
+                wss.on('connection', (_ws: unknown, req: ConnectionReq) => resolve(req));
+            });
+            try {
+                await run(port, connReq);
+            } finally {
+                wss.close();
+            }
+        }
+
+        function waitOpen(ws: WebSocket): Promise<void> {
+            return new Promise<void>((resolve, reject) => {
+                ws.on('open', () => resolve());
+                ws.on('error', reject);
+            });
+        }
+
+        await it('two-arg form: an options object as the second arg reaches the server (origin + headers), client opens', async () => {
+            await withServer(async (port, connReq) => {
+                const client = new WebSocket(`ws://127.0.0.1:${port}/`, {
+                    origin: 'https://example.test',
+                    headers: { 'x-probe': '1' },
+                });
+                const [req] = await Promise.all([connReq, waitOpen(client)]);
+                expect(req.headers.origin).toBe('https://example.test');
+                expect(req.headers['x-probe']).toBe('1');
+                client.close();
+            });
+        });
+
+        await it('second arg a string (single protocol) still connects', async () => {
+            await withServer(async (port, connReq) => {
+                const client = new WebSocket(`ws://127.0.0.1:${port}/`, 'foo');
+                await Promise.all([connReq, waitOpen(client)]);
+                client.close();
+            });
+        });
+
+        await it('second arg an array (protocols) still connects', async () => {
+            await withServer(async (port, connReq) => {
+                const client = new WebSocket(`ws://127.0.0.1:${port}/`, ['foo', 'bar']);
+                await Promise.all([connReq, waitOpen(client)]);
+                client.close();
+            });
+        });
+
+        await it('undefined second arg + options third arg still connects and reaches the server', async () => {
+            await withServer(async (port, connReq) => {
+                const client = new WebSocket(`ws://127.0.0.1:${port}/`, undefined, {
+                    origin: 'https://example.test',
+                });
+                const [req] = await Promise.all([connReq, waitOpen(client)]);
+                expect(req.headers.origin).toBe('https://example.test');
+                client.close();
+            });
+        });
+    });
+
     await describe('WebSocket constants', async () => {
         await it('exposes readyState constants on the class', async () => {
             expect(WebSocket.CONNECTING).toBe(0);
