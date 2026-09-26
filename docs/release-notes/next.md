@@ -47,6 +47,45 @@ engine packages.
 written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
 Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
 file exactly as it is, so run one plain install and commit the updated lockfile.
+## New
+
+### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on
+
+`gjsify exec <bin> [args…]` is `npx <bin>` for a bin your project installed (ADR 0076). Under
+Node, Bun or Deno the bin runs unchanged. Under GJS, which cannot load an npm bin, gjsify
+rebuilds it `--app gjs` once, caches the result in `node_modules/.cache/gjsify/exec/`, and runs
+it with `gjs`. The cache is reused until the package version, the lockfile or the gjsify
+version changes. Arguments, the working directory, the environment, stdio and the exit code
+pass through.
+
+A rebuild that fails prints the bundler's diagnostics and runs nothing: `gjsify exec` never
+falls back to Node on its own. `--runtime node` runs the bin on Node when that is what you want.
+
+Not every Node bin runs under GJS yet. Measured when the command landed: `semver`, `json5` and
+`wxt --version` run; `prettier` and `web-ext` do not, and the reason each one stops is written
+down in `docs/bundled-toolchains.md`.
+
+### Builds of ordinary npm packages that failed under `--app gjs`
+
+Rebuilding real bins found build defects that affect every `gjsify build --app gjs`:
+
+- A dependency that assigns `console = …` (node-forge does) no longer fails the build with
+  `ASSIGN_TO_IMPORT: Cannot assign to import 'console'`.
+- A dependency that has `"import.meta.url"` as a string, as vite's and wxt's `define` keys do,
+  no longer fails with `PARSE_ERROR: Expected ':' but found Identifier`.
+- `import.meta.dirname` and `import.meta.filename` in a dependency now work. GJS defines neither,
+  so they were `undefined`.
+- `require('fs')` from CommonJS is a mutable object, as in Node. graceful-fs (under fs-extra and
+  many CLIs) patches it in place, and that failed at load with `setting getter-only property`.
+- A `.cjs` entry point builds.
+- Two modules in one directory that import the same `@gjsify/*` package at the same moment no
+  longer lose that import to a race. The lost import came out as a bare specifier, and the
+  bundle failed its load check or died at load.
+
+### New Node APIs
+
+`util.parseEnv`, `fs/promises.constants`, `stream.promises`, `dns.promises` and
+`module.Module`.
 
 ## `node:sqlite` connections no longer wear out
 
@@ -80,3 +119,34 @@ it does in Node. A rejected certificate reports Node's error code, for example
 `DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
 `ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
 the same as in Node.
+
+## Browser extensions
+
+`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
+(ADR 0077). You declare the extension in `package.json#gjsify.webext`, and one command writes one
+folder per target:
+
+- a `manifest.json` composed for that target, from a `manifest.ts` function or a JSON template
+  with per-target overrides. gjsify converts no keys between Manifest V2 and V3,
+- every script bundled once as a classic IIFE, so the same file runs as a content script, an
+  injected file, an MV2 background script or an MV3 service worker,
+- pages with their local scripts bundled and stylesheets copied,
+- icons rendered from SVG to PNG through librsvg for Chromium, and the SVGs themselves for
+  Firefox,
+- `_locales/` and `public/` copied.
+
+Before a zip is written, the build checks each folder the way the browser would. A file the
+manifest names but the build did not write, a `manifest_version` that does not match the
+target, or a `default_locale` without `_locales/` stops the build with the target named.
+
+```bash
+gjsify webext build   # .output/<target>/
+gjsify webext zip     # plus <name>-<version>-<target>.zip, byte-identical across rebuilds
+gjsify webext dev     # web-ext opens the browser, gjsify rebuilds in place on save
+```
+
+The build runs on GJS as well as Node, so an extension no longer needs Node or Vite to build.
+Only `webext dev` still uses Node, because it launches the browser through `web-ext`. The
+browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
+Signing and store submission come next. The guide is at
+[Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).

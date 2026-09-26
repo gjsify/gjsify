@@ -508,6 +508,18 @@ export const setDefaultHighWaterMark = (_objectMode: boolean, n: number): void =
     _hwm = n;
 };
 
+/** `stream.promises` — parity with `./index.ts`: the two helpers, promise-returning. */
+export const promises = {
+    pipeline: (...streams: AnyStream[]): Promise<void> =>
+        new Promise((resolve, reject) => {
+            pipeline(...streams, (err?: Error | null) => (err ? reject(err) : resolve()));
+        }),
+    finished: (stream: AnyStream, opts: { signal?: AbortSignal } = {}): Promise<void> =>
+        new Promise((resolve, reject) => {
+            finished(stream, opts, (err?: Error | null) => (err ? reject(err) : resolve()));
+        }),
+};
+
 // Wire up the legacy static aliases (stream-browserify compat).
 Stream.Stream = Stream;
 Stream.Readable = Readable;

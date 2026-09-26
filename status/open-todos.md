@@ -15,6 +15,27 @@ likely shape: hand the PEM pair to the http-soup-bridge's `Soup.Server` as `tls-
 and listen with `Soup.ServerListenOptions.HTTPS`. Done when that spec uses
 `https.createServer` on both legs.
 
+### `gjsify exec`: three gaps the first smoke matrix left open
+
+ADR 0076's rebuild ran `semver`, `json5` and `wxt --version` under GJS; the matrix and each
+failure are in `docs/bundled-toolchains.md` § `gjsify exec`. What stopped the others is not in
+`exec` itself:
+
+- **A GJS unhandled rejection exits 0.** prettier's CLI dies in a rejected promise, gjs prints
+  `Unhandled promise rejection` as a WARNING and the process exits 0, where Node exits 1 — so
+  `gjsify exec` cannot pass through an exit code the runtime never produces. The fix belongs in
+  the `--app gjs` process bootstrap (`@gjsify/process`), not in `exec`.
+- **A dynamic import hidden from the bundler cannot be rebuilt.** prettier's
+  `new Function("module", "return import(module)")` resolves `../internal/legacy-cli.mjs`
+  beside the cached bundle. A rebuild would have to follow that specifier; nothing does yet.
+- **`browser` wins over `node` for a package that ships both.** `--app gjs` resolves `browser`
+  fields and conditions first (the reason is on `conditionNames` in `app/gjs.ts`), which hands
+  web-ext pino's browser logger — `Error: unknown level 10` at load.
+
+A fourth is diagnostic rather than functional: `@gjsify/rolldown-native` formats build errors
+with Rust's `Debug` (`BuildDiagnostic { …, .. }`), which drops file and line. On a Node host
+`gjsify exec --runtime gjs` gives the located form; under GJS nothing does.
+
 ### Enforce the macOS 15.0 floor on committed darwin prebuilds
 
 ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
@@ -3269,7 +3290,7 @@ Two cases remain, and the second one bites harder.
 
 **INLINE (by-value) record elements are still unreadable, and the length is now deliberately declined for them.** `ReadCElement` dereferences a `GI_TYPE_TAG_INTERFACE` element as a pointer and `CElementSize` reports `sizeof(gpointer)` instead of the record's size, so resolving a length for such a field walks garbage: `new Pango.GlyphString(); gs.set_size(3); gs.glyphs[0].glyph` SIGSEGVs the process. `ElementsAreReadable()` gates the new path so those fields keep returning empty, and `test/struct-field-array-length.test.mjs` holds the process-survival assertion (it fails with the gate removed).
 
-That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
+That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`. The adjacent `GI_TYPE_TAG_GTYPE` gap (`GObject.SignalQuery.param_types`) is closed: `ReadCElement` reads a GType cell (test `gtype.test.mjs`).
 
 ### `@gjsify/node-gi` — by-value container elements: the WRITE side is closed, the READ side is not
 

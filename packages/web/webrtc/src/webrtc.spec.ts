@@ -1400,6 +1400,11 @@ export default async () => {
                     // After first addTrack, no tee yet
                     expect((track as any)._teeMultiplexer).toBeNull();
 
+                    // Let the first buffer reach pc1's unnegotiated webrtcbin, which parks it
+                    // (and the source's streaming thread) on a blocking probe. That is the state
+                    // the flaky hang needed; without the wait it was a race this test usually won.
+                    await new Promise((r) => setTimeout(r, 200));
+
                     const pc2 = new RTCPeerConnection();
                     pc2.addTrack(track);
 
@@ -1410,6 +1415,22 @@ export default async () => {
                     track.stop();
                     pc1.close();
                     pc2.close();
+                });
+
+                await it('removeTrack before negotiation does not wedge on a parked buffer', async () => {
+                    // Same parked-buffer state, reached through `_teardownPipeline`, which stops
+                    // the chain element by element instead of through the pipeline.
+                    const stream = await getUserMedia({ audio: true });
+                    const track = stream.getAudioTracks()[0];
+                    const pc = new RTCPeerConnection();
+                    const sender = pc.addTrack(track);
+                    await new Promise((r) => setTimeout(r, 200));
+
+                    pc.removeTrack(sender);
+                    expect(sender.track).toBeNull();
+
+                    track.stop();
+                    pc.close();
                 });
             }
         });
