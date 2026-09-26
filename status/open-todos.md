@@ -5457,6 +5457,8 @@ what is missing is a reason to take the platform's gesture away from it.
 
 ### adwaita-core modules with no conformance vector table
 
+`apple-accent.ts`, `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `source.ts`,
+`swipe.ts` and `toast.ts` export shared behaviour and are covered by nothing in
 `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `shortcut-format.ts`,
 `source.ts`, `swipe.ts` and `toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no

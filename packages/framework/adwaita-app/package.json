@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./system-accent": {
+            "types": "./lib/types/system-accent.d.ts",
+            "default": "./lib/esm/system-accent.js"
         }
     },
     "files": [
@@ -49,6 +53,7 @@
         "@girs/glib-2.0": "5.4.0",
         "@girs/gobject-2.0": "5.4.0",
         "@girs/gtk-4.0": "5.4.0",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/devtools": "workspace:^"
     },
     "devDependencies": {
