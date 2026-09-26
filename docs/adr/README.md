@@ -93,7 +93,10 @@ the TODO records the *what's left*.
 | [0070](0070-a-blp-reaches-a-renderer-through-a-second-specifier.md) | A `.blp` reaches a non-GTK renderer through a second SPECIFIER, and a lossy one is refused | Accepted |
 | [0071](0071-a-slot-is-a-placement-a-renderer-answers-to.md) | A slot is a placement, and a renderer either answers to its name or refuses it | Proposed |
 | [0072](0072-value-lists-become-a-typed-extensions-field.md) | String lists and dialog responses become a typed `extensions` field | Proposed |
-| [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam | Proposed |
+| [0074](0074-one-declared-macos-floor.md) | Every shipped darwin binary targets one declared macOS floor: 15.0 | Accepted |
+| [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam (Amendment 1: SDL3 on every OS) | Proposed |
+| [0076](0076-a-node-bin-is-rebuilt-for-the-host-runtime.md) | A Node bin is rebuilt for the runtime gjsify runs on, and never silently run on another (`gjsify exec`) | Accepted |
+| [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

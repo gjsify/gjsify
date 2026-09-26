@@ -128,22 +128,28 @@ function resolveRegisterAlias(registerPath: string): string {
  * Returns false — never throws — so a missing package causes a graceful
  * skip rather than a build crash.
  */
-export function isRegisterPathResolvable(registerPath: string, fromDir: string): boolean {
+export function isRegisterPathResolvable(registerPath: string, fromDir: string | readonly string[]): boolean {
     // Resolve bare-specifier aliases to @gjsify/ canonical form first.
     const canonical = resolveRegisterAlias(registerPath);
     const pkgName = packageNameFromRegisterPath(canonical);
     const parts = pkgName.split('/');
-    // Walk up the directory tree mirroring Node's module-resolution
-    // algorithm: check <dir>/node_modules/<pkg>/package.json at each level.
-    let dir = fromDir;
-    const root = dir.slice(0, dir.indexOf('/') + 1) || '/';
-    while (true) {
-        const candidate = join(dir, 'node_modules', ...parts, 'package.json');
-        if (existsSync(candidate)) return true;
-        if (dir === root) break;
-        const parent = join(dir, '..');
-        if (parent === dir) break;
-        dir = parent;
+    // Several roots when the build may take a `@gjsify/*` from beside the running CLI
+    // (`toolchainAnchor`): the resolver would rescue the import, so this gate must not
+    // drop it first — it did, and `gjsify exec` rebuilt a consumer's bin with every
+    // global skipped because the PROJECT installs no `@gjsify/*` at all.
+    for (const start of typeof fromDir === 'string' ? [fromDir] : fromDir) {
+        // Walk up the directory tree mirroring Node's module-resolution
+        // algorithm: check <dir>/node_modules/<pkg>/package.json at each level.
+        let dir = start;
+        const root = dir.slice(0, dir.indexOf('/') + 1) || '/';
+        while (true) {
+            const candidate = join(dir, 'node_modules', ...parts, 'package.json');
+            if (existsSync(candidate)) return true;
+            if (dir === root) break;
+            const parent = join(dir, '..');
+            if (parent === dir) break;
+            dir = parent;
+        }
     }
     return false;
 }
@@ -158,7 +164,10 @@ export function isRegisterPathResolvable(registerPath: string, fromDir: string):
  * dep, and that polyfill is not a direct/transitive dep, the warn makes
  * the gap visible so the developer can add the dep explicitly.
  */
-export function filterResolvableRegisterPaths(registerPaths: Set<string>, fromDir: string): Set<string> {
+export function filterResolvableRegisterPaths(
+    registerPaths: Set<string>,
+    fromDir: string | readonly string[],
+): Set<string> {
     const out = new Set<string>();
     for (const p of registerPaths) {
         if (isRegisterPathResolvable(p, fromDir)) {

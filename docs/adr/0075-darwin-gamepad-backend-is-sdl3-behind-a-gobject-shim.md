@@ -1,6 +1,7 @@
 # 75. The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam
 
-- Status: **Proposed**
+- Status: **Proposed** — amended 2026-09-25, see § Amendment 1 (SDL3 becomes the gamepad
+  backend on every OS, not only darwin)
 - Scope: stage 1 (the seam and the honest darwin answer) ships with this ADR; stages 3 and 4
   are open work in `status/open-todos.md`.
 - Date: 2026-09-25
@@ -207,3 +208,59 @@ input and disconnects under `gjs` on macOS. The PR that flips it records that ch
   C: it initialises, enumerates zero devices, tears down, and repeated cycles leak nothing.
 - Stage 4: the hardware check above. Until then the claim stays `none`/`partial`, and it
   says why.
+
+## Amendment 1, 2026-09-25 — SDL3 is the ONE gamepad backend, on every OS
+
+Decided by the maintainer after the stage-1 review. The text above is left as written; where
+this section and the text above disagree, this section wins.
+
+### What changes
+
+1. **SDL3 becomes the only gamepad backend on all three OSes** — darwin, linux and win32 —
+   not a darwin special case next to libmanette. One C shim (`@gjsify/gamepad-native`,
+   namespace `GjsifyGamepad-1.0`) is built per target from the same source, and one
+   `SdlSource` in `@gjsify/gamepad` drives it everywhere. The "Windows gets a decided path, but
+   not a decision" consequence above is superseded: win32 takes the same package, as the
+   per-target sibling `@gjsify/gamepad-native-win32-x64` in ADR 0073's shape.
+2. **Statically linked and trimmed.** Kept: joystick + gamepad, events (the joystick
+   subsystem requires it), haptic, sensor (controller gyro/accelerometer) and HIDAPI (SDL's
+   own vendor drivers). Disabled: video, render, GPU, audio, camera, dialog, tray, power and
+   libusb. Built `SDL_SHARED=OFF`, `SDL_STATIC=ON`, from a pinned SDL release. The runtime
+   dependencies are the OS and nothing else:
+   - darwin: system frameworks and `/usr/lib` only;
+   - win32: system DLLs only;
+   - linux: libc, libm, libdl and pthread. libudev and D-Bus are reached only through SDL's own
+     optional `dlopen`, and without libudev SDL falls back to inotify on `/dev/input`. So no
+     `.so` beyond libc is a load-time need, and a host without udev still enumerates devices.
+3. **No Steam Input.** It is proprietary and needs a running Steam client. SDL already carries
+   Valve's HIDAPI drivers and the `gamecontrollerdb` mapping database, which is the part of
+   that stack a standard layout needs.
+4. **Linux migrates in two steps, and libmanette leaves only after a measurement.** First the
+   SDL source runs alongside `ManetteSource` on Linux and the two are compared on the same
+   controllers. `ManetteSource` and the libmanette dependency are deleted once the SDL source
+   is proven on Linux with real controllers — not before, and not on the strength of the
+   zero-device path CI can run. Until then Linux behaviour stays libmanette's. This also
+   retires the `Manette-1` migration in `status/open-todos.md`: there is no reason to port a
+   backend that is being removed.
+5. **WebHID is a noted future option, not implemented.** The same static HIDAPI build exposes
+   `SDL_hid_*`, which is what `navigator.hid` would sit on. Its permission model —
+   `requestDevice()` answered by a GTK chooser, or by application configuration — needs its own
+   decision before any code.
+6. **SDL3 is not adopted for anything else.** Video, audio, camera and power stay on
+   GTK, GLib and GStreamer. That follows the simplicity rule (AGENTS.md § Governance): the
+   gamepad adoption lets us DELETE libmanette and a second Linux-only backend, while a broad
+   adoption would delete nothing and add a second copy of subsystems we already have.
+
+### What it means for the stages
+
+- **Stage 3** (`@gjsify/gamepad-native`) keeps its shape — C shim, `gnome.generate_gir` from
+  the header, own namespace, per-target siblings — and gains linux and win32 legs built from
+  the same source. The shim adds a `sensor` read and trigger rumble to the sketched surface,
+  because the kept subsystems make both free. The CFRunLoop drain stays darwin-only.
+- **Stage 4** (`SdlSource`) is written once. darwin switches to it when the native package
+  is present, and win32 does the same when its leg lands. On Linux it runs next to
+  `ManetteSource` as described in point 4. `gjsify.os.<os>` changes per OS, after that OS's
+  hardware check.
+- **Cost.** Three published names become one bridge plus one per declared target, and each
+  new target needs its own first-publish bootstrap. The measured size of the static build is
+  recorded by the PR that first builds it (stage 3).

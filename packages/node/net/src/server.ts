@@ -3,7 +3,8 @@
 
 import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
-import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils/core';
+import { createNodeError, deferEmit, ensureMainLoop, nextTick } from '@gjsify/utils/core';
+import { closeSocketService, releaseListenPort } from '@gjsify/utils';
 import type { ErrnoException } from '@gjsify/utils/core';
 import { Socket } from './socket.js';
 
@@ -26,6 +27,8 @@ export class Server extends EventEmitter {
 
     private _service: Gio.SocketService | null = null;
     private _connections = new Set<Socket>();
+    /** A listener `close()` stopped whose descriptors are not closed yet. */
+    private _closingService: Gio.SocketService | null = null;
     private _address: { port: number; family: string; address: string } | null = null;
 
     constructor(connectionListener?: (socket: Socket) => void);
@@ -82,6 +85,7 @@ export class Server extends EventEmitter {
         }
 
         try {
+            releaseListenPort(port);
             this._service = new Gio.SocketService();
             this._service.set_backlog(backlog);
 
@@ -111,6 +115,8 @@ export class Server extends EventEmitter {
             // Emit listening asynchronously (matching Node.js behavior)
             deferEmit(this, 'listening');
         } catch (err: unknown) {
+            // A half-built service (bind failed) must not read as "running" to close().
+            this._service = null;
             const nodeErr = createNodeError(err, 'listen', { address: host, port });
             deferEmit(this, 'error', nodeErr);
         }
@@ -138,6 +144,7 @@ export class Server extends EventEmitter {
         this._connections.add(socket);
         socket.on('close', () => {
             this._connections.delete(socket);
+            this._emitCloseIfDrained();
         });
 
         this.emit('connection', socket);
@@ -148,35 +155,48 @@ export class Server extends EventEmitter {
         return this._address;
     }
 
-    /** Close the server, stop accepting new connections. */
+    /**
+     * Stop accepting. Node's contract (net.js `Server.prototype.close`):
+     * connections already accepted stay open, 'close' follows once the listener
+     * AND the last of them are closed, and on a server that is not listening the
+     * callback gets ERR_SERVER_NOT_RUNNING — no 'error' event.
+     */
     close(callback?: (err?: Error) => void): this {
+        const service = this._service;
         if (callback) {
-            this.once('close', callback);
+            this.once(
+                'close',
+                service
+                    ? callback
+                    : () => {
+                          const err = new Error('Server is not running.') as ErrnoException;
+                          err.code = 'ERR_SERVER_NOT_RUNNING';
+                          callback(err);
+                      },
+            );
         }
 
-        if (!this._service || !this.listening) {
-            setTimeout(() => {
-                const err = new Error('Server is not running') as ErrnoException;
-                err.code = 'ERR_SERVER_NOT_RUNNING';
-                this.emit('error', err);
-            }, 0);
-            return this;
+        if (service) {
+            this._service = null;
+            this.listening = false;
+            // The descriptors close one main-loop iteration later (why in
+            // `closeSocketService`); 'close' must not precede that, or a
+            // listener on 'close' could not rebind the port.
+            this._closingService = service;
+            closeSocketService(service, this._address ? [this._address.port] : [], () => {
+                if (this._closingService === service) this._closingService = null;
+                this._emitCloseIfDrained();
+            });
         }
-
-        this._service.stop();
-        this._service.close();
-        this._service = null;
-        this.listening = false;
-        _activeServers.delete(this);
-
-        // Close all existing connections
-        for (const socket of this._connections) {
-            socket.destroy();
-        }
-        this._connections.clear();
-
-        deferEmit(this, 'close');
+        this._emitCloseIfDrained();
         return this;
+    }
+
+    /** Node's `_emitCloseIfDrained`: nothing listening, closing, or connected. */
+    private _emitCloseIfDrained(): void {
+        if (this._service || this._closingService || this._connections.size > 0) return;
+        _activeServers.delete(this);
+        nextTick(() => this.emit('close'));
     }
 
     /** Get the number of concurrent connections. */

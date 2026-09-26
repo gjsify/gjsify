@@ -44,9 +44,12 @@ import {
     isErrored,
 } from './utils/finished.js';
 import { getDefaultHighWaterMark, setDefaultHighWaterMark } from './internal/state.js';
+import * as promises from './promises/index.js';
 
 export { getDefaultHighWaterMark, setDefaultHighWaterMark };
 export { pipeline, finished, addAbortSignal };
+// Node's `require('stream').promises`: the `stream/promises` module's functions.
+export { promises };
 export { isReadable, isWritable, isDestroyed, isDisturbed, isErrored };
 
 export type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';
@@ -88,6 +91,7 @@ const _default = Object.assign(Stream, {
     isErrored,
     getDefaultHighWaterMark,
     setDefaultHighWaterMark,
+    promises,
 });
 
 export default _default;

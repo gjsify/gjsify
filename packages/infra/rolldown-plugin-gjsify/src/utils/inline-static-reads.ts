@@ -124,7 +124,7 @@ const TS_PARSER = acorn.Parser.extend(tsPlugin() as never);
  * `inlined: 0`, while the identical expression in a `.js` file returned
  * `inlined: 1`.
  */
-function parseSource(src: string, sourceFilePath: string): acorn.Program {
+export function parseSource(src: string, sourceFilePath: string): acorn.Program {
     const shared = {
         ecmaVersion: 'latest' as const,
         sourceType: 'module' as const,
