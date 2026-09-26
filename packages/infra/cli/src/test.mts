@@ -65,6 +65,7 @@ import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
 import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import installLockSuite from './utils/install-lock.spec.js';
+import processTableSuite from './utils/process-table.spec.js';
 import installBackendNativeWarnSuite from './utils/install-backend-native-warn.spec.js';
 import installOptionalEdgesSuite from './utils/install-optional-edges.spec.js';
 import installPeerEdgesSuite from './utils/install-peer-edges.spec.js';
@@ -122,6 +123,7 @@ import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import devPlanSuite from './utils/dev-plan.spec.js';
 import watchLoopSuite from './utils/watch-loop.spec.js';
+import webextSuite from './utils/webext/webext.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
@@ -321,6 +323,7 @@ run(
         dlxCacheSuite,
         installCacheFsSuite,
         installLockSuite,
+        processTableSuite,
         installBackendNativeWarnSuite,
         installOptionalEdgesSuite,
         installPeerEdgesSuite,
@@ -371,6 +374,7 @@ run(
         runtimesSuite,
         devPlanSuite,
         watchLoopSuite,
+        webextSuite,
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,

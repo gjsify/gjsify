@@ -17,8 +17,8 @@
 // `owner.json` inside records pid + start time for staleness checks.
 //
 // Staleness — a crashed install cannot release its lock, so contenders steal when
-//   (a) the owner pid is provably dead (`/proc/<pid>` on Linux, readable under Node and GJS
-//       alike; a kill(0) probe covers non-/proc Nodes), or
+//   (a) the owner pid is provably dead (`isPidAlive` in `process-table.ts`: `/proc/<pid>` where
+//       procfs exists, a signal-0 probe elsewhere), or
 //   (b) the lock outlives GJSIFY_INSTALL_LOCK_STALE_MS (default 35 min — just above the 30-min
 //       install budget, so a budget-bound install always exits before its lock can be stolen out
 //       from under it), or
@@ -32,17 +32,9 @@
 // GJSIFY_INSTALL_LOCK=0 disables locking entirely — for a network filesystem with broken
 // rename/mkdir atomicity, or an outer tool that already serializes installs.
 
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    realpathSync,
-    renameSync,
-    rmSync,
-    statSync,
-    writeFileSync,
-} from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { isPidAlive } from './process-table.js';
 
 export interface InstallLockHandle {
     /** Release the lock (refcounted; the on-disk dir is removed at count 0). */
@@ -83,27 +75,6 @@ function lockingDisabled(): boolean {
     if (flag === undefined) return false;
     const trimmed = flag.trim();
     return trimmed === '0' || trimmed === 'false';
-}
-
-/**
- * Is `pid` a live process on this machine?
- *
- * `/proc/<pid>` is the reliable cross-runtime probe on Linux, identical under Node and GJS;
- * elsewhere a signal-0 probe (ESRCH dead, EPERM alive-but-foreign). The GJS `process.kill`
- * polyfill shells out and cannot report ESRCH, but GJS only runs on /proc platforms in practice,
- * so the fallback branch is Node's. Unknown outcomes count as ALIVE — never steal a lock that
- * cannot be proven abandoned; the mtime staleness budget still applies.
- */
-function isPidAlive(pid: number): boolean {
-    // `existsSync` never throws by contract: Node returns false on any error, and the GJS shim is
-    // a typeof guard + Gio `query_exists`, neither with a throw path in the GIR.
-    if (existsSync('/proc/self')) return existsSync(`/proc/${pid}`);
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch (err) {
-        return (err as NodeJS.ErrnoException).code === 'EPERM';
-    }
 }
 
 function mtimeMs(path: string): number | null {

@@ -105,6 +105,11 @@ export interface LibInfo {
     id: string | null;
     /** Does the image carry a Mach-O `LC_CODE_SIGNATURE`? Always false for ELF/PE. */
     signed: boolean;
+    /**
+     * Mach-O deployment target (`LC_BUILD_VERSION` minos, else `LC_VERSION_MIN_MACOSX`),
+     * dotted. Null for ELF/PE and for a Mach-O recording neither — unmeasured, not old.
+     */
+    minOs: string | null;
 }
 export declare function readLibrary(file: string): LibInfo | null;
 export declare function isBuildHostAbsolutePath(p: string): boolean;
@@ -168,6 +173,8 @@ export declare const ARCH_ALIASES: Record<string, string>;
 export declare const KNOWN_ARCH_TOKENS: Set<string>;
 export declare const LIB_EXT: Record<string, string>;
 export declare const HOST_TARGET: string;
+/** The macOS floor every shipped darwin binary must load on (ADR 0074). */
+export declare const DARWIN_DEPLOYMENT_TARGET: string;
 /** Canonical `<os>-<arch>[-musl]`; a token with no arch half comes back untouched. */
 export declare function canonicalPlatform(token: string): string;
 export declare const MUSL_SUFFIX: string;
@@ -175,6 +182,17 @@ export declare const MUSL_SUFFIX: string;
 export declare const packageOutputsRule: Rule;
 export declare const prebuildArtifactsRule: Rule;
 export declare const prebuildLibcRule: Rule;
+export declare const prebuildDarwinTargetRule: Rule;
+export declare function measureDarwinTargets(
+    dir: string,
+    floor?: string,
+): {
+    images: number;
+    max: string | null;
+    tooNew: Array<{ file: string; minOs: string }>;
+    unmeasured: Array<{ file: string; why: string }>;
+};
+export declare function auditPrebuildDarwinTarget(ctx: ConformanceContext): RuleResult;
 export declare const headlessRule: Rule;
 export declare const portableScriptsRule: Rule;
 export declare const fieldCoverageRule: Rule;

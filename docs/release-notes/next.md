@@ -86,3 +86,56 @@ Rebuilding real bins found build defects that affect every `gjsify build --app g
 
 `util.parseEnv`, `fs/promises.constants`, `stream.promises`, `dns.promises` and
 `module.Module`.
+
+## `node:sqlite` connections no longer wear out
+
+On GJS, every statement a `DatabaseSync` connection executed left libgda objects registered on
+it: a cached prepared statement for each execution, a hidden `SELECT` that libgda ran after
+every `INSERT`, and the data model of every read until the garbage collector reached it. Each of
+those holds a weak reference to the SQLite provider, and GLib allows 65,535 of them per object.
+A connection that crossed the limit logged "Too many GWeakRef registered" and then answered
+reads wrongly without throwing. A mail sync of about 5,000 messages was enough, because each
+`run()` cost four references.
+
+Each execution now releases what it created before it returns, so a connection stays usable no
+matter how long it lives. A read that libgda can no longer type throws instead of returning rows.
+
+## `node:sqlite` reads 64-bit integers
+
+libgda types an `INTEGER` column, and an expression whose first value is an integer, as a
+32-bit `gint`. Any value past 2,147,483,647 then failed the whole read, and on 0.49.0 the
+failure was reported as an empty result. A millisecond timestamp was enough. Such columns
+are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
+fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
+larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
+
+## Browser extensions
+
+`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
+(ADR 0077). You declare the extension in `package.json#gjsify.webext`, and one command writes one
+folder per target:
+
+- a `manifest.json` composed for that target, from a `manifest.ts` function or a JSON template
+  with per-target overrides. gjsify converts no keys between Manifest V2 and V3,
+- every script bundled once as a classic IIFE, so the same file runs as a content script, an
+  injected file, an MV2 background script or an MV3 service worker,
+- pages with their local scripts bundled and stylesheets copied,
+- icons rendered from SVG to PNG through librsvg for Chromium, and the SVGs themselves for
+  Firefox,
+- `_locales/` and `public/` copied.
+
+Before a zip is written, the build checks each folder the way the browser would. A file the
+manifest names but the build did not write, a `manifest_version` that does not match the
+target, or a `default_locale` without `_locales/` stops the build with the target named.
+
+```bash
+gjsify webext build   # .output/<target>/
+gjsify webext zip     # plus <name>-<version>-<target>.zip, byte-identical across rebuilds
+gjsify webext dev     # web-ext opens the browser, gjsify rebuilds in place on save
+```
+
+The build runs on GJS as well as Node, so an extension no longer needs Node or Vite to build.
+Only `webext dev` still uses Node, because it launches the browser through `web-ext`. The
+browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
+Signing and store submission come next. The guide is at
+[Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).

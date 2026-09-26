@@ -1567,6 +1567,10 @@ const CHECK_RULES = [
     // flavour and glibc floor come out of the ELF headers, which is why one x86-64 runner
     // can answer for every architecture.
     'prebuild-libc',
+    // The macOS half of the same question: the `minos` every committed darwin image records
+    // must not exceed ADR 0074's floor. Mach-O headers only, so the Linux runner answers for
+    // both darwin arches — same reason as `prebuild-libc` above.
+    'prebuild-darwin-target',
     'platform-packages',
     'runtimes-reachability',
     'curated-alias-routing',
@@ -1579,6 +1583,9 @@ const CHECK_RULES = [
     // three, which is exactly the half a single-OS runner can be trusted with.
     'os-axis',
     'storybook',
+    // ADR 0077. Reads the block and stats the paths it names — no build — so a misspelled
+    // extension entry fails here and not only in the build of an affected example.
+    'webext',
     // There is no iOS CI anywhere in this repo, so "does the declared platform have an
     // implementation at all" is the only half of that promise any machine here can hold.
     'nativescript-platforms',
@@ -1676,6 +1683,14 @@ function repoContext() {
         discoveryRoots: ['packages'],
         extra: {
             fieldCoverage: 'enforce',
+            // REPORT, not enforce, and only until the rebuilt darwin prebuilds land. ADR 0074
+            // declared the macOS 15.0 floor while the committed darwin-arm64 images still
+            // record 26.0 (built on `macos-latest` with no deployment target). They are only
+            // ever rebuilt by `prebuilds.yml`'s `commit-prebuilds` on `main`, AFTER this
+            // lands, so enforcing now would red every PR on bytes no PR can fix. Every
+            // violation is still printed on every run. Flip to 'enforce' once
+            // `commit-prebuilds` has landed them — status/open-todos.md tracks it.
+            darwinDeploymentTarget: 'report',
             uncheckedFields: UNCHECKED_FIELDS,
             // Empty unless `--media-payload` was passed, which is the ordinary state and
             // the reason `media-capabilities` reports what it did NOT inspect: the
@@ -1753,6 +1768,7 @@ async function main() {
         const portableScripts = byId.get('portable-scripts');
         const osAxis = byId.get('os-axis');
         const storybook = byId.get('storybook');
+        const webext = byId.get('webext');
         const nativescriptPlatforms = byId.get('nativescript-platforms');
         const releaseTrain = byId.get('release-train');
         const coverage = byId.get('field-coverage');
@@ -1808,6 +1824,7 @@ async function main() {
             console.log(portableScripts.summary);
             console.log(osAxis.summary);
             console.log(storybook.summary);
+            console.log(webext.summary);
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
@@ -2043,6 +2060,11 @@ async function main() {
                     'so it is advisory). Fix by pointing `stories` at the directory that actually holds them, or by ' +
                     'dropping the declaration if the package no longer ships stories.',
             );
+            console.error('');
+        }
+        if ((webext.failures ?? []).length > 0) {
+            console.error(`WEBEXT-DECLARATION FAILURES on ${webext.failures.length} path(s):`);
+            for (const line of webext.failures) console.error(`  - ${line}`);
             console.error('');
         }
         if ((nativescriptPlatforms.failures ?? []).length > 0) {
@@ -2333,6 +2355,7 @@ async function main() {
             // `after:bump` hook and the accountant below is the only reason its
             // 11 findings were visible at all.
             'storybook',
+            'webext',
             'nativescript-platforms',
             'release-train',
             'field-coverage',
