@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./verify": {
+            "types": "./lib/types/verify.d.ts",
+            "default": "./lib/esm/verify.js"
+        },
         "./browser": {
             "types": "./lib/types/browser.d.ts",
             "default": "./lib/esm/browser.js"

@@ -56,6 +56,7 @@
         "@gjsify/http-soup-bridge": "workspace:^",
         "@gjsify/net": "workspace:^",
         "@gjsify/stream": "workspace:^",
+        "@gjsify/tls": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },

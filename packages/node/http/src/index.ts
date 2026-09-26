@@ -45,8 +45,14 @@ export class Agent {
     readonly sockets: Record<string, unknown[]> = {};
     /** Idle sockets per host (compatibility — Soup manages internally). */
     readonly freeSockets: Record<string, unknown[]> = {};
+    /**
+     * The constructor options, as Node keeps them: connection options (the TLS ones on an
+     * `https.Agent`) are merged over each request's by ClientRequest.
+     */
+    readonly options: AgentOptions & Record<string, unknown>;
 
     constructor(options?: AgentOptions) {
+        this.options = { ...options };
         this.keepAlive = options?.keepAlive ?? false;
         this.keepAliveMsecs = options?.keepAliveMsecs ?? 1000;
         this.maxSockets = options?.maxSockets ?? Infinity;
