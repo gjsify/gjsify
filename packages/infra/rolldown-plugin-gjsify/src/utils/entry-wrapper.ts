@@ -40,7 +40,12 @@ export function wrapInputWithSideEffects(
     const PREFIX = `${GJSIFY_VIRTUAL_PREFIX}entry:`;
 
     function wrap(realPath: string): string {
-        const id = PREFIX + realPath;
+        // The wrapper is ESM whatever the entry is, and Rolldown reads a module's
+        // format off its id's EXTENSION: `\0gjsify-entry:…/prettier.cjs` was parsed as
+        // CommonJS and every `import` in the wrapper failed with `PARSE_ERROR: Cannot
+        // use import statement outside a module`. A CJS entry therefore gets `.mjs`
+        // appended; the others keep the id they always had.
+        const id = PREFIX + realPath + (/\.c[jt]sx?$/i.test(realPath) ? '.mjs' : '');
         userEntries.set(id, realPath);
         return id;
     }

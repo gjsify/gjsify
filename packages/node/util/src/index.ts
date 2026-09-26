@@ -18,6 +18,7 @@
 
 import * as types from './types.js';
 import { getSystemErrorName, getSystemErrorMap } from './errors.js';
+import { parseEnv } from './parse-env.js';
 import { inspect, kCustomInspect } from './inspect.js';
 import { format, formatWithOptions, stripVTControlCharacters, styleText } from './format.js';
 import {
@@ -50,6 +51,7 @@ import {
 
 export { types };
 export { getSystemErrorName, getSystemErrorMap };
+export { parseEnv };
 export { inspect, kCustomInspect };
 export { format, formatWithOptions, stripVTControlCharacters, styleText };
 export { promisify, callbackify, deprecate, debuglog, inherits, isDeepStrictEqual, toUSVString, aborted };
@@ -108,4 +110,5 @@ export default {
     TextEncoder: globalThis.TextEncoder,
     getSystemErrorName,
     getSystemErrorMap,
+    parseEnv,
 };

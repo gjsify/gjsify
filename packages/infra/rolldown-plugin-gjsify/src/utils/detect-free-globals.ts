@@ -75,7 +75,7 @@ function wbgJsNameFor(fnName: string): string | null {
 }
 
 /** Every name bound by a binding pattern. */
-function extractBindingNames(node: acorn.AnyNode): string[] {
+export function extractBindingNames(node: acorn.AnyNode): string[] {
     if (!node) return [];
     switch (node.type) {
         case 'Identifier':

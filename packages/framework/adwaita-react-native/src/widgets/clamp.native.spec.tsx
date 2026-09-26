@@ -34,8 +34,7 @@
 // `HTMLCanvasElement` and `Path2D`, which makes `--globals auto` pull the GTK-backed
 // DOM registers in. Measured against what THIS bundle actually contains — `react`,
 // `react-test-renderer` and `@gjsify/adwaita-core`, no `react-reconciler` and no
-// `@gjsify/gtk-host` — all three counts are zero. `--exclude-globals navigator` is kept
-// because the scheduler's `typeof navigator` probe is in both builds.
+// `@gjsify/gtk-host` — all three counts are zero.
 
 import { describe, expect, it } from '@gjsify/unit';
 

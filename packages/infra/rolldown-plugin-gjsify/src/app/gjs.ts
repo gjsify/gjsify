@@ -30,6 +30,7 @@ import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins
 import { processStubPlugin } from '../plugins/process-stub.js';
 import type { GiSystemProbe } from '../plugins/gi-runtime-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
+import { consoleAssignPlugin } from '../plugins/console-assign.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
@@ -243,6 +244,9 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // banner, and acorn (the auto-globals detector) rejects the `#` byte.
         // The final-output shebang is composed by shebangPlugin's renderChunk.
         inputShebangStripPlugin(),
+        // A module assigning the global `console` gets a local binding, or the inject
+        // below turns its assignment into `ASSIGN_TO_IMPORT` and fails the build.
+        ...(consoleShimPath ? [consoleAssignPlugin()] : []),
         // Platform-file forks for the desktop, ADR 0032 § 9: `.gtk` → `.<os>` →
         // `.desktop` → base. BEFORE the alias layer, so a platform fork of a
         // module that also has a Node-builtin substitution wins over the

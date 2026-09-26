@@ -1,0 +1,7 @@
+{
+  "extensionName": { "message": "webext hello" },
+  "extensionDescription": { "message": "Counts the pages you open per site. Built with gjsify webext." },
+  "actionTitle": { "message": "Pages per site" },
+  "popupTitle": { "message": "Pages per site" },
+  "popupEmpty": { "message": "No pages yet." }
+}

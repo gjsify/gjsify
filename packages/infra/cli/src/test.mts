@@ -94,6 +94,7 @@ import htmlEntrySuite from './utils/html-entry.spec.js';
 import autoGlobalsSuite from './auto-globals.spec.js';
 import aliasPluginSuite from './alias-plugin.spec.js';
 import napiNodeAddonSuite from './napi-node-addon.spec.js';
+import nodeNativeExternalSuite from './node-native-external.spec.js';
 import nodeGiExternalsSuite from './node-gi-externals.spec.js';
 import nodeReverseRegistersSuite from './node-reverse-registers.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
@@ -123,9 +124,12 @@ import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
 import devPlanSuite from './utils/dev-plan.spec.js';
 import watchLoopSuite from './utils/watch-loop.spec.js';
+import webextSuite from './utils/webext/webext.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
+import execBinSuite from './utils/exec-bin.spec.js';
+import binRebuildRegressionsSuite from './bin-rebuild-regressions.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import jsxConfigSuite from './utils/jsx-config.spec.js';
@@ -235,6 +239,7 @@ if (!canCreateFileSymlink()) {
     skip['copies a DANGLING link as-is instead of inventing a kind'] = why;
     skip['REFRESHES an existing `pkg` on the POSIX path'] = why;
     skip['still writes a relative symlink on POSIX'] = why;
+    skip['follows a `.bin` symlink to its package'] = why;
 }
 
 if (!hasGjs()) {
@@ -341,6 +346,7 @@ run(
         autoGlobalsSuite,
         aliasPluginSuite,
         napiNodeAddonSuite,
+        nodeNativeExternalSuite,
         nodeGiExternalsSuite,
         nodeReverseRegistersSuite,
         externalsPluginSuite,
@@ -370,9 +376,12 @@ run(
         runtimesSuite,
         devPlanSuite,
         watchLoopSuite,
+        webextSuite,
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,
+        execBinSuite,
+        binRebuildRegressionsSuite,
         gjsBundleGuardSuite,
         gjsSourceEscapeSuite,
         jsxConfigSuite,
