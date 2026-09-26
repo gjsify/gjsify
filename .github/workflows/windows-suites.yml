@@ -116,8 +116,16 @@ on:
   workflow_dispatch:
   pull_request:
 
+# Coalesced on `main` push, NOT on `pull_request` — same construction and the
+# same reason as `macos-suites.yml`/`gtk-os-suites.yml`: this workflow is
+# ADVISORY, and every merge commit used to get its own concurrency group keyed
+# by `run_id`. Keying the push group by `ref` instead lets GitHub's own "one
+# pending run per group" rule coalesce a burst of merges into at most two runs
+# (the one in progress plus the newest queued) instead of one per commit. `PR`
+# and `schedule`/`workflow_dispatch` stay on their existing per-ref / per-run_id
+# groups; no per-leg label gate here (no QEMU/macOS-Intel axis on Windows).
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('windows-suites-pr-{0}', github.ref) || format('windows-suites-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && format('windows-suites-pr-{0}', github.ref) || github.event_name == 'push' && format('windows-suites-main-{0}', github.ref) || format('windows-suites-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

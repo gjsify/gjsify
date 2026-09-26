@@ -15,11 +15,16 @@ name: Build Native Prebuilds
 #                  the repository, which is a main-branch act and must never be
 #                  reachable from a PR. Guarded twice over; see the job.
 #
-# WHICH legs run on a PR: every Linux glibc one — native x64 + arm64 and the
-# three QEMU legs — plus the win32 pair. Only `build-prebuilds-macos` is held
-# back (10x billing, a scarce shared concurrency pool, and the slowest leg
-# here), with main.yml's `ci:macos` label as the opt-in. The win32 pair is NOT
-# held back with it: `windows-latest` bills at 2x where macOS bills at 10x, and
+# WHICH legs run on a PR: every Linux glibc one — native x64 + arm64 — plus the
+# win32 pair, unconditionally. `build-prebuilds-macos` is held back (10x
+# billing, a scarce shared concurrency pool, and the slowest leg here), with
+# main.yml's `ci:macos` label as the opt-in. The three QEMU legs are ALSO held
+# back on `pull_request` now, behind the `ci:qemu` label (`build-prebuilds-qemu`
+# job `if:`) — not for billing (this repo is public, so there is none to
+# multiply) but because 41-97 min of emulated build time per PR is the wrong
+# default weight against a shared, saturated runner pool; see that job's own
+# comment for the measurement and the opt-in. The win32 pair is NOT held back
+# with either label: `windows-latest` bills at 2x where macOS bills at 10x, and
 # on a public repo both are free — so the cost that justifies the macOS opt-in
 # does not exist here, and a target with no PR coverage is a target whose breaks
 # are found on main. The EXPLORATORY leg `build-prebuilds-macos-experimental` is
@@ -35,15 +40,16 @@ name: Build Native Prebuilds
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
 #     check that would not have caught its own motivating incident is worse than
 #     none, so the Rust bridges are in.
-#   • The emulated legs are kept because coverage of an architecture nobody can
-#     otherwise test is worth more than PR latency, and they run in parallel
-#     with the 8-15 min native legs. The "ppc64 3m00s / s390x 3m13s / riscv64
-#     3m07s" figures once recorded here were not a measurement of emulation:
-#     the legs were building x86-64 on the runner (see `build-prebuilds-qemu`),
-#     so they timed nothing. The first fully-emulated run (#838, run
-#     30310941686) measured them: ppc64 41m38s, s390x 38m54s, riscv64 96m47s.
-#     They ARE the critical path, and one package is nearly all of it — see
-#     the `changes` job.
+#   • The emulated legs are kept ON EVERY NON-PR EVENT (push-to-main, the
+#     nightly, a dispatch) because coverage of an architecture nobody can
+#     otherwise test is worth more than the wall-clock. On `pull_request` they
+#     are gated behind the `ci:qemu` label — the "ppc64 3m00s / s390x 3m13s /
+#     riscv64 3m07s" figures once recorded here were not a measurement of
+#     emulation: the legs were building x86-64 on the runner (see
+#     `build-prebuilds-qemu`), so they timed nothing. The first fully-emulated
+#     run (#838, run 30310941686) measured them: ppc64 41m38s, s390x 38m54s,
+#     riscv64 96m47s. They ARE the critical path on the events where they run,
+#     and one package is nearly all of it — see the `changes` job.
 #
 # ONLY WHAT CHANGED IS BUILT. Every leg gates every package on the `changes`
 # job below: a package is built when something it depends on changed, and
@@ -162,8 +168,15 @@ on:
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
   # prebuild on main is a path that has to be able to prove itself on a PR.
-  # `deploy-docs.yml` is the model.
+  # `deploy-docs.yml` is the model. `pr-trigger-parity` only compares the path
+  # filter (its own header says so), so `types:` below is exempt from that
+  # identity requirement.
   pull_request:
+    # `labeled` on top of GitHub's three defaults: `build-prebuilds-qemu` reads
+    # the `ci:qemu` label at run start, so a label added to an ALREADY-OPEN PR
+    # needs its own trigger to take effect — without it, opting in needed a
+    # throwaway push.
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - 'packages/framework/webgl/src/vala/**'
       - 'packages/framework/webgl/src/vapi/**'
@@ -834,23 +847,44 @@ jobs:
   #   s390x          → process.arch 's390x'  → prebuilds/linux-s390x/
   #   riscv64        → process.arch 'riscv64'→ prebuilds/linux-riscv64/
   # ----------------------------------------------------------------
-  # These run on `pull_request` too, and stay on: an architecture nobody on the
-  # team owns hardware for is exactly the one whose build must be checked before
-  # merge, not after.
-  #
   # COST, measured rather than assumed. The "~3 min per emulated leg" this
   # comment used to carry was an artifact of the platform bug fixed below — the
   # legs compiled x86-64 on the runner, so they timed no emulation at all. Under
   # real qemu-user (measured locally, ppc64le, qemu 10.2.2): the dependency
   # install is ~6 min and the seven Vala/GI packages are minutes; the
-  # lightningcss Rust cdylib is the one expensive step. If a leg's total makes
-  # it the PR critical path, the lever is to drop THAT package from the
-  # emulated legs (its crate graph is portable and every PR already compiles it
-  # on x64 + arm64) rather than to drop the architecture — the Vala/GI half is
-  # the part the architecture actually changes, and it is the cheap part.
+  # lightningcss Rust cdylib is the one expensive step. The first fully-emulated
+  # run (#838, run 30310941686) measured the real total: ppc64 41m38s, s390x
+  # 38m54s, riscv64 96m47s — these three legs alone are ~11% of this repo's
+  # total CI slot-time (measured, `ci/` in the CI-cost scratchpad). If a leg's
+  # total makes it the PR critical path, a further lever is to drop the
+  # expensive PACKAGE from the emulated legs (its crate graph is portable and
+  # every PR already compiles it on x64 + arm64) rather than the architecture —
+  # the Vala/GI half is the part the architecture actually changes, and it is
+  # the cheap part.
+  #
+  # PR GATE: `pull_request` only runs this job behind the `ci:qemu` label (job
+  # `if:` below) — an architecture nobody on the team owns hardware for is
+  # still exactly the one whose build must be checked before merge, but at
+  # 41-97 min for three legs on every PR that is the wrong default weight
+  # against a saturated, shared runner pool. Labelling a PR `ci:qemu` opts it
+  # back in (for a change that touches a Vala/GI or Rust bridge on a platform
+  # nobody else can test). UNCHANGED on `push` to `main`, the nightly and a
+  # `workflow_dispatch` — the `if:` only narrows the `pull_request` branch, so
+  # every other event still builds all three architectures every time, which is
+  # what keeps `commit-prebuilds` (main-only) fed and the coverage promise for
+  # non-PR events intact.
   build-prebuilds-qemu:
     name: Build prebuilds (${{ matrix.arch }}) [QEMU]
     needs: [changes]
+    # Whole-JOB skip is safe here, unlike the corollary `commit-prebuilds`
+    # documents for ITS `needs` list ("no build leg may be skipped as a whole
+    # job"): that rule is about push-to-main, where this expression is always
+    # true (`github.event_name != 'pull_request'`), so `commit-prebuilds` (which
+    # never runs on `pull_request` — see its own `if:`) always sees this job
+    # complete. Only a `pull_request` run without the label is skipped, and
+    # `prebuilds-summary`'s `if: always()` reports that skip by name rather
+    # than treating it as a failure.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:qemu')
     runs-on: ubuntu-latest
     # No `packages: write` — nothing here pushes to GHCR any more. The image
     # cache the removed action kept there was also the reason all three legs
@@ -4504,10 +4538,11 @@ jobs:
               echo "**Legs NOT covered by this run: ${skipped}.**"
               echo
               echo 'A green result above therefore does not extend to those. On a pull request the'
-              echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
+              echo 'skipped legs that matter are `build-prebuilds-macos` — every Linux target in'
               echo '`package.json#gjsify.platforms` is built, neither `darwin-arm64` nor'
-              echo '`darwin-x64` is (both are legs of that one matrixed job). Label the PR'
-              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` is dispatch-only'
+              echo '`darwin-x64` is (both are legs of that one matrixed job) — and'
+              echo '`build-prebuilds-qemu`, whose ppc64/s390x/riscv64 legs run 41-97 min each. Label'
+              echo 'the PR `ci:macos` and/or `ci:qemu` to add them. (`build-prebuilds-macos-experimental` is dispatch-only'
               echo 'by design — it builds targets no package declares yet, so it proves itself'
               echo 'before the declaration exists — and `commit-prebuilds` is main-only by'
               echo 'design. `build-prebuilds-musl` is neither: it runs here like the glibc legs'
