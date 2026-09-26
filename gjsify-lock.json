@@ -106,7 +106,8 @@
     "gettext-parser@^9.0.2",
     "@types/gettext-parser@^9.0.0",
     "@nativescript/types@~9.0.0",
-    "@noble/hashes@^2.2.0",
+    "@noble/curves@^2.4.0",
+    "@noble/hashes@^2.4.0",
     "@types/diffie-hellman@^5.0.3",
     "@girs/gda-6.0@5.4.0",
     "@types/inherits@^2.0.0",
@@ -3293,10 +3294,18 @@
       "resolved": "https://registry.npmjs.org/@nativescript/types-ios/-/types-ios-9.0.0.tgz",
       "integrity": "sha512-A13VLFFKNrkYqS7JU0V+R4wxKIE66VvYiHK1+vrVXqiK6l+95BxgEgRPD8FlXN7W2iXXqYLapo8nVMtWArpscg=="
     },
+    "node_modules/@noble/curves": {
+      "version": "2.4.0",
+      "resolved": "https://registry.npmjs.org/@noble/curves/-/curves-2.4.0.tgz",
+      "integrity": "sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==",
+      "dependencies": {
+        "@noble/hashes": "2.4.0"
+      }
+    },
     "node_modules/@noble/hashes": {
-      "version": "2.2.0",
-      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-2.2.0.tgz",
-      "integrity": "sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg=="
+      "version": "2.4.0",
+      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-2.4.0.tgz",
+      "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="
     },
     "node_modules/@nodable/entities": {
       "version": "2.2.0",

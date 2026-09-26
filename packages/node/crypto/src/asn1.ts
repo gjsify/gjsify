@@ -141,6 +141,20 @@ function integerToBigInt(data: Uint8Array): bigint {
 /** RSA encryption OID: 1.2.840.113549.1.1.1 */
 const RSA_OID = new Uint8Array([0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01]);
 
+/** RFC 8410 § 3: id-X25519 1.3.101.110, id-Ed25519 1.3.101.112. */
+const X25519_OID = new Uint8Array([0x2b, 0x65, 0x6e]);
+const ED25519_OID = new Uint8Array([0x2b, 0x65, 0x70]);
+
+function okpCurveForOid(oid: Uint8Array): OkpCurve | undefined {
+    if (oidsEqual(oid, ED25519_OID)) return 'ed25519';
+    if (oidsEqual(oid, X25519_OID)) return 'x25519';
+    return undefined;
+}
+
+function oidForOkpCurve(curve: OkpCurve): Uint8Array {
+    return curve === 'ed25519' ? ED25519_OID : X25519_OID;
+}
+
 function oidsEqual(a: Uint8Array, b: Uint8Array): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
@@ -164,9 +178,14 @@ export interface RsaPrivateComponents {
     q: bigint;
 }
 
+/** RFC 8410 key types — the raw 32-byte key, no further structure. */
+export type OkpCurve = 'ed25519' | 'x25519';
+
 export type ParsedKey =
     | { type: 'rsa-public'; components: RsaPublicComponents }
-    | { type: 'rsa-private'; components: RsaPrivateComponents };
+    | { type: 'rsa-private'; components: RsaPrivateComponents }
+    | { type: 'okp-public'; curve: OkpCurve; pub: Uint8Array }
+    | { type: 'okp-private'; curve: OkpCurve; priv: Uint8Array };
 
 // PKCS#1 RSAPublicKey / RSAPrivateKey
 
@@ -216,72 +235,84 @@ function parseRsaPrivateKeyPkcs1(seq: DerValue): RsaPrivateComponents {
 
 // PKCS#8 SubjectPublicKeyInfo / PrivateKeyInfo
 
+/** The AlgorithmIdentifier OID of an SPKI / PKCS#8 structure. */
+function algorithmOid(algIdSeq: DerValue | undefined): Uint8Array {
+    const oid = algIdSeq?.children?.[0];
+    if (!oid || oid.tag !== ASN1_OID) {
+        throw new Error('Invalid AlgorithmIdentifier');
+    }
+    // RFC 8410 § 3: the parameters MUST be absent for these OIDs — not even NULL.
+    // OpenSSL (Node) refuses such a key; accepting it would parse what Node rejects.
+    if (okpCurveForOid(oid.data) && (algIdSeq?.children?.length ?? 0) !== 1) {
+        throw new Error('Invalid AlgorithmIdentifier: parameters must be absent (RFC 8410)');
+    }
+    return oid.data;
+}
+
 /**
- * Parse PKCS#8 SubjectPublicKeyInfo:
+ * Parse SubjectPublicKeyInfo (RFC 5280 § 4.1):
  *   SEQUENCE {
- *     SEQUENCE { OID algorithm, NULL }     -- AlgorithmIdentifier
- *     BIT STRING                            -- wraps PKCS#1 RSAPublicKey
+ *     SEQUENCE { OID algorithm, params }   -- AlgorithmIdentifier
+ *     BIT STRING                            -- RSA: PKCS#1 RSAPublicKey; RFC 8410: the raw key
  *   }
  */
-function parseSubjectPublicKeyInfo(seq: DerValue): RsaPublicComponents {
+function parseSubjectPublicKeyInfo(seq: DerValue): ParsedKey {
     const children = seq.children;
     if (!children || children.length < 2) {
         throw new Error('Invalid SubjectPublicKeyInfo structure');
     }
-
-    // Verify algorithm OID is RSA
-    const algIdSeq = children[0];
-    if (!algIdSeq.children || algIdSeq.children.length < 1) {
-        throw new Error('Invalid AlgorithmIdentifier');
-    }
-    const oid = algIdSeq.children[0];
-    if (oid.tag !== ASN1_OID || !oidsEqual(oid.data, RSA_OID)) {
-        throw new Error('Unsupported algorithm: only RSA is supported');
-    }
-
-    // The BIT STRING wraps the PKCS#1 RSAPublicKey
+    const oid = algorithmOid(children[0]);
     const bitString = children[1];
-    if (bitString.tag !== ASN1_BIT_STRING) {
+    if (bitString.tag !== ASN1_BIT_STRING || bitString.data[0] !== 0) {
         throw new Error('Expected BIT STRING for public key data');
     }
-    // BIT STRING has a leading byte for unused-bits count (should be 0)
-    const innerDer = bitString.data.slice(1);
-    const innerSeq = parseDer(innerDer);
-    return parseRsaPublicKeyPkcs1(innerSeq);
+    // BIT STRING has a leading byte for the unused-bits count (must be 0)
+    const inner = bitString.data.slice(1);
+
+    const curve = okpCurveForOid(oid);
+    if (curve) {
+        if (inner.length !== 32) throw new Error(`Invalid ${curve} public key length: ${inner.length}`);
+        return { type: 'okp-public', curve, pub: inner };
+    }
+    if (!oidsEqual(oid, RSA_OID)) {
+        throw new Error('Unsupported key algorithm');
+    }
+    return { type: 'rsa-public', components: parseRsaPublicKeyPkcs1(parseDer(inner)) };
 }
 
 /**
- * Parse PKCS#8 PrivateKeyInfo:
+ * Parse PKCS#8 PrivateKeyInfo / OneAsymmetricKey (RFC 5958):
  *   SEQUENCE {
- *     INTEGER version,
- *     SEQUENCE { OID algorithm, NULL }     -- AlgorithmIdentifier
- *     OCTET STRING                          -- wraps PKCS#1 RSAPrivateKey
+ *     INTEGER version,                      -- 0, or 1 when a publicKey follows
+ *     SEQUENCE { OID algorithm, params }   -- AlgorithmIdentifier
+ *     OCTET STRING                          -- RSA: PKCS#1 RSAPrivateKey; RFC 8410: OCTET STRING(raw key)
+ *     [0] attributes OPTIONAL, [1] publicKey OPTIONAL
  *   }
  */
-function parsePrivateKeyInfo(seq: DerValue): RsaPrivateComponents {
+function parsePrivateKeyInfo(seq: DerValue): ParsedKey {
     const children = seq.children;
     if (!children || children.length < 3) {
         throw new Error('Invalid PrivateKeyInfo structure');
     }
-
-    // children[0] = version INTEGER (should be 0)
-    // Verify algorithm OID is RSA
-    const algIdSeq = children[1];
-    if (!algIdSeq.children || algIdSeq.children.length < 1) {
-        throw new Error('Invalid AlgorithmIdentifier');
-    }
-    const oid = algIdSeq.children[0];
-    if (oid.tag !== ASN1_OID || !oidsEqual(oid.data, RSA_OID)) {
-        throw new Error('Unsupported algorithm: only RSA is supported');
-    }
-
-    // The OCTET STRING wraps the PKCS#1 RSAPrivateKey
+    const oid = algorithmOid(children[1]);
     const octetString = children[2];
     if (octetString.tag !== ASN1_OCTET_STRING) {
         throw new Error('Expected OCTET STRING for private key data');
     }
-    const innerSeq = parseDer(octetString.data);
-    return parseRsaPrivateKeyPkcs1(innerSeq);
+
+    const curve = okpCurveForOid(oid);
+    if (curve) {
+        // RFC 8410 § 7: CurvePrivateKey ::= OCTET STRING, nested in privateKey
+        const inner = parseDer(octetString.data);
+        if (inner.tag !== ASN1_OCTET_STRING || inner.data.length !== 32) {
+            throw new Error(`Invalid ${curve} private key`);
+        }
+        return { type: 'okp-private', curve, priv: inner.data };
+    }
+    if (!oidsEqual(oid, RSA_OID)) {
+        throw new Error('Unsupported key algorithm');
+    }
+    return { type: 'rsa-private', components: parseRsaPrivateKeyPkcs1(parseDer(octetString.data)) };
 }
 
 // DER encoder
@@ -432,6 +463,20 @@ export function encodePrivateKeyInfo(components: RsaPrivateComponents): Uint8Arr
     ]);
 }
 
+/** RFC 8410 SubjectPublicKeyInfo — AlgorithmIdentifier carries no parameters. */
+export function encodeOkpSubjectPublicKeyInfo(curve: OkpCurve, pub: Uint8Array): Uint8Array {
+    return encodeSequence([encodeSequence([encodeOid(oidForOkpCurve(curve))]), encodeBitString(pub)]);
+}
+
+/** RFC 8410 § 7 PrivateKeyInfo (version 0, no public key attached — what OpenSSL emits). */
+export function encodeOkpPrivateKeyInfo(curve: OkpCurve, priv: Uint8Array): Uint8Array {
+    return encodeSequence([
+        bigintToAsn1Integer(0n),
+        encodeSequence([encodeOid(oidForOkpCurve(curve))]),
+        encodeOctetString(encodeOctetString(priv)),
+    ]);
+}
+
 /**
  * Convert DER bytes to PEM string.
  */
@@ -541,7 +586,7 @@ export function parseX509Der(der: Uint8Array): X509Components {
                     const oid = algId.children[0];
                     if (oid.tag === ASN1_OID && oidsEqual(oid.data, RSA_OID)) {
                         publicKeyAlgorithm = 'rsa';
-                        publicKey = parseSubjectPublicKeyInfo(spki);
+                        publicKey = (parseSubjectPublicKeyInfo(spki) as { components: RsaPublicComponents }).components;
                     }
                 }
             }
@@ -731,31 +776,39 @@ function parseSAN(data: Uint8Array): string[] {
  */
 export function parsePemKey(pem: string): ParsedKey {
     const { type, der } = pemToDer(pem);
-    const root = parseDer(der);
+    switch (type) {
+        case 'RSA PUBLIC KEY':
+            return parseDerKey(der, 'pkcs1', 'public');
+        case 'PUBLIC KEY':
+            return parseDerKey(der, 'spki');
+        case 'RSA PRIVATE KEY':
+            return parseDerKey(der, 'pkcs1', 'private');
+        case 'PRIVATE KEY':
+            return parseDerKey(der, 'pkcs8');
+        default:
+            throw new Error(`Unsupported PEM type: ${type}`);
+    }
+}
 
+/**
+ * Parse a DER-encoded key in the given container — the `format: 'der'` path of
+ * createPublicKey / createPrivateKey. `pkcs1` needs the key kind, since
+ * RSAPublicKey and RSAPrivateKey share no tag that tells them apart.
+ */
+export function parseDerKey(der: Uint8Array, type: 'spki' | 'pkcs8' | 'pkcs1', kind?: 'public' | 'private'): ParsedKey {
+    const root = parseDer(der);
     if (root.tag !== ASN1_SEQUENCE) {
         throw new Error('Invalid key format: expected top-level SEQUENCE');
     }
-
     switch (type) {
-        case 'RSA PUBLIC KEY':
-            // PKCS#1 RSAPublicKey
-            return { type: 'rsa-public', components: parseRsaPublicKeyPkcs1(root) };
-
-        case 'PUBLIC KEY':
-            // PKCS#8 SubjectPublicKeyInfo
-            return { type: 'rsa-public', components: parseSubjectPublicKeyInfo(root) };
-
-        case 'RSA PRIVATE KEY':
-            // PKCS#1 RSAPrivateKey
-            return { type: 'rsa-private', components: parseRsaPrivateKeyPkcs1(root) };
-
-        case 'PRIVATE KEY':
-            // PKCS#8 PrivateKeyInfo
-            return { type: 'rsa-private', components: parsePrivateKeyInfo(root) };
-
-        default:
-            throw new Error(`Unsupported PEM type: ${type}`);
+        case 'spki':
+            return parseSubjectPublicKeyInfo(root);
+        case 'pkcs8':
+            return parsePrivateKeyInfo(root);
+        case 'pkcs1':
+            return kind === 'public'
+                ? { type: 'rsa-public', components: parseRsaPublicKeyPkcs1(root) }
+                : { type: 'rsa-private', components: parseRsaPrivateKeyPkcs1(root) };
     }
 }
 

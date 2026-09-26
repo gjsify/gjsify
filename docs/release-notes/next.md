@@ -47,6 +47,25 @@ engine packages.
 written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
 Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
 file exactly as it is, so run one plain install and commit the updated lockfile.
+
+## Ed25519 and X25519 in `node:crypto` and WebCrypto
+
+GJS now has the two Curve25519 algorithms that the Signal, WhatsApp and OMEMO protocols build
+on. `crypto.subtle` handles `Ed25519` (generate, import, export as raw, spki, pkcs8 or jwk, sign,
+verify) and `X25519` (generate, import, export, deriveBits, deriveKey), as browsers ship them.
+`node:crypto` adds `generateKeyPair`/`generateKeyPairSync` for `'ed25519'` and `'x25519'`, the
+one-shot `crypto.sign`/`crypto.verify` (including Ed25519ctx through `{ key, context }`),
+`crypto.diffieHellman({ privateKey, publicKey })`, and KeyObject import and export for both key
+types in PEM, DER and JWK.
+
+The curve arithmetic comes from `@noble/curves`, an audited pure-JS library. Ed25519
+verification follows OpenSSL rather than the library's default: small-order keys and `R` values
+are rejected and the equation is cofactorless. That way GJS gives the same answer as Node on the
+WPT small-order vectors. The tests check the RFC 8032 and RFC 7748 vectors and all 518 Wycheproof
+X25519 cases. They run on both GJS and Node.
+
+A library that picks its code path by checking `typeof crypto.diffieHellman === 'function'` now
+takes the `node:crypto` path on GJS. npm `libsignal`, used by Baileys, is one of them.
 ## New
 
 ### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on

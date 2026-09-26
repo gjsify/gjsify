@@ -154,3 +154,14 @@ export function toUint8Array(data: BufferSource): Uint8Array {
 }
 
 // DOMException polyfill provided by @gjsify/dom-exception import above
+
+/**
+ * WebCrypto § sign/verify/deriveBits step "if the name member of normalizedAlgorithm is not
+ * equal to the name of key's [[algorithm]], throw InvalidAccessError" — without it a key of
+ * one algorithm reaches another algorithm's implementation and fails on its handle shape.
+ */
+export function checkAlgorithmMatch(key: { algorithm: { name: string } }, requested: string): void {
+    if (key.algorithm.name.toUpperCase() !== requested.toUpperCase()) {
+        throw new DOMException('Key algorithm mismatch', 'InvalidAccessError');
+    }
+}
