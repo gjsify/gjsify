@@ -16,6 +16,7 @@ import {
     lstat,
     stat,
     unlink,
+    constants as fsPromisesConstants,
 } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -32,6 +33,14 @@ export default async () => {
     await describe('fs/promises', async () => {
         await it('import over "fs/should" should be work', async () => {
             expect(typeof mkdir).toBe('function');
+        });
+
+        // `import { constants } from 'node:fs/promises'` is how `open`, `wsl-utils` and
+        // vite read them; the missing export failed their `--app gjs` build outright.
+        await it('exports the same constants object as node:fs', () => {
+            expect(fsPromisesConstants).toBe(fsConstants);
+            expect(promises.constants).toBe(fsConstants);
+            expect(fsPromisesConstants.F_OK).toBe(0);
         });
     });
 

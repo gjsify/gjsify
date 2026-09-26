@@ -47,6 +47,45 @@ engine packages.
 written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
 Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
 file exactly as it is, so run one plain install and commit the updated lockfile.
+## New
+
+### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on
+
+`gjsify exec <bin> [args…]` is `npx <bin>` for a bin your project installed (ADR 0076). Under
+Node, Bun or Deno the bin runs unchanged. Under GJS, which cannot load an npm bin, gjsify
+rebuilds it `--app gjs` once, caches the result in `node_modules/.cache/gjsify/exec/`, and runs
+it with `gjs`. The cache is reused until the package version, the lockfile or the gjsify
+version changes. Arguments, the working directory, the environment, stdio and the exit code
+pass through.
+
+A rebuild that fails prints the bundler's diagnostics and runs nothing: `gjsify exec` never
+falls back to Node on its own. `--runtime node` runs the bin on Node when that is what you want.
+
+Not every Node bin runs under GJS yet. Measured when the command landed: `semver`, `json5` and
+`wxt --version` run; `prettier` and `web-ext` do not, and the reason each one stops is written
+down in `docs/bundled-toolchains.md`.
+
+### Builds of ordinary npm packages that failed under `--app gjs`
+
+Rebuilding real bins found build defects that affect every `gjsify build --app gjs`:
+
+- A dependency that assigns `console = …` (node-forge does) no longer fails the build with
+  `ASSIGN_TO_IMPORT: Cannot assign to import 'console'`.
+- A dependency that has `"import.meta.url"` as a string, as vite's and wxt's `define` keys do,
+  no longer fails with `PARSE_ERROR: Expected ':' but found Identifier`.
+- `import.meta.dirname` and `import.meta.filename` in a dependency now work. GJS defines neither,
+  so they were `undefined`.
+- `require('fs')` from CommonJS is a mutable object, as in Node. graceful-fs (under fs-extra and
+  many CLIs) patches it in place, and that failed at load with `setting getter-only property`.
+- A `.cjs` entry point builds.
+- Two modules in one directory that import the same `@gjsify/*` package at the same moment no
+  longer lose that import to a race. The lost import came out as a bare specifier, and the
+  bundle failed its load check or died at load.
+
+### New Node APIs
+
+`util.parseEnv`, `fs/promises.constants`, `stream.promises`, `dns.promises` and
+`module.Module`.
 
 ## `node:sqlite` connections no longer wear out
 
@@ -70,6 +109,29 @@ are now read as their exact decimal digits and converted as `node:sqlite` does. 
 fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
 larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
 
+## Web pages follow the desktop's accent
+
+Pages styled with `@gjsify/adwaita-web` can now follow the accent colour and colour
+scheme the user picked for the desktop, the way a native Adwaita window already does
+(ADR 0078, #1821).
+
+- **From a gjsify server.** `@gjsify/adwaita-app/appearance` reads the desktop without
+  opening a window. On Linux it asks the XDG Settings portal, which answers on GNOME, KDE
+  and inside a Flatpak, and falls back to GSettings. On Windows it reads the registry, and
+  on macOS the global defaults. `renderAppearanceMeta()` turns the answer into two
+  `<meta>` tags that adwaita-web applies on load. `watchDesktopAppearance()` reports each
+  change, which the page applies with `applyDesktopAppearance(json)`.
+- **From the browser alone.** `applySystemAccent()` follows the CSS system colour
+  `AccentColor` where the engine resolves it. Engines differ here, and some report a fixed
+  blue, so the server handoff ranks above it.
+
+Every source is snapped to the nearest of libadwaita's nine accents with the new
+`nearestAccent()` in `@gjsify/adwaita-core`. It is a port of libadwaita's own function,
+tested against libadwaita's reference cases. Your own `applyAdwaitaAccent()` still wins
+over all of it.
+
+The Linux reader is measured, in CI too. The Windows and macOS readers have not yet run
+on those systems.
 ## Browser extensions
 
 `gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source

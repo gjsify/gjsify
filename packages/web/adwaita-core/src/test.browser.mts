@@ -24,6 +24,7 @@ import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
+import appearanceTestSuite from './appearance.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
@@ -50,6 +51,7 @@ run({
     checksTestSuite,
     breakpointTestSuite,
     colorSchemeTestSuite,
+    appearanceTestSuite,
     toastTestSuite,
     dialogTestSuite,
     listTestSuite,

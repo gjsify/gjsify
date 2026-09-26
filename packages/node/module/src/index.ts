@@ -462,4 +462,34 @@ export function createRequire(filenameOrURL: string | URL): NodeRequire {
     return req;
 }
 
-export default { builtinModules, isBuiltin, createRequire };
+/**
+ * Node's CommonJS `Module` class — `require('module')` itself, and `Module.Module`.
+ *
+ * Packages mostly FEATURE-DETECT through it: vite picks its config loader by asking
+ * `Module.registerHooks` / `Module.register`, and a bare `import { Module }` failed its
+ * `--app gjs` build outright with MISSING_EXPORT. So the class carries the statics this
+ * package implements and none it does not — an absent `register` is the honest answer
+ * to "can I install a loader hook".
+ */
+export class Module {
+    static builtinModules = builtinModules;
+    static isBuiltin = isBuiltin;
+    static createRequire = createRequire;
+    static Module: typeof Module;
+
+    id: string;
+    filename: string | null = null;
+    loaded = false;
+    exports: unknown = {};
+    children: Module[] = [];
+    paths: string[] = [];
+    parent: Module | null | undefined;
+
+    constructor(id = '', parent?: Module | null) {
+        this.id = id;
+        this.parent = parent;
+    }
+}
+Module.Module = Module;
+
+export default { builtinModules, isBuiltin, createRequire, Module };

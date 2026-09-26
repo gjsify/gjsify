@@ -18,6 +18,12 @@ export type { NodeModulesPathRewriteOptions, RewriteResult } from './plugins/rew
 
 export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
 export { giRuntimePathsStub } from './plugins/gi-runtime-paths.js';
+export {
+    bindConsoleLocally,
+    consoleAssignPlugin,
+    freeConsoleAssignmentInsertion,
+    CONSOLE_LOCAL_BINDING,
+} from './plugins/console-assign.js';
 export type { GiSystemProbe } from './plugins/gi-runtime-paths.js';
 export type { ProcessStubPluginOptions } from './plugins/process-stub.js';
 export { cssAsStringPlugin } from './plugins/css-as-string.js';
@@ -63,6 +69,7 @@ export {
     AddonNotBuiltError,
 } from './plugins/napi-node-addon.js';
 export type { NapiNodeAddonPluginOptions, AddonPackageJson } from './plugins/napi-node-addon.js';
+export { nodeNativeExternalPlugin, isNodeAddonPackage, packageNameOf } from './plugins/node-native-external.js';
 export {
     platformResolvePlugin,
     nativescriptSuffixChain,

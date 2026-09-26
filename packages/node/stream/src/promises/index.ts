@@ -1,6 +1,9 @@
 // stream/promises — Promise-based stream utilities
 
-import { pipeline as _pipeline, finished as _finished } from '../index.js';
+// The implementations directly, not the barrel: the barrel re-exports THIS module as
+// `stream.promises`, and importing it back would make the two a cycle.
+import { pipeline as _pipeline } from '../utils/pipeline.js';
+import { finished as _finished } from '../utils/finished.js';
 import type { Stream, Readable, Writable, FinishedOptions } from '../index.js';
 import type { DestroyableStream, PipelineCallback } from '../utils/pipeline.js';
 
