@@ -311,10 +311,20 @@ export function rewriteContents(
     if (!shouldRewrite(args.path)) return null;
 
     const inlined = inlineStaticReads(srcInput, args.path);
-    const src = inlined.contents;
+    // Node ≥20.11's `import.meta.dirname`/`import.meta.filename` ARE `__dirname`/`__filename`
+    // for an ESM file; spelling them so routes them through the same declarations below.
+    // Left alone they reached the bundle as the BUNDLE's directory: a node-gyp-build
+    // `load(import.meta.dirname + '/..')` (@signalapp/libsignal-client) then looked beside
+    // the bundle and threw "No native build was found".
+    const metaPaths = inlined.contents
+        .replace(/\bimport\.meta\.dirname\b/g, '__dirname')
+        .replace(/\bimport\.meta\.filename\b/g, '__filename');
+    const src = metaPaths;
 
     const flags: TokenFlags = {
-        hasMetaUrl: src.includes('import.meta.url'),
+        // A file that spelled `import.meta.*` is ESM, so it keeps the ESM strategies
+        // even when `import.meta.url` itself never appeared.
+        hasMetaUrl: src.includes('import.meta.url') || metaPaths !== inlined.contents,
         hasDirname: src.includes('__dirname'),
         hasFilename: src.includes('__filename'),
     };
