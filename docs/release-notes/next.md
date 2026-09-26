@@ -109,17 +109,29 @@ are now read as their exact decimal digits and converted as `node:sqlite` does. 
 fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
 larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
 
-## `https.request` honours `ca` and the other TLS options
+## Web pages follow the desktop's accent
 
-On GJS, `https.request` never passed its TLS options to libsoup. A server whose certificate
-chains to a private root failed even with that root passed as `ca`, and `rejectUnauthorized`,
-`servername`, `checkServerIdentity`, `cert`/`key` and an `https.Agent`'s options were ignored
-as well. Now `ca` (a string, a Buffer or an array of them) replaces the system trust store, as
-it does in Node. A rejected certificate reports Node's error code, for example
-`DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
-`ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
-the same as in Node.
+Pages styled with `@gjsify/adwaita-web` can now follow the accent colour and colour
+scheme the user picked for the desktop, the way a native Adwaita window already does
+(ADR 0078, #1821).
 
+- **From a gjsify server.** `@gjsify/adwaita-app/appearance` reads the desktop without
+  opening a window. On Linux it asks the XDG Settings portal, which answers on GNOME, KDE
+  and inside a Flatpak, and falls back to GSettings. On Windows it reads the registry, and
+  on macOS the global defaults. `renderAppearanceMeta()` turns the answer into two
+  `<meta>` tags that adwaita-web applies on load. `watchDesktopAppearance()` reports each
+  change, which the page applies with `applyDesktopAppearance(json)`.
+- **From the browser alone.** `applySystemAccent()` follows the CSS system colour
+  `AccentColor` where the engine resolves it. Engines differ here, and some report a fixed
+  blue, so the server handoff ranks above it.
+
+Every source is snapped to the nearest of libadwaita's nine accents with the new
+`nearestAccent()` in `@gjsify/adwaita-core`. It is a port of libadwaita's own function,
+tested against libadwaita's reference cases. Your own `applyAdwaitaAccent()` still wins
+over all of it.
+
+The Linux reader is measured, in CI too. The Windows and macOS readers have not yet run
+on those systems.
 ## Browser extensions
 
 `gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
@@ -150,3 +162,14 @@ Only `webext dev` still uses Node, because it launches the browser through `web-
 browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
 Signing and store submission come next. The guide is at
 [Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).
+
+## `https.request` honours `ca` and the other TLS options
+
+On GJS, `https.request` never passed its TLS options to libsoup. A server whose certificate
+chains to a private root failed even with that root passed as `ca`, and `rejectUnauthorized`,
+`servername`, `checkServerIdentity`, `cert`/`key` and an `https.Agent`'s options were ignored
+as well. Now `ca` (a string, a Buffer or an array of them) replaces the system trust store, as
+it does in Node. A rejected certificate reports Node's error code, for example
+`DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
+`ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
+the same as in Node.
