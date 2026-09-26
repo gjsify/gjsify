@@ -293,7 +293,14 @@ is what lets an unmodified Three.js or Excalibur viewport cover the whole frameb
 
 Reporting the allocation as `canvas.width` — as this bridge did until 2026-08 — is invisible at scale-factor 1, which is every desktop, every CI runner and every test VM. On the first scale-factor-3 host it drew each scene into the bottom-left NINTH of its widget: measured on a OnePlus 6T running postmarketOS / GNOME Mobile, where the teapot, the pixel-postprocessing and the Excalibur showcases all rendered a 120x218 corner of a 360x655-logical widget.
 
-`@gjsify/dom-elements`' register seeds `devicePixelRatio: 1` as the widget-less default only. A real `Gtk.GLArea` cannot regression-test this, because its host reports 1 — `html-canvas-element.spec.ts` varies the scale factor through a stub, which is the entire point of that stub.
+`@gjsify/dom-elements`' register seeds `devicePixelRatio: 1` as the widget-less default only.
+
+Two specs hold it, because each answers a question the other cannot:
+
+- `html-canvas-element.spec.ts` varies the scale factor through a stub, so the arithmetic is pinned at 0, 1, 2 and 3 on any host.
+- `hidpi.spec.ts` realizes a REAL `Gtk.GLArea` and checks the arithmetic against GTK itself: the device-pixel size GTK passes to the `resize` signal, the GL viewport GTK binds for `render` (read from GL, since `getParameter(VIEWPORT)` answers from a shadow of the app's own calls), and a pixel written to the framebuffer's top-right corner and read back. It re-checks all of it after a resize. At scale 1 it proves nothing, so CI runs it as `test:hidpi` under `GDK_SCALE=2` on X11, with `GJSIFY_TEST_EXPECT_SCALE=2` failing the run if the override stops taking effect.
+
+Measured on a Retina Mac (macOS 27, Apple silicon, Homebrew GTK 4.24, scale 2): a 400x300 widget gets an 800x600 buffer, `devicePixelRatio` is 2, 1-device-pixel stripes come back pixel-exact from both `readPixels` and GTK's own composite, and a resize to 640x480 moves the buffer to 1280x960. The real-GLArea spec passes all 14 cases there. `canRealizeGl` in `@gjsify/unit` now probes for a real GL context instead of standing down on darwin by OS rule, so the `Gl` gate opened itself for this run; no CI leg realizes a context on darwin yet, though (`status/open-todos.md`).
 
 ## Naming the GL you actually got
 
