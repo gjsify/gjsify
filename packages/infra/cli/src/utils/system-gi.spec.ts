@@ -463,9 +463,13 @@ export default async () => {
         });
 
         await it('agrees on the dyld fallback composition', async () => {
-            // The two copies WRITE this variable from different processes — the
-            // CLI into a gjs child, node-gi into its own re-exec — so a drift
-            // here is a platform that works under one launcher and not the other.
+            // THREE copies now depend on this list: the CLI writes it into a gjs
+            // child, node-gi into its own re-exec, and `@gjsify/gtk-host`'s
+            // `placement.spec.ts` into a raw launcher's REPLACED environment —
+            // the last needs only the tail (no "current value" to fold in), so it
+            // calls `utils.dyldDefaultFallbackDirs` rather than the full
+            // `composeDyldFallback`. A drift here is a platform that works under
+            // one launcher and not the other.
             for (const env of [
                 {},
                 { HOME: '/Users/dev' },
@@ -473,6 +477,7 @@ export default async () => {
                 { DYLD_FALLBACK_LIBRARY_PATH: '/usr/local/lib:/usr/lib' },
             ]) {
                 expect(dyldDefaultFallbackDirs(env)).toStrictEqual(nodeGi.dyldDefaultFallbackDirs(env));
+                expect(dyldDefaultFallbackDirs(env)).toStrictEqual(utils.dyldDefaultFallbackDirs(env));
                 for (const wanted of [[], ['/usr/local/lib'], ['/opt/homebrew/lib', '/usr/local/lib']]) {
                     expect(composeDyldFallback(wanted, env)).toBe(nodeGi.composeDyldFallback(wanted, env));
                 }

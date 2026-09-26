@@ -11,6 +11,7 @@ import {
     buildCmdExeInvocation,
     escapeCmdArgument,
     escapeCmdCommand,
+    findOnPath,
     lookupEnv,
     resolveWin32Command,
 } from './win32-command.js';
@@ -48,6 +49,25 @@ export default async () => {
             // The ENOENT contract is load-bearing: `notFound` install hints and
             // the `gjs`-absent fallback in commands/tsc.ts both key on it.
             expect(resolveWin32Command('nope', [], ctx([]))).toBeUndefined();
+        });
+    });
+
+    await describe('findOnPath', async () => {
+        await it('off win32, splits PATH on `:` and probes the name as-is', () => {
+            const posix = {
+                platform: 'linux',
+                env: { PATH: '/usr/local/bin:/usr/bin' },
+                exists: (p: string) => p === '/usr/bin/codesign',
+                join: (dir: string, file: string) => `${dir}/${file}`,
+            };
+            expect(findOnPath('codesign', posix)).toBe('/usr/bin/codesign');
+            expect(findOnPath('signtool', posix)).toBeUndefined();
+        });
+
+        await it('on win32, tries PATHEXT in order and never the bare name', () => {
+            const c = ctx(['C:\\bin\\npm', 'C:\\bin\\npm.cmd', 'C:\\bin\\npm.bat']);
+            expect(findOnPath('npm', c)?.toLowerCase()).toBe('c:\\bin\\npm.bat');
+            expect(findOnPath('npm', ctx(['C:\\bin\\npm']))).toBeUndefined();
         });
     });
 

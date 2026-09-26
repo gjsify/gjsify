@@ -46,6 +46,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync, symlinkSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCommandSpawn, resolveGjsifySpawn } from './resolve-gjsify.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -83,8 +84,13 @@ const RUNTIMES = {
 };
 
 function isOnPath(cmd) {
+    const probe = resolveCommandSpawn(cmd, ['--version']);
     try {
-        execFileSync(cmd, ['--version'], { stdio: 'ignore', timeout: 15000 });
+        execFileSync(probe.cmd, probe.args, {
+            stdio: 'ignore',
+            timeout: 15000,
+            windowsVerbatimArguments: probe.windowsVerbatimArguments,
+        });
         return true;
     } catch {
         return false;
@@ -228,10 +234,10 @@ function collectForcedPolyfillAliases(startDir) {
 // the harness run and the package's own `test:gjs` run disagreeing about disk.
 const STAGED_ASSET_DIRS = ['fixtures', 'test'];
 
-function stageTestAssets(dir, distDir, gjsify, timeout) {
+function stageTestAssets(dir, distDir, runGjsify, timeout) {
     const pkg = readPkgJson(dir);
     if (pkg?.scripts?.['prebuild:test:fixtures']) {
-        exec(gjsify, ['run', 'prebuild:test:fixtures'], { cwd: dir, timeout });
+        runGjsify(['run', 'prebuild:test:fixtures'], { cwd: dir, timeout });
     }
     for (const name of STAGED_ASSET_DIRS) {
         const source = join(dir, name);
@@ -432,18 +438,27 @@ function parseSummary(out) {
     return null;
 }
 
-// KNOWN-WRONG ON WINDOWS, deliberately left: `existsSync` hits the `sh` member of
-// npm's shim trio, the one member Windows cannot execute, so `execFileSync` gets
-// ENOENT. `scripts/resolve-gjsify.mjs` is the fix but not a one-line change here —
-// the cmd.exe form embeds the arguments inside the quoted `/c "…"` line, so the
-// resolved command cannot be threaded through as the bare string every
-// `exec(gjsify, …)` site passes around. Left because the harness needs
-// GObject-Introspection and is Linux-only in practice. Recorded in
-// `status/open-todos.md`.
-function resolveGjsify() {
-    const local = join(ROOT, 'node_modules', '.bin', 'gjsify');
-    if (existsSync(local)) return local;
-    return 'gjsify'; // PATH
+/**
+ * `gjsify <args>` as a CALL, never as a command string.
+ *
+ * It used to be a string — `node_modules/.bin/gjsify` on an `existsSync` hit, else
+ * `gjsify` — threaded through every site as `exec(gjsify, args)`. On Windows that
+ * path is the extensionless `sh` member of npm's shim trio, which exists and cannot
+ * be executed, so every package reported `BUILD-FAIL(other)` off an ENOENT the
+ * report never named (measured on the win11-gjsify VM). The working form,
+ * `%COMSPEC% /d /s /c "<shim> <escaped args>"`, embeds the ARGUMENTS in the line,
+ * so no bare string can carry it: the resolution has to happen per call.
+ * `resolve-gjsify.mjs` owns it for every repo script.
+ */
+function gjsifyRunner(root = ROOT) {
+    return (args, opts) => {
+        const inv = resolveGjsifySpawn(root, args);
+        if (!inv) {
+            const stderr = 'gjsify: no runnable CLI (node_modules/.bin, PATH, built bundle) — run `gjsify install`';
+            return { ok: false, code: -1, stdout: '', stderr, timedOut: false };
+        }
+        return exec(inv.cmd, inv.args, { ...opts, windowsVerbatimArguments: inv.windowsVerbatimArguments });
+    };
 }
 
 function exec(cmd, args, opts) {
@@ -455,6 +470,7 @@ function exec(cmd, args, opts) {
             stdio: ['ignore', 'pipe', 'pipe'],
             maxBuffer: 64 * 1024 * 1024,
             env: opts.env ?? process.env,
+            windowsVerbatimArguments: opts.windowsVerbatimArguments,
         });
         return { ok: true, code: 0, stdout, stderr: '' };
     } catch (err) {
@@ -473,7 +489,7 @@ function exec(cmd, args, opts) {
     }
 }
 
-function runPackage(name, { runtimes, timeout, keep, gjsify }) {
+function runPackage(name, { runtimes, timeout, keep, runGjsify }) {
     const bare = name.replace(/^@gjsify\//, '');
     const dir = findPackageDir(name);
     // `relative` + a POSIX spelling rather than stripping a `/`-suffixed
@@ -513,7 +529,8 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
         mkdirSync(distDir, { recursive: true });
         // 2. build --app node with the sqlite --alias pattern, plus the forced
         // sibling-polyfill closure (see collectForcedPolyfillAliases above).
-        const relEntry = entrySrc.replace(dir + '/', '');
+        // `relative`, not a `dir + '/'` strip, which matched nothing on Windows.
+        const relEntry = relative(dir, entrySrc);
         const forcedAliases = collectForcedPolyfillAliases(dir);
         // When the package under test declares `node: "native"` itself, the
         // self-retarget must name the POLYFILL BODY rather than the package:
@@ -525,8 +542,7 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
         const selfPkg = readPkgJson(dir);
         const selfEntry = selfPkg?.gjsify?.runtimes?.node === 'native' ? polyfillEntryOf(dir, selfPkg) : null;
         const selfTarget = selfEntry ?? name;
-        const b = exec(
-            gjsify,
+        const b = runGjsify(
             [
                 'build',
                 relEntry,
@@ -546,7 +562,7 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
             return result;
         }
         result.build = { ok: true };
-        stageTestAssets(dir, distDir, gjsify, timeout);
+        stageTestAssets(dir, distDir, runGjsify, timeout);
 
         // 3+4. run on each requested runtime, capture + classify
         for (const rt of runtimes) {
@@ -556,9 +572,15 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
                 continue;
             }
             const [cmd, baseArgs] = RUNTIMES[rt].on(outAbs);
+            const run = resolveCommandSpawn(cmd, baseArgs, { env: NATIVE_ENV });
             // NATIVE_ENV prepends each consumed package's prebuilds/ to
             // GI_TYPELIB_PATH/LD_LIBRARY_PATH so a Vala-bridge gi:// import loads.
-            const r = exec(cmd, baseArgs, { cwd: dir, timeout, env: NATIVE_ENV });
+            const r = exec(run.cmd, run.args, {
+                cwd: dir,
+                timeout,
+                env: NATIVE_ENV,
+                windowsVerbatimArguments: run.windowsVerbatimArguments,
+            });
             const text = r.stdout + '\n' + r.stderr;
             const summary = parseSummary(r.stdout);
             // ONE failure region per run — the reason and the reported samples
@@ -641,11 +663,11 @@ function main() {
         process.exit(2);
     }
 
-    const gjsify = resolveGjsify();
+    const runGjsify = gjsifyRunner();
     const results = [];
     for (const name of names) {
         if (!opts.quiet) process.stderr.write(`\n▶ ${name} … `);
-        const r = runPackage(name, { runtimes: opts.runtimes, timeout: opts.timeout, keep: opts.keep, gjsify });
+        const r = runPackage(name, { runtimes: opts.runtimes, timeout: opts.timeout, keep: opts.keep, runGjsify });
         results.push(r);
         if (!opts.quiet) {
             const s = !r.build?.ok
@@ -717,6 +739,7 @@ export {
     collectFailures,
     formatFailure,
     formatGateFailure,
+    gjsifyRunner,
     parseSummary,
     stageTestAssets,
 };

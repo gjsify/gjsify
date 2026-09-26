@@ -24,6 +24,7 @@ import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
+import appearanceTestSuite from './appearance.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
@@ -39,6 +40,7 @@ import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
+import shortcutFormatTestSuite from './shortcut-format.spec.js';
 import sourceTestSuite from './source.spec.js';
 
 run({
@@ -49,6 +51,7 @@ run({
     checksTestSuite,
     breakpointTestSuite,
     colorSchemeTestSuite,
+    appearanceTestSuite,
     toastTestSuite,
     dialogTestSuite,
     listTestSuite,
@@ -76,5 +79,6 @@ run({
     labelTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
+    shortcutFormatTestSuite,
     sourceTestSuite,
 });

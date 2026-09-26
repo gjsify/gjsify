@@ -153,11 +153,27 @@ export {
     adwaitaAccentBgColor,
     adwaitaAccentColor,
     adwaitaStandaloneColor,
+    formatAdwRgb,
     isAdwAccentColorName,
+    nearestAccent,
     onAdwaitaAccentChanged,
+    parseAdwRgb,
     setAdwaitaAccent,
 } from './accent.js';
-export type { AdwAccentColorName } from './accent.js';
+export type { AdwAccentColorName, AdwRgb } from './accent.js';
+
+// --- Desktop appearance (system accent + colour scheme) and its web handoff, ADR 0078 ---
+export {
+    ADW_ACCENT_META,
+    ADW_ACCENT_META_SYSTEM,
+    ADW_COLOR_SCHEME_META,
+    ADW_SYSTEM_COLOR_SCHEMES,
+    appearanceFromMeta,
+    isAdwSystemColorScheme,
+    parseDesktopAppearance,
+    renderAppearanceMeta,
+} from './appearance.js';
+export type { AdwSystemColorScheme, AppearanceMeta, DesktopAppearance } from './appearance.js';
 
 // --- Color scheme (light/dark) ---
 export {
@@ -429,6 +445,10 @@ export type { SpinnerArc } from './spinner.js';
 // --- Shortcut labels (Adw.ShortcutLabel — accelerator string → keycaps) ---
 export { parseAccelerator, parseShortcutLabel, shortcutKeycaps } from './shortcut-label.js';
 export type { ShortcutKeycap, ShortcutLabelNode, ShortcutLabelOptions, ShortcutLabelParse } from './shortcut-label.js';
+
+// --- Shortcut display (WebExtension manifest strings + GTK accelerator labels) ---
+export { formatAcceleratorLabel, formatManifestShortcut } from './shortcut-format.js';
+export type { ShortcutPlatform } from './shortcut-format.js';
 
 // --- Length units (AdwLengthUnit — split views, wrap box, clamp) ---
 export { ADW_LENGTH_UNITS, DEFAULT_DPI, adwLengthToPx, normalizeLengthUnit } from './length-unit.js';

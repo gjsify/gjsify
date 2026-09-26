@@ -35,7 +35,15 @@ export {
     compareGlibcVersions,
     isGlibcSoname,
 } from './binary.mjs';
-export { PLATFORM_RE, ARCH_ALIASES, KNOWN_ARCH_TOKENS, canonicalPlatform, LIB_EXT, HOST_TARGET } from './platforms.mjs';
+export {
+    PLATFORM_RE,
+    ARCH_ALIASES,
+    KNOWN_ARCH_TOKENS,
+    canonicalPlatform,
+    LIB_EXT,
+    HOST_TARGET,
+    DARWIN_DEPLOYMENT_TARGET,
+} from './platforms.mjs';
 export {
     platformPackageName,
     platformPackageDirName,
@@ -87,6 +95,11 @@ export {
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
 export {
+    prebuildDarwinTargetRule,
+    auditPrebuildDarwinTarget,
+    measureDarwinTargets,
+} from './rules/prebuild-darwin-target.mjs';
+export {
     osAxisRule,
     commentStrippingSelfTest,
     decidesOnOs,
@@ -94,9 +107,10 @@ export {
     TARGET_OSES,
     OS_CLAIMS,
 } from './rules/os-axis.mjs';
-export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
+export { envPrefixes, portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { shipRule, auditShip } from './rules/ship.mjs';
+export { webextRule, auditWebext, webextTargetProblem } from './rules/webext.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';
 export { mediaCapabilitiesRule, auditMediaCapabilities, collectMediaBundles } from './rules/media-capabilities.mjs';
 export { gstPluginBaseName, isGstElementName, isGstPluginFile, readGstPluginDir } from './gst-payload.mjs';

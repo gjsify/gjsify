@@ -4,6 +4,67 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/https`'s Server does not terminate TLS
+
+`https.createServer({ cert, key })` returns an `http.Server` that ignores the certificate and
+listens in plain text (`packages/node/https/src/index.ts`), so on GJS no `https.Server` can
+carry a `wss:` endpoint or serve HTTPS at all. The ws spec for TLS
+(`packages/node/ws/src/wss-lifecycle.spec.ts`) attaches a TLS `Soup.Server` through ws's
+`{ server }` mode on GJS for that reason, while its Node leg uses `https.createServer`. The
+likely shape: hand the PEM pair to the http-soup-bridge's `Soup.Server` as `tls-certificate`
+and listen with `Soup.ServerListenOptions.HTTPS`. Done when that spec uses
+`https.createServer` on both legs.
+
+### `gjsify exec`: three gaps the first smoke matrix left open
+
+ADR 0076's rebuild ran `semver`, `json5` and `wxt --version` under GJS; the matrix and each
+failure are in `docs/bundled-toolchains.md` § `gjsify exec`. What stopped the others is not in
+`exec` itself:
+
+- **A GJS unhandled rejection exits 0.** prettier's CLI dies in a rejected promise, gjs prints
+  `Unhandled promise rejection` as a WARNING and the process exits 0, where Node exits 1 — so
+  `gjsify exec` cannot pass through an exit code the runtime never produces. The fix belongs in
+  the `--app gjs` process bootstrap (`@gjsify/process`), not in `exec`.
+- **A dynamic import hidden from the bundler cannot be rebuilt.** prettier's
+  `new Function("module", "return import(module)")` resolves `../internal/legacy-cli.mjs`
+  beside the cached bundle. A rebuild would have to follow that specifier; nothing does yet.
+- **`browser` wins over `node` for a package that ships both.** `--app gjs` resolves `browser`
+  fields and conditions first (the reason is on `conditionNames` in `app/gjs.ts`), which hands
+  web-ext pino's browser logger — `Error: unknown level 10` at load.
+
+A fourth is diagnostic rather than functional: `@gjsify/rolldown-native` formats build errors
+with Rust's `Debug` (`BuildDiagnostic { …, .. }`), which drops file and line. On a Node host
+`gjsify exec --runtime gjs` gives the located form; under GJS nothing does.
+
+### Enforce the macOS 15.0 floor on committed darwin prebuilds
+
+ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
+`prebuild-darwin-target` rule that holds every committed darwin image's `LC_BUILD_VERSION`
+`minos` to it. The rule runs in REPORT mode in `scripts/audit-runtimes.mjs`
+(`darwinDeploymentTarget: 'report'`), because the committed darwin-arm64 prebuilds still
+record `minos 26.0` and only `prebuilds.yml`'s `commit-prebuilds` on `main` can replace
+them. Once that job has landed the rebuilt artifacts (the rule's REPORT-MODE note disappears
+from `audit-runtimes --check`), delete the `darwinDeploymentTarget: 'report'` line so a
+regression fails instead of printing.
+
+### A server started after a top-level await exits at once on GJS
+
+Measured on gjs 1.88.1 while writing the ADR 0078 example: a GJS entry module that awaits a
+GLib-dispatched promise (here `Gio.bus_get`, as `readDesktopAppearance()` does) and THEN calls
+`http.createServer().listen()` prints nothing and exits 0 the moment the module settles. The
+listen callback never runs. `http.Server.listen()` and `net.Server.listen()` call
+`ensureMainLoop()` (`@gjsify/utils` `main-loop.ts`), which declines to arm the main-loop hook
+at `main_depth() !== 0`. After a top-level await resumes from a dispatched source, GJS's own
+module-evaluation spin puts the depth at 1. This is the case `holdMainLoop()`'s comment
+describes, reached by an ordinary server rather than a supervisor.
+
+Minimal repro: `await new Promise(r => Gio.bus_get(Gio.BusType.SESSION, null, () => r()));`
+then `createServer(…).listen(port, () => console.log('listening'))`: no output, exit 0. Calling
+`listen` before the first await works, which is what the example does. Arming at any depth
+from `listen` is not a drop-in fix: under a test runner's own `mainloop.run()` it leaves a hook
+whose `loop.run()` blocks after the tests quit (the reason for the guard). Closing this needs a
+way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
+
 ### NativeScript `Gtk.Box` grants no spare space to an expanding child
 
 `hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
@@ -140,48 +201,31 @@ later run to exist, which an edit authored with `GITHUB_TOKEN` would not produce
 here holds `pull-requests: write` today, so the refusal path is reasoned and fixtured but has
 never fired.
 
-### The darwin bundle ships the GNOME typeface and cannot put it on the font map
+### macOS fonts: what a Mac WITHOUT Homebrew resolves is still unmeasured
 
-The runtime bundles now carry Adwaita Sans + Adwaita Mono under `gtk/share/fonts`, and
-`@gjsify/gtk-host`'s `initFonts()` registers them with `pango_font_map_add_font_file()`. That
-works on fontconfig-backed Pango (Linux) and on win32, where it is the ONLY thing that works —
-pangowin32 reads no fontconfig path at all.
+`add_font_file` is a vfunc the CoreText map does not implement, so on macOS every face used to
+answer `G_IO_ERROR_NOT_SUPPORTED`. Two of the three processes that hit that are closed:
 
-**It does not work on macOS.** `add_font_file` is a vfunc the CoreText map does not implement, so
-every face answers `G_IO_ERROR_NOT_SUPPORTED` — measured on the darwin-arm64 windowing proof:
-`Adding font files not supported for PangoCairoCoreTextFontMap`. `initFonts()` has always
-reported that as `declined` rather than as a failure, and the reasoning written there is about an
-application's OWN faces in a shipped `.app`, where `ATSApplicationFontsPath` has already
-activated the directory before any code runs. That reasoning does not extend to the RUNTIME
-bundle's faces: nothing points `ATSApplicationFontsPath` at `gtk/share/fonts`.
+- **The bundled windowing runtime** selects `PANGOCAIRO_BACKEND=fc` (ADR 0038 § Amendment 3), so
+  `initFonts()` registers both the runtime's Adwaita faces and the application's.
+- **`gjsify run` on a Homebrew GTK** — no `.app`, so no `ATSApplicationFontsPath` — now falls back:
+  `initFonts()` builds a fontconfig map, registers the declined faces there and makes it the
+  default, only when fontconfig is configured, `PANGOCAIRO_BACKEND` is unset and the family is not
+  already on the CoreText map (ADR 0038 § Amendment 5). Measured on macOS 27 arm64: `Round9x13`
+  goes from `absent` to `exact`, `fonts.spec.ts` runs its discriminator suite as plain assertions.
 
-So on macOS today the bundle carries ~7.3 MB of faces that no process can reach, and
-`adwaitaUiFontAvailability()` correctly answers `absent` — a preferences dialog will not offer
-the `adwaita` policy there, which is the honest outcome but not the intended one. The size half
-is unaffected: macOS measures 18.8 px against GNOME's 19.0 and needs no correction.
+**Still open.** Both routes put the font supply behind fontconfig, and the darwin bundle ships no
+`etc/fonts` (§ Amendment 4, *What this control does NOT prove*). Every Mac measured so far had
+Homebrew's `fonts.conf`; `font-script-coverage.test.mjs` simulates the no-Homebrew case, and until
+someone runs a shipped `.app` on a clean Mac, this line stays. A shipped `.app` on a CoreText map
+relies on `ATSApplicationFontsPath` alone; no leg here launches one, so that activation is Apple's
+documented behaviour rather than a measurement.
 
-Two routes, neither taken here:
-
-- **`ATSApplicationFontsPath`**, which is how `gjsify ship` already activates an application's own
-  staged faces. It names ONE directory relative to `Contents/Resources`, so covering both would
-  mean staging the bundle's faces into the app's font directory at ship time — a `gjsify ship`
-  change, in the layer that owns the `.app` layout, not in the runtime.
-- **`PANGOCAIRO_BACKEND=fc`**, which selects a fontconfig-backed Pango on darwin and would make
-  the existing `XDG_DATA_DIRS` wiring find `share/fonts` with no further work. TAKEN, 2026-09-14
-  (ADR 0038 § Amendment 3): `maybeWireGtkWindowingEnv()` sets it for a windowing bundle, and the
-  objection recorded here — that it changes text rendering for the whole application, which is
-  not a decision a runtime bundle may take for its consumer — is overruled there, on the ground
-  that the bundle was already making that choice by compiled-in ordering. What is NOT measured is
-  the result on a real Mac, as opposed to a macOS CI runner: the `macos-gtk-windowing` leg runs
-  the script-coverage proof, but every runner has Homebrew, so a green leg says nothing about the
-  machine a stranger downloads the `.app` to. The simulated no-Homebrew case in
-  `font-script-coverage.test.mjs` is what stands in for it; until someone runs a shipped `.app` on
-  a clean Mac, this line stays.
-
-The faces stay in the darwin bundle deliberately: the payload is not what is broken, and a
-future fix in either route needs them there. `windowing.test.mjs` asserts the decline explicitly
-rather than passing over it, so the day a darwin map starts accepting registration the count
-stops matching and the row says so.
+**Also open:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default map
+itself and swallows the error, so a Canvas `FontFace` on a CoreText map (e.g.
+`excalibur-jelly-jumper` under `gjsify run` on macOS) still falls back to the default sans unless
+`initFonts()` ran first and adopted the fc map. The fix is to route it through the same fallback
+without making `dom-elements` depend on `@gjsify/gtk-host`.
 
 ### The win32 bundle cannot build `Adw.AboutDialog.new_from_appdata`, and the repair is upstream
 
@@ -728,18 +772,26 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
   after three wrong proxies (an issue number, then "#1438 closes", then "the release
   carrying it"). What it is actually failing on, measured on run 35423439012 against a
   published 0.51.1 and none of it #1438:
-  - **darwin-arm64 — 7 of 655.** Five are `t.get_ancestor is not a function`: the published
-    bridge puts no `Gtk.Widget.get_ancestor` on the instance at all, so every
-    `a real tree, through a real reconciler` case that walks up from a child dies on it. One
-    is a natural-size read — `Expected 0 to be greater than 0` on the content box that
-    should stay a `Gtk.Box` with the host's spacing. One is a GTK diagnostic under `tabs`,
-    on the `Adw.ViewSwitcher` moving to a bottom bar when the window narrows.
+  - **darwin-arm64 — 7 of 655, six of them FIXED in the tree and waiting on a node-gi
+    release.** They were one node-gi defect with two halves, neither darwin-specific (this
+    probe is simply the only place the React Native suite runs on node-gi). A JS `vfunc_*`
+    override received its GObject arguments as raw engine handles (`gi.js`), which is the
+    five `t.get_ancestor is not a function` in the rail's `RailLayout.vfunc_measure`; and
+    the addon's vfunc trampoline never wrote OUT parameters back, so GTK read 0 for every
+    size that override answered — the sixth, `Expected 0 to be greater than 0`. The gi.js
+    half reaches the probe immediately; the C++ half needs the next published
+    `@gjsify/node-gi`, and until then the same six stay red as size mismatches. Measured
+    on a real macOS 27 arm64 host: 649/655 on the published addon, all six green on a
+    locally built one (test: `packages/node-gi/node-gi/test/vfunc-out-params.test.mjs`).
+    The seventh, a GTK diagnostic under `tabs` on the `Adw.ViewSwitcher` moving to a
+    bottom bar, did not reproduce on that host.
   - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
     `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
     chrome`. A different and worse shape than arm64's seven, and not attributed.
 
-  Whoever picks this up: the arm64 five are one root cause and worth doing first, and the
-  x64 death needs a local reproduction before it can be counted as anything.
+  Whoever picks this up: re-measure arm64 once a node-gi release carries the vfunc OUT
+  write-back, and the x64 death needs a local reproduction before it can be counted as
+  anything.
 - `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
   Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
   clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
@@ -792,21 +844,6 @@ regex, and picking one is an ADR-shaped decision: candidates could be derived fr
 generator scripts already mark), or the claim could be demanded of any package a
 GTK-bearing OS leg runs. Both are defensible; neither should be guessed at in a CI PR.
 The measurement above is the evidence either would rest on.
-
-### 31 package scripts still open a clause with a `VAR=x` prefix, which cmd.exe has no form of
-
-`portable-scripts` catches a POSIX UTILITY in command position and says in its own
-header that it cannot see shell SYNTAX. That header also said "None is present in the
-tree today"; counted 2026-08-31, 33 scripts carried a `VAR=x` prefix. Two of them were
-load-bearing — `@gjsify/gtk-host` and `@gjsify/react-native`'s `test:gjs-on-node`, the
-entry point `gtk-os-suites.yml` calls on a cmd.exe leg — and both now take the variable
-from the environment.
-
-The remaining 31: `@gjsify/node-gi` (10) and `@gjsify/napi` (11), neither a workspace
-member and both driven only by their own Linux legs, plus 10 private `examples/`.
-Widening the rule before they are fixed lands a check with a 31-entry exemption ledger,
-which the rule's own header argues against having shipped once already. Fix the 21
-published-package ones, then add the pattern.
 
 ### node-gi invalidates a handle `gtk_window_destroy()` drops, where gjs keeps the object
 
@@ -890,6 +927,23 @@ of the conformance corpus (nothing pins the current behaviour as correct
 either), and the day a consumer needs the throw, the place to add it is the
 `vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
 engine addressing the slot.
+
+### node-gi: an interface's vfuncs are not installed from a JS class
+
+`registerClass` installs a `vfunc_*` override only into the CLASS struct of an
+ancestor. A class that `Implements: [Gio.ActionGroup]` and defines
+`vfunc_query_action` gets the warning "registerClass vfunc 'query_action' not found
+on any ancestor" and C never calls it: the interface struct
+(`GActionGroupInterface`) is never looked up. gjs fills it in its interface init.
+The C→JS half is ready — `CToJsCall` (marshal.cc) already answers class vfuncs and
+GI callbacks in gjs's OUT/INOUT shape; what is missing is the lookup in the
+implemented interfaces and an ffi closure per slot in the interface init. Found
+while fixing the class-vfunc OUT write-back; no consumer has hit it yet.
+
+`CToJsCall` also still refuses two OUT shapes with a TypeError naming the parameter:
+an OUT array with a separate LENGTH parameter (the length is a second OUT, and
+whether the JS answer carries it is a decision gjs has not made either), and
+GList/GSList/GHashTable OUTs.
 
 ### node-gi: two `GLib.Error` shapes, and they answer `instanceof` differently
 
@@ -2599,24 +2653,6 @@ divergence from the reference; that is a decision, not a bug fix, so it is not i
 #1046's PR. Nothing can depend on the crash, so the decision is cheap whenever
 someone wants to take it.
 
-### `pathToFileURL` does not resolve a RELATIVE win32 path against the current drive
-
-Left over from the #1143 fix, which closed the win32 ABSOLUTE paths (drive-letter and
-UNC, both directions, both matching native Node character for character). Node runs
-`path.win32.resolve()` on the input first, so on win32 a relative `app\dist` picks up
-the current drive and becomes `C:\app\dist`; `@gjsify/url` still joins a relative path
-to the CWD with `/`.
-
-Not folded into the fix because it needs `path.win32.resolve()`, and `@gjsify/path`
-never selects the win32 half at all — that is #1146, whose blast radius is every
-consumer of `node:path` under GJS and which therefore wants its own measurement pass.
-Do this one after it, not before: the resolve is one line once the flavour is
-selectable.
-
-Scope note for whoever picks it up: absolute paths are covered and tested, so this only
-affects a caller that hands `pathToFileURL` a relative path ON win32. `node:url` is
-`native` on the node target, so the gap is GJS-on-win32 only.
-
 ### sass under GJS: the SCRIPT path is closed, the BUNDLER path is not (#1053)
 
 The bootstrap chain itself is closed FOR A TREE THAT IS ALREADY BUILT:
@@ -3215,8 +3251,6 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 ### Toolchain hygiene follow-ups
 
-- **`scripts/node-gi-consumer-harness.mjs` still resolves `gjsify` the broken way, knowingly.** `resolveGjsify()` returns `node_modules/.bin/gjsify` on an `existsSync` hit, which on Windows is the `sh` member of npm's shim trio and the one member the OS cannot execute — `execFileSync` gets ENOENT. `scripts/resolve-gjsify.mjs` is the fix and both other callers now use it; this one is not a one-line change. The working Windows form is `%COMSPEC% /d /s /c "<shim> <escaped args…>"`, which embeds the ARGUMENTS inside the quoted line, so the resolved command cannot be threaded through this file as the bare string that `runPackage`, `stageTestAssets` and the rest pass around — each site has to build its own invocation (`execGjsify(args, opts)` instead of `exec(gjsify, args, opts)`). Left because the harness drives `@gjsify/node-gi`, which needs GObject-Introspection and is Linux-only in practice, so there is no Windows run to repair; rewriting the threading blind on a harness this host cannot exercise would trade a known unreachable bug for an unmeasured change. Do it when the harness is next touched anyway.
-
 - **A repo-relative path spelled in the HOST separator — CLOSED.** The entry asked for "either a documented rule … or a helper the call sites must go through"; both now exist. HELPER: `posixRelative()` / `toPosixPath()` are exported from `@gjsify/manifest-conformance`, so the one rule every repo-relative path in this tree depends on has exactly ONE definition — `audit-runtimes.mjs`'s local `toPosixRel` was byte-identical to `context.mjs`'s normalisation and is now an alias of the shared one. RULE: `docs/code-anti-patterns.md` carries it with both incidents intact (`classifyAxis` reading a `\`-separated path as a single segment, so five infra packages were reported as missing a declaration they must not carry; `platforms-ci` compiling a `\`-separated path into a regex in which `\n` is a NEWLINE, so node-gi's macOS leg read as a declared platform CI never builds) — both red on win32 and green on Linux for the same commit. The five `scripts/` sites that used the `replaceAll` spelling now go through the helper; that spelling is not merely uglier but WRONG, since a backslash is a legal POSIX filename character, so it trades a Windows bug for a POSIX one. Deliberately NO separate check watching for a raw `relative()`: a guard watching another mechanism is the named smell, and it could not distinguish a display string (where the host separator is arguably right) from a value about to be split. `windows-suites.yml` is what would catch a re-break, this whole class being invisible from Linux.
 
 - **Testing "on Windows" from git-bash reports false greens, and nothing enforces the distinction.** Git for Windows puts `C:\Program Files\Git\usr\bin` on PATH, which supplies a real `chmod`, `cp`, `rm`, `sed` and `which`; every process spawned from that shell inherits them. npm, however, runs package scripts through `%COMSPEC%` (cmd.exe), where none of those exist. The two disagree on the same tree at the same commit — measured: `gjsify run build:infra` completed under git-bash and failed at `@gjsify/create-app` under cmd.exe, and `detectPackageManager()` in `utils/check-system-deps.ts` probes with `which`, which is ENOENT under cmd.exe (it returns the honest `unknown` there, but by accident rather than by construction). Any Windows claim therefore has to name the shell, or it means nothing. The reproducible check is to strip every `\Git\` entry from PATH and drive the command through `%COMSPEC%`; that is what the measurements behind 293a9a1 and this entry used. Worth a scripted harness in `tests/` if a Windows CI leg ever lands, since the runner images have Git on PATH too.
@@ -3274,7 +3308,7 @@ Two cases remain, and the second one bites harder.
 
 **INLINE (by-value) record elements are still unreadable, and the length is now deliberately declined for them.** `ReadCElement` dereferences a `GI_TYPE_TAG_INTERFACE` element as a pointer and `CElementSize` reports `sizeof(gpointer)` instead of the record's size, so resolving a length for such a field walks garbage: `new Pango.GlyphString(); gs.set_size(3); gs.glyphs[0].glyph` SIGSEGVs the process. `ElementsAreReadable()` gates the new path so those fields keep returning empty, and `test/struct-field-array-length.test.mjs` holds the process-survival assertion (it fails with the gate removed).
 
-That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
+That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`. The adjacent `GI_TYPE_TAG_GTYPE` gap (`GObject.SignalQuery.param_types`) is closed: `ReadCElement` reads a GType cell (test `gtype.test.mjs`).
 
 ### `@gjsify/node-gi` — by-value container elements: the WRITE side is closed, the READ side is not
 
@@ -3575,6 +3609,13 @@ What is still open:
 - **The HiDPI path stays unproven on darwin.** The VM reports scale factor 1 (its LaunchAgent pins
   `res:1920x1080 scaling:off`), so `clientWidth × devicePixelRatio === canvas.width` holds
   trivially and this host cannot falsify the drawing-buffer bug class. Only a real HiDPI Mac can.
+- **No CI leg runs the GL specs on macOS**, so only a hand run on a Mac shows a desktop-CORE
+  regression. `on('Gl')` realizes a GDK GL context and asks (`@gjsify/unit`'s `canRealizeGl` +
+  probe) rather than assuming `linux && DISPLAY`, so the specs do run wherever a display exists.
+- **`framebufferTextureLayer` of an `ALPHA`/`LUMINANCE` 3D or array texture renders on a core
+  profile.** WebGL says legacy formats are never color-renderable; the 2D attachment path refuses
+  them from the recorded format, but `framebufferTextureLayer` goes straight to the driver with no
+  JS attachment record, and the emulated R8/RG8 storage is renderable there.
 
 Host diagnosis is repeatable: `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`
 (negotiated API/version, scale factor, logical-vs-device sizes, shader-dialect matrix, shader-free
@@ -3638,7 +3679,40 @@ workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next
 three entries.
 
-### A darwin gamepad backend is the only route to macOS support, and it is a separate project
+### The gamepad backend is SDL3 on every OS (ADR 0075 + Amendment 1); the shim itself is open
+
+Decided in `docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md`: SDL3 behind
+a GObject shim, reached through a device-source seam. **Landed with the ADR:** the seam
+(`packages/web/gamepad/src/source.ts`; the libmanette code moved unchanged into
+`manette-source.ts`; the manager's W3C state handling is now tested through a scripted fake source
+in `source.spec.ts`, where before it had no test at all) and the honest darwin answer (the probe
+branches on `hostOs()`, never imports `gi://Manette` on darwin, returns `absent` with a diagnostic
+naming the ADR, and `gjsify.os.darwin` is declared `none`). `docs/poc/gamepad-darwin-probe.m`
+measured the zero-device path on macOS 27 arm64: GCF, IOKit HID on a private dispatch queue and
+SDL 3.4.16 all initialise, enumerate zero devices and tear down in a non-bundled GMainLoop process,
+20 cycles each, `leaks` 0; and the main dispatch queue — where GCF delivers — is NOT serviced by a
+bare GMainLoop. **Still open, in the order they gate each other:**
+
+Amendment 1 (2026-09-25) widened the decision: SDL3 — static, trimmed to joystick/gamepad,
+events, haptic, sensor and HIDAPI, runtime deps = the OS only — is the ONE backend on darwin,
+linux and win32. No Steam Input; WebHID over the same HIDAPI build is a future option needing its
+own permission decision; SDL3 is adopted for nothing else.
+
+1. `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (ADR 0017): the C shim, GI namespace
+   `GjsifyGamepad-1.0`, SDL3 linked statically and trimmed as above, a CFRunLoop drain in its
+   update tick (PoC row 1 — without it SDL's GCF driver never sees a GCF-only controller),
+   `build-prebuilds-macos` wiring, and the first-publish bootstrap of the new names. Its own
+   `gjs` suite on the macOS leg asserts what the PoC asserts in C.
+2. `sdl-source.ts` with the SDL → W3C table, and the darwin branch importing `gi://GjsifyGamepad`
+   with the same absent-vs-fault classification the Manette branch has.
+3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
+   On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
+4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
+   reporting input and disconnecting — before `gjsify.os.<os>` moves. No runner has one.
+5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
+   libmanette dependency.
+
+Why the ADR needs both Apple input paths (and so chose the library that already has both):
 
 `GameController.framework` alone is NOT sufficient, and the reference implementations both say so by
 shipping two paths. WebKit's `Source/WebCore/platform/gamepad/` holds `cocoa/`
@@ -3666,7 +3740,8 @@ Second, larger piece of work: `packages/web/gamepad/src/button-mapping.ts` maps 
 libmanette 0.2 actually transmits) to W3C indices. Nothing on macOS produces those numbers — GCF
 gives named `GCControllerButtonInput` properties, IOKit gives HID usage pages — so a darwin backend
 needs a SECOND source vocabulary mapped to the same `W3CButton`/`W3CAxis` targets, not a new row in
-the existing table. `hasGamepadBackend()` returning `false` is the honest interim answer.
+the existing table. The seam puts that vocabulary inside its own `GamepadSource` (step 2 above).
+`hasGamepadBackend()` returning `false` is the honest interim answer.
 
 ### libmanette is not portable and upstream has never considered it
 
@@ -3694,7 +3769,12 @@ And the dependency it hard-requires is not available: homebrew-core's `libevdev`
 `platforms = lib.platforms.linux ++ lib.platforms.freebsd`. Porting libmanette is therefore a
 libevdev port first; that is why the darwin work above is a NEW backend, not a build fix.
 
-### A forced migration is coming: `Manette-1`
+### The `Manette-1` migration is superseded (ADR 0075 Amendment 1)
+
+Not to be done: libmanette is being REMOVED (step 5 of the entry above), so porting to its 1.0 API
+would be work on a backend with an end date. Kept for the record of what 1.0 changes, in case the
+Linux SDL comparison fails and the decision is revisited.
+
 
 libmanette `main` is `version: '1.0.alpha'` with `libmanette_api_version = '1'`, i.e. the typelib
 becomes `Manette-1` and `@gjsify/gamepad`'s current `gi://Manette` (0.2) namespace is a different
@@ -3786,15 +3866,13 @@ Found by committing the generated Platform Support matrix and having a review no
 
 The fix is to credit from git rather than from the filesystem. What makes it more than a one-liner: `tests/e2e/prebuild-declaration-invariant` drives this code against SYNTHETIC packages, which are by construction untracked, so a tracked-ness requirement has to be a matrix-side credit rather than a change inside `collectNativePackages()`. Alternative, cheaper and honest: leave the measurement alone and change the legend to say "artifact present", which then no longer answers "can I install this there?" — the question the page exists for.
 
-### Nothing exercises the NODE-FREE toolchain on macOS, and the prebuild's arrival hid that
+### No cold-tree `build:infra` without Node runs on macOS
 
-The engine half is DONE — `@gjsify/rolldown-native` declares all four of `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`; `packages/infra/rolldown-native-darwin-{arm64,x64}` hold committed artifacts; `--platforms` marks every darwin cell `✓` for it and for `@gjsify/lightningcss-native` / `@gjsify/oxfmt-native`; all three are on npm at the train version.
+The e2e half is DONE: `macos-suites.yml`'s node-pillar leg runs `node-free-bootstrap`, `workspace-node-free-gjs`, `launcher-free-build`, `node-script` and `tsc-node-fallback` on both darwin arches — install, orchestration, build, `--node-script` and the tsc fallback, each through `gjs -m dist/cli.gjs.mjs` with `node` resolving nowhere. Wiring them up is what found the defects nothing had seen (a bare `sysctl` that killed the CLI at module evaluation, `/proc`-only process-tree and liveness probes, SIP stripping the launcher's `DYLD_*` inside compound scripts); `docs/bundled-toolchains.md` § macOS has them and the manual recipe.
 
-What no leg covers is the path those engines exist FOR. Both darwin jobs in `macos-suites.yml` install, bootstrap and build by invoking the CLI **under Node** (`node "$RUNNER_TEMP/bootstrap-cli/…/lib/index.js"`, then `node packages/infra/cli/lib/index.js run build`) — correct for proving the Node pillar on darwin, and blind to `gjs -m install.mjs` → `gjsify build` on a box with no Node at all. `tests/e2e/node-free-bootstrap` exercises that shape only on the Linux runner.
+What no darwin leg runs is the shape Linux's `cold-bootstrap` job does: the whole repository's `build:infra` from a tree with no build outputs, with `node` moved aside. Both darwin jobs still install and build the tree under Node. Cost is the reason, not effort: it is a second full build on 10x-billed minutes. The condition to measure: a darwin job whose install + `build:infra` go through `gjs -m` with `command -v node` failing, green on both arches.
 
-This entry previously read "no native macOS build has been promoted … until that leg is green the docs must keep describing the Node-free toolchain as Linux-only". The build was promoted; the instruction outlived it, and three pages of the website went on telling macOS users to install Node because a ledger entry told them to. **The lesson is the shape of the sentence**: a ledger item that instructs the DOCS to keep saying something has no retirement trigger — the docs do not fail when the code changes underneath them. State the condition to measure, not the prose to keep.
-
-The work: a darwin leg whose install+build steps go through the bootstrap the way the Linux node-free leg does, with `node` off PATH for the duration so the leg cannot pass by accident.
+**The lesson this entry used to carry stands**: it once told the DOCS to keep describing the node-free toolchain as Linux-only, which outlived the promotion it was waiting for — a ledger item that instructs the docs has no retirement trigger. State the condition to measure, not the prose to keep.
 
 ### Follow-up — adwaita-web style isolation (ADR 0010)
 
@@ -4967,9 +5045,10 @@ once `build-ci-image` has republished the tag; see its note in `status/integrati
 
 The remaining work, in the shape it should be done:
 
-- **Seven suites are genuinely red** — `axios`, `chalk`, `debug`, `mcp-typescript-sdk`,
-  `socket.io`, `ts-for-gir`, `undici`. One cause per commit, and each returns to the allowlist in
-  the commit that makes it green. They are SEVEN causes, not one: a single shared defect was the
+- **Six suites are genuinely red** — `axios`, `chalk`, `debug`, `mcp-typescript-sdk`,
+  `ts-for-gir`, `undici` (`socket.io` is green again and back in the allowlist). One cause per
+  commit, and each returns to the allowlist in the commit that makes it green. They were SEVEN
+  causes, not one: a single shared defect was the
   first hypothesis and the measurement refuted it. Two of them (`chalk`, `ts-for-gir`) fail on the
   NODE leg, which by this repo's own rule means the test is wrong rather than the implementation.
 - **`undici` should be looked at first, and at the BUILD rather than the suite.** Its failures
@@ -5396,8 +5475,8 @@ what is missing is a reason to take the platform's gesture away from it.
 
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `source.ts`, `swipe.ts` and
-`toast.ts` export shared behaviour and are covered by nothing in
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `shortcut-format.ts`,
+`source.ts`, `swipe.ts` and `toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no
 conformance file imports them. Three of them are what `packages/web/AGENTS.md`
 advertises as the core's flagship shared behaviour ("Breakpoints
@@ -5422,6 +5501,19 @@ renderer grows a swipe — and three widgets upstream already want the same
 tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
 `adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
 (`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
+
+`shortcut-format.ts` is two formatters, and only half of it is actually
+untabled. `formatAcceleratorLabel` is a thin wrapper over `shortcut-label.ts`'s
+`shortcutKeycaps`, so a vector table over IT would assert the same derivation
+`SHORTCUT_LABEL_VECTORS` already tables, under a second name — that half is
+driven, by `adwaita-web`'s `<adw-shortcut-label>`, already. `formatManifestShortcut`
+is the genuinely untabled half: it parses a WebExtension manifest shortcut string
+(`"Alt+Shift+B"`, `"MacCtrl+Shift+B"`) into the platform's own glyphs, a grammar no
+libadwaita widget speaks and no renderer under `packages/web` or
+`packages/nativescript-bridge` has a shortcut string to run it against — the one
+consumer that does, the `beifahrer` browser extension, is a separate repo. It
+earns a table the day a renderer inside THIS repo needs to show a manifest-style
+shortcut rather than a GTK accelerator.
 
 They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
 is keyed by TABLE, so it reported "156 vector tables, every one driven or
@@ -6083,33 +6175,6 @@ Left out of the localisation change on scope: the MIME document is produced insi
 passed through `StageInputs`, so folding it in means moving where that text is rendered —
 in the file that neighbours the layout/stage-writer work. Doing it later costs one call
 site; doing it in the same change would have crossed into a tree being rewritten.
-
-### `verify-msi.sh`'s three component assertions pass on an empty Component table
-
-An empty herestring is still one line. `COMPONENT_ROWS=$(awk … <<<"$COMPONENTS" | sort)`
-is the empty string when the `Component` parse matches nothing, and `wc -l <<<""` is
-**1** — so all three component arms of `.github/ship-oracle/verify-msi.sh` are satisfied
-by a table that yielded no rows, provided `ROWS` is 1. Measured, with the exact
-expressions from lines 173-186 under `set -euo pipefail`:
-
-    wc -l <<<"$COMPONENT_ROWS" = 1   (an empty herestring is still ONE line)
-      line 175 one-component-per-file  : PASSES on zero components
-      line 177 component-in-feature   : PASSES on two empty sets
-      sort -u <<<"" | wc -l = 1
-      line 185 distinct-GUIDs         : PASSES on zero GUIDs
-
-The seam is bounded and is NOT open today: it needs a single-file installer, and with a
-realistic `ROWS=14` line 175 reds on `1 != 14`, which is why the shipped fixture closes
-it by accident rather than by design. What makes it worth an entry is that the closing
-condition is a property of the FIXTURE, not of the oracle — a future one-file artifact,
-or a `msiinfo` output change that stops the `NF >= 6` shape matching, reopens all three
-arms at once and reports "one component per file" about nothing.
-
-The repair is the one this repo already applies elsewhere: count the rows explicitly and
-refuse zero, rather than comparing two line counts that both degrade to 1. `File` already
-has that floor one block up (`[ "$ROWS" -gt 0 ] || fail …`); `Component` has none.
-Deliberately not fixed in the audit that found it — the release was being cut, and a
-shell edit to a gating oracle is exactly the change whose cost cannot be priced in time.
 
 ### An in-repo `path:line` citation is checked by nothing
 
@@ -7072,32 +7137,31 @@ already has — *a pattern the caller wrote that matched nothing is an error, a 
 emptied a real set is not* — applied at the selection sites above, `barrels` having taken
 the first of them by hand. The distinction is the whole content of the rule, and it is why
 a blanket "empty is an error" would be wrong for `prune` and `foreach --exclude`.
-### win32 MP3 has no route out of gvsbuild, and the pin is the only moment the claim is re-asked
+### win32 MP3 through the OS decoder: the upstream library route is still open
 
-#1626 closes as a declaration (ADR 0056 § 3, § 6), not as a payload. What stays open is
-upstream work and one accepted blind spot.
+MP3 now decodes on win32 through `mfmp3dec`, gst-plugins-bad's wrapper of the decoder
+Windows ships (ADR 0056 § 7), and a live Icecast stream decodes on every bundle now that
+`icydemux` and `id3demux` ship. Three things stay open.
 
-**The upstream repair nobody has filed.** Closing MP3 on Windows needs a `libmpg123` project
-in `wingtk/gvsbuild` — a single file of the shape `libvorbis.py` already has — and the same
-for `libFLAC`. Measured at the pinned `2026.6.0`, cross-read from the GitHub contents API and
-from the PyPI wheel `pipx install gvsbuild==2026.6.0` unpacks: 95 files, identical lists, 94
-of them project modules beside an `__init__.py`, `libvorbis.py`, `ogg.py` and `opus.py` among
-them and nothing matching `flac` or `mpg123`. `main` carried the same list on the day of the
-reading, and so does the newer `2026.8.0` release — read with the same tooling against that
-tag, nothing added and nothing removed — so a pin bump on its own will not close this. Every
-other route out of that catalogue was read and is shut: gvsbuild's own
-`patches/ffmpeg/build/build.sh` configures ffmpeg `--disable-everything` and enables
-`mp2float`, `wmav2`, `wmapro` as its whole audio set, so `gst-libav` decodes no MP3;
-gst-plugins-rs 0.15.2 has no MP3 decoder; gst-plugins-ugly 1.28.4 ships `ext/` = a52dec,
-cdio, dvdread, mpeg2dec, sidplay, x264, `mad` having been removed upstream. **Nobody has
-opened that gvsbuild PR**, and until somebody does, the one measured third-party consumer
-(a desktop reader whose bundled episode and live radio both fail on Windows) has exactly one
-answer: ship its own MSVC-ABI `gstmpg123.dll` and point `GST_PLUGIN_PATH` at it, which the
-gap's `why` now spells out.
+**Media Foundation is an OS component.** Windows N without the Media Feature Pack has no
+`mfplat.dll`; there the plugin does not load and MP3 is a gap again, and nothing in the
+bundle can detect that ahead of time. Not measured on such a host. On the Server 2025
+runner the DLLs were present before the optional feature was installed.
+
+**The library route, as an upstream change, is now filed.** A `libmpg123` project in
+`wingtk/gvsbuild` would let win32 use `mpg123audiodec`, like darwin, and drop the OS
+dependency. Read at the pinned `2026.6.0` and at `2026.8.0`: no `mpg123` or `flac` module;
+gvsbuild's ffmpeg has no mp3 decoder; gst-plugins-rs 0.15.2 has none; gst-plugins-ugly 1.28.4
+dropped `mad`. **Filed**: [wingtk/gvsbuild#1849](https://github.com/wingtk/gvsbuild/pull/1849),
+out of the `add-mpg123` branch of our `gjsify/gvsbuild` fork, adds `libmpg123` in exactly that
+shape and makes `gst-plugins-good` depend on it — the standing task that PR creates is tracked
+in `status/upstream-patch-candidates.md`. Until it merges and a pin bump picks it up, the
+`mpg123` gap keeps its `upstream` bound, so the catalogue rule reds the day the project exists.
 
 **FLAC is a price, not a wall, and the price is not paid.** `claxon` in gst-plugins-rs is a
 pure-Rust FLAC decoder and gvsbuild already defines that tree (`gst-plugin-gtk4`). Taking it
-means cargo-c plus gst-plugins-bad and gtk4 rebuilt from source on the leg whose GStreamer
+means cargo-c plus gtk4 rebuilt from source (gst-plugins-bad is already built there now, for
+mediafoundation) on the leg whose GStreamer
 build already runs under a 150-minute timeout. ADR 0056 § Alternatives rejected carries the
 reasoning; revisit when a consumer measures FLAC, or when a Rust toolchain lands in that
 prefix for another reason.

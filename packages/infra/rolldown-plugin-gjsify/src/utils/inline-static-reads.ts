@@ -67,6 +67,7 @@ import { tsPlugin } from 'acorn-typescript';
 import { dirname, join, resolve, basename, relative, extname, posix, win32 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { hasZipSegment } from './zip-path.js';
 
 /**
  * One in-place edit on the source string. Stored as half-open `[start, end)`
@@ -123,7 +124,7 @@ const TS_PARSER = acorn.Parser.extend(tsPlugin() as never);
  * `inlined: 0`, while the identical expression in a `.js` file returned
  * `inlined: 1`.
  */
-function parseSource(src: string, sourceFilePath: string): acorn.Program {
+export function parseSource(src: string, sourceFilePath: string): acorn.Program {
     const shared = {
         ecmaVersion: 'latest' as const,
         sourceType: 'module' as const,
@@ -315,7 +316,7 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
         //  - the path contains a `.zip/` segment (Yarn PnP virtual zip,
         //    where Node's PnP hooks make `existsSync` return true at build
         //    time but the path doesn't exist under GJS at runtime).
-        const isZip = path !== undefined && path.includes('.zip/');
+        const isZip = path !== undefined && hasZipSegment(path);
         if (path !== undefined && (isZip || !existsSync(path))) {
             return {
                 start: node.start,

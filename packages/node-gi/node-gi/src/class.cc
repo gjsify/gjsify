@@ -223,37 +223,27 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
 
   GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
   // args[0] is the instance; declared args follow at args[1..].
-  Napi::Value recv = WrapGObject(
-      napiEnv, static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer),
-      GI_TRANSFER_NOTHING);
+  GObject* instance = static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer);
+  Napi::Value recv = WrapGObject(napiEnv, instance, GI_TRANSFER_NOTHING);
 
-  unsigned int n = gi_callable_info_get_n_args(ci);
+  // Arguments and the answer in gjs's OUT/INOUT shape, shared with the GI-callback
+  // trampoline (CToJsCall, marshal.cc). args[0] is the instance, so the declared
+  // arguments start at offset 1. `instance` is also the owner a transfer-none string
+  // answer ties its lifetime to (StringForC, marshal.cc) instead of interning it
+  // forever — a real vfunc can answer a fresh string every call (e.g.
+  // Gtk.Editable's vfunc_get_text on a live-updating buffer).
+  CToJsCall call(napiEnv, ci, "vfunc '" + vf->name + "'", instance);
   std::vector<napi_value> jsArgs;
-  jsArgs.reserve(n);
-  bool ok = true;
-  for (unsigned int i = 0; i < n; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    Napi::Value v =
-        GIArgumentToJs(napiEnv, ti, static_cast<GIArgument*>(args[i + 1]), GI_TRANSFER_NOTHING);
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-    if (napiEnv.IsExceptionPending()) {
-      ok = false;
-      break;
-    }
-    jsArgs.push_back(v);
-  }
+  bool ok = call.MarshalArgs(args, 1, &jsArgs);
 
   // Zero the result slot first (it is >= ffi_arg wide; narrow returns leave the
   // upper bytes indeterminate otherwise).
   if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
 
-  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  napi_value ret = nullptr;
   if (ok) {
     napi_value fn = nullptr;
     if (napi_get_reference_value(env, vf->fn, &fn) == napi_ok && fn != nullptr) {
-      napi_value ret = nullptr;
       // napi_make_callback drains nextTick/microtasks around the call (Node; on
       // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below); the
       // wrapped instance is the receiver (`this`).
@@ -261,23 +251,10 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
       napi_status st =
           napi_make_callback(env, nullptr, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
       g_loopDispatchDepth--;
-      if (st == napi_ok && result != nullptr) {
-        GITypeTag rtag = gi_type_info_get_tag(retType);
-        if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
-          // Hand the caller an owned copy — a JsToGIArgument string would point
-          // into a std::string that dies with this frame.
-          Napi::Value rv(env, ret);
-          static_cast<GIArgument*>(result)->v_string =
-              rv.IsString() ? g_strdup(rv.As<Napi::String>().Utf8Value().c_str()) : nullptr;
-        } else if (rtag != GI_TYPE_TAG_VOID) {
-          std::string held;
-          JsToGIArgument(napiEnv, Napi::Value(env, ret), retType, static_cast<GIArgument*>(result),
-                         &held);
-        }
-      }
+      if (st != napi_ok) ret = nullptr;
     }
   }
-  gi_base_info_unref(retType);
+  call.WriteAnswer(ret, result);
   // A pending JS exception surfaces at the next N-API boundary (e.g. when the
   // constructType / method call that triggered this vfunc returns).
   //

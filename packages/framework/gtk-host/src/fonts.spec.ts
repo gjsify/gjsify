@@ -21,6 +21,7 @@ import PangoCairo from 'gi://PangoCairo?version=1.0';
 import {
     adwaitaUiFontAvailability,
     applyUiFontPolicy,
+    CAIRO_FONT_TYPE_FT,
     type FontFaceFailure,
     initFonts,
     type InitFontsResult,
@@ -125,15 +126,33 @@ function probeRegistrationSupport(face: string | undefined): boolean {
     }
 }
 
-/** Why the registration assertions cannot hold where they are marked expected-failing. */
+/**
+ * Can `initFonts` fall back to a fontconfig map when the default one declines (ADR 0038
+ * § Amendment 5)? The same three questions `adoptFontconfigMap` asks, asked of the process rather
+ * than of `process.platform`: nobody pinned the backend, this pango builds an fc map, and
+ * fontconfig found a configuration. On a SCRATCH fc map, so the probe changes nothing it reads.
+ */
+function probeFontconfigFallback(): boolean {
+    if (GLib.getenv('PANGOCAIRO_BACKEND') !== null) return false;
+    const candidate = PangoCairo.FontMap.new_for_font_type(CAIRO_FONT_TYPE_FT as never);
+    return candidate !== null && candidate.list_families().length > 0;
+}
+
+/** Why the RAW-map assertions cannot hold where they are marked expected-failing. */
 const NO_REGISTRATION_REASON =
     'this process resolved a font map that implements no `add_font_file` vfunc — on macOS ' +
     "PangoCairoCoreTextFontMap, where `pango_font_map_add_font_file()` falls through to Pango's " +
-    'base implementation and answers G_IO_ERROR_NOT_SUPPORTED. Nothing can register a face at ' +
-    'runtime there, and nothing needs to: a shipped `.app` activates its own faces declaratively ' +
-    'through `ATSApplicationFontsPath` before any of its code runs (ADR 0038 § 3), which is why ' +
-    '`initFonts` reports these as DECLINED rather than failed. Retires itself if Pango ever ' +
-    'implements the vfunc on CoreText, or on any host where PANGOCAIRO_BACKEND selects fc.';
+    'base implementation and answers G_IO_ERROR_NOT_SUPPORTED. These assertions drive a SCRATCH map ' +
+    'of that backend by hand, so they measure the backend, not `initFonts` — which falls back to a ' +
+    'fontconfig map there (ADR 0038 § Amendment 5, asserted in the discriminator suite). Retires ' +
+    'itself if Pango ever implements the vfunc on CoreText, or wherever PANGOCAIRO_BACKEND selects fc.';
+
+/** Why `initFonts` itself cannot put a face on the map where that is marked expected-failing. */
+const NO_REACH_REASON =
+    'the default font map declines runtime registration AND no fontconfig fallback is available ' +
+    'here — PANGOCAIRO_BACKEND is pinned to a platform backend, or this pango has no fc backend, or ' +
+    'fontconfig found no configuration. A shipped `.app` still activates its faces declaratively ' +
+    'through `ATSApplicationFontsPath` (ADR 0038 § 3); nothing at runtime can on such a host.';
 
 /** What ONE source contributed, which is what every assertion in this file is actually about. */
 interface Accounted {
@@ -268,6 +287,12 @@ export default async () => {
     await describe('initFonts — the directory decides, and the family proves it', async () => {
         const source = findFaceSource();
         const REGISTRATION_SUPPORTED = probeRegistrationSupport(source);
+        // What `initFonts` can do, which is more than the raw map: a declining map is replaced by
+        // a fontconfig one when that is safe (ADR 0038 § Amendment 5).
+        const FALLBACK = !REGISTRATION_SUPPORTED && probeFontconfigFallback();
+        const REACHABLE = REGISTRATION_SUPPORTED || FALLBACK;
+        // What the FIRST registration of the staged face reported — the only call that can swap.
+        let firstFallback: boolean | undefined;
 
         await it('has the showcase face in reach', async () => {
             // Fails rather than skips, exactly as `tests/e2e/ship-layout` does: without the face
@@ -304,21 +329,47 @@ export default async () => {
         await it('finds the staged face and accounts for it, on any font map', async () => {
             const staged = copyFace(source, inside, 'Round9x13.ttf');
             const result = initFonts({ fontDir: inside });
+            firstFallback = result.fontconfigFallback;
             const mine = appFaces(result);
             expect(result.dir).toBe(inside);
             expect([...mine.registered, ...mine.declined]).toStrictEqual([staged]);
             expect(mine.failed.length).toBe(0);
         });
 
-        await it('routes it to `declined` exactly when the map declines, never to `failed`', async () => {
-            // The macOS half stated as an assertion rather than as an excuse: on a CoreText map
-            // every staged face lands in `declined`, and calling that a FAILURE would make a
-            // correct `.app` — whose faces `ATSApplicationFontsPath` already activated — print a
-            // warning per face about a substitution that is not happening.
+        await it('routes it to `declined` exactly when nothing can register it, never to `failed`', async () => {
+            // The macOS half stated as an assertion rather than as an excuse: where neither the
+            // default map nor a fontconfig fallback can take the face it lands in `declined`, and
+            // calling that a FAILURE would make a correct `.app` — whose faces
+            // `ATSApplicationFontsPath` already activated — print a warning per face about a
+            // substitution that is not happening.
             const mine = appFaces(initFonts({ fontDir: inside }));
-            expect(mine.declined.length).toBe(REGISTRATION_SUPPORTED ? 0 : 1);
-            expect(mine.registered.length).toBe(REGISTRATION_SUPPORTED ? 1 : 0);
+            expect(mine.declined.length).toBe(REACHABLE ? 0 : 1);
+            expect(mine.registered.length).toBe(REACHABLE ? 1 : 0);
             expect(mine.failed.length).toBe(0);
+        });
+
+        await it('replaced the default map exactly when the platform one declined and fc could take over', async () => {
+            // THE DARWIN DEVELOPMENT RUN (ADR 0038 § Amendment 5): `gjsify run` on a Homebrew GTK
+            // resolves CoreText, has no `Info.plist` to activate anything, and before this the face
+            // reached nothing. The first registration of the staged face is the call that swaps.
+            expect(firstFallback).toBe(FALLBACK);
+            // The default map now ACCEPTS registration wherever the swap happened — asked of the
+            // map itself rather than read off a type name, which node-gi reports as the
+            // introspected ancestor on every backend.
+            const scratchDir = makeTempDir('adopted');
+            let accepts = true;
+            try {
+                PangoCairo.FontMap.get_default().add_font_file(copyFace(source, scratchDir, 'Round9x13.ttf'));
+            } catch (error) {
+                if (!isUnsupportedByFontMap(error)) throw error;
+                accepts = false;
+            }
+            removeTree(scratchDir);
+            expect(accepts).toBe(REACHABLE);
+            // And a repeat call on the adopted map registers directly — no second swap.
+            const again = initFonts({ fontDir: inside });
+            expect(again.fontconfigFallback).toBe(false);
+            expect(appFaces(again).declined.length).toBe(REACHABLE ? 0 : 1);
         });
 
         await it.failing(
@@ -327,8 +378,8 @@ export default async () => {
                 expect(families()).toContain(FACE_FAMILY);
                 expect(PangoCairo.FontMap.get_default().get_family(FACE_FAMILY)).not.toBeNull();
             },
-            NO_REGISTRATION_REASON,
-            { when: !REGISTRATION_SUPPORTED },
+            NO_REACH_REASON,
+            { when: !REACHABLE },
         );
 
         await it.failing(
@@ -340,8 +391,8 @@ export default async () => {
                 // `FACE_FAMILY`, and that is deliberate — see the ordering suite below.
                 expect(layoutSize(FACE_FAMILY)).not.toBe(layoutSize(INVENTED_FAMILY));
             },
-            NO_REGISTRATION_REASON,
-            { when: !REGISTRATION_SUPPORTED },
+            NO_REACH_REASON,
+            { when: !REACHABLE },
         );
 
         await it.failing(
@@ -386,8 +437,8 @@ export default async () => {
                 expect(result.matches[1]?.family).toBeUndefined();
                 removeTree(dir);
             },
-            NO_REGISTRATION_REASON,
-            { when: !REGISTRATION_SUPPORTED },
+            NO_REACH_REASON,
+            { when: !REACHABLE },
         );
 
         await it('cleans up its fixtures', async () => {

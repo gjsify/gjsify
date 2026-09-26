@@ -56,27 +56,25 @@
  *
  * WHAT IT STILL CANNOT SEE
  *
- * Shell SYNTAX, as opposed to shell commands: a redirect (`> file`), a
- * `VAR=x cmd` prefix, a `$(…)` substitution and a backslash line-continuation are
- * all equally unavailable or differently-spelled under cmd.exe, and none of them
- * puts a POSIX utility in command position.
+ * Most shell SYNTAX, as opposed to shell commands: a redirect (`> file`), a
+ * `$(…)` substitution and a backslash line-continuation are all unavailable or
+ * differently-spelled under cmd.exe, and none of them puts a POSIX utility in
+ * command position.
  *
- * ~~None is present in the tree today.~~ **That sentence was measured false.**
- * Counted 2026-08-31 over every manifest in the tree: 33 scripts open a clause
- * with a `VAR=x` prefix. Two of them were load-bearing — `@gjsify/gtk-host` and
- * `@gjsify/react-native`'s `test:gjs-on-node` carried
- * `NODE_GI_NATIVE=${NODE_GI_NATIVE:-prebuild} node …`, a prefix AND a `${…:-…}`
- * expansion, and that script is the entry point `gtk-os-suites.yml` calls on a
- * cmd.exe leg. Both now take the variable from the ENVIRONMENT, where every shell
- * agrees. The remaining 31 are `@gjsify/node-gi` (10) and `@gjsify/napi` (11) —
- * neither a workspace member, both driven only by their own Linux legs — plus 10
- * private `examples/`.
+ * THE `NAME=value command` PREFIX *IS* CHECKED, and that is why the rule now reads
+ * every manifest in the tree rather than the workspace members alone. This header
+ * once said "None is present in the tree today"; counted 2026-08-31 there were 33,
+ * and `npm test` in `@gjsify/node-gi` died on the win11-gjsify VM with "'LC_ALL' is
+ * not recognized" before running a test. They sat where the rule did not look:
+ * `@gjsify/node-gi` and `@gjsify/napi` are not workspace members, and the root
+ * manifest is not a package in the workspace set. All 33 are fixed — published and
+ * example scripts onto `gjsify env NAME=value <command>` (the env(1) sibling of
+ * `gjsify clear`/`copy`), node-gi and napi onto a node launcher each because they
+ * have no `gjsify` to call, the root `release*` scripts onto `scripts/release.mjs`
+ * — so this ships, like the rest of the file, with ZERO exemptions.
  *
- * The `VAR=x` pattern is still deliberately NOT in the list, on the same judgement
- * the `clear`-only scope shipped under: adding it today lands a rule with a
- * 31-entry exemption ledger, and a check that starts life mostly-exempted teaches
- * everyone to add the next exemption. Those 31 are the work that unblocks it, and
- * `status/open-todos.md` carries the count so it is a task rather than a memory.
+ * The scan tracks quotes, so an assignment INSIDE an argument (`node -e "…;c=1"`)
+ * is not a prefix; four webtorrent examples carry exactly that shape.
  *
  * ONE MEMBER OF THE SYNTAX CLASS *IS* CHECKED, because it fixed itself down to zero.
  *
@@ -109,6 +107,8 @@
  * package behind it, and now so does the one deliberately absent from it.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineRule } from '../registry.mjs';
 
 /**
@@ -193,6 +193,56 @@ export function unportableQuoting(script) {
     return [...script.matchAll(UNPORTABLE_QUOTING)].map((m) => m[0]);
 }
 
+/** A `NAME=` assignment word — the POSIX prefix form. */
+const ASSIGNMENT_WORD = /^[A-Za-z_][A-Za-z0-9_]*=\S*/;
+
+/**
+ * The `NAME=value` words that open a clause — at the script start or after
+ * `&& || ; | (` — outside quotes. One per clause: the first is enough to name it.
+ *
+ * @param {string} script
+ * @returns {string[]}
+ */
+export function envPrefixes(script) {
+    const found = [];
+    let quote = null;
+    let clauseStart = true;
+    for (let i = 0; i < script.length; i++) {
+        const c = script[i];
+        if (quote) {
+            if (c === quote) quote = null;
+            continue;
+        }
+        if (c === "'" || c === '"') {
+            quote = c;
+            clauseStart = false;
+        } else if (c === '&' || c === '|' || c === ';' || c === '(') {
+            clauseStart = true;
+        } else if (c !== ' ' && c !== '\t' && clauseStart) {
+            const m = ASSIGNMENT_WORD.exec(script.slice(i));
+            if (m) found.push(m[0]);
+            clauseStart = false;
+        }
+    }
+    return found;
+}
+
+/**
+ * Every manifest the tree carries: the workspace set, the non-member subtrees the
+ * context discovered (`packages/node-gi/*`, `packages/napi/*`), and the root.
+ *
+ * @param {import('../context.mjs').ConformanceContext} ctx
+ */
+function scannedPackages(ctx) {
+    const all = [...(ctx.allPackages ?? ctx.packages)];
+    if (ctx.only?.length) return all;
+    const rootManifest = join(ctx.root, 'package.json');
+    if (!all.some((p) => p.dir === ctx.root) && existsSync(rootManifest)) {
+        all.unshift({ rel: '.', dir: ctx.root, manifest: JSON.parse(readFileSync(rootManifest, 'utf-8')) });
+    }
+    return all;
+}
+
 /**
  * @param {import('../context.mjs').ConformanceContext} ctx
  */
@@ -200,7 +250,7 @@ function auditScripts(ctx) {
     const failures = [];
     let checked = 0;
     let packages = 0;
-    for (const pkg of ctx.packages) {
+    for (const pkg of scannedPackages(ctx)) {
         const scripts = pkg.manifest.scripts ?? {};
         let touched = false;
         for (const [name, script] of Object.entries(scripts)) {
@@ -215,6 +265,15 @@ function auditScripts(ctx) {
                         `      got:  ${fragment}\n` +
                         `      use:  reverse the nesting — "key='value'" — which both shells strip to the ` +
                         `same argv and JS reads as the same string.`,
+                );
+            }
+            for (const prefix of envPrefixes(script)) {
+                failures.push(
+                    `${pkg.rel}/package.json: "${name}" opens a clause with \`${prefix}\`, a POSIX ` +
+                        `environment prefix cmd.exe has no form of — on Windows the variable's name is run ` +
+                        `as a command.\n` +
+                        `      got:  ${script}\n` +
+                        `      use:  gjsify env ${prefix} <command> [args…]   (env(1), portable)`,
                 );
             }
             const bad = unportableCommands(script);
@@ -236,7 +295,7 @@ export const portableScriptsRule = defineRule({
     scope: 'portable',
     fields: ['scripts'],
     description:
-        'every package script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear` / `gjsify copy`)',
+        'every package script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear` / `gjsify copy`), no `NAME=value` prefix (use `gjsify env`)',
     run(ctx) {
         const { failures, stats } = auditScripts(ctx);
         return {

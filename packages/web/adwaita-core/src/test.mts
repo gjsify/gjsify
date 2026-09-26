@@ -21,6 +21,7 @@ import breakpointTestSuite from './breakpoint.spec.js';
 import breakpointBinTestSuite from './breakpoint-bin.spec.js';
 import accentTestSuite from './accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
+import appearanceTestSuite from './appearance.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
@@ -39,6 +40,7 @@ import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
+import shortcutFormatTestSuite from './shortcut-format.spec.js';
 import scrollingTestSuite from './scrolling.spec.js';
 import swipeTestSuite from './swipe.spec.js';
 import markupTestSuite from './markup.spec.js';
@@ -59,6 +61,7 @@ run({
     breakpointBinTestSuite,
     accentTestSuite,
     colorSchemeTestSuite,
+    appearanceTestSuite,
     toastTestSuite,
     dialogTestSuite,
     listTestSuite,
@@ -86,6 +89,7 @@ run({
     labelTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
+    shortcutFormatTestSuite,
     scrollingTestSuite,
     markupTestSuite,
     tagsTestSuite,

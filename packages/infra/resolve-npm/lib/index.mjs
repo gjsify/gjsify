@@ -580,6 +580,7 @@ export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/node-globals/register/url': '@gjsify/empty',
     '@gjsify/node-globals/register/structured-clone': '@gjsify/empty',
     '@gjsify/node-globals/register/microtask': '@gjsify/empty',
+    '@gjsify/node-globals/register/navigator': '@gjsify/empty',
     '@gjsify/web-globals': '@gjsify/empty',
     '@gjsify/web-globals/register': '@gjsify/empty',
     '@gjsify/web-globals/register/performance': '@gjsify/empty',

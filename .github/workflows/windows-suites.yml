@@ -283,6 +283,12 @@ jobs:
       - name: '@gjsify/path'
         run: node packages\infra\cli\lib\index.js workspace @gjsify/path run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/path run test:node
 
+      # `node:url` is `native` on the node target, so this runs Node's own `url` — which is
+      # the point: every host-default `pathToFileURL`/`fileURLToPath` literal in the spec is
+      # a claim about the host, and only a win32 runner can show one that is POSIX-only.
+      - name: '@gjsify/url'
+        run: node packages\infra\cli\lib\index.js workspace @gjsify/url run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/url run test:node
+
       - name: '@gjsify/os'
         run: node packages\infra\cli\lib\index.js workspace @gjsify/os run build:test:node && node packages\infra\cli\lib\index.js workspace @gjsify/os run test:node
 

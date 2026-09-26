@@ -7,8 +7,8 @@ import {
     resolve6 as _resolve6,
     reverse as _reverse,
     resolve as _resolve,
-} from './index.js';
-import type { LookupOptions, LookupAddress } from './index.js';
+} from './callback.js';
+import type { LookupOptions, LookupAddress } from './callback.js';
 
 export function lookup(hostname: string, options?: LookupOptions | number): Promise<LookupAddress | LookupAddress[]> {
     return new Promise((resolve, reject) => {

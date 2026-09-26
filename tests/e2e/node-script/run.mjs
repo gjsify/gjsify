@@ -11,15 +11,26 @@
 // keep spelling `node scripts/x.mjs` (a new flag there cannot be bootstrapped by the previous
 // release's CLI — see `writeNodeShim`).
 //
-// Skipped off a capable host (non-Linux / no gjs / no built bundle).
+// Skipped off a capable host (not linux/darwin / no gjs / no built bundle). darwin runs it
+// on the macOS leg (`macos-suites.yml`).
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import {
+    mkdtempSync,
+    mkdirSync,
+    writeFileSync,
+    existsSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { nodeLessPath } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -37,31 +48,7 @@ function hasGjs() {
     return r.status === 0 && r.error === undefined;
 }
 
-/** PATH with every directory that carries a `node` removed. */
-function noNodePath() {
-    return (process.env.PATH ?? '')
-        .split(':')
-        .filter((dir) => dir && !existsSync(join(dir, 'node')))
-        .join(':');
-}
-
-/**
- * Can we build a PATH that has no `node` but still has `gjs`?
- *
- * Not a given: if a host ships both from the SAME directory, dropping it takes
- * gjs with it and the shim cases would fail for a reason that has nothing to do
- * with the shim. They are skipped there instead of reported as broken. (On the
- * CI image gjs is `/usr/bin/gjs` while Node comes from `actions/setup-node`'s
- * tool cache, so the two are separable; on a maintainer box with nvm, likewise.)
- */
-function canDropNodeKeepingGjs() {
-    const dirs = noNodePath().split(':').filter(Boolean);
-    return dirs.some((dir) => existsSync(join(dir, 'gjs')));
-}
-
-const SKIP = process.platform !== 'linux' || !hasGjs() || !existsSync(CLI_BUNDLE);
-/** The shim cases additionally need a PATH that can lose `node` and keep `gjs`. */
-const SKIP_SHIM = SKIP || !canDropNodeKeepingGjs();
+const SKIP = (process.platform !== 'linux' && process.platform !== 'darwin') || !hasGjs() || !existsSync(CLI_BUNDLE);
 
 /**
  * A script in the shape of the ones this feature exists for: `node:` builtins
@@ -138,7 +125,7 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
      * it unable to shadow a working Node), so a sabotaged `node` is still a
      * `node` and would correctly suppress it. Dropping the directories is the
      * only faithful way to be a Node-less host — and it is why `gjs` has to be
-     * re-checked afterwards (see `noNodePath`).
+     * re-provided afterwards (see `nodeLessPath`).
      */
     function runInFixture(argv, { expectFail = false, path = 'sabotaged' } = {}) {
         const opts = {
@@ -152,7 +139,7 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
                 // sabotage dir would put a `node` back and suppress the shim,
                 // which is the whole thing under test. Nothing here spawns npm,
                 // and a real npm could not run without node anyway.
-                PATH: path === 'no-node' ? noNodePath() : `${fakeBinDir}:${process.env.PATH}`,
+                PATH: path === 'no-node' ? nodeLessPath(tmpDir) : `${fakeBinDir}:${process.env.PATH}`,
             },
         };
         try {
@@ -236,7 +223,10 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
         // `import.meta.url` lands the marker there and this file never appears.
         const marker = join(scriptsDir, 'sibling.marker');
         assert.ok(existsSync(marker), `sibling write went somewhere else — import.meta.url was not rewritten`);
-        assert.equal(readFileSync(marker, 'utf-8').trim(), scriptsDir);
+        // Canonical on both sides: on macOS the temp dir is `/var/…`, a symlink to
+        // `/private/var/…`, and `import.meta.url` names the resolved file — as it
+        // does under Node, which realpaths its entry module.
+        assert.equal(realpathSync(readFileSync(marker, 'utf-8').trim()), realpathSync(scriptsDir));
     });
 
     it('propagates a non-zero exit code', () => {
@@ -264,19 +254,19 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
     // has to work is a `node` on PATH that re-enters the CLI. The compound form
     // is the one that matters: it goes through `/bin/sh`, which no per-command
     // rewrite inside the CLI would ever see.
-    it('runs `node <file>` from a package script through the PATH shim', { skip: SKIP_SHIM }, () => {
+    it('runs `node <file>` from a package script through the PATH shim', () => {
         const { output } = runInFixture(['run', 'build'], { path: 'no-node' });
         assert.match(output, /ARGS:from-script/, output);
         assert.match(output, /\bOK\b/, output);
     });
 
-    it('runs `node <file>` inside a COMPOUND script (`a && node b`)', { skip: SKIP_SHIM }, () => {
+    it('runs `node <file>` inside a COMPOUND script (`a && node b`)', () => {
         const { output } = runInFixture(['run', 'build:compound'], { path: 'no-node' });
         assert.match(output, /step-one/, output);
         assert.match(output, /ARGS:compound/, output);
     });
 
-    it('refuses `node <flag>` with a message instead of mis-parsing it', { skip: SKIP_SHIM }, () => {
+    it('refuses `node <flag>` with a message instead of mis-parsing it', () => {
         // `node --test x.mjs` wants Node's own test runner. Forwarding the flag
         // would make yargs take `--test` FOR the script path.
         const { output } = runInFixture(['run', 'build:nodeflag'], { expectFail: true, path: 'no-node' });

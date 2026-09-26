@@ -16,6 +16,15 @@ import Gwebgl from '@girs/gwebgl-0.1';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import type { HTMLCanvasElement } from './html-canvas-element.js';
 import { flag } from './utils.js';
+import {
+    IDENTITY_SWIZZLE,
+    TEXTURE_SWIZZLE_PNAMES,
+    coreStorageForLegacyFormat,
+    isLegacyFormat,
+    textureParameterTarget,
+    type LegacyFormatStorage,
+    type Swizzle,
+} from './context/texture-management/legacy-formats.js';
 
 import { getOESElementIndexUint } from './extensions/oes-element-index-unit.js';
 import { getOESStandardDerivatives } from './extensions/oes-standard-derivatives.js';
@@ -161,6 +170,9 @@ export abstract class WebGLContextBase {
     _packAlignment = 4;
     _unpackFlipY = false;
     _unpackPremultAlpha = false;
+
+    /** `GENERATE_MIPMAP_HINT`, kept in JS because a core profile has no such state; see `hint`. */
+    _generateMipmapHint: GLenum = 0x1100; /* DONT_CARE */
 
     // Viewport and scissor — tracked in JS to avoid crashing native getParameterx for array returns
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
@@ -357,6 +369,145 @@ export abstract class WebGLContextBase {
         return haveMajor > major || (haveMajor === major && haveMinor >= minor);
     }
 
+    /**
+     * The internal format to hand the DRIVER for a WebGL1 `texImage2D`.
+     *
+     * OES_texture_float uploads with an UNSIZED format (`RGBA` + `FLOAT`). GLES
+     * derives float storage from the type; desktop GL leaves an unsized format's
+     * storage to the driver, and nothing obliges it to choose float — an `RGBA8`
+     * choice would clamp 1.5 to 1.0 behind an extension this context advertised.
+     * Naming the sized float format keeps the promise on every desktop driver,
+     * not only the ones that happen to choose float (macOS does, measured).
+     * GLES keeps the unsized format it requires.
+     */
+    _nativeFloatInternalFormat(internalFormat: GLenum, type: GLenum): GLenum {
+        if (type !== this.FLOAT || !this._atLeastGlVersion(3, 0)) return internalFormat;
+        if (internalFormat === this.RGBA) return 0x8814; /* GL_RGBA32F */
+        if (internalFormat === this.RGB) return 0x8815; /* GL_RGB32F */
+        return internalFormat;
+    }
+
+    /** Cached answer of {@link _isCoreProfile}; `undefined` = not asked yet. */
+    private _coreProfile: boolean | undefined;
+
+    /**
+     * Is this a desktop-GL CORE profile — the context that removed what WebGL
+     * still has (legacy texture formats, `GENERATE_MIPMAP_HINT`)?
+     *
+     * ASKED, not inferred from the OS, exactly like the Vala side's
+     * `needsDefaultVertexArray()`: `GL_CONTEXT_PROFILE_MASK` answers it, and a
+     * compatibility profile (Mesa's `4.6 (Compatibility Profile)`) or GLES keeps
+     * the legacy behaviour natively and must see no emulation. The mask only
+     * exists from GL 3.2, the first version that can be core, so below it the
+     * version gate IS the answer — and the query never queues an INVALID_ENUM
+     * for a consumer's `getError()`.
+     */
+    _isCoreProfile(): boolean {
+        if (this._coreProfile !== undefined) return this._coreProfile;
+        let core = false;
+        if (this._atLeastGlVersion(3, 2)) {
+            const mask = this._gl.getParameteri(0x9126 /* GL_CONTEXT_PROFILE_MASK */);
+            core = (mask & 0x1) /* GL_CONTEXT_CORE_PROFILE_BIT */ !== 0;
+        }
+        this._coreProfile = core;
+        return core;
+    }
+
+    /** Cached answer of {@link _emulatesLegacyFormats}. */
+    private _legacyFormatEmulation: boolean | undefined;
+
+    /**
+     * Does this context store `ALPHA` / `LUMINANCE` / `LUMINANCE_ALPHA` as
+     * RED/RG + texture swizzle? A core profile removed the formats; the swizzle
+     * that replaces them is core from GL 3.3, so a 3.2 core context has neither
+     * and gets the driver's own answer.
+     */
+    _emulatesLegacyFormats(): boolean {
+        if (this._legacyFormatEmulation === undefined) {
+            this._legacyFormatEmulation = this._isCoreProfile() && this._atLeastGlVersion(3, 3);
+        }
+        return this._legacyFormatEmulation;
+    }
+
+    /**
+     * How to store a legacy-format image on THIS context: the RED/RG + swizzle
+     * storage where {@link _emulatesLegacyFormats}, `null` everywhere the driver
+     * takes the legacy format as it is (GLES, compatibility profiles).
+     */
+    _legacyFormatStorage(format: GLenum, type: GLenum): LegacyFormatStorage | null {
+        if (!isLegacyFormat(format) || !this._emulatesLegacyFormats()) return null;
+        return coreStorageForLegacyFormat(format, type);
+    }
+
+    /**
+     * Must a sub-upload of `format` into `texture` be refused (INVALID_OPERATION)
+     * because it does not match the image's legacy format? WebGL, like GLES, wants
+     * the format of a legacy image's sub-upload to be that legacy format. Only a
+     * GLES driver says so itself: emulated RED storage cannot tell ALPHA from
+     * LUMINANCE or from a genuine R8, and a desktop driver (core or compatibility)
+     * converts any format — so the check is made here, on every context, from the
+     * format JS recorded.
+     */
+    _legacySubImageMismatch(texture: WebGLTexture, format: GLenum): boolean {
+        return (isLegacyFormat(format) || isLegacyFormat(texture._format)) && format !== texture._format;
+    }
+
+    /**
+     * Point the texture bound to `target` at `swizzle` (`null` = identity).
+     *
+     * The swizzle is TEXTURE state, so it must follow the image: a texture that
+     * held LUMINANCE and is re-specified as RGBA would otherwise keep sampling
+     * (R, R, R, 1). WebGL exposes no swizzle of its own (not even WebGL 2), so
+     * the emulation owns this state outright — no consumer value to preserve.
+     * `_swizzled` spares the four calls on the common path, where a texture
+     * never held a legacy format; without a texture to ask, an emulating
+     * context always writes, and any other never has a swizzle to reset.
+     */
+    _setTextureSwizzle(target: GLenum, texture: WebGLTexture | null, swizzle: Swizzle | null): void {
+        if (!swizzle && (texture ? !texture._swizzled : !this._emulatesLegacyFormats())) return;
+        const values = swizzle ?? IDENTITY_SWIZZLE;
+        const paramTarget = textureParameterTarget(target);
+        for (let i = 0; i < 4; ++i) {
+            this._gl.texParameteri(paramTarget, TEXTURE_SWIZZLE_PNAMES[i], values[i]);
+        }
+        if (texture) texture._swizzled = swizzle !== null;
+    }
+
+    /** Cached answer of {@link _desktopGlslForEsDerivatives}; `undefined` = not probed yet. */
+    private _esDerivativesDesktopGlsl: string | null | undefined;
+
+    /**
+     * The desktop GLSL version to respell a derivative-using GLSL ES 1.00
+     * shader in — or `null` when the context compiles it as written.
+     *
+     * PROBED, once per context, rather than inferred from the OS or the GL
+     * version: whether a desktop driver's ES 1.00 front end honours
+     * `GL_OES_standard_derivatives` is the driver's own choice (macOS's does not;
+     * nothing in the GL version says so), and compiling the smallest shader
+     * that needs it is the question itself. A failed compile queues no GL error,
+     * so the probe leaves nothing behind for a consumer's `getError()`.
+     */
+    _desktopGlslForEsDerivatives(): string | null {
+        if (this._esDerivativesDesktopGlsl !== undefined) return this._esDerivativesDesktopGlsl;
+        let answer: string | null = null;
+        // GLES compiles its own dialect natively; below GL 4.1 a GLSL1 shader
+        // is not compiled as `#version 100` at all (see `_getGlsl1Version`).
+        if (this._atLeastGlVersion(4, 1)) {
+            const id = this._gl.createShader(this.FRAGMENT_SHADER);
+            this._gl.shaderSource(
+                id,
+                '#version 100\n#extension GL_OES_standard_derivatives : enable\nprecision mediump float;\n' +
+                    'void main() { gl_FragColor = vec4(dFdx(gl_FragCoord.x)); }\n',
+            );
+            this._gl.compileShader(id);
+            const compiles = !!this._gl.getShaderParameter(id, this.COMPILE_STATUS);
+            this._gl.deleteShader(id);
+            if (!compiles) answer = this._desktopGlslVersion();
+        }
+        this._esDerivativesDesktopGlsl = answer;
+        return answer;
+    }
+
     _checkOwns(object: unknown): boolean {
         return typeof object === 'object' && object !== null && (object as { _ctx?: unknown })._ctx === this;
     }
@@ -442,16 +593,37 @@ export abstract class WebGLContextBase {
             'WEBGL_debug_renderer_info',
         ];
 
-        const supportedExts = this._gl.getSupportedExtensions();
+        const supportedExts = this._gl.getSupportedExtensions() ?? [];
 
-        if (!supportedExts) {
-            return exts;
+        // A GLES driver names these four as `GL_OES_*` extensions because GLES 2.0
+        // lacks them. DESKTOP GL folded each into core long ago, so a desktop
+        // driver has no reason to list the ES name, and macOS's GL 4.1 core does
+        // not: reading the list alone hid three of them on every darwin context,
+        // while Safari and Chrome expose all four on the same stack. So a feature
+        // is advertised when the list names it OR the desktop version provides
+        // it — the version, not the OS, is what makes the promise true.
+        // `_atLeastGlVersion` answers false for GLES, where the list stays the
+        // only source.
+        if (supportedExts.indexOf('GL_OES_element_index_uint') >= 0 || this._atLeastGlVersion(1, 1)) {
+            // 32-bit indices: `glDrawElements(GL_UNSIGNED_INT)` since GL 1.1.
+            exts.push('OES_element_index_uint');
         }
-
-        if (supportedExts.indexOf('GL_OES_element_index_uint') >= 0) exts.push('OES_element_index_uint');
-        if (supportedExts.indexOf('GL_OES_standard_derivatives') >= 0) exts.push('OES_standard_derivatives');
-        if (supportedExts.indexOf('GL_OES_texture_float') >= 0) exts.push('OES_texture_float');
-        if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0) exts.push('OES_texture_float_linear');
+        if (supportedExts.indexOf('GL_OES_standard_derivatives') >= 0 || this._atLeastGlVersion(2, 0)) {
+            // `dFdx`/`dFdy`/`fwidth` are GLSL 1.10 built-ins (GL 2.0), and
+            // `GL_FRAGMENT_SHADER_DERIVATIVE_HINT` shares the OES enum's value.
+            exts.push('OES_standard_derivatives');
+        }
+        if (supportedExts.indexOf('GL_OES_texture_float') >= 0 || this._atLeastGlVersion(3, 0)) {
+            // ARB_texture_float is core from GL 3.0. The unsized upload WebGL1
+            // uses (`RGBA` + `FLOAT`) is passed through: desktop GL lets the
+            // driver pick the storage, and macOS picks float (the spec's
+            // out-of-[0, 1] round trip is what proves it, not this comment).
+            exts.push('OES_texture_float');
+        }
+        if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0 || this._atLeastGlVersion(3, 0)) {
+            // Desktop GL 3.0 made 32-bit float textures filterable; GLES never did.
+            exts.push('OES_texture_float_linear');
+        }
         if (
             supportedExts.indexOf('GL_OES_texture_half_float') >= 0 ||
             supportedExts.indexOf('GL_ARB_half_float_pixel') >= 0
@@ -464,8 +636,20 @@ export abstract class WebGLContextBase {
             exts.push('EXT_color_buffer_float');
         if (supportedExts.indexOf('GL_EXT_color_buffer_half_float') >= 0) exts.push('EXT_color_buffer_half_float');
         if (supportedExts.indexOf('EXT_draw_buffers') >= 0) exts.push('WEBGL_draw_buffers');
-        if (supportedExts.indexOf('EXT_blend_minmax') >= 0) exts.push('EXT_blend_minmax');
-        if (supportedExts.indexOf('EXT_texture_filter_anisotropic') >= 0) exts.push('EXT_texture_filter_anisotropic');
+        // The driver list spells every name with its `GL_` prefix; these two were
+        // once looked up without it and so never matched on any driver.
+        if (supportedExts.indexOf('GL_EXT_blend_minmax') >= 0 || this._atLeastGlVersion(1, 4)) {
+            // MIN/MAX blend equations are core from GL 1.4 (the ARB imaging subset before it).
+            exts.push('EXT_blend_minmax');
+        }
+        if (
+            supportedExts.indexOf('GL_EXT_texture_filter_anisotropic') >= 0 ||
+            supportedExts.indexOf('GL_ARB_texture_filter_anisotropic') >= 0 ||
+            this._atLeastGlVersion(4, 6)
+        ) {
+            // Same enums under both names; core from GL 4.6.
+            exts.push('EXT_texture_filter_anisotropic');
+        }
         if (supportedExts.indexOf('GL_OES_vertex_array_object') >= 0) exts.push('OES_vertex_array_object');
 
         return exts;
@@ -555,6 +739,11 @@ export abstract class WebGLContextBase {
             case this.UNPACK_FLIP_Y_WEBGL:
                 return this._unpackFlipY;
 
+            // Answered from JS on every context: a core profile has no such
+            // state to query (see `hint`), and elsewhere the two always agree.
+            case this.GENERATE_MIPMAP_HINT:
+                return this._generateMipmapHint;
+
             case this.ACTIVE_TEXTURE:
             case this.ALPHA_BITS:
             case this.BLEND_DST_ALPHA:
@@ -568,7 +757,6 @@ export abstract class WebGLContextBase {
             case this.DEPTH_BITS:
             case this.DEPTH_FUNC:
             case this.FRONT_FACE:
-            case this.GENERATE_MIPMAP_HINT:
             case this.GREEN_BITS:
                 return this._gl.getParameteri(pname);
 
@@ -663,7 +851,9 @@ export abstract class WebGLContextBase {
                     | { MAX_TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
                     | undefined;
                 if (anisoExt && pname === anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT) {
-                    return this._getParameterDirect(pname);
+                    // A float, and one the native `getParameterx` switch does not
+                    // know (it answered a NULL Variant) — so read it as a float.
+                    return this._gl.getParameterf(pname);
                 }
 
                 const oesVao = this._extensions.oes_vertex_array_object as

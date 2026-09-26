@@ -64,7 +64,7 @@
             "win32": "partial"
         },
         "osNotes": {
-            "win32": "The win32 flavour is complete and driven directly by host-flavour.spec.ts from every host (drive letters, UNC, toNamespacedPath, parse/format), so its SEMANTICS are exercised on Linux. What no runner can confirm yet is the SELECTION: `hostOs()` returning \"win32\" picks it, and no GJS-on-Windows host exists to observe that. On a POSIX host \"selected per host\" and \"posix hardcoded\" are indistinguishable at runtime, which is why `selectFlavour(os)` takes the OS as an argument — that half is asserted. Promote to \"supported\" from the first GJS run on Windows."
+            "win32": "The win32 flavour is driven directly by host-flavour.spec.ts and win32-parity.spec.ts from every host (drive letters, drive-relative paths against a stubbed cwd, UNC and device roots, toNamespacedPath, parse/format), so its SEMANTICS are exercised on Linux; a random-input differential against native Node's path.win32 found no divergence. What no runner can confirm yet is the SELECTION: `hostOs()` returning \"win32\" picks it, and no GJS-on-Windows host exists to observe that. On a POSIX host \"selected per host\" and \"posix hardcoded\" are indistinguishable at runtime, which is why `selectFlavour(os)` takes the OS as an argument — that half is asserted. Promote to \"supported\" from the first GJS run on Windows."
         }
     },
     "license": "MIT",

@@ -193,6 +193,70 @@ export default async () => {
             });
         });
 
+        // Node hands the SAME socket to the 'upgrade' listener and to `req.socket`
+        // (and the legacy `req.connection` alias). engine.io's WebSocket-only
+        // handshake reads `req.connection.remoteAddress` — a null socket there
+        // throws inside its async handshake and the client never connects.
+        await it('should expose the upgrade socket as req.socket and req.connection', async () => {
+            const server = http.createServer((_req, res) => {
+                res.writeHead(200);
+                res.end();
+            });
+
+            await new Promise<void>((resolve, reject) => {
+                let seen: {
+                    sameSocket: boolean;
+                    sameConnection: boolean;
+                    remoteAddress: unknown;
+                    remotePort: unknown;
+                    localPort: unknown;
+                } | null = null;
+
+                server.on('upgrade', (req, socket, _head) => {
+                    seen = {
+                        sameSocket: req.socket === socket,
+                        sameConnection: (req as unknown as { connection: unknown }).connection === socket,
+                        remoteAddress: req.socket?.remoteAddress,
+                        remotePort: req.socket?.remotePort,
+                        localPort: req.socket?.localPort,
+                    };
+                    socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: custom\r\n\r\n');
+                    socket.end();
+                });
+
+                server.listen(0, () => {
+                    const addr = server.address() as { port: number };
+                    const client = net.createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
+                        client.write(
+                            'GET /sock HTTP/1.1\r\n' +
+                                `Host: 127.0.0.1:${addr.port}\r\n` +
+                                'Upgrade: custom\r\n' +
+                                'Connection: Upgrade\r\n' +
+                                '\r\n',
+                        );
+                    });
+
+                    client.on('data', () => {});
+                    client.on('end', () => {
+                        try {
+                            expect(seen).not.toBeNull();
+                            expect(seen!.sameSocket).toBe(true);
+                            expect(seen!.sameConnection).toBe(true);
+                            // Node reports the v4-mapped form on its dual-stack default listener.
+                            expect(String(seen!.remoteAddress)).toMatch(/127\.0\.0\.1$/);
+                            expect(seen!.remotePort).toBe(client.localPort);
+                            expect(seen!.localPort).toBe(addr.port);
+                            server.close(() => resolve());
+                        } catch (e) {
+                            server.close(() => reject(e));
+                        }
+                    });
+                    client.on('error', reject);
+                });
+                server.on('error', reject);
+            });
+        });
+
         await it('should support bidirectional data after upgrade', async () => {
             const server = http.createServer((_req, res) => {
                 res.writeHead(200);

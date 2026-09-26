@@ -41,24 +41,28 @@ export function canRealizeSurface(os: TargetOs | undefined, env: DisplayEnv): bo
 /**
  * Can this host realize a GL context our WebGL implementation can serve?
  *
- * STRICTLY narrower than {@link canRealizeSurface}, and the reason the two carry
- * different names. macOS has a window server without `DISPLAY`, so it passes the
- * surface gate — but no CI leg has ever realized a GL context there: every darwin
- * GL measurement in `status/open-todos.md` was taken by hand on the test VM, with
- * `DYLD_LIBRARY_PATH` exported by the operator, because the `Gtk-4.0` typelib's
- * bare `libgtk-4.1.dylib` leaf does not otherwise resolve on that host (#973). So
- * the darwin answer is unknown, not no. Answering the GL question with the surface
- * answer turns macOS red for a reason the WebGL suite does not own; answering the
- * surface question with the GL answer is what kept darwin silent. win32 is excluded
- * for the measured reason in #1097: the bundled GTK resolves epoxy with no GL
- * implementation behind it.
+ * ASKED, not inferred: `probe` realizes a context and reports whether that
+ * worked, and this rule only decides whether asking is sensible at all.
  *
- * The GL 4.1 ceiling is NOT a reason to exclude darwin any more — `shaderSource()`
- * rewrites `#version 300 es` for a desktop context without ARB_ES3_compatibility,
- * and WebGL2 content draws there (measured, macOS 15.7.9 / GL 4.1 core).
+ * It used to be answered from the OS alone — Linux with a display, nothing
+ * else — because darwin was UNKNOWN rather than no (every darwin GL measurement
+ * had been taken by hand, with a loader variable the operator exported, #973),
+ * and win32's bundled GTK resolves epoxy with no GL implementation behind it on
+ * a VM without an ICD (#1097). Both reasons describe a HOST, not an OS: the
+ * first Apple Silicon Mac realized a GL 4.1 core context through GTK 4.24 and
+ * the WebGL suites ran green there, while the OS rule had kept every one of
+ * them silently skipped. An OS rule is wrong in both directions at once — it
+ * skips a Mac that has GL and would run a Linux runner whose driver has none —
+ * and the probe is the question itself, so it is right on hosts no rule named.
  *
- * Widen this the day a leg proves the context — not the day it seems plausible.
+ * Still STRICTLY narrower than {@link canRealizeSurface}: no surface, no GL, and
+ * the probe is never run where there is no display to open (a headless Linux
+ * container, where GTK's own init would fail first).
  */
-export function canRealizeGl(os: TargetOs | undefined, env: DisplayEnv): boolean {
-    return os === 'linux' && !!(env.DISPLAY || env.WAYLAND_DISPLAY);
+export async function canRealizeGl(
+    os: TargetOs | undefined,
+    env: DisplayEnv,
+    probe: () => boolean | Promise<boolean>,
+): Promise<boolean> {
+    return canRealizeSurface(os, env) && (await probe());
 }

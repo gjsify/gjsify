@@ -40,6 +40,29 @@ export default async () => {
             rmSync(tmp, { recursive: true, force: true });
         });
 
+        await it('refuses to copy a directory into itself, however the path is spelled', async () => {
+            // The check prefix-matched `src + '/'` on the raw strings: `<tmp>/./src/sub` slipped
+            // past it and the copy walked into its own output, and on win32 the literal `/` missed
+            // every backslash-separated destination. Both sides are resolved first now, as in Node,
+            // which answers ERR_FS_CP_EINVAL (the old check threw ELOOP).
+            const tmp = makeTmp();
+            mkdirSync(join(tmp, 'src'));
+            writeFileSync(join(tmp, 'src', 'a.txt'), 'a');
+            for (const dest of [join(tmp, 'src', 'sub'), `${tmp}/./src/sub`]) {
+                let code: unknown;
+                try {
+                    cpSync(join(tmp, 'src'), dest, { recursive: true });
+                } catch (e: any) {
+                    code = e.code;
+                }
+                expect(code).toBe('ERR_FS_CP_EINVAL');
+            }
+            // A sibling that merely shares the prefix is not inside it.
+            cpSync(join(tmp, 'src'), join(tmp, 'src2'), { recursive: true });
+            expect(readFileSync(join(tmp, 'src2', 'a.txt'), 'utf8')).toBe('a');
+            rmSync(tmp, { recursive: true, force: true });
+        });
+
         await it('recursively copies a directory tree', async () => {
             const tmp = makeTmp();
             mkdirSync(join(tmp, 'src', 'sub'), { recursive: true });

@@ -241,7 +241,7 @@ the answer three ways rather than two:
 - **retired** — a declared gap whose plugin DID arrive: also a failure, so an entry cannot
   outlive the archive that justified it.
 
-A platform's own sink is not the other's gap — `GST_PLATFORM_SINKS` keeps `osxaudio` out of the
+A platform's own sink is not the other's gap — `GST_PLATFORM_PLUGINS` keeps `osxaudio` out of the
 win32 expectation, because an alarm that is wrong on every run is one nobody reads. An os this
 does not bundle for is REFUSED rather than answered: an unrecognised string makes every sink
 foreign, so a typo in a target would have relaxed the expectation instead of failing it.

@@ -124,12 +124,28 @@ function isBareName(cmd: string): boolean {
 }
 
 /**
- * Find `cmd` on the child's `PATH`, trying each `PATHEXT` extension per
- * directory — the order `CreateProcess` itself uses.
+ * Find `cmd` on `ctx.env.PATH` the way the host's process creation would, or
+ * `undefined`.
+ *
+ * On win32 a bare name is tried with each `PATHEXT` extension per directory — the
+ * order `CreateProcess` itself uses — and NEVER as-is: the extensionless member of
+ * npm's shim trio (`npm`, `gjsify`) is a `sh` script that exists on disk and cannot
+ * be executed, so an existence probe that accepts it answers "yes" for a command
+ * that is ENOENT to `spawn`. A name that already carries an extension, and every
+ * name off win32, is probed verbatim.
+ *
+ * Exported because "is X on PATH" is asked outside the spawn path too
+ * (`isOnPath` in `check-system-deps.ts`), and a second, PATHEXT-blind walk there
+ * reported `signtool` missing on a Windows host with `signtool.exe` on PATH —
+ * `gjsify ship win32 --sign` refused to run on the one OS it can sign on.
  */
-function lookupOnPath(cmd: string, ctx: Win32ResolveContext): string | undefined {
-    const dirs = (lookupEnv(ctx.env, 'PATH') ?? '').split(';').filter(Boolean);
-    const exts = (lookupEnv(ctx.env, 'PATHEXT') ?? DEFAULT_PATHEXT).split(';').filter(Boolean);
+export function findOnPath(cmd: string, ctx: Win32ResolveContext): string | undefined {
+    const win = ctx.platform === 'win32';
+    const dirs = (lookupEnv(ctx.env, 'PATH') ?? '').split(win ? ';' : ':').filter(Boolean);
+    const exts =
+        win && !/\.[^.\\/]+$/.test(cmd)
+            ? (lookupEnv(ctx.env, 'PATHEXT') ?? DEFAULT_PATHEXT).split(';').filter(Boolean)
+            : [''];
     for (const dir of dirs) {
         for (const ext of exts) {
             const candidate = ctx.join(dir, cmd + ext);
@@ -152,7 +168,7 @@ export function resolveWin32Command(
     ctx: Win32ResolveContext,
 ): Win32Invocation | undefined {
     if (ctx.platform !== 'win32' || !isBareName(cmd)) return undefined;
-    const resolved = lookupOnPath(cmd, ctx);
+    const resolved = findOnPath(cmd, ctx);
     if (!resolved) return undefined;
     // `.exe`/`.com` run without an interpreter; spawning the resolved absolute path skips a
     // second PATH search and cannot be shadowed in between.

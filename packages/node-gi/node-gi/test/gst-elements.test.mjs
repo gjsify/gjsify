@@ -24,6 +24,17 @@ import assert from 'node:assert/strict';
 import { requireGi } from '../gi.js';
 import { GST_PLUGIN_GAPS, gstAudioDecoders } from '../../scripts/gst-plugins.mjs';
 import { resolveGtkRuntimeBundle } from '../gtk-runtime.js';
+import {
+    AAC_FIXTURE_SECONDS,
+    MP3_FIXTURE_SECONDS,
+    PCM_RATE,
+    decodeToPcm,
+    icyInterleave,
+    readAdtsFixture,
+    readM4aFixture,
+    readMp3Fixture,
+    stripId3v2,
+} from './gst-decode.mjs';
 import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
 // The pipeline @gjsify/webaudio is built from, element by element. Named
@@ -46,6 +57,24 @@ const REQUIRED_ELEMENTS = [
     ['playbin3', 'the URI player an app hands a stream address to'],
     ['uridecodebin3', 'what playbin3 autoplugs the source and the decoder from'],
     ['souphttpsrc', 'the http(s) source — a URI pipeline has no source element without it'],
+    // What sits BETWEEN that source and the decoder on a real stream, and no bundle carried
+    // it. An Icecast server answering `Icy-MetaData: 1` (souphttpsrc sends it by default)
+    // interleaves title blocks into the audio, and souphttpsrc labels the bytes
+    // `application/x-icy`, which only icydemux accepts. Measured against a live Icecast MP3
+    // stream with the host GStreamer: with icydemux ranked NONE, playbin3 fails with
+    // `Internal data stream error` out of souphttpsrc — the same string a missing TLS
+    // backend produces, for a third, different cause.
+    ['icydemux', 'strips Icecast metadata blocks, without which a live radio stream reaches no parser'],
+    // The file-side twin: a podcast episode normally opens with an ID3v2 tag, which typefind
+    // reports as `application/x-id3` rather than as MPEG audio.
+    ['id3demux', 'strips the ID3v2 tag most MP3 files open with'],
+    // AAC's two shapes need DIFFERENT elements ahead of the decoder, measured by ranking each
+    // out in turn: an M4A podcast episode is demuxed by `qtdemux`, which hands the decoder raw
+    // AAC directly (`aacparse` ranked out changes nothing for that file); a live AAC stream
+    // carries no container at all and reaches the decoder only through `aacparse` (`qtdemux`
+    // ranked out changes nothing for that one — there is no container to fail to demux).
+    ['qtdemux', 'demuxes the M4A/MP4 container a podcast episode ships as'],
+    ['aacparse', 'parses raw ADTS AAC, the shape a live stream sends with no container at all'],
 ];
 
 test('the GStreamer registry resolves the audio-path elements', { skip }, () => {
@@ -156,6 +185,129 @@ test('a declared decoder gap is still a gap', { skip: bundleSkip }, () => {
         `this bundle's \`gjsify.mediaCapabilities.gaps\` declares no decoder for ${arrived.join(', ')}, and the ` +
             'registry has one. Delete the entry — the bundle now keeps a promise its own ' +
             'declaration still refuses.',
+    );
+});
+
+// THE EFFECT, for the two MP3 shapes an app plays: a tagged file and an Icecast stream.
+// Everything above asks whether a FACTORY exists, and a factory can exist and never be
+// autoplugged — a rank of NONE, a caps mismatch, a demuxer missing in front of it. So these
+// push real bytes through decodebin3 (what playbin3 plugs) and count the PCM that comes out.
+//
+// UNCONDITIONAL on every bundle, not driven by the claim list. MP3 is the format a desktop
+// app on these runtimes was measured failing on (#1544, #1626: a podcast episode and a live
+// radio stream, both silent on win32), so "the bundle plays MP3" is the requirement and the
+// manifest's claim is held to it rather than the other way round.
+//
+// Negative controls, run on linux-x64 against the host registry with the same helper
+// (`GST_PLUGIN_FEATURE_RANK=<feature>:NONE`): every MP3 decoder ranked out → 0 frames on
+// both; icydemux out → the stream 0, the file unaffected; id3demux out → the file 0, the
+// stream unaffected. Each test goes red for its own cause and only for it.
+const MP3_FRAMES = MP3_FIXTURE_SECONDS * PCM_RATE;
+// Upper slack: an MP3 decoder that ignores the LAME gapless header emits the encoder delay
+// and the last frame's padding — 46080 frames for this fixture on mpg123, i.e. 40 × 1152.
+const MP3_FRAMES_MAX = MP3_FRAMES + 4 * 1152;
+
+test('an ID3-tagged MP3 file decodes to PCM on the bundle', { skip: bundleSkip }, () => {
+    assert.ok(
+        claim.some((entry) => entry.format === 'MP3'),
+        "this bundle's `gjsify.mediaCapabilities.audioDecode` does not claim MP3, and every bundle has to",
+    );
+    const result = decodeToPcm(readMp3Fixture());
+    assert.ok(
+        result.frames >= 0.9 * MP3_FRAMES && result.frames <= MP3_FRAMES_MAX && result.eos,
+        `decoding a ${MP3_FIXTURE_SECONDS} s MP3 produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${MP3_FRAMES}..${MP3_FRAMES_MAX}. ` +
+            'Zero frames with no EOS is what decodebin3 does when nothing can take the stream: it posts no ' +
+            'error and exposes no pad, which an app sees as a player that never leaves READY.',
+    );
+});
+
+test('an Icecast MP3 stream decodes to PCM on the bundle', { skip: bundleSkip }, () => {
+    // Offline: the bytes a server sends for `Icy-MetaData: 1`, labelled the way souphttpsrc
+    // labels them. 2048 puts two metadata blocks into this fixture (the first with a title);
+    // a real server uses 16000, which here would insert none and prove nothing. Each block
+    // costs a frame or two at the parser's resync — measured 43776 frames against 46080 — so
+    // the lower bound is the same 90 %.
+    const interval = 2048;
+    const result = decodeToPcm(
+        icyInterleave(stripId3v2(readMp3Fixture()), interval),
+        `application/x-icy,metadata-interval=(int)${interval}`,
+    );
+    assert.ok(
+        result.frames >= 0.9 * MP3_FRAMES && result.frames <= MP3_FRAMES_MAX && result.eos,
+        `an ICY-interleaved MP3 stream produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${MP3_FRAMES}..${MP3_FRAMES_MAX}. ` +
+            'This is the live-radio path minus the network: icydemux → mpegaudioparse → the MP3 decoder.',
+    );
+});
+
+// AAC, the format `mediafoundation` closed for MP3 also registers a decoder for
+// (`mfaacdec` beside `mfmp3dec`, ADR 0056 § 7) — claimed PER CONTAINER SHAPE rather than as
+// one format, because the two are not one capability: measured on real win32 CI (run
+// 36100259678), `mfaacdec` decodes the M4A shape (qtdemux hands it raw AAC directly) and does
+// NOT decode the raw ADTS shape through decodebin3 — `try_pull_sample` ran its full 5 s
+// timeout with no sample and no EOS, a STALL rather than the instant "no error, no pad" settle
+// the MP3/M4A negative shape produces, even though `aacparse` resolves as a factory
+// (REQUIRED_ELEMENTS, above) same as it does on every other platform. The cause inside
+// `mfaacdec`'s caps negotiation is not root-caused here; what is asserted is the OUTCOME,
+// per shape. darwin ships no AAC decoder at all for either shape — `faad` (GPL) and
+// `avdec_aac` (the libav closure ADR 0037 refuses) both deliberately excluded — so
+// `gjsify.mediaCapabilities.gaps` stays the honest answer there for both.
+//
+// GATED ON THE CLAIM, unlike the MP3 tests above, which is the opposite of "unconditional on
+// every bundle": MP3 is decoded EVERYWHERE (through different elements) and a bundle silent
+// about it would be the asymmetry #1544 cost; each AAC shape decodes on AT MOST one platform
+// by measurement, so asserting success where the manifest does not claim it would fail for a
+// reason already stated, and asserting nothing at all would let a future claim rot untested.
+//
+// Negative controls, run on linux-x64 with the host's three AAC decoders ranked out
+// (`GST_PLUGIN_FEATURE_RANK=avdec_aac:NONE,avdec_aac_fixed:NONE,avdec_aac_latm:NONE,faad:NONE,
+// fdkaacdec:NONE`): both shapes fail fast with `Internal data stream error` / not-negotiated
+// and 0 bytes out — qtdemux for the M4A file, aacparse for the raw stream, matching the
+// element each one's REQUIRED_ELEMENTS entry above names. Ranking out only `qtdemux` empties
+// the M4A pipeline (`No streams to output`) and leaves the ADTS one unaffected; ranking out
+// only `aacparse` fails the ADTS pipeline and leaves the M4A one unaffected. On linux-x64
+// WITH a decoder present (the closest reachable stand-in — no Windows host runs `mfaacdec`
+// from this workstation), both shapes decode: M4A to 44101 frames, raw ADTS to 46080.
+const AAC_FRAMES = AAC_FIXTURE_SECONDS * PCM_RATE;
+// Upper slack: an M4A file is trimmed by the container's own edit list (measured 44101 frames
+// for a 44100-sample input, decoder-agnostic — the clipping is qtdemux's segment, not the
+// decoder's), while raw ADTS carries no edit list and none is applied downstream, so its
+// decode includes the encoder's look-ahead delay untrimmed (measured 46080 frames — 45 × 1024,
+// one full AAC-LC frame more than the input). One bound covers both, on the MP3 tests' pattern.
+const AAC_FRAMES_MAX = AAC_FRAMES + 4 * 1024;
+
+const aacM4aClaim = claim.find((entry) => entry.format === 'AAC (M4A)');
+const aacM4aSkip =
+    bundleSkip ||
+    (aacM4aClaim
+        ? false
+        : "this bundle's `gjsify.mediaCapabilities` declares no AAC (M4A) decoder — see its `gaps`, and ADR 0056 § 7");
+
+test('an M4A podcast episode decodes to PCM where the bundle claims AAC (M4A)', { skip: aacM4aSkip }, () => {
+    const result = decodeToPcm(readM4aFixture());
+    assert.ok(
+        result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,
+        `decoding a ${AAC_FIXTURE_SECONDS} s M4A produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${AAC_FRAMES}..${AAC_FRAMES_MAX}. ` +
+            `The claimed decoder is \`${aacM4aClaim?.element}\`; qtdemux hands it raw AAC with no aacparse in between.`,
+    );
+});
+
+const aacAdtsClaim = claim.find((entry) => entry.format === 'AAC (ADTS)');
+const aacAdtsSkip =
+    bundleSkip ||
+    (aacAdtsClaim
+        ? false
+        : "this bundle's `gjsify.mediaCapabilities` declares no AAC (ADTS) decoder — see its `gaps`, and ADR 0056 § 7");
+
+test('a raw ADTS AAC stream decodes to PCM where the bundle claims AAC (ADTS)', { skip: aacAdtsSkip }, () => {
+    const result = decodeToPcm(readAdtsFixture());
+    assert.ok(
+        result.frames >= 0.9 * AAC_FRAMES && result.frames <= AAC_FRAMES_MAX && result.eos,
+        `decoding a ${AAC_FIXTURE_SECONDS} s raw ADTS stream produced ${result.frames} frames (eos: ${result.eos}` +
+            `${result.error ? `, error: ${result.error}` : ''}); expected ${AAC_FRAMES}..${AAC_FRAMES_MAX}. ` +
+            'This is the live-radio shape: no container, aacparse is what decodebin3 autoplugs the decoder behind.',
     );
 });
 

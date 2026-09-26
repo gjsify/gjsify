@@ -873,3 +873,71 @@ That second question is BUNDLING work, out of this ADR's amendment and tracked s
 recorded here is the asymmetry and the invariant now held in
 `font-script-coverage.test.mjs`: the loader names a fontconfig configuration exactly when the
 bundle carries one, so the gap cannot close silently in either direction.
+
+## Amendment 5 (2026-09-24) — a declined face falls back to a fontconfig map, for the run that has no `.app`
+
+**The gap.** Every route above reaches a face on macOS through something a SHIPPED application has:
+`ATSApplicationFontsPath` in its `Info.plist`, or the bundled runtime's loader selecting
+`PANGOCAIRO_BACKEND=fc` (§ Amendment 3). `gjsify run` on a Homebrew GTK has neither. It resolves a
+`PangoCairoCoreTextFontMap`, every `add_font_file` answers `G_IO_ERROR_NOT_SUPPORTED`, and the
+application's own face renders as the fallback sans — silently, in development, which is where a
+developer actually looks at it. `initFonts()` reported that as `declined`, whose documented meaning
+("the OS already activated the directory") was false for that process.
+
+**Measured on a real Mac** (macOS 27 arm64, Homebrew gjs 1.88.1 / pango with fontconfig, the showcase
+face `Round9x13.ttf`): the default map is `PangoCairoCoreTextFontMap`, 186 families, and
+`add_font_file` declines. `PangoCairo.FontMap.new_for_font_type(CAIRO_FONT_TYPE_FT)` builds a
+`PangoCairoFcFontMap` with 380 families from Homebrew's `fonts.conf`; `add_font_file` on it
+succeeds; after `set_default()` on it — even AFTER `Gtk.init()` — a new `Gtk.Label`'s context
+resolves that map and a 40pt "Wg" measures 50x38 in `Round9x13` against 65x49 for an invented family,
+with Tamil and emoji at 0 unknown glyphs.
+
+### The decision
+
+When the default map declines faces, `initFonts()` builds a fontconfig map, registers the declined
+faces there and makes it the process default with `pango_cairo_font_map_set_default()` — the map
+`gtk_widget_get_font_map()` falls back to. The result reports it (`fontconfigFallback: true`) and the
+faces move from `declined` to `registered`. It does this ONLY when all of these hold, each one
+keeping a case that already worked unchanged:
+
+1. `PANGOCAIRO_BACKEND` is unset. Set, somebody chose — an operator pinning `coretext`, or the
+   bundled runtime's loader, whose `fc` map never declines in the first place.
+2. This pango can build an fc map (`new_for_font_type` answers NULL otherwise).
+3. That map has families of its own. An empty one means fontconfig found no configuration, and
+   adopting it would trade one missing face for every glyph — § Amendment 3's own scoping reason.
+4. The faces bring at least one family the platform map does NOT already hold. In a shipped `.app`
+   `ATSApplicationFontsPath` put them on the CoreText map before any code ran; there the platform
+   map is kept and the faces stay `declined`, exactly as before.
+
+### Alternatives, and why not
+
+- **`CTFontManagerRegisterFontsForURL`** keeps CoreText rendering. It is not reachable from GJS
+  without a native symbol — a new darwin prebuild or a new export on `@gjsify/webkit-native`, whose
+  macOS CI leg is opt-in — and it would ALSO have to run before Pango first builds its map, because
+  `pangocoretext-fontmap.c` has no re-scan path (§ Amendment 2's reading). That is an ordering
+  contract on application startup that `initFonts()` cannot enforce, for a gain in rasteriser
+  fidelity during development only.
+- **Setting `PANGOCAIRO_BACKEND=fc` in `gjsify run`** would work for the CLI's own launch and for
+  nobody running `gjs -m` directly, and it would switch the backend for every application, including
+  those shipping no face.
+- **A dev-time `.app` wrapper** so `ATSApplicationFontsPath` applies: a packaging step on every run.
+
+### The trade-off
+
+Same as § Amendment 3, narrower: text in that process is rasterised by FreeType instead of CoreText.
+It happens only for a process whose application asked for faces that would otherwise not render,
+it is reported in the result rather than inferred, and `PANGOCAIRO_BACKEND=coretext` gives the
+platform map back. Widgets built BEFORE the call keep the map they hold — the existing "call
+`initFonts()` before any text is laid out" rule covers it.
+
+### Held by
+
+`fonts.spec.ts`: the discriminator suite's three `it.failing` gates now read "can `initFonts` reach
+the face" (raw registration OR the fallback probe), so on a Homebrew darwin host they run as plain
+assertions; a new case asserts the swap happened exactly when the probe said it could and that the
+adopted default map accepts registration. The two suites that drive a SCRATCH map of the platform
+backend by hand keep their `it.failing` on CoreText — they measure the backend, not this call.
+
+**Not decided here:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default
+map on its own and swallows the decline; it inherits the adopted map when `initFonts()` ran first,
+and is tracked in `status/open-todos.md` otherwise.
