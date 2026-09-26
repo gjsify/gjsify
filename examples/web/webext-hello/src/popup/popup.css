@@ -1,0 +1,9 @@
+body {
+  width: 280px;
+  font: 14px system-ui, sans-serif;
+}
+
+/* The UA's [hidden] rule loses to any author `display`, so it is restated. */
+[hidden] {
+  display: none !important;
+}

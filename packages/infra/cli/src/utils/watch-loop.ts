@@ -84,9 +84,24 @@ export async function spawnBundleSupervised(
     return spawnSupervised(cmd, launchArgs, env);
 }
 
+/** One path the loop watches — a directory recursively, or the directory's own entries only. */
+export interface WatchTarget {
+    path: string;
+    recursive: boolean;
+}
+
 export interface WatchLoopOptions {
-    /** Directory watched recursively. */
+    /** Directory watched recursively — the label and the default when `watch` is not given. */
     dir: string;
+    /**
+     * Several paths instead of `dir` alone. `gjsify webext dev` needs it: its
+     * sources sit in sibling top-level directories next to `node_modules`, and a
+     * recursive watch on the project root costs one `Gio.FileMonitor` per
+     * directory under GJS, `node_modules` included.
+     */
+    watch?: readonly WatchTarget[];
+    /** An absolute changed path the loop must not rebuild for (build output, caches). */
+    ignore?: (changed: string) => boolean;
     /** How `dir` is spelled in the loop's own log lines. Defaults to `dir`. */
     dirLabel?: string;
     /** Prefix for the loop's log lines: `[<label>] …`. */
@@ -160,7 +175,7 @@ export function isSelfWrite(dir: string, output: string | undefined, filename: s
  * fix, and a dev loop that dies on a syntax error is a dev loop nobody uses.
  */
 export async function runWatchLoop(opts: WatchLoopOptions): Promise<void> {
-    const { dir, label, prepare, build, spawnChild, output, debounceMs = 200 } = opts;
+    const { dir, label, prepare, build, spawnChild, output, ignore, debounceMs = 200 } = opts;
     // Say so BEFORE the first build: `gjsify run`'s in-process dispatch acts on
     // this the moment the handler resolves, and a first build that throws still
     // leaves the loop watching.
@@ -199,11 +214,15 @@ export async function runWatchLoop(opts: WatchLoopOptions): Promise<void> {
     await rebuild();
 
     let debounce: ReturnType<typeof setTimeout> | null = null;
-    const watcher = watch(dir, { recursive: true }, (_event, filename) => {
-        if (isSelfWrite(dir, output, typeof filename === 'string' ? filename : null)) return;
-        if (debounce) clearTimeout(debounce);
-        debounce = setTimeout(() => void rebuild(), debounceMs);
-    });
+    const watchers = (opts.watch ?? [{ path: dir, recursive: true }]).map((target) =>
+        watch(target.path, { recursive: target.recursive }, (_event, filename) => {
+            const name = typeof filename === 'string' ? filename : null;
+            if (isSelfWrite(target.path, output, name)) return;
+            if (ignore && name !== null && ignore(resolve(target.path, name))) return;
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(() => void rebuild(), debounceMs);
+        }),
+    );
 
     // Under GJS nothing else keeps us here. An `fs.watch` handle is a Gio file
     // monitor, not a Node handle count, and the supervised spawn's own
@@ -231,7 +250,7 @@ export async function runWatchLoop(opts: WatchLoopOptions): Promise<void> {
         stopping = true;
         if (debounce) clearTimeout(debounce);
         child?.kill();
-        watcher.close();
+        for (const watcher of watchers) watcher.close();
         process.exit(0);
     };
     process.on('SIGINT', shutdown);

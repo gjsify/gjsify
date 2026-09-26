@@ -102,7 +102,7 @@ export default async () => {
             (await setupForNode({ output: { file: 'dist/x.mjs' }, pluginOptions })).options.resolve;
         const NODE_VIEW = {
             mainFields: ['module', 'main', 'browser'],
-            conditionNames: ['require', 'node', 'module'],
+            conditionNames: ['node'],
         };
 
         await it('a reverse-bridge build keeps the node view', async () => {

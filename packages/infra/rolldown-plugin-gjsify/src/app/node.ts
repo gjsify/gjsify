@@ -313,10 +313,16 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         external: exactExternal,
         resolve: {
             mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
-            // CJS-priority conditions. Rolldown takes the package's first matching
-            // key, so adding 'import' would route ws v8 (which lists 'import'
-            // before 'require') through its incomplete ESM wrapper.
-            conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
+            // Neither 'import' nor 'require' on the esm build: rolldown adds the one
+            // matching each call site's kind, as Node's resolver does. Listing 'require'
+            // made every `import` take the CJS build wherever a package declares
+            // `require` first — `import basex from 'base-x'` then bound
+            // `module.exports` as the default and threw "(0, x.default) is not a
+            // function" at load, while the same source ran on Node. `--app gjs` lost
+            // the pinned 'import' for the mirror bug (#1130). 'module' is not a
+            // condition Node knows, and a require() would take it wherever a package
+            // lists it before 'require'.
+            conditionNames: format === 'esm' ? ['node'] : ['require'],
         },
         transform: {
             target: 'node24',

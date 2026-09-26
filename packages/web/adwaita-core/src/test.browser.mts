@@ -39,6 +39,7 @@ import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
+import shortcutFormatTestSuite from './shortcut-format.spec.js';
 import sourceTestSuite from './source.spec.js';
 
 run({
@@ -76,5 +77,6 @@ run({
     labelTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
+    shortcutFormatTestSuite,
     sourceTestSuite,
 });

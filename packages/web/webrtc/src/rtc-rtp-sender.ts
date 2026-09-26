@@ -89,6 +89,34 @@ export interface RTCRtpSendParameters {
 
 let _txCounter = 0;
 
+/**
+ * Wake the streaming thread parked downstream of `pad` before stopping any element on that path.
+ *
+ * INCIDENT (`Multi-PC fan-out › track gets a tee multiplexer after second addTrack`, flaky on
+ * `Test 3/4 Fedora 44` in PRs #1796/#1800/#1842, the job killed by the heartbeat guard):
+ * webrtcbin holds every buffer on a sink pad with a BLOCKING probe until that pad's stream is
+ * negotiated. The source's streaming thread therefore parks inside webrtcbin while still holding
+ * the stream lock of every pad it passed through. Stopping an element on that path from the main
+ * thread — `source.set_state(NULL)` in the tee insertion, the element-wise loop in
+ * `_teardownPipeline` — waits for one of those locks, and a blocked probe is woken only by
+ * flushing ITS pad, which nothing did. GJS's single thread froze. Whether it hung depended on
+ * whether the first buffer had reached webrtcbin yet: a race on CI, deterministic on a host with
+ * a faster first buffer (a pure-GStreamer repro on macOS hung every run, even with no delay).
+ *
+ * FLUSH_START travels the whole path and sets each pad flushing, which returns the parked push
+ * with FLUSHING and releases the locks. It is not serialized, so sending it never needs the
+ * stream lock it is freeing. A pipeline-wide state change does not need this: it stops sinks
+ * first, and deactivating webrtcbin's pads is itself the flush.
+ */
+function releaseDownstreamStreamingThread(pad: GstNs.Pad | null | undefined): void {
+    if (!pad) return;
+    const flushStart = Gst.Event.new_flush_start();
+    // The boolean means "every pad handled it"; webrtcbin's internals answer false while still
+    // flushing, so it cannot tell a released thread from a failed one and nothing is gated on it.
+    if (pad.direction === Gst.PadDirection.SRC) pad.push_event(flushStart);
+    else pad.send_event(flushStart);
+}
+
 export class RTCRtpSender {
     private _gstSender: GstWebRTC.WebRTCRTPSender | null;
     private _track: MediaStreamTrack | null = null;
@@ -215,7 +243,12 @@ export class RTCRtpSender {
             // First, unlink source from its current peer (the first sender's valve)
             const sourceSrcPad = source.get_static_pad('src');
             const oldPeer = sourceSrcPad?.get_peer?.();
-            if (oldPeer) sourceSrcPad.unlink(oldPeer);
+            if (oldPeer) {
+                // Must precede the unlink: afterwards the flush can no longer reach the pad the
+                // streaming thread is parked on, and set_state(NULL) below deadlocks.
+                releaseDownstreamStreamingThread(sourceSrcPad);
+                sourceSrcPad.unlink(oldPeer);
+            }
 
             source.set_state(Gst.State.NULL);
             oldPipeline.remove(source);
@@ -230,6 +263,9 @@ export class RTCRtpSender {
             if (oldPeer) {
                 const firstBranch = tee.requestSrcPad();
                 if (firstBranch) firstBranch.link(oldPeer);
+                // The flush above left the first sender's chain flushing; without the stop it
+                // refuses every buffer it is fed again.
+                oldPeer.send_event(Gst.Event.new_flush_stop(true));
             }
 
             // Request a branch for this sender
@@ -358,6 +394,12 @@ export class RTCRtpSender {
             this._track._setEnableCallback(null);
             this._track._senderConsumers = Math.max(0, this._track._senderConsumers - 1);
         }
+        // Stopping the chain element by element deadlocks while a buffer is parked in webrtcbin
+        // (a pre-negotiation removeTrack/replaceTrack(null)), and so may releasing a tee pad the
+        // parked push went through. The valve heads the chain in both the direct and the
+        // tee-branch shape, and a flush sent into it travels only downstream: other branches keep
+        // flowing.
+        releaseDownstreamStreamingThread(this._valve?.get_static_pad('sink'));
         // Release tee branch if using shared source
         if (this._teeSrcPad && this._track?._teeMultiplexer) {
             try {

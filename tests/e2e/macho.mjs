@@ -40,7 +40,7 @@ export const SYSTEM_DYLIB = { cmd: LC_LOAD_DYLIB, str: '/usr/lib/libSystem.B.dyl
 /**
  * A thin 64-bit Mach-O carrying `commands` and nothing else.
  *
- * @param {Array<{cmd: number, str?: string}>} commands
+ * @param {Array<{cmd: number, str?: string, bytes?: Buffer}>} commands
  * @param {{ arch?: 'x64' | 'arm64' }} [options]
  * @returns {Buffer}
  */
@@ -50,7 +50,9 @@ export function machO(commands, { arch = 'x64' } = {}) {
     header.writeUInt32LE(CPU_TYPE[arch], 4);
     header.writeUInt32LE(commands.length, 16);
 
-    const blocks = commands.map(({ cmd, str }) => {
+    const blocks = commands.map(({ cmd, str, bytes }) => {
+        // A command with a fixed-layout body (see {@link buildVersion}) arrives pre-encoded.
+        if (bytes) return bytes;
         // `LC_CODE_SIGNATURE` is a `linkedit_data_command`: 16 bytes, no string.
         // Its PRESENCE is the whole record `readLibrary` reports (ADR 0024 § A4
         // counted 106 of 106 images carrying one), so the offsets it points at do
@@ -74,6 +76,44 @@ export function machO(commands, { arch = 'x64' } = {}) {
         return b;
     });
     return Buffer.concat([header, ...blocks]);
+}
+
+export const LC_BUILD_VERSION = 0x32;
+export const LC_VERSION_MIN_MACOSX = 0x24;
+
+/** `15.0` → `0x000f0000`, the nibble-packed `xxxx.yy.zz` every Mach-O version field uses. */
+function packVersion(dotted) {
+    const [major = 0, minor = 0, patch = 0] = String(dotted).split('.').map(Number);
+    return ((major << 16) | (minor << 8) | patch) >>> 0;
+}
+
+/**
+ * The deployment-target record a current linker writes: `build_version_command` with no
+ * tool entries. `platform` 1 is macOS; another value is what an iOS image carries, and a
+ * reader asked about macOS must not take its `minos` (ADR 0074).
+ *
+ * @param {string} minos
+ * @param {{ sdk?: string, platform?: number }} [options]
+ */
+export function buildVersion(minos, { sdk = minos, platform = 1 } = {}) {
+    const b = Buffer.alloc(24);
+    b.writeUInt32LE(LC_BUILD_VERSION, 0);
+    b.writeUInt32LE(24, 4);
+    b.writeUInt32LE(platform, 8);
+    b.writeUInt32LE(packVersion(minos), 12);
+    b.writeUInt32LE(packVersion(sdk), 16);
+    b.writeUInt32LE(0, 20);
+    return { cmd: LC_BUILD_VERSION, bytes: b };
+}
+
+/** The older `version_min_command` — what rustc's x86_64 cdylibs still carry (`10.12`). */
+export function versionMinMacOS(version, { sdk = version } = {}) {
+    const b = Buffer.alloc(16);
+    b.writeUInt32LE(LC_VERSION_MIN_MACOSX, 0);
+    b.writeUInt32LE(16, 4);
+    b.writeUInt32LE(packVersion(version), 8);
+    b.writeUInt32LE(packVersion(sdk), 12);
+    return { cmd: LC_VERSION_MIN_MACOSX, bytes: b };
 }
 
 // ── The two shapes a reader RECOGNISES and REFUSES ───────────────────────────

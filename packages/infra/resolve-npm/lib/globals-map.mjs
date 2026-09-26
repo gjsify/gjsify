@@ -40,6 +40,7 @@ export const GJS_GLOBALS_GROUPS = {
         'atob',
         'URL',
         'URLSearchParams',
+        'navigator',
     ],
     web: [
         'fetch',
@@ -121,7 +122,6 @@ export const GJS_GLOBALS_GROUPS = {
         'FontFace',
         'matchMedia',
         'location',
-        'navigator',
     ],
 };
 
@@ -145,6 +145,9 @@ export const GJS_GLOBALS_MAP = {
     structuredClone: '@gjsify/node-globals/register/structured-clone',
     btoa: '@gjsify/node-globals/register/encoding',
     atob: '@gjsify/node-globals/register/encoding',
+    // Node ≥21 has a DOM-less `navigator`; @gjsify/dom-elements/register/navigator re-exports it.
+    navigator: '@gjsify/node-globals/register/navigator',
+    Navigator: '@gjsify/node-globals/register/navigator',
 
     // --- URL (shared Node + Web) -------------------------------------------
     URL: '@gjsify/node-globals/register/url',
@@ -272,7 +275,6 @@ export const GJS_GLOBALS_MAP = {
     FontFace: '@gjsify/dom-elements/register/font-face',
     matchMedia: '@gjsify/dom-elements/register/match-media',
     location: '@gjsify/dom-elements/register/location',
-    navigator: '@gjsify/dom-elements/register/navigator',
 
     // --- Canvas 2D + IFrame + WebGL (GTK/WebKit-backed DOM classes) --------
     //
@@ -394,7 +396,7 @@ export const GJS_GI_BACKED_REGISTERS = {
  * Drawn from `GJS_GLOBALS_GROUPS.web` and `.dom` (every entry there is
  * browser-native) plus a small set of shared identifiers from `.node`
  * (`queueMicrotask`, `structuredClone`, `btoa`, `atob`, `URL`,
- * `URLSearchParams`, and the unprefixed timer family).
+ * `URLSearchParams`, `navigator`/`Navigator`, and the unprefixed timer family).
  */
 export const BROWSER_NATIVE_IDENTS = new Set([
     // Web group — all browser-native
@@ -478,7 +480,6 @@ export const BROWSER_NATIVE_IDENTS = new Set([
     'FontFace',
     'matchMedia',
     'location',
-    'navigator',
     // Shared Node-group identifiers that are also browser-native
     'queueMicrotask',
     'structuredClone',
@@ -486,6 +487,8 @@ export const BROWSER_NATIVE_IDENTS = new Set([
     'atob',
     'URL',
     'URLSearchParams',
+    'navigator',
+    'Navigator',
     'setTimeout',
     'setInterval',
     'clearTimeout',

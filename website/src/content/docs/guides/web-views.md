@@ -288,7 +288,8 @@ What the macOS backend deliberately does not do:
 - **App Sandbox is unanswered.** The hardened runtime works, so a notarised app has no
   web-view-specific obstacle; a sandboxed one has not been shown to work.
 
-The minimum deployment target is macOS 11.
+The web view needs macOS 11 or newer, below the macOS 15 every gjsify darwin binary
+requires, so it narrows nothing.
 
 ## Related
 

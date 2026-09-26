@@ -162,7 +162,12 @@ promise — and #1544 is precisely the difference between the two.
   wrong about `audio/aac` inside a bundle. It is a tier-1 package and cannot import a
   tier-2 script; whether it should ask the registry directly or read a declaration is
   open, in `status/open-todos.md`.
-- **Whether the AAC gap ever closes.** `faad` is GPL and `avdec_aac` brings the libav
-  closure ADR 0037 refuses, so it is a redistribution decision belonging to whoever ships
-  the product. It stays a declared gap on all three targets, with no `plugin` — nothing
-  was ever going to be copied, so no file's arrival can retire it.
+- **Whether the AAC gap ever closes on darwin, for either container shape.** `faad` is GPL
+  and `avdec_aac` brings the libav closure ADR 0037 refuses, so it is a redistribution
+  decision belonging to whoever ships the product. Both `AAC (M4A)` and `AAC (ADTS)` stay
+  declared gaps there, with no `plugin` — nothing was ever going to be copied, so no file's
+  arrival can retire them. win32 closed its own copy of the M4A one a different way:
+  `mediafoundation` registers `mfaacdec`, the OS's own decoder, beside the `mfmp3dec` that
+  already closed MP3 there — a route that does not exist on macOS. The ADTS one stays a gap
+  on win32 too, though: `mfaacdec` decodes M4A and measurably does not decode a bare ADTS
+  stream through `decodebin3` (ADR 0056 § 7, amended 2026-09-25).

@@ -34,14 +34,21 @@ export function computeNativeEnvForBundle(
     bundlePath: string,
     cwd: string = process.cwd(),
     inherited: Record<string, string | undefined> = process.env,
+    extraRoots: readonly string[] = [],
 ): { env: NativeEnv; envPrefix: string } {
     const resolvedBundle = resolve(bundlePath);
 
-    const cwdPackages = detectNativePackages(cwd);
-    const bundlePackages = detectNativePackages(dirname(resolvedBundle));
-
-    const seen = new Set(cwdPackages.map((p) => p.name));
-    const nativePackages = [...cwdPackages, ...bundlePackages.filter((p) => !seen.has(p.name))];
+    // First root wins per package name: the project, then the bundle's own tree, then
+    // whatever the caller adds (see `RunGjsBundleOptions.nativeRoots`).
+    const nativePackages: ReturnType<typeof detectNativePackages> = [];
+    const seen = new Set<string>();
+    for (const root of [cwd, dirname(resolvedBundle), ...extraRoots]) {
+        for (const pkg of detectNativePackages(root)) {
+            if (seen.has(pkg.name)) continue;
+            seen.add(pkg.name);
+            nativePackages.push(pkg);
+        }
+    }
 
     // `inherited` feeds BOTH halves — composition and comparison. Split them and the win32
     // branch disagrees with itself: `buildNativeEnv` writes the library variable back under
@@ -92,6 +99,20 @@ export interface RunGjsBundleOptions {
      * (`utils/node-script.ts`).
      */
     quiet?: boolean;
+    /**
+     * Do not add `gjs exited with code N` to a failing child's own output. For a
+     * transparent runner (`gjsify exec`) a non-zero exit is often an ANSWER — `semver
+     * -r '>2' 1.0.0` exits 1 to say "no match" — and the child's code is re-raised
+     * either way.
+     */
+    quietExit?: boolean;
+    /**
+     * More directories to look for native `@gjsify/*` prebuilds in, after the cwd and the
+     * bundle's own tree. `gjsify exec` passes the running CLI's: a rebuilt bin takes its
+     * polyfills from beside the CLI, so their typelibs live there too — web-ext's rebuild
+     * died at load with `Typelib file for namespace 'GjsifyHttpSoupBridge' … not found`.
+     */
+    nativeRoots?: readonly string[];
 }
 
 /**
@@ -113,7 +134,12 @@ export async function runGjsBundle(
     extraArgs: string[] = [],
     options: RunGjsBundleOptions,
 ): Promise<void> {
-    const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(bundlePath);
+    const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(
+        bundlePath,
+        process.cwd(),
+        process.env,
+        options.nativeRoots,
+    );
 
     // The breadcrumb `@gjsify/unit` writes what it is running into, and this process polls —
     // the only way a bundle that has stopped turning its main loop can still say which test it
@@ -206,7 +232,7 @@ export async function runGjsBundle(
     // followed by a bare "gjs exited with signal SIGABRT" and read as a crash.
     if (hung) return failed(result.code ?? 1);
     if (result.code !== 0) {
-        console.error(`gjs exited with ${describeExit(result)}`);
+        if (!options.quietExit) console.error(`gjs exited with ${describeExit(result)}`);
         return failed(result.code ?? 1);
     }
     // See RunGjsBundleOptions.exitOnSuccess — terminal callers opt in,
