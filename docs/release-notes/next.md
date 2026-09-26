@@ -69,3 +69,14 @@ failure was reported as an empty result. A millisecond timestamp was enough. Suc
 are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
 fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
 larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
+
+## `https.request` honours `ca` and the other TLS options
+
+On GJS, `https.request` never passed its TLS options to libsoup. A server whose certificate
+chains to a private root failed even with that root passed as `ca`, and `rejectUnauthorized`,
+`servername`, `checkServerIdentity`, `cert`/`key` and an `https.Agent`'s options were ignored
+as well. Now `ca` (a string, a Buffer or an array of them) replaces the system trust store, as
+it does in Node. A rejected certificate reports Node's error code, for example
+`DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
+`ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
+the same as in Node.
