@@ -75,7 +75,8 @@
         "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/domparser": "workspace:^",
-        "@gjsify/fetch": "workspace:^"
+        "@gjsify/fetch": "workspace:^",
+        "@gjsify/node-globals": "workspace:^"
     },
     "devDependencies": {
         "@girs/gst-1.0": "5.4.0",

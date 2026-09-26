@@ -14,7 +14,8 @@
 // fallback to Node fails loudly. It asserts the build completes and the FAKEs
 // were never called.
 //
-// SKIP when off a capable host (non-Linux / no gjs / no committed bundle).
+// SKIP when off a capable host (not linux/darwin / no gjs / no built bundle).
+// darwin runs it on the macOS leg (`macos-suites.yml`).
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ function hasGjs() {
     return r.status === 0 && r.error === undefined;
 }
 
-const SKIP = process.platform !== 'linux' || !hasGjs() || !existsSync(CLI_BUNDLE);
+const SKIP = (process.platform !== 'linux' && process.platform !== 'darwin') || !hasGjs() || !existsSync(CLI_BUNDLE);
 
 describe('node-free workspace orchestration under the GJS CLI', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;

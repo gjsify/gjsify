@@ -17,6 +17,7 @@ import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
+import { nodeNativeExternalPlugin } from '../plugins/node-native-external.js';
 import {
     platformResolvePlugin,
     desktopSuffixChain,
@@ -226,9 +227,9 @@ export interface NodeFactoryInput {
 
 export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    // node-datachannel and `@gjsify/node-gi` are native addons that cannot be
-    // bundled — their loaders resolve a `.node` binary relative to their own
-    // installed location, so both must stay external.
+    // `@gjsify/node-gi` stays external by name: the injected globals shim and the
+    // bare-module specifiers below name it before any package is resolved. Every
+    // other native addon package is found by `nodeNativeExternalPlugin`.
     //
     // GJS-specific specifiers (`gi://*`, `@girs/*`) are deliberately NOT
     // externalised: `gjsGiNodePlugin` rewrites `gi://` to `requireGi`, and
@@ -238,7 +239,6 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // `ERR_UNSUPPORTED_ESM_URL_SCHEME`.
     const exactExternal = [
         ...(EXTERNALS_NODE as string[]),
-        'node-datachannel',
         '@gjsify/node-gi',
         '@gjsify/node-gi/gi',
         NODE_GI_GLOBALS_SPECIFIER,
@@ -313,10 +313,16 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         external: exactExternal,
         resolve: {
             mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
-            // CJS-priority conditions. Rolldown takes the package's first matching
-            // key, so adding 'import' would route ws v8 (which lists 'import'
-            // before 'require') through its incomplete ESM wrapper.
-            conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
+            // Neither 'import' nor 'require' on the esm build: rolldown adds the one
+            // matching each call site's kind, as Node's resolver does. Listing 'require'
+            // made every `import` take the CJS build wherever a package declares
+            // `require` first — `import basex from 'base-x'` then bound
+            // `module.exports` as the default and threw "(0, x.default) is not a
+            // function" at load, while the same source ran on Node. `--app gjs` lost
+            // the pinned 'import' for the mirror bug (#1130). 'module' is not a
+            // condition Node knows, and a require() would take it wherever a package
+            // lists it before 'require'.
+            conditionNames: format === 'esm' ? ['node'] : ['require'],
         },
         transform: {
             target: 'node24',
@@ -391,6 +397,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // externals policy — a redirect after `externalsPlugin` would find the
         // specifier already externalised.
         ...(input.pluginOptions.dialect === 'react-native' ? [reactNativeAliasPlugin()] : []),
+        // Node-API addon packages stay external so Node loads their `.node` from
+        // `node_modules` (see the plugin header). Resolves THROUGH the alias layer
+        // (`this.resolve`), so an aliased specifier is judged by where it lands.
+        nodeNativeExternalPlugin(),
         aliasPlugin({ entries: aliasEntries }),
         // Blueprint (.blp → XML string): the reverse bridge runs REAL GTK on Node,
         // so a GJS app entry with composite-template windows must build for

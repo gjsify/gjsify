@@ -15,6 +15,56 @@ likely shape: hand the PEM pair to the http-soup-bridge's `Soup.Server` as `tls-
 and listen with `Soup.ServerListenOptions.HTTPS`. Done when that spec uses
 `https.createServer` on both legs.
 
+### `gjsify exec`: three gaps the first smoke matrix left open
+
+ADR 0076's rebuild ran `semver`, `json5` and `wxt --version` under GJS; the matrix and each
+failure are in `docs/bundled-toolchains.md` § `gjsify exec`. What stopped the others is not in
+`exec` itself:
+
+- **A GJS unhandled rejection exits 0.** prettier's CLI dies in a rejected promise, gjs prints
+  `Unhandled promise rejection` as a WARNING and the process exits 0, where Node exits 1 — so
+  `gjsify exec` cannot pass through an exit code the runtime never produces. The fix belongs in
+  the `--app gjs` process bootstrap (`@gjsify/process`), not in `exec`.
+- **A dynamic import hidden from the bundler cannot be rebuilt.** prettier's
+  `new Function("module", "return import(module)")` resolves `../internal/legacy-cli.mjs`
+  beside the cached bundle. A rebuild would have to follow that specifier; nothing does yet.
+- **`browser` wins over `node` for a package that ships both.** `--app gjs` resolves `browser`
+  fields and conditions first (the reason is on `conditionNames` in `app/gjs.ts`), which hands
+  web-ext pino's browser logger — `Error: unknown level 10` at load.
+
+A fourth is diagnostic rather than functional: `@gjsify/rolldown-native` formats build errors
+with Rust's `Debug` (`BuildDiagnostic { …, .. }`), which drops file and line. On a Node host
+`gjsify exec --runtime gjs` gives the located form; under GJS nothing does.
+
+### Enforce the macOS 15.0 floor on committed darwin prebuilds
+
+ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
+`prebuild-darwin-target` rule that holds every committed darwin image's `LC_BUILD_VERSION`
+`minos` to it. The rule runs in REPORT mode in `scripts/audit-runtimes.mjs`
+(`darwinDeploymentTarget: 'report'`), because the committed darwin-arm64 prebuilds still
+record `minos 26.0` and only `prebuilds.yml`'s `commit-prebuilds` on `main` can replace
+them. Once that job has landed the rebuilt artifacts (the rule's REPORT-MODE note disappears
+from `audit-runtimes --check`), delete the `darwinDeploymentTarget: 'report'` line so a
+regression fails instead of printing.
+
+### A server started after a top-level await exits at once on GJS
+
+Measured on gjs 1.88.1 while writing the ADR 0078 example: a GJS entry module that awaits a
+GLib-dispatched promise (here `Gio.bus_get`, as `readDesktopAppearance()` does) and THEN calls
+`http.createServer().listen()` prints nothing and exits 0 the moment the module settles. The
+listen callback never runs. `http.Server.listen()` and `net.Server.listen()` call
+`ensureMainLoop()` (`@gjsify/utils` `main-loop.ts`), which declines to arm the main-loop hook
+at `main_depth() !== 0`. After a top-level await resumes from a dispatched source, GJS's own
+module-evaluation spin puts the depth at 1. This is the case `holdMainLoop()`'s comment
+describes, reached by an ordinary server rather than a supervisor.
+
+Minimal repro: `await new Promise(r => Gio.bus_get(Gio.BusType.SESSION, null, () => r()));`
+then `createServer(…).listen(port, () => console.log('listening'))`: no output, exit 0. Calling
+`listen` before the first await works, which is what the example does. Arming at any depth
+from `listen` is not a drop-in fix: under a test runner's own `mainloop.run()` it leaves a hook
+whose `loop.run()` blocks after the tests quit (the reason for the guard). Closing this needs a
+way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
+
 ### NativeScript `Gtk.Box` grants no spare space to an expanding child
 
 `hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
@@ -3258,7 +3308,7 @@ Two cases remain, and the second one bites harder.
 
 **INLINE (by-value) record elements are still unreadable, and the length is now deliberately declined for them.** `ReadCElement` dereferences a `GI_TYPE_TAG_INTERFACE` element as a pointer and `CElementSize` reports `sizeof(gpointer)` instead of the record's size, so resolving a length for such a field walks garbage: `new Pango.GlyphString(); gs.set_size(3); gs.glyphs[0].glyph` SIGSEGVs the process. `ElementsAreReadable()` gates the new path so those fields keep returning empty, and `test/struct-field-array-length.test.mjs` holds the process-survival assertion (it fails with the gate removed).
 
-That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
+That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`. The adjacent `GI_TYPE_TAG_GTYPE` gap (`GObject.SignalQuery.param_types`) is closed: `ReadCElement` reads a GType cell (test `gtype.test.mjs`).
 
 ### `@gjsify/node-gi` — by-value container elements: the WRITE side is closed, the READ side is not
 
@@ -3816,15 +3866,13 @@ Found by committing the generated Platform Support matrix and having a review no
 
 The fix is to credit from git rather than from the filesystem. What makes it more than a one-liner: `tests/e2e/prebuild-declaration-invariant` drives this code against SYNTHETIC packages, which are by construction untracked, so a tracked-ness requirement has to be a matrix-side credit rather than a change inside `collectNativePackages()`. Alternative, cheaper and honest: leave the measurement alone and change the legend to say "artifact present", which then no longer answers "can I install this there?" — the question the page exists for.
 
-### Nothing exercises the NODE-FREE toolchain on macOS, and the prebuild's arrival hid that
+### No cold-tree `build:infra` without Node runs on macOS
 
-The engine half is DONE — `@gjsify/rolldown-native` declares all four of `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`; `packages/infra/rolldown-native-darwin-{arm64,x64}` hold committed artifacts; `--platforms` marks every darwin cell `✓` for it and for `@gjsify/lightningcss-native` / `@gjsify/oxfmt-native`; all three are on npm at the train version.
+The e2e half is DONE: `macos-suites.yml`'s node-pillar leg runs `node-free-bootstrap`, `workspace-node-free-gjs`, `launcher-free-build`, `node-script` and `tsc-node-fallback` on both darwin arches — install, orchestration, build, `--node-script` and the tsc fallback, each through `gjs -m dist/cli.gjs.mjs` with `node` resolving nowhere. Wiring them up is what found the defects nothing had seen (a bare `sysctl` that killed the CLI at module evaluation, `/proc`-only process-tree and liveness probes, SIP stripping the launcher's `DYLD_*` inside compound scripts); `docs/bundled-toolchains.md` § macOS has them and the manual recipe.
 
-What no leg covers is the path those engines exist FOR. Both darwin jobs in `macos-suites.yml` install, bootstrap and build by invoking the CLI **under Node** (`node "$RUNNER_TEMP/bootstrap-cli/…/lib/index.js"`, then `node packages/infra/cli/lib/index.js run build`) — correct for proving the Node pillar on darwin, and blind to `gjs -m install.mjs` → `gjsify build` on a box with no Node at all. `tests/e2e/node-free-bootstrap` exercises that shape only on the Linux runner.
+What no darwin leg runs is the shape Linux's `cold-bootstrap` job does: the whole repository's `build:infra` from a tree with no build outputs, with `node` moved aside. Both darwin jobs still install and build the tree under Node. Cost is the reason, not effort: it is a second full build on 10x-billed minutes. The condition to measure: a darwin job whose install + `build:infra` go through `gjs -m` with `command -v node` failing, green on both arches.
 
-This entry previously read "no native macOS build has been promoted … until that leg is green the docs must keep describing the Node-free toolchain as Linux-only". The build was promoted; the instruction outlived it, and three pages of the website went on telling macOS users to install Node because a ledger entry told them to. **The lesson is the shape of the sentence**: a ledger item that instructs the DOCS to keep saying something has no retirement trigger — the docs do not fail when the code changes underneath them. State the condition to measure, not the prose to keep.
-
-The work: a darwin leg whose install+build steps go through the bootstrap the way the Linux node-free leg does, with `node` off PATH for the duration so the leg cannot pass by accident.
+**The lesson this entry used to carry stands**: it once told the DOCS to keep describing the node-free toolchain as Linux-only, which outlived the promotion it was waiting for — a ledger item that instructs the docs has no retirement trigger. State the condition to measure, not the prose to keep.
 
 ### Follow-up — adwaita-web style isolation (ADR 0010)
 
@@ -5427,8 +5475,8 @@ what is missing is a reason to take the platform's gesture away from it.
 
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `source.ts`, `swipe.ts` and
-`toast.ts` export shared behaviour and are covered by nothing in
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `shortcut-format.ts`,
+`source.ts`, `swipe.ts` and `toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no
 conformance file imports them. Three of them are what `packages/web/AGENTS.md`
 advertises as the core's flagship shared behaviour ("Breakpoints
@@ -5453,6 +5501,19 @@ renderer grows a swipe — and three widgets upstream already want the same
 tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
 `adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
 (`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
+
+`shortcut-format.ts` is two formatters, and only half of it is actually
+untabled. `formatAcceleratorLabel` is a thin wrapper over `shortcut-label.ts`'s
+`shortcutKeycaps`, so a vector table over IT would assert the same derivation
+`SHORTCUT_LABEL_VECTORS` already tables, under a second name — that half is
+driven, by `adwaita-web`'s `<adw-shortcut-label>`, already. `formatManifestShortcut`
+is the genuinely untabled half: it parses a WebExtension manifest shortcut string
+(`"Alt+Shift+B"`, `"MacCtrl+Shift+B"`) into the platform's own glyphs, a grammar no
+libadwaita widget speaks and no renderer under `packages/web` or
+`packages/nativescript-bridge` has a shortcut string to run it against — the one
+consumer that does, the `beifahrer` browser extension, is a separate repo. It
+earns a table the day a renderer inside THIS repo needs to show a manifest-style
+shortcut rather than a GTK accelerator.
 
 They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
 is keyed by TABLE, so it reported "156 vector tables, every one driven or

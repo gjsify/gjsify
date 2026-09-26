@@ -103,7 +103,9 @@ Consequences that are accepted as part of this decision:
 
 - **Minimum supported macOS is 14.4** (March 2024). That is not a real narrowing:
   Homebrew — the only way a GJS host gets onto macOS — supports the three most recent
-  macOS releases, all of which are ≥ 14.4 in practice.
+  macOS releases, all of which are ≥ 14.4 in practice. *(Since ADR 0074 every gjsify
+  darwin binary targets macOS 15.0, which subsumes this: 14.4 stays the API's own floor
+  and needs no availability guard under that target.)*
 - **No fallback to the private `__ulock_wait`.** The `UL_COMPARE_AND_WAIT_SHARED`
   private syscall would extend reach back to 10.12 (it is what Bun uses), but it is an
   unstable private libSystem ABI. A Tier-1 package does not ship one. The macOS

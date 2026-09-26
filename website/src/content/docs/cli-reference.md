@@ -31,7 +31,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Task | Commands |
 |---|---|
 | Start a project | [`create`](#gjsify-create) |
-| Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
+| Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`exec`](#gjsify-exec) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
 | Dependencies | [`install`](#gjsify-install) · [`link`](#gjsify-link) · [`unlink`](#gjsify-unlink) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
 | Monorepos | [`foreach`](#gjsify-foreach) · [`workspace`](#gjsify-workspace) · [`affected`](#gjsify-affected) |
 | Code quality | [`check`](#gjsify-check) · [`tsc`](#gjsify-tsc) · [`format`](#gjsify-format) · [`lint`](#gjsify-lint) · [`fix`](#gjsify-fix) · [`barrels`](#gjsify-barrels) |
@@ -39,6 +39,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Environment | [`system-check`](#gjsify-system-check) · [`info`](#gjsify-info) |
 | Explore | [`showcase`](#gjsify-showcase) |
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
+| Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) |
 | Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
@@ -492,6 +493,38 @@ gjsify env LC_ALL=C GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs
 Every flag after the command belongs to the command, a `--` included. The exit code is the command's own.
 
 The destination is treated as a directory when it ends in `/`, when you pass several sources, or when a source has a wildcard. Otherwise it is the exact target path. Missing parent directories are created. `*` and `?` work in the last segment of a source.
+
+### `gjsify exec`
+
+Run a bin your project installed, like `npx <bin>`, on the runtime gjsify itself runs on. Under Node, Bun or Deno the bin runs unchanged. Under GJS, which cannot load an npm bin directly, gjsify rebuilds the bin `--app gjs` once, caches the result, and runs it with `gjs`.
+
+```bash
+gjsify exec semver 1.2.3 -r '>=1.0.0'
+gjsify exec json5 --version
+gjsify exec --runtime node prettier --check .   # run it on Node, whatever gjsify runs on
+gjsify exec --rebuild wxt --version             # ignore the cached rebuild
+```
+
+| Argument / Option | Default | Description |
+|---|---|---|
+| `<bin> [args..]` | — | The bin name, then its own arguments. Every flag after the bin belongs to the bin. |
+| `--runtime <gjs\|node\|bun\|deno>` | the runtime gjsify runs on | Run the bin on this runtime instead. |
+| `--rebuild` | off | Rebuild for GJS even when a cached build matches. |
+| `--verbose` | off | Show the bundler's warnings during a rebuild, and the command that runs the bin. |
+
+gjsify's own options go **before** the bin name. `gjsify exec wxt --runtime x` hands `--runtime x` to wxt.
+
+The bin is looked up like `npx` does it: your project's own `package.json#bin`, then every `node_modules` from the current directory up. A package that ships its own GJS bundle (`gjsify.bin`) runs that bundle under GJS and is not rebuilt. An unknown bin exits with 127.
+
+Arguments, the working directory, the environment, stdin/stdout/stderr and the exit code all pass through unchanged.
+
+#### The GJS rebuild
+
+The rebuilt bundle is cached in `node_modules/.cache/gjsify/exec/`. It is reused while the package version, the project's lockfile and the gjsify version stay the same, and rebuilt when any of them changes. Your project's own bin and linked workspace packages are rebuilt on every run, because their code changes without a version bump. `.node` addons load through `@gjsify/napi`.
+
+If the rebuild fails, `gjsify exec` prints the bundler's diagnostics and runs nothing. It never falls back to Node on its own. Pass `--runtime node` when that is what you want.
+
+Not every Node bin runs under GJS yet. The rebuild uses the same Node polyfills as `gjsify build`, so a bin that needs an API they lack fails, and the failure names it. Which bins were checked, and what failed, is listed in the [bundled toolchains notes](https://github.com/gjsify/gjsify/blob/main/docs/bundled-toolchains.md).
 
 ## Configure it in `package.json`
 
@@ -1382,6 +1415,34 @@ gjsify browse https://localhost:8080 --screenshot shot.png
 | `--build-only` | `false` | Build the bundle without launching it. |
 
 The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge. It is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane. That is the full Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
+
+## Browser extensions
+
+### `gjsify webext`
+
+Build a WebExtension for several browsers from one source: one folder per target, each with its own manifest, plus a zip per target for the stores. The whole configuration lives in `package.json#gjsify.webext`. The [Browser Extensions guide](/gjsify/guides/browser-extensions/) walks through it.
+
+```bash
+gjsify webext build                        # one folder per target under .output/
+gjsify webext build --target firefox-mv2   # only this target
+gjsify webext zip                          # production build + <name>-<version>-<target>.zip each
+gjsify webext dev                          # build, open Firefox with the extension, rebuild on change
+gjsify webext dev --target chrome-mv3 --browser-binary ~/chrome-for-testing/chrome
+gjsify webext dev --no-launch              # rebuild in place, load the folder yourself
+```
+
+| Option | Applies to | Description |
+|---|---|---|
+| `--target <t..>` | all | Targets to build, from `gjsify.webext.targets`. `dev` takes one; default the first Firefox target. |
+| `--out-dir <dir>` | all | Output directory. Default `gjsify.webext.outDir`, else `.output`; `dev` appends `-dev`. |
+| `--define KEY=VALUE` | all | Compile-time constant for every bundle, on top of `gjsify.webext.define`. |
+| `--mode <production\|development>` | `build` | Passed to the manifest as `ctx.mode`. `development` also skips minification. |
+| `--no-launch` | `dev` | Rebuild on change without starting a browser. |
+| `--browser-binary <path>` | `dev` | The Firefox or Chromium executable web-ext starts. |
+| `--profile <dir>` | `dev` | Browser profile. Default `$XDG_CACHE_HOME/gjsify/webext/<name>/<target>`, kept between runs. |
+| `--headless` | `dev` | Start the browser without a window. |
+
+Targets are `<browser>-mv<2|3>` with browser `chrome`, `edge`, `firefox` or `safari`. `chrome-mv2` and `edge-mv2` are refused because both browsers have removed Manifest V2. `dev` launches the browser through [`web-ext`](https://github.com/mozilla/web-ext), which it looks for in the project's `node_modules/.bin`, then on `PATH`.
 
 ## Ship it
 

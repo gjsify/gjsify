@@ -1041,8 +1041,15 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
 // unchanged, which is right for a pointer-struct element and meaningless for a
 // four-byte enum or a twenty-four-byte record. So the by-value admission is scoped to
 // the one container kind that has somewhere to put the bytes.
-static bool IsSupportedElementType(GITypeInfo* elem, std::string* why, bool byValueOk) {
-  switch (gi_type_info_get_tag(elem)) {
+//
+// `cArrayCell` is true for a C array in EITHER direction: its elements are sized
+// cells the IN path writes and ReadCElement reads. A GType element is admitted only
+// there — a list/hash node would carry it through the hash-pointer helpers, which
+// this file has never exercised for that tag.
+static bool IsSupportedElementType(GITypeInfo* elem, std::string* why, bool byValueOk,
+                                   bool cArrayCell) {
+  GITypeTag tag = gi_type_info_get_tag(elem);
+  switch (tag) {
     case GI_TYPE_TAG_BOOLEAN:
     case GI_TYPE_TAG_INT8:
     case GI_TYPE_TAG_UINT8:
@@ -1097,8 +1104,21 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why, bool byVa
       if (iface != nullptr) gi_base_info_unref(iface);
       return ok;
     }
+    // `GdaConnection.statement_execute_select_full`'s `col_types` is the call that
+    // needed it (@gjsify/sqlite reads 64-bit integers exactly by typing columns). It
+    // fell to the default below and was refused as a "nested-container element".
+    case GI_TYPE_TAG_GTYPE:
+      if (!cArrayCell && why != nullptr) *why = "GType element outside a C array";
+      return cArrayCell;
     default:
-      if (why != nullptr) *why = "nested-container element";
+      // Name the tag: this label used to be "nested-container element" for EVERY
+      // unhandled tag, which sent the GType case above looking for a nested container.
+      if (why != nullptr) {
+        bool nested = tag == GI_TYPE_TAG_ARRAY || tag == GI_TYPE_TAG_GLIST ||
+                      tag == GI_TYPE_TAG_GSLIST || tag == GI_TYPE_TAG_GHASH;
+        *why = nested ? "nested-container element"
+                      : std::string(gi_type_tag_to_string(tag)) + " element";
+      }
       return false;
   }
 }
@@ -1122,10 +1142,10 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse u
       // GArray is deliberately excluded alongside the lists: its elements are sized,
       // but g_array_append_vals copies from a buffer this path would have to size the
       // same way, and no installed typelib has a by-value-element GArray as IN.
-      bool byValueOk = use == ContainerUse::kIn &&
-                       gi_type_info_get_tag(type) == GI_TYPE_TAG_ARRAY &&
-                       gi_type_info_get_array_type(type) == GI_ARRAY_TYPE_C;
-      bool ok = IsSupportedElementType(elem, why, byValueOk);
+      bool cArray = gi_type_info_get_tag(type) == GI_TYPE_TAG_ARRAY &&
+                    gi_type_info_get_array_type(type) == GI_ARRAY_TYPE_C;
+      bool byValueOk = use == ContainerUse::kIn && cArray;
+      bool ok = IsSupportedElementType(elem, why, byValueOk, cArray);
       gi_base_info_unref(elem);
       return ok;
     }
@@ -1140,7 +1160,7 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse u
                  ktag == GI_TYPE_TAG_INT8 || ktag == GI_TYPE_TAG_UINT8 ||
                  ktag == GI_TYPE_TAG_INT16 || ktag == GI_TYPE_TAG_UINT16 ||
                  ktag == GI_TYPE_TAG_INT32 || ktag == GI_TYPE_TAG_UINT32;
-      bool vok = vt != nullptr && IsSupportedElementType(vt, nullptr, false);
+      bool vok = vt != nullptr && IsSupportedElementType(vt, nullptr, false, false);
       if (!kok && why != nullptr) *why = "unsupported GHashTable key";
       else if (!vok && why != nullptr) *why = "unsupported GHashTable value";
       if (kt != nullptr) gi_base_info_unref(kt);
@@ -1167,6 +1187,7 @@ size_t CElementSize(GITypeInfo* elem) {
     case GI_TYPE_TAG_UINT64: return 8;
     case GI_TYPE_TAG_FLOAT: return sizeof(gfloat);
     case GI_TYPE_TAG_DOUBLE: return sizeof(gdouble);
+    case GI_TYPE_TAG_GTYPE: return sizeof(GType);
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
     case GI_TYPE_TAG_INTERFACE: return sizeof(gpointer);
@@ -1330,6 +1351,7 @@ static Napi::Value ReadCElement(Napi::Env env, GITypeInfo* elem, const void* src
     case GI_TYPE_TAG_UINT64: a.v_uint64 = *static_cast<const guint64*>(src); break;
     case GI_TYPE_TAG_FLOAT: a.v_float = *static_cast<const gfloat*>(src); break;
     case GI_TYPE_TAG_DOUBLE: a.v_double = *static_cast<const gdouble*>(src); break;
+    case GI_TYPE_TAG_GTYPE: a.v_size = *static_cast<const GType*>(src); break;
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME: a.v_string = *static_cast<char* const*>(src); break;
     case GI_TYPE_TAG_INTERFACE: a.v_pointer = *static_cast<gpointer const*>(src); break;
@@ -1600,6 +1622,20 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
     case GI_TYPE_TAG_UINT64: a->v_uint64 = JsValueToUint64(v); return true;
     case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(NodeGiToDouble(v)); return true;
     case GI_TYPE_TAG_DOUBLE: a->v_double = NodeGiToDouble(v); return true;
+    case GI_TYPE_TAG_GTYPE: {
+      // Stricter than a scalar GType argument, as gjs is (`test_array_gtype_in
+      // ([undefined])` throws): a null element would become G_TYPE_INVALID, which in
+      // a zero-terminated array silently truncates everything after it.
+      if (v.IsNull() || v.IsUndefined()) {
+        Napi::TypeError::New(env, "expected a GType handle (e.g. Class.$gtype) as an array element")
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      GType gt = 0;
+      if (!UnwrapGTypeArg(env, v, &gt)) return false;
+      a->v_size = static_cast<gsize>(gt);
+      return true;
+    }
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
       a->v_string = (v.IsEmpty() || v.IsNull() || v.IsUndefined())
@@ -2667,6 +2703,7 @@ static bool ElementsAreReadable(GITypeInfo* type) {
     case GI_TYPE_TAG_UINT64:
     case GI_TYPE_TAG_FLOAT:
     case GI_TYPE_TAG_DOUBLE:
+    case GI_TYPE_TAG_GTYPE:
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
       readable = true;
