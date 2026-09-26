@@ -98,6 +98,7 @@ the TODO records the *what's left*.
 | [0076](0076-a-node-bin-is-rebuilt-for-the-host-runtime.md) | A Node bin is rebuilt for the runtime gjsify runs on, and never silently run on another (`gjsify exec`) | Accepted |
 | [0079](0079-window-follows-the-runtime.md) | `window` follows the runtime: no define on Node, an EventTarget on GJS | Accepted |
 | [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
+| [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
