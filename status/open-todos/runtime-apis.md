@@ -261,3 +261,22 @@ Full Autobahn suite (core + permessage-deflate + performance 9.\*) is part of th
 
 Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, so those are open gaps beyond the current DatabaseSync/StatementSync coverage. The closest paths: (a) wrap sqlite3 directly via libsqlite3 GI bindings (expensive — no upstream GIR), or (b) live with the libgda-shaped subset and document the gaps per API. (b) is the current direction; `sqlite.constants` (SQLITE_CHANGESET_\*) remains unimplemented until (a).
 
+
+### A server started after a top-level await exits at once on GJS
+
+Measured on gjs 1.88.1 while writing the ADR 0078 example: a GJS entry module that awaits a
+GLib-dispatched promise (here `Gio.bus_get`, as `readDesktopAppearance()` does) and THEN calls
+`http.createServer().listen()` prints nothing and exits 0 the moment the module settles. The
+listen callback never runs. `http.Server.listen()` and `net.Server.listen()` call
+`ensureMainLoop()` (`@gjsify/utils` `main-loop.ts`), which declines to arm the main-loop hook
+at `main_depth() !== 0`. After a top-level await resumes from a dispatched source, GJS's own
+module-evaluation spin puts the depth at 1. This is the case `holdMainLoop()`'s comment
+describes, reached by an ordinary server rather than a supervisor.
+
+Minimal repro: `await new Promise(r => Gio.bus_get(Gio.BusType.SESSION, null, () => r()));`
+then `createServer(…).listen(port, () => console.log('listening'))`: no output, exit 0. Calling
+`listen` before the first await works, which is what the example does. Arming at any depth
+from `listen` is not a drop-in fix: under a test runner's own `mainloop.run()` it leaves a hook
+whose `loop.run()` blocks after the tests quit (the reason for the guard). Closing this needs a
+way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
+
