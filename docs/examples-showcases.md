@@ -13,6 +13,10 @@ should follow — not a description of something that exists.
 
 Dual-target with Adwaita UI: `examples/gtk/<name>/src/` = shared platform-agnostic `.ts` (constants/logic — both targets import; no duplication in HTML) + `gjs/` (Adw.Application, .blp) + `browser/` (adwaita-web UI, index.html) + `assets/`. Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`. NO explicit `/register` imports in example/showcase source (§ Tree-shakeable globals rule 6 — use `--globals auto,<extra>` in the build script if auto misses). `examples/` = `"private":true`, not published, not in the CLI.
 
+## Browser-extension examples — `examples/web/`
+
+`examples/web/<name>/` holds WebExtensions built with `gjsify webext` (ADR 0077). They have no `gjsify.main` and no GJS bundle. Their `build` script is `gjsify webext build`, which writes `dist/<target>/`, and the declaration they carry is `gjsify.webext`, held by the `webext` conformance rule. `build` renders icons through `gjs` + librsvg, which the CI image has.
+
 ## Showcase — `gjsify showcase`
 
 Polished examples under `showcases/`, published as `@gjsify/example-{dom,node}-<name>`, CLI deps, self-contained + independently runnable (`gjsify showcase <name>`; production-quality, not experiments; browser entry embeddable by the website via package exports — never internal relative paths). Assets via `require.resolve('@gjsify/example-dom-<name>/assets/<file>')`; exports pattern: `./browser`, feature modules, `./assets/*`, `./package.json`.

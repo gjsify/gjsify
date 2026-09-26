@@ -196,7 +196,10 @@ export class Duplex_ extends Readable_ {
                 nextTick(() => {
                     cb(err);
                     this._duplexWriting = false;
-                    this.emit('error', err);
+                    // Node's errorOrDestroy(): a write that fails because the stream
+                    // was destroyed under it (a subclass cancelling in-flight I/O in
+                    // `_destroy`) reports to its callback, never as an 'error' event.
+                    if (!this.destroyed) this.emit('error', err);
                     if (this._duplexWriteQueue.length > 0) {
                         const next = this._duplexWriteQueue.shift()!;
                         this._duplexWriting = true;
@@ -291,7 +294,7 @@ export class Duplex_ extends Readable_ {
                         this.writableLength -= this.writableObjectMode ? 1 : chunkLen(chunk);
                         if (err) {
                             callback(err);
-                            this.emit('error', err);
+                            if (!this.destroyed) this.emit('error', err);
                         } else {
                             callback();
                         }

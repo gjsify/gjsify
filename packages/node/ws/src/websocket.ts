@@ -17,8 +17,9 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
-import { WebSocket as NativeWebSocket, kAbort } from '@gjsify/websocket';
+import { WebSocket as NativeWebSocket, isTransportFailure, kClose } from '@gjsify/websocket';
 import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
+import { closeReason } from './validation.js';
 
 export type BinaryType = 'nodebuffer' | 'arraybuffer' | 'fragments' | 'blob';
 
@@ -34,9 +35,10 @@ interface NativeWebSocketLike {
     addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: NativeEvent) => void): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
     close(code?: number, reason?: string): void;
-    /** @gjsify/websocket's no-Close-frame abort; a host's own WebSocket
-     *  (see _openNative) has none. */
-    [kAbort]?(): void;
+    /** @gjsify/websocket's close() without the W3C code restriction; 1006
+     *  drops the connection with no Close frame. A host's own WebSocket (see
+     *  _openNative) has none. */
+    [kClose]?(code?: number, reason?: string): void;
 }
 
 /** Minimal event shape emitted by the native WebSocket. Properties are read
@@ -79,12 +81,15 @@ export interface ClientOptions {
     origin?: string;
     headers?: Record<string, string | string[]>;
     handshakeTimeout?: number;
+    /** `false` accepts a self-signed or otherwise unverifiable server
+     *  certificate on `wss:`. */
+    rejectUnauthorized?: boolean;
     /** Enable permessage-deflate (RFC 7692). Defaults to true, matching the real
      *  ws npm package. Set to false to disable deflate negotiation (useful when
      *  the remote server has buggy deflate handling). */
     perMessageDeflate?: boolean;
     // Explicitly NOT honored on Gjs (documented in README):
-    //   agent, rejectUnauthorized, ca, cert, key, passphrase, pfx, crl,
+    //   agent, ca, cert, key, passphrase, pfx, crl,
     //   ciphers, secureProtocol, maxPayload, followRedirects, maxRedirects,
     //   skipUTF8Validation, allowSynchronousEvents
 }
@@ -140,7 +145,17 @@ export class WebSocket extends EventEmitter {
      *  this bundle ends up (GJS browser-like globals vs. Node's undici). */
     private _native: NativeWebSocketLike | null = null;
 
-    constructor(address: string | URL | null, protocols?: string | string[], options: ClientOptions = {}) {
+    // ws's real constructor is overloaded — `new WebSocket(address, options)`
+    // is just as valid as the three-arg form (`@types/ws` declares both). The
+    // single implementation signature below accepts either shape at the type
+    // level; the runtime normalisation that tells them apart lives in the body.
+    constructor(address: string | URL | null, options?: ClientOptions);
+    constructor(address: string | URL | null, protocols?: string | string[], options?: ClientOptions);
+    constructor(
+        address: string | URL | null,
+        protocols?: string | string[] | ClientOptions,
+        options: ClientOptions = {},
+    ) {
         super();
         // `new WebSocket(null)` is used by ws for pre-connected sockets fed via
         // options.socket (e.g. WebSocketServer-accepted clients). We don't support
@@ -152,8 +167,24 @@ export class WebSocket extends EventEmitter {
 
         this.url = typeof address === 'string' ? address : String(address);
 
-        const protos = this._resolveProtocols(protocols, options);
-        this._openNative(this.url, protos, options);
+        // Upstream ws (refs/ws/lib/websocket.js `initAsClient`) accepts
+        // `new WebSocket(address, options)` — a plain object as the SECOND
+        // argument is the options bag, not a protocol list. We used to wrap
+        // it straight into `[options]` (an array containing an object), which
+        // Soup rejected with "Invalid element in string array" and the socket
+        // closed 1006 before the Origin/headers ever reached the wire. Mirror
+        // ws's own normalisation: only a string or an array of strings is
+        // `protocols`; a non-null, non-array object is `options` instead.
+        let opts = options;
+        let effectiveProtocols: string | string[] | undefined;
+        if (typeof protocols === 'string' || Array.isArray(protocols)) {
+            effectiveProtocols = protocols;
+        } else if (protocols !== undefined && protocols !== null) {
+            opts = protocols;
+        }
+
+        const protos = this._resolveProtocols(effectiveProtocols, opts);
+        this._openNative(this.url, protos, opts);
     }
 
     /** Merge `protocols` arg and `options.protocols` / `options.protocol`. */
@@ -195,6 +226,7 @@ export class WebSocket extends EventEmitter {
             headers: options.headers,
             origin: options.origin,
             handshakeTimeout: options.handshakeTimeout,
+            rejectUnauthorized: options.rejectUnauthorized,
         };
 
         try {
@@ -294,6 +326,9 @@ export class WebSocket extends EventEmitter {
     }
 
     private _onError(ev: NativeEvent): void {
+        // The W3C API fires 'error' when the transport fails; ws does not —
+        // a reset after the handshake ends in 'close' (1006) alone.
+        if (ev?.error instanceof Error && isTransportFailure(ev.error.cause)) return;
         const msg = (typeof ev?.message === 'string' && ev.message) || 'WebSocket error';
         const err = ev?.error instanceof Error ? ev.error : new Error(msg);
         this.emit('error', err);
@@ -369,30 +404,49 @@ export class WebSocket extends EventEmitter {
 
     close(code?: number, reason?: string | Buffer): void {
         if (this.readyState === CLOSED) return;
+        if (this.readyState === CONNECTING) {
+            // ws aborts the handshake: 'error' ("WebSocket was closed before
+            // the connection was established"), then 'close' with 1006. The
+            // native socket fails its connection with that same message.
+            this.readyState = CLOSING;
+            this._nativeClose();
+            return;
+        }
         if (this.readyState === CLOSING) return;
+
+        const reasonStr = closeReason(code, reason);
+
         this.readyState = CLOSING;
         try {
-            // W3C close only accepts string reasons; coerce Buffer to utf-8 string.
-            const reasonStr =
-                reason === undefined ? undefined : Buffer.isBuffer(reason) ? reason.toString('utf8') : String(reason);
-            if (code === undefined) this._native?.close();
-            else if (reasonStr === undefined) this._native?.close(code);
-            else this._native?.close(code, reasonStr);
+            this._nativeClose(code, reasonStr);
         } catch (err) {
             this.emit('error', err instanceof Error ? err : new Error(String(err)));
         }
     }
 
+    /** The W3C close() rejects 1001–1014, which ws sends; @gjsify/websocket
+     *  takes them through its internal hook. A host's own WebSocket has no
+     *  hook and keeps its W3C rules. */
+    private _nativeClose(code?: number, reason?: string): void {
+        const native = this._native;
+        if (!native) return;
+        if (native[kClose]) native[kClose](code, reason);
+        else if (code === undefined) native.close();
+        else if (reason === undefined) native.close(code);
+        else native.close(code, reason);
+    }
+
     /** ws-only: drop the connection without a Close frame; 'close' follows
-     *  with 1006. The W3C close() cannot express that (it rejects 1006), so
-     *  @gjsify/websocket carries an internal hook for it. */
+     *  with 1006. The W3C close() cannot express that (it rejects 1006);
+     *  @gjsify/websocket's close hook reads 1006 — RFC 6455's code for a
+     *  connection closed without a Close frame — as exactly this. */
     terminate(): void {
         if (this.readyState === CLOSED) return;
         this.readyState = CLOSING;
         const native = this._native;
         if (!native) return;
         // A host WebSocket without the hook can only close cleanly.
-        if (native[kAbort]) native[kAbort]();
+        if (native[kClose]) native[kClose](1006);
         else native.close();
     }
 

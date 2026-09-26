@@ -24,6 +24,13 @@ export interface SocketOptions extends DuplexOptions {
     allowHalfOpen?: boolean;
 }
 
+/** Node's error for a write the stream's destruction cut off. */
+function destroyedError(): Error {
+    const err = new Error('Cannot call write after a stream was destroyed') as Error & { code: string };
+    err.code = 'ERR_STREAM_DESTROYED';
+    return err;
+}
+
 export class Socket extends Duplex {
     // Public properties matching Node.js net.Socket
     remoteAddress?: string;
@@ -45,6 +52,18 @@ export class Socket extends Duplex {
     private _outputStream: Gio.OutputStream | null = null;
     private _cancellable: Gio.Cancellable = new Gio.Cancellable();
     private _reading = false;
+    /**
+     * Gio operations started on this socket's streams whose callback has not run.
+     * Each one keeps a GSource polling the descriptor; `_destroy` cancels them, but
+     * a cancelled operation is only dispatched on the NEXT main-loop iteration, so
+     * closing the descriptor before then leaves a source polling a closed fd. On
+     * Linux poll(2) flags that entry POLLNVAL and moves on; GLib on darwin polls
+     * via select(2), which fails the WHOLE call with EBADF ("poll(2) failed due
+     * to: Bad file descriptor") and starves every other source for that
+     * iteration. So the close waits for the count to reach zero.
+     */
+    private _pendingIo = 0;
+    private _afterIo: (() => void) | null = null;
     private _timeout = 0;
     private _timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -188,7 +207,14 @@ export class Socket extends Duplex {
             this._cancellable,
             (_source: Gio.SocketClient | null, asyncResult: Gio.AsyncResult) => {
                 try {
-                    this._connection = client.connect_to_host_finish(asyncResult);
+                    const connection = client.connect_to_host_finish(asyncResult);
+                    if (this.destroyed) {
+                        // destroy() won the race against a connect that had already
+                        // completed: nobody will own this connection, so close it.
+                        connection.close(null);
+                        return;
+                    }
+                    this._connection = connection;
                     this._setupConnection(opts);
                 } catch (err: unknown) {
                     this.connecting = false;
@@ -270,6 +296,7 @@ export class Socket extends Duplex {
         try {
             while (this._reading && inputStream) {
                 const bytes = await new Promise<GLib.Bytes | null>((resolve, reject) => {
+                    this._pendingIo++;
                     inputStream.read_bytes_async(
                         CHUNK_SIZE,
                         GLib.PRIORITY_DEFAULT,
@@ -279,6 +306,8 @@ export class Socket extends Duplex {
                                 resolve(inputStream.read_bytes_finish(asyncResult));
                             } catch (err) {
                                 reject(err);
+                            } finally {
+                                this._ioSettled();
                             }
                         },
                     );
@@ -336,19 +365,25 @@ export class Socket extends Duplex {
               ? Buffer.from(chunk, encoding as BufferEncoding)
               : Buffer.from(chunk as Uint8Array);
 
-        this._outputStream.write_bytes_async(
+        const outputStream = this._outputStream;
+        this._pendingIo++;
+        outputStream.write_bytes_async(
             new GLib.Bytes(data),
             GLib.PRIORITY_DEFAULT,
             this._cancellable,
             (_source: Gio.OutputStream | null, asyncResult: Gio.AsyncResult) => {
+                let error: Error | null = null;
                 try {
-                    const written = this._outputStream!.write_bytes_finish(asyncResult);
+                    const written = outputStream.write_bytes_finish(asyncResult);
                     this.bytesWritten += written;
                     this._resetTimeout();
-                    callback(null);
                 } catch (err: unknown) {
-                    callback(createNodeError(err, 'write', { address: this.remoteAddress }));
+                    error = this._cancellable.is_cancelled()
+                        ? destroyedError()
+                        : createNodeError(err, 'write', { address: this.remoteAddress });
                 }
+                this._ioSettled();
+                callback(error);
             },
         );
     }
@@ -384,6 +419,23 @@ export class Socket extends Duplex {
         this._clearTimeout();
         this._cancellable.cancel();
 
+        // 'close' (emitted after `callback`) therefore also means the descriptor
+        // is really gone — the port/fd can be reused from that listener on.
+        const release = () => this._release(err, callback);
+        if (this._pendingIo === 0) release();
+        else this._afterIo = release;
+    }
+
+    private _ioSettled(): void {
+        this._pendingIo--;
+        if (this._pendingIo === 0 && this._afterIo) {
+            const release = this._afterIo;
+            this._afterIo = null;
+            release();
+        }
+    }
+
+    private _release(err: Error | null, callback: (error?: Error | null) => void): void {
         if (this._connection) {
             try {
                 this._connection.close(null);

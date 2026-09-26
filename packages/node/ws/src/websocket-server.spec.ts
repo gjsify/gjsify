@@ -299,6 +299,52 @@ export default async () => {
             });
         });
 
+        // ── GC guard ─────────────────────────────────────────────────────────
+
+        await describe('WebSocketServer GC guard', async () => {
+            await it('a WebSocketServer kept alive only by its own listeners survives GC', async () => {
+                // Regression, measured 2026-09-25: a `WebSocketServer({ host, port })`
+                // created inside an async function that returns — rooted only by its
+                // own 'listening'/'connection' listeners, exactly the shape an
+                // `app.listen()`-style one-liner leaves behind — stopped listening
+                // after ~10-15s under GJS: `ss -ltn` still showed the port at t=8s,
+                // gone at t=10s, the process kept running, and new clients got
+                // ECONNREFUSED. @gjsify/http and @gjsify/net already hold a
+                // module-level strong-reference Set for exactly this; this proves
+                // the same guard on @gjsify/ws's WebSocketServer.
+                async function createUnreferencedServer(): Promise<number> {
+                    const wss = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+                    await new Promise<void>((r) => wss.once('listening', () => r()));
+                    return (wss.address() as { port: number }).port;
+                    // `wss` falls out of scope here — nothing outside this function
+                    // holds a reference to it.
+                }
+
+                const port = await createUnreferencedServer();
+
+                // `imports` is read through `globalThis` (not a bare identifier) so
+                // this file's Node bundle stays clean — same pattern as
+                // packages/web/fetch/src/soup-session.gjs.spec.ts.
+                const gjsSystem = (globalThis as unknown as { imports: { system: { gc(): void } } }).imports.system;
+                gjsSystem.gc();
+                gjsSystem.gc();
+                await new Promise<void>((r) => setTimeout(r, 50));
+                gjsSystem.gc();
+
+                const opened = await new Promise<boolean>((resolve) => {
+                    const client = new WebSocket(`ws://127.0.0.1:${port}/`);
+                    client.on('open', () => {
+                        client.close();
+                        resolve(true);
+                    });
+                    client.on('error', () => resolve(false));
+                    setTimeout(() => resolve(false), 3_000);
+                });
+
+                expect(opened).toBe(true);
+            });
+        });
+
         // ── { server } mode ───────────────────────────────────────────────────
 
         await describe('WebSocketServer { server } mode', async () => {

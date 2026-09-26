@@ -673,6 +673,31 @@ export class BuildAction {
         }
 
         if (opts.verbose) console.debug(`[gjsify] bundling ${inputPath} for GJS → ${outfile}`);
+        await BuildAction.bundleFileForGjs(inputPath, outfile, { ...opts, toolchainAnchor: anchorFile });
+        return outfile;
+    }
+
+    /**
+     * The uncached half of {@link bundleFileForGjsCached}: bundle `inputPath` to
+     * `outfile` as one self-contained `--app gjs` module. `gjsify exec` calls it
+     * directly because it keys its artifacts by CONTENT (package version, lockfile,
+     * CLI version — `utils/exec-bin.ts`) rather than by mtime.
+     */
+    static async bundleFileForGjs(
+        inputPath: string,
+        outfile: string,
+        opts: {
+            verbose?: boolean;
+            define?: Record<string, string>;
+            preserveDefaultExport?: boolean;
+            globals?: string;
+            excludeGlobals?: string[];
+            /** The running CLI's file, or null — see `resolveFromToolchain` above; the CALLER decides. */
+            toolchainAnchor?: string | null;
+            /** `silent` drops warnings, never errors — errors reject the build either way. */
+            logLevel?: 'silent';
+        },
+    ): Promise<void> {
         await mkdir(dirname(outfile), { recursive: true });
         await new BuildAction({
             verbose: opts.verbose,
@@ -682,15 +707,19 @@ export class BuildAction {
                 input: inputPath,
                 output: { file: outfile },
                 ...(opts.define ? { transform: { define: opts.define } } : {}),
+                ...(opts.logLevel ? { logLevel: opts.logLevel } : {}),
             },
         }).buildApp('gjs', {
             preserveDefaultExport: opts.preserveDefaultExport ?? true,
-            // See `opts.resolveFromToolchain`: the CALLER decides whether this input is
-            // toolchain, because this helper alone cannot tell a config file from a
-            // consumer's `node ./src/main.mjs`.
-            ...(anchorFile === null ? {} : { toolchainAnchor: anchorFile }),
+            // The CALLER decides whether this input is toolchain, because this helper
+            // alone cannot tell a config file from a consumer's `node ./src/main.mjs`.
+            ...(opts.toolchainAnchor ? { toolchainAnchor: opts.toolchainAnchor } : {}),
         });
-        return outfile;
+    }
+
+    /** The running CLI's own file — the toolchain anchor `gjsify exec` hands {@link bundleFileForGjs}. */
+    static runningCliFile(): string | null {
+        return runningCliFile();
     }
 
     /** Application mode */
@@ -865,7 +894,13 @@ export class BuildAction {
                 // unresolvable import would hard-crash the analysis pass.
                 // Mirrors the explicit-globals path (resolveGlobalsInject)
                 // and resolveUserPlugins above, which already anchor on cwd.
-                { extraGlobalsList: extras, excludeGlobals, cwd: process.cwd() },
+                {
+                    extraGlobalsList: extras,
+                    excludeGlobals,
+                    cwd: process.cwd(),
+                    // The same fallback the resolver gets, or the gate drops what it would rescue.
+                    ...(opts.toolchainAnchor !== undefined ? { toolchainDir: dirname(opts.toolchainAnchor) } : {}),
+                },
                 bundleToChunks,
             );
 

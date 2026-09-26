@@ -108,8 +108,11 @@ even though `WKWebView` is flipped**, so a GTK y is flipped exactly once against
 the widget height. Getting that wrong delivers every event to the wrong element
 and nothing else.
 
-Minimum deployment target is **macOS 11**, declared in `meson.build`, because
-script worlds are `WKContentWorld`.
+The library's own API floor is **macOS 11**, declared in `meson.build`, because
+script worlds are `WKContentWorld`. That is below the macOS 15.0 floor every gjsify
+darwin binary is built for ([ADR 0074](../../../docs/adr/0074-one-declared-macos-floor.md)),
+so the explicit pin narrows nothing: it only keeps clang flagging any call newer
+than 11.
 
 ## Not implemented
 

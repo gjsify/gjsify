@@ -30,6 +30,28 @@ export const MP3_FIXTURE = fileURLToPath(new URL('./fixtures/audio/tone-440hz-1s
 export const MP3_FIXTURE_SECONDS = 1;
 
 /**
+ * The same 1.0 s 440 Hz sine, AAC-LC 32 kbit/s, encoded two ways — the shapes a podcast
+ * episode and a live AAC stream each ship as. Generated with ffmpeg's own `aac` encoder
+ * (never `libfdk_aac` — which encoder makes the bytes is not a licence question for a
+ * generated test tone, but it is a reproducibility one), so this carries no third-party
+ * content:
+ *
+ *   ffmpeg -f lavfi -i sine=frequency=440:sample_rate=44100:duration=1 -ac 1 -c:a pcm_s16le tone.wav
+ *   ffmpeg -i tone.wav -ac 1 -c:a aac -profile:a aac_low -b:a 32k -movflags +faststart tone-440hz-1s-mono.m4a
+ *   ffmpeg -i tone.wav -ac 1 -c:a aac -profile:a aac_low -b:a 32k -f adts tone-440hz-1s-mono.aac
+ *
+ * M4A and raw ADTS decode through DIFFERENT elements, which is why both are fixtures and not
+ * one: `qtdemux` demuxes the container and hands the decoder raw AAC directly (measured:
+ * ranking `aacparse` out changes nothing for this file), while a bare ADTS stream carries no
+ * container and reaches the decoder only via `aacparse` (measured: ranking `qtdemux` out
+ * changes nothing for this one — there is no container to fail to demux — and ranking
+ * `aacparse` out is what breaks it). A bundle can carry either element without the other.
+ */
+export const M4A_FIXTURE = fileURLToPath(new URL('./fixtures/audio/tone-440hz-1s-mono.m4a', import.meta.url));
+export const ADTS_FIXTURE = fileURLToPath(new URL('./fixtures/audio/tone-440hz-1s-mono.aac', import.meta.url));
+export const AAC_FIXTURE_SECONDS = 1;
+
+/**
  * The MPEG frames of an MP3 file with its leading ID3v2 tag cut off.
  *
  * A live stream carries no ID3 tag, so a stream test fed the tagged file would also be
@@ -116,7 +138,19 @@ export function decodeToPcm(bytes, srcCaps) {
     }
 }
 
-/** The fixture's bytes, read once per call so a caller may mutate its copy. */
+/** A fixture's bytes, read once per call so a caller may mutate its copy. */
+function readFixture(path) {
+    return new Uint8Array(readFileSync(path));
+}
+
 export function readMp3Fixture() {
-    return new Uint8Array(readFileSync(MP3_FIXTURE));
+    return readFixture(MP3_FIXTURE);
+}
+
+export function readM4aFixture() {
+    return readFixture(M4A_FIXTURE);
+}
+
+export function readAdtsFixture() {
+    return readFixture(ADTS_FIXTURE);
 }

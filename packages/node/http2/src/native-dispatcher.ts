@@ -24,6 +24,7 @@
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import { hasNativeHttp2, loadNativeHttp2, type SessionBridge as SessionBridgeT } from '@gjsify/http2-native';
+import { closeSocketService, releaseListenPort } from '@gjsify/utils';
 
 /** Bytes the bridge needs to recognize the h2c client preface (RFC 7540 §3.5). */
 const PREFACE_LEN = 24;
@@ -142,6 +143,7 @@ export class Http2NativeDispatcher {
         if (!hasNativeHttp2()) {
             throw new Error('@gjsify/http2-native prebuild not loadable — dispatcher unavailable');
         }
+        releaseListenPort(port);
         this._service = new Gio.SocketService();
 
         let chosenPort = port;
@@ -178,11 +180,8 @@ export class Http2NativeDispatcher {
 
     close(): void {
         if (this._service) {
-            this._service.stop();
-            // SocketListener.close() exists since GLib 2.22 (far below our
-            // floor) and has no throw path in the GIR — the old comment blamed
-            // "older Gio versions" that cannot occur on any supported runtime.
-            this._service.close();
+            // Deferred descriptor close — why in `closeSocketService`.
+            closeSocketService(this._service, [this._listenPort]);
             this._service = null;
         }
         for (const conn of this._connections) this._closeConnection(conn);

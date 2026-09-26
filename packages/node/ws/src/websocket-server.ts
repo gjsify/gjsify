@@ -27,14 +27,28 @@ import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
 import { createHash } from '@gjsify/crypto';
 import Soup from '@girs/soup-3.0';
-import { abortConnection } from '@gjsify/websocket';
+import { abortConnection, isRefusedEcho, isTransportFailure, soupCloseCode } from '@gjsify/websocket';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
-import { ensureMainLoop } from '@gjsify/utils/core';
+import { createNodeError, ensureMainLoop } from '@gjsify/utils/core';
 import { CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
+import { closeReason } from './validation.js';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const WS_KEY_REGEX = /^[+/0-9A-Za-z]{22}==$/;
+
+// GC guard — GJS garbage-collects objects with no JS references. A
+// `WebSocketServer` created inside an async function that returns, kept
+// alive only by its own 'connection'/'listening' listeners (the shape an
+// `app.listen()`-style one-liner leaves behind), stopped listening after
+// ~10-15s: `ss -ltn` still showed the port at t=8s, gone at t=10s, the
+// process kept running, and new clients got ECONNREFUSED. The underlying
+// `Soup.Server` is only kept alive by ITS JS wrapper (`this._server`); once
+// nothing roots the wrapper, GJS finalizes it, which drops the native
+// object's last ref and tears down the listening socket. @gjsify/http
+// (`server.ts` `_activeServers`) and @gjsify/net (`server.ts`
+// `_activeServers`) already guard this the same way.
+const _activeWebSocketServers = new Set<WebSocketServer>();
 
 /** Structural duck-type for @gjsify/http Server — avoids a hard dep on @gjsify/http. */
 interface HttpServer {
@@ -169,7 +183,12 @@ class ServerSideWebSocket extends EventEmitter {
             this.emit('close', code, Buffer.from(reason));
         });
 
-        conn.connect('error', (_c: Soup.WebsocketConnection, err: GLib.Error) => {
+        conn.connect('error', (c: Soup.WebsocketConnection, err: GLib.Error) => {
+            // ws reports only what its receiver finds wrong in the frames; a
+            // peer's reset ends in 'close' alone, and a peer's 1012–1014 is
+            // no fault at all. Emitting either would also throw out of this
+            // signal handler with no 'error' listener.
+            if (isTransportFailure(err) || isRefusedEcho(c, err)) return;
             this.emit('error', new Error(err.message));
         });
     }
@@ -220,15 +239,14 @@ class ServerSideWebSocket extends EventEmitter {
 
     close(code?: number, reason?: string | Buffer): void {
         if (this.readyState === CLOSED || this.readyState === CLOSING) return;
+        const reasonStr = closeReason(code, reason);
         this.readyState = CLOSING;
         // Soup's own state is the authority: it may have sent its Close frame
         // without a 'closing' signal (protocol-error path), and a second
         // soup_websocket_connection_close() is a CRITICAL, not a no-op.
         if (!this._soupOpen()) return;
         try {
-            const reasonStr =
-                reason === undefined ? null : Buffer.isBuffer(reason) ? reason.toString('utf8') : String(reason);
-            this._conn.close(code ?? 1000, reasonStr);
+            this._conn.close(soupCloseCode(this._conn, code ?? 1000), reasonStr ?? null);
         } catch (err) {
             this.emit('error', err instanceof Error ? err : new Error(String(err)));
         }
@@ -386,6 +404,15 @@ export class WebSocketServer extends EventEmitter {
             (_server: Soup.Server, msg: Soup.ServerMessage, _path: string, conn: Soup.WebsocketConnection) => {
                 const url = msg.get_uri()?.to_string() ?? this.path;
                 const ws = new ServerSideWebSocket(conn, url);
+                // ws (and Node's http.Server) emit 'connection' with an
+                // IncomingMessage-shaped req — `req.headers` (lower-cased),
+                // `req.url`, `req.method`, `req.socket.remoteAddress`. Emitting
+                // the raw Soup.ServerMessage instead left consumer code like
+                // `(ws, req) => req.headers.origin` throwing "t.headers is
+                // undefined" on Gjs while the same handler worked on Node.
+                // `_buildVerifyClientInfo` already builds this shape for
+                // verifyClient — reuse it instead of a second ad-hoc mapping.
+                const req = this._buildVerifyClientInfo(msg).req;
 
                 if (options.handleProtocols) {
                     // Read client-offered protocols from the request header.
@@ -396,7 +423,6 @@ export class WebSocketServer extends EventEmitter {
                             .map((s: string) => s.trim())
                             .filter(Boolean),
                     );
-                    const req = this._buildVerifyClientInfo(msg).req;
                     const selected = options.handleProtocols(offered, req);
                     // Set server-side protocol. Note: the 101 response was already committed
                     // by Soup before this fires, so client ws.protocol won't reflect this
@@ -408,7 +434,7 @@ export class WebSocketServer extends EventEmitter {
                     this.clients.add(ws);
                     ws.on('close', () => this.clients.delete(ws));
                 }
-                this.emit('connection', ws, msg);
+                this.emit('connection', ws, req);
             },
         );
     }
@@ -430,6 +456,7 @@ export class WebSocketServer extends EventEmitter {
                 ensureMainLoop();
                 const addr = httpServer.address();
                 if (addr) this._address = { address: addr.address, family: addr.family, port: addr.port };
+                _activeWebSocketServers.add(this);
                 queueMicrotask(() => this.emit('listening'));
             } else {
                 // ── Standalone server ────────────────────────────────────────────
@@ -462,10 +489,17 @@ export class WebSocketServer extends EventEmitter {
 
                 ensureMainLoop();
                 this._address = { address: host, family: 'IPv4', port: actualPort };
+                _activeWebSocketServers.add(this);
                 queueMicrotask(() => this.emit('listening'));
             }
         } catch (err) {
-            queueMicrotask(() => this.emit('error', err instanceof Error ? err : new Error(String(err))));
+            // Map the Gio.IOErrorEnum listen failure to a Node-style ErrnoException
+            // (EADDRINUSE + errno/syscall), same as @gjsify/http and @gjsify/net —
+            // a bare `new Error(gioMessage)` left consumer code that branches on
+            // `err.code === 'EADDRINUSE'` unable to tell a busy port from any other
+            // failure, and surfaced the raw (LOCALIZED) Gio message instead.
+            const nodeErr = createNodeError(err, 'listen', { address: options.host, port: options.port });
+            queueMicrotask(() => this.emit('error', nodeErr));
         }
     }
 
@@ -477,6 +511,7 @@ export class WebSocketServer extends EventEmitter {
 
     close(callback?: (err?: Error) => void): void {
         try {
+            _activeWebSocketServers.delete(this);
             for (const ws of this.clients) ws.close();
             this.clients.clear();
             // Only disconnect the Soup.Server if WE own it (standalone mode).

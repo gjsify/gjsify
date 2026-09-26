@@ -6,7 +6,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
-import { WebSocket, MessageEvent, CloseEvent, kAbort } from 'websocket';
+import { WebSocket, MessageEvent, CloseEvent, kClose } from 'websocket';
 
 export default async () => {
     // --- WebSocket class ---
@@ -150,6 +150,40 @@ export default async () => {
             expect(arr.length).toBe(5);
             expect(arr[0]).toBe(1);
             expect(arr[4]).toBe(5);
+            server.disconnect();
+        });
+
+        await it('should connect when the URL has no path (normalizes to "/")', async () => {
+            // Regression: `ws://host:port` (no trailing slash) reached the
+            // server with an EMPTY request path — GLib.Uri doesn't normalize a
+            // missing path to "/" the way WHATWG URL (and upstream ws) does.
+            // The server's handler is registered at "/", the default path, so
+            // an unnormalized empty-path request never matched it and the
+            // handshake was rejected (close 1006).
+            const server = new Soup.Server({});
+            server.add_websocket_handler(
+                '/',
+                null,
+                null,
+                (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, connection: Soup.WebsocketConnection) => {
+                    connection.send_text('no-path-ok');
+                },
+            );
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
+
+            const result = await new Promise<string>((resolve, reject) => {
+                // No path, no trailing slash — the exact form that failed.
+                const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+                ws.onmessage = (event: MessageEvent<string>) => {
+                    ws.close();
+                    resolve(event.data);
+                };
+                ws.onerror = () => reject(new Error('WebSocket error'));
+                setTimeout(() => reject(new Error('Timeout')), 5000);
+            });
+
+            expect(result).toBe('no-path-ok');
             server.disconnect();
         });
 
@@ -362,7 +396,7 @@ export default async () => {
             }
         });
 
-        await it('[kAbort] drops the connection without a Close frame (1006)', async () => {
+        await it('[kClose](1006) drops the connection without a Close frame (1006)', async () => {
             const server = new Soup.Server({});
             const serverClosed = new Promise<number>((resolve) => {
                 server.add_websocket_handler(
@@ -395,7 +429,7 @@ export default async () => {
                     ws.onopen = () => resolve();
                     ws.onerror = () => reject(new Error('WebSocket error'));
                 });
-                ws[kAbort]();
+                ws[kClose](1006);
                 expect(ws.readyState).toBe(WebSocket.CLOSING);
                 const event = await closed;
                 // No Close frame reached the server: Soup reports no code.
@@ -408,6 +442,140 @@ export default async () => {
                 expect(criticals).toBe(0);
             } finally {
                 GLib.log_remove_handler('libsoup', handler);
+                server.disconnect();
+            }
+        });
+    });
+
+    // --- close() while CONNECTING ---
+    // Regression: close() during the handshake fired 'close' at once but let
+    // the connect run on, so 'open' could follow 'close'. The spec says fail
+    // the connection: CLOSING now, then error + close (1006), never open.
+    await describe('WebSocket close() while CONNECTING', async () => {
+        for (const how of ['close', 'kClose(1006)'] as const) {
+            await it(`${how} cancels the handshake: error, then close 1006, never open`, async () => {
+                // Accepts TCP but never answers the upgrade, so the socket
+                // stays CONNECTING until the client gives up.
+                const service = new Gio.SocketService();
+                const port = service.add_any_inet_port(null);
+                const peerEof = new Promise<boolean>((resolve) => {
+                    service.connect('incoming', (_svc: Gio.SocketService, conn: Gio.SocketConnection) => {
+                        const input = conn.get_input_stream();
+                        const drain = () =>
+                            input.read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null, (_s, res) => {
+                                try {
+                                    if (input.read_bytes_finish(res).get_size() === 0) resolve(true);
+                                    else drain();
+                                } catch {
+                                    resolve(true);
+                                }
+                            });
+                        drain();
+                        return true;
+                    });
+                });
+                service.start();
+                try {
+                    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                    const events: string[] = [];
+                    let message = '';
+                    ws.addEventListener('open', () => events.push('open'));
+                    ws.addEventListener('error', ((ev: Event & { message?: string }) => {
+                        events.push('error');
+                        message = ev.message ?? '';
+                    }) as unknown as Parameters<typeof ws.addEventListener>[1]);
+                    const closed = new Promise<CloseEvent>((resolve) => {
+                        ws.onclose = (event: CloseEvent) => {
+                            events.push('close');
+                            resolve(event);
+                        };
+                    });
+                    // Let the TCP connect land so there is a handshake to cancel.
+                    await new Promise((r) => setTimeout(r, 50));
+                    if (how === 'close') ws.close();
+                    else ws[kClose](1006);
+                    expect(ws.readyState).toBe(WebSocket.CLOSING);
+                    const event = await closed;
+                    // The server sees the connection end: the handshake was
+                    // cancelled, not merely abandoned.
+                    expect(await peerEof).toBe(true);
+                    await new Promise((r) => setTimeout(r, 50));
+                    expect(events.join(',')).toBe('error,close');
+                    expect(message).toBe('WebSocket was closed before the connection was established');
+                    expect(event.code).toBe(1006);
+                    expect(event.reason).toBe('');
+                    expect(event.wasClean).toBe(false);
+                    expect(ws.readyState).toBe(WebSocket.CLOSED);
+                } finally {
+                    service.stop();
+                }
+            });
+        }
+    });
+
+    // --- close() codes ---
+    await describe('WebSocket close() codes', async () => {
+        const startEchoServer = () => {
+            const server = new Soup.Server({});
+            const closedCode = new Promise<number>((resolve) => {
+                server.add_websocket_handler(
+                    '/ws',
+                    null,
+                    null,
+                    (_srv: Soup.Server, _msg: Soup.ServerMessage, _path: string, conn: Soup.WebsocketConnection) => {
+                        conn.connect('closed', () => resolve(conn.get_close_code()));
+                    },
+                );
+            });
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
+            return { server, port, closedCode };
+        };
+        const open = (port: number) =>
+            new Promise<WebSocket>((resolve, reject) => {
+                const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+                ws.onopen = () => resolve(ws);
+                ws.onerror = () => reject(new Error('WebSocket error'));
+            });
+
+        await it('close() keeps the W3C rules: 1000 or 3000-4999, reason up to 123 bytes', async () => {
+            const { server, port } = startEchoServer();
+            try {
+                const ws = await open(port);
+                let name = '';
+                try {
+                    ws.close(1001);
+                } catch (e) {
+                    name = (e as DOMException).name;
+                }
+                expect(name).toBe('InvalidAccessError');
+                try {
+                    ws.close(1000, 'x'.repeat(124));
+                } catch (e) {
+                    name = (e as DOMException).name;
+                }
+                expect(name).toBe('SyntaxError');
+                expect(ws.readyState).toBe(WebSocket.OPEN);
+                ws.close();
+            } finally {
+                server.disconnect();
+            }
+        });
+
+        await it('[kClose] sends the codes the W3C API withholds (1001)', async () => {
+            const { server, port, closedCode } = startEchoServer();
+            try {
+                const ws = await open(port);
+                const closed = new Promise<CloseEvent>((resolve) => {
+                    ws.onclose = (event: CloseEvent) => resolve(event);
+                });
+                ws[kClose](1001, 'away');
+                expect(ws.readyState).toBe(WebSocket.CLOSING);
+                expect(await closedCode).toBe(1001);
+                const event = await closed;
+                expect(event.code).toBe(1001);
+                expect(event.wasClean).toBe(true);
+            } finally {
                 server.disconnect();
             }
         });

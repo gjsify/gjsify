@@ -42,6 +42,7 @@ import {
 } from './fd-ops.js';
 import { FileHandle } from './file-handle.js';
 import { normalizePath } from './utils.js';
+import { constants } from './constants.js';
 import type { Dirent } from './dirent.js';
 import type { Stats, BigIntStats } from './stats.js';
 import { STAT_ATTRIBUTES, statsFrom } from './stats.js';
@@ -602,6 +603,7 @@ export {
     readvAsync as readv,
     writevAsync as writev,
     openAsBlob,
+    constants,
 };
 
 export default {
@@ -647,4 +649,5 @@ export default {
     readv: readvAsync,
     writev: writevAsync,
     openAsBlob,
+    constants,
 };
