@@ -2,6 +2,8 @@
 // Patches navigator.getGamepads and registers GamepadEvent on globalThis.
 // Side-effect module: import '@gjsify/gamepad/register'
 
+import '@gjsify/node-globals/register/navigator';
+
 import { GamepadEvent } from './gamepad-event.js';
 import { GamepadManager } from './gamepad-manager.js';
 
@@ -12,11 +14,6 @@ interface _GamepadGlobals {
 }
 
 const g = globalThis as unknown as _GamepadGlobals;
-
-// Ensure navigator object exists
-if (typeof g.navigator === 'undefined') {
-    g.navigator = {};
-}
 
 // Register navigator.getGamepads() — but NEVER over a runtime that has its own.
 //

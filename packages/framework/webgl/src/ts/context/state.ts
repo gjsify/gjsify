@@ -150,6 +150,16 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
             return;
         }
 
+        if (target === this.GENERATE_MIPMAP_HINT) {
+            // WebGL keeps GENERATE_MIPMAP_HINT; a desktop core profile removed it
+            // (glHint and glGet both raise INVALID_ENUM there). It is only a hint —
+            // no implementation is obliged to act on it — so the value WebGL must
+            // report back is the whole contract: it is kept here, and forwarded to
+            // the driver only where the driver still knows it.
+            this._generateMipmapHint = mode;
+            if (this._isCoreProfile()) return;
+        }
+
         this._gl.hint(target, mode);
     },
 

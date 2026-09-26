@@ -38,4 +38,9 @@ export const SPAWN_TEARDOWN_EXCEPTIONS = {
         'Here the process boundary IS the subject: the assertion is that the child keeps ' +
         'stdout and stderr SEPARATE, which cannot be observed without spawning and reading ' +
         'both pipes.',
+    'packages/infra/cli/src/utils/process-table.spec.ts':
+        'A SPEC in @gjsify/cli, Node-only for the same reason as the classifier spec above. ' +
+        'The subject is a REAL process tree: a child that is still running, holding a ' +
+        'grandchild, while `collectDescendants` walks the OS process table — so the live ' +
+        'handle is needed mid-flight and the spawn cannot be run to completion first.',
 };

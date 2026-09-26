@@ -17,6 +17,7 @@ import type { WebGLBuffer as OurWebGLBuffer } from './webgl-buffer.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
 import { WebGLFramebuffer } from './webgl-framebuffer.js';
+import { isLegacyFormat } from './context/texture-management/legacy-formats.js';
 import {
     Uint8ArrayToVariant,
     arrayToUint8Array,
@@ -131,6 +132,16 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             this.DEPTH_STENCIL_ATTACHMENT,
             ...WebGL2RenderingContext._WGL2_ALL_COLOR_ATTACHMENTS,
         ];
+        // ALPHA / LUMINANCE / LUMINANCE_ALPHA are never color-renderable in WebGL
+        // 2 (GLES 3.0 table 3.13). A core profile stores them as R8/RG8, which
+        // the driver WOULD render into, so this answer cannot be left to it.
+        for (const enumVal of allEnums) {
+            const attach = attachments[enumVal];
+            if (attach instanceof WebGLTexture && isLegacyFormat(attach._format)) {
+                return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+            }
+        }
+
         for (const enumVal of allEnums) {
             const attach = attachments[enumVal];
             if (!attach) continue;
@@ -190,7 +201,9 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             const attachmentEnum = 0x8ce0 + i;
             if (!(attachmentEnum in framebuffer._attachments)) continue;
             const attachment = framebuffer._attachments[attachmentEnum];
-            if (attachment instanceof WebGLTexture) {
+            // A legacy-format texture is never attached natively (see
+            // _preCheckFramebufferStatus): its R8/RG8 storage would render.
+            if (attachment instanceof WebGLTexture && !isLegacyFormat(attachment._format)) {
                 const face = framebuffer._attachmentFace[attachmentEnum] || this.TEXTURE_2D;
                 const level = framebuffer._attachmentLevel[attachmentEnum] ?? 0;
                 this._gl.framebufferTexture2D(this.FRAMEBUFFER, attachmentEnum, face, attachment._ | 0, level | 0);
@@ -353,6 +366,12 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
 
     /** WebGL2 adds TEXTURE_3D/TEXTURE_2D_ARRAY targets and many new pnames. */
     override texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
+        // WebGL 2 dropped texture swizzles (WebGL 2 spec §5.19); they are also
+        // the state the core-profile legacy-format emulation owns.
+        if (pname >= 0x8e42 /* TEXTURE_SWIZZLE_R */ && pname <= 0x8e46 /* TEXTURE_SWIZZLE_RGBA */) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
         if (target === 0x806f /* TEXTURE_3D */ || target === 0x8c1a /* TEXTURE_2D_ARRAY */) {
             // Bypass WebGL1 _checkTextureTarget which only allows TEXTURE_2D/CUBE_MAP.
             this._gl.texParameteri(target, pname, param);
@@ -639,21 +658,27 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             }
         }
 
+        // WebGL 2 keeps the unsized ALPHA/LUMINANCE/LUMINANCE_ALPHA (internal
+        // format === format); a core profile does not — see legacy-formats.ts.
+        const legacy = internalFormat === format ? this._legacyFormatStorage(format, type) : null;
+
         this._saveError();
         this._gl.texImage2D(
             target,
             level,
-            internalFormat,
+            legacy ? legacy.internalFormat : internalFormat,
             width,
             height,
             border,
-            format,
+            legacy ? legacy.format : format,
             type,
             Uint8ArrayToVariant(data),
         );
         const error = this.getError();
         this._restoreError(error);
         if (error !== this.NO_ERROR) return;
+
+        this._setTextureSwizzle(target, texture, legacy ? legacy.swizzle : null);
 
         texture._levelWidth[level] = width;
         texture._levelHeight[level] = height;
@@ -747,6 +772,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             return;
         }
 
+        if (this._legacySubImageMismatch(texture, format)) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
+
         let data = convertPixels(pixels as ArrayBufferView);
         if (!data) {
             this.setError(this.INVALID_OPERATION);
@@ -773,7 +803,19 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             }
         }
 
-        this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
+        // Same RED/RG layout the core-profile emulation stored the image in.
+        const transferFormat = this._legacyFormatStorage(format, type)?.format ?? format;
+        this._gl.texSubImage2D(
+            target,
+            level,
+            xoffset,
+            yoffset,
+            width,
+            height,
+            transferFormat,
+            type,
+            Uint8ArrayToVariant(data),
+        );
     }
 
     /** WebGL1 getUniform falls to default:null for UNSIGNED_INT types. Handle them here. */

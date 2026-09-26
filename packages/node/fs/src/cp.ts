@@ -3,7 +3,7 @@
 // Reimplemented for GJS using Gio.File synchronous operations
 
 import Gio from '@girs/gio-2.0';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { normalizePath } from './utils.js';
 import { createNodeError, requireCallback } from './errors.js';
 
@@ -49,14 +49,10 @@ function makeENOTDIR(srcStr: string, destStr: string): NodeJS.ErrnoException {
     return e;
 }
 
-function makeSYMLINKLOOP(srcStr: string, destStr: string): NodeJS.ErrnoException {
-    const e: NodeJS.ErrnoException = new Error(
-        `ELOOP: too many levels of symbolic links, copyfile '${srcStr}' -> '${destStr}'`,
-    );
-    e.code = 'ELOOP';
-    e.syscall = 'copyfile';
-    e.path = srcStr;
-    (e as NodeJS.ErrnoException & { dest?: string }).dest = destStr;
+/** Node's refusal to copy a directory into itself (`ERR_FS_CP_EINVAL`, not an errno). */
+function makeSubdirOfSelf(srcStr: string, destStr: string): NodeJS.ErrnoException {
+    const e: NodeJS.ErrnoException = new Error(`Cannot copy ${srcStr} to a subdirectory of self ${destStr}`);
+    e.code = 'ERR_FS_CP_EINVAL';
     return e;
 }
 
@@ -101,6 +97,18 @@ function copyOneSyncFile(
     }
 }
 
+/**
+ * `dest` lies inside `src` — compared per component in the HOST separator, after resolving
+ * both, as Node's `isSrcSubdir` does. The prefix test this replaced appended a literal `/`,
+ * so on win32 `C:\a` → `C:\a\b` was never recognised and the copy recursed into its own
+ * output.
+ */
+function isStrictSubdir(src: string, dest: string): boolean {
+    const srcParts = resolve(src).split(sep).filter(Boolean);
+    const destParts = resolve(dest).split(sep).filter(Boolean);
+    return destParts.length > srcParts.length && srcParts.every((part, i) => destParts[i] === part);
+}
+
 function cpOneDirSync(
     srcFile: Gio.File,
     destFile: Gio.File,
@@ -108,10 +116,8 @@ function cpOneDirSync(
     destStr: string,
     opts: CpSyncOptions | CpOptions,
 ): void {
-    // Detect src ⊂ dest cycle (if dest path starts with srcStr + separator)
-    const sep = srcStr.endsWith('/') ? '' : '/';
-    if (destStr.startsWith(srcStr + sep) && destStr !== srcStr) {
-        throw makeSYMLINKLOOP(srcStr, destStr);
+    if (isStrictSubdir(srcStr, destStr)) {
+        throw makeSubdirOfSelf(srcStr, destStr);
     }
 
     // Create dest directory if it doesn't exist
@@ -271,9 +277,8 @@ export function cp(
 }
 
 async function cpPromisesDir(srcStr: string, destStr: string, opts: CpOptions): Promise<void> {
-    const sep = srcStr.endsWith('/') ? '' : '/';
-    if (destStr.startsWith(srcStr + sep) && destStr !== srcStr) {
-        throw makeSYMLINKLOOP(srcStr, destStr);
+    if (isStrictSubdir(srcStr, destStr)) {
+        throw makeSubdirOfSelf(srcStr, destStr);
     }
 
     const destFile = Gio.File.new_for_path(destStr);

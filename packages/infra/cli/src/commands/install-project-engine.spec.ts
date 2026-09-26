@@ -5,8 +5,8 @@
 // Why this exists at all, and why as a unit spec rather than only as the
 // end-to-end recipe in the PR: the gap shipped because the documented consumer
 // path was never EXERCISED. `@gjsify/rolldown-native` is an optional peer, npm
-// 7+ skips optional peers, gjsify's native backend does not resolve
-// peerDependencies at all, and `installGjsEnginePackages()` was wired into the
+// 7+ skips optional peers, gjsify's native backend resolved no peers at all
+// then (it now installs required ones only, still skipping this one), and `installGjsEnginePackages()` was wired into the
 // global path only. Every one of those four facts is individually defensible;
 // their conjunction meant `gjsify build` could not work for any consumer on a
 // GJS host, and nothing said so. So the fix needs a check that fails if any of

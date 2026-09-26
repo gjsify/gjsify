@@ -223,58 +223,34 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
   if (cb->scope != GI_SCOPE_TYPE_CALL) depthReset = std::make_unique<SyncEmitDepthReset>();
 
   GICallableInfo* ci = cb->info;
-  unsigned int n = gi_callable_info_get_n_args(ci);
+  // Arguments and the answer in gjs's OUT/INOUT shape, shared with the vfunc
+  // trampoline (CToJsCall, marshal.cc): a pure OUT is not a JS argument and is
+  // written back from the return value. ffi hands each argument's storage as
+  // args[i] (a user_data/void IN arg marshals to undefined, which JS ignores).
+  CToJsCall call(napiEnv, ci, std::string("callback '") +
+                                  gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ci)) + "'");
   std::vector<napi_value> jsArgs;
-  jsArgs.reserve(n);
-  bool ok = true;
-  for (unsigned int i = 0; i < n; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    // ffi hands each argument's storage as args[i]; reinterpret as a GIArgument
-    // union (a user_data/void arg marshals to undefined, which JS ignores).
-    Napi::Value v = GIArgumentToJs(napiEnv, ti, static_cast<GIArgument*>(args[i]), GI_TRANSFER_NOTHING);
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-    if (napiEnv.IsExceptionPending()) {
-      ok = false;
-      break;
-    }
-    jsArgs.push_back(v);
-  }
+  bool ok = call.MarshalArgs(args, 0, &jsArgs);
 
   // Zero the result slot first (it is >= ffi_arg wide; narrow returns leave the
   // upper bytes indeterminate otherwise).
   if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
 
-  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  napi_value ret = nullptr;
   if (ok) {
     napi_value fn = nullptr;
     if (napi_get_reference_value(env, cb->jsFn, &fn) == napi_ok && fn != nullptr) {
       napi_value global = nullptr;
       napi_get_global(env, &global);
-      napi_value ret = nullptr;
       // napi_make_callback drains nextTick/microtasks around the call (Node; on
       // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below).
       g_loopDispatchDepth++;
       napi_status st = napi_make_callback(env, nullptr, global, fn, jsArgs.size(), jsArgs.data(), &ret);
       g_loopDispatchDepth--;
-      if (st == napi_ok && result != nullptr) {
-        GITypeTag rtag = gi_type_info_get_tag(retType);
-        if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
-          // Hand the caller an owned copy — a JsToGIArgument string would point
-          // into a std::string that dies with this frame.
-          Napi::Value rv(env, ret);
-          static_cast<GIArgument*>(result)->v_string =
-              rv.IsString() ? g_strdup(rv.As<Napi::String>().Utf8Value().c_str()) : nullptr;
-        } else if (rtag != GI_TYPE_TAG_VOID) {
-          std::string held;
-          JsToGIArgument(napiEnv, Napi::Value(env, ret), retType, static_cast<GIArgument*>(result),
-                         &held);
-        }
-      }
+      if (st != napi_ok) ret = nullptr;
     }
   }
-  gi_base_info_unref(retType);
+  call.WriteAnswer(ret, result);
   // A CALL-scope callback (e.g. a list `foreach`) runs synchronously inside a
   // JS-initiated GI invoke, so a pending exception must propagate to that JS
   // caller — leave it to surface at the invoke's N-API boundary. A NOTIFIED/ASYNC

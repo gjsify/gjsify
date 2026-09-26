@@ -51,9 +51,9 @@ export const gated = (gate: DiagnosticsGate, name: string, body: () => Promise<v
  * failure mode rather than taste.
  *
  * A capability can only be PROBED — nothing about `(os, env)` answers "is the Gtk
- * typelib reachable from this process", and `@gjsify/unit` is Tier 1 and must not
- * import `gi://` to find out. A probe that answers "no" makes the whole suite STAND
- * DOWN, and `requireAxes` cannot catch that: it only holds axes the host MATCHES.
+ * typelib reachable from this process". A probe that answers "no" makes the whole
+ * suite STAND DOWN, and `requireAxes` cannot catch that: it only holds axes the
+ * host MATCHES (`GJSIFY_TEST_EXPECT_AXES` can, but only on a leg that sets it).
  * So a container that lost its GTK would run zero tests and report success — the
  * green-that-checked-nothing shape, arriving through the very gate meant to widen
  * coverage. Measured once already: gated on `'Gjs'` alone, this suite built for the

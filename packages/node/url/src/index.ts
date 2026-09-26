@@ -5,7 +5,8 @@
 import GLib from '@girs/glib-2.0';
 // `/core` — the pure half. `path-shape` owns the ONE path↔`file://` conversion in the tree,
 // so `@gjsify/fetch` building a base URL and `pathToFileURL` here cannot drift apart (#1143).
-import { hostOs, isWin32, isWindowsPath, pathToFileUrlHref } from '@gjsify/utils/core';
+import { hostOs, isWin32, isWindowsPath, encodePathForFileUrl, pathToFileUrlHref } from '@gjsify/utils/core';
+import { posix, sep, win32 } from 'node:path';
 
 const PARSE_FLAGS = GLib.UriFlags.HAS_PASSWORD | GLib.UriFlags.ENCODED | GLib.UriFlags.SCHEME_NORMALIZE;
 
@@ -1340,28 +1341,62 @@ export function fileURLToPath(url: string | URL, options?: { windows?: boolean }
  *   own escape hatch (`refs/node/lib/internal/url.js`), and how the win32 behaviour is checked
  *   from the Linux runner CI actually has (#1143).
  *
- * Not yet at Node parity: Node runs `path.win32.resolve()` first, so a RELATIVE path gets the
- * current drive. Here a relative path is still joined to the CWD with `/`. Recorded in
- * `status/open-todos.md` rather than half-done.
+ * A path is RESOLVED first, as Node does, by the flavour it is read in: on win32 a relative
+ * `app\dist` picks up the current DRIVE along with the directory, and a drive-relative `D:x`
+ * lands on `D:`. Joining it to the cwd with `/` — what this did before — named a path under
+ * the cwd for both.
  */
 export function pathToFileURL(filepath: string, options?: { windows?: boolean }): URL {
     const windows = options?.windows ?? platformOrShapeIsWindows(filepath);
-    let resolved = filepath;
+    const isUNC = windows && filepath.startsWith('\\\\');
+    let resolved = isUNC ? filepath : (windows ? win32 : posix).resolve(currentDir(), filepath);
 
-    // Absoluteness is a per-platform question: `filepath[0] !== '/'` called every win32
-    // absolute path relative and prepended the CWD to it (#1143).
-    const absolute = windows ? isWindowsPath(filepath) || filepath.startsWith('/') : filepath.startsWith('/');
-    if (!absolute) {
-        if (typeof globalThis.process?.cwd === 'function') {
-            resolved = globalThis.process.cwd() + '/' + filepath;
-        } else if (GLib?.get_current_dir) {
-            // g_get_current_dir has no throw path (no `throws` in the GIR);
-            // the presence guard covers non-GJS builds where GLib is stubbed.
-            resolved = GLib.get_current_dir() + '/' + filepath;
-        }
-    }
+    if (windows && resolved.startsWith('\\\\')) return uncPathToFileURL(resolved);
+
+    // `resolve()` drops a trailing separator, and in a URL it is meaningful (`new URL('x',
+    // dirUrl)` resolves INTO the directory only when it is there). Node compares against the
+    // HOST separator, so a win32 root read on a POSIX host (`C:\`) gains a second slash —
+    // kept, because matching Node is the point.
+    const last = filepath.charCodeAt(filepath.length - 1);
+    if ((last === 47 || (windows && last === 92)) && resolved[resolved.length - 1] !== sep) resolved += '/';
 
     return new URL(pathToFileUrlHref(resolved, { windows }));
+}
+
+/**
+ * The cwd a relative path resolves against. `process.cwd()` wherever the process global
+ * exists; GLib's otherwise, because a GJS bundle built without the node globals has none and
+ * `node:path` would then fall back to `/`.
+ */
+function currentDir(): string {
+    if (typeof globalThis.process?.cwd === 'function') return globalThis.process.cwd();
+    // g_get_current_dir has no throw path (no `throws` in the GIR).
+    return GLib.get_current_dir();
+}
+
+/**
+ * `\\server\share\x` → `file://server/share/x`: the server is the URL's host. Node's
+ * rules, error codes included: the long-path prefixes `\\?\UNC\` (a UNC path) and `\\?\`
+ * (anything else — `\\?\C:\x` is a drive path) are not part of the name, and a server
+ * with nothing after it, or an empty one, is refused rather than turned into a URL naming a
+ * different place.
+ */
+function uncPathToFileURL(resolved: string): URL {
+    const prefixLength = resolved.startsWith('\\\\?\\UNC\\') ? 8 : 2;
+    const hostnameEnd = resolved.indexOf('\\', prefixLength);
+    if (hostnameEnd === -1) throw invalidPathValue(resolved, 'Missing UNC resource path');
+    if (hostnameEnd === 2) throw invalidPathValue(resolved, 'Empty UNC servername');
+    const hostname = resolved.slice(prefixLength, hostnameEnd);
+    // `?` is a forbidden host code point: Node's URL builder drops it, which is what leaves
+    // `\\?\C:\x` as the drive path `file:///C:/x`.
+    const host = hostname === '?' ? '' : hostname;
+    return new URL(`file://${host}${encodePathForFileUrl(resolved.slice(hostnameEnd).replace(/\\/g, '/'))}`);
+}
+
+function invalidPathValue(value: string, reason: string): TypeError {
+    const err = new TypeError(`The argument 'path' ${reason}. Received '${value}'`) as TypeError & { code: string };
+    err.code = 'ERR_INVALID_ARG_VALUE';
+    return err;
 }
 
 export function domainToASCII(domain: string): string {

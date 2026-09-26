@@ -401,22 +401,17 @@ export default async () => {
             await it('runs without a DOM at all', async () => {
                 // The build-recipe discriminator, and React is the reason it can
                 // break: the DEVELOPMENT react-reconciler reaches for `document`,
-                // `HTMLCanvasElement` and `Path2D`, and even the production
-                // `scheduler` carries `typeof navigator !== 'undefined' &&
-                // navigator.scheduling` — each of which makes `--globals auto`
-                // inject a GTK-backed DOM register and pull gi://Gdk, GdkPixbuf,
-                // Pango and PangoCairo into this bundle. If either exists here, the
-                // production define or `--exclude-globals navigator` was lost.
+                // `HTMLCanvasElement` and `Path2D`, each of which makes
+                // `--globals auto` inject a GTK-backed DOM register and pull
+                // gi://Gdk, GdkPixbuf, Pango and PangoCairo into this bundle. If one
+                // exists here, the production define was lost.
                 const g = globalThis as unknown as Record<string, unknown>;
                 expect(typeof g.document).toBe('undefined');
                 expect(typeof g.HTMLCanvasElement).toBe('undefined');
                 expect(typeof g.Path2D).toBe('undefined');
-                // `navigator` cannot be asserted ABSENT: Node ≥21 ships a native
-                // one, so on the gjs-on-node leg "defined" is the runtime, not the
-                // recipe. What the register would install is a bare `{}` (see
-                // @gjsify/dom-elements/register/navigator) — so the honest claim on
-                // every runtime is "absent, or the runtime's own", and the runtime's
-                // own always carries `userAgent`, which the injected `{}` never does.
+                // `navigator` is DOM-free: Node ≥21's own, or @gjsify/node-globals'
+                // Node-shaped one on GJS. Both carry `userAgent`; the bare `{}` the
+                // DOM register used to install did not.
                 expect(g.navigator === undefined || 'userAgent' in (g.navigator as object)).toBe(true);
             });
 

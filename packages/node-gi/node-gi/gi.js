@@ -2298,8 +2298,15 @@ function collectVfuncs(klass) {
             if (desc === undefined || typeof desc.value !== 'function') continue;
             seen.add(key);
             const userFn = desc.value;
+            // The ARGUMENTS cross the same boundary `this` does and need the same
+            // treatment: the engine hands a GObject arg over as a raw handle, so a
+            // `Gtk.LayoutManager.vfunc_measure(widget, …)` override received an object
+            // with no prototype and `widget.get_ancestor` was `undefined`. The return
+            // goes back through `unwrapArg` because the engine reads a GObject return
+            // as a handle, never as the wrapper user code naturally hands back.
+            // Same contract as `wrapCallbackFn`, which callbacks have always had.
             vfuncs[key.slice('vfunc_'.length)] = function (...args) {
-                return userFn.apply(wrapInstance(this, klass.prototype), args);
+                return unwrapArg(userFn.apply(wrapInstance(this, klass.prototype), args.map(wrapReturn)));
             };
         }
     }

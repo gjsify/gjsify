@@ -30,43 +30,112 @@ A worked example is the v0.28.0 release body:
 https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 -->
 
-## Upgrading
+## `gjsify install` installs required peer dependencies
 
-### Blueprint no longer needs `blueprint-compiler`
+npm 7 and later install every `peerDependencies` entry that `peerDependenciesMeta` does not
+mark `optional`. The native install backend ignored `peerDependencies` completely, so an install
+could exit 0 and still leave a package unable to run. The case that exposed it: a project with
+`wxt` as a devDependency got no `vite`, and `wxt prepare` then failed with "Builder not found".
 
-The build now parses `.blp` files itself (#1712) and the `blueprint-compiler` dependency is gone
-(#1715, ADR 0063). Nothing is spawned, so no GNOME toolchain, no Python and no MSYS2 package is
-needed to build an app with Blueprint templates, and `gjsify system-check` no longer asks for one.
+Required peers are now installed beside the package that declares them. If the tree already
+holds a version in range, that copy is reused. If the slot holds a version outside the range,
+the install prints a warning and keeps going, which is what npm does outside strict mode.
+Optional peers are still skipped, the same as npm, so `@gjsify/cli` does not pull in its GJS
+engine packages.
 
-Two things can break on upgrade:
+`gjsify-lock.json` now records each package's peer maps and a `peersResolved` flag. A lockfile
+written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
+Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
+file exactly as it is, so run one plain install and commit the updated lockfile.
+## New
 
-- **A `.blp` the compiler accepted can now fail the build.** Seven constructs are refused rather
-  than turned into XML that looks plausible and is wrong: `internal-child`, `translation-domain`,
-  a multi-step `.parent` lookup chain, an inline `menu`, a flag on a dialog response, an
-  untyped closure, and a namespace no `@girs` vocabulary covers. The build reports the file and
-  line as a `BlueprintSyntaxError` or `BlueprintEmitError`, both exported by `@gjsify/blueprint`.
-- **`@gjsify/vite-plugin-blueprint/resolve` is removed**, along with the root re-exports of
-  `resolveBlueprintCompiler`, `BlueprintCompilerNotFoundError`, `BlueprintCompileError`,
-  `currentBlueprintHost` and `formatMissingBlueprintCompiler`. There is no compiler left to
-  resolve. Catch the two error classes from `@gjsify/blueprint` instead.
+### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on
 
-### `node:sqlite` raises instead of answering "no rows"
+`gjsify exec <bin> [args…]` is `npx <bin>` for a bin your project installed (ADR 0076). Under
+Node, Bun or Deno the bin runs unchanged. Under GJS, which cannot load an npm bin, gjsify
+rebuilds it `--app gjs` once, caches the result in `node_modules/.cache/gjsify/exec/`, and runs
+it with `gjs`. The cache is reused until the package version, the lockfile or the gjsify
+version changes. Arguments, the working directory, the environment, stdio and the exit code
+pass through.
 
-`node:sqlite` now RAISES where it used to answer "no rows".
+A rebuild that fails prints the bundler's diagnostics and runs nothing: `gjsify exec` never
+falls back to Node on its own. `--runtime node` runs the bin on Node when that is what you want.
 
-`StatementSync.get()` wrapped its whole body in `catch { return undefined }` and `all()` in
-`catch { return [] }`, so on GJS every error libgda reported at execution became a wrong answer
-no consumer could tell from an empty table — `SELECT * FROM does_not_exist` came back as
-`undefined`, and kept doing so for the rest of the process's life. Node raises there. Now so do we,
-as a `SqliteError` carrying SQLite's own text and `code === 'ERR_SQLITE_ERROR'`.
+Not every Node bin runs under GJS yet. Measured when the command landed: `semver`, `json5` and
+`wxt --version` run; `prettier` and `web-ext` do not, and the reason each one stops is written
+down in `docs/bundled-toolchains.md`.
 
-This is a behaviour change, and it can surface as a NEW exception in code that has been quietly
-reading nothing back. That is the point: the exception was always the truth, and the previous
-answer was a wrong one wearing the shape of an empty result. If a query in your code starts
-throwing after this upgrade, it has been returning nothing for a reason since the day it was
-written.
+### Builds of ordinary npm packages that failed under `--app gjs`
 
-`run()` changed shape too, in the same direction. It used to leak libgda's raw `GLib.Error`, whose
-`code` is a numeric GError enum — nothing a `node:sqlite` consumer can branch on. It now raises the
-same `SqliteError` the other two do. And `exec()`/`prepare()` stopped reporting
-`"GLib.Error gda_server_provider_error: no such table: t"` where Node reports `"no such table: t"`.
+Rebuilding real bins found build defects that affect every `gjsify build --app gjs`:
+
+- A dependency that assigns `console = …` (node-forge does) no longer fails the build with
+  `ASSIGN_TO_IMPORT: Cannot assign to import 'console'`.
+- A dependency that has `"import.meta.url"` as a string, as vite's and wxt's `define` keys do,
+  no longer fails with `PARSE_ERROR: Expected ':' but found Identifier`.
+- `import.meta.dirname` and `import.meta.filename` in a dependency now work. GJS defines neither,
+  so they were `undefined`.
+- `require('fs')` from CommonJS is a mutable object, as in Node. graceful-fs (under fs-extra and
+  many CLIs) patches it in place, and that failed at load with `setting getter-only property`.
+- A `.cjs` entry point builds.
+- Two modules in one directory that import the same `@gjsify/*` package at the same moment no
+  longer lose that import to a race. The lost import came out as a bare specifier, and the
+  bundle failed its load check or died at load.
+
+### New Node APIs
+
+`util.parseEnv`, `fs/promises.constants`, `stream.promises`, `dns.promises` and
+`module.Module`.
+
+## `node:sqlite` connections no longer wear out
+
+On GJS, every statement a `DatabaseSync` connection executed left libgda objects registered on
+it: a cached prepared statement for each execution, a hidden `SELECT` that libgda ran after
+every `INSERT`, and the data model of every read until the garbage collector reached it. Each of
+those holds a weak reference to the SQLite provider, and GLib allows 65,535 of them per object.
+A connection that crossed the limit logged "Too many GWeakRef registered" and then answered
+reads wrongly without throwing. A mail sync of about 5,000 messages was enough, because each
+`run()` cost four references.
+
+Each execution now releases what it created before it returns, so a connection stays usable no
+matter how long it lives. A read that libgda can no longer type throws instead of returning rows.
+
+## `node:sqlite` reads 64-bit integers
+
+libgda types an `INTEGER` column, and an expression whose first value is an integer, as a
+32-bit `gint`. Any value past 2,147,483,647 then failed the whole read, and on 0.49.0 the
+failure was reported as an empty result. A millisecond timestamp was enough. Such columns
+are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
+fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
+larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
+
+## Browser extensions
+
+`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
+(ADR 0077). You declare the extension in `package.json#gjsify.webext`, and one command writes one
+folder per target:
+
+- a `manifest.json` composed for that target, from a `manifest.ts` function or a JSON template
+  with per-target overrides. gjsify converts no keys between Manifest V2 and V3,
+- every script bundled once as a classic IIFE, so the same file runs as a content script, an
+  injected file, an MV2 background script or an MV3 service worker,
+- pages with their local scripts bundled and stylesheets copied,
+- icons rendered from SVG to PNG through librsvg for Chromium, and the SVGs themselves for
+  Firefox,
+- `_locales/` and `public/` copied.
+
+Before a zip is written, the build checks each folder the way the browser would. A file the
+manifest names but the build did not write, a `manifest_version` that does not match the
+target, or a `default_locale` without `_locales/` stops the build with the target named.
+
+```bash
+gjsify webext build   # .output/<target>/
+gjsify webext zip     # plus <name>-<version>-<target>.zip, byte-identical across rebuilds
+gjsify webext dev     # web-ext opens the browser, gjsify rebuilds in place on save
+```
+
+The build runs on GJS as well as Node, so an extension no longer needs Node or Vite to build.
+Only `webext dev` still uses Node, because it launches the browser through `web-ext`. The
+browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
+Signing and store submission come next. The guide is at
+[Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).
