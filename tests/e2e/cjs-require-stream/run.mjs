@@ -142,6 +142,29 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
         writeFileSync(join(vendored, 'cjs.js'), 'module.exports = function isThing(x) { return x === 42; };\n');
         writeFileSync(join(vendored, 'esm.mjs'), 'export default function isThing(x) { return x === 42; }\n');
 
+        // The mirror image, shaped like `base-x@5`: `require` BEFORE `import`, and a CJS build
+        // that sets `exports.default` without `__esModule`. Node gives an `import` the ESM entry;
+        // `--app node` listed 'require' for both kinds, took the CJS one, and its Node-mode
+        // interop bound `module.exports` as the default — "(0, x.default) is not a function"
+        // at load (matrix-js-sdk pulls base-x).
+        const requireFirst = join(projectDir, 'node_modules', 'requirefirst');
+        mkdirSync(requireFirst, { recursive: true });
+        writeFileSync(
+            join(requireFirst, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'requirefirst',
+                    version: '1.0.0',
+                    main: './cjs.cjs',
+                    exports: { '.': { require: './cjs.cjs', import: './esm.mjs' } },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(join(requireFirst, 'cjs.cjs'), 'function base(x) { return x * 2; }\nexports.default = base;\n');
+        writeFileSync(join(requireFirst, 'esm.mjs'), 'export default function base(x) { return x * 2; }\n');
+
         writeFileSync(
             join(projectDir, 'src', 'importfirst-mod.cjs'),
             "var isThing = require('importfirst');\n" +
@@ -158,9 +181,11 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
                 '// before the alias plugin forwarded `extraOptions.kind`.\n' +
                 "import check from './cjs-mod.cjs';\n" +
                 "import checkImportFirst from './importfirst-mod.cjs';\n" +
+                "import base from 'requirefirst';\n" +
                 'const ok = check();\n' +
                 "console.log('CJS_REQUIRE_STREAM_INHERITS_OK=' + (ok === true));\n" +
-                "console.log('CJS_REQUIRE_IMPORT_FIRST=' + checkImportFirst());\n",
+                "console.log('CJS_REQUIRE_IMPORT_FIRST=' + checkImportFirst());\n" +
+                "console.log('ESM_IMPORT_REQUIRE_FIRST=' + (typeof base === 'function' && base(21) === 42 ? 'ok' : typeof base));\n",
         );
     });
 
@@ -222,5 +247,32 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
             /CJS_REQUIRE_IMPORT_FIRST=ok/,
             'require() of an import-first package did not resolve to its CJS entry. Combined output:\n' + combined,
         );
+    });
+
+    // `--app node` resolves with the same per-call-site conditions, so both halves hold under
+    // Node too: a require() gets `require`, an `import` gets `import`.
+    it('--app node: each call site gets its own condition', () => {
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', '--app', 'node', 'src/index.ts', '--outfile', 'dist/bundle.node.mjs', '--no-minify'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 90 * 1000 },
+        );
+        const result = spawnSync(process.execPath, [join(projectDir, 'dist', 'bundle.node.mjs')], {
+            encoding: 'utf8',
+            timeout: 30 * 1000,
+        });
+        const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        assert.strictEqual(result.status, 0, 'node bundle exited non-zero. Combined output:\n' + combined);
+        assert.match(result.stdout ?? '', /CJS_REQUIRE_IMPORT_FIRST=ok/, combined);
+        assert.match(result.stdout ?? '', /ESM_IMPORT_REQUIRE_FIRST=ok/, combined);
+    });
+
+    it('--app gjs: an import of a require-first exports map gets its ESM entry', () => {
+        if (!gjsAvailable()) {
+            assert.fail('gjs not on PATH; this regression test requires the gjs runtime.');
+        }
+        const result = spawnSync('gjs', ['-m', bundlePath], { encoding: 'utf8', timeout: 30 * 1000 });
+        const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        assert.match(result.stdout ?? '', /ESM_IMPORT_REQUIRE_FIRST=ok/, combined);
     });
 });

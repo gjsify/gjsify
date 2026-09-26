@@ -141,10 +141,10 @@ export const tscCommand: Command<unknown, TscOptions> = {
         // Run upstream `typescript` under Node — the Node fallback.
         //
         // `nodeBinary()`, NEVER a bare `process.execPath`: under the GJS bundle
-        // `process.execPath` is the GJS interpreter (`/proc/self/exe` →
-        // `gjs-console`), so `spawn(process.execPath, [tsc.js])` hands
-        // TypeScript's CommonJS CLI to GJS, which dies on the first `module`
-        // reference — or, where execPath resolves to a gjsify launcher instead,
+        // `process.execPath` is the GJS interpreter (`hostExecPath()`:
+        // `/proc/self/exe` on Linux, the PATH lookup of `gjs` on macOS), so
+        // `spawn(process.execPath, [tsc.js])` hands TypeScript's CommonJS CLI to
+        // GJS, which dies on the first `module` reference — or, where execPath resolves to a gjsify launcher instead,
         // re-executes the CLI with the tsc entry as an unknown argument. Both
         // were reached from a COLD tree: `@gjsify/tsc`'s `dist/tsc.gjs.mjs` is a
         // build output, and `build:infra` builds `@gjsify/create-app` (its first

@@ -1,5 +1,5 @@
-// The bare `navigator` object only; `navigator.getGamepads` comes from @gjsify/gamepad/register.
+// `navigator` is Node's DOM-less one (Node ≥21 has it bare), owned by @gjsify/node-globals; this
+// subpath stays so existing imports keep working. `navigator.getGamepads` comes from
+// @gjsify/gamepad/register, `navigator.mediaDevices` from @gjsify/webrtc.
 
-if (typeof (globalThis as Record<string, unknown>).navigator === 'undefined') {
-    (globalThis as Record<string, unknown>).navigator = {};
-}
+import '@gjsify/node-globals/register/navigator';

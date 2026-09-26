@@ -1,0 +1,7 @@
+{
+  "extensionName": { "message": "webext hello" },
+  "extensionDescription": { "message": "Zählt die geöffneten Seiten je Website. Gebaut mit gjsify webext." },
+  "actionTitle": { "message": "Seiten je Website" },
+  "popupTitle": { "message": "Seiten je Website" },
+  "popupEmpty": { "message": "Noch keine Seiten." }
+}

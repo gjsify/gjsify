@@ -39,7 +39,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, symlinkSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -87,6 +87,15 @@ await describe('node-free bootstrap (ADR 0002)', async () => {
                     timeout: TIMEOUT_MS,
                 },
             );
+            // The REAL gjs beside the fake node. The PATH below is the system dirs
+            // plus `fakeBin`, and on macOS gjs lives in neither — Homebrew puts it
+            // in `/opt/homebrew/bin`, next to `node`, so that directory cannot be
+            // on PATH at all. Measured: `spawnSync gjs ENOENT` on macOS 27 arm64.
+            const realGjs = execFileSync('sh', ['-c', 'command -v gjs'], {
+                encoding: 'utf8',
+                timeout: TIMEOUT_MS,
+            }).trim();
+            symlinkSync(realGjs, join(fakeBin, 'gjs'));
             execFileSync(
                 'sh',
                 [

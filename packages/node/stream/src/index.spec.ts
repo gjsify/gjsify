@@ -13,7 +13,9 @@ import Stream, {
     isWritable,
     getDefaultHighWaterMark,
     setDefaultHighWaterMark,
+    promises as streamPromises,
 } from 'node:stream';
+import * as streamPromisesModule from 'node:stream/promises';
 
 // These are exported from our implementation but not in @types/node's stream module,
 // so we access them via the default export.
@@ -34,6 +36,14 @@ export default async () => {
             expect(typeof stream.on).toBe('function');
             expect(typeof stream.emit).toBe('function');
             expect(typeof stream.removeListener).toBe('function');
+        });
+
+        // `import { promises } from 'stream'` (web-ext) failed the `--app gjs` build
+        // with MISSING_EXPORT while `stream/promises` existed all along.
+        await it('exposes stream/promises as `promises`', async () => {
+            expect(streamPromises.pipeline).toBe(streamPromisesModule.pipeline);
+            expect(streamPromises.finished).toBe(streamPromisesModule.finished);
+            expect((Stream as any).promises.pipeline).toBe(streamPromisesModule.pipeline);
         });
     });
 

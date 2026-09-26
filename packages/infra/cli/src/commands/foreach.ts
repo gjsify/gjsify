@@ -11,7 +11,7 @@
 
 import type { ChildProcess } from 'node:child_process';
 import { spawnToCompletion } from '../utils/spawn.js';
-import { readFileSync, readdirSync } from 'node:fs';
+import { collectDescendants } from '../utils/process-table.js';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
 import {
@@ -47,94 +47,6 @@ const KILL_GRACE_MS = 5_000;
 // never emits 'close', so we must not wait on it unboundedly.
 const DRAIN_DEADLINE_MS = 15_000;
 
-// Read the direct child PIDs of `pid` from /proc/<pid>/task/*/children
-// (Linux, CONFIG_PROC_CHILDREN — standard on every mainstream kernel). When
-// the per-task children files are unavailable, fall back to one full
-// /proc/*/stat scan building a ppid→children map. Both paths use only
-// `node:fs` reads, so they behave identically under Node and GJS
-// (@gjsify/fs) — unlike a process-group kill, which GJS cannot issue
-// (`@gjsify/process.kill` shells out `kill <sig> <pid>` where a negative
-// PID parses as an option, and Gio.Subprocess has no group-signal API).
-function readDirectChildren(pid: number): number[] | null {
-    let taskIds: string[];
-    try {
-        taskIds = readdirSync(`/proc/${pid}/task`);
-    } catch {
-        // Process already gone (common) or /proc unavailable.
-        return null;
-    }
-    const kids: number[] = [];
-    let readAny = false;
-    for (const tid of taskIds) {
-        try {
-            const data = readFileSync(`/proc/${pid}/task/${tid}/children`, 'utf-8');
-            readAny = true;
-            for (const tok of data.trim().split(/\s+/)) {
-                const n = Number(tok);
-                if (Number.isInteger(n) && n > 0) kids.push(n);
-            }
-        } catch {
-            // Thread vanished mid-walk, or kernel lacks CONFIG_PROC_CHILDREN.
-        }
-    }
-    return readAny ? kids : null;
-}
-
-// Fallback: scan every /proc/<pid>/stat once and build ppid → children.
-// O(#processes) small reads — fine for the rare kill path.
-function buildPpidMap(): Map<number, number[]> {
-    const map = new Map<number, number[]>();
-    let entries: string[] = [];
-    try {
-        entries = readdirSync('/proc');
-    } catch {
-        return map;
-    }
-    for (const entry of entries) {
-        const pid = Number(entry);
-        if (!Number.isInteger(pid) || pid <= 0) continue;
-        try {
-            const stat = readFileSync(`/proc/${pid}/stat`, 'utf-8');
-            // comm (field 2) may contain spaces/parens — parse after last ')'.
-            const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-            const ppid = Number(rest[1]);
-            if (!Number.isInteger(ppid) || ppid <= 0) continue;
-            const siblings = map.get(ppid);
-            if (siblings) siblings.push(pid);
-            else map.set(ppid, [pid]);
-        } catch {
-            // Process exited between readdir and read — fine.
-        }
-    }
-    return map;
-}
-
-// Snapshot every transitive descendant of `pid`, breadth-first (so
-// reversing the list yields deepest-first order for signalling).
-function collectDescendants(pid: number): number[] {
-    const result: number[] = [];
-    const seen = new Set<number>([pid]);
-    const queue = [pid];
-    let ppidMap: Map<number, number[]> | null = null;
-    while (queue.length > 0) {
-        const cur = queue.shift()!;
-        let kids = readDirectChildren(cur);
-        if (kids === null) {
-            // children files unreadable — use (and lazily build) the
-            // full-scan fallback for this and subsequent levels.
-            ppidMap ??= buildPpidMap();
-            kids = ppidMap.get(cur) ?? [];
-        }
-        for (const kid of kids) {
-            if (seen.has(kid)) continue;
-            seen.add(kid);
-            result.push(kid);
-            queue.push(kid);
-        }
-    }
-    return result;
-}
-
 // Signal an already-collected descendant set deepest-first, then the direct
 // child itself. Snapshot-then-signal (not signal-while-walking) so killing
 // the parent can't orphan grandchildren before we enumerated them. The
@@ -162,7 +74,10 @@ function killActiveChildren(): void {
     // The direct child is `npm run <script>` — killing only it leaves the
     // npm-spawned shell → gjs/node build grandchildren alive (observed: an
     // orphaned gjs bundler at 100% CPU for 19+ min after a fail-fast kill).
-    // So terminate the whole process TREE of each child via a /proc walk.
+    // So terminate the whole process TREE of each child — walked by
+    // `utils/process-table.ts` (procfs on Linux, the OS process list elsewhere).
+    // A process-group kill would be simpler and GJS cannot issue one:
+    // Gio.Subprocess has no group-signal API.
     const termSnapshots = new Map<ChildProcess, number[]>();
     for (const child of activeChildren) {
         const descendants = child.pid ? collectDescendants(child.pid) : [];

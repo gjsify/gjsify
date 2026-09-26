@@ -43,6 +43,9 @@
         },
         "./register/microtask": {
             "default": "./lib/esm/register/microtask.js"
+        },
+        "./register/navigator": {
+            "default": "./lib/esm/register/navigator.js"
         }
     },
     "sideEffects": [
@@ -82,7 +85,12 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
+        }
     },
     "license": "MIT",
     "repository": {

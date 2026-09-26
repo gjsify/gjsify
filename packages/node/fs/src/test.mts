@@ -34,6 +34,7 @@ import testSuiteUtimes from './utimes.spec.js';
 import testSuiteFdOps from './fd-ops.spec.js';
 import testSuiteRmSymlink from './rm-symlink.spec.js';
 import testSuiteFsSemantics from './fs-semantics.spec.js';
+import testSuiteCjsInterop from './cjs-interop.spec.js';
 
 run({
     testSuiteCallback,
@@ -59,4 +60,5 @@ run({
     testSuiteFdOps,
     testSuiteRmSymlink,
     testSuiteFsSemantics,
+    testSuiteCjsInterop,
 });

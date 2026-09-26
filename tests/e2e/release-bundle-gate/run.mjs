@@ -1093,3 +1093,91 @@ describe('check-build-infra-order: the cold CLI sweep', () => {
         assert.ok(read && Number(read[1]) > 0, `the sweep rule read nothing:\n${result.stdout}${result.stderr}`);
     });
 });
+
+// The FOURTH rule: a manifest-derived complement to rule 2. A package's
+// production/peer `workspace:` `@gjsify/*` dependency must have its own
+// earlier `build`/`build:types` clause — checked off the graph directly,
+// so it fires the commit a dependency is DECLARED rather than the later one
+// where some file's import first exercises it (the shape #1133/#1237 already
+// paid for once, read from the other end).
+describe('check-build-infra-order: the manifest dependency order', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+
+    /** `packages` maps a name to `{ dependencies?, scripts }`. */
+    function runDepOrderGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-deporder-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, pkg] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'infra', name.replace('@gjsify/', ''));
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, ...pkg }));
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    const TSC_BUILD = { build: 'gjsify tsc', 'build:types': 'gjsify tsc' };
+
+    it('rejects a dependency whose own clauses both come later — the utils/runtime shape', () => {
+        const result = runDepOrderGuard(
+            `gjsify workspace @gjsify/utils build:types && gjsify workspace @gjsify/cli build && ${FACADE} && ` +
+                'gjsify workspace @gjsify/utils build && gjsify workspace @gjsify/runtime build',
+            {
+                '@gjsify/utils': { dependencies: { '@gjsify/runtime': 'workspace:^' }, scripts: TSC_BUILD },
+                '@gjsify/cli': { scripts: { build: 'tsc' } },
+                '@gjsify/runtime': { scripts: { build: 'gjsify tsc' } },
+            },
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /clause 1 runs `@gjsify\/utils build:types`/);
+        assert.match(result.stderr, /production\/peer dependency @gjsify\/runtime has no earlier clause/);
+        assert.match(result.stderr, /clause 4 runs `@gjsify\/utils build`/);
+    });
+
+    it('accepts the same pair once a build:types clause for the dependency runs first', () => {
+        const result = runDepOrderGuard(
+            `gjsify workspace @gjsify/runtime build:types && gjsify workspace @gjsify/utils build:types && ` +
+                `gjsify workspace @gjsify/cli build && ${FACADE} && gjsify workspace @gjsify/utils build && ` +
+                'gjsify workspace @gjsify/runtime build',
+            {
+                '@gjsify/utils': { dependencies: { '@gjsify/runtime': 'workspace:^' }, scripts: TSC_BUILD },
+                '@gjsify/cli': { scripts: { build: 'tsc' } },
+                '@gjsify/runtime': { scripts: TSC_BUILD },
+            },
+        );
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it("exempts a dependency `-d` sweeps into the SAME clause's own production closure", () => {
+        const result = runDepOrderGuard(`gjsify workspace @gjsify/process build -d && ${FACADE}`, {
+            '@gjsify/process': { dependencies: { '@gjsify/events': 'workspace:^' }, scripts: { build: 'gjsify tsc' } },
+            '@gjsify/events': { scripts: { build: 'gjsify tsc' } },
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    // The shape that made the naive "every workspace dependency must be built
+    // earlier" rule cry wolf (this script's rule-2 header): `@gjsify/cli` lists
+    // `@gjsify/buffer` as a real `dependencies` entry that its own tsc never
+    // imports (packages/infra/cli/src/utils/base64.ts explains why), reachable
+    // only via an unrelated package's `-d` sweep. Not naming its OWN clause
+    // anywhere means build:infra makes no promise about buffer's timing, so
+    // this rule has nothing to order it against.
+    it('ignores a dependency that never gets its own explicit clause', () => {
+        const result = runDepOrderGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': { dependencies: { '@gjsify/buffer': 'workspace:^' }, scripts: { build: 'tsc' } },
+            '@gjsify/buffer': { scripts: { build: 'gjsify tsc' } },
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it("holds for this repo's own build:infra", () => {
+        const result = spawnSync(process.execPath, [ORDER_GUARD], { cwd: MONOREPO_ROOT, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+        const read = /dependency-order rule checked (\d+) production\/peer workspace dependency edge\(s\)/.exec(
+            result.stdout,
+        );
+        assert.ok(read, `no dependency-order count in output:\n${result.output}`);
+        assert.ok(Number(read[1]) > 0, `the dependency-order rule checked 0 edges:\n${result.output}`);
+    });
+});

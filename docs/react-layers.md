@@ -39,28 +39,24 @@ for it: `document`, `HTMLCanvasElement` and `Path2D` are absent from the built b
 rather than dropped, because a guard that silently stopped guarding is worth more as a known loss
 than as a deleted line.
 
-`navigator` is deliberately not asserted absent. Node 21 and later ship their own, so on the
-gjs-on-node leg "defined" would mean the runtime rather than a lost flag. The honest claim on
-every runtime is "absent, or the runtime's own", and `userAgent` tells the two apart because the
-injected register's bare `{}` never has one.
+`navigator` is deliberately not asserted absent. Node 21 and later ship their own, and on GJS
+`@gjsify/node-globals` injects the same DOM-free shape. The vector asserts it carries
+`userAgent`, which the bare `{}` the DOM register used to install never had.
 
-### Both flags are warts with a known shape
+### The flag is a wart with a known shape
 
-Neither is fixed, so the recipe on the React page is required exactly as written. What kind of
-thing they are is still worth knowing.
+The recipe on the React page is required exactly as written.
 
 **The `NODE_ENV` define is a default the build could hold itself.** Neither the CLI nor the
 bundler plugin mentions `NODE_ENV`, while `--minify` already defaults to on. The build takes a
 production posture by default in one place and declines to in the other, and every consumer
 spells the same constant by hand.
 
-**`--exclude-globals navigator` is the more arguable of the two.** The detector already models
-this case and stops one step short: a `typeof X` guard that is the only occurrence of `X` is not
-counted as a use, because such guards are pervasive in isomorphic packages and the branch is dead
-under GJS. It fires here only because `navigator.scheduling`, inside the guarded branch, is a
-genuine reference. The injection cannot help even in principle, since the register installs a
-bare `{}` that flips `typeof navigator` to `'object'` and then answers `undefined` for
-`scheduling`. What the flag buys is four `gi://` imports, not behaviour.
+The recipe used to carry a second flag, `--exclude-globals navigator`. The production
+`scheduler` reads `navigator.scheduling` inside a `typeof navigator` guard, a genuine reference
+the detector answers with an injection, and `navigator` used to map to a DOM register that
+cost four `gi://` imports and installed a bare `{}`. It now maps to Node's DOM-free `navigator`
+in `@gjsify/node-globals`, which reaches no toolkit, so the flag is gone.
 
 ## Why render() is synchronous
 

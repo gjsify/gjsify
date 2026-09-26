@@ -13,25 +13,79 @@ function isGjs(): boolean {
     return getGjsGlobal().imports?.gi?.GLib !== undefined;
 }
 
+/** Loose view of the GLib calls {@link killPid} makes — `gjs.ts` types GLib as a bag of Functions. */
+interface KillGlib {
+    get_environ(): string[];
+    environ_setenv(envp: string[], variable: string, value: string, overwrite: boolean): string[];
+    spawn_sync(
+        workingDirectory: string | null,
+        argv: string[],
+        envp: string[] | null,
+        flags: number,
+        childSetup: null,
+    ): [boolean, Uint8Array | null, Uint8Array | null, number];
+    spawn_check_wait_status(waitStatus: number): boolean;
+}
+
+/** `G_SPAWN_SEARCH_PATH`. Spelled numerically — this module takes no `@girs/*` value import. */
+const SPAWN_SEARCH_PATH = 1 << 2;
+
+/**
+ * Map a failed `kill(1)` to the errno Node's `process.kill` would have thrown.
+ *
+ * Returns `undefined` for a failure it cannot classify: the caller then throws
+ * WITHOUT a code, so nobody reads "the process is gone" out of, say, a missing
+ * `kill` binary. The two phrases are strerror(3)'s C-locale text, which is why
+ * the child runs under `LC_ALL=C` — procps, util-linux, BusyBox and the BSD
+ * `/bin/kill` on macOS all print them verbatim there.
+ */
+export function classifyKillFailure(stderr: string): 'ESRCH' | 'EPERM' | undefined {
+    if (/No such process/i.test(stderr)) return 'ESRCH';
+    if (/Operation not permitted/i.test(stderr)) return 'EPERM';
+    return undefined;
+}
+
 export function killPid(pid: number, signal?: string | number): boolean {
-    // GJS path first (GLib spawn).
-    try {
-        const GLib = getGjsGlobal().imports?.gi?.GLib;
-        if (GLib) {
-            const sig = typeof signal === 'number' ? String(signal) : signal || 'SIGTERM';
-            const sigArg = sig.startsWith('SIG') ? `-${sig.slice(3)}` : `-${sig}`;
-            GLib.spawn_command_line_sync(`kill ${sigArg} ${pid}`);
-            return true;
+    // GJS path first: GJS has no kill(2) binding and Gio.Subprocess can signal
+    // only its OWN children, so this runs `kill(1)`. Its exit status is the
+    // answer and is NOT discarded: this used to return `true` for every pid,
+    // which made `process.kill(pid, 0)` — Node's documented liveness probe —
+    // report every dead process as alive. Harmless on Linux, where the
+    // callers that care probe `/proc/<pid>` first; on macOS there is no
+    // procfs, so the probe WAS the answer and a crashed `gjsify install`'s
+    // lock could never be stolen as dead-owner (only after the 35-min budget).
+    const GLib = getGjsGlobal().imports?.gi?.GLib as unknown as KillGlib | undefined;
+    if (GLib) {
+        const sig = typeof signal === 'number' ? String(signal) : signal || 'SIGTERM';
+        const sigArg = sig.startsWith('SIG') ? `-${sig.slice(3)}` : `-${sig}`;
+        // argv, not a command line; `--` so a negative pid (a process GROUP)
+        // is the operand it means rather than an option.
+        const argv = ['kill', sigArg, '--', String(pid)];
+        const envp = GLib.environ_setenv(GLib.get_environ(), 'LC_ALL', 'C', true);
+        const [, , stderr, waitStatus] = GLib.spawn_sync(null, argv, envp, SPAWN_SEARCH_PATH, null);
+        let exitedCleanly = false;
+        try {
+            exitedCleanly = GLib.spawn_check_wait_status(waitStatus);
+        } catch {
+            exitedCleanly = false;
         }
-    } catch {
-        /* ignore */
+        if (exitedCleanly) return true;
+        const text = stderr ? new TextDecoder().decode(stderr).trim() : '';
+        const code = classifyKillFailure(text);
+        // Node's `ErrnoException` message is exactly `kill ESRCH` (refs/node
+        // lib/internal/errors.js); only an unclassified failure carries the text.
+        const err = new Error(code ? `kill ${code}` : `kill failed${text ? `: ${text}` : ''}`) as NodeJS.ErrnoException;
+        if (code) {
+            err.code = code;
+            err.errno = code === 'ESRCH' ? -3 : -1;
+            err.syscall = 'kill';
+        }
+        throw err;
     }
 
-    if (!isGjs()) {
-        const nativeProcess = globalThis.process;
-        if (nativeProcess && typeof nativeProcess.kill === 'function') {
-            return nativeProcess.kill(pid, signal);
-        }
+    const nativeProcess = globalThis.process;
+    if (nativeProcess && typeof nativeProcess.kill === 'function') {
+        return nativeProcess.kill(pid, signal);
     }
     throw new Error('process.kill() is not supported in this environment');
 }

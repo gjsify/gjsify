@@ -6,8 +6,9 @@
 // second copy of the current runtime, and that is exactly what makes it wrong
 // here: this CLI is a DUAL-HOST program. Run from `lib/index.js` the current
 // runtime is Node; run from `dist/cli.gjs.mjs` it is GJS, where
-// `@gjsify/process` resolves `execPath` honestly from `/proc/self/exe` →
-// `/usr/bin/gjs-console`. Handing a Node script to that binary does not fail
+// `@gjsify/process` resolves `execPath` honestly to the interpreter binary
+// (`/proc/self/exe` → `/usr/bin/gjs-console` on Linux; `gjs` found on PATH on
+// macOS, which has no procfs — `@gjsify/utils`' `hostExecPath()`). Handing a Node script to that binary does not fail
 // with a missing-interpreter error — it RUNS, under the wrong engine, and dies
 // somewhere inside the payload.
 //
@@ -101,7 +102,7 @@ export const spawnNodeBinaryRule: Rule = {
                 context.report({
                     message:
                         `\`${name}(process.execPath, …)\` assumes this CLI runs under Node. Under the GJS ` +
-                        'bundle `process.execPath` is the GJS interpreter (`/proc/self/exe` → `gjs-console`), ' +
+                        'bundle `process.execPath` is the GJS interpreter (e.g. `gjs-console`), ' +
                         'so this starts the wrong runtime — a Node script handed to GJS runs and then dies ' +
                         'inside the payload (`ReferenceError: module is not defined`), which reads as a bug ' +
                         'in the payload rather than in the spawn. Use `nodeBinary()` from ' +

@@ -1,6 +1,6 @@
 # @gjsify/node-globals
 
-Node.js globals for GJS: `process`, `Buffer`, `structuredClone`, `btoa`/`atob`, `URL`, `URLSearchParams`, `setImmediate`/`clearImmediate`, `queueMicrotask`, `global`, and the `Error.captureStackTrace` / `Promise.withResolvers` V8 polyfills.
+Node.js globals for GJS: `process`, `Buffer`, `structuredClone`, `btoa`/`atob`, `URL`, `URLSearchParams`, `setImmediate`/`clearImmediate`, `queueMicrotask`, `navigator`, `global`, and the `Error.captureStackTrace` / `Promise.withResolvers` V8 polyfills.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 

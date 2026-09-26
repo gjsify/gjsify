@@ -6,6 +6,18 @@ import { cli } from '@gjsify/utils';
 
 const NOMAC = '00:00:00:00:00:00';
 
+// The base-system tools every reader below runs, by ABSOLUTE path. macOS puts
+// them on the sealed, SIP-protected system volume at these exact locations, so
+// the path is a fact rather than a guess — while PATH is not: `sysctl` and
+// `ifconfig` live in the `sbin` directories, which a launchd agent, a CI
+// runner's step shell or a scrubbed `env -i PATH=/usr/bin:/bin` do not carry.
+// A bare `sysctl` there made `os.cpus()` THROW, and the GJS-hosted CLI calls it
+// while its modules evaluate — so `gjsify --help` died before printing anything.
+const SYSCTL = '/usr/sbin/sysctl';
+const IFCONFIG = '/sbin/ifconfig';
+const VM_STAT = '/usr/bin/vm_stat';
+const UPTIME = '/usr/bin/uptime';
+
 const getIPv6Subnet = createSubnet(128, 16, 16, ':');
 
 const parseInterfaces = function (info) {
@@ -75,7 +87,7 @@ const parseInterfaces = function (info) {
  */
 const sysctl = (key: string): string | null => {
     try {
-        const value = cli(`sysctl -n ${key}`).trim();
+        const value = cli(`${SYSCTL} -n ${key}`).trim();
         return value.length > 0 ? value : null;
     } catch {
         return null;
@@ -108,7 +120,7 @@ const NO_CPU_TIMES = Object.freeze({ user: 0, nice: 0, sys: 0, idle: 0, irq: 0 }
 
 // PORTED TO deno runtime
 export const cpus = () => {
-    const cores = parseFloat(cli('sysctl -n hw.ncpu'));
+    const cores = parseFloat(cli(`${SYSCTL} -n hw.ncpu`));
     // Hoisted out of the loop: these are per-MACHINE facts, so querying them
     // per core spawned one `sysctl` per CPU (64 subprocesses on a Mac Pro) to
     // recompute the same two strings.
@@ -134,7 +146,7 @@ export const endianness = () => 'LE';
  */
 export const freemem = () => {
     try {
-        const vmstat = cli('vm_stat');
+        const vmstat = cli(VM_STAT);
         // Parse page size from first line: "Mach Virtual Memory Statistics: (page size of 16384 bytes)"
         const pageSizeMatch = /page size of (\d+) bytes/.exec(vmstat);
         const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1], 10) : 16384;
@@ -160,7 +172,7 @@ export const freemem = () => {
     // Fallback: difference between hw.memsize and hw.physmem
     // (not accurate but better than 0)
     try {
-        return parseFloat(cli('sysctl -n hw.memsize')) - parseFloat(cli('sysctl -n hw.physmem'));
+        return parseFloat(cli(`${SYSCTL} -n hw.memsize`)) - parseFloat(cli(`${SYSCTL} -n hw.physmem`));
     } catch {
         return 0;
     }
@@ -174,14 +186,14 @@ export const freemem = () => {
  * instead of reading a zero.
  */
 export const loadavg = (): number[] =>
-    /load\s+averages:\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/.test(cli('uptime'))
+    /load\s+averages:\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/.test(cli(UPTIME))
         ? [parseFloat(RegExp.$1), parseFloat(RegExp.$2), parseFloat(RegExp.$3)]
         : [0, 0, 0];
 
 export const networkInterfaces = () => {
     const ifaces = {};
     const groups = [];
-    const lines = cli('ifconfig').split(/\r\n|\n/);
+    const lines = cli(IFCONFIG).split(/\r\n|\n/);
     const length = lines.length;
     for (let group = [], re = /^\S+?:/, i = 0; i < length; i++) {
         if (re.test(lines[i])) {
@@ -202,7 +214,7 @@ export const networkInterfaces = () => {
  */
 export const totalmem = () => {
     try {
-        return parseFloat(cli('sysctl -n hw.memsize'));
+        return parseFloat(cli(`${SYSCTL} -n hw.memsize`));
     } catch {
         return 0;
     }
@@ -212,7 +224,7 @@ export const totalmem = () => {
 export const uptime = () => {
     // Try sysctl kern.boottime first (most reliable)
     try {
-        const boottime = cli('sysctl -n kern.boottime');
+        const boottime = cli(`${SYSCTL} -n kern.boottime`);
         // Format: "{ sec = 1711234567, usec = 123456 } Mon Mar 25 ..."
         const secMatch = /sec\s*=\s*(\d+)/.exec(boottime);
         if (secMatch) {
@@ -225,7 +237,7 @@ export const uptime = () => {
     }
 
     // Fallback: parse uptime command output
-    const output = cli('uptime');
+    const output = cli(UPTIME);
     const up = /up\s+([^,]+)?,/.test(output) && RegExp.$1;
     switch (true) {
         case /^(\d+):(\d+)$/.test(up as string):
