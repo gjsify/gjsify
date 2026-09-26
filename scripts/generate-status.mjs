@@ -102,7 +102,12 @@ const PACKAGE_ENTRY_KEYS = new Set(['status', 'note', 'working', 'missing']);
  * different files and git merges them without conflict. See
  * `status/open-todos/README.md` and `status/priorities/README.md`.
  */
-export const SECTION_FILES = ['summary-notes.md', 'webrtc-status.md', 'adwaita-web-roadmap.md', 'webgl-known-issues.md'];
+export const SECTION_FILES = [
+    'summary-notes.md',
+    'webrtc-status.md',
+    'adwaita-web-roadmap.md',
+    'webgl-known-issues.md',
+];
 
 // ─── Repo scanning (all derived facts come from here) ───────────────────────
 
@@ -425,7 +430,11 @@ export function readOpenTodos(root) {
         .filter((f) => f.endsWith('.md') && f !== 'README.md')
         .sort();
     return files
-        .map((f) => readFileSync(join(dir, f), 'utf8').replace(/^<!--[\s\S]*?-->\n+/, '').trim())
+        .map((f) =>
+            readFileSync(join(dir, f), 'utf8')
+                .replace(/^<!--[\s\S]*?-->\n+/, '')
+                .trim(),
+        )
         .filter(Boolean)
         .join('\n\n');
 }
@@ -546,7 +555,9 @@ function loadPriorities(root, failures) {
             continue;
         }
         if (parsed.tier !== 'high' && parsed.tier !== 'low') {
-            failures.push(`status/priorities/${file}: front matter \`tier\` must be \`high\` or \`low\`, got \`${parsed.tier}\`.`);
+            failures.push(
+                `status/priorities/${file}: front matter \`tier\` must be \`high\` or \`low\`, got \`${parsed.tier}\`.`,
+            );
             continue;
         }
         items.push({ file, order, tier: parsed.tier, body: parsed.body });
@@ -555,7 +566,9 @@ function loadPriorities(root, failures) {
     for (const item of items) {
         const prior = seenOrders.get(item.order);
         if (prior) {
-            failures.push(`status/priorities/${item.file}: \`order: ${item.order}\` collides with ${prior} — orders must be unique.`);
+            failures.push(
+                `status/priorities/${item.file}: \`order: ${item.order}\` collides with ${prior} — orders must be unique.`,
+            );
         }
         seenOrders.set(item.order, item.file);
     }
@@ -710,7 +723,9 @@ export function loadStatusData(root, facts) {
     const todoSectionList = todoSections(todosMd);
     const todoHeadings = todoSectionList.map((section) => section.heading);
     if (existsSync(todosDir) && todoHeadings.length === 0) {
-        failures.push('status/open-todos/ has no `### <title>` sections across its area files — one heading per open TODO.');
+        failures.push(
+            'status/open-todos/ has no `### <title>` sections across its area files — one heading per open TODO.',
+        );
     }
     for (const heading of todoHeadings) {
         if (heading.includes('~~') || /^Completed\b/.test(heading) || heading.includes('✓')) {
