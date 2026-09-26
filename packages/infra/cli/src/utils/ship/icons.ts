@@ -299,6 +299,12 @@ export interface RasterizeInput {
      * alone passes just as well when nobody wires it in.
      */
     spawn?: typeof spawnToCompletion;
+    /**
+     * The command a refusal names (default `gjsify ship`). `gjsify webext` renders
+     * its toolbar icons through the same child, and a message blaming `ship`
+     * would send its reader to the wrong command's documentation.
+     */
+    command?: string;
 }
 
 /**
@@ -310,6 +316,7 @@ export interface RasterizeInput {
  */
 export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, Uint8Array>> {
     if (input.sizes.length === 0) return new Map();
+    const command = input.command ?? 'gjsify ship';
     // THE CLI'S OWN SPAWN WRAPPER, not `promisify(execFile)`. Measured under the
     // GJS-built CLI (`dist/cli.gjs.mjs`, gjs 1.88): `node:util`'s `promisify` over
     // `@gjsify/child_process`'s `execFile` resolves with the bare stdout string —
@@ -333,7 +340,7 @@ export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, U
             maxBuffer: 64 * 1024 * 1024,
             notFound: () =>
                 new Error(
-                    `gjsify ship: \`${RASTERIZER}\` is not on PATH, and it is what renders ${input.svg} into the ` +
+                    `${command}: \`${RASTERIZER}\` is not on PATH, and it is what renders ${input.svg} into the ` +
                         `sizes an icon needs on this OS. ${RASTERIZER_HINT}.`,
                 ),
         },
@@ -347,7 +354,7 @@ export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, U
             ? ` The Rsvg typelib or GJS's cairo binding is missing. ${RASTERIZER_HINT}.`
             : '';
         throw new Error(
-            `gjsify ship: rendering ${input.svg} through ${RASTERIZER} failed (exit ${result.code ?? result.signal}).` +
+            `${command}: rendering ${input.svg} through ${RASTERIZER} failed (exit ${result.code ?? result.signal}).` +
                 `${hint}${stderr === '' ? '' : `\n    ${stderr.split('\n').join('\n    ')}`}`,
         );
     }
@@ -356,7 +363,7 @@ export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, U
         parsed = JSON.parse(stdout) as Record<string, string>;
     } catch {
         throw new Error(
-            `gjsify ship: ${RASTERIZER} printed something other than the rendered icon while rendering ` +
+            `${command}: ${RASTERIZER} printed something other than the rendered icon while rendering ` +
                 `${input.svg}: ${stdout.slice(0, 200)}`,
         );
     }
@@ -364,13 +371,13 @@ export async function rasterizeSvg(input: RasterizeInput): Promise<Map<number, U
     for (const size of input.sizes) {
         const encoded = parsed[String(size)];
         if (encoded === undefined) {
-            throw new Error(`gjsify ship: ${RASTERIZER} rendered no ${size} px image of ${input.svg}.`);
+            throw new Error(`${command}: ${RASTERIZER} rendered no ${size} px image of ${input.svg}.`);
         }
         const png = new Uint8Array(Buffer.from(encoded, 'base64'));
         const { width, height } = readPngSize(png, `the ${size} px render of ${input.svg}`);
         if (width !== size || height !== size) {
             throw new Error(
-                `gjsify ship: asked ${RASTERIZER} for a ${size} px render of ${input.svg} and got ${width}×${height}.`,
+                `${command}: asked ${RASTERIZER} for a ${size} px render of ${input.svg} and got ${width}×${height}.`,
             );
         }
         out.set(size, png);

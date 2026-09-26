@@ -102,6 +102,17 @@ const LC_LOAD_DYLIB = 0x0c;
 const LC_LOAD_WEAK_DYLIB = 0x80000018;
 const LC_RPATH = 0x8000001c;
 const LC_CODE_SIGNATURE = 0x1d;
+/**
+ * The two records that carry an image's deployment target — the `minos` dyld compares
+ * against the running OS before it loads anything (ADR 0074). `LC_BUILD_VERSION` is what
+ * every current linker writes; `LC_VERSION_MIN_MACOSX` is its predecessor, and rustc's
+ * x86_64 cdylibs still carry it (`10.12`), so a reader that knew only the first would
+ * report those as unversioned.
+ */
+const LC_BUILD_VERSION = 0x32;
+const LC_VERSION_MIN_MACOSX = 0x24;
+/** `PLATFORM_MACOS` in `<mach-o/loader.h>` — a build-version record for iOS etc. says nothing about macOS. */
+const BUILD_PLATFORM_MACOS = 1;
 
 /**
  * The two roots a Mach-O may name absolutely and still be portable.
@@ -214,6 +225,10 @@ const PE_MACHINE_ARCH = {
  *   Mach-O BUNDLE, which legitimately carries none
  * @property {boolean} signed does the image carry a Mach-O `LC_CODE_SIGNATURE`?
  *   Always false for ELF/PE, which this parser does not read signatures from
+ * @property {string|null} minOs the macOS deployment target the image records
+ *   (`LC_BUILD_VERSION` `minos`, else `LC_VERSION_MIN_MACOSX`), dotted —
+ *   `15.0`, `10.12`, `13.5`. Null for ELF/PE, and for a Mach-O that records
+ *   neither, which a caller must treat as UNMEASURED rather than as old enough
  */
 
 /**
@@ -249,12 +264,18 @@ function readMachO(data) {
     // and not only the deps.
     /** @type {string|null} */ let id = null;
     let signed = false;
+    /** @type {string|null} */ let minOs = null;
     let off = 32; // mach_header_64 is 32 bytes
     for (let i = 0; i < ncmds; i++) {
         const cmd = u32(off);
         const cmdsize = u32(off + 4);
         if (cmdsize < 8 || off + cmdsize > data.length) throw new Error('truncated load commands');
         if (cmd === LC_CODE_SIGNATURE) signed = true;
+        if (cmd === LC_BUILD_VERSION && cmdsize >= 24 && u32(off + 8) === BUILD_PLATFORM_MACOS) {
+            minOs = formatMachOVersion(u32(off + 12));
+        } else if (cmd === LC_VERSION_MIN_MACOSX && cmdsize >= 16 && minOs === null) {
+            minOs = formatMachOVersion(u32(off + 8));
+        }
         if (cmd === LC_LOAD_DYLIB || cmd === LC_LOAD_WEAK_DYLIB || cmd === LC_RPATH || cmd === LC_ID_DYLIB) {
             const strOff = u32(off + 8);
             const raw = data.subarray(off + strOff, off + cmdsize);
@@ -274,7 +295,23 @@ function readMachO(data) {
         searchPaths,
         id,
         signed,
+        minOs,
     };
+}
+
+/**
+ * Decode a Mach-O `xxxx.yy.zz` nibble-packed version (`0x000f0000` → `15.0`). The patch
+ * component is printed only when non-zero, which is how `otool` and `vtool` spell it, so
+ * a failure message quotes the number a reader will see when they check it by hand.
+ *
+ * @param {number} v
+ * @returns {string}
+ */
+function formatMachOVersion(v) {
+    const major = v >>> 16;
+    const minor = (v >>> 8) & 0xff;
+    const patch = v & 0xff;
+    return patch ? `${major}.${minor}.${patch}` : `${major}.${minor}`;
 }
 
 /**
@@ -361,6 +398,7 @@ function readElf(data) {
         // and therefore cannot carry a build-host path. Nothing to read.
         id: null,
         signed: false,
+        minOs: null,
     };
 }
 
@@ -392,6 +430,7 @@ function readPe(data) {
         searchPaths: [],
         id: null,
         signed: false,
+        minOs: null,
     };
 }
 

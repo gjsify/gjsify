@@ -116,6 +116,8 @@ on:
       - 'refs/rolldown'
       - '.github/workflows/prebuilds.yml'
       - '.github/prebuild-toolchain/**'
+      # The macOS jobs' deployment target (ADR 0074) — it changes every darwin artifact.
+      - '.github/actions/darwin-deployment-target/**'
       # Shared scripts every build runs: staging (which target directory an
       # artifact lands in), the pin check, the loader-path verifier. A change
       # to one can change every artifact, so they trigger a run AND rebuild
@@ -196,6 +198,8 @@ on:
       - 'refs/rolldown'
       - '.github/workflows/prebuilds.yml'
       - '.github/prebuild-toolchain/**'
+      # The macOS jobs' deployment target (ADR 0074) — it changes every darwin artifact.
+      - '.github/actions/darwin-deployment-target/**'
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
@@ -1243,6 +1247,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # ADR 0074: every compiler below targets the declared macOS floor, not this runner's
+      # macOS — unset, the committed images recorded `minos 26.0` from `macos-latest`.
+      - name: Target the declared macOS floor
+        uses: ./.github/actions/darwin-deployment-target
+
       # The same guard the Linux and musl legs carry, for the same reason: every
       # collect step below DERIVES its target directory from the host, while
       # `PREBUILD` (and therefore every verify step, every upload path) names it
@@ -1743,6 +1752,11 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      # ADR 0074: every compiler below targets the declared macOS floor, not this runner's
+      # macOS — unset, the committed images recorded `minos 26.0` from `macos-latest`.
+      - name: Target the declared macOS floor
+        uses: ./.github/actions/darwin-deployment-target
 
       - name: Build @gjsify/webrtc-native Vala library
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}

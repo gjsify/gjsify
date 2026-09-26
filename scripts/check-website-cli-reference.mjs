@@ -43,7 +43,7 @@
 //   node scripts/check-website-cli-reference.mjs
 //   node scripts/check-website-cli-reference.mjs --root <dir>   # point at a fixture tree
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,7 +55,6 @@ if (rootFlag !== -1 && process.argv[rootFlag + 1] === undefined) {
 const ROOT = rootFlag !== -1 ? process.argv[rootFlag + 1] : join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const COMMANDS_DIR = 'packages/infra/cli/src/commands';
-const FLATPAK_INDEX = `${COMMANDS_DIR}/flatpak/index.ts`;
 const FORMAT_TYPES = 'packages/infra/cli/src/utils/ship/types.ts';
 const OXLINT_PLUGIN_INDEX = 'packages/infra/oxlint-plugin-gjsify/src/index.ts';
 const DOC = 'website/src/content/docs/cli-reference.md';
@@ -100,15 +99,20 @@ if (ROOT !== null) {
         entries = [];
     }
     for (const entry of entries) {
-        // Only files directly in `commands/` — `flatpak/`'s OTHER files are
-        // `gjsify flatpak <sub>` subcommands, a different heading shape
-        // (`#### \`gjsify flatpak <sub>\``), and out of scope here.
-        if (!entry.isFile() || !entry.name.endsWith('.ts') || entry.name.endsWith('.spec.ts')) continue;
-        const text = read(`${COMMANDS_DIR}/${entry.name}`);
+        // A file directly in `commands/` is a top-level command. A command GROUP is a
+        // directory whose `index.ts` registers it (`flatpak/`, `webext/`); its OTHER files
+        // are `gjsify <group> <sub>` subcommands, a different heading shape, and out of
+        // scope here. Reading `zip` out of a group's subcommand as a top-level command is
+        // how `webext` first failed this check.
+        const file = entry.isDirectory()
+            ? `${COMMANDS_DIR}/${entry.name}/index.ts`
+            : entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')
+              ? `${COMMANDS_DIR}/${entry.name}`
+              : null;
+        if (file === null || (entry.isDirectory() && !existsSync(join(ROOT, file)))) continue;
+        const text = read(file);
         if (text !== null) for (const name of commandNamesIn(text)) commandNames.add(name);
     }
-    const flatpakIndex = read(FLATPAK_INDEX);
-    if (flatpakIndex !== null) for (const name of commandNamesIn(flatpakIndex)) commandNames.add(name);
 }
 const commandsSourceOk = requireNonEmpty(
     commandNames.size,

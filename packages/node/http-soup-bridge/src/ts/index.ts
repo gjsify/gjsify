@@ -14,6 +14,13 @@
 // `gjsify run` sets LD_LIBRARY_PATH / GI_TYPELIB_PATH from the package's
 // "gjsify.prebuilds" field before the runtime resolves `gi://`.
 import GjsifyHttpSoupBridge from 'gi://GjsifyHttpSoupBridge?version=1.0';
+import { colocateNativeLibrary } from '@gjsify/utils/core';
+
+// The import loaded the typelib only; the first class access below opens the
+// library. Name its directory in between, so a shell that stripped the
+// library-path variable (SIP's `/bin/sh` drops every `DYLD_*`) cannot leave this
+// module with a typelib and no library — see `colocateNativeLibrary`.
+colocateNativeLibrary('GjsifyHttpSoupBridge');
 
 export const Server = GjsifyHttpSoupBridge.Server;
 export type Server = GjsifyHttpSoupBridge.Server;

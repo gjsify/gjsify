@@ -23,8 +23,20 @@
 // developer shell that happens to carry them. It is deliberately the mirror
 // image of `gjs-cli-config-load`, which sets both explicitly.
 //
-// SKIP (no false failures off a capable host): non-Linux, no `gjs`, no built
-// CLI bundle, or no `@gjsify/rolldown-native` prebuild for this arch.
+// THE SIP SHAPE (third case): on macOS with SIP on — every stock Mac; CI runners
+// have it off — `/bin/sh` strips every `DYLD_*` variable and KEEPS
+// `GI_TYPELIB_PATH`. So a compound package script started from the launcher
+// (`gjsify run a && gjsify run b`) hands its nested GJS CLI half the launcher's
+// environment: typelibs found, their libraries not. `@gjsify/terminal-native`
+// then reported itself available and `process.stdout.columns` threw
+// "Unsupported type void" while the CLI's modules evaluated — measured on the
+// `cli` template's own `gjsify run build`. The case reproduces that half-env
+// directly, so it needs neither SIP nor macOS to go red: the same deletion
+// fails the same way on Linux.
+//
+// Runs on linux and darwin (the macOS leg in `macos-suites.yml`). SKIP (no
+// false failures off a capable host): another OS, no `gjs`, no built CLI
+// bundle, or no `@gjsify/rolldown-native` prebuild for this host target.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,16 +45,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prebuildDir } from '../helpers.mjs';
+import { HOST_TARGET, prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI_BUNDLE = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
 
-function archDir() {
-    if (process.arch === 'x64') return 'linux-x64';
-    if (process.arch === 'arm64') return 'linux-arm64';
-    return null;
+function hostTarget() {
+    if (process.platform !== 'linux' && process.platform !== 'darwin') return null;
+    if (process.arch !== 'x64' && process.arch !== 'arm64') return null;
+    return HOST_TARGET;
 }
 
 function hasGjs() {
@@ -50,26 +62,29 @@ function hasGjs() {
     return r.status === 0 && r.error === undefined;
 }
 
-const arch = archDir();
-const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
+const target = hostTarget();
+const PREBUILD = target ? prebuildDir('infra', 'rolldown-native', target) : null;
+const TERMINAL_PREBUILD = target ? prebuildDir('node', 'terminal-native', target) : null;
 
 const SKIP =
-    process.platform !== 'linux' ||
-    !arch ||
+    !target ||
     !hasGjs() ||
     !existsSync(CLI_BUNDLE) ||
     !PREBUILD ||
     !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib'));
 
+/** Every library-path variable the launcher may export, both loader spellings. */
+const LIBRARY_PATH_VARS = ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH'];
+
 /**
  * The host environment with every variable the launcher would have exported
- * REMOVED. `LD_LIBRARY_PATH` is the ELF spelling; the suite is Linux-only (see
- * SKIP), so naming it directly is honest rather than under-specified.
+ * REMOVED — `GI_TYPELIB_PATH` and the library path under both its ELF and its
+ * Mach-O spelling, since the suite runs on linux and darwin.
  */
 function envWithoutPrebuildPaths(extra = {}) {
     const env = { ...process.env, ...extra };
     delete env.GI_TYPELIB_PATH;
-    delete env.LD_LIBRARY_PATH;
+    for (const name of LIBRARY_PATH_VARS) delete env[name];
     return env;
 }
 
@@ -88,7 +103,7 @@ describe('gjsify build under a bare `gjs -m` (no launcher)', { skip: SKIP, timeo
 
     // Runs from REPO_ROOT so the cwd anchor finds the workspace prebuilds — the
     // plain "invoke the bundle directly" shape, no fixture tree needed.
-    it('builds with GI_TYPELIB_PATH and LD_LIBRARY_PATH deleted from the env', () => {
+    it('builds with GI_TYPELIB_PATH and the library-path variables deleted from the env', () => {
         const outfile = join(tmpDir, 'out.node.mjs');
         const r = spawnSync(
             'gjs',
@@ -122,6 +137,28 @@ describe('gjsify build under a bare `gjs -m` (no launcher)', { skip: SKIP, timeo
             /launcher-free-marker/,
             'the build must have really run, not just exited 0',
         );
+    });
+
+    // What a SIP `/bin/sh` leaves of the launcher's environment (header): the
+    // typelib directory, no library directory. The CLI must still start — the
+    // terminal loader names the library directory from where it FOUND the
+    // typelib, and a namespace whose library cannot open is reported absent
+    // rather than available.
+    it('starts with GI_TYPELIB_PATH set and every library-path variable deleted', () => {
+        assert.ok(
+            TERMINAL_PREBUILD && existsSync(join(TERMINAL_PREBUILD, 'GjsifyTerminal-1.0.typelib')),
+            `@gjsify/terminal-native has no ${target} prebuild at ${TERMINAL_PREBUILD} — the case would measure nothing`,
+        );
+        const r = spawnSync('gjs', ['-m', CLI_BUNDLE, '--version'], {
+            cwd: tmpDir,
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+            env: envWithoutPrebuildPaths({ GI_TYPELIB_PATH: TERMINAL_PREBUILD, HOME: tmpDir }),
+        });
+        const log = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+        assert.doesNotMatch(log, /Unsupported type void/, `a half-loaded GI namespace escaped. Output:\n${log}`);
+        assert.equal(r.status, 0, `the CLI must start on the typelib path alone. Output:\n${log}`);
+        assert.match(r.stdout, /^\d+\.\d+\.\d+/, `--version must print the version. Output:\n${log}`);
     });
 
     // The API spelling `gi-search-path.ts` depends on, pinned. A GJS/GLib

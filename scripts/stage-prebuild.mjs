@@ -32,6 +32,8 @@ import { relocateDarwinPrebuildDir } from './relocate-macho.mjs';
 // agreeing by construction beats the two being independent.
 import { hostPrebuildTarget } from '../packages/infra/manifest-conformance/lib/rules/prebuild-libc.mjs';
 import { platformPackageDirName } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
+import { DARWIN_DEPLOYMENT_TARGET } from '../packages/infra/manifest-conformance/lib/platforms.mjs';
+import { measureDarwinTargets } from '../packages/infra/manifest-conformance/lib/rules/prebuild-darwin-target.mjs';
 
 /** Extensions that make up a shipped prebuild. */
 const ARTIFACT_EXT = ['.so', '.dylib', '.dll', '.gir', '.typelib'];
@@ -348,12 +350,55 @@ function main() {
     // `dlopen` on a user's machine. Asserts both halves of a Vala+Rust pair are
     // present AND the self-relative rpath that makes them loadable with no
     // library-path environment variable.
+    if (target.startsWith('darwin-')) {
+        const floor = checkDarwinFloor(outDir);
+        for (const w of floor.warnings)
+            console.warn(`[stage-prebuild] ${pkg.name}: ⚠ ${w} — fine on this Mac, not publishable`);
+        if (floor.errors.length > 0) {
+            console.error(`[stage-prebuild] ${pkg.name}: the staged set does not load on the declared macOS floor:`);
+            for (const e of floor.errors) console.error(`  ✗ ${e}`);
+            process.exit(1);
+        }
+    }
+
     const problems = checkPrebuildDir(outDir);
     if (problems.length > 0) {
         console.error(`[stage-prebuild] ${pkg.name}: the staged set is not self-contained:`);
         for (const p of problems) console.error(`  ✗ ${p}`);
         process.exit(1);
     }
+}
+
+/**
+ * Hold a staged darwin set to ADR 0074's macOS floor — at the moment it is born.
+ *
+ * Every darwin artifact any workflow ships passes through this script, so this is
+ * where a job that compiled WITHOUT `.github/actions/darwin-deployment-target` goes
+ * red: in its own run, naming the image, before anything is uploaded or committed.
+ * That is also why no test parses the workflows for the action — the bytes answer.
+ *
+ * FATAL IN CI, A WARNING LOCALLY. A developer's `build:prebuilds` on a newer Mac
+ * records that Mac's macOS unless they export the variable, and the set still runs
+ * on the machine that built it; failing there would tax every local build for a
+ * property only a PUBLISHED image needs. What a developer commits is still held by
+ * the `prebuild-darwin-target` rule, and every image CI builds is fatal here.
+ *
+ * @param {string} outDir a staged `prebuilds/darwin-*` directory
+ * @param {{ ci?: boolean }} [options]
+ * @returns {{ errors: string[], warnings: string[] }}
+ */
+export function checkDarwinFloor(outDir, { ci = process.env.GITHUB_ACTIONS === 'true' } = {}) {
+    const m = measureDarwinTargets(outDir, DARWIN_DEPLOYMENT_TARGET);
+    const rel = (file) => file.slice(outDir.length + 1);
+    const tooNew = m.tooNew.map(({ file, minOs }) => `${rel(file)} needs macOS ${minOs}`);
+    const hint =
+        `above the declared floor ${DARWIN_DEPLOYMENT_TARGET} (ADR 0074) — build with ` +
+        `MACOSX_DEPLOYMENT_TARGET=${DARWIN_DEPLOYMENT_TARGET} (CI: \`.github/actions/darwin-deployment-target\`)`;
+    // An unread image is never downgraded to a warning: it is not a newer floor, it is no answer.
+    const errors = m.unmeasured.map(({ file, why }) => `${rel(file)}: deployment target not measured (${why})`);
+    const warnings = [];
+    for (const t of tooNew) (ci ? errors : warnings).push(`${t}, ${hint}`);
+    return { errors, warnings };
 }
 
 // Only run when invoked directly, so the pure helper stays unit-testable.
