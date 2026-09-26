@@ -66,6 +66,8 @@ export interface RunNodeBundleOptions {
     exitOnSuccess?: boolean;
     /** Suppress the `$ <env> node …` echo — see `RunGjsBundleOptions.quiet`. */
     quiet?: boolean;
+    /** Leave a failing child's output alone — see `RunGjsBundleOptions.quietExit`. */
+    quietExit?: boolean;
 }
 
 /**
@@ -180,7 +182,7 @@ export async function runRuntimeBundle(
         return failed(1);
     }
     if (result.code !== 0) {
-        console.error(`${runtime} exited with ${describeExit(result)}`);
+        if (!options.quietExit) console.error(`${runtime} exited with ${describeExit(result)}`);
         return failed(result.code ?? 1);
     }
 

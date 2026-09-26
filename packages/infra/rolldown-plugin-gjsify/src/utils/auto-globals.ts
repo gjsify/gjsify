@@ -112,6 +112,7 @@ async function applyExcludeGlobals(
     extraRegisterPaths: Set<string>,
     excludeGlobals: string[] | undefined,
     cwd?: string,
+    searchDirs: string | readonly string[] | undefined = cwd,
 ): Promise<AutoGlobalsResult> {
     if (excludeGlobals?.length) {
         for (const id of excludeGlobals) detected.delete(id);
@@ -121,13 +122,13 @@ async function applyExcludeGlobals(
     // excludeGlobals is set.
     const finalPaths = detectedToRegisterPaths(detected);
     for (const p of extraRegisterPaths) finalPaths.add(p);
-    emitGiBackedDiagnostic(finalPaths, detected, cwd);
+    emitGiBackedDiagnostic(finalPaths, detected, searchDirs);
 
     // No exclude: `currentInject` already reflects `finalPaths`, so reuse it —
     // re-running filterResolvableRegisterPaths would repeat its skip warnings.
     if (!excludeGlobals?.length) return { detected, injectPath: currentInject };
 
-    const filtered = cwd ? filterResolvableRegisterPaths(finalPaths, cwd) : finalPaths;
+    const filtered = searchDirs ? filterResolvableRegisterPaths(finalPaths, searchDirs) : finalPaths;
     const injectPath = filtered.size > 0 ? ((await writeRegisterInjectFile(filtered, cwd)) ?? undefined) : undefined;
     return { detected, injectPath };
 }
@@ -205,12 +206,16 @@ let giNoteEmitted = false;
  * register, via `isRegisterPathResolvable` rather than
  * `filterResolvableRegisterPaths` to avoid duplicating that one's skip warnings.
  */
-function emitGiBackedDiagnostic(registerPaths: Set<string>, detected: Set<string>, cwd?: string): void {
+function emitGiBackedDiagnostic(
+    registerPaths: Set<string>,
+    detected: Set<string>,
+    searchDirs?: string | readonly string[],
+): void {
     if (giNoteEmitted) return;
     const candidates = new Set<string>();
     for (const path of registerPaths) {
         if (!giNamespacesForRegister(path)) continue;
-        if (cwd && !isRegisterPathResolvable(path, cwd)) continue;
+        if (searchDirs && !isRegisterPathResolvable(path, searchDirs)) continue;
         candidates.add(path);
     }
     const note = describeGiBackedInjection(candidates, detected);
@@ -247,6 +252,12 @@ export interface DetectAutoGlobalsOptions {
      * `process.cwd()`.
      */
     cwd?: string;
+    /**
+     * A second root for that gate: the running CLI's directory when the build was given
+     * a `toolchainAnchor`, whose resolver takes a `@gjsify/*` the project lacks from
+     * beside the CLI. Only consulted together with `cwd`.
+     */
+    toolchainDir?: string;
 }
 
 /**
@@ -370,12 +381,15 @@ export async function detectAutoGlobals(
 
     const excludeSet = new Set(options.excludeGlobals ?? []);
     const cwd = options.cwd;
+    const searchDirs = cwd && options.toolchainDir ? [cwd, options.toolchainDir] : cwd;
 
     let detected = new Set<string>();
     let currentInject: string | undefined = undefined;
 
     if (extraRegisterPaths.size > 0) {
-        const resolvableExtra = cwd ? filterResolvableRegisterPaths(extraRegisterPaths, cwd) : extraRegisterPaths;
+        const resolvableExtra = searchDirs
+            ? filterResolvableRegisterPaths(extraRegisterPaths, searchDirs)
+            : extraRegisterPaths;
         currentInject = (await writeRegisterInjectFile(resolvableExtra, cwd)) ?? undefined;
     }
 
@@ -501,7 +515,14 @@ export async function detectAutoGlobals(
                     `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}${extras}`,
                 );
             }
-            return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
+            return applyExcludeGlobals(
+                detected,
+                currentInject,
+                extraRegisterPaths,
+                options.excludeGlobals,
+                cwd,
+                searchDirs,
+            );
         }
 
         // Seed the next pass with the precomputed closure. Unioning with the
@@ -530,7 +551,7 @@ export async function detectAutoGlobals(
         // Drop register paths whose polyfill package is not installed: an unresolvable
         // import is a HARD Rolldown error, strictly worse than skipping with a warning.
         // The caller adds the dep or acknowledges the gap via --exclude-globals.
-        if (cwd) registerPaths = filterResolvableRegisterPaths(registerPaths, cwd);
+        if (searchDirs) registerPaths = filterResolvableRegisterPaths(registerPaths, searchDirs);
 
         if (registerPaths.size === 0) {
             return { detected, injectPath: undefined };
@@ -549,7 +570,7 @@ export async function detectAutoGlobals(
     if (verbose) {
         console.debug(`[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`);
     }
-    return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
+    return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd, searchDirs);
 }
 
 /**
