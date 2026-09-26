@@ -184,6 +184,35 @@ function needsFilenameDecl(src: string, flags: TokenFlags): boolean {
     return flags.hasFilename && !FILENAME_DECL_RE.test(src);
 }
 
+/**
+ * Route `import.meta.dirname`/`filename` the way the caller routes a bare
+ * `__dirname`/`__filename`: ONE `var` in the preamble, every occurrence referencing it.
+ * Answering them at all is the point — a bundled dep's location tokens must never
+ * resolve to the BUNDLE: @signalapp/libsignal-client's
+ * `node-gyp-build(import.meta.dirname + '/..')` looked beside the bundle and threw
+ * "No native build was found". (The addon package itself stays external now; a
+ * NON-addon dep spelling `import.meta.dirname` still lands here.) Case 1 answers inline
+ * through the runtime shim instead, and a file that declares its OWN `__dirname` keeps
+ * the inline expression, so a generated declaration can never collide with it.
+ */
+function routeMetaPaths(
+    src: string,
+    flags: TokenFlags,
+    decl: { dirname: string; filename: string },
+): { preamble: string[]; dirname: string; filename: string } {
+    const declareDirname = (flags.hasDirname || /\bimport\.meta\.dirname\b/.test(src)) && !DIRNAME_DECL_RE.test(src);
+    const declareFilename =
+        (flags.hasFilename || /\bimport\.meta\.filename\b/.test(src)) && !FILENAME_DECL_RE.test(src);
+    return {
+        preamble: [
+            ...(declareDirname ? [`var __dirname = ${decl.dirname};`] : []),
+            ...(declareFilename ? [`var __filename = ${decl.filename};`] : []),
+        ],
+        dirname: declareDirname ? '__dirname' : decl.dirname,
+        filename: declareFilename ? '__filename' : decl.filename,
+    };
+}
+
 /** The `import.meta` members the rewriter answers for: Node's three location properties. */
 type ImportMetaProp = 'url' | 'dirname' | 'filename';
 const IMPORT_META_PROPS: readonly ImportMetaProp[] = ['url', 'dirname', 'filename'];
@@ -304,22 +333,17 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
     const relPath = relative(bundleDir, path);
     const relDirWithSlash = (relative(bundleDir, dirname(path)) || '.') + '/';
 
-    const preamble: string[] = [];
-    if (needsDirnameDecl(src, flags)) {
-        preamble.push(
-            `var __dirname = new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`,
-        );
-    }
-    if (needsFilenameDecl(src, flags)) {
-        preamble.push(`var __filename = new URL(${JSON.stringify(relPath)}, import.meta.url).pathname;`);
-    }
-
-    const code = replaceImportMeta(src, path, {
-        url: `new URL(${JSON.stringify(relPath)}, import.meta.url).href`,
+    const route = routeMetaPaths(src, flags, {
         dirname: `new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "")`,
         filename: `new URL(${JSON.stringify(relPath)}, import.meta.url).pathname`,
     });
-    return { code: withPreamble(code, preamble), moduleType: moduleTypeForPath(path) };
+
+    const code = replaceImportMeta(src, path, {
+        url: `new URL(${JSON.stringify(relPath)}, import.meta.url).href`,
+        dirname: route.dirname,
+        filename: route.filename,
+    });
+    return { code: withPreamble(code, route.preamble), moduleType: moduleTypeForPath(path) };
 }
 
 /**
@@ -327,14 +351,16 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
  * derive `__dirname`/`__filename` from it.
  */
 function rewriteZipResident(src: string, path: string, flags: TokenFlags): RewriteResult {
-    const preamble: string[] = [];
-    if (needsDirnameDecl(src, flags)) {
-        preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
-    }
-    if (needsFilenameDecl(src, flags)) {
-        preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
-    }
-    return { code: withPreamble(src, preamble), moduleType: moduleTypeForPath(path) };
+    const route = routeMetaPaths(src, flags, {
+        dirname: `new URL(".", import.meta.url).pathname.replace(/\\/$/, "")`,
+        filename: `new URL(import.meta.url).pathname`,
+    });
+    // `import.meta.url` keeps case 3's rule (the bundle's own URL); only the two
+    // members GJS does not define are routed through the declarations.
+    const code = /\bimport\.meta\.(?:dirname|filename)\b/.test(src)
+        ? replaceImportMeta(src, path, { url: 'import.meta.url', dirname: route.dirname, filename: route.filename })
+        : src;
+    return { code: withPreamble(code, route.preamble), moduleType: moduleTypeForPath(path) };
 }
 
 /**
@@ -398,6 +424,9 @@ export function rewriteContents(
     const src = inlined.contents;
 
     const flags: TokenFlags = {
+        // A file that spelled ANY `import.meta.*` location is ESM, so it keeps the ESM
+        // strategies even when `import.meta.url` itself never appeared. The strategies
+        // answer all three on the AST (see `replaceImportMeta`), never as text.
         hasMetaUrl: /\bimport\.meta\.(?:url|dirname|filename)\b/.test(src),
         hasDirname: src.includes('__dirname'),
         hasFilename: src.includes('__filename'),

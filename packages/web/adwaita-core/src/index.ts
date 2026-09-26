@@ -153,12 +153,28 @@ export {
     adwaitaAccentBgColor,
     adwaitaAccentColor,
     adwaitaStandaloneColor,
+    formatAdwRgb,
     isAdwAccentColorName,
+    nearestAccent,
     onAdwaitaAccentChanged,
+    parseAdwRgb,
     setAdwaitaAccent,
 } from './accent.js';
-export type { AdwAccentColorName } from './accent.js';
+export type { AdwAccentColorName, AdwRgb } from './accent.js';
 export { APPLE_ACCENT_COLORS, APPLE_MULTICOLOR_ACCENT, adwAccentFromAppleAccentColor } from './apple-accent.js';
+
+// --- Desktop appearance (system accent + colour scheme) and its web handoff, ADR 0078 ---
+export {
+    ADW_ACCENT_META,
+    ADW_ACCENT_META_SYSTEM,
+    ADW_COLOR_SCHEME_META,
+    ADW_SYSTEM_COLOR_SCHEMES,
+    appearanceFromMeta,
+    isAdwSystemColorScheme,
+    parseDesktopAppearance,
+    renderAppearanceMeta,
+} from './appearance.js';
+export type { AdwSystemColorScheme, AppearanceMeta, DesktopAppearance } from './appearance.js';
 
 // --- Color scheme (light/dark) ---
 export {
