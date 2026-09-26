@@ -5,6 +5,7 @@
 // SCSS partials at `@gjsify/adwaita-web/scss/...` for custom theming.
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
+import { followDesktopAppearance } from './appearance.js';
 import { ADWAITA_WEB_CSS } from './styles.generated.js';
 
 // NO font import here, and the absence is the decision. This line used to be
@@ -36,6 +37,13 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
     document.head.appendChild(style);
 }
 
+// The desktop's accent and colour scheme (ADR 0078): a server handoff in <meta> tags
+// or JSON, then the CSS system colour `AccentColor` once asked for, both below the
+// app's own `applyAdwaitaAccent`. Started on import like the stylesheet, so a
+// gjsify-served page that carries the tags needs no code at all. Browser-only and
+// idempotent.
+followDesktopAppearance();
+
 // Responsive breakpoints: the browser size source for `@gjsify/adwaita-core`'s
 // `AdwBreakpoint`, and the `breakpoint="…"` attribute wiring the split views use.
 export { addBreakpoints, bindBreakpointSetter } from './breakpoints.js';
@@ -50,6 +58,16 @@ export {
     isAdwaitaDark,
 } from './accent.js';
 export type { ApplyAccentOptions } from './accent.js';
+
+// Following the desktop's accent and colour scheme (ADR 0078); started on import, above.
+export {
+    adwaitaAccentSource,
+    applyDesktopAppearance,
+    applySystemAccent,
+    followDesktopAppearance,
+    readSystemAccent,
+} from './appearance.js';
+export type { AdwAccentSource } from './appearance.js';
 
 // GtkScrolledWindow's undershoot/overshoot indicators. `adw-toolbar-view` drives
 // this itself; exported so a consumer that owns its own chrome can shade a scroller

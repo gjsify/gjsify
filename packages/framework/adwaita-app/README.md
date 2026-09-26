@@ -244,6 +244,43 @@ more helpful and would show a licence line on Windows that Linux does not.
   `${PREFIX}_VIEW` / `${PREFIX}_FILE` / `${PREFIX}_DEBUG` env pattern (e.g.
   `MYAPP_VIEW=reports myapp` to open straight to a view in dev).
 
+## Desktop appearance (`@gjsify/adwaita-app/appearance`)
+
+The desktop's accent colour and colour-scheme preference, for a process that never
+opens a window: a server behind a web UI, a bridge, a CLI. A GTK app does not need
+it, because `Adw.StyleManager` already applies the same values to its widgets. This
+subpath loads only Gio and GLib ([ADR 0078](../../../docs/adr/0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md)).
+
+```ts
+import { readDesktopAppearance, renderAppearanceMeta, watchDesktopAppearance } from '@gjsify/adwaita-app/appearance';
+
+const appearance = await readDesktopAppearance();
+// { accent: 'purple', accentRgb: '#9141ac', colorScheme: 'dark' }; absent fields are unknown
+
+const head = renderAppearanceMeta(appearance);
+// <meta name="adw-accent" content="purple">
+// <meta name="adw-color-scheme" content="dark">
+
+const stop = watchDesktopAppearance((next) => broadcast(JSON.stringify(next))); // hold `stop`
+```
+
+A web server must `listen()` before the module's first top-level await. On GJS a server
+started after one exits as soon as the module settles; see `status/open-todos.md`.
+[`examples/node/net-adwaita-appearance`](../../../examples/node/net-adwaita-appearance)
+serves a complete page that way.
+
+A reported colour is snapped to one of libadwaita's nine accents with
+`nearestAccent`, as libadwaita does. The reader never throws. Sources per OS:
+
+| OS | Reads | Follows changes by | Measured |
+|---|---|---|---|
+| Linux (GNOME, KDE, Flatpak) | XDG Settings portal `org.freedesktop.appearance`, then GSettings `org.gnome.desktop.interface` for what the portal left unknown, only when `XDG_CURRENT_DESKTOP` names GNOME (elsewhere the schema answers its defaults) | `SettingChanged`, `changed::` | yes, in CI, against a fake portal on a peer D-Bus connection |
+| Windows | `reg.exe query`: `Explorer\Accent AccentPalette` (else `DWM AccentColor`), `Personalize AppsUseLightTheme` | polling every 3 s | mapping only; reg.exe not run on Windows |
+| macOS | `defaults read -g AppleAccentColor / AppleInterfaceStyle / AppleInterfaceStyleSwitchesAutomatically` | a debounced monitor on `~/Library/Preferences` | mapping only; not run end to end on a Mac |
+
+On macOS with Auto appearance and no `AppleInterfaceStyle` key, `colorScheme` stays
+absent: the system switches by time of day, so a missing key does not prove light.
+
 ## See also
 
 - [`@gjsify/devtools`](../devtools) — the DBus control plane wired in on startup.
