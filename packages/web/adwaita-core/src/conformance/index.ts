@@ -535,8 +535,12 @@ export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
 export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
 
 // --- AdwAccentColor palette + standalone-derivation vectors ---
-export { ACCENT_COLOR_VECTORS } from './accent.js';
-export type { AccentColorVector } from './accent.js';
+export { ACCENT_COLOR_VECTORS, NEAREST_ACCENT_VECTORS } from './accent.js';
+export type { AccentColorVector, NearestAccentVector } from './accent.js';
+
+// --- Desktop-appearance handoff vectors (ADR 0078) ---
+export { APPEARANCE_HANDOFF_VECTORS } from './appearance.js';
+export type { AppearanceHandoffVector } from './appearance.js';
 
 // --- Adw.ShortcutLabel accelerator grammar + keycap vectors ---
 export { formatShortcutLabelNodes, SHORTCUT_LABEL_VECTORS } from './shortcut-label.js';

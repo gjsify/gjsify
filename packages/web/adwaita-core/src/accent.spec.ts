@@ -12,11 +12,14 @@ import {
     adwaitaAccentBgColor,
     adwaitaAccentColor,
     adwaitaStandaloneColor,
+    formatAdwRgb,
     isAdwAccentColorName,
+    nearestAccent,
     onAdwaitaAccentChanged,
+    parseAdwRgb,
     setAdwaitaAccent,
 } from './accent.js';
-import { ACCENT_COLOR_VECTORS } from './conformance/accent.js';
+import { ACCENT_COLOR_VECTORS, NEAREST_ACCENT_VECTORS } from './conformance/accent.js';
 
 export default async () => {
     await describe('Adwaita accent palette (adw_accent_color_to_rgba)', async () => {
@@ -76,6 +79,47 @@ export default async () => {
 
         await it('returns a malformed colour unchanged rather than guessing', () => {
             expect(adwaitaStandaloneColor('not-a-colour', false)).toBe('not-a-colour');
+        });
+    });
+
+    await describe('nearestAccent (adw_accent_color_nearest_from_rgba)', async () => {
+        await it('maps each of the nine palette colours back to itself', () => {
+            // The first loop of libadwaita's own test: GNOME's portal publishes the
+            // palette colour of the chosen name, so a round trip that lost one would
+            // turn a user's "teal" into something else on every portal read.
+            for (const vector of ACCENT_COLOR_VECTORS) {
+                expect(nearestAccent(parseAdwRgb(vector.background)!)).toBe(vector.name);
+            }
+        });
+
+        for (const vector of NEAREST_ACCENT_VECTORS) {
+            await it(`${vector.source}: ${vector.color} → ${vector.expected}`, () => {
+                expect(nearestAccent(parseAdwRgb(vector.color)!)).toBe(vector.expected);
+            });
+        }
+
+        await it('treats every low-chroma colour as slate, whatever its lightness', () => {
+            // The ladder starts with a chroma test, so a hue computed from noise
+            // (atan2 of two near-zero numbers) never decides a grey.
+            expect(nearestAccent({ red: 0.5, green: 0.5, blue: 0.5 })).toBe('slate');
+            expect(nearestAccent({ red: 0.02, green: 0.02, blue: 0.021 })).toBe('slate');
+        });
+    });
+
+    await describe('parseAdwRgb / formatAdwRgb', async () => {
+        await it('reads the hex and rgb() spellings a system or getComputedStyle hands over', () => {
+            expect(formatAdwRgb(parseAdwRgb('#3584e4')!)).toBe('#3584e4');
+            expect(formatAdwRgb(parseAdwRgb('#FFF')!)).toBe('#ffffff');
+            // What Firefox 156 on macOS serialises `AccentColor` to.
+            expect(formatAdwRgb(parseAdwRgb('rgb(0, 122, 255)')!)).toBe('#007aff');
+            expect(formatAdwRgb(parseAdwRgb('rgb(0 122 255 / 0.5)')!)).toBe('#007aff');
+            expect(formatAdwRgb(parseAdwRgb('rgba(53, 132, 228, 1)')!)).toBe('#3584e4');
+        });
+
+        await it('refuses what it cannot read instead of guessing', () => {
+            expect(parseAdwRgb('AccentColor')).toBe(null);
+            expect(parseAdwRgb('rgb(300, 0, 0)')).toBe(null);
+            expect(parseAdwRgb('#12345')).toBe(null);
         });
     });
 
