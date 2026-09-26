@@ -783,17 +783,16 @@ root.render(createElement('GtkBox', null, createElement('GtkLabel', { label: 'hi
 
 ```
 --define 'process.env.NODE_ENV="production"'
---exclude-globals navigator
 ```
 
 `react-reconciler/index.js` picks its bundle from `process.env.NODE_ENV`, and the
 development one reaches for `document`, `HTMLCanvasElement` and `Path2D`, which
 makes `--globals auto` inject the GTK-backed DOM registers and pull `gi://Gdk`,
-`GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them. Even
-the production `scheduler` carries `typeof navigator !== 'undefined' &&
-navigator.scheduling`, dead code under GJS but still a free identifier the
-detector answers with the same register. With both flags the bundle loads with no
-`document` and no `navigator`, and a vector asserts exactly that.
+`GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them. With
+the define the bundle loads with no `document`, and a vector asserts exactly that.
+The production `scheduler` still reads `navigator.scheduling` behind a `typeof`
+guard; that reference now injects Node's DOM-free `navigator` from
+`@gjsify/node-globals`, so it no longer needs `--exclude-globals navigator`.
 
 `react` and `react-reconciler` are OPTIONAL peer dependencies, like `solid-js` and
 `@vue/runtime-core`.

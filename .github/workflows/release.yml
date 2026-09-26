@@ -252,7 +252,7 @@ jobs:
           echo "Published packages: @gjsify/*"
 
   # macOS publish legs for the batteries-included GTK runtime bundles — ONE JOB, one
-  # matrix leg per macOS arch (@gjsify/gtk-runtime-darwin-arm64 on `macos-latest`,
+  # matrix leg per macOS arch (@gjsify/gtk-runtime-darwin-arm64 on `macos-15` — ADR 0074,
   # @gjsify/gtk-runtime-darwin-x64 on `macos-15-intel`, the last x86_64 macOS image
   # Actions offers).
   #
@@ -319,7 +319,11 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            runner: macos-latest
+            # `macos-15`, NOT `macos-latest`: the bundle IS Homebrew bottles, and a bottle's
+            # `minos` is the OS its tag names — on `macos-latest` (macOS 26) all 117 images of
+            # the 0.52.0 bundle required macOS 26. ADR 0074's floor is 15.0 and the builder
+            # now refuses an image above it, so this label is what keeps the build green.
+            runner: macos-15
           - arch: x64
             runner: macos-15-intel
     permissions:
@@ -1629,6 +1633,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # ADR 0074: the shim this leg ships targets the declared macOS floor, not this
+      # runner's macOS (unset, it recorded `minos 26.0` from `macos-latest`).
+      - name: Target the declared macOS floor
+        uses: ./.github/actions/darwin-deployment-target
 
       # Staged into the per-target package, same as the linux leg above and for
       # the same reason (ADR 0017). This target is the one `gjsify.platforms`

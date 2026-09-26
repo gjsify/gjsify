@@ -1,0 +1,46 @@
+{
+  "name": "@gjsify/example-web-webext-hello",
+  "description": "A browser extension built with `gjsify webext`: one source, a manifest per target, icons from one SVG, locales, a zip per target",
+  "type": "module",
+  "scripts": {
+    "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+    "check": "gjsify tsc --noEmit",
+    "build": "gjsify webext build",
+    "zip": "gjsify webext zip",
+    "dev": "gjsify webext dev"
+  },
+  "gjsify": {
+    "webext": {
+      "name": "webext-hello",
+      "targets": ["chrome-mv3", "firefox-mv2", "firefox-mv3"],
+      "manifest": "manifest.ts",
+      "scripts": {
+        "background": "src/background.ts",
+        "content": "src/content.ts"
+      },
+      "pages": {
+        "popup": "src/popup/index.html"
+      },
+      "icons": {
+        "sizes": [16, 32, 48, 128],
+        "sources": {
+          "icon": { "default": "icons/icon.svg", "32": "icons/icon-small.svg" }
+        },
+        "svg": ["firefox-mv2", "firefox-mv3"]
+      },
+      "locales": "_locales",
+      "outDir": "dist"
+    }
+  },
+  "dependencies": {
+    "@wxt-dev/browser": "^0.3.0"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "typescript": "^6.0.3"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "private": true,
+  "version": "0.52.0"
+}

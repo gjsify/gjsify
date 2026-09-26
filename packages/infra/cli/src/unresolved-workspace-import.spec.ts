@@ -47,7 +47,7 @@ type ResolveHandler = (
     this: unknown,
     source: string,
     importer: string | undefined,
-    extra?: { isEntry?: boolean; kind?: string },
+    extra?: { isEntry?: boolean; kind?: string; custom?: Record<string, unknown> },
 ) => Promise<{ id: string } | null>;
 function handlerOf(plugin: unknown): ResolveHandler {
     const h = (plugin as { resolveId?: { handler?: unknown } }).resolveId?.handler;
@@ -285,6 +285,45 @@ export default async () => {
             await handler.call(ctx, 'node:fs', IMPORTER);
             await handler.call(ctx, 'node:fs', '/proj/src/other.ts');
             expect(ctx.asked).toStrictEqual(['@gjsify/fs']);
+        });
+
+        await it('resolves two siblings asking CONCURRENTLY, instead of nulling the second', async () => {
+            // web-ext loads its `lib/cmd/*.js` in parallel; the re-entrancy belt shared
+            // the cache's directory key, so every sibling after the first got `null`
+            // and its import was externalised.
+            const handler = freshHandler();
+            const ID = '/proj/node_modules/@gjsify/fs/lib/esm/index.js';
+            let release: () => void = () => {};
+            const gate = new Promise<void>((r) => (release = r));
+            const ctx = {
+                async resolve(id: string) {
+                    await gate;
+                    return id === '@gjsify/fs' ? { id: ID } : null;
+                },
+            };
+            const first = handler.call(ctx, 'node:fs', IMPORTER);
+            const second = handler.call(ctx, 'node:fs', '/proj/src/sibling.ts');
+            release();
+            expect(await first).toStrictEqual({ id: ID });
+            expect(await second).toStrictEqual({ id: ID });
+        });
+
+        await it('declines its own probe re-entering, instead of awaiting itself', async () => {
+            // An engine that ignored `skipSelf` would route the probe back here; sharing
+            // the in-flight promise would then wait on itself forever.
+            const handler = freshHandler();
+            const ctx = {
+                async resolve(id: string, importer: string | undefined, opts: { custom?: Record<string, unknown> }) {
+                    return handler.call(ctx, id, importer, opts);
+                },
+            };
+            let caught: unknown;
+            try {
+                await handler.call(ctx, 'node:fs', IMPORTER);
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught instanceof UnresolvedWorkspaceImportError).toBe(true);
         });
 
         await it('returns the resolved id when the workspace edge exists', async () => {

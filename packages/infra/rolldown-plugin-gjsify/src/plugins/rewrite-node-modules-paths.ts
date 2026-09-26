@@ -29,7 +29,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
-import { inlineStaticReads } from '../utils/inline-static-reads.js';
+import { inlineStaticReads, parseSource } from '../utils/inline-static-reads.js';
 import { hasZipSegment } from '../utils/zip-path.js';
 
 export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
@@ -184,6 +184,80 @@ function needsFilenameDecl(src: string, flags: TokenFlags): boolean {
     return flags.hasFilename && !FILENAME_DECL_RE.test(src);
 }
 
+/** The `import.meta` members the rewriter answers for: Node's three location properties. */
+type ImportMetaProp = 'url' | 'dirname' | 'filename';
+const IMPORT_META_PROPS: readonly ImportMetaProp[] = ['url', 'dirname', 'filename'];
+const IMPORT_META_RE = /\bimport\.meta\.(url|dirname|filename)\b/g;
+
+/** Every `import.meta.<url|dirname|filename>` EXPRESSION in `src`, or null when it does not parse. */
+function importMetaRanges(
+    src: string,
+    path: string,
+): Array<{ start: number; end: number; prop: ImportMetaProp }> | null {
+    let ast: unknown;
+    try {
+        ast = parseSource(src, path);
+    } catch {
+        // acorn trails the bundler on new syntax; the caller keeps the token rewrite.
+        return null;
+    }
+    const ranges: Array<{ start: number; end: number; prop: ImportMetaProp }> = [];
+    const stack: unknown[] = [ast];
+    while (stack.length > 0) {
+        const node = stack.pop() as Record<string, unknown> | null;
+        if (node === null || typeof node !== 'object') continue;
+        if (Array.isArray(node)) {
+            stack.push(...node);
+            continue;
+        }
+        const object = node.object as
+            | { type?: string; meta?: { name?: string }; property?: { name?: string } }
+            | undefined;
+        const property = node.property as { type?: string; name?: string } | undefined;
+        if (
+            node.type === 'MemberExpression' &&
+            !node.computed &&
+            object?.type === 'MetaProperty' &&
+            object.meta?.name === 'import' &&
+            object.property?.name === 'meta' &&
+            property?.type === 'Identifier' &&
+            (IMPORT_META_PROPS as readonly string[]).includes(property.name ?? '')
+        ) {
+            ranges.push({
+                start: node.start as number,
+                end: node.end as number,
+                prop: property.name as ImportMetaProp,
+            });
+            continue;
+        }
+        for (const value of Object.values(node)) if (value !== null && typeof value === 'object') stack.push(value);
+    }
+    return ranges;
+}
+
+/**
+ * Replace every `import.meta.url` / `.dirname` / `.filename` expression in `src`.
+ *
+ * On the AST, not the text: the token also occurs inside STRINGS, and a text rewrite
+ * put a quoted replacement inside a quoted key — vite's `define: { "import.meta.url":
+ * … }` became `"__gjsifyModuleUrl("vite/…")"`, a PARSE_ERROR ("Expected `:` but found
+ * `Identifier`") that failed every `--app gjs` build reaching vite or wxt. A source
+ * acorn cannot parse keeps the token rewrite it always had.
+ *
+ * `dirname` and `filename` (Node ≥ 20.11) are answered too: GJS defines neither, so
+ * unplugin's `path.resolve(import.meta.dirname, …)` threw `The "path" argument must be
+ * of type string. Received type undefined` at load — where wxt's rebuild stopped next.
+ */
+export function replaceImportMeta(src: string, path: string, replacements: Record<ImportMetaProp, string>): string {
+    const ranges = importMetaRanges(src, path);
+    if (ranges === null) return src.replace(IMPORT_META_RE, (_m, prop: ImportMetaProp) => replacements[prop]);
+    let out = src;
+    for (const { start, end, prop } of ranges.sort((a, b) => b.start - a.start)) {
+        out = out.slice(0, start) + replacements[prop] + out.slice(end);
+    }
+    return out;
+}
+
 /** Prepend preamble + (optional) shim import to the source. */
 function withPreamble(src: string, lines: string[], importHeader?: string): string {
     const parts = importHeader ? [importHeader, ...lines, src] : [...lines, src];
@@ -210,7 +284,13 @@ function rewriteOnDiskEsm(src: string, path: string, flags: TokenFlags): Rewrite
         used.push('__gjsifyModuleFile');
     }
 
-    const code = src.replace(/\bimport\.meta\.url\b/g, `__gjsifyModuleUrl(${spec})`);
+    if (src.includes('import.meta.dirname') && !used.includes('__gjsifyModuleDir')) used.push('__gjsifyModuleDir');
+    if (src.includes('import.meta.filename') && !used.includes('__gjsifyModuleFile')) used.push('__gjsifyModuleFile');
+    const code = replaceImportMeta(src, path, {
+        url: `__gjsifyModuleUrl(${spec})`,
+        dirname: `__gjsifyModuleDir(${spec})`,
+        filename: `__gjsifyModuleFile(${spec})`,
+    });
     const header = `import { ${used.join(', ')} } from ${JSON.stringify(MODULE_RESOLVE_SHIM)};`;
     return { code: withPreamble(code, preamble, header), moduleType: moduleTypeForPath(path) };
 }
@@ -234,7 +314,11 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
         preamble.push(`var __filename = new URL(${JSON.stringify(relPath)}, import.meta.url).pathname;`);
     }
 
-    const code = src.replace(/\bimport\.meta\.url\b/g, `new URL(${JSON.stringify(relPath)}, import.meta.url).href`);
+    const code = replaceImportMeta(src, path, {
+        url: `new URL(${JSON.stringify(relPath)}, import.meta.url).href`,
+        dirname: `new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "")`,
+        filename: `new URL(${JSON.stringify(relPath)}, import.meta.url).pathname`,
+    });
     return { code: withPreamble(code, preamble), moduleType: moduleTypeForPath(path) };
 }
 
@@ -314,7 +398,7 @@ export function rewriteContents(
     const src = inlined.contents;
 
     const flags: TokenFlags = {
-        hasMetaUrl: src.includes('import.meta.url'),
+        hasMetaUrl: /\bimport\.meta\.(?:url|dirname|filename)\b/.test(src),
         hasDirname: src.includes('__dirname'),
         hasFilename: src.includes('__filename'),
     };

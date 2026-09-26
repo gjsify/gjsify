@@ -21,7 +21,10 @@
 // fatal error in a plugin they did not ask for.
 
 import { dirname } from 'node:path';
-import type { Plugin } from 'rolldown';
+import type { ImportKind, Plugin, PluginContext } from 'rolldown';
+
+/** Marks this plugin's own `this.resolve` probes (`custom` resolve option). */
+const OWN_PROBE = 'gjsify-unresolved-workspace-import/probe';
 
 /** Bare `@gjsify/*` package specifier — the workspace edge this guard protects. */
 const WORKSPACE_SCOPE = '@gjsify/';
@@ -272,10 +275,8 @@ function describeResolverFailure(err: unknown): string {
  */
 export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOptions): Plugin {
     const { target, aliases, isExternal, toolchainAnchor } = options;
-    // Re-entrancy belt: `skipSelf: true` should keep our own `this.resolve` out of
-    // this hook, but a hang is a far worse failure than a missed check. Keyed by
-    // `candidate\0importer` — the same package legitimately resolves from many.
-    const inFlight = new Set<string>();
+    // Resolutions in flight, by the cache key — concurrent askers await the same one.
+    const pending = new Map<string, Promise<{ id: string }>>();
     // Read only on the failure path, to recover the `node:fs` behind a failed
     // `@gjsify/fs`.
     const reverseAliases = buildReverseAliasIndex(aliases);
@@ -302,6 +303,11 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 // Normalise once, at the boundary (same fix as `napiNodeAddonPlugin`).
                 const importer = typeof rawImporter === 'string' ? rawImporter : undefined;
                 if (extraOptions?.isEntry) return null;
+                // Re-entrancy belt: `skipSelf: true` should keep our own probes out of
+                // this hook, but one that got back in would now await ITSELF below — a
+                // hang, far worse than a missed check. The probes carry a marker, so the
+                // belt tells re-entrancy from a concurrent ask instead of guessing.
+                if ((extraOptions?.custom as Record<string, unknown> | undefined)?.[OWN_PROBE]) return null;
                 // The toolchain fallback below re-enters this hook with the anchor as
                 // the importer. Declining there keeps the probe from rescuing itself:
                 // the anchor cannot answer for the anchor, and the recursion has no
@@ -317,77 +323,100 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 }`;
                 const cached = resolvedCache.get(key);
                 if (cached) return cached;
-                if (inFlight.has(key)) return null;
-                inFlight.add(key);
-                let resolved: { id: string } | null = null;
-                // KEPT DELIBERATELY, and NOT as a miss. `this.resolve` re-runs the whole
-                // `pre`-order chain, so it can fail two very different ways. "Nothing is
-                // there" is `null` on both engines — npm `rolldown` always answered that,
-                // and `@gjsify/rolldown-native` now does too (`isResolveMiss`, which is
-                // where the engine mismatch that hid this plugin's diagnostic under GJS
-                // is fixed). What reaches this catch is the OTHER kind: a hook in that
-                // chain throwing on purpose (`napi-node-addon`'s `resolveAddonPath`), an
-                // EACCES, a corrupt `package.json`, a bridge fault. Letting it escape
-                // surfaces it as a bare "plugin `gjsify-alias` threw an error" naming
-                // neither specifier nor importer; swallowing it would report a real fault
-                // as the user's missing dependency. So it is caught, kept, and thrown
-                // BELOW with this plugin's context around it and the original as `cause`.
-                let resolverFailure: unknown;
+                // A CONCURRENT ask for the same key shares the one in flight. The belt
+                // used to answer it with `null`, as if it were re-entrancy, and Rolldown
+                // externalised the specifier: two modules of one directory, or two
+                // `import … from 'node:path'` statements of one module, resolving at the
+                // same moment. Measured twice — web-ext's `lib/cmd/*.js` (loaded in
+                // parallel through dynamic imports) lost the module-resolve shim, and
+                // vite's `chunks/node.js` kept a bare `node:path` — each only when the
+                // scheduler interleaved them, so the same build could pass or fail.
+                const shared = pending.get(key);
+                if (shared) return shared;
+                const work = resolveCandidate.call(this, source, importer, verdict, extraOptions?.kind, key);
+                pending.set(key, work);
                 try {
-                    resolved = await this.resolve(verdict.candidate, importer, {
-                        skipSelf: true,
-                        kind: extraOptions?.kind,
-                    });
-                } catch (err) {
-                    resolverFailure = err;
+                    return await work;
                 } finally {
-                    inFlight.delete(key);
+                    pending.delete(key);
                 }
-                if (resolved) {
-                    resolvedCache.set(key, resolved);
-                    return resolved;
-                }
-                // Toolchain fallback — see `toolchainAnchor`. Only after a real `null`:
-                // a resolver that ERRORED has not established that the project lacks the
-                // package, and rescuing there would turn "project first, always" into
-                // "project first unless the project errors".
-                if (resolverFailure === undefined && toolchainAnchor !== undefined) {
-                    const fromToolchain = await this.resolve(verdict.candidate, toolchainAnchor, {
-                        skipSelf: true,
-                        kind: extraOptions?.kind,
-                    });
-                    if (fromToolchain) {
-                        // The one visible trace that this artifact is MIXED — some of its
-                        // `@gjsify/*` from the project, this one from the CLI's own
-                        // install, possibly a different major. Without it a rescued build
-                        // and a healthy one have byte-identical logs, and a wrong answer
-                        // that leaves no trace is the expensive kind. Deduplicated by
-                        // `resolvedCache`: one line per (candidate, importer dir, kind).
-                        this.warn(
-                            `gjsify: \`${verdict.candidate}\` did not resolve from the project ` +
-                                `(imported by ${importer ?? '<entry>'}) — using the copy installed beside the ` +
-                                `running CLI (${toolchainAnchor}). Build the workspace package to use the ` +
-                                `project's own copy.`,
-                        );
-                        resolvedCache.set(key, fromToolchain);
-                        return fromToolchain;
-                    }
-                }
-                throw new UnresolvedWorkspaceImportError(
-                    {
-                        target,
-                        source,
-                        candidate: verdict.candidate,
-                        aliasTarget: verdict.aliasTarget,
-                        aliasedFrom: reverseAliases.get(verdict.candidate)?.filter((s) => s !== source),
-                        importer: importer ?? '<entry>',
-                        ...(resolverFailure === undefined
-                            ? {}
-                            : { resolverFailure: describeResolverFailure(resolverFailure) }),
-                    },
-                    resolverFailure,
-                );
             },
         },
     };
+
+    async function resolveCandidate(
+        this: PluginContext,
+        source: string,
+        importer: string | undefined,
+        verdict: Extract<ImportVerdict, { verdict: 'check' }>,
+        kind: ImportKind | undefined,
+        key: string,
+    ): Promise<{ id: string }> {
+        let resolved: { id: string } | null = null;
+        // KEPT DELIBERATELY, and NOT as a miss. `this.resolve` re-runs the whole
+        // `pre`-order chain, so it can fail two very different ways. "Nothing is
+        // there" is `null` on both engines — npm `rolldown` always answered that,
+        // and `@gjsify/rolldown-native` now does too (`isResolveMiss`, which is
+        // where the engine mismatch that hid this plugin's diagnostic under GJS
+        // is fixed). What reaches this catch is the OTHER kind: a hook in that
+        // chain throwing on purpose (`napi-node-addon`'s `resolveAddonPath`), an
+        // EACCES, a corrupt `package.json`, a bridge fault. Letting it escape
+        // surfaces it as a bare "plugin `gjsify-alias` threw an error" naming
+        // neither specifier nor importer; swallowing it would report a real fault
+        // as the user's missing dependency. So it is caught, kept, and thrown
+        // BELOW with this plugin's context around it and the original as `cause`.
+        let resolverFailure: unknown;
+        try {
+            resolved = await this.resolve(verdict.candidate, importer, {
+                skipSelf: true,
+                kind,
+                custom: { [OWN_PROBE]: true },
+            });
+        } catch (err) {
+            resolverFailure = err;
+        }
+        if (resolved) {
+            resolvedCache.set(key, resolved);
+            return resolved;
+        }
+        // Toolchain fallback — see `toolchainAnchor`. Only after a real `null`:
+        // a resolver that ERRORED has not established that the project lacks the
+        // package, and rescuing there would turn "project first, always" into
+        // "project first unless the project errors".
+        if (resolverFailure === undefined && toolchainAnchor !== undefined) {
+            const fromToolchain = await this.resolve(verdict.candidate, toolchainAnchor, {
+                skipSelf: true,
+                kind,
+                custom: { [OWN_PROBE]: true },
+            });
+            if (fromToolchain) {
+                // The one visible trace that this artifact is MIXED — some of its
+                // `@gjsify/*` from the project, this one from the CLI's own
+                // install, possibly a different major. Without it a rescued build
+                // and a healthy one have byte-identical logs, and a wrong answer
+                // that leaves no trace is the expensive kind. Deduplicated by
+                // `resolvedCache`: one line per (candidate, importer dir, kind).
+                this.warn(
+                    `gjsify: \`${verdict.candidate}\` did not resolve from the project ` +
+                        `(imported by ${importer ?? '<entry>'}) — using the copy installed beside the ` +
+                        `running CLI (${toolchainAnchor}). Build the workspace package to use the ` +
+                        `project's own copy.`,
+                );
+                resolvedCache.set(key, fromToolchain);
+                return fromToolchain;
+            }
+        }
+        throw new UnresolvedWorkspaceImportError(
+            {
+                target,
+                source,
+                candidate: verdict.candidate,
+                aliasTarget: verdict.aliasTarget,
+                aliasedFrom: reverseAliases.get(verdict.candidate)?.filter((s) => s !== source),
+                importer: importer ?? '<entry>',
+                ...(resolverFailure === undefined ? {} : { resolverFailure: describeResolverFailure(resolverFailure) }),
+            },
+            resolverFailure,
+        );
+    }
 }
