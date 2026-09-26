@@ -190,11 +190,15 @@ export function cfrgImportKey(
     return new CryptoKey(kind, extractable, { name }, usages, { keyObject } satisfies CfrgHandle);
 }
 
-/** Node's (and current WebCrypto's) answer to a format the key type cannot take. */
+/**
+ * Node's answer when spki/pkcs8 export is asked of the wrong key type: `exportKeySpki`/
+ * `exportKeyPkcs8` (lib/internal/crypto/webcrypto.js) each guard their own key type and throw
+ * InvalidAccessError — the format itself is valid for the algorithm, only this key can't take it.
+ */
 function wrongKindForFormat(key: CryptoKey, format: string): DOMException {
     return new DOMException(
         `Unable to export ${key.algorithm.name} ${key.type} key using ${format} format`,
-        'NotSupportedError',
+        'InvalidAccessError',
     );
 }
 
@@ -202,7 +206,16 @@ export function cfrgExportKey(format: string, key: CryptoKey): ArrayBuffer | Jso
     const keyObject = keyObjectOf(key);
     switch (format) {
         case 'raw': {
-            if (key.type !== 'public') throw wrongKindForFormat(key, format);
+            // Node's exportKeySync has no private-key case for plain "raw" (only "raw-seed"
+            // does, under a different format string) — a private key falls through its
+            // switch with no result and hits the generic NotSupportedError, not this
+            // function's own InvalidAccessError.
+            if (key.type !== 'public') {
+                throw new DOMException(
+                    `Unable to export ${key.algorithm.name} ${key.type} key using ${format} format`,
+                    'NotSupportedError',
+                );
+            }
             const x = (keyObject.export({ format: 'jwk' }) as { x: string }).x;
             return toArrayBuffer(base64urlDecode(x));
         }

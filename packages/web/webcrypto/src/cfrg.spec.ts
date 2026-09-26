@@ -227,8 +227,8 @@ export default async () => {
 
         await it('refuses to export a key in the wrong format', async () => {
             const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as Pair;
-            expect(await rejectsWith(subtle.exportKey('pkcs8', pair.publicKey))).toBe('NotSupportedError');
-            expect(await rejectsWith(subtle.exportKey('spki', pair.privateKey))).toBe('NotSupportedError');
+            expect(await rejectsWith(subtle.exportKey('pkcs8', pair.publicKey))).toBe('InvalidAccessError');
+            expect(await rejectsWith(subtle.exportKey('spki', pair.privateKey))).toBe('InvalidAccessError');
             expect(await rejectsWith(subtle.exportKey('raw', pair.privateKey))).toBe('NotSupportedError');
             const locked = (await subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify'])) as Pair;
             expect(await rejectsWith(subtle.exportKey('pkcs8', locked.privateKey))).toBe('InvalidAccessError');
