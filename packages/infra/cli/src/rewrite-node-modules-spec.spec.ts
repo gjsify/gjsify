@@ -134,5 +134,28 @@ export default async () => {
             expect(got.filename).toBe(join(bundleDir, 'bundle.js'));
             expect(got.dirname).toBe(bundleDir);
         });
+
+        // The header is needed whenever a `__gjsifyFileURLToPath(…)` call SURVIVES into the
+        // output, which is not the same as the preamble being non-empty: a file declaring its
+        // OWN `__dirname` gets no generated declaration, yet `import.meta.dirname` is still
+        // rewritten to the helper. Keyed on `preamble.length` alone, that combination emitted a
+        // bare `__gjsifyFileURLToPath(…)` — a ReferenceError at first use, in a bundle that
+        // otherwise looked correct.
+        await it('imports fileURLToPath for a file that declares its own __dirname', async () => {
+            const own = 'var __dirname = "MINE";\nconst d = import.meta.dirname;\nexport { d };\n';
+            const out = rewriteContents({ path: dep }, own, bundleDir, false);
+            const code = out!.code;
+            expect(code.includes('__gjsifyFileURLToPath(')).toBe(true);
+            expect(code).toMatch(/import \{ fileURLToPath as __gjsifyFileURLToPath \} from "node:url";/);
+            // the file's own declaration is left alone — no second `var __dirname`
+            expect(code.match(/var __dirname/g)).toHaveLength(1);
+        });
+
+        await it('imports fileURLToPath for the zip-resident case too', async () => {
+            const zipped = join(bundleDir, 'cache', 'pkg.zip', 'node_modules', 'pkg', 'x.js');
+            const own = 'var __filename = "MINE";\nconst d = import.meta.dirname;\nexport { d };\n';
+            const out = rewriteContents({ path: zipped }, own, bundleDir, false);
+            expect(out!.code).toMatch(/import \{ fileURLToPath as __gjsifyFileURLToPath \} from "node:url";/);
+        });
     });
 };
