@@ -35,7 +35,15 @@ export {
     compareGlibcVersions,
     isGlibcSoname,
 } from './binary.mjs';
-export { PLATFORM_RE, ARCH_ALIASES, KNOWN_ARCH_TOKENS, canonicalPlatform, LIB_EXT, HOST_TARGET } from './platforms.mjs';
+export {
+    PLATFORM_RE,
+    ARCH_ALIASES,
+    KNOWN_ARCH_TOKENS,
+    canonicalPlatform,
+    LIB_EXT,
+    HOST_TARGET,
+    DARWIN_DEPLOYMENT_TARGET,
+} from './platforms.mjs';
 export {
     platformPackageName,
     platformPackageDirName,
@@ -86,6 +94,11 @@ export {
     parsePrebuildTarget,
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
+export {
+    prebuildDarwinTargetRule,
+    auditPrebuildDarwinTarget,
+    measureDarwinTargets,
+} from './rules/prebuild-darwin-target.mjs';
 export {
     osAxisRule,
     commentStrippingSelfTest,

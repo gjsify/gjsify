@@ -15,6 +15,17 @@ likely shape: hand the PEM pair to the http-soup-bridge's `Soup.Server` as `tls-
 and listen with `Soup.ServerListenOptions.HTTPS`. Done when that spec uses
 `https.createServer` on both legs.
 
+### Enforce the macOS 15.0 floor on committed darwin prebuilds
+
+ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
+`prebuild-darwin-target` rule that holds every committed darwin image's `LC_BUILD_VERSION`
+`minos` to it. The rule runs in REPORT mode in `scripts/audit-runtimes.mjs`
+(`darwinDeploymentTarget: 'report'`), because the committed darwin-arm64 prebuilds still
+record `minos 26.0` and only `prebuilds.yml`'s `commit-prebuilds` on `main` can replace
+them. Once that job has landed the rebuilt artifacts (the rule's REPORT-MODE note disappears
+from `audit-runtimes --check`), delete the `darwinDeploymentTarget: 'report'` line so a
+regression fails instead of printing.
+
 ### NativeScript `Gtk.Box` grants no spare space to an expanding child
 
 `hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
