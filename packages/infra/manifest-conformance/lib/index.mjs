@@ -110,6 +110,7 @@ export {
 export { envPrefixes, portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { shipRule, auditShip } from './rules/ship.mjs';
+export { webextRule, auditWebext, webextTargetProblem } from './rules/webext.mjs';
 export { bundledLicenseRule, auditBundledLicense, collectBundlingPackages } from './rules/bundled-license.mjs';
 export { mediaCapabilitiesRule, auditMediaCapabilities, collectMediaBundles } from './rules/media-capabilities.mjs';
 export { gstPluginBaseName, isGstElementName, isGstPluginFile, readGstPluginDir } from './gst-payload.mjs';
