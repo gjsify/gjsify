@@ -5425,8 +5425,8 @@ what is missing is a reason to take the platform's gesture away from it.
 
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `source.ts`, `swipe.ts` and
-`toast.ts` export shared behaviour and are covered by nothing in
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `shortcut-format.ts`,
+`source.ts`, `swipe.ts` and `toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no
 conformance file imports them. Three of them are what `packages/web/AGENTS.md`
 advertises as the core's flagship shared behaviour ("Breakpoints
@@ -5451,6 +5451,19 @@ renderer grows a swipe — and three widgets upstream already want the same
 tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
 `adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
 (`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
+
+`shortcut-format.ts` is two formatters, and only half of it is actually
+untabled. `formatAcceleratorLabel` is a thin wrapper over `shortcut-label.ts`'s
+`shortcutKeycaps`, so a vector table over IT would assert the same derivation
+`SHORTCUT_LABEL_VECTORS` already tables, under a second name — that half is
+driven, by `adwaita-web`'s `<adw-shortcut-label>`, already. `formatManifestShortcut`
+is the genuinely untabled half: it parses a WebExtension manifest shortcut string
+(`"Alt+Shift+B"`, `"MacCtrl+Shift+B"`) into the platform's own glyphs, a grammar no
+libadwaita widget speaks and no renderer under `packages/web` or
+`packages/nativescript-bridge` has a shortcut string to run it against — the one
+consumer that does, the `beifahrer` browser extension, is a separate repo. It
+earns a table the day a renderer inside THIS repo needs to show a manifest-style
+shortcut rather than a GTK accelerator.
 
 They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
 is keyed by TABLE, so it reported "156 vector tables, every one driven or
