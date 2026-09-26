@@ -141,6 +141,22 @@ export default async () => {
             }
         });
 
+        // A PATH without the `sbin` directories is what a launchd agent or a
+        // scrubbed `env -i` shell hands a process. The darwin readers used to
+        // spawn a BARE `sysctl` (it lives in /usr/sbin), so `cpus()` threw — and
+        // the GJS-hosted CLI calls it at module evaluation.
+        await it('cpus() does not depend on PATH carrying sbin', async () => {
+            const saved = process.env.PATH;
+            process.env.PATH = '/usr/bin:/bin';
+            try {
+                expect(os.cpus().length > 0).toBeTruthy();
+                expect(os.totalmem() > 0).toBeTruthy();
+                expect(Object.keys(os.networkInterfaces()).length > 0).toBeTruthy();
+            } finally {
+                process.env.PATH = saved;
+            }
+        });
+
         await it('cpus() length should match availableParallelism()', async () => {
             const cpus = os.cpus();
             expect(cpus.length).toBe(os.availableParallelism());
