@@ -218,5 +218,117 @@ export default async () => {
         });
     });
 
+    // SQLite's INTEGER is 64 bits wide. libgda typed such a column gint and refused every
+    // value outside 32 bits, which failed the SELECT (on 0.49.0 it read back as no rows) —
+    // a millisecond timestamp was enough. node:sqlite's contract: a Number while it is
+    // safe, a BigInt with readBigInts, and ERR_OUT_OF_RANGE past Number.MAX_SAFE_INTEGER.
+    await describe('64-bit integers', async () => {
+        const safe = [2 ** 31, 2 ** 32, 2 ** 53 - 1, -(2 ** 31) - 1, -(2 ** 53 - 1)];
+        // -(2^63) is left out of the throwing case on purpose: node:sqlite tests
+        // `std::abs(val) <= kMaxSafeJsInteger`, and abs(INT64_MIN) overflows, so Node
+        // returns it as a rounded Number. That is undefined behaviour, not a contract.
+        const unsafe = [2n ** 53n + 1n, -(2n ** 53n), 2n ** 63n - 1n];
+
+        await it('reads safe values back as Numbers, bound as Number and as BigInt', async () => {
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, seq INTEGER, loose)');
+            const insert = db.prepare('INSERT INTO t (seq, loose) VALUES (?, ?)');
+            for (const value of safe) {
+                insert.run(value, BigInt(value));
+            }
+            const rows = db.prepare('SELECT seq, loose FROM t ORDER BY id').all() as {
+                seq: number;
+                loose: number;
+            }[];
+            expect(rows.length).toBe(safe.length);
+            for (let i = 0; i < safe.length; i++) {
+                expect(rows[i].seq).toBe(safe[i]);
+                expect(rows[i].loose).toBe(safe[i]);
+            }
+            const one = db.prepare('SELECT seq FROM t WHERE seq = ?').get(2 ** 32) as { seq: number };
+            expect(one.seq).toBe(2 ** 32);
+            db.close();
+        });
+
+        await it('reads every value back exactly with readBigInts', async () => {
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, seq INTEGER)');
+            const insert = db.prepare('INSERT INTO t (seq) VALUES (?)');
+            const all = [...safe.map((v) => BigInt(v)), ...unsafe, -(2n ** 63n)];
+            for (const value of all) insert.run(value);
+            const select = db.prepare('SELECT seq FROM t ORDER BY id');
+            select.setReadBigInts(true);
+            const rows = select.all() as { seq: bigint }[];
+            expect(rows.length).toBe(all.length);
+            for (let i = 0; i < all.length; i++) {
+                expect(rows[i].seq).toBe(all[i]);
+            }
+            const lookup = db.prepare('SELECT seq FROM t WHERE seq = ?');
+            lookup.setReadBigInts(true);
+            expect((lookup.get(2n ** 63n - 1n) as { seq: bigint }).seq).toBe(2n ** 63n - 1n);
+            db.close();
+        });
+
+        await it('throws ERR_OUT_OF_RANGE past MAX_SAFE_INTEGER without readBigInts', async () => {
+            for (const value of unsafe) {
+                const db = new DatabaseSync(':memory:');
+                db.exec('CREATE TABLE t(seq INTEGER)');
+                db.prepare('INSERT INTO t (seq) VALUES (?)').run(value);
+                let code: unknown = 'nothing was thrown';
+                try {
+                    db.prepare('SELECT seq FROM t').all();
+                } catch (e) {
+                    code = (e as { code?: unknown }).code;
+                }
+                expect(code).toBe('ERR_OUT_OF_RANGE');
+                db.close();
+            }
+        });
+
+        await it('reads a large integer from an expression and a NULL-first column', async () => {
+            const db = new DatabaseSync(':memory:');
+            expect((db.prepare('SELECT 2147483648 AS v').get() as { v: number }).v).toBe(2147483648);
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, ts)');
+            db.exec('INSERT INTO t (ts) VALUES (NULL)');
+            const select = db.prepare('SELECT ts FROM t ORDER BY id');
+            expect((select.all() as { ts: unknown }[])[0].ts).toBeNull();
+            db.exec('INSERT INTO t (ts) VALUES (1727280000000)');
+            const rows = select.all() as { ts: unknown }[];
+            expect(rows.length).toBe(2);
+            expect(rows[1].ts).toBe(1727280000000);
+            db.close();
+        });
+
+        await it('reads a large value that follows small and NULL ones in the same result', async () => {
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, seq INTEGER, loose)');
+            db.exec(`INSERT INTO t (seq, loose) VALUES (1, 1), (NULL, NULL), (2147483648, 2147483648),
+                     (NULL, NULL), (9007199254740991, 9007199254740991)`);
+            // A fresh statement, so this one all() is also the statement's first probe.
+            const rows = db.prepare('SELECT seq, loose FROM t ORDER BY id').all() as {
+                seq: number | null;
+                loose: number | null;
+            }[];
+            const expected = [1, null, 2147483648, null, 9007199254740991];
+            expect(rows.length).toBe(expected.length);
+            for (let i = 0; i < expected.length; i++) {
+                expect(rows[i].seq).toBe(expected[i]);
+                expect(rows[i].loose).toBe(expected[i]);
+            }
+            db.close();
+        });
+
+        await it('returns a rowid past 2^31 as lastInsertRowid', async () => {
+            const db = new DatabaseSync(':memory:');
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)');
+            const insert = db.prepare('INSERT INTO t (id, v) VALUES (?, ?)');
+            expect(insert.run(2 ** 32, 'a').lastInsertRowid).toBe(2 ** 32);
+            expect(insert.run(2 ** 53 - 1, 'b').lastInsertRowid).toBe(2 ** 53 - 1);
+            insert.setReadBigInts(true);
+            expect(insert.run(2n ** 63n - 1n, 'c').lastInsertRowid).toBe(2n ** 63n - 1n);
+            db.close();
+        });
+    });
+
     cleanup();
 };

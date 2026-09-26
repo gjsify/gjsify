@@ -2,7 +2,7 @@
 // Reference: Node.js lib/sqlite.js
 // Reimplemented for GJS using Gda-6.0
 
-import Gda from '@girs/gda-6.0';
+import type Gda from '@girs/gda-6.0';
 import {
     IllegalConstructorError,
     InvalidArgTypeError,
@@ -12,6 +12,7 @@ import {
     sqliteErrorMessage,
 } from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
+import { ColumnTypes, executeStatement, integerColumns } from './execution.ts';
 import { bindStringHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
@@ -111,6 +112,8 @@ export class StatementSync {
     #returnArrays: boolean;
     #allowBareNamedParameters: boolean;
     #allowUnknownNamedParameters: boolean;
+    /** How this statement's result columns are read; learned on the first get()/all(). */
+    #columns = new ColumnTypes();
 
     constructor(
         sentinel: symbol,
@@ -149,10 +152,11 @@ export class StatementSync {
         return this.#sql;
     }
 
-    #getReadOptions(): ReadOptions {
+    #getReadOptions(textColumns: boolean[]): ReadOptions {
         return {
             readBigInts: this.#readBigInts,
             returnArrays: this.#returnArrays,
+            textColumns,
         };
     }
 
@@ -299,37 +303,28 @@ export class StatementSync {
     }
 
     /**
-     * Execute the statement, and let every failure out.
+     * Execute the statement, read its result, and let every failure out.
      *
      * This is the ONE seam where libgda can refuse the statement — `prepare()` hands the
      * SQL to libgda's parser, which checks SYNTAX and never looks at the database, so a
      * query naming a table or column that does not exist is legitimately prepared and can
      * fail no earlier than here. Whatever it says has to reach the caller: an error
      * turned into "no rows" is a wrong answer no consumer can tell from an empty table.
+     *
+     * `read` sees the data model — or null for a statement that yields no rows — while it
+     * is still alive; `executeStatement()` releases it afterwards (see execution.ts). Pass
+     * `columns` only when `read` reads rows: it is what makes 64-bit integers exact.
      */
-    #executeSql(args: unknown[]): { model: Gda.DataModel | null; isSelect: boolean } {
+    #execute<T>(
+        args: unknown[],
+        read: (model: Gda.DataModel | null, textColumns: boolean[]) => T,
+        columns?: ColumnTypes,
+    ): T {
         const { sql, strings } = this.#buildStatement(args);
         try {
             const [stmt, params] = parseSql(this.#connection, sql);
             bindStringHolders(params, strings);
-
-            const stmtType = stmt.get_statement_type();
-            if (stmtType === Gda.SqlStatementType.SELECT) {
-                return { model: this.#connection.statement_execute_select(stmt, params), isSelect: true };
-            }
-            try {
-                this.#connection.statement_execute_non_select(stmt, params);
-                return { model: null, isSelect: false };
-            } catch {
-                // A PRAGMA reaches libgda as UNKNOWN and executes ONLY as a select, so a
-                // refused non-select execution is not yet an answer. When the statement is
-                // not select-like the retry fails too and ITS error is what propagates —
-                // measured, that error carries SQLite's own text about the statement the
-                // caller wrote ("no such table: t", "UNIQUE constraint failed: t.a"), and
-                // a rejected write leaves no rows behind, so nothing is lost by retrying.
-                const model = this.#connection.statement_execute_select(stmt, params);
-                return { model, isSelect: true };
-            }
+            return executeStatement(this.#connection, stmt, params, read, columns);
         } catch (e: unknown) {
             // libgda reports through GLib.Error, whose `code` is a numeric GError enum,
             // while a consumer written against node:sqlite branches on
@@ -341,43 +336,58 @@ export class StatementSync {
     }
 
     run(...args: unknown[]): RunResult {
-        this.#executeSql(args);
+        this.#execute(args, () => undefined);
 
-        let changes: number | bigint = 0;
-        let lastInsertRowid: number | bigint = 0;
+        // One query for both counters, released like any other execution. SQLite's own
+        // functions answer for the connection as node:sqlite's sqlite3_changes64() and
+        // sqlite3_last_insert_rowid() do — including their values surviving a statement
+        // that changes nothing.
+        const [stmt] = parseSql(this.#connection, 'SELECT changes(), last_insert_rowid()');
+        // Both are read as text: a rowid is a 64-bit integer, and libgda would type the
+        // column gint and refuse any rowid past 2^31 - 1.
+        const [changes, lastInsertRowid] = executeStatement(
+            this.#connection,
+            stmt,
+            null,
+            (model) => {
+                if (!model || model.get_n_rows() === 0) {
+                    throw new SqliteError('SELECT changes(), last_insert_rowid() returned no row');
+                }
+                return [
+                    BigInt(model.get_value_at(0, 0) as unknown as string),
+                    BigInt(model.get_value_at(1, 0) as unknown as string),
+                ];
+            },
+            integerColumns(2),
+        );
 
-        const chModel = this.#connection.execute_select_command('SELECT changes()');
-        if (chModel && chModel.get_n_rows() > 0) {
-            changes = chModel.get_value_at(0, 0) as unknown as number;
-        }
-
-        const ridModel = this.#connection.execute_select_command('SELECT last_insert_rowid()');
-        if (ridModel && ridModel.get_n_rows() > 0) {
-            lastInsertRowid = ridModel.get_value_at(0, 0) as unknown as number;
-        }
-
+        // node:sqlite: BigInt with readBigInts, otherwise a Number even where that rounds —
+        // unlike a column value, which throws past Number.MAX_SAFE_INTEGER instead.
         if (this.#readBigInts) {
-            changes = BigInt(changes);
-            lastInsertRowid = BigInt(lastInsertRowid);
+            return { changes, lastInsertRowid };
         }
-
-        return { changes, lastInsertRowid };
+        return { changes: Number(changes), lastInsertRowid: Number(lastInsertRowid) };
     }
 
     get(...args: unknown[]): Record<string, unknown> | unknown[] | undefined {
-        const { model } = this.#executeSql(args);
-        if (!model || model.get_n_rows() === 0) {
-            return undefined;
-        }
-        return readFirstRow(model, this.#getReadOptions());
+        return this.#execute(
+            args,
+            (model, textColumns) => {
+                if (!model || model.get_n_rows() === 0) {
+                    return undefined;
+                }
+                return readFirstRow(model, this.#getReadOptions(textColumns));
+            },
+            this.#columns,
+        );
     }
 
     all(...args: unknown[]): (Record<string, unknown> | unknown[])[] {
-        const { model } = this.#executeSql(args);
-        if (!model) {
-            return [];
-        }
-        return readAllRows(model, this.#getReadOptions());
+        return this.#execute(
+            args,
+            (model, textColumns) => (model ? readAllRows(model, this.#getReadOptions(textColumns)) : []),
+            this.#columns,
+        );
     }
 
     setReadBigInts(enabled: unknown): undefined {

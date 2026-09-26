@@ -12,7 +12,7 @@
 // therefore fails the moment this decision returns the wrong answer.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { needsSelfShim, pathWithoutSelfShim } from './gjsify-shim.js';
+import { buildSelfShimScript, needsSelfShim, pathWithoutSelfShim } from './gjsify-shim.js';
 
 export default async () => {
     await describe('needsSelfShim', async () => {
@@ -120,6 +120,42 @@ export default async () => {
             expect(pathWithoutSelfShim('C:\\Temp\\gjsify-shim-x;C:\\bin', 'C:\\Temp\\gjsify-shim-x', ';')).toBe(
                 'C:\\bin',
             );
+        });
+    });
+
+    // `gjsify workspace <pkg> build` on macOS died in the CHILD with `Failed to load
+    // shared library 'libgjsifyterminal.dylib'`: the self-shim is a `/bin/sh` script,
+    // SIP strips `DYLD_*` at that exec, and the child `gjs` lost the loader path.
+    await describe('buildSelfShimScript', async () => {
+        const dyldEnv = { DYLD_LIBRARY_PATH: "/n m/prebuilds/darwin-arm64:/it's", PATH: '/usr/bin', HOME: '/h' };
+
+        await it('re-exports every set DYLD_* variable on darwin', async () => {
+            const script = buildSelfShimScript({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: '/cli.gjs.mjs',
+                platform: 'darwin',
+                env: { ...dyldEnv, DYLD_FALLBACK_LIBRARY_PATH: '/usr/local/lib', DYLD_EMPTY: '' },
+            });
+            expect(script).toBe(
+                '#!/bin/sh\n' +
+                    "DYLD_FALLBACK_LIBRARY_PATH='/usr/local/lib'\nexport DYLD_FALLBACK_LIBRARY_PATH\n" +
+                    "DYLD_LIBRARY_PATH='/n m/prebuilds/darwin-arm64:/it'\\''s'\nexport DYLD_LIBRARY_PATH\n" +
+                    'exec "gjs" -m "/cli.gjs.mjs" "$@"\n',
+            );
+        });
+
+        // LD_LIBRARY_PATH crosses `/bin/sh` untouched on Linux; baking would only
+        // freeze a value the child already inherits.
+        await it('adds nothing off darwin', async () => {
+            const script = buildSelfShimScript({
+                interpreter: 'gjs',
+                interpreterArgs: ['-m'],
+                target: '/cli.gjs.mjs',
+                platform: 'linux',
+                env: dyldEnv,
+            });
+            expect(script).toBe('#!/bin/sh\nexec "gjs" -m "/cli.gjs.mjs" "$@"\n');
         });
     });
 };

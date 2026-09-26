@@ -823,6 +823,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ADR 0074: the shim this leg ships targets the declared macOS floor, not this
+      # runner's macOS (unset, it recorded `minos 26.0` from `macos-latest`).
+      - name: Target the declared macOS floor
+        uses: ./.github/actions/darwin-deployment-target
+
       # Build the Vala+C++ shim → libgjsifynapi.dylib + GjsifyNapi-1.0.{gir,typelib}
       # and stage it into `@gjsify/napi-darwin-arm64`, the per-target package a
       # release ships it from.

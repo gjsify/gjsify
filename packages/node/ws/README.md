@@ -33,6 +33,19 @@ wss.on('connection', (client) => {
 
 `WebSocketServer` supports `{ port }`, `{ server }` shared-port, and `{ noServer: true }` + `handleUpgrade()` modes, as well as `verifyClient`, `handleProtocols`, and `createWebSocketStream` (Duplex bridge). Validated against the Autobahn test suite: 510 OK / 4 NON-STRICT / 3 INFO / 0 FAILED.
 
+## Differences from npm `ws`
+
+- **Close codes libsoup refuses.** libsoup puts only RFC 6455's original codes in a Close
+  frame, and not 1011 from a client or 1010 from a server. For those, and for 1012–1014 from
+  either side, `close(code)` sends **1002** (protocol error) instead of the requested code — the
+  code libsoup itself falls back to. The connection still closes, and both sides' `'close'`
+  report 1002. A peer's 1012–1014 arrives as its code, but libsoup
+  answers it with 1002. A libsoup limit, tracked in the repo's `status/upstream-patch-candidates.md`.
+- **TLS client options.** `rejectUnauthorized` is honoured (as is
+  `NODE_TLS_REJECT_UNAUTHORIZED=0`); `agent`, `ca`, `cert`, `key`, `passphrase`, `pfx`, `crl`,
+  `ciphers`, `secureProtocol`, `maxPayload`, `followRedirects`, `maxRedirects`,
+  `skipUTF8Validation` and `allowSynchronousEvents` are not.
+
 ## License
 
 MIT

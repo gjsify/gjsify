@@ -5,6 +5,10 @@ Batteries-included, **relocated** GTK / GObject-Introspection runtime bundle for
 namespaces (GLib · GObject · Gio · cairo · Pango · Graphene · Gdk) with **no
 Homebrew GTK** installed on the host.
 
+Every image in the bundle loads on **macOS 15 or newer** — the floor all gjsify darwin
+binaries share ([ADR 0074](../../../docs/adr/0074-one-declared-macos-floor.md)); the
+builder fails on a Homebrew bottle poured for a newer OS.
+
 Platform-gated (`os: ["darwin"]`, `cpu: ["x64"]`), tier 3 (experimental). On any
 other platform npm skips it and `@gjsify/node-gi` falls back to a system/Homebrew
 GTK. The heavy `gtk/` payload is **not committed** — it is built on an Intel macOS

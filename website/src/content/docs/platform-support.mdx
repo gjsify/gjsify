@@ -104,6 +104,11 @@ skipped.
 
 ## macOS
 
+Every native piece gjsify ships for macOS — the prebuilt bridges, the GTK runtime
+bundles — needs **macOS 15 (Sequoia) or newer**, on Apple silicon and Intel alike.
+That is the oldest release Apple still ships security fixes for, and the oldest the
+Homebrew-built GTK runtime can reach.
+
 `--app node` is fully supported: builds, conformance and a real GTK/Adwaita
 window are all exercised on Apple silicon, and `@gjsify/gtk-runtime-darwin-arm64`
 ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
@@ -114,8 +119,8 @@ beside its Apple-silicon twin rather than a reduced substitute.
 Web views come with the package here. `@gjsify/webkit-native` puts Apple's WebKit
 behind the same `WebKit-6.0` namespace `@gjsify/iframe` uses on Linux, so nothing
 in your code changes and there is no WebKitGTK to hunt for. Upstream's GTK port is
-Linux-only by decision. The minimum deployment target is macOS 11, and a few
-page-level behaviours differ (document focus, the pointer cursor);
+Linux-only by decision. The web view itself needs nothing newer than macOS 11,
+so it adds no requirement beyond the macOS 15 above, and a few page-level behaviours differ (document focus, the pointer cursor);
 [Web Views](/gjsify/guides/web-views/) names them.
 
 What is not proven is the CLI on a `gjs` host. `gjsify build` under GJS needs a

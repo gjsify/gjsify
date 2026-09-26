@@ -35,10 +35,9 @@
 // require('./cjs/react-reconciler.development.js')`, and the development bundle reaches
 // for `document`, `HTMLCanvasElement` and `Path2D`, which makes `--globals auto` inject
 // the GTK-backed DOM registers and pull gi://Gdk, GdkPixbuf, Pango and PangoCairo
-// into a bundle that needs none of them. Add `--exclude-globals navigator`: even the
-// production `scheduler` carries `typeof navigator !== 'undefined' &&
-// navigator.scheduling`, which is dead code under GJS but still a free `navigator`
-// the detector answers with the same GTK-backed register.
+// into a bundle that needs none of them. The production `scheduler`'s
+// `navigator.scheduling` probe needs no flag: `navigator` injects Node's DOM-free one
+// from @gjsify/node-globals.
 //
 // HOW THAT RECIPE IS HELD, and why the guard had to change shape. Until 0.29 the
 // member COUNT told the two bundles apart — production read 76, development 94 — so
