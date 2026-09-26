@@ -103,6 +103,10 @@ import {
     verifyBundleTypelibs,
 } from './typelib-backers.mjs';
 import { formatTypelibApiProblems, typelibApiRecord, verifyTypelibApiFloor } from './typelib-symbols.mjs';
+// The one Mach-O `minos` reader and the one floor, both in `@gjsify/manifest-conformance` —
+// the committed prebuilds are held to the same number by the `prebuild-darwin-target` rule.
+import { DARWIN_DEPLOYMENT_TARGET } from '../../infra/manifest-conformance/lib/platforms.mjs';
+import { measureDarwinTargets } from '../../infra/manifest-conformance/lib/rules/prebuild-darwin-target.mjs';
 import {
     BUNDLED_FONT_FAMILIES,
     bundledFontLicenseComponent,
@@ -228,6 +232,15 @@ const SEED_PATTERNS = [
 // different: whichever seeds are in play, the bundle ships exactly the typelibs it
 // can back.
 const WINDOWING = process.argv.includes('--windowing');
+// `--host-floor`: accept bundled images newer than ADR 0074's macOS floor. For a bundle a
+// developer builds on a newer Mac to run on THAT Mac — its Homebrew pours bottles for its own
+// OS, so the floor check below could never pass there. Refused under GitHub Actions: every
+// bundle CI builds is one a release could publish, and that is what the floor is for.
+const HOST_FLOOR = process.argv.includes('--host-floor');
+if (HOST_FLOOR && process.env.GITHUB_ACTIONS === 'true') {
+    console.error('build-gtk-runtime: --host-floor is for local bundles only and is refused in CI (ADR 0074)');
+    process.exit(2);
+}
 const WINDOWING_SEED_PATTERNS = [
     /^libadwaita-1\..*\.dylib$/,
     /^libgtksourceview-5\..*\.dylib$/,
@@ -1220,6 +1233,47 @@ console.log(
         `${typelibApi.declared.length} covered by a declared upstream gap, ${typelibApi.skipped.length} not ` +
         'applicable to this bundle',
 );
+
+// --- 4d3. every bundled image must LOAD on the declared macOS floor -------------
+// ADR 0074. Unlike a prebuild we compile, nothing here can be told a deployment target:
+// every image is a Homebrew bottle, and a bottle records the OS its bottle tag names. So the
+// floor is decided by the RUNNER this builder runs on — the 0.52.0 arm64 bundle, built on
+// `macos-latest`, required macOS 26 in 117 of its 119 images while nothing said so. The
+// workflows pin the runner (`macos-15`, `macos-15-intel`); this is what makes a future image
+// bump that raises the floor fail HERE rather than at a user's `dlopen`.
+{
+    const floor = measureDarwinTargets(OUT, DARWIN_DEPLOYMENT_TARGET);
+    const rel = (file) => file.slice(OUT.length + 1);
+    // An unread image is never excused, not even by --host-floor: that flag accepts a NEWER
+    // floor, it does not accept not knowing it.
+    const problems = [
+        ...(HOST_FLOOR ? [] : floor.tooNew.map(({ file, minOs }) => `${rel(file)} requires macOS ${minOs}`)),
+        ...floor.unmeasured.map(({ file, why }) => `${rel(file)}: deployment target not measured (${why})`),
+    ];
+    if (problems.length > 0) {
+        console.error(
+            `build-gtk-runtime: ${problems.length} bundled image(s) are not proven to load on macOS ` +
+                `${DARWIN_DEPLOYMENT_TARGET}, the declared floor (ADR 0074). Bottles record the OS they were ` +
+                'poured for — run this builder on the runner whose macOS IS the floor (`macos-15` / ' +
+                '`macos-15-intel`), not `macos-latest`. A bundle for local use on this machine only: pass ' +
+                '--host-floor.\n' +
+                problems.map((p) => `  - ${p}`).join('\n'),
+        );
+        process.exit(1);
+    }
+    if (HOST_FLOOR && floor.tooNew.length > 0) {
+        console.warn(
+            `build-gtk-runtime: --host-floor — ${floor.tooNew.length} bundled image(s) need a macOS newer than ` +
+                `the declared floor ${DARWIN_DEPLOYMENT_TARGET} (newest: ${floor.max}). This bundle is for THIS ` +
+                'machine; do not publish it.',
+        );
+    } else {
+        console.log(
+            `build-gtk-runtime: macOS floor verified — ${floor.images} Mach-O image(s), newest minos ` +
+                `${floor.max ?? 'n/a'} <= ${DARWIN_DEPLOYMENT_TARGET}`,
+        );
+    }
+}
 
 // --- 4e. the DECLARED windowing data must BE in the finished bundle ---------
 // The data-side twin of § 4c, and the reason § 4b's steps may keep warning: a set is

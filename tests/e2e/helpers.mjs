@@ -1,7 +1,7 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
 import { execFileSync, execSync, spawn } from 'node:child_process';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -15,6 +15,32 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Re-exported, not re-derived: `pack.mjs` reads the same two from `workspaces.mjs`,
 // and what a suite packs must be described by the same constants as what it asserts.
 export { MONOREPO_ROOT, HOST_TARGET };
+
+/**
+ * A PATH on which `node` resolves NOWHERE and `gjs` still does — a Node-less GJS
+ * host, built from this one (POSIX only; the suites using it run on linux and
+ * darwin).
+ *
+ * Every directory carrying a `node` is dropped, which is the only faithful way:
+ * a sabotaged `node` is still a `node`. When that takes `gjs` with it — Homebrew
+ * installs both into `/opt/homebrew/bin`, so on macOS it always does — a
+ * directory holding ONLY a `gjs` symlink goes in front. Before this, the suites
+ * that need it either SKIPPED there or handed the CLI `PATH=<gjs's dir>`, which
+ * on Homebrew still resolves `node` and loses `/usr/bin` (`uname`) besides.
+ *
+ * @param {string} scratchDir a directory the caller owns and removes
+ */
+export function nodeLessPath(scratchDir) {
+    const dirs = (process.env.PATH ?? '').split(':').filter((dir) => dir && !existsSync(join(dir, 'node')));
+    if (!dirs.some((dir) => existsSync(join(dir, 'gjs')))) {
+        const gjs = execFileSync('sh', ['-c', 'command -v gjs'], { encoding: 'utf-8' }).trim();
+        const onlyGjs = join(scratchDir, 'gjs-only-bin');
+        mkdirSync(onlyGjs, { recursive: true });
+        if (!existsSync(join(onlyGjs, 'gjs'))) symlinkSync(gjs, join(onlyGjs, 'gjs'));
+        dirs.unshift(onlyGjs);
+    }
+    return dirs.join(':');
+}
 
 /**
  * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never restated.

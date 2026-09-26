@@ -15,6 +15,7 @@ gjsify foreach build|test|check           # each script across all workspaces, t
 gjsify workspace @gjsify/<name> <script>  # one workspace; -d/--with-dependencies builds the dep closure first
 gjsify run <script>                       # root script; gjsify run dist/gjs.js runs a bundle
 gjsify run --node-script <file.mjs>       # an unbundled Node-style script, on the host runtime (bundled for GJS on the fly)
+gjsify exec [--runtime <r>] <bin> [args..]  # an installed npm bin on the host runtime; GJS rebuilds + caches it (ADR 0076)
 gjsify tsc …                              # Node-free tsc via the @gjsify/tsc bundle (args verbatim)
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / publish+trust sweep, ANY monorepo
@@ -25,6 +26,7 @@ gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify show
 gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consumer against a LOCAL gjsify checkout (ADR 0065)
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
+gjsify webext build|zip|dev [--target <t>..]   # WebExtension, one folder per target (ADR 0077)
 ```
 
 **`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag

@@ -4,6 +4,8 @@
 // loader works from both library code and runtime entry points. Absent typelib
 // is not an error: `hasNativeTls()` returns `false` and callers degrade.
 
+import { colocateNativeLibrary } from '@gjsify/utils/core';
+
 /** Parsed OCSP response from `Tls.parse_ocsp_response`. */
 export interface OcspResponseInfo {
     /** `responseStatus` per RFC 6960 §4.2.1 — see {@link OcspResponseStatus}. */
@@ -107,9 +109,18 @@ interface _GjsImportsHost {
 const _gi: Record<string, unknown> | undefined = (globalThis as unknown as _GjsImportsHost).imports?.gi;
 if (_gi) {
     try {
-        _mod = _gi['GjsifyTls'] as GjsifyTlsModule;
+        const ns = _gi['GjsifyTls'] as GjsifyTlsModule;
+        // The typelib is loaded; the library opens on the first class access.
+        // Name its directory in between (see `colocateNativeLibrary`), then
+        // touch both classes HERE: with the typelib found and the library not,
+        // every later access throws, and `hasNativeTls()` would be a lie.
+        colocateNativeLibrary('GjsifyTls');
+        void ns.Tls;
+        void ns.SessionAccess;
+        _mod = ns;
     } catch {
-        // Typelib not installed — consumers gate on `hasNativeTls()`.
+        // Typelib not installed, or its library cannot be opened — consumers
+        // gate on `hasNativeTls()`.
     }
 }
 

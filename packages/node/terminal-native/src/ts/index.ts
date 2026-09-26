@@ -3,8 +3,11 @@
 // Uses GJS's legacy `imports.gi` API (synchronous) rather than `gi://` ESM
 // because terminal properties like process.stdout.columns must be readable
 // synchronously at construction time.  The try/catch provides the same
-// graceful degradation: if the typelib is not in GI_TYPELIB_PATH the module
-// simply isn't available and callers fall back to the existing env/GLib paths.
+// graceful degradation: if the typelib is not in GI_TYPELIB_PATH, or its library
+// cannot be opened, the module simply isn't available and callers fall back to
+// the existing env/GLib paths.
+
+import { colocateNativeLibrary } from '@gjsify/utils/core';
 
 export interface NativeTerminal {
     /** Check whether fd is an interactive terminal (Posix.isatty). */
@@ -35,8 +38,6 @@ export interface GjsifyTerminalModule {
 }
 
 // Synchronous optional load via GJS legacy imports API.
-// Calling imports.gi.GjsifyTerminal throws if the typelib is not found,
-// which the try/catch catches gracefully.
 let _mod: GjsifyTerminalModule | null = null;
 
 /** Module-local typed view of the GJS legacy `imports.gi` host slot. */
@@ -44,12 +45,27 @@ interface _GjsImportsHost {
     imports?: { gi?: Record<string, unknown> };
 }
 
-const _gi: Record<string, unknown> | undefined = (globalThis as unknown as _GjsImportsHost).imports?.gi;
+const _gi = (globalThis as unknown as _GjsImportsHost).imports?.gi;
 if (_gi) {
     try {
-        _mod = _gi['GjsifyTerminal'] as GjsifyTerminalModule;
+        // Resolving the namespace loads the TYPELIB only; the library opens on
+        // the first class access below, so the library directory goes on
+        // girepository's path in between. Without it a SIP `/bin/sh` (which
+        // strips `DYLD_*`) made the CLI die while its modules evaluated:
+        // `process.stdout.columns` → "Unsupported type void" — measured with the
+        // `cli` template's own `gjsify run build`.
+        const ns = _gi['GjsifyTerminal'] as GjsifyTerminalModule;
+        colocateNativeLibrary('GjsifyTerminal');
+        // Touch both classes HERE, inside the try: with the typelib found and
+        // the library not, girepository hands back a namespace whose every
+        // class access throws, and "available" would be a lie told to every
+        // caller of `nativeTerminal`.
+        void ns.Terminal;
+        void ns.ResizeWatcher;
+        _mod = ns;
     } catch {
-        // GjsifyTerminal typelib not installed — fallback paths active in tty/process
+        // Typelib not installed, or its library cannot be opened — the
+        // fallback paths in tty/process take over.
     }
 }
 

@@ -166,6 +166,7 @@ export default defineConfig({
                         { slug: 'guides/devtools' },
                         { slug: 'guides/vite-plugin' },
                         { slug: 'guides/webrtc' },
+                        { slug: 'guides/browser-extensions' },
                     ],
                 },
                 {

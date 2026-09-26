@@ -30,7 +30,9 @@ import dns, {
     BADHINTS,
     NOTINITIALIZED,
     CANCELLED,
+    promises as dnsPromises,
 } from 'node:dns';
+import * as dnsPromisesModule from 'node:dns/promises';
 
 /**
  * Is this a NATIVE Node older than the release that made `lookup('')` throw?
@@ -141,6 +143,13 @@ export default async () => {
                 expect(typeof dns.setDefaultResultOrder).toBe('function');
                 expect(typeof dns.getDefaultResultOrder).toBe('function');
                 expect(dns.NOTFOUND).toBe('ENOTFOUND');
+            });
+
+            // vite reads `import { promises } from 'node:dns'`; without the export its
+            // `--app gjs` build failed with MISSING_EXPORT.
+            await it('should expose dns/promises as `promises`', async () => {
+                expect(dnsPromises.lookup).toBe(dnsPromisesModule.lookup);
+                expect(dns.promises.resolve4).toBe(dnsPromisesModule.resolve4);
             });
         });
 

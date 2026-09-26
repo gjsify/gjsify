@@ -431,6 +431,10 @@ export type { SpinnerArc } from './spinner.js';
 export { parseAccelerator, parseShortcutLabel, shortcutKeycaps } from './shortcut-label.js';
 export type { ShortcutKeycap, ShortcutLabelNode, ShortcutLabelOptions, ShortcutLabelParse } from './shortcut-label.js';
 
+// --- Shortcut display (WebExtension manifest strings + GTK accelerator labels) ---
+export { formatAcceleratorLabel, formatManifestShortcut } from './shortcut-format.js';
+export type { ShortcutPlatform } from './shortcut-format.js';
+
 // --- Length units (AdwLengthUnit — split views, wrap box, clamp) ---
 export { ADW_LENGTH_UNITS, DEFAULT_DPI, adwLengthToPx, normalizeLengthUnit } from './length-unit.js';
 export type { AdwLengthUnit } from './length-unit.js';
