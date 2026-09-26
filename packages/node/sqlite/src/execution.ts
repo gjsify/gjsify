@@ -3,7 +3,80 @@
 // Reimplemented for GJS using Gda-6.0
 
 import Gda from '@girs/gda-6.0';
+import GObject from '@girs/gobject-2.0';
 import { SqliteError } from './errors.ts';
+
+/**
+ * GType names libgda gives a result column that it then reads through a C type narrower
+ * than SQLite's 64-bit INTEGER, or converts into something node:sqlite never returns.
+ *
+ * libgda types a column from its declared type (`INTEGER`/`INT` → gint, `BOOLEAN` →
+ * gboolean, `TIMESTAMP` → GDateTime …) or, without one, from the storage class of the first
+ * non-NULL value (INTEGER → gint). A gint column then refuses every value outside 32 bits
+ * ("Integer value is too big"), so a millisecond timestamp failed the whole SELECT.
+ * gint64 would not be enough either: GJS turns a gint64 GValue into a Number, which loses
+ * every integer past 2^53 before this package can hand it out as a BigInt.
+ *
+ * Such a column is read as TEXT instead. SQLite renders an INTEGER as its exact decimal
+ * digits, and `data-model-reader.ts` turns them back into a Number or BigInt by
+ * node:sqlite's rules.
+ */
+let gdaTypeNull: GObject.GType | null = null;
+
+/**
+ * GDA_TYPE_NULL as a `col_types` entry: "let the provider decide", per execution. GJS
+ * refuses the documented alternative, a 0 in the array.
+ *
+ * The GIR has no class for the type, and it is registered lazily: measured,
+ * `type_from_name('GdaNull')` is null right after importing Gda. Creating a NULL value is
+ * what registers it.
+ */
+function typeNull(): GObject.GType {
+    if (gdaTypeNull === null) {
+        Gda.value_new_null();
+        gdaTypeNull = GObject.type_from_name('GdaNull');
+        if (!gdaTypeNull) throw new SqliteError('libgda did not register GdaNull');
+    }
+    return gdaTypeNull;
+}
+
+const TEXT_READ_TYPE_NAMES = new Set([
+    'gint',
+    'guint',
+    'gint64',
+    'guint64',
+    'gboolean',
+    'GDate',
+    'GdaTime',
+    'GDateTime',
+]);
+
+/**
+ * How the result columns of one prepared statement are read, remembered between its
+ * executions.
+ *
+ * Learning it costs an extra execution (see `probeColumns`), so a `StatementSync` keeps one
+ * of these for its lifetime. A column this has never seen typed (NULL in every probed row)
+ * is left to libgda; if a later execution types it integer-like, it is probed again.
+ */
+export class ColumnTypes {
+    /** Per column: TYPE_STRING to read as exact text, GdaNull to let libgda decide. */
+    types: GObject.GType[] | null;
+
+    constructor(types: GObject.GType[] | null = null) {
+        this.types = types;
+    }
+
+    /** Which columns hold text that `data-model-reader.ts` must convert back. */
+    get textColumns(): boolean[] {
+        return (this.types ?? []).map((type) => type === GObject.TYPE_STRING);
+    }
+}
+
+/** Every column read as text — for a query whose columns are all known to be integers. */
+export function integerColumns(count: number): ColumnTypes {
+    return new ColumnTypes(Array.from({ length: count }, () => GObject.TYPE_STRING));
+}
 
 /**
  * Execute `stmt`, hand its result to `read`, and leave NOTHING behind on the connection.
@@ -41,13 +114,14 @@ export function executeStatement<T>(
     connection: Gda.Connection,
     stmt: Gda.Statement,
     params: Gda.Set | null,
-    read: (model: Gda.DataModel | null) => T,
+    read: (model: Gda.DataModel | null, textColumns: boolean[]) => T,
+    columns?: ColumnTypes,
 ): T {
     let model: Gda.DataModel | null = null;
     try {
-        model = execute(connection, stmt, params);
+        model = execute(connection, stmt, params, columns);
         if (model) assertTyped(model);
-        return read(model);
+        return read(model, columns?.textColumns ?? []);
     } finally {
         if (model) releasePreparedStatement(model);
         // `del_prepared_statement()` does not check for a missing cache, which libgda
@@ -57,9 +131,19 @@ export function executeStatement<T>(
     }
 }
 
-function execute(connection: Gda.Connection, stmt: Gda.Statement, params: Gda.Set | null): Gda.DataModel | null {
+function execute(
+    connection: Gda.Connection,
+    stmt: Gda.Statement,
+    params: Gda.Set | null,
+    columns: ColumnTypes | undefined,
+): Gda.DataModel | null {
     if (stmt.get_statement_type() === Gda.SqlStatementType.SELECT) {
-        return connection.statement_execute_select(stmt, params);
+        // Without `columns` nobody reads the rows, so none are converted: a forward
+        // cursor types the columns from the first row and never fails on a value.
+        if (!columns) {
+            return connection.statement_execute_select_full(stmt, params, Gda.StatementModelUsage.CURSOR_FORWARD, null);
+        }
+        return executeTyped(connection, stmt, params, columns);
     }
     // A PRAGMA reaches libgda as UNKNOWN; the provider executes it and answers with a data
     // model when it yields rows, and with a Gda.Set of counters when it does not. So one
@@ -69,6 +153,87 @@ function execute(connection: Gda.Connection, stmt: Gda.Statement, params: Gda.Se
     const [result] = connection.batch_execute(batch, params, Gda.StatementModelUsage.RANDOM_ACCESS);
     if (!result || result instanceof Gda.Set) return null;
     return result as unknown as Gda.DataModel;
+}
+
+/**
+ * Run a SELECT with every integer-like column read as text (see TEXT_READ_TYPE_NAMES).
+ *
+ * `col_types` must name every column, so the column count and libgda's own typing are
+ * learned first by `probeColumns`, once per `ColumnTypes`. A remembered answer can go
+ * stale (see `matches`), and is then probed again, once.
+ */
+function executeTyped(
+    connection: Gda.Connection,
+    stmt: Gda.Statement,
+    params: Gda.Set | null,
+    columns: ColumnTypes,
+): Gda.DataModel {
+    const freshlyProbed = columns.types === null;
+    if (freshlyProbed) columns.types = probeColumns(connection, stmt, params);
+    const model = selectWith(connection, stmt, params, columns.types!);
+    if (matches(model, columns.types!)) return model;
+    releasePreparedStatement(model);
+    connection.del_prepared_statement(stmt);
+    if (freshlyProbed) throw new SqliteError('the result columns changed between two executions');
+    columns.types = probeColumns(connection, stmt, params);
+    const retried = selectWith(connection, stmt, params, columns.types);
+    if (matches(retried, columns.types)) return retried;
+    releasePreparedStatement(retried);
+    throw new SqliteError('the result columns changed between two executions');
+}
+
+/**
+ * Does `model` still have the columns `types` was learned from?
+ *
+ * The count can change under `SELECT *`. A column left to libgda can have been typed
+ * integer-like by this execution — it held only NULLs when probed — and libgda would then
+ * refuse its large values: not at execution, but when the value is read, as an error that
+ * names no column. Both are caught here, before anything is read.
+ */
+function matches(model: Gda.DataModel, types: GObject.GType[]): boolean {
+    if (model.get_n_columns() !== types.length) return false;
+    for (let col = 0; col < types.length; col++) {
+        if (types[col] === GObject.TYPE_STRING) continue;
+        const name = GObject.type_name(model.describe_column(col).get_g_type());
+        if (name !== null && TEXT_READ_TYPE_NAMES.has(name)) return false;
+    }
+    return true;
+}
+
+function selectWith(
+    connection: Gda.Connection,
+    stmt: Gda.Statement,
+    params: Gda.Set | null,
+    types: GObject.GType[],
+): Gda.DataModel {
+    return connection.statement_execute_select_full(stmt, params, Gda.StatementModelUsage.RANDOM_ACCESS, [
+        ...types,
+        GObject.TYPE_NONE,
+    ]);
+}
+
+/**
+ * Execute the SELECT once as a forward cursor, only to learn its columns.
+ *
+ * libgda creates the model by reading rows until every column has a type — without
+ * converting a value it cannot hold, which only invalidates that value. So this cannot
+ * fail on the data that makes a random-access execution fail, and it releases what it
+ * created like every other execution here.
+ */
+function probeColumns(connection: Gda.Connection, stmt: Gda.Statement, params: Gda.Set | null): GObject.GType[] {
+    const model = connection.statement_execute_select_full(stmt, params, Gda.StatementModelUsage.CURSOR_FORWARD, null);
+    try {
+        assertTyped(model);
+        const types: GObject.GType[] = [];
+        for (let col = 0; col < model.get_n_columns(); col++) {
+            const name = GObject.type_name(model.describe_column(col).get_g_type());
+            types.push(name !== null && TEXT_READ_TYPE_NAMES.has(name) ? GObject.TYPE_STRING : typeNull());
+        }
+        return types;
+    } finally {
+        releasePreparedStatement(model);
+        connection.del_prepared_statement(stmt);
+    }
 }
 
 /**

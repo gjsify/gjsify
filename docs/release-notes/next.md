@@ -60,3 +60,12 @@ reads wrongly without throwing. A mail sync of about 5,000 messages was enough, 
 
 Each execution now releases what it created before it returns, so a connection stays usable no
 matter how long it lives. A read that libgda can no longer type throws instead of returning rows.
+
+## `node:sqlite` reads 64-bit integers
+
+libgda types an `INTEGER` column, and an expression whose first value is an integer, as a
+32-bit `gint`. Any value past 2,147,483,647 then failed the whole read, and on 0.49.0 the
+failure was reported as an empty result. A millisecond timestamp was enough. Such columns
+are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
+fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
+larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.

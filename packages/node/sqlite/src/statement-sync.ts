@@ -12,7 +12,7 @@ import {
     sqliteErrorMessage,
 } from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
-import { executeStatement } from './execution.ts';
+import { ColumnTypes, executeStatement, integerColumns } from './execution.ts';
 import { bindStringHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
@@ -112,6 +112,8 @@ export class StatementSync {
     #returnArrays: boolean;
     #allowBareNamedParameters: boolean;
     #allowUnknownNamedParameters: boolean;
+    /** How this statement's result columns are read; learned on the first get()/all(). */
+    #columns = new ColumnTypes();
 
     constructor(
         sentinel: symbol,
@@ -150,10 +152,11 @@ export class StatementSync {
         return this.#sql;
     }
 
-    #getReadOptions(): ReadOptions {
+    #getReadOptions(textColumns: boolean[]): ReadOptions {
         return {
             readBigInts: this.#readBigInts,
             returnArrays: this.#returnArrays,
+            textColumns,
         };
     }
 
@@ -309,14 +312,19 @@ export class StatementSync {
      * turned into "no rows" is a wrong answer no consumer can tell from an empty table.
      *
      * `read` sees the data model — or null for a statement that yields no rows — while it
-     * is still alive; `executeStatement()` releases it afterwards (see execution.ts).
+     * is still alive; `executeStatement()` releases it afterwards (see execution.ts). Pass
+     * `columns` only when `read` reads rows: it is what makes 64-bit integers exact.
      */
-    #execute<T>(args: unknown[], read: (model: Gda.DataModel | null) => T): T {
+    #execute<T>(
+        args: unknown[],
+        read: (model: Gda.DataModel | null, textColumns: boolean[]) => T,
+        columns?: ColumnTypes,
+    ): T {
         const { sql, strings } = this.#buildStatement(args);
         try {
             const [stmt, params] = parseSql(this.#connection, sql);
             bindStringHolders(params, strings);
-            return executeStatement(this.#connection, stmt, params, read);
+            return executeStatement(this.#connection, stmt, params, read, columns);
         } catch (e: unknown) {
             // libgda reports through GLib.Error, whose `code` is a numeric GError enum,
             // while a consumer written against node:sqlite branches on
@@ -335,30 +343,51 @@ export class StatementSync {
         // sqlite3_last_insert_rowid() do — including their values surviving a statement
         // that changes nothing.
         const [stmt] = parseSql(this.#connection, 'SELECT changes(), last_insert_rowid()');
-        const [changes, lastInsertRowid] = executeStatement(this.#connection, stmt, null, (model) => {
-            if (!model || model.get_n_rows() === 0) {
-                throw new SqliteError('SELECT changes(), last_insert_rowid() returned no row');
-            }
-            return [model.get_value_at(0, 0) as unknown as number, model.get_value_at(1, 0) as unknown as number];
-        });
+        // Both are read as text: a rowid is a 64-bit integer, and libgda would type the
+        // column gint and refuse any rowid past 2^31 - 1.
+        const [changes, lastInsertRowid] = executeStatement(
+            this.#connection,
+            stmt,
+            null,
+            (model) => {
+                if (!model || model.get_n_rows() === 0) {
+                    throw new SqliteError('SELECT changes(), last_insert_rowid() returned no row');
+                }
+                return [
+                    BigInt(model.get_value_at(0, 0) as unknown as string),
+                    BigInt(model.get_value_at(1, 0) as unknown as string),
+                ];
+            },
+            integerColumns(2),
+        );
 
+        // node:sqlite: BigInt with readBigInts, otherwise a Number even where that rounds —
+        // unlike a column value, which throws past Number.MAX_SAFE_INTEGER instead.
         if (this.#readBigInts) {
-            return { changes: BigInt(changes), lastInsertRowid: BigInt(lastInsertRowid) };
+            return { changes, lastInsertRowid };
         }
-        return { changes, lastInsertRowid };
+        return { changes: Number(changes), lastInsertRowid: Number(lastInsertRowid) };
     }
 
     get(...args: unknown[]): Record<string, unknown> | unknown[] | undefined {
-        return this.#execute(args, (model) => {
-            if (!model || model.get_n_rows() === 0) {
-                return undefined;
-            }
-            return readFirstRow(model, this.#getReadOptions());
-        });
+        return this.#execute(
+            args,
+            (model, textColumns) => {
+                if (!model || model.get_n_rows() === 0) {
+                    return undefined;
+                }
+                return readFirstRow(model, this.#getReadOptions(textColumns));
+            },
+            this.#columns,
+        );
     }
 
     all(...args: unknown[]): (Record<string, unknown> | unknown[])[] {
-        return this.#execute(args, (model) => (model ? readAllRows(model, this.#getReadOptions()) : []));
+        return this.#execute(
+            args,
+            (model, textColumns) => (model ? readAllRows(model, this.#getReadOptions(textColumns)) : []),
+            this.#columns,
+        );
     }
 
     setReadBigInts(enabled: unknown): undefined {
