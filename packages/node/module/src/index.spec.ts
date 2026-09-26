@@ -2,13 +2,34 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import { builtinModules, isBuiltin, createRequire } from 'node:module';
+import { builtinModules, isBuiltin, createRequire, Module } from 'node:module';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export default async () => {
+    await describe('module.Module', async () => {
+        await it('is a constructor that is its own `Module` property', async () => {
+            expect(typeof Module).toBe('function');
+            expect(Module.Module).toBe(Module);
+        });
+
+        await it('carries the module statics', async () => {
+            expect(Module.builtinModules).toBe(builtinModules);
+            expect(Module.createRequire).toBe(createRequire);
+            expect(Module.isBuiltin).toBe(isBuiltin);
+        });
+
+        await it('builds an instance with an id and an exports object', async () => {
+            const m = new Module('x');
+            expect(m.id).toBe('x');
+            expect(typeof m.exports).toBe('object');
+            expect(m.loaded).toBe(false);
+            expect(Array.isArray(m.children)).toBe(true);
+        });
+    });
+
     await describe('module.builtinModules', async () => {
         await it('should be an array', async () => {
             expect(Array.isArray(builtinModules)).toBe(true);
