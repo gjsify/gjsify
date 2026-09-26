@@ -51,7 +51,24 @@ export class Socket extends Duplex {
     private _inputStream: Gio.InputStream | null = null;
     private _outputStream: Gio.OutputStream | null = null;
     private _cancellable: Gio.Cancellable = new Gio.Cancellable();
+    /**
+     * Cancellable dedicated to the read loop's `read_bytes_async` calls,
+     * separate from `_cancellable` (which also guards writes). `_destroy`
+     * cancels both; `_detachReader` cancels only this one, so handing this
+     * socket's connection off to a new owner (a TLS upgrade) never aborts
+     * an unrelated in-flight write.
+     */
+    private _readCancellable: Gio.Cancellable = new Gio.Cancellable();
     private _reading = false;
+    /**
+     * Set by `_detachReader()` while waiting for the current read to settle.
+     * The read loop checks this instead of pushing to the Duplex, so a read
+     * that resolves with real data (won the race against cancellation) goes
+     * to the detacher instead of being delivered on a socket about to be
+     * abandoned.
+     */
+    private _detaching = false;
+    private _detachResolve: ((leftover: Buffer | null) => void) | null = null;
     /**
      * Gio operations started on this socket's streams whose callback has not run.
      * Each one keeps a GSource polling the descriptor; `_destroy` cancels them, but
@@ -161,6 +178,37 @@ export class Socket extends Duplex {
     }
 
     /**
+     * @internal Atomically hand off this socket's Gio connection/streams to
+     * a new owner (a protocol upgrade: TLS, …), nulling them out here.
+     * Unlike `_releaseIOStream` (which only ever sees a stolen IOStream,
+     * never mid-read — see its one call site), this is also safe to call
+     * on a socket whose read loop is already running: nulling
+     * `_inputStream` makes both `_startReading()`'s own guard and a
+     * `Server._handleConnection`-deferred auto-start no-op, but an
+     * ALREADY in-flight `read_bytes_async` keeps its own local stream
+     * reference regardless — pair this with `_detachReader()` (either
+     * order) when a read may already be pending.
+     */
+    _claimConnection(): {
+        connection: Gio.SocketConnection | null;
+        ioStream: Gio.IOStream | null;
+        inputStream: Gio.InputStream | null;
+        outputStream: Gio.OutputStream | null;
+    } {
+        const claimed = {
+            connection: this._connection,
+            ioStream: this._ioStream,
+            inputStream: this._inputStream,
+            outputStream: this._outputStream,
+        };
+        this._connection = null;
+        this._ioStream = null;
+        this._inputStream = null;
+        this._outputStream = null;
+        return claimed;
+    }
+
+    /**
      * Initiate a TCP connection.
      */
     connect(
@@ -231,8 +279,19 @@ export class Socket extends Duplex {
         return this;
     }
 
-    /** @internal Set up streams and emit connect after connection is established. */
-    _setupConnection(opts: SocketConnectOptions | Record<string, never>): void {
+    /**
+     * @internal Set up streams and emit connect after connection is
+     * established. `autoStartReading` (default true) controls the
+     * trailing `_startReading()` call — `Server._handleConnection` passes
+     * `false` so a synchronous 'connection' listener (e.g.
+     * `TLSServer._upgradeTls`) gets a chance to claim the streams first
+     * via `_claimConnection()`, then calls `_startReading()` itself once
+     * every listener has run. `Socket.connect()`'s own 'connect' emit
+     * already runs BEFORE this method's trailing auto-start either way —
+     * a claiming listener there needs no such flag, just to call
+     * `_claimConnection()` synchronously within its own handler.
+     */
+    _setupConnection(opts: SocketConnectOptions | Record<string, never>, autoStartReading = true): void {
         if (!this._connection) return;
 
         const sock = this._connection.get_socket();
@@ -277,11 +336,18 @@ export class Socket extends Duplex {
         this.emit('connect');
         this.emit('ready');
 
-        // Start reading
-        this._startReading();
+        // Start reading — unless the caller (`Server._handleConnection`)
+        // is deferring this to give 'connection' listeners a chance to
+        // claim the streams first.
+        if (autoStartReading) this._startReading();
     }
 
-    private _startReading(): void {
+    /**
+     * @internal Not TS-`private`: `Server._handleConnection` (same
+     * package, different class) calls this directly when it deferred
+     * `_setupConnection`'s own auto-start — see that method's doc.
+     */
+    _startReading(): void {
         if (this._reading || !this._inputStream) return;
         this._reading = true;
         this._readLoop();
@@ -300,7 +366,7 @@ export class Socket extends Duplex {
                     inputStream.read_bytes_async(
                         CHUNK_SIZE,
                         GLib.PRIORITY_DEFAULT,
-                        this._cancellable,
+                        this._readCancellable,
                         (_source: Gio.InputStream | null, asyncResult: Gio.AsyncResult) => {
                             try {
                                 resolve(inputStream.read_bytes_finish(asyncResult));
@@ -312,6 +378,15 @@ export class Socket extends Duplex {
                         },
                     );
                 });
+
+                if (this._detaching) {
+                    // A detach won the race against this read settling with
+                    // real data: hand it to the detacher instead of the
+                    // Duplex — this socket is about to be abandoned.
+                    this._resolveDetach(bytes && bytes.get_size() > 0 ? Buffer.from(gbytesToUint8Array(bytes)) : null);
+                    return;
+                }
+
                 if (!bytes || bytes.get_size() === 0) {
                     // EOF — remote peer closed their write side
                     this._reading = false;
@@ -340,10 +415,52 @@ export class Socket extends Duplex {
                 }
             }
         } catch (err: unknown) {
-            if (!this._cancellable.is_cancelled()) {
+            if (this._detaching) {
+                // Expected: `_detachReader()` cancelled this read via
+                // `_readCancellable` and nothing had arrived yet.
+                this._resolveDetach(null);
+                return;
+            }
+            if (!this._readCancellable.is_cancelled()) {
                 this.destroy(createNodeError(err, 'read', { address: this.remoteAddress }));
             }
         }
+    }
+
+    /**
+     * @internal Stop the read loop and cancel any in-flight read, then wait
+     * for it to settle — without touching the underlying connection or
+     * streams. Used before handing this socket's Gio connection to a new
+     * owner (a TLS upgrade / STARTTLS): the new owner's
+     * `Gio.TlsClientConnection` issues its own reads on the same
+     * `Gio.InputStream`, and GIO rejects a second concurrent read on one
+     * stream — so any read this socket started must be fully settled first.
+     *
+     * Resolves `null` in the well-behaved case (nothing was pending, or the
+     * pending read was cleanly cancelled before any data arrived — true for
+     * any protocol where the peer waits for our next message, which is what
+     * makes STARTTLS work at all). Resolves the leftover `Buffer` when a
+     * read raced ahead and already had data by the time it noticed the
+     * detach; the caller cannot safely feed that back into a
+     * `Gio.TlsClientConnection` (unlike Node's OpenSSL binding, Gio's TLS
+     * connection owns and reads its base stream directly — there's no
+     * "inject already-read bytes" API), so it must treat this as an error.
+     */
+    _detachReader(): Promise<Buffer | null> {
+        if (!this._reading) return Promise.resolve(null);
+        this._detaching = true;
+        this._reading = false;
+        this._readCancellable.cancel();
+        return new Promise<Buffer | null>((resolve) => {
+            this._detachResolve = resolve;
+        });
+    }
+
+    private _resolveDetach(leftover: Buffer | null): void {
+        this._detaching = false;
+        const resolve = this._detachResolve;
+        this._detachResolve = null;
+        if (resolve) resolve(leftover);
     }
 
     // Duplex stream interface
@@ -418,6 +535,7 @@ export class Socket extends Duplex {
         this._reading = false;
         this._clearTimeout();
         this._cancellable.cancel();
+        this._readCancellable.cancel();
 
         // 'close' (emitted after `callback`) therefore also means the descriptor
         // is really gone — the port/fd can be reused from that listener on.
