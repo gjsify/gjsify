@@ -45,6 +45,7 @@
             "default": "./lib/esm/register/microtask.js"
         },
         "./register/navigator": {
+            "types": "./lib/types/register/navigator.d.ts",
             "default": "./lib/esm/register/navigator.js"
         }
     },
