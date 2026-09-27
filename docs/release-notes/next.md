@@ -173,3 +173,16 @@ it does in Node. A rejected certificate reports Node's error code, for example
 `DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
 `ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
 the same as in Node.
+
+## `typeof window` tells the truth in `--app node` bundles
+
+`--app node` used to define `window` as `globalThis` at build time. That rewrote every
+`typeof window === 'undefined'` check in bundled libraries to `false`, so a Node program took
+its libraries' browser branches. @mtcute/web, for example, passed when its source ran on Node,
+but its bundle threw `globalThis.addEventListener is not a function`. The define is gone.
+
+GJS defines `window` itself, so on `--app gjs` those branches still run. There the global is
+now an EventTarget: a bundle that calls `addEventListener`, `removeEventListener` or
+`dispatchEvent` on `window`, `self` or `globalThis` gets
+`@gjsify/dom-events/register/global-event-target`. This is the same window-scope bus the DOM
+registers already installed, and it no longer requires `@gjsify/dom-elements`. See ADR 0079.

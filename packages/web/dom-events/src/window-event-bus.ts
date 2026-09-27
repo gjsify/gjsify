@@ -1,7 +1,7 @@
-// Window-scope event bus installer for `register/document.ts`, kept side-effect free so the
-// register can pass `globalThis` and tests a mock host.
+// Window-scope event bus installer for `register/global-event-target.ts`, kept side-effect free
+// so the register can pass `globalThis` and tests a mock host.
 
-import { EventTarget as OurEventTarget } from '@gjsify/dom-events';
+import { EventTarget as OurEventTarget } from './index.js';
 
 /** Structural view of the window-scope event-target surface on a global-like host. */
 export interface WindowEventBusHost {

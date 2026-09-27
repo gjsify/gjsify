@@ -53,7 +53,13 @@
     "license": "MIT",
     "dependencies": {
         "@gjsify/console": "workspace:^",
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/inspector": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/perf_hooks": "workspace:^",
         "@gjsify/web-globals": "workspace:^"
     },
     "devDependencies": {
