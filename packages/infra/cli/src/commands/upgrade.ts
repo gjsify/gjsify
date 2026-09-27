@@ -37,7 +37,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
-import { parse } from '@gjsify/semver';
+import { satisfies } from '@gjsify/semver';
 import { DEFAULT_REGISTRY, fetchPackument, parseNpmrc, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
@@ -174,7 +174,7 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
 
         // --check: exit non-zero if any inconsistency.
         if (args.check) {
-            return runCheckMode(groups, args.exact);
+            return runCheckMode(groups, args.exact, args.cwd ?? process.cwd());
         }
 
         // --align: offline consistency-only, no registry calls.
@@ -412,9 +412,90 @@ export function reportInexactRanges(groups: readonly DependencyGroup[]): number 
     return total;
 }
 
-function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
+/**
+ * Check that every lockfile resolution satisfies the ranges declared for it.
+ *
+ * `gjsify upgrade --check` compares declared ranges against each other across
+ * workspaces. It does NOT compare the resolution against any of them, so a
+ * lockfile entry that violates every declaration in the repo passes silently.
+ *
+ * This check reads the lockfile, resolves each entry's version, and verifies
+ * it satisfies at least one declared range for that dependency.
+ *
+ * @param groups dependency groups with declared ranges
+ * @param cwd working directory
+ * @returns number of violations
+ */
+export function checkLockfileRangeViolations(
+    groups: readonly DependencyGroup[],
+    cwd: string,
+): number {
+    const lockPath = join(cwd, 'gjsify-lock.json');
+    if (!existsSync(lockPath)) return 0;
+
+    let lock: { packages?: Record<string, { version?: string }> };
+    try {
+        lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
+    } catch {
+        return 0;
+    }
+
+    if (!lock.packages) return 0;
+
+    // Build a map: dep name -> set of declared ranges
+    const declaredRanges = new Map<string, Set<string>>();
+    for (const g of groups) {
+        const ranges = declaredRanges.get(g.name) ?? new Set<string>();
+        for (const occ of g.occurrences) {
+            ranges.add(occ.currentRange);
+        }
+        declaredRanges.set(g.name, ranges);
+    }
+
+    let violations = 0;
+    for (const [key, entry] of Object.entries(lock.packages)) {
+        if (!entry.version) continue;
+        // Key is like "node_modules/typescript" or "packages/foo/node_modules/typescript"
+        const parts = key.split('node_modules/');
+        if (parts.length < 2) continue;
+        const depName = parts[parts.length - 1];
+        const ranges = declaredRanges.get(depName);
+        if (!ranges || ranges.size === 0) continue;
+
+        // Check if the resolved version satisfies at least one declared range
+        let satisfied = false;
+        for (const range of ranges) {
+            try {
+                if (entry.version && satisfies(entry.version, range)) {
+                    satisfied = true;
+                    break;
+                }
+            } catch {
+                // Invalid range, skip
+            }
+        }
+
+        if (!satisfied) {
+            console.error(
+                `  ${depName}: lockfile has ${entry.version}, but declared ranges are ${[...ranges].join(', ')}`,
+            );
+            violations++;
+        }
+    }
+
+    if (violations > 0) {
+        console.error(
+            `gjsify upgrade --check: FAIL. ${violations} lockfile entr${violations === 1 ? 'y' : 'ies'} violate declared ranges:\n`,
+        );
+    }
+
+    return violations;
+}
+
+function runCheckMode(groups: readonly DependencyGroup[], exact = false, cwd = process.cwd()): void {
     const inexact = exact ? reportInexactRanges(groups) : 0;
     const inconsistencies = findInconsistencies(groups);
+    const rangeViolations = checkLockfileRangeViolations(groups, cwd);
     if (inconsistencies.length === 0 && inexact > 0) {
         console.error(
             `\nFix: run \`gjsify upgrade --align --exact\` (offline; drops the operator and keeps the version).`,
@@ -423,24 +504,26 @@ function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
         // consistency report below would run on top of the exactness one.
         return process.exit(1);
     }
-    if (inconsistencies.length === 0) {
+    if (inconsistencies.length === 0 && rangeViolations === 0) {
         console.log(
             `gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces` +
                 (exact ? `, every declaration pinned exactly.` : `.`),
         );
         return;
     }
-    console.error(`gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`);
-    for (const g of inconsistencies) {
-        const byRange = new Map<string, string[]>();
-        for (const occ of g.occurrences) {
-            const list = byRange.get(occ.currentRange) ?? [];
-            list.push(occ.workspace);
-            byRange.set(occ.currentRange, list);
-        }
-        console.error(`  ${ANSI.bold}${g.name}${ANSI.reset}`);
-        for (const [range, holders] of byRange.entries()) {
-            console.error(`    ${range.padEnd(16)} — ${holders.join(', ')}`);
+    if (inconsistencies.length > 0) {
+        console.error(`gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`);
+        for (const g of inconsistencies) {
+            const byRange = new Map<string, string[]>();
+            for (const occ of g.occurrences) {
+                const list = byRange.get(occ.currentRange) ?? [];
+                list.push(occ.workspace);
+                byRange.set(occ.currentRange, list);
+            }
+            console.error(`  ${ANSI.bold}${g.name}${ANSI.reset}`);
+            for (const [range, holders] of byRange.entries()) {
+                console.error(`    ${range.padEnd(16)} — ${holders.join(', ')}`);
+            }
         }
     }
     console.error(
