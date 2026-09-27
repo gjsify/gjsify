@@ -197,6 +197,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
                 // `dom-events/register/global-event-target` (`addEventListener` & co.).
                 window: 'globalThis',
                 'process.env.READABLE_STREAM': '"disable"',
+                'process.env.NODE_ENV': '"production"',
             },
             // Rewrite bare `console` to a named import from our shim. Rolldown's
             // `inject` (not a register-style global write) because GJS defines
