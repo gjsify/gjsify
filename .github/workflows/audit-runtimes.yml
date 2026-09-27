@@ -118,6 +118,20 @@ jobs:
       - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
 
+      # `gjsify foreach build -tp` (the concurrent, topologically-ordered sweep
+      # `gjsify run build` runs after `build:infra`) orders off declared
+      # `dependencies`/`peerDependencies` only — the same blind spot rule 4 above
+      # closed for the `build:infra` chain, one layer down. `@gjsify/tsc` bundles
+      # upstream `typescript`'s `_tsc.js` under `--app gjs`, which reaches six
+      # Node builtins (`fs`, `crypto`, `inspector`, `os`, `path`, `perf_hooks`)
+      # through the alias substitution layer without declaring any of their
+      # `@gjsify/*` targets — invisible to the sweep's graph, so on a narrow-core
+      # runner (`cpus().length` concurrency) `@gjsify/tsc` could start before
+      # `@gjsify/fs` finished: `UnresolvedWorkspaceImportError: cannot resolve
+      # @gjsify/fs`. Incident + what this checks in the script header.
+      - name: Check --app gjs builtin substitutions are declared deps
+        run: node scripts/check-builtin-substitution-deps.mjs
+
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
       # asks a different question on darwin and win32, and CANNOT fail on Linux —
       # so this pipeline is structurally blind to it and the OS legs pay for it on
@@ -1189,6 +1203,20 @@ jobs:
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
       - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
+
+      # `gjsify foreach build -tp` (the concurrent, topologically-ordered sweep
+      # `gjsify run build` runs after `build:infra`) orders off declared
+      # `dependencies`/`peerDependencies` only — the same blind spot rule 4 above
+      # closed for the `build:infra` chain, one layer down. `@gjsify/tsc` bundles
+      # upstream `typescript`'s `_tsc.js` under `--app gjs`, which reaches six
+      # Node builtins (`fs`, `crypto`, `inspector`, `os`, `path`, `perf_hooks`)
+      # through the alias substitution layer without declaring any of their
+      # `@gjsify/*` targets — invisible to the sweep's graph, so on a narrow-core
+      # runner (`cpus().length` concurrency) `@gjsify/tsc` could start before
+      # `@gjsify/fs` finished: `UnresolvedWorkspaceImportError: cannot resolve
+      # @gjsify/fs`. Incident + what this checks in the script header.
+      - name: Check --app gjs builtin substitutions are declared deps
+        run: node scripts/check-builtin-substitution-deps.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
       # asks a different question on darwin and win32, and CANNOT fail on Linux —

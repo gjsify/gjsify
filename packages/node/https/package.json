@@ -41,6 +41,7 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
