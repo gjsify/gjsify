@@ -141,6 +141,7 @@ import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
 import reactNativeGateSuite from './react-native-gate.spec.js';
 import doubleDashArgsSuite from './utils/double-dash-args.spec.js';
+import nativeSkipScanSuite from './utils/native-skip-scan.spec.js';
 
 // ---------------------------------------------------------------------------
 // Capability-gated skips
@@ -391,6 +392,7 @@ run(
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
         doubleDashArgsSuite,
+        nativeSkipScanSuite,
         reactNativeAliasSuite,
         reactNativeGateSuite,
     },
