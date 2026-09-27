@@ -328,7 +328,7 @@ for (const [name, { json, dir }] of byName) {
                             `with \`--app gjs\`, which imports '${spec}' — the substitution target ${target} ` +
                             `is not in ${name}'s dependencies/peerDependencies, so nothing orders it before ` +
                             `${name} in \`gjsify foreach build -tp\` and a build can race it (the ` +
-                            "\"UnresolvedWorkspaceImportError\" #1844's incident describes). Add it as a " +
+                            '"UnresolvedWorkspaceImportError" #1844\'s incident describes). Add it as a ' +
                             '`workspace:^` dependency.',
                     );
                 }
