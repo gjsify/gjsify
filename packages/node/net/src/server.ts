@@ -139,7 +139,16 @@ export class Server extends EventEmitter {
 
         // Inject the connection directly (bypass connect())
         socket._setConnection(connection);
-        socket._setupConnection({});
+        // Wire streams/address + emit 'connect'/'ready', but DON'T auto-start
+        // reading yet: a synchronous 'connection' listener below (e.g.
+        // `TLSServer._upgradeTls`) needs a chance to claim the streams via
+        // `_claimConnection()` for a protocol upgrade BEFORE anything starts
+        // reading the connection as plaintext — otherwise the upgrade's own
+        // read (SNI peek, TLS handshake) races an orphaned plaintext read
+        // loop on the same Gio.InputStream (#…, discovered by the STARTTLS
+        // given-socket tests: `g_input_stream_read: assertion
+        // 'G_IS_INPUT_STREAM (stream)' failed`, then a hung handshake).
+        socket._setupConnection({}, false);
 
         this._connections.add(socket);
         socket.on('close', () => {
@@ -148,6 +157,11 @@ export class Server extends EventEmitter {
         });
 
         this.emit('connection', socket);
+
+        // No listener claimed the streams (the common, non-TLS case) —
+        // `_startReading()` no-ops on its own if one did (claiming nulls
+        // `_inputStream`).
+        socket._startReading();
     }
 
     /** Get the address the server is listening on. */
