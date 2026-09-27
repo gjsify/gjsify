@@ -287,8 +287,9 @@
 # workflow adds two more macOS jobs to the pool. The `scope` job is the first answer
 # to it: a PR that cannot reach `@gjsify/gtk-host`, `@gjsify/react-native`, node-gi
 # or anything that shapes their build skips both legs (WHAT A PR MAY SKIP in
-# `windows-suites.yml`). If PR runs still queue, narrow THIS matrix to arm64 on PRs
-# before touching either existing leg.
+# `windows-suites.yml`). The second is the darwin matrix itself: arm64 always runs
+# on a PR, darwin-x64 only behind the `ci:macos` label (same `scope` job, see its
+# `darwin-matrix` output) — `main`, the nightly and a dispatch always get both.
 
 name: GTK OS suites
 
@@ -302,9 +303,21 @@ on:
     - cron: '30 6 * * *'
   workflow_dispatch:
   pull_request:
+    # `labeled` on top of GitHub's three defaults: the `scope` job below reads
+    # the `ci:macos` label at run start to decide the darwin-x64 leg, so a
+    # label added to an ALREADY-OPEN PR needs its own trigger to take effect —
+    # without it, opting in needed a throwaway push.
+    types: [opened, synchronize, reopened, labeled]
 
+# Coalesced on `main` push, NOT on `pull_request` — same construction and the
+# same reason as `macos-suites.yml`: this workflow is ADVISORY, and keying the
+# push group by `ref` instead of `run_id` lets GitHub's own "one pending run
+# per group" rule coalesce a burst of merges into at most two runs (the one in
+# progress plus the newest queued) instead of one per commit. `PR` and
+# `schedule`/`workflow_dispatch` stay on their existing per-ref / per-run_id
+# groups.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('gtk-os-suites-pr-{0}', github.ref) || format('gtk-os-suites-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && format('gtk-os-suites-pr-{0}', github.ref) || github.event_name == 'push' && format('gtk-os-suites-main-{0}', github.ref) || format('gtk-os-suites-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -321,12 +334,32 @@ jobs:
     timeout-minutes: 10
     outputs:
       run: ${{ steps.scope.outputs.run }}
+      # arm64 always runs; darwin-x64 is gated behind the SAME `ci:macos` label
+      # `main.yml` and `macos-suites.yml` already use — this workflow adds two
+      # more macOS jobs to an already-saturated pool (see the header's
+      # CONCURRENCY caveat), and the Intel leg is the one this repo can afford
+      # to skip on an unlabelled PR. `main`, the nightly and a dispatch always
+      # get both arches.
+      darwin-matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - id: scope
         uses: ./.github/actions/suite-scope
+      - id: matrix
+        name: Decide whether the darwin-x64 leg runs
+        env:
+          EVENT: ${{ github.event_name }}
+          MACOS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:macos') }}
+        run: |
+          if [ "$EVENT" = "pull_request" ] && [ "$MACOS_LABEL" != "true" ]; then
+            echo 'matrix=[{"arch":"arm64","runner":"macos-latest"}]' >> "$GITHUB_OUTPUT"
+            echo "[ci] darwin-x64 leg (macos-15-intel): skipped (pull_request without the ci:macos label) — arm64 still runs"
+          else
+            echo 'matrix=[{"arch":"arm64","runner":"macos-latest"},{"arch":"x64","runner":"macos-15-intel"}]' >> "$GITHUB_OUTPUT"
+            echo "[ci] darwin-x64 leg (macos-15-intel): enabled ($EVENT)"
+          fi
 
   darwin:
     # `node-gi on Node` rather than a bare `node`: the suite is `test:gjs-on-node`, whose
@@ -340,15 +373,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Both arches, for the reason `macos-suites.yml` gives: Homebrew's prefix
-          # differs and dyld's DEFAULT fallback contains `/usr/local` and not
-          # `/opt/homebrew`, so a leaf-name `dlopen` that resolves on Intel fails on
-          # Apple silicon. Here the bundles are separate ARTIFACTS as well —
-          # `release.yml` publishes `gtk-runtime-darwin-x64` and
-          # `gtk-runtime-darwin-arm64` from two different relocation runs.
-          - { arch: arm64, runner: macos-latest }
-          - { arch: x64, runner: macos-15-intel }
+        # Computed in `scope` above: arm64 always, x64 only when the label
+        # check enabled it. Both arches are otherwise real, separate ARTIFACTS
+        # — `release.yml` publishes `gtk-runtime-darwin-x64` and
+        # `gtk-runtime-darwin-arm64` from two different relocation runs — and
+        # Homebrew's prefix differs (`/usr/local` vs `/opt/homebrew`), so a
+        # leaf-name `dlopen` that resolves on Intel fails on Apple silicon.
+        include: ${{ fromJSON(needs.scope.outputs.darwin-matrix) }}
 
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'

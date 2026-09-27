@@ -62,9 +62,22 @@ permissions:
   contents: read
 
 concurrency:
-  # Per-RUN off a PR, so no two runs share a group and none can evict another while
+  # PR: per-RUN, so no two PR runs share a group and none can evict another while
   # pending. `main.yml` carries the measured incident and why the sha is not enough.
-  group: ${{ github.event_name == 'pull_request' && format('node-gi-pr-{0}', github.ref) || format('node-gi-{0}', github.run_id) }}
+  #
+  # push-to-main: COALESCED, unlike a PR run and unlike `main.yml` itself (which
+  # stays per-run_id on purpose — it feeds a required check and must not merge
+  # unrelated commits' results). This workflow is ADVISORY, and every merge used to
+  # get its own group keyed by `run_id`, so a burst of merges queued one full
+  # ~21-job-minute run per commit. Keying the push group by `ref` instead puts every
+  # main-push run in ONE group, and GitHub's own "one pending run per group" rule
+  # then coalesces a burst into at most two runs (the one in progress plus the
+  # newest queued). `cancel-in-progress: false` still holds for this case — a
+  # running sweep finishes rather than being killed by the next merge.
+  #
+  # schedule/workflow_dispatch keep the per-run_id group so the nightly cannot
+  # evict, or be evicted by, an ordinary merge.
+  group: ${{ github.event_name == 'pull_request' && format('node-gi-pr-{0}', github.ref) || github.event_name == 'push' && format('node-gi-main-{0}', github.ref) || format('node-gi-{0}', github.run_id) }}
   # PRs cancel their own superseded runs; main pushes and the nightly complete on
   # their own.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
