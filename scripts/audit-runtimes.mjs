@@ -206,7 +206,7 @@ async function scanSourceTree(pkgDir) {
             // throws ENOTSUP from MULTIPLE entry points (the dns/module/ws shape). ONE
             // throw does not downgrade an otherwise functional polyfill — that is the
             // process-browserify shape (`process.chdir`).
-            const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
+            const slotDeclaredPartial = /Slot[^:\n]*:.*partial/i.test(txt);
             const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
             signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
             // A third shape neither state can express: a NAMED UNSUPPORTED STUB. The
@@ -217,7 +217,7 @@ async function scanSourceTree(pkgDir) {
             // as a promotion to `polyfill` and the drift check fails a correct
             // declaration. Same `Slot: browser:"<slot>"` marker, so a file states its own
             // slot in ONE place.
-            signals.browser_src_is_unsupported = /Slot[^.\n]*none/i.test(txt);
+            signals.browser_src_is_unsupported = /Slot[^:\n]*:.*none/i.test(txt);
         } catch {
             // unreadable — treat as full polyfill (conservative for upgrade path)
         }
@@ -464,8 +464,10 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         // full polyfill. A NAMED UNSUPPORTED STUB is NOT an upgrade — that entry exists
         // only so the curated alias can name a module instead of the anonymous
         // `@gjsify/empty`, and the module still has no browser pendant.
-        let browserSlot = nativeSlot;
-        if (signals.has_browser_polyfill && !signals.has_globals_mjs && !signals.browser_src_is_unsupported) {
+        // If globals.mjs is browser-safe, it provides a native browser slot; otherwise
+        // fall back to the browser polyfill entry (if any).
+        let browserSlot = signals.globals_mjs_browser_safe ? 'native' : nativeSlot;
+        if (signals.has_browser_polyfill && !signals.globals_mjs_browser_safe && !signals.browser_src_is_unsupported) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
         }
         return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
@@ -544,14 +546,34 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
  */
 function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
     if (!suggested) return null;
+    // A browser polyfill entry (partial or full) means the package can run on
+    // NativeScript's V8 via the browser entry, even if the main entry has
+    // GJS-only legacy imports — BUT only if there are no HARD GJS bindings
+    // (@girs/* value imports or gi:// URLs) which are truly GJS-only.
+    if (axis === 'node-api' &&
+        (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native') &&
+        !signals.girs_value && !signals.gi_url) {
+        if (!NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) {
+            // If browser is native via a browser-safe globals.mjs, nativescript
+            // can also use that same globals.mjs (globalThis.performance etc.).
+            if (suggested.browser === 'native' && signals.globals_mjs_browser_safe) {
+                return 'native';
+            }
+            return 'polyfill';
+        }
+    }
     if (signals.girs_value || signals.gi_url || signals.imports_legacy) return 'none';
     if (axis === 'dom' || axis === 'framework-gjs') return 'none';
     if (axis === 'web-api' && suggested.browser === 'native') return 'native';
     if (axis === 'node-api') {
         if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) return 'none';
         // Any browser slot at all implies a portable shape.
-        if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native')
+        if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native') {
+            if (suggested.browser === 'native' && signals.globals_mjs_browser_safe) {
+                return 'native';
+            }
             return 'polyfill';
+        }
     }
     return 'none';
 }
@@ -895,15 +917,18 @@ async function auditReachability(meta) {
             }
 
             // ADR 0014 routing: `polyfill` + declared subpath → the platform
-            // entry IS what the target resolves.
-            const routes = slot === REACH_FATAL_SLOT && hasEntryExport && hasEntryFile;
+            // entry IS what the target resolves. The resolver also routes `partial`
+            // slots with a declared subpath (e.g. @gjsify/https → ./browser), so
+            // reachability must scan the platform entry, not the root entry.
+            const routes = (slot === 'polyfill' || slot === 'partial') && hasEntryExport && hasEntryFile;
 
             if (hasEntryFile && hasEntryExport && !routes) {
                 unrouted.push(`${rec.name} (${target}, slot=${slot})`);
             }
 
-            // Check 3 — parity, only where routing is live.
-            if (routes) {
+            // Check 3 — parity, only where routing is live AND slot is polyfill.
+            // partial slots are explicitly allowed to be a subset (ADR 0014).
+            if (routes && slot === 'polyfill') {
                 const rootExports = await collectValueExports(join(srcDir, 'index.ts'));
                 const entryExports = await collectValueExports(entryFile);
                 const missingExports = [...rootExports].filter((e) => !entryExports.has(e)).sort();
