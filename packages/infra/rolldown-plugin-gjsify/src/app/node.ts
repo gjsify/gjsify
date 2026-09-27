@@ -331,6 +331,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
                 // NO `window` define (ADR 0079): Node has none, and a bundle must see the same
                 // `typeof window` as its source run. A reverse-bridge DOM app gets `window`
                 // from @gjsify/dom-elements/register/document, which defines it at runtime.
+                'process.env.NODE_ENV': '"production"',
             },
         },
         output: {
