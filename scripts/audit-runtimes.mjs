@@ -550,9 +550,12 @@ function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
     // NativeScript's V8 via the browser entry, even if the main entry has
     // GJS-only legacy imports — BUT only if there are no HARD GJS bindings
     // (@girs/* value imports or gi:// URLs) which are truly GJS-only.
-    if (axis === 'node-api' &&
+    if (
+        axis === 'node-api' &&
         (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native') &&
-        !signals.girs_value && !signals.gi_url) {
+        !signals.girs_value &&
+        !signals.gi_url
+    ) {
         if (!NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) {
             // If browser is native via a browser-safe globals.mjs, nativescript
             // can also use that same globals.mjs (globalThis.performance etc.).
