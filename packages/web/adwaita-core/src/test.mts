@@ -20,6 +20,7 @@ import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
 import breakpointBinTestSuite from './breakpoint-bin.spec.js';
 import accentTestSuite from './accent.spec.js';
+import appleAccentTestSuite from './apple-accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import appearanceTestSuite from './appearance.spec.js';
 import dialogTestSuite from './dialog.spec.js';
@@ -60,6 +61,7 @@ run({
     breakpointTestSuite,
     breakpointBinTestSuite,
     accentTestSuite,
+    appleAccentTestSuite,
     colorSchemeTestSuite,
     appearanceTestSuite,
     toastTestSuite,
