@@ -5,14 +5,31 @@
 import { Buffer } from 'node:buffer';
 import {
     parsePemKey,
+    parseDerKey,
     rsaKeySize,
+    encodeOkpSubjectPublicKeyInfo,
+    encodeOkpPrivateKeyInfo,
     encodeSubjectPublicKeyInfo,
     encodeRsaPublicKeyPkcs1,
     encodeRsaPrivateKeyPkcs1,
     encodePrivateKeyInfo,
     derToPem,
 } from './asn1.js';
-import type { ParsedKey, RsaPublicComponents, RsaPrivateComponents } from './asn1.js';
+import type { ParsedKey, RsaPublicComponents, RsaPrivateComponents, OkpCurve } from './asn1.js';
+import { okpPublicFromPrivate, OKP_KEY_BYTES } from './curve25519.js';
+import { codedError } from './crypto-utils.js';
+
+/**
+ * Handle of an asymmetric KeyObject. `okpPub` caches the public half of an
+ * RFC 8410 key — for a private key it is derived once, at import.
+ */
+interface AsymmetricHandle {
+    parsed: ParsedKey;
+    pem: string;
+    okpPub?: Uint8Array;
+}
+
+const OKP_JWK_CRV: Record<OkpCurve, string> = { ed25519: 'Ed25519', x25519: 'X25519' };
 
 /** Convert BigInt to base64url-encoded string (no padding). */
 function bigintToBase64url(value: bigint): string {
@@ -61,7 +78,17 @@ export class KeyObject {
         if (handle.parsed.type === 'rsa-public' || handle.parsed.type === 'rsa-private') {
             return 'rsa';
         }
-        return undefined;
+        return handle.parsed.curve;
+    }
+
+    /** Node: `{ modulusLength, publicExponent }` for RSA, `{}` for the RFC 8410 curves. */
+    get asymmetricKeyDetails(): { modulusLength?: number; publicExponent?: bigint } | undefined {
+        if (this.type === 'secret') return undefined;
+        const parsed = (this._handle as AsymmetricHandle).parsed;
+        if (parsed.type === 'rsa-public' || parsed.type === 'rsa-private') {
+            return { modulusLength: rsaKeySize(parsed.components.n) * 8, publicExponent: parsed.components.e };
+        }
+        return {};
     }
 
     get asymmetricKeySize(): number | undefined {
@@ -96,7 +123,12 @@ export class KeyObject {
         return a.pem === b.pem;
     }
 
-    export(options?: { type?: string; format?: string }): Buffer | string | object {
+    export(options?: {
+        type?: string;
+        format?: string;
+        cipher?: string;
+        passphrase?: unknown;
+    }): Buffer | string | object {
         if (this.type === 'secret') {
             const key = this._handle as Uint8Array;
             if (options?.format === 'jwk') {
@@ -108,9 +140,13 @@ export class KeyObject {
             return Buffer.from(key);
         }
 
-        const handle = this._handle as { parsed: ParsedKey; pem: string };
+        const handle = this._handle as AsymmetricHandle;
         const format = options?.format ?? 'pem';
         const keyType = options?.type;
+
+        if (handle.parsed.type === 'okp-public' || handle.parsed.type === 'okp-private') {
+            return exportOkp(handle, this.type, format, keyType, options);
+        }
 
         if (format === 'jwk') {
             return exportJwk(handle.parsed, this.type);
@@ -144,6 +180,127 @@ export class KeyObject {
     get [Symbol.toStringTag]() {
         return 'KeyObject';
     }
+}
+
+function exportOkp(
+    handle: AsymmetricHandle,
+    keyType: 'public' | 'private',
+    format: string,
+    type: string | undefined,
+    options: { cipher?: string; passphrase?: unknown } | undefined,
+): Buffer | string | object {
+    const parsed = handle.parsed as Extract<ParsedKey, { type: 'okp-public' | 'okp-private' }>;
+    const pub = handle.okpPub as Uint8Array;
+    if (format === 'jwk') {
+        const jwk: Record<string, string> = { crv: OKP_JWK_CRV[parsed.curve] };
+        if (keyType === 'private') jwk.d = Buffer.from((parsed as { priv: Uint8Array }).priv).toString('base64url');
+        jwk.x = Buffer.from(pub).toString('base64url');
+        jwk.kty = 'OKP';
+        return jwk;
+    }
+    if (format !== 'pem' && format !== 'der') {
+        throw codedError(
+            'ERR_INVALID_ARG_VALUE',
+            `The property 'options.format' is invalid. Received '${format}'`,
+            TypeError,
+        );
+    }
+    const expected = keyType === 'public' ? 'spki' : 'pkcs8';
+    if (type !== undefined && type !== expected) {
+        throw codedError(
+            'ERR_CRYPTO_INCOMPATIBLE_KEY_OPTIONS',
+            type === 'pkcs1' || type === 'sec1'
+                ? `The selected key encoding ${type} can only be used for ${type === 'pkcs1' ? 'RSA' : 'EC'} keys.`
+                : `The property 'options.type' is invalid. Received '${type}'`,
+        );
+    }
+    if (options?.cipher !== undefined || options?.passphrase !== undefined) {
+        throw codedError('ERR_FEATURE_UNAVAILABLE_ON_PLATFORM', 'Encrypted private key export is not supported');
+    }
+    const der =
+        keyType === 'public'
+            ? encodeOkpSubjectPublicKeyInfo(parsed.curve, pub)
+            : encodeOkpPrivateKeyInfo(parsed.curve, (parsed as { priv: Uint8Array }).priv);
+    return format === 'der'
+        ? Buffer.from(der)
+        : derToPem(der, keyType === 'public' ? 'PUBLIC KEY' : 'PRIVATE KEY') + '\n';
+}
+
+/** Build the KeyObject for a parsed key, deriving the public half of an RFC 8410 private key. */
+function asymmetricKeyObject(parsed: ParsedKey, kind: 'public' | 'private', pem?: string): KeyObject {
+    if (parsed.type === 'okp-private') {
+        const okpPub = okpPublicFromPrivate(parsed.curve, parsed.priv);
+        if (kind === 'public') {
+            return asymmetricKeyObject({ type: 'okp-public', curve: parsed.curve, pub: okpPub }, 'public');
+        }
+        const der = encodeOkpPrivateKeyInfo(parsed.curve, parsed.priv);
+        return new KeyObject('private', {
+            parsed,
+            pem: derToPem(der, 'PRIVATE KEY'),
+            okpPub,
+        } satisfies AsymmetricHandle);
+    }
+    if (parsed.type === 'okp-public') {
+        if (kind === 'private') throw new TypeError('Key is not a private key');
+        const der = encodeOkpSubjectPublicKeyInfo(parsed.curve, parsed.pub);
+        return new KeyObject('public', {
+            parsed,
+            pem: derToPem(der, 'PUBLIC KEY'),
+            okpPub: parsed.pub,
+        } satisfies AsymmetricHandle);
+    }
+    if (parsed.type === 'rsa-private' && kind === 'public') {
+        const pubComponents: RsaPublicComponents = { n: parsed.components.n, e: parsed.components.e };
+        const der = encodeSubjectPublicKeyInfo(pubComponents);
+        return new KeyObject('public', {
+            parsed: { type: 'rsa-public', components: pubComponents },
+            pem: derToPem(der, 'PUBLIC KEY'),
+        } satisfies AsymmetricHandle);
+    }
+    if (parsed.type === 'rsa-public' && kind === 'private') {
+        throw new TypeError('Key is not a private key');
+    }
+    return new KeyObject(kind, { parsed, pem: pem ?? generatePem(parsed, kind) } satisfies AsymmetricHandle);
+}
+
+/** RFC 8037 OKP JWK → parsed key. Node's rules: `crv` must name the curve, the key field must be 32 bytes. */
+function parseJwkOkp(jwk: Record<string, unknown>, kind: 'public' | 'private'): ParsedKey {
+    const curve = (Object.keys(OKP_JWK_CRV) as OkpCurve[]).find((c) => OKP_JWK_CRV[c] === jwk.crv);
+    if (!curve) {
+        throw codedError(
+            'ERR_INVALID_ARG_VALUE',
+            `The property 'key.crv' must be one of: 'Ed25519', 'X25519'. Received ${JSON.stringify(jwk.crv)}`,
+            TypeError,
+        );
+    }
+    const field = kind === 'private' ? jwk.d : jwk.x;
+    if (typeof jwk.x !== 'string' || typeof field !== 'string') {
+        throw codedError('ERR_CRYPTO_INVALID_JWK', 'Invalid JWK OKP key');
+    }
+    const bytes = new Uint8Array(Buffer.from(field, 'base64url'));
+    if (bytes.length !== OKP_KEY_BYTES) {
+        throw codedError('ERR_CRYPTO_INVALID_JWK', 'Invalid JWK OKP key');
+    }
+    return kind === 'private' ? { type: 'okp-private', curve, priv: bytes } : { type: 'okp-public', curve, pub: bytes };
+}
+
+/** A `{ key, format: 'jwk' }` input → parsed key (RSA or OKP). */
+function parseJwk(jwk: Record<string, unknown>, kind: 'public' | 'private'): { parsed: ParsedKey; pem?: string } {
+    if (jwk === null || typeof jwk !== 'object') {
+        throw codedError('ERR_INVALID_ARG_TYPE', 'The "key.key" property must be of type object', TypeError);
+    }
+    if (jwk.kty === 'OKP') {
+        return { parsed: parseJwkOkp(jwk, kind) };
+    }
+    if (jwk.kty === 'RSA') {
+        if (kind === 'private' && !jwk.d) throw new Error('JWK does not contain a private key');
+        return importJwkRsa(kind === 'private' ? jwk : { n: jwk.n, e: jwk.e });
+    }
+    throw codedError(
+        'ERR_INVALID_ARG_VALUE',
+        `The property 'key.kty' must be one of: 'RSA', 'EC', 'OKP'. Received ${JSON.stringify(jwk.kty)}`,
+        TypeError,
+    );
 }
 
 function exportJwk(parsed: ParsedKey, keyType: 'public' | 'private'): object {
@@ -301,92 +458,150 @@ export function createSecretKey(key: Buffer | Uint8Array | string, encoding?: Bu
     return new KeyObject('secret', keyBuf);
 }
 
+/** Parse any non-KeyObject key input (PEM string/Buffer, `{ key, format, type }`). */
+function parseKeyInput(
+    key: string | Buffer | KeyInput,
+    kind: 'public' | 'private',
+): { parsed: ParsedKey; pem?: string } {
+    if (
+        typeof key === 'object' &&
+        key !== null &&
+        !Buffer.isBuffer(key) &&
+        !(key instanceof Uint8Array) &&
+        'key' in key
+    ) {
+        const input = key as KeyInput;
+        if (input.format === 'jwk') {
+            return parseJwk(input.key as Record<string, unknown>, kind);
+        }
+        if (input.format === 'der') {
+            if (input.type !== 'spki' && input.type !== 'pkcs8' && input.type !== 'pkcs1') {
+                throw codedError(
+                    'ERR_INVALID_ARG_VALUE',
+                    `The property 'key.type' is invalid. Received ${JSON.stringify(input.type)}`,
+                    TypeError,
+                );
+            }
+            const raw =
+                typeof input.key === 'string'
+                    ? Buffer.from(input.key, input.encoding ?? 'utf8')
+                    : (input.key as Uint8Array);
+            return { parsed: parseDerKey(new Uint8Array(raw), input.type, kind) };
+        }
+    }
+    const pem = normalizePem(key);
+    return { parsed: parsePemKey(pem), pem };
+}
+
 /**
- * Create a public key from PEM, DER, JWK, or another KeyObject.
+ * Create a public key from PEM, DER, JWK, or another KeyObject. A private key
+ * input yields its public half, as in Node.
  */
 export function createPublicKey(key: string | Buffer | KeyInput | KeyObject): KeyObject {
     if (key instanceof KeyObject) {
         if (key.type === 'public') return key;
         if (key.type === 'private') {
-            // Derive public key from private key
-            const handle = key._handle as { parsed: ParsedKey; pem: string };
-            if (handle.parsed.type === 'rsa-private') {
-                const pubComponents: RsaPublicComponents = {
-                    n: handle.parsed.components.n,
-                    e: handle.parsed.components.e,
-                };
-                const pubParsed: ParsedKey = { type: 'rsa-public', components: pubComponents };
-                // Generate proper PEM from components
-                const der = encodeSubjectPublicKeyInfo(pubComponents);
-                const pem = derToPem(der, 'PUBLIC KEY');
-                return new KeyObject('public', { parsed: pubParsed, pem });
-            }
+            return asymmetricKeyObject((key._handle as AsymmetricHandle).parsed, 'public');
         }
         throw new TypeError('Cannot create public key from secret key');
     }
-
-    // JWK input
-    if (typeof key === 'object' && !Buffer.isBuffer(key) && 'key' in key) {
-        const input = key as KeyInput;
-        if (input.format === 'jwk') {
-            const jwk = input.key as Record<string, unknown>;
-            if (jwk.kty === 'RSA') {
-                const { parsed, pem } = importJwkRsa({ n: jwk.n, e: jwk.e }); // public only
-                return new KeyObject('public', { parsed, pem });
-            }
-            throw new Error(`Unsupported JWK key type: ${jwk.kty}`);
-        }
+    if (typeof key === 'object' && key !== null && 'key' in key && key.key instanceof KeyObject) {
+        return createPublicKey(key.key);
     }
+    const { parsed, pem } = parseKeyInput(key, jwkKind(key));
+    const isPrivate = parsed.type === 'rsa-private' || parsed.type === 'okp-private';
+    return asymmetricKeyObject(parsed, 'public', isPrivate ? undefined : pem);
+}
 
-    const pem = normalizePem(key);
-    const parsed = parsePemKey(pem);
-    if (parsed.type === 'rsa-private') {
-        // Extract public components from private key
-        const pubComponents: RsaPublicComponents = {
-            n: parsed.components.n,
-            e: parsed.components.e,
-        };
-        const pubParsed: ParsedKey = { type: 'rsa-public', components: pubComponents };
-        // Generate proper public key PEM
-        const der = encodeSubjectPublicKeyInfo(pubComponents);
-        const pubPem = derToPem(der, 'PUBLIC KEY');
-        return new KeyObject('public', { parsed: pubParsed, pem: pubPem });
+/** A JWK carrying `d` describes a private key, whichever factory it is handed to. */
+function jwkKind(key: string | Buffer | KeyInput): 'public' | 'private' {
+    if (typeof key === 'object' && key !== null && 'format' in key && key.format === 'jwk') {
+        return (key.key as Record<string, unknown>)?.d !== undefined ? 'private' : 'public';
     }
-    return new KeyObject('public', { parsed, pem });
+    return 'public';
 }
 
 /**
  * Create a private key from PEM, DER, JWK, or KeyInput.
  */
 export function createPrivateKey(key: string | Buffer | KeyInput): KeyObject {
-    // JWK input
-    if (typeof key === 'object' && !Buffer.isBuffer(key) && 'key' in key) {
-        const input = key as KeyInput;
-        if (input.format === 'jwk') {
-            const jwk = input.key as Record<string, unknown>;
-            if (jwk.kty === 'RSA' && jwk.d) {
-                const { parsed, pem } = importJwkRsa(jwk);
-                return new KeyObject('private', { parsed, pem });
-            }
-            throw new Error('JWK does not contain a private key');
-        }
+    if (typeof key === 'object' && key !== null && 'key' in key && key.key instanceof KeyObject) {
+        if (key.key.type !== 'private')
+            throw codedError(
+                'ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE',
+                `Invalid key object type ${key.key.type}, expected private.`,
+                TypeError,
+            );
+        return key.key;
     }
-
-    const pem = normalizePem(key);
-    const parsed = parsePemKey(pem);
-    if (parsed.type !== 'rsa-private') {
+    const { parsed, pem } = parseKeyInput(key, 'private');
+    if (parsed.type !== 'rsa-private' && parsed.type !== 'okp-private') {
         throw new TypeError('Key is not a private key');
     }
-    return new KeyObject('private', { parsed, pem });
+    return asymmetricKeyObject(parsed, 'private', pem);
+}
+
+/**
+ * Resolve any key argument Node's one-shot APIs accept (KeyObject, PEM,
+ * `{ key, format, type }`, JWK) to a KeyObject of the wanted kind. A private
+ * key where a public one is wanted yields its public half, as in Node.
+ */
+export function toKeyObject(key: unknown, kind: 'public' | 'private'): KeyObject {
+    if (key instanceof KeyObject) {
+        if (kind === 'private' && key.type !== 'private') {
+            throw codedError(
+                'ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE',
+                `Invalid key object type ${key.type}, expected private.`,
+                TypeError,
+            );
+        }
+        if (kind === 'public' && key.type === 'secret') {
+            throw codedError(
+                'ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE',
+                'Invalid key object type secret, expected private or public.',
+                TypeError,
+            );
+        }
+        return key;
+    }
+    if (typeof key === 'object' && key !== null && 'key' in key && (key as KeyInput).key instanceof KeyObject) {
+        return toKeyObject((key as KeyInput).key, kind);
+    }
+    if (kind === 'private') return createPrivateKey(key as KeyInput);
+    // A public-key argument may still be private-key material (Node derives the public half).
+    const input = key as string | Buffer | KeyInput;
+    const { parsed } = parseKeyInput(input, jwkKind(input));
+    return asymmetricKeyObject(
+        parsed,
+        parsed.type === 'rsa-private' || parsed.type === 'okp-private' ? 'private' : 'public',
+    );
+}
+
+/** The RFC 8410 view of a KeyObject, or undefined for any other key type. */
+export function okpKeyMaterial(key: KeyObject): { curve: OkpCurve; pub: Uint8Array; priv?: Uint8Array } | undefined {
+    if (key.type === 'secret') return undefined;
+    const handle = key._handle as AsymmetricHandle;
+    const parsed = handle.parsed;
+    if (parsed.type === 'okp-private')
+        return { curve: parsed.curve, pub: handle.okpPub as Uint8Array, priv: parsed.priv };
+    if (parsed.type === 'okp-public') return { curve: parsed.curve, pub: parsed.pub };
+    return undefined;
+}
+
+/** @internal Build a KeyObject pair straight from a raw RFC 8410 private key. */
+export function okpKeyPair(curve: OkpCurve, priv: Uint8Array): { publicKey: KeyObject; privateKey: KeyObject } {
+    const privateKey = asymmetricKeyObject({ type: 'okp-private', curve, priv }, 'private');
+    return { publicKey: createPublicKey(privateKey), privateKey };
 }
 
 function normalizePem(key: string | Buffer | KeyInput): string {
     if (typeof key === 'string') return key;
-    if (Buffer.isBuffer(key)) return key.toString('utf8');
+    if (Buffer.isBuffer(key) || key instanceof Uint8Array) return Buffer.from(key).toString('utf8');
     if (key && typeof key === 'object' && 'key' in key) {
         const input = key as KeyInput;
         if (typeof input.key === 'string') return input.key;
-        if (Buffer.isBuffer(input.key)) return input.key.toString(input.encoding ?? 'utf8');
+        if (Buffer.isBuffer(input.key) || input.key instanceof Uint8Array)
+            return Buffer.from(input.key).toString(input.encoding ?? 'utf8');
         if (input.key instanceof KeyObject) {
             return input.key.export({ format: 'pem' }) as string;
         }

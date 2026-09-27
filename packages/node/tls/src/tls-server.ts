@@ -130,9 +130,21 @@ export class TLSServer extends Server {
         return (super.listen as (...a: ListenArgs) => this)(...(args as unknown as ListenArgs));
     }
 
-    /** Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection. */
+    /**
+     * Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection.
+     *
+     * Called synchronously from the 'connection' listener `listen()`
+     * registers — `Server._handleConnection` defers its own auto-start of
+     * `socket`'s plaintext read loop specifically so this can run first.
+     * `_claimConnection()` nulls `socket`'s stream fields right away: that
+     * makes the deferred auto-start a no-op, pre-empting a second,
+     * conflicting reader on the same Gio.InputStream this method's own
+     * SNI peek + handshake are about to read from (the incident behind
+     * `Server._handleConnection`'s `autoStartReading` parameter).
+     */
     private _upgradeTls(socket: Socket): void {
-        const rawConnection = (socket as unknown as SocketInternals)._connection;
+        const claimed = (socket as unknown as SocketInternals)._claimConnection();
+        const rawConnection = claimed.connection;
         if (!rawConnection) {
             const err = new Error('Cannot upgrade socket: no underlying connection');
             this.emit('tlsClientError', err, socket);
@@ -140,10 +152,53 @@ export class TLSServer extends Server {
             return;
         }
 
+        // Once claimed, `socket.destroy()` alone no longer closes the
+        // connection (its fields are null) — every failure branch below
+        // must close it explicitly or it leaks.
+        const closeClaimedConnection = (): void => {
+            try {
+                (claimed.connection ?? claimed.ioStream)?.close(null);
+            } catch {
+                /* ignore */
+            }
+        };
+
         if (!this._tlsCertificate && this._sniContexts.size === 0 && !this._tlsOptions.SNICallback) {
             const err = new Error('TLS server has no certificate configured');
             this.emit('tlsClientError', err, socket);
+            closeClaimedConnection();
             socket.destroy();
+            return;
+        }
+
+        const ioStream = rawConnection as unknown as Gio.IOStream;
+
+        // No SNI-based dispatch configured (the common case: a single
+        // certificate, no addContext/SNICallback) — go straight to
+        // Gio.TlsServerConnection over the REAL connection, no peeking
+        // needed. Skips the Gio.BufferedInputStream + Gio.SimpleIOStream
+        // composition the SNI path below needs: that composition loses
+        // the base stream's pollability (GBufferedInputStream doesn't
+        // implement GPollableInputStream), which glib-networking's async
+        // handshake needs — confirmed by a real end-to-end handshake
+        // (previously untested: `tls.gjs.spec.ts` only checked option
+        // plumbing against fake certs) failing with "Fehler in der
+        // Pull-Funktion" / `g_input_stream_read: assertion
+        // 'G_IS_INPUT_STREAM (stream)' failed" even for a from-scratch
+        // `tls.connect()` self-connect, with no SNI involved at all.
+        // Fixing THAT composition for the SNI path is tracked separately
+        // (status/open-todos.md) — this fast path sidesteps it entirely
+        // for every server that doesn't need per-hostname certs.
+        if (this._sniContexts.size === 0 && !this._tlsOptions.SNICallback) {
+            const certificate = this._tlsCertificate;
+            if (!certificate) {
+                const err = new Error('TLS server has no certificate configured');
+                this.emit('tlsClientError', err, socket);
+                closeClaimedConnection();
+                socket.destroy();
+                return;
+            }
+            this._completeUpgrade(ioStream, certificate, this._secureContext, socket, closeClaimedConnection);
             return;
         }
 
@@ -157,7 +212,14 @@ export class TLSServer extends Server {
         // with MSG_PEEK is not introspectable in GJS (see refs note in
         // @gjsify/http-soup-bridge), so this BufferedInputStream route is the
         // pure-TS substitute.
-        const ioStream = rawConnection as unknown as Gio.IOStream;
+        //
+        // KNOWN ISSUE (status/open-todos.md): this composition has been
+        // observed to fail a real handshake the same way the fast path
+        // above avoids — GBufferedInputStream likely isn't pollable, and
+        // GnuTLS's async engine wants that. Kept as the least-bad option
+        // for the SNI case (there is no non-consuming kernel-level peek
+        // available from GJS — see the comment above), pending a proper
+        // fix (e.g. a custom GPollableInputStream wrapper).
         const inputStream = ioStream.get_input_stream();
         const outputStream = ioStream.get_output_stream();
         // 4 KiB suffices for typical ClientHello (~100–800 B). Extremely large
@@ -184,97 +246,121 @@ export class TLSServer extends Server {
                     if (!certificate) {
                         const err = new Error('SNI resolution returned no certificate');
                         this.emit('tlsClientError', err, socket);
+                        closeClaimedConnection();
                         socket.destroy();
                         return;
                     }
 
-                    try {
-                        // Construct a virtual IOStream pairing the buffered input
-                        // (already holding the ClientHello) with the original output.
-                        // TlsServerConnection accepts any GIOStream; SocketConnection
-                        // identity is not required for handshake correctness.
-                        const wrappedIo = new Gio.SimpleIOStream({
-                            inputStream: buffered,
-                            outputStream,
-                        });
-                        const tlsConn = Gio.TlsServerConnection.new(wrappedIo, certificate);
-
-                        // Client-cert / mTLS configuration
-                        if (this._tlsOptions.requestCert) {
-                            tlsConn.authenticationMode =
-                                this._tlsOptions.rejectUnauthorized !== false
-                                    ? Gio.TlsAuthenticationMode.REQUIRED
-                                    : Gio.TlsAuthenticationMode.REQUESTED;
-                        } else {
-                            tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
-                        }
-
-                        const requireClientCert =
-                            !!this._tlsOptions.requestCert && this._tlsOptions.rejectUnauthorized !== false;
-                        const clientCAs = this._secureContext.caCertificates;
-
-                        tlsConn.connect(
-                            'accept-certificate',
-                            (
-                                _conn: Gio.TlsConnection,
-                                peerCert: Gio.TlsCertificate,
-                                _errors: Gio.TlsCertificateFlags,
-                            ): boolean => {
-                                if (!requireClientCert) return true;
-                                if (clientCAs.length === 0) return false;
-                                for (const ca of clientCAs) {
-                                    try {
-                                        const flags = peerCert.verify(null, ca);
-                                        if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
-                                    } catch {
-                                        /* try next */
-                                    }
-                                }
-                                return false;
-                            },
-                        );
-
-                        // ALPN — set_advertised_protocols is a plain property
-                        // setter with no throw path in the GIR; an ALPN-less
-                        // backend just ignores it.
-                        if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
-                            tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
-                        }
-
-                        const cancellable = new Gio.Cancellable();
-                        tlsConn.handshake_async(
-                            GLib.PRIORITY_DEFAULT,
-                            cancellable,
-                            (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
-                                try {
-                                    tlsConn.handshake_finish(asyncResult);
-
-                                    const tlsSocket = new TLSSocket();
-                                    tlsSocket.encrypted = true;
-                                    tlsSocket.authorized = true;
-                                    tlsSocket._secureContext = ctx;
-                                    tlsSocket._setupTlsStreams(tlsConn);
-                                    tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
-
-                                    const internals = tlsSocket as unknown as SocketInternals;
-                                    internals._startReading();
-
-                                    this.emit('secureConnection', tlsSocket);
-                                } catch (err: unknown) {
-                                    const nodeErr = createNodeError(err, 'handshake', {});
-                                    this.emit('tlsClientError', nodeErr, socket);
-                                    socket.destroy();
-                                }
-                            },
-                        );
-                    } catch (err: unknown) {
-                        const nodeErr = createNodeError(err, 'tls_wrap', {});
-                        this.emit('tlsClientError', nodeErr, socket);
-                        socket.destroy();
-                    }
+                    // Construct a virtual IOStream pairing the buffered input
+                    // (already holding the ClientHello) with the original output.
+                    // TlsServerConnection accepts any GIOStream; SocketConnection
+                    // identity is not required for handshake correctness.
+                    const wrappedIo = new Gio.SimpleIOStream({
+                        inputStream: buffered,
+                        outputStream,
+                    });
+                    this._completeUpgrade(wrappedIo, certificate, ctx, socket, closeClaimedConnection);
                 });
             },
         );
+    }
+
+    /**
+     * Configure mTLS/ALPN/accept-certificate on a `Gio.TlsServerConnection`
+     * built over `baseIo`, run the handshake, and emit 'secureConnection'
+     * on success. Shared by `_upgradeTls`'s SNI-less fast path and its
+     * SNI-peek path (they differ only in how `baseIo`/`certificate` were
+     * obtained).
+     */
+    private _completeUpgrade(
+        baseIo: Gio.IOStream,
+        certificate: Gio.TlsCertificate,
+        ctx: SecureContext,
+        socket: Socket,
+        closeClaimedConnection: () => void,
+    ): void {
+        try {
+            const tlsConn = Gio.TlsServerConnection.new(baseIo, certificate);
+
+            // Client-cert / mTLS configuration
+            if (this._tlsOptions.requestCert) {
+                tlsConn.authenticationMode =
+                    this._tlsOptions.rejectUnauthorized !== false
+                        ? Gio.TlsAuthenticationMode.REQUIRED
+                        : Gio.TlsAuthenticationMode.REQUESTED;
+            } else {
+                tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
+            }
+
+            const requireClientCert = !!this._tlsOptions.requestCert && this._tlsOptions.rejectUnauthorized !== false;
+            const clientCAs = this._secureContext.caCertificates;
+
+            tlsConn.connect(
+                'accept-certificate',
+                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => {
+                    if (!requireClientCert) return true;
+                    if (clientCAs.length === 0) return false;
+                    for (const ca of clientCAs) {
+                        try {
+                            const flags = peerCert.verify(null, ca);
+                            if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                        } catch {
+                            /* try next */
+                        }
+                    }
+                    return false;
+                },
+            );
+
+            // ALPN — set_advertised_protocols is a plain property
+            // setter with no throw path in the GIR; an ALPN-less
+            // backend just ignores it.
+            if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
+                tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
+            }
+
+            const cancellable = new Gio.Cancellable();
+            tlsConn.handshake_async(
+                GLib.PRIORITY_DEFAULT,
+                cancellable,
+                (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+                    try {
+                        tlsConn.handshake_finish(asyncResult);
+
+                        const tlsSocket = new TLSSocket();
+                        tlsSocket.encrypted = true;
+                        tlsSocket.authorized = true;
+                        tlsSocket._secureContext = ctx;
+                        tlsSocket._setupTlsStreams(tlsConn);
+                        tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
+
+                        // `socket` (the accepted plaintext socket, its streams
+                        // claimed above) is what `net.Server` tracks for
+                        // `close()`/`getConnections()`; nothing else ever
+                        // destroys it, so without this `server.close()` waited
+                        // forever for a connection whose transport the
+                        // TLSSocket had long closed. Its fields are null, so
+                        // destroying it only emits its 'close'.
+                        tlsSocket.once('close', () => socket.destroy());
+
+                        const internals = tlsSocket as unknown as SocketInternals;
+                        internals._startReading();
+
+                        this.emit('secureConnection', tlsSocket);
+                    } catch (err: unknown) {
+                        const nodeErr = createNodeError(err, 'handshake', {});
+                        this.emit('tlsClientError', nodeErr, socket);
+                        closeClaimedConnection();
+                        socket.destroy();
+                    }
+                },
+            );
+        } catch (err: unknown) {
+            const nodeErr = createNodeError(err, 'tls_wrap', {});
+            this.emit('tlsClientError', nodeErr, socket);
+            closeClaimedConnection();
+            socket.destroy();
+        }
     }
 }
 

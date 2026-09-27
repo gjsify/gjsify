@@ -7,11 +7,24 @@ import Gio from '@girs/gio-2.0';
 import { Buffer } from 'node:buffer';
 import { URL } from 'node:url';
 import { readBytesAsync } from '@gjsify/utils';
+import { createPeerVerifier, createSecureContext, type PeerCertificate, type SecureContext } from '@gjsify/tls/verify';
 import { OutgoingMessage } from './server.js';
 import { IncomingMessage } from './incoming-message.js';
 import type { Agent } from 'node:http';
 
-export interface ClientRequestOptions {
+/** The `https:` options of Node's request / `https.Agent` (tls.connect's), honoured here. */
+export interface ClientTlsOptions {
+    ca?: string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
+    cert?: string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
+    key?: string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
+    passphrase?: string;
+    rejectUnauthorized?: boolean;
+    servername?: string;
+    checkServerIdentity?: (host: string, cert: PeerCertificate) => Error | undefined;
+    secureContext?: SecureContext;
+}
+
+export interface ClientRequestOptions extends ClientTlsOptions {
     protocol?: string;
     hostname?: string;
     host?: string;
@@ -23,6 +36,8 @@ export interface ClientRequestOptions {
     // Node's `RequestOptions.agent` accepts `Agent | boolean | undefined` — agent pooling is
     // not implemented in this GJS port; the property is stored verbatim and never consulted.
     agent?: Agent | boolean;
+    /** Agent used when `agent` is undefined — `https.request` passes `https.globalAgent` (Node's name). */
+    _defaultAgent?: Agent;
     setHost?: boolean;
     /** Basic authentication string in the format 'user:password'. */
     auth?: string;
@@ -60,6 +75,8 @@ export class ClientRequest extends OutgoingMessage {
     private _timeout = 0;
     private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     private _responseCallback?: (res: IncomingMessage) => void;
+    /** Set when the peer verifier refused the server certificate: the error Node reports. */
+    private _tlsRejection: Error | null = null;
 
     constructor(
         url: string | URL | ClientRequestOptions,
@@ -135,6 +152,7 @@ export class ClientRequest extends OutgoingMessage {
         this._session = new Soup.Session();
         this._message = new Soup.Message({ method: this.method, uri });
         this._cancellable = new Gio.Cancellable();
+        if (this.protocol === 'https:') this._setupTls(opts);
 
         if (this._timeout > 0) {
             this._session.timeout = Math.ceil(this._timeout / 1000);
@@ -144,6 +162,37 @@ export class ClientRequest extends OutgoingMessage {
                 this.emit('timeout');
             }, this._timeout);
         }
+    }
+
+    /**
+     * Apply the TLS options, merged the way Node's Agent does (`{...request, ...agent.options}` —
+     * the agent's win). The session gets NO trust database so every peer reaches the shared
+     * Node-semantics verifier in @gjsify/tls (why: `verify.ts`); its verdict is the error a
+     * rejected request emits.
+     */
+    private _setupTls(opts: ClientRequestOptions): void {
+        const agent = opts.agent === undefined ? opts._defaultAgent : opts.agent;
+        const agentOptions =
+            agent && typeof agent === 'object' ? (agent as { options?: ClientTlsOptions }).options : undefined;
+        const tls: ClientTlsOptions = { ...opts, ...agentOptions };
+        const ctx = tls.secureContext ?? createSecureContext(tls);
+
+        const verifier = createPeerVerifier({
+            caCertificates: ctx.caCertificates,
+            rejectUnauthorized: tls.rejectUnauthorized,
+            host: tls.servername || this.hostname,
+            checkServerIdentity: tls.checkServerIdentity,
+        });
+        this._session.set_tls_database(null);
+        this._message.connect(
+            'accept-certificate',
+            (_msg: Soup.Message, peer: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => {
+                const accepted = verifier.accept(peer);
+                this._tlsRejection = accepted ? null : verifier.error;
+                return accepted;
+            },
+        );
+        if (ctx.certificate) this._message.set_tls_client_certificate(ctx.certificate);
     }
 
     private _buildUrl(): string {
@@ -318,6 +367,8 @@ export class ClientRequest extends OutgoingMessage {
         } catch (error: unknown) {
             if (this.aborted) {
                 this.emit('abort');
+            } else if (this._tlsRejection) {
+                this.emit('error', this._tlsRejection);
             } else {
                 this.emit('error', error instanceof Error ? error : new Error(String(error)));
             }
