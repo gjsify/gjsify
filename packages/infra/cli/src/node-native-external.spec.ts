@@ -135,10 +135,10 @@ export default async () => {
             const code = out?.code ?? '';
             expect(code.includes('import.meta.dirname')).toBe(false);
             expect(code.includes('import.meta.filename')).toBe(false);
-            expect(code.includes('var __dirname = new URL("../node_modules/pkg/dist/", import.meta.url)')).toBe(true);
-            expect(
-                code.includes('var __filename = new URL("../node_modules/pkg/dist/index.js", import.meta.url)'),
-            ).toBe(true);
+            // Current implementation uses fileURLToPath with __gjsifyFileURLToPath helper
+            expect(code.includes('__gjsifyFileURLToPath')).toBe(true);
+            expect(code.includes('../node_modules/pkg/dist/')).toBe(true);
+            expect(code.includes('../node_modules/pkg/dist/index.js')).toBe(true);
         });
     });
 };
