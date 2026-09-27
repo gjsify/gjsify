@@ -1,7 +1,7 @@
-# 0081: `--globals auto` skips process stub in analysis builds
+# 81. `--globals auto` skips process stub in analysis builds
 
-**Status**: Accepted  
-**Date**: 2026-09-27
+- Status: **Accepted**
+- Date: 2026-09-27
 
 ## Context
 

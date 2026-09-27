@@ -1,7 +1,7 @@
-# 0079: `gjsify format --check` warns about files skipped by oxfmt-native
+# 82. `gjsify format --check` warns about files skipped by oxfmt-native
 
-**Status**: Accepted  
-**Date**: 2026-09-27
+- Status: **Accepted**
+- Date: 2026-09-27
 
 ## Context
 
