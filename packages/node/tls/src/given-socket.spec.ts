@@ -177,7 +177,9 @@ function isForeignSocket(socket: Socket): boolean {
  * given-socket cases must succeed like everywhere else.
  */
 function usesGjsifyTls(): boolean {
-    return typeof (tls.TLSSocket.prototype as unknown as { _adoptConnection?: unknown })._adoptConnection === 'function';
+    return (
+        typeof (tls.TLSSocket.prototype as unknown as { _adoptConnection?: unknown })._adoptConnection === 'function'
+    );
 }
 
 /** Server handler: answer the first chunk with `echo:<chunk>` and end. */
