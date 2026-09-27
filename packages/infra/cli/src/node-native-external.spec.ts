@@ -130,15 +130,31 @@ export default async () => {
         await it('routes both through the package location, never the bundle', async () => {
             const path = '/proj/node_modules/pkg/dist/index.js';
             const src = 'const d = import.meta.dirname;\nconst f = import.meta.filename;\nexport { d, f };\n';
+            // Test legacy build-relative mode (runtimeResolve=false)
             const out = rewriteContents({ path }, src, '/proj/dist', false);
             expect(out === null).toBe(false);
             const code = out?.code ?? '';
             expect(code.includes('import.meta.dirname')).toBe(false);
             expect(code.includes('import.meta.filename')).toBe(false);
-            // Current implementation uses fileURLToPath with __gjsifyFileURLToPath helper
-            expect(code.includes('__gjsifyFileURLToPath')).toBe(true);
-            expect(code.includes('../node_modules/pkg/dist/')).toBe(true);
-            expect(code.includes('../node_modules/pkg/dist/index.js')).toBe(true);
+            // Legacy mode uses new URL() with relative paths from bundleDir
+            expect(code.includes('new URL')).toBe(true);
+            expect(code.includes('import.meta.url')).toBe(true);
+        });
+
+        await it('routes both through runtime module-resolve shim when runtimeResolve=true', async () => {
+            const path = '/proj/node_modules/pkg/dist/index.js';
+            const src = 'const d = import.meta.dirname;\nconst f = import.meta.filename;\nexport { d, f };\n';
+            // Test runtime-resolve mode (runtimeResolve=true)
+            const out = rewriteContents({ path }, src, '/proj/dist', true);
+            expect(out === null).toBe(false);
+            const code = out?.code ?? '';
+            expect(code.includes('import.meta.dirname')).toBe(false);
+            expect(code.includes('import.meta.filename')).toBe(false);
+            // Runtime mode uses the module-resolve shim
+            expect(code.includes('__gjsifyModuleDir')).toBe(true);
+            expect(code.includes('__gjsifyModuleFile')).toBe(true);
+            expect(code.includes('__gjsifyModuleUrl')).toBe(true);
+            expect(code.includes('@gjsify/rolldown-plugin-gjsify/shims/module-resolve')).toBe(true);
         });
     });
 };
