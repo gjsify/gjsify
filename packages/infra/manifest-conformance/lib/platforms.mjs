@@ -94,7 +94,7 @@ export const LIB_EXT = { linux: '.so', darwin: '.dylib', win32: '.dll' };
  * directory (which cannot load there) and skips the `-musl` one (which can). It was
  * unreachable while no `-musl` directory could exist. Closing it needs a host-libc
  * probe here plus a CI leg that runs the audit on musl, neither of which this module
- * has; see `status/open-todos.md`, "HOST_TARGET is libc-blind".
+ * has; see `status/open-todos/prebuilds.md`, "HOST_TARGET is libc-blind".
  */
 export const HOST_TARGET = `${process.platform}-${process.arch}`;
 

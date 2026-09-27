@@ -96,6 +96,7 @@ the TODO records the *what's left*.
 | [0074](0074-one-declared-macos-floor.md) | Every shipped darwin binary targets one declared macOS floor: 15.0 | Accepted |
 | [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam (Amendment 1: SDL3 on every OS) | Proposed |
 | [0076](0076-a-node-bin-is-rebuilt-for-the-host-runtime.md) | A Node bin is rebuilt for the runtime gjsify runs on, and never silently run on another (`gjsify exec`) | Accepted |
+| [0079](0079-window-follows-the-runtime.md) | `window` follows the runtime: no define on Node, an EventTarget on GJS | Accepted |
 | [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
 | [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 

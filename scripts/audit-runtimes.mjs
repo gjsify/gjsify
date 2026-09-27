@@ -1689,7 +1689,7 @@ function repoContext() {
             // ever rebuilt by `prebuilds.yml`'s `commit-prebuilds` on `main`, AFTER this
             // lands, so enforcing now would red every PR on bytes no PR can fix. Every
             // violation is still printed on every run. Flip to 'enforce' once
-            // `commit-prebuilds` has landed them — status/open-todos.md tracks it.
+            // `commit-prebuilds` has landed them — status/open-todos/prebuilds.md tracks it.
             darwinDeploymentTarget: 'report',
             uncheckedFields: UNCHECKED_FIELDS,
             // Empty unless `--media-payload` was passed, which is the ordinary state and
