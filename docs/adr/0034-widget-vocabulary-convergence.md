@@ -1864,9 +1864,9 @@ spelling the package root has.
 This is § Amendment 6 applied to the second surface, for the reason given there: § 3's
 "**all of it is additive**" bought the ADOPTION and decided nothing about afterwards, and
 a second spelling that is never removed is a permanent second vocabulary — the thing
-clause 1 exists to remove, one level in. § Amendment 3's "Additive: `AdwBin` keeps
-working and nothing published moves" is the sentence being amended here; it was true of
-the export and is not true any more.
+clause 1 exists to remove, one level in. § Amendment 3's "all three barrels — base,
+`.gtk`, `.native` — export `Adw`, additive, with `AdwBin` and `AdwClamp` unchanged" is
+the sentence being amended here; it was true of the export and is not true any more.
 
 **It cost nothing to migrate, and that is a measurement rather than luck.** Outside the
 package, `@gjsify/adwaita-react-native` is named in 20 files and IMPORTED in none
