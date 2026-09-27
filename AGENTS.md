@@ -36,7 +36,7 @@ Reference material — read on demand, not loaded every session. Root `docs/`:
 |what SM140 gives you beyond ES2024 → engine-baseline.md
 |`refs/` · attribution · status data · examples · axis 6 → references.md · attribution.md · status-changelog.md · examples-showcases.md · bundled-toolchains.md
 
-ADRs: `docs/adr/` (numbered, MADR-style). Open work: `status/open-todos.md`.
+ADRs: `docs/adr/` (numbered, MADR-style). Open work: `status/open-todos/` (one file per area).
 
 ## Governance — non-negotiable
 
