@@ -1130,8 +1130,14 @@ export function rootValueExports(root, srcDir) {
  */
 export const VOCABULARY_CALLER_DIRS = ['showcases', 'examples', 'packages', 'tests', 'templates', 'website/src'];
 
-/** `import { A, B } from '<pkg>'` — the only shape a caller reaches a widget surface by. */
-const CALLER_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g;
+/**
+ * `import { A, B } from '<pkg>'` and `export { A, B } from '<pkg>'` — the only shapes a
+ * caller reaches a widget surface by. Double quotes and the re-export form are both
+ * live: `.mdx` is on the formatter ignore list so nothing normalises quoting in the very
+ * corpus this gate was written for, and the re-export is how the migrated docs teach an
+ * application to build its own barrel.
+ */
+const CALLER_IMPORT = /(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
 
 /**
  * Every file OUTSIDE a widget surface that names one of its exports, with the names.
