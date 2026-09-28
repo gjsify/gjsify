@@ -23,6 +23,14 @@ interface _GstElementProps extends Gst.Element {
     wave?: number;
     /** videotestsrc: 0=SMPTE bars, 1=snow, ... */
     pattern?: number;
+    /**
+     * Capture device, from `constraints.deviceId`. Like its siblings above this is a RUNTIME
+     * GObject property — absent from the typelib's `Gst.Element`, which is why the structural
+     * cast exists. Not every source in `_chooseSource`'s lists carries it, so the writes are
+     * unconditional in the same way `is_live` is guarded: a source without the property logs a
+     * GObject warning and ignores it.
+     */
+    device?: string;
 }
 
 export interface MediaTrackConstraints {
