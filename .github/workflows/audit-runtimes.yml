@@ -276,20 +276,30 @@ jobs:
       # Same failure mode one level up: an AGENTS.md is loaded on EVERY agent turn, and
       # the root file reached 277 KB before it was split, one defensible paragraph at a
       # time. Past 32 KiB (`project_doc_max_bytes`) Codex truncates the tail with no
-      # warning, so the end of an oversized file is not read at all. Per-file ceilings
-      # are MEASURED for the same reason as above: two files are over the 20 KB target
-      # AGENTS.md sets itself, and a flat gate would have been waived on arrival.
+      # warning, so the end of an oversized file is not read at all — that cap is
+      # unconditional, every PR, no history needed.
       #
-      # The ceilings are EXACT, so a file BELOW its ceiling fails here too and the fix is
-      # `--update` plus the ledger in the same commit. That is not pedantry: a required
-      # check reads `main` plus ONE branch and `strict_required_status_checks_policy` is
-      # false, so any slack a committed number carries can be spent in full by two
-      # branches at once. Probe-merged in #1157 — a 48-byte window left by an
-      # un-re-baselined cleanup took `main` to 979 over a ceiling of 955 with both PRs
-      # green. At zero slack the two spenders collide in the ledger and git stops them.
-      # Reasoning + the residual: docs/governance.md § Concurrent PRs.
+      # Growth is checked against the PR's OWN BASE instead: an exact committed ledger
+      # (`status/agent-context-budget.json`, one line per file, re-baselined by
+      # `--update` on every touch including a pure shrink) used to hold this, and #1157
+      # is why it was exact — any slack a committed number carries can be spent in full
+      # by two branches at once, since a required check reads `main` plus ONE branch and
+      # `strict_required_status_checks_policy` is false. But the ledger line became the
+      # thing every AGENTS.md edit collided over: 77 commits since 2026-09-01 touched
+      # nothing else. Comparing to base needs no such line — a shrink needs no companion
+      # edit, and two branches growing the SAME file past tolerance each fail on their
+      # OWN diff. What #1157's shape can still do is narrower (two branches each growing
+      # one file by the same amount, both within tolerance) and this second run — BASE
+      # is the immediately preceding `main` commit on `push` — is what catches that,
+      # on the very next touch rather than silently. Needs history the default shallow
+      # checkout does not have, deepened here rather than for the whole job.
+      # Reasoning + the residual: docs/governance.md § Agent context budget.
       - name: Check agent context file sizes
-        run: node scripts/check-agent-context-size.mjs --check
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          git fetch --no-tags --quiet --deepen=200 origin "$BASE_REF" 2>/dev/null || true
+          node scripts/check-agent-context-size.mjs --check
 
       # The published API tables told readers to install `@gjsify/streams` and
       # `@gjsify/globals`, five rows between them, neither name ever a package

@@ -55,10 +55,11 @@ file — 249 B over, and the first time this file has crossed it. It was 20421 B
 rule (9) grew to cover `/fonts`' second directory and the UI-font policy (ADR 0038
 § Amendment 2).
 
-Nothing is broken: `check-agent-context-size.mjs` gates on the EXACT per-file ratchet
-(re-baselined in the same commit) and on the 32 KiB hard cap where Codex silently
-truncates the tail. This is a target, not a gate — `packages/infra/cli/AGENTS.md`
-(27792) and `rolldown-plugin-gjsify/AGENTS.md` (24972) are further over.
+Nothing is broken: `check-agent-context-size.mjs` gates on GROWTH past 512 bytes since the
+PR base and on the 32 KiB hard cap where Codex silently truncates the tail — 249 B under
+either file's own history is not growth in one PR. The 20 KB figure is a target, not a
+gate — `packages/infra/cli/AGENTS.md` (27792) and `rolldown-plugin-gjsify/AGENTS.md`
+(24972) are further over.
 
 Recorded because a target nobody notes is not a target the next time. **The lever is
 cutting elsewhere in the same file**, not trimming rule (9) further: it is already at
