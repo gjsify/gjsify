@@ -182,6 +182,20 @@ function usesGjsifyTls(): boolean {
     );
 }
 
+/**
+ * Whether this polyfill's OWN TLSSocket sits on a foreign `node:net`: its
+ * base class is whatever `node:net` resolved to, so under the node-gi
+ * consumer harness even a fresh `tls.connect({port})` has no Gio
+ * connection to hand to the handshake. Decided from the class, before any
+ * connect.
+ */
+function tlsOnForeignNet(): boolean {
+    return (
+        usesGjsifyTls() &&
+        typeof (tls.TLSSocket.prototype as unknown as { _claimConnection?: unknown })._claimConnection !== 'function'
+    );
+}
+
 /** Server handler: answer the first chunk with `echo:<chunk>` and end. */
 function echoOnce(socket: TLSSocket): void {
     socket.once('data', (chunk: Buffer) => socket.end(`echo:${chunk.toString('utf8')}`));
@@ -354,9 +368,16 @@ export default async () => {
                 async () => {
                     await withTimeout(
                         withServer(async (port) => {
+                            const foreign = tlsOnForeignNet();
+                            if (typeof process.versions.gjs === 'string') expect(foreign).toBe(false);
                             const client = tls.connect({ port, host: '127.0.0.1', rejectUnauthorized: false });
                             client.write('ping');
-                            expect(await readAll(client)).toBe('echo:ping');
+                            if (foreign) {
+                                const err = await waitForError(client);
+                                expect(err.code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
+                            } else {
+                                expect(await readAll(client)).toBe('echo:ping');
+                            }
                         }, echoOnce),
                         'write before secureConnect',
                     );
@@ -463,6 +484,35 @@ export default async () => {
                         }),
                         'destroy mid-handshake',
                     );
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'a server handed a non-@gjsify/net socket reports tlsClientError instead of throwing',
+                async () => {
+                    // Only this polyfill's server claims a Gio connection; Node's
+                    // own tls wraps any Duplex, so there is nothing to check there.
+                    if (!usesGjsifyTls()) return;
+                    const server = tls.createServer({ key: KEY_PEM, cert: CERT_PEM }) as unknown as TlsServer;
+                    const errors: NodeJS.ErrnoException[] = [];
+                    server.on('tlsClientError', (err: NodeJS.ErrnoException) => errors.push(err));
+                    await new Promise<void>((resolve, reject) => {
+                        server.once('error', reject);
+                        server.listen(0, '127.0.0.1', () => resolve());
+                    });
+                    try {
+                        let destroyed = false;
+                        const foreign = { destroy: () => (destroyed = true) };
+                        // Before the guard this threw `_claimConnection is not a
+                        // function` synchronously out of the 'connection' listener.
+                        server.emit('connection', foreign);
+                        expect(errors.length).toBe(1);
+                        expect(errors[0].code).toBe('ERR_GJSIFY_TLS_FOREIGN_SOCKET');
+                        expect(destroyed).toBe(true);
+                    } finally {
+                        await new Promise<void>((resolve) => server.close(() => resolve()));
+                    }
                 },
                 ITEST_TIMEOUT_MS,
             );

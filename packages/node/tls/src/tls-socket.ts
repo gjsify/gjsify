@@ -90,6 +90,20 @@ export interface SocketInternals {
     };
 }
 
+/** What {@link SocketInternals._claimConnection} hands over. */
+export type ClaimedConnection = ReturnType<SocketInternals['_claimConnection']>;
+
+/**
+ * Claim `socket`'s Gio stream fields, or answer `null` when it is not a
+ * `@gjsify/net` Socket (no `_claimConnection`): the caller then fails with
+ * {@link foreignSocketError} instead of a bare TypeError.
+ */
+export function claimGjsifyConnection(socket: unknown): ClaimedConnection | null {
+    const src = socket as Partial<SocketInternals> | null;
+    if (typeof src?._claimConnection !== 'function') return null;
+    return src._claimConnection();
+}
+
 /**
  * Internal cast for the address/state fields `@types/node`'s `net.Socket`
  * type declares read-only (Node's own internals are the only writer).
@@ -152,7 +166,7 @@ export class TLSSocket extends Socket {
      * `@gjsify/net`'s release path — otherwise a `destroy()` mid-handshake
      * leaked the descriptor.
      */
-    private _handshakeClaim: ReturnType<SocketInternals['_claimConnection']> | null = null;
+    private _handshakeClaim: ClaimedConnection | null = null;
     /** Why 'accept-certificate' refused the peer, as Node's error code + message. */
     private _certRejection: { code: string; message: string } | null = null;
 
@@ -172,6 +186,36 @@ export class TLSSocket extends Socket {
      * so we fold the two entry points together here instead of keeping
      * the handshake logic twice (see `connect.ts`).
      */
+    /**
+     * Claim a socket's stream fields, or destroy `this` and answer `null`.
+     *
+     * Node's real `tls.connect({socket})` accepts ANY Duplex; we can only
+     * adopt a `@gjsify/net` Socket today — its Gio connection is what gets
+     * handed to Gio.TlsClientConnection, and a foreign Duplex has none.
+     * Feature-detect rather than let a bare `_claimConnection is not a
+     * function` TypeError surface three calls deep: reached in practice when
+     * a build aliases `node:tls` to this polyfill but leaves `node:net` on a
+     * runtime's own native module (e.g. `@gjsify/node-gi`'s consumer harness,
+     * which forces `runtimes.node === "native"` deps onto their polyfill body
+     * but `@gjsify/net` declares `"none"`, so it stays native — see
+     * status/open-todos.md). Generic-Duplex support is tracked there too.
+     *
+     * ONE guard for every claim site: this method for the two client
+     * ones, {@link claimGjsifyConnection} directly for `TLSServer`'s
+     * accepted sockets. `_adoptConnection` had a guard; `_performHandshake`
+     * and `TLSServer._upgradeTls` called `_claimConnection()` bare. The
+     * server one is what kept four `given-socket.spec.ts` tests red on the
+     * `node-gi` consumer harness since #1837 added them: `withServer` is a
+     * `tls.createServer` whose accepted sockets are native there too, so
+     * every connection threw the TypeError out of the `'connection'`
+     * listener, uncaught, into whichever test was running.
+     */
+    private _claimSocketStreams(src: SocketInternals): ClaimedConnection | null {
+        const claimed = claimGjsifyConnection(src);
+        if (!claimed) this.destroy(foreignSocketError());
+        return claimed;
+    }
+
     private _startClient(providedSocket: Socket, options: TlsConnectOptions): void {
         this.servername = options.servername || options.host || 'localhost';
         this._adoptedSocket = providedSocket;
@@ -230,24 +274,13 @@ export class TLSSocket extends Socket {
         if (this.destroyed || providedSocket.destroyed) return false;
         const src = providedSocket as unknown as SocketInternals;
 
-        // Node's real `tls.connect({socket})` accepts ANY Duplex; we can
-        // only adopt a `@gjsify/net` Socket today — its Gio connection is
-        // what gets handed to Gio.TlsClientConnection, and a foreign
-        // Duplex has none. Feature-detect rather than let a bare
-        // `_claimConnection is not a function` TypeError surface three
-        // calls deep: reached in practice when a build aliases `node:tls`
-        // to this polyfill but leaves `node:net` on a runtime's own
-        // native module (e.g. `@gjsify/node-gi`'s consumer harness, which
-        // forces `runtimes.node === "native"` deps onto their polyfill
-        // body but `@gjsify/net` declares `"none"`, so it stays native —
-        // see status/open-todos.md). Generic-Duplex support is tracked
-        // there too.
-        if (typeof src._claimConnection !== 'function' || typeof src._detachReader !== 'function') {
-            this.destroy(_foreignSocketError());
+        if (typeof src._detachReader !== 'function') {
+            this.destroy(foreignSocketError());
             return false;
         }
 
-        const claimed = src._claimConnection();
+        const claimed = this._claimSocketStreams(src);
+        if (!claimed) return false;
         const leftover = await src._detachReader();
         if (this.destroyed) {
             // Destroyed while we awaited: nothing was transplanted onto
@@ -324,7 +357,8 @@ export class TLSSocket extends Socket {
         // from. For the given-socket path this is a harmless re-clear
         // (already claimed by `_adoptConnection`).
         const internals = this as unknown as SocketInternals;
-        const claimed = internals._claimConnection();
+        const claimed = this._claimSocketStreams(internals);
+        if (!claimed) return;
         const rawConnection = claimed.connection;
         if (!rawConnection) {
             this.destroy(new Error('No underlying connection for TLS upgrade'));
@@ -820,7 +854,7 @@ function _upgradeRaceError(): Error & { code: string } {
  * a Duplex→Gio.IOStream adapter this package doesn't have yet — tracked in
  * status/open-todos.md, next to the SNI-peek entry.
  */
-function _foreignSocketError(): Error & { code: string } {
+export function foreignSocketError(): Error & { code: string } {
     const err = new Error(
         'tls.connect({socket}) / new tls.TLSSocket(socket, …) can only upgrade a @gjsify/net ' +
             "Socket today — the given socket doesn't carry the Gio connection needed to build a " +
