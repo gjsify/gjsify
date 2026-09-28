@@ -9,5 +9,6 @@ import testSuiteWebrtc from './webrtc.spec.js';
 import testSuiteWpt from './wpt.spec.js';
 import testSuiteWptMedia from './wpt-media.spec.js';
 import testSuiteRegister from './register.spec.js';
+import testSuiteGetUserMedia from './get-user-media.spec.js';
 
-run({ testSuiteWebrtc, testSuiteWpt, testSuiteWptMedia, testSuiteRegister });
+run({ testSuiteWebrtc, testSuiteWpt, testSuiteWptMedia, testSuiteRegister, testSuiteGetUserMedia });
