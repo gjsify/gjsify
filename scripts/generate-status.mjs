@@ -107,6 +107,7 @@ export const SECTION_FILES = [
     'webrtc-status.md',
     'adwaita-web-roadmap.md',
     'webgl-known-issues.md',
+    'ling-3-0-flash-fin-free.md',
 ];
 
 // ─── Repo scanning (all derived facts come from here) ───────────────────────
