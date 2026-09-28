@@ -43,10 +43,7 @@ export interface NativeSkipScanResult {
  * Walk paths and collect files whose extension the native oxfmt cannot
  * format. Directories are walked recursively. Symlinks are not followed.
  */
-export function scanForNativeSkips(
-    paths: string[],
-    cwd: string = process.cwd(),
-): NativeSkipScanResult {
+export function scanForNativeSkips(paths: string[], cwd: string = process.cwd()): NativeSkipScanResult {
     const skipped: string[] = [];
     let total = 0;
 
