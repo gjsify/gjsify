@@ -109,6 +109,7 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
             define: {
                 global: 'globalThis',
                 window: 'globalThis',
+                'process.env.NODE_ENV': '"production"',
             },
         },
         output: {
