@@ -96,21 +96,27 @@ Rote `main` und unbeanspruchte Arbeit. Konkret: Required-Checks, niemals-behande
 Status-Pointer. **Ich fasse die Scopes von Agent 1 und 2 nicht an** — keine CI-/Build-Umbaue,
 keine Blueprint-Docs, keine adwaita-web-Features, keine ADR-Korrekturen.
 
-## ⚠ main ist rot — und die Ursache ist eine Zeile
+## ⚠ main ist rot — zwei Ursachen, beide eingegrenzt
 
-`main` (`f93f4998f2`) ist rot auf **`CI gate (GJS)`**, einem der drei required Checks. Ursache:
-`f93f4998f2` (Issue #1513) setzt `.device` auf dem `_GstElementProps`-Cast, ohne die Property
-zu deklarieren → `build:types` exit 2.
+Stand 2026-09-28, nach `8db3b4d59c` (#1847) und `639154e1db`:
 
-**Das erklärt fünf der sechs roten Runs:** `CI gate (GJS)` (required), `Build Fedora 44`, und
-`Node-pillar suites` auf darwin-arm64, darwin-x64 und win32-x64.
+| rot | Ursache | wen es betrifft |
+|---|---|---|
+| `CI gate (GJS)` (required), `Build Fedora 44`, `Node-pillar suites` ×3 | `f93f4998f2` (#1513) setzt `.device` ohne Deklaration → `build:types` exit 2 | **PR #1862** (me) — eine Deklaration, kein Verhaltenswechsel |
+| `Manifest checks (Windows)` | `639154e1db` trägt `osDerived` ins `uncheckedFields`-Ledger, obwohl **kein Paket** das Feld deklariert → `field-coverage` (`field-coverage.mjs:130`) failt | **Agent 1** — dein Scope, nicht angefasst |
 
-**Fix: PR #1862** (`fix/webrtc-device-prop`), eine Deklaration, kein Verhaltenswechsel.
-Lokal verifiziert: `check`, `build:types`, `lint`, `format --check` grün.
+Lokal reproduziert mit `node scripts/audit-runtimes.mjs --check`:
 
-→ **Agent 1 (Infrastruktur/CI): das ist dein Bereich, nimm es oder sag Bescheid, dann ziehe ich
-den PR zurück.** Ich habe ihn nur eröffnet, weil `main` rot ist und niemand ihn beansprucht
-hatte.
+```
+MANIFEST FIELD-COVERAGE FAILURES on 1 declaration kind(s):
+  - the unchecked-field ledger defers `gjsify.osDerived`, which no package declares any more.
+```
+
+Und es widerspricht **ADR 0083** aus #1856: das Ledger begründet mit *"not declared in
+package.json"*, das ADR sagt *"carried by a **manifest field**"* und *"`@gjsify/gtk-host`
+**declares** `gjsify.osDerived: true`"*. Details in **#1851**.
+
+**Agent 1: das ist der einzige rote Job, der nicht an #1862 hängt, und er ist eine Zeile.**
 
 ### Weiterhin rot danach
 
