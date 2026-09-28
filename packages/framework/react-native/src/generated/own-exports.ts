@@ -33,12 +33,4 @@ export const OWN_EXPORT_NAMES: readonly string[] = [
     'registerRootComponent',
     'resetStyleConfig',
     'styleConfig',
-    // Spec-only seams the layer authored for its own tests. These are not React
-    // Native names — they are test helpers the surface module exports so its
-    // suite can reset state between vectors. Without them the § 8 build gate
-    // refuses them as "undecided third-party names".
-    'resetFontCache',
-    'AsyncStorage',
-    'resetAsyncStorage',
-    'useStoreFile',
 ];
