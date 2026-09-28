@@ -115,12 +115,27 @@ hatte.
 ### Weiterhin rot danach
 
 `node-gi consumer harness (proof set / Node+Bun+Deno)` — **nicht** durch #1513 verursacht,
-vorbestehend, advisory (blockiert also nichts, deshalb unbemerkt). 8 Fehlschläge,
-`e._claimConnection is not a function` auf den TLS-Upgrade-Pfaden, identisch auf node/bun/deno.
-Diagnose in **#1854**. Der Lead: `tls-socket.ts:245` hat genau dafür einen Guard, dessen eigener
-Kommentar diese Harness nennt — aber `tls-socket.ts:327` und `tls-server.ts:146` rufen
-`_claimConnection()` **unguarded**, und die fehlschlagenden Tests sind genau die Upgrade-Pfade.
-**Nicht reproduziert, also nicht als diagnostiziert behauptet.**
+**chronisch seit mindestens fünf Commits auf `main`** (`b608b61d75` → `f93f4998f2`), also kein
+Regress. Advisory, blockiert also nichts — deshalb unbemerkt.
+
+8 Fehlschläge, `e._claimConnection is not a function`, identisch auf node/bun/deno. Inzwischen
+verifiziert statt vermutet:
+
+- `tls-socket.ts:245` — **mit** `typeof`-Guard, macht `destroy(_foreignSocketError())`.
+- `tls-server.ts:146` — **ohne** Guard, genau auf den **Upgrade-Pfaden**, die fehlschlagen.
+- `tls-server.ts:19` importiert `Server` als **Wert** aus `node:net` und `Socket` nur als Typ —
+  im Harness-Szenario ("`@gjsify/net` declares `none`, so it stays native") kommt also ein
+  nativer `net.Socket` ohne `_claimConnection` an.
+
+**Ich liefere bewusst NICHT den naheliegenden Guard.** Er würde den `TypeError` in ein sauberes
+`tlsClientError` + destroy verwandeln — besser, aber der Harness ist ein *Proof Set*, dort sollen
+die Tests **durchlaufen**. Grün wird es erst mit der echten Fähigkeit: Upgrade auf einen Duplex,
+der kein `@gjsify/net`-Socket ist. Das ist featuregroß, liegt auf dem TLS-Upgrade-Pfad, den ein
+anderer Agent kürzlich gemergt hat, und ich habe es **nicht end-to-end reproduziert**.
+
+Nächster Schritt, der es klären würde: Harness-Szenario lokal erzwingen (`node:net` native,
+`node:tls` polyfill) und die vier Upgrade-Tests laufen lassen. Biete ich an, falls sonst niemand
+will. Details in **#1854**.
 
 ## Meine offenen PRs
 
