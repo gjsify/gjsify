@@ -485,24 +485,29 @@ export default async () => {
             expect((rejected as Error).message).toContain('JSON.stringify');
         });
 
+        // Both vectors call `storeFileFor` with the id rather than reading
+        // `Gio.Application.get_default()`: that default is process-wide, set by the first
+        // suite that builds an application, and cannot be cleared from JS. A vector that
+        // branched on it would measure a different property depending on suite order.
         await it('names the missing application id rather than writing beside the interpreter', async () => {
-            asyncStorage.resetAsyncStorage();
-            const existing = Gio.Application.get_default();
-            if (existing === null) {
-                let rejected: unknown = null;
-                await asyncStorage.AsyncStorage.getItem('x').catch((cause: unknown) => {
-                    rejected = cause;
-                });
-                expect(rejected instanceof PrimitiveError).toBe(true);
-                expect((rejected as Error).message).toContain('application id');
-            } else {
-                // A suite that already built an application cannot un-build it, and
-                // `Gio.Application` sets ITSELF as the default on construction (measured).
-                // So the branch that can be reached is the other one: the id really is
-                // used, and it is the application's own.
-                expect(existing.applicationId).toBeTruthy();
+            for (const id of [null, '']) {
+                let refused: unknown = null;
+                try {
+                    asyncStorage.storeFileFor(id);
+                } catch (cause) {
+                    refused = cause;
+                }
+                expect(refused instanceof PrimitiveError).toBe(true);
+                expect((refused as Error).message).toContain('needs the application id');
+                expect((refused as Error).message).toContain('`GLib.get_prgname()` would name the INTERPRETER');
             }
-            asyncStorage.useStoreFile(path);
+        });
+
+        await it('puts the store in the data directory named after the application id', async () => {
+            const id = 'org.gjsify.AsyncStorageSpec';
+            expect(asyncStorage.storeFileFor(id).get_path()).toBe(
+                GLib.build_filenamev([GLib.get_user_data_dir(), id, 'async-storage.json']),
+            );
         });
     });
 

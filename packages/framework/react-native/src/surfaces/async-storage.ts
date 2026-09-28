@@ -60,17 +60,28 @@ let file: Gio.File | null = null;
  */
 function storeFile(): Gio.File {
     if (file !== null) return file;
-    const application = Gio.Application.get_default();
-    const id = application?.applicationId ?? null;
-    if (id === null || id === '') {
+    file = storeFileFor(Gio.Application.get_default()?.applicationId ?? null);
+    return file;
+}
+
+/**
+ * Where the store lives for one application id, or a refusal by name when there is none.
+ *
+ * Split out of `storeFile()` so a spec can hold BOTH outcomes deterministically.
+ * `Gio.Application.get_default()` is process-wide state: the first suite that builds an
+ * application makes it non-null for every later suite, and `g_application_set_default`
+ * cannot clear it from JS (GJS binds it as an instance method), so a vector that reads
+ * the ambient default measures a different property depending on suite order.
+ */
+export function storeFileFor(applicationId: string | null): Gio.File {
+    if (applicationId === null || applicationId === '') {
         throw new PrimitiveError(
             'AsyncStorage',
             'the store’s location',
             'needs the application id, and there is no Gio.Application yet. `GLib.get_prgname()` would name the INTERPRETER, so the store would land in a directory called after gjs or node and a later run under the real application would find it empty. Build the application first — `registerRootComponent(App, { applicationId })` does — or read this from a component rather than at module scope',
         );
     }
-    file = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_data_dir(), id, FILE_NAME]));
-    return file;
+    return Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_data_dir(), applicationId, FILE_NAME]));
 }
 
 /**
