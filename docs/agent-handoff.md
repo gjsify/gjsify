@@ -118,24 +118,31 @@ hatte.
 **chronisch seit mindestens fünf Commits auf `main`** (`b608b61d75` → `f93f4998f2`), also kein
 Regress. Advisory, blockiert also nichts — deshalb unbemerkt.
 
-8 Fehlschläge, `e._claimConnection is not a function`, identisch auf node/bun/deno. Inzwischen
-verifiziert statt vermutet:
+8 Fehlschläge, `e._claimConnection is not a function`, identisch auf node/bun/deno.
 
-- `tls-socket.ts:245` — **mit** `typeof`-Guard, macht `destroy(_foreignSocketError())`.
-- `tls-server.ts:146` — **ohne** Guard, genau auf den **Upgrade-Pfaden**, die fehlschlagen.
-- `tls-server.ts:19` importiert `Server` als **Wert** aus `node:net` und `Socket` nur als Typ —
-  im Harness-Szenario ("`@gjsify/net` declares `none`, so it stays native") kommt also ein
-  nativer `net.Socket` ohne `_claimConnection` an.
+**Korrektur an mir selbst:** Ich hatte geschrieben, grün brauche die echte Fähigkeit (Upgrade
+auf beliebigen Duplex) und der naheliegende Guard helfe nicht. **Beides war falsch.**
+`given-socket.spec.ts:246-266` erwartet im Foreign-Socket-Fall ausdrücklich
+`ERR_GJSIFY_TLS_FOREIGN_SOCKET` — der Harness will also den **Guard**, nicht Erfolg. Es ist ein
+kleiner Bug, kein Feature.
 
-**Ich liefere bewusst NICHT den naheliegenden Guard.** Er würde den `TypeError` in ein sauberes
-`tlsClientError` + destroy verwandeln — besser, aber der Harness ist ein *Proof Set*, dort sollen
-die Tests **durchlaufen**. Grün wird es erst mit der echten Fähigkeit: Upgrade auf einen Duplex,
-der kein `@gjsify/net`-Socket ist. Das ist featuregroß, liegt auf dem TLS-Upgrade-Pfad, den ein
-anderer Agent kürzlich gemergt hat, und ich habe es **nicht end-to-end reproduziert**.
+Mechanik, aus dem Code gelesen:
 
-Nächster Schritt, der es klären würde: Harness-Szenario lokal erzwingen (`node:net` native,
-`node:tls` polyfill) und die vier Upgrade-Tests laufen lassen. Biete ich an, falls sonst niemand
-will. Details in **#1854**.
+- `tls-socket.ts:24` `import { Socket } from 'node:net'` — **Wert**-Import;
+  `tls-socket.ts:114` `class TLSSocket extends Socket`. Die Basisklasse ist zur Laufzeit, was
+  `node:net` gerade auflöst. Im Harness bleibt `node:net` nativ → die Basis hat **kein**
+  `_claimConnection`, also auch die Subklasse nicht.
+- Der Guard `:245` prüft **`src`** (den übergebenen Socket), der Aufruf `:327` ist auf **`this`**
+  und **unguarded**. Zwei verschiedene Objekte, Guard deckt nur eines ab.
+
+**Nicht reproduziert, deshalb kein Fix geraten:** das eigene Node-Testpaket läuft durch
+(134 Tests, exit 0), und `--external net` / `--external node:net` erzeugen beide ein
+byte-identisches 84 001-Byte-Bundle — die Harness-Aliasung ist hier nicht erreichbar. Weil
+`:193` `_performHandshake` nur bei `adopted === true` aufruft, ist `:327` für einen fremden
+Socket vermutlich gar nicht der werfende Aufruf. **Eine Zeile Instrumentierung im Harness
+(Stack beim Throw + konkreter Typ von `this`) klärt es.**
+
+Weiter beansprucht. Biete die Instrumentierung an, falls sonst niemand will. Details in **#1854**.
 
 ## Meine offenen PRs
 
