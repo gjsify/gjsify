@@ -1,166 +1,194 @@
-// Tests for native-skip-scan — the pre-scan that surfaces files the native
-// oxfmt (GJS) cannot format, so `gjsify format --check` does not silently
-// skip them.
+// Tests for native-skip-scan — the pre-scan that surfaces files napi oxfmt
+// would format but the native oxfmt (GJS) drops, so `gjsify format --check`
+// cannot pass having skipped them. It must see exactly oxfmt's file set:
+// reporting a file oxfmt would never open reds a clean tree.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanForNativeSkips, NATIVE_SKIP_EXTENSIONS } from './native-skip-scan.js';
+import { externalParserFor, parseJsonc, scanForNativeSkips } from './native-skip-scan.js';
+
+let counter = 0;
+function tree(files: Record<string, string>): string {
+    const dir = join(tmpdir(), `gjsify-skip-scan-${process.pid}-${Date.now()}-${counter++}`);
+    mkdirSync(dir, { recursive: true });
+    for (const [rel, body] of Object.entries(files)) {
+        const full = join(dir, rel);
+        mkdirSync(dirname(full), { recursive: true });
+        writeFileSync(full, body);
+    }
+    return dir;
+}
+
+const names = (dir: string, files: string[]): string[] => files.map((f) => f.slice(dir.length + 1)).sort();
 
 export default async () => {
     await describe('scanForNativeSkips', async () => {
-        await it('finds CSS files the native formatter will skip', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-css`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'style.css'), 'body { color: red; }');
-
+        await it('reports the files napi oxfmt hands to Prettier (Markdown, HTML, Vue, YAML)', async () => {
+            const dir = tree({
+                'README.md': '# Hello',
+                'index.html': '<html></html>',
+                'App.vue': '<template><div /></template>',
+                'ci.yml': 'a: 1',
+            });
             const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toContain('style.css');
-
+            expect(names(dir, result.skipped)).toStrictEqual(['App.vue', 'README.md', 'ci.yml', 'index.html']);
             rmSync(dir, { recursive: true, force: true });
         });
 
-        await it('finds HTML files the native formatter will skip', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-html`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'index.html'), '<html></html>');
-
-            const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toContain('index.html');
-
-            rmSync(dir, { recursive: true, force: true });
-        });
-
-        await it('finds Vue files the native formatter will skip', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-vue`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'App.vue'), '<template><div /></template>');
-
-            const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toContain('App.vue');
-
-            rmSync(dir, { recursive: true, force: true });
-        });
-
-        await it('finds Markdown files the native formatter will skip', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-md`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'README.md'), '# Hello');
-
-            const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toContain('README.md');
-
-            rmSync(dir, { recursive: true, force: true });
-        });
-
-        await it('does NOT flag JS/TS files — the native formatter handles those', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-js`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'index.ts'), 'const x: number = 1;');
-            writeFileSync(join(dir, 'main.js'), 'const x = 1;');
-
+        // The native build formats these itself — flagging them failed the check
+        // on files it had in fact checked.
+        await it('does NOT report what the native build formats: JS/TS, JSON, TOML, CSS', async () => {
+            const dir = tree({
+                'index.ts': 'const x: number = 1;',
+                'main.js': 'const x = 1;',
+                'data.json': '{}',
+                'Cargo.toml': '[package]',
+                'style.css': 'body {}',
+                'theme.scss': 'a {}',
+                'x.less': 'a {}',
+            });
             const result = scanForNativeSkips([dir], dir);
             expect(result.skipped).toHaveLength(0);
-            expect(result.total).toBe(2);
-
+            expect(result.total).toBe(7);
             rmSync(dir, { recursive: true, force: true });
         });
 
-        await it('recurses into subdirectories', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-recurse`);
-            mkdirSync(join(dir, 'src', 'components'), { recursive: true });
-            writeFileSync(join(dir, 'src', 'components', 'style.css'), 'body {}');
-            writeFileSync(join(dir, 'src', 'index.ts'), 'const x: number = 1;');
-            writeFileSync(join(dir, 'src', 'components', 'template.html'), '<div></div>');
-
+        // THE INCIDENT: the scan walked node_modules and exited 1 on dependency
+        // READMEs, so `format --check` from source never started oxfmt.
+        await it('never enters node_modules or VCS directories', async () => {
+            const dir = tree({
+                'src/index.ts': 'const x = 1;',
+                'node_modules/dep/README.md': '# dep',
+                'packages/a/node_modules/dep/index.html': '<p></p>',
+                '.git/description.md': 'x',
+                '.hg/x.md': 'x',
+            });
             const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(2);
-            expect(result.total).toBe(3);
-
+            expect(result.skipped).toHaveLength(0);
+            expect(result.total).toBe(1);
             rmSync(dir, { recursive: true, force: true });
         });
 
-        await it('handles a single file path directly', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-single`);
-            mkdirSync(dir, { recursive: true });
-            const file = join(dir, 'style.css');
-            writeFileSync(file, 'body {}');
+        await it('honours the config ignorePatterns, relative to the config directory', async () => {
+            const dir = tree({
+                '.oxfmtrc.json': '{\n  // comment\n  "ignorePatterns": ["**/*.md", "vendor",],\n}',
+                'README.md': '# x',
+                'docs/deep/guide.md': '# x',
+                'vendor/page.html': '<p></p>',
+                'site/page.html': '<p></p>',
+            });
+            const result = scanForNativeSkips([dir], dir, { configPath: join(dir, '.oxfmtrc.json') });
+            expect(names(dir, result.skipped)).toStrictEqual(['site/page.html']);
+            rmSync(dir, { recursive: true, force: true });
+        });
 
-            const result = scanForNativeSkips([file], dir);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toBe(file);
+        await it('discovers the config when none is passed, and a nested one scopes its subtree', async () => {
+            const dir = tree({
+                '.oxfmtrc.json': '{ "ignorePatterns": ["*.html"] }',
+                'a.html': '<p></p>',
+                'sub/.oxfmtrc.jsonc': '{ "ignorePatterns": ["*.md"] }',
+                'sub/b.md': '# x',
+                'sub/c.html': '<p></p>',
+            });
+            const result = scanForNativeSkips(['.'], dir);
+            // `sub`'s own config replaces the root one there: .md ignored, .html not.
+            expect(names(dir, result.skipped)).toStrictEqual(['sub/c.html']);
+            rmSync(dir, { recursive: true, force: true });
+        });
 
+        await it('honours nested .gitignore files and .prettierignore', async () => {
+            const dir = tree({
+                '.gitignore': 'build/\n*.generated.md\n',
+                '.prettierignore': 'legacy\n',
+                'build/out.html': '<p></p>',
+                'notes.generated.md': '# x',
+                'pkg/.gitignore': 'private.md\n',
+                'pkg/private.md': '# x',
+                'pkg/public.md': '# x',
+                'legacy/old.md': '# x',
+            });
+            const result = scanForNativeSkips(['.'], dir);
+            expect(names(dir, result.skipped)).toStrictEqual(['pkg/public.md']);
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('reads .gitignore up to the repository root, never above it', async () => {
+            const outer = tree({
+                '.gitignore': '*.md\n',
+                'repo/.git/info/exclude': 'excluded.html\n',
+                'repo/.gitignore': 'ignored.html\n',
+                'repo/pkg/kept.md': '# x',
+                'repo/pkg/ignored.html': '<p></p>',
+                'repo/pkg/excluded.html': '<p></p>',
+            });
+            const repo = join(outer, 'repo');
+            const result = scanForNativeSkips(['pkg'], repo);
+            expect(names(repo, result.skipped)).toStrictEqual(['pkg/kept.md']);
+            rmSync(outer, { recursive: true, force: true });
+        });
+
+        await it('holds a file named directly to ignorePatterns but not to .gitignore', async () => {
+            const dir = tree({
+                '.gitignore': '*.md\n',
+                '.oxfmtrc.json': '{ "ignorePatterns": ["*.html"] }',
+                'a.md': '# x',
+                'b.html': '<p></p>',
+            });
+            const cfg = { configPath: join(dir, '.oxfmtrc.json') };
+            expect(scanForNativeSkips(['a.md'], dir, cfg).skipped).toStrictEqual([join(dir, 'a.md')]);
+            expect(scanForNativeSkips(['b.html'], dir, cfg).skipped).toHaveLength(0);
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('applies `!` CLI excludes and glob arguments', async () => {
+            const dir = tree({ 'a/x.md': '# x', 'b/y.md': '# x', 'b/z.html': '<p></p>' });
+            expect(names(dir, scanForNativeSkips(['.', '!b'], dir).skipped)).toStrictEqual(['a/x.md']);
+            expect(names(dir, scanForNativeSkips(['**/*.html'], dir).skipped)).toStrictEqual(['b/z.html']);
             rmSync(dir, { recursive: true, force: true });
         });
 
         await it('returns empty for non-existent paths', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-nonexistent`);
+            const dir = tree({});
             const result = scanForNativeSkips([join(dir, 'does-not-exist')], dir);
             expect(result.skipped).toHaveLength(0);
             expect(result.total).toBe(0);
-        });
-
-        await it('handles mixed directories — only flags skippable extensions', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-mixed`);
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, 'index.ts'), 'const x: number = 1;');
-            writeFileSync(join(dir, 'style.css'), 'body {}');
-            writeFileSync(join(dir, 'index.html'), '<html></html>');
-            writeFileSync(join(dir, 'main.js'), 'const x = 1;');
-            writeFileSync(join(dir, 'README.md'), '# Hello');
-            writeFileSync(join(dir, 'data.json'), '{}');
-
-            const result = scanForNativeSkips([dir], dir);
-            expect(result.skipped).toHaveLength(3);
-            expect(result.total).toBe(6);
-
             rmSync(dir, { recursive: true, force: true });
         });
 
-        await it('NATIVE_SKIP_EXTENSIONS covers the documented gap', async () => {
-            // The README documents: CSS/HTML/Vue/Markdown need the Node-API host
-            expect(NATIVE_SKIP_EXTENSIONS.has('.css')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.html')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.htm')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.vue')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.md')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.markdown')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.scss')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.sass')).toBe(true);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.less')).toBe(true);
-            // JS/TS/JSX are handled natively
-            expect(NATIVE_SKIP_EXTENSIONS.has('.ts')).toBe(false);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.tsx')).toBe(false);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.js')).toBe(false);
-            expect(NATIVE_SKIP_EXTENSIONS.has('.jsx')).toBe(false);
-        });
-
-        // The regression the other ten missed, because every one of them passed
-        // the target directory as `cwd` TOO — so `join(cwd, p)` doubled it into a
-        // path that happened to make the assertion fail for the wrong reason.
-        // The real caller does not: `gjsify format --check /srv/app` runs from an
-        // unrelated cwd, and `join` turns that into `<cwd>/srv/app`, which does not
-        // exist. `statSync` throws, the entry is dropped, and the scan reports
-        // nothing — so `--check` exits 0 under GJS having checked nothing, which is
-        // the single failure this module exists to prevent.
+        // `resolve`, not `join`: `gjsify format --check /srv/app` from an unrelated
+        // cwd must still scan /srv/app, or the check passes having seen nothing.
         await it('scans an absolute path that is NOT under cwd', async () => {
-            const dir = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-absolute`);
-            const elsewhere = join(tmpdir(), `gjsify-skip-scan-${Date.now()}-cwd`);
-            mkdirSync(dir, { recursive: true });
-            mkdirSync(elsewhere, { recursive: true });
-            writeFileSync(join(dir, 'style.css'), 'body {}');
-
+            const dir = tree({ 'README.md': '# x' });
+            const elsewhere = tree({});
             const result = scanForNativeSkips([dir], elsewhere);
-            expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0]).toBe(join(dir, 'style.css'));
-
+            expect(result.skipped).toStrictEqual([join(dir, 'README.md')]);
             rmSync(dir, { recursive: true, force: true });
             rmSync(elsewhere, { recursive: true, force: true });
+        });
+    });
+
+    await describe('externalParserFor', async () => {
+        await it('mirrors oxfmt: lock files are never formatted, svelte needs its option', async () => {
+            expect(externalParserFor('pnpm-lock.yaml')).toBe(null);
+            expect(externalParserFor('README')).toBe('markdown');
+            expect(externalParserFor('x.MD')).toBe(null);
+            expect(externalParserFor('App.svelte')).toBe(null);
+            expect(externalParserFor('App.svelte', true)).toBe('svelte');
+            expect(externalParserFor('a.tsx')).toBe(null);
+        });
+    });
+
+    await describe('parseJsonc', async () => {
+        await it('drops comments and trailing commas but never touches strings', async () => {
+            const parsed = parseJsonc('{ "a": "x // y", "b": ["/* z */", "q,]"], /* c */ "c": 1, }') as Record<
+                string,
+                unknown
+            >;
+            expect(parsed.a).toBe('x // y');
+            expect(parsed.b).toStrictEqual(['/* z */', 'q,]']);
+            expect(parsed.c).toBe(1);
         });
     });
 };

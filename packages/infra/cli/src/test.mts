@@ -84,6 +84,7 @@ import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 import oxcResolveSuite from './utils/oxc-resolve.spec.js';
 import nativeSkipScanSuite from './utils/native-skip-scan.spec.js';
+import gitignoreSuite from './utils/gitignore.spec.js';
 import buildCacheSuite from './utils/build-cache.spec.js';
 import packageInputsSuite from './utils/package-inputs.spec.js';
 import htmlEntrySuite from './utils/html-entry.spec.js';
@@ -344,6 +345,7 @@ run(
         resolveNpmPackageSuite,
         oxcResolveSuite,
         nativeSkipScanSuite,
+        gitignoreSuite,
         buildCacheSuite,
         packageInputsSuite,
         htmlEntrySuite,

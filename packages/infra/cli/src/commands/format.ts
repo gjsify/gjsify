@@ -25,7 +25,7 @@
 // trailing-comma all, semicolons always, arrow parens always).
 
 import { existsSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
 import {
     OxcNotFoundError,
@@ -118,21 +118,21 @@ export const formatCommand: Command<unknown, FormatOptions> = {
 
         oxfmtArgs.push(...paths);
 
-        // Under GJS the native oxfmt (pure-Rust core) cannot format CSS/HTML/
-        // Vue/Markdown — those need oxfmt's Node-API Prettier host. Without
-        // this scan those files are skipped SILENTLY: `gjsify format --check`
-        // exits 0 under GJS (green check that checked nothing) but fails
-        // under Node in CI. In `--check` mode we FAIL the check when files are
-        // skipped, so a "green check that checked nothing" is impossible.
+        // Under GJS the native oxfmt formats everything but the files napi oxfmt
+        // hands to its Prettier host (Markdown, HTML, Vue, YAML, …), and it drops
+        // those without a word. `--check` FAILS on them, so a green check that
+        // checked nothing is impossible — asked about exactly the files oxfmt
+        // itself would walk with this config, never `node_modules` or ignored ones.
         if (args.check && (await shouldUseNativeOxfmt())) {
-            const scan = scanForNativeSkips(paths, cwd);
+            const scan = scanForNativeSkips(paths, cwd, { configPath });
             if (scan.skipped.length > 0) {
-                const list = scan.skipped.map((f) => `  ${f}`).join('\n');
+                const list = scan.skipped.map((f) => `  ${relative(cwd, f) || f}`).join('\n');
                 console.error(
                     `[gjsify format] ERROR: ${scan.skipped.length} file(s) skipped — ` +
-                        `the native oxfmt (GJS) cannot format them (CSS/HTML/Vue/Markdown):\n` +
+                        `the native oxfmt (GJS) has no Prettier host for them (Markdown/HTML/Vue/YAML/…):\n` +
                         `${list}\n` +
-                        `  The format check is INCOMPLETE. Run \`gjsify format --check\` under Node to check these files.`,
+                        `  The format check is INCOMPLETE. Run \`gjsify format --check\` under Node to check these ` +
+                        `files, or add them to \`ignorePatterns\`.`,
                 );
                 setOxcExitCode(1);
                 return;
