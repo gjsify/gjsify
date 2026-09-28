@@ -149,7 +149,7 @@ function detectedToRegisterPaths(detected: Set<string>): Set<string> {
  */
 function giNamespacesForRegister(registerPath: string): readonly string[] | null {
     for (const prefix of Object.keys(GI_BACKED)) {
-        if (registerPath === prefix || registerPath.startsWith(prefix + '/register/')) {
+        if (registerPath === prefix || registerPath.startsWith(prefix + '/')) {
             return GI_BACKED[prefix];
         }
     }
