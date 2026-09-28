@@ -4,6 +4,10 @@
 
 Proposed
 
+## Title
+
+OS axis — packages whose data is generated on one OS
+
 ## Context
 
 ADR 0018's `os-axis` rule derives its candidate set from **shipping source that branches on the operating system**. The derivation is deliberate: reading the runtime clause as covering operating systems is how the native-bridge set stayed Linux-only while describing itself as platform-independent, and a support claim derived from source beats a hand-maintained list that drifts.
