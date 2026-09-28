@@ -60,7 +60,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 1
+        "tier": 1,
+        "polyfillPeers": {
+            "net": "tls.connect({ socket }) and new TLSSocket(socket) adopt a @gjsify/net Socket by claiming its Gio connection; a runtime's own net.Socket has none to hand over"
+        }
     },
     "license": "MIT",
     "repository": {

@@ -88,6 +88,7 @@ import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
+import './manifest-conformance/rules/polyfill-peers.mjs';
 import './manifest-conformance/rules/reverse-bridge-leg.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
