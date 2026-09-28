@@ -1,4 +1,4 @@
-# ADR 0083: OS axis — packages whose data is generated on one OS
+# ADR 0083 — OS axis — packages whose data is generated on one OS
 
 ## Status
 
