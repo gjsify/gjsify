@@ -194,8 +194,9 @@ gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
 answers it the same way. Without it the bundle is ~50 bytes larger and prints a spurious GI note.
 
 `NODE_ENV` is now a build default — the same `process.env.NODE_ENV="production"` define that
-React's development reconciler needs is set automatically on every app build. A user `--define`
-still overrides it.
+React's development reconciler needs is set automatically on `--app gjs` and `--app browser`
+builds. A user `--define` still overrides it. `--app node` leaves it out: Node has a real
+`process.env`, so the bundle reads `NODE_ENV` at run time like its source does.
 
 Vue needs the same `NODE_ENV` default and three Vue-specific defines besides, and it needs no
 `navigator` flag. The [Vue page](/gjsify/frameworks/vue/) has that recipe in full.
