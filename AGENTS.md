@@ -163,12 +163,12 @@ axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchai
 
 **Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
 Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
-silently truncates the tail with no warning. Held by `scripts/check-agent-context-size.mjs
---check`: the 32 KiB cap plus an EXACT per-file ceiling, so a file can only shrink. Exact means
-BELOW fails too — touch a context file, `--update`, commit `status/agent-context-budget.json`
-with it. Why the ceiling is exact, why no list of over-target files belongs here, and what the
-ledger line does to two concurrent PRs: [docs/governance.md](docs/governance.md) § Agent context
-budget.
+silently truncates the tail with no warning — that cap is unconditional. Held by
+`scripts/check-agent-context-size.mjs --check`: the 32 KiB cap, plus a fail on growing more than
+512 bytes past the file's size at the PR base (`HEAD^` on a push to `main`). A file that needs
+more room opts in with a `Context-Budget: grow <path>` commit trailer. Why base-relative replaced
+an exact committed ledger, and the residual it leaves: [docs/governance.md](docs/governance.md)
+§ Agent context budget.
 
 **Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
 AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →

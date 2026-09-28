@@ -174,32 +174,57 @@ Adding a margin to the ceilings was considered and rejected: it weakens the ratc
 exactly its own size, and it is a second, weaker fix for a problem de-gating already
 closed.
 
-### `check-agent-context-size` — exact ledger, still gated
+### `check-agent-context-size` — from an exact ledger to a base-relative check
 
 This one stays a gate: it asserts a fact with a real cost behind it (past 32 KiB Codex
 truncates the tail with no warning), so de-gating was not on offer. Per-file byte ceilings
-look immune — different files never contend — but the shape is the same, and it was
-reproduced rather than argued. Ceiling 955; a cleanup takes the file to 907 and does not
-re-baseline; two PRs then add 35 bytes each in different paragraphs. Both green, merge
-clean, `main` at 979 over 955.
+first looked immune — different files never contend — but the shape was the same as
+`check-comment-budget`'s, and it was reproduced rather than argued: ceiling 955, a cleanup
+takes the file to 907 and does not re-baseline, two PRs then add 35 bytes each in different
+paragraphs. Both green, merge clean, `main` at 979 over 955.
 
-The window is always **the slack itself**, and the fix is to have none: a file BELOW its
-ceiling now fails, with `--update` named in the message. At zero slack every size change
-must edit that path's line in `status/agent-context-budget.json`, so two concurrent
-changes to the same context file collide there and **git** refuses the merge — the ledger
-becomes the interlock, and the check no longer has to see a branch it was never run on.
-Measured both ways: +35 B and +41 B conflict in the ledger and are blocked.
+**The original fix (2026, retired below): have no slack.** A committed ledger
+(`status/agent-context-budget.json`) held one line per file, and a file BELOW its ceiling
+failed too, with `--update` named in the message. At zero slack every size change had to
+edit that path's line, so two concurrent changes to the SAME file collided there and git
+refused the merge — the ledger was the interlock, and the check never had to see a branch
+it was not run on. Measured both ways: +35 B and +41 B conflicted in the ledger and were
+blocked.
 
-**Residual, stated because it is real.** Two PRs that change one file by the *identical*
-number of bytes write the identical ledger line, which merges clean and lands over the
-ceiling. Byte-exact collisions are narrow, not impossible, and `main`'s own run is what
-catches them. Closing that too needs `strict_required_status_checks_policy: true` or a
-merge queue — both were weighed and both lose to the arithmetic in § PR size above: a full
-pass is ~25 minutes, and every merge into `main` would force a re-run of every open PR.
+**What that fix cost.** The ledger is a single aggregated file, and per-file exactness did
+not change that *any* touch to *any* context file meant an edit to *that one JSON file* — two
+PRs shrinking two DIFFERENT context files still collide there, on the file itself, not on a
+shared byte count. 77 of the commits touching an AGENTS.md since 2026-09-01 edited nothing
+else: the ledger line, following a file that had usually only SHRUNK.
 
-**The cost, stated because it is paid by everyone.** Changing an agent context file by one
-byte fails CI until `--update` runs and the ledger is committed alongside. That friction is
-the mechanism, not a side effect.
+**The current fix: compare to the PR's own base instead of a shared ledger.**
+`git show $BASE:<path>` gives each file's size where the branch forked (or, on a push to
+`main`, at the immediately preceding commit); growing past `GROWTH_TOLERANCE` (512 B — large
+enough that a typo fix never trips it, small enough that a new paragraph does) fails unless a
+commit in range carries `Context-Budget: grow <path>`. A shrink needs no companion edit
+(there is no ledger line to update), so the 77-commit class is gone by construction. Two
+branches each growing the SAME file past tolerance still each fail on THEIR OWN diff — no
+shared state to collide over, so nothing here is a repeat of `check-comment-budget`'s
+whole-tree-aggregate mistake: the number scored is per file per branch, never summed across
+branches.
+
+**Residual, stated because it is real — narrower than before, not gone.** Two branches that
+each grow the SAME file by the same amount, both within tolerance, land a combined jump
+neither PR's own run measured — the base-relative shape of #1157 one level down. The
+push-to-main run is what still catches it: on `push`, BASE is the immediately preceding
+`main` commit, so the very next commit to touch that file is compared against the state the
+first merge actually left, not against the fork point either PR branched from. That trades a
+possible red `main` for removing the ledger PRs were colliding over on every ordinary edit —
+the same trade-off `check-comment-budget` made by de-gating entirely, applied here by moving
+the collision point later rather than removing it. Closing it fully still needs
+`strict_required_status_checks_policy: true` or a merge queue — both were weighed and both
+lose to the arithmetic in § PR size above: a full pass is ~25 minutes, and every merge into
+`main` would force a re-run of every open PR.
+
+**The cost, stated because it is paid by everyone.** Ordinary edits — a typo, a reworded
+sentence, a link, most single-paragraph rewrites — pay nothing: no ledger to touch, no
+`--update` to run. Only real growth past 512 bytes pays, with a one-line trailer rather than
+a JSON commit.
 
 ### An anchor grep over workflow comments — DECLINED, never built
 
@@ -236,6 +261,16 @@ exact enough that concurrent spenders collide in git first. A whole-tree or whol
 aggregate is structurally blind to concurrent PRs; only per-item exactness gives the merge
 something to trip over.
 
+**A third option, taken by `check-agent-context-size`'s later revision: give the check no
+shared state to collide over at all.** Compare each branch's diff to ITS OWN base rather than
+to a committed number, and two branches cannot collide on a ledger that does not exist —
+every PR is scored against a snapshot only it ever changes. The price is the mirror of an
+exact ledger's guarantee: a combined-but-individually-tolerable overshoot is not blocked at
+PR time, only caught one generation later, on the push that lands it over. That trade is
+worth it exactly when the shared ledger's OWN upkeep — not its slack — is the thing
+generating the most PR churn, which per-item exactness does not fix (§ `check-agent-context-
+size`, "what that fix cost").
+
 ## Agent context budget
 
 The root AGENTS.md reached **277 KB** before it was split, one defensible paragraph at a time.
@@ -243,17 +278,19 @@ That is the whole argument for a ceiling: no single addition was wrong, and the 
 unreadable.
 
 `scripts/check-agent-context-size.mjs --check` holds a 32 KiB hard cap — `project_doc_max_bytes`,
-where Codex silently truncates the tail with no warning — plus an EXACT per-file ceiling in
-`status/agent-context-budget.json`.
+where Codex silently truncates the tail with no warning — plus a growth check: no file may grow
+more than 512 bytes past its size at the PR base (`git show $BASE:<path>`; `HEAD^` on a push to
+`main`) without a `Context-Budget: grow <path>` commit trailer. Full mechanism, and why it
+replaced a committed per-file ledger: § Concurrent PRs → `check-agent-context-size`.
 
-**Exact, not an upper bound, and that is deliberate.** Below fails too, so a file that shrank
-must record the new ceiling; the ratchet then makes regrowth a failing check rather than a
-gradual return to 277 KB.
+**Base-relative, not an upper bound, and that is deliberate.** A file that shrank needs no
+companion commit — there is no ledger line to fall out of date — so the check only ever
+fires on REGROWTH, never on someone else's cleanup landing first.
 
 **No list of over-target files belongs in a context file.** Several are over the 20 KB target,
-the check PRINTS which, and a list written down goes stale as OTHER files grow — so the gate
-catches regrowth instead of claiming the target is met.
+the check PRINTS which on every run, and a list written down goes stale as OTHER files grow —
+so the gate catches regrowth instead of claiming the target is met.
 
-**The ledger line is also a collision detector.** Slack is what two concurrent PRs each spend in
-full, and `status/agent-context-budget.json` is what makes them collide in git rather than on
-`main` (§ Concurrent PRs).
+**Growth still needs a reviewed trailer, not a bigger number.** `Context-Budget: grow <path>`
+is the one-line acknowledgment that used to be a ledger commit — small enough to write inline
+with the change that needs the room, unlike a JSON file nothing else in the diff explains.
