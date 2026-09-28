@@ -23,6 +23,8 @@ interface _GstElementProps extends Gst.Element {
     wave?: number;
     /** videotestsrc: 0=SMPTE bars, 1=snow, ... */
     pattern?: number;
+    /** device path for sources that support it (v4l2src, pulsesrc, ...) */
+    device?: string;
 }
 
 export interface MediaTrackConstraints {
@@ -50,7 +52,7 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
 
     if (constraints.audio) {
         const audioConstraints = typeof constraints.audio === 'object' ? constraints.audio : {};
-        const source = _createAudioSource();
+        const source = _createAudioSource(audioConstraints);
         const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
@@ -74,7 +76,7 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
 
     if (constraints.video) {
         const videoConstraints = typeof constraints.video === 'object' ? constraints.video : {};
-        const source = _createVideoSource();
+        const source = _createVideoSource(videoConstraints);
         const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
@@ -221,7 +223,7 @@ function _chooseSource(kind: string, candidates: string[], converter: string, fa
     return Gst.ElementFactory.make(fallback, null)!;
 }
 
-function _createAudioSource(): Gst.Element {
+function _createAudioSource(constraints: MediaTrackConstraints): Gst.Element {
     // Real sources in priority order — each one OPENED, not just made.
     const el = _chooseSource('audio', ['pipewiresrc', 'pulsesrc', 'autoaudiosrc'], 'audioconvert', 'audiotestsrc');
     try {
@@ -232,14 +234,20 @@ function _createAudioSource(): Gst.Element {
     if (_sourceChoice.get('audio') === 'audiotestsrc') {
         (el as _GstElementProps).wave = 0; // sine — audible for debugging
     }
+    if (constraints.deviceId) {
+        (el as _GstElementProps).device = constraints.deviceId;
+    }
     return el;
 }
 
-function _createVideoSource(): Gst.Element {
+function _createVideoSource(constraints: MediaTrackConstraints): Gst.Element {
     const el = _chooseSource('video', ['pipewiresrc', 'v4l2src', 'autovideosrc'], 'videoconvert', 'videotestsrc');
     if (_sourceChoice.get('video') === 'videotestsrc') {
         (el as _GstElementProps).is_live = true;
         (el as _GstElementProps).pattern = 0; // SMPTE bars
+    }
+    if (constraints.deviceId) {
+        (el as _GstElementProps).device = constraints.deviceId;
     }
     return el;
 }
