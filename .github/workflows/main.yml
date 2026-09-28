@@ -678,8 +678,8 @@ jobs:
       - name: Build
         env:
           # FULL is computed as a GitHub expression (cleaner than shell logic).
-          # Note it SUPERSETS the examples gate below, so whenever build:examples
-          # runs the build was full → it has the complete package tree.
+          # Note it SUPERSETS the `examples-build` job's gate, so whenever the
+          # examples build the tree they get was full → the complete package tree.
           #
           # The `contains(include-args, …)` gates in this file substring-match
           # this same value; they are unaffected by the token spelling (they
@@ -725,10 +725,9 @@ jobs:
       # unbuilt dev tree must still pack.
       #
       # WHY HERE: this is a POST-condition on a built tree, and `build` is the
-      # only job that has one. It runs right after `Build` — before `Verify
-      # committed bundles`, which rebuilds parts of the tree and restores
-      # artifacts around itself. Cheap (stat-only, no rebuild), so no job that
-      # merely restores the build cache needs to repeat it.
+      # only job that has one. It runs right after `Build`, before the cache
+      # save below that publishes the tree. Cheap (stat-only, no rebuild), so no
+      # job that merely restores the build cache needs to repeat it.
       #
       # Both build paths above leave a complete tree: FULL builds everything,
       # and the selective path only runs when the cache probe found a warm
@@ -791,45 +790,34 @@ jobs:
           path: ${{ steps.setup.outputs.build-cache-paths }}
           key: ${{ steps.setup.outputs.build-cache-key }}
 
-      # Rebuilds the two generated things still committed — `affected.gjs.mjs`
-      # and `@gjsify/tsc`'s shipped libs — and compares them byte-for-byte
-      # against `git show HEAD:<path>`. `affected.gjs.mjs` is the one that needs
-      # it: the `changes` job boots it before any install and it gates every
-      # other job, so a stale copy does not fail, it silently gates today's PR
-      # with an older commit's tables.
-      #
-      # It also BUILDS `cli.gjs.mjs` + `tsc.gjs.mjs` and leaves them on disk for
-      # the artifact upload below — see the `groups` comments in the script for
-      # why built-but-ungrouped is the mechanism rather than an oversight.
-      #
-      # And it is the guard that ADR 0002's untracking STAYS: the artifact set
-      # is discovered from git and a committed bundle with no rebuild recipe is
-      # a hard error, so re-committing one reds CI.
-      #
-      # WHY HERE, and only here: ONE job. The rebuild is the expensive part, and
-      # `build` is the only job that already has a built workspace for the
-      # bundle build to resolve its deps from. AFTER `Build`, so the deps'
-      # `lib/` is current. The expected bytes come from git, NOT the working
-      # tree — `gjsify run build` rewrites those files in place, so a
-      # working-tree comparison would compare a fresh build against itself.
-      - name: Verify committed bundles rebuild from source
-        id: verify-bundles
-        timeout-minutes: 30
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs'
-
-      # When the check fails, hand back the bytes THIS run built. "Rebuild it
-      # locally and commit" is the normal fix, but it is not always a fix a
-      # contributor can apply: at least two developer machines measurably do not
-      # reproduce these bundles (a module-order difference that survives
-      # matching the Node version, the rolldown version, the lockfile and the
-      # core count — see release-cut.yml, which exists because of it). On such a
-      # machine the instruction is an infinite loop and CI is the only source of
-      # the bytes that satisfy the check. Uploading them costs nothing on a
-      # green run (the step is skipped) and turns a dead end into a download.
+      # ── The GJS bootstrap bundles: PRODUCED here, VERIFIED elsewhere ──────
       # The transport that replaces `git` for the two big bundles (ADR 0002).
       # Every downstream job boots `dist/cli.gjs.mjs` (≈17 e2e suites do), and
-      # once it is untracked a checkout no longer carries it.
+      # once it is untracked a checkout no longer carries it. So the artifact is
+      # made in THIS job, which every consumer already `needs:` — the contract
+      # `.github/actions/gjsify-setup`'s `bootstrap-bundles` input states
+      # ("requires a job that `needs: build`").
       #
+      # A FULL build has already written both (`gjsify run build` ends in
+      # `build:gjs-bundle`; the foreach builds `@gjsify/tsc`). A SELECTIVE build
+      # usually has not, and `--bootstrap` then runs exactly the leading steps of
+      # `verify-committed-bundles.mjs`'s recipes that produce them — including
+      # `@gjsify/cli build --with-dependencies`, which pins the inlined closure to
+      # HEAD rather than to whatever the build cache restored. Presence means THIS
+      # job wrote the file: `gjsify-setup` `git clean`s both dist dirs before any
+      # step here runs, and this job does not download the artifact it produces.
+      #
+      # The byte comparison that used to sit here (325 s, serial, on the required
+      # gate's critical path — run 36433926348) is the `verify-bundles` job now.
+      # Nothing consumes its output, so nothing has to wait for it but the gate.
+      - name: Build the GJS bootstrap bundles (when Build did not)
+        run: |
+          if [ -f packages/infra/cli/dist/cli.gjs.mjs ] && [ -f packages/infra/tsc/dist/tsc.gjs.mjs ]; then
+            echo "Build wrote both bootstrap bundles in this job — nothing to add."
+          else
+            su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs --bootstrap'
+          fi
+
       # NOT the build-output cache: its key hashes `packages/*/*/src/**/*.ts`,
       # while `cli.gjs.mjs` inlines `packages/infra/resolve-npm/lib/*.mjs` —
       # tracked source that is not under `src/**` and not in the key. Two
@@ -838,11 +826,6 @@ jobs:
       #
       # Unconditional on purpose: a SELECTIVE build must still publish these, or
       # a downstream job silently gets a bundle from another revision.
-      #
-      # While the bundles are still tracked this uploads the checked-out bytes
-      # and the download below overwrites them with what they already are — a
-      # no-op that proves the transport with the old path still in place. The
-      # untracking commit makes the rebuild the producer.
       - name: Upload the GJS bootstrap bundles
         uses: actions/upload-artifact@v7
         with:
@@ -853,50 +836,58 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # Build examples (+ check below) only when an example/showcase is in the
-      # closure, e2e will run (its lint-engines suite asserts example dist), or
-      # a full run. --jobs 1: native rolldown's --globals auto multi-pass is
-      # memory-heavy and the three.js example bundles exhaust the runner's RAM
-      # at cpu-count parallelism.
-      - name: Build examples
+      # ── The built tree, handed to `examples-build` ──────────────────────
+      # `Build examples` + `Check examples` (575 s together) used to run here,
+      # serially after everything above, because they need THIS job's full
+      # package tree. They are their own job now, and this is how that job gets
+      # the tree. Not the build-output cache: its key hashes only `*.ts` sources,
+      # so an exact hit can still carry a `dist/` built from an older `.scss`,
+      # `.blp` or `.mjs` input — harmless for `check`, which reads `.d.ts`, not
+      # for a bundle that inlines the output. The artifact is this run's bytes.
+      #
+      # The path SET is the cache's (`build-cache-paths`, one definition in the
+      # composite), `!` lines honoured as excludes, plus the gitignored
+      # GENERATED sources under `src/` and `scss/` — `Check examples` resolves
+      # `@gjsify/adwaita-web` to its source, which imports
+      # `src/styles.generated.ts`, and only a build writes that file. Listed by
+      # git (`--others --ignored`), not by name, so the next generated source is
+      # carried without an edit here. A single tarball because the tree is tens
+      # of thousands of small files. Gated on the same condition as
+      # `examples-build` — no job reads it otherwise.
+      - name: Pack the built tree for the examples build
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        timeout-minutes: 45
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
+        env:
+          CACHE_PATHS: ${{ steps.setup.outputs.build-cache-paths }}
+        run: |
+          set -euo pipefail
+          include=()
+          exclude=()
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            case "$line" in
+              '!'*) exclude+=("--exclude=${line#!}") ;;
+              # Unquoted on purpose: this is the glob expansion. An unmatched
+              # glob stays literal and the `-e` test drops it.
+              *) for p in $line; do if [ -e "$p" ]; then include+=("$p"); fi; done ;;
+            esac
+          done <<< "$CACHE_PATHS"
+          mapfile -t generated < <(git -c safe.directory='*' ls-files --others --ignored --exclude-standard -- \
+            ':(glob)packages/*/*/src/**' ':(glob)packages/*/*/scss/**')
+          echo "[ci] build tree: ${#include[@]} path(s), ${#exclude[@]} exclude(s), ${#generated[@]} generated source(s)"
+          printf '  generated: %s\n' "${generated[@]}"
+          mkdir -p .gjsify-cache
+          tar -cf - "${exclude[@]}" -- "${include[@]}" "${generated[@]}" | gzip -1 > .gjsify-cache/build-tree.tgz
+          ls -l .gjsify-cache/build-tree.tgz
 
-      # Same declared-output post-condition as the core sweep above, for the
-      # packages that sweep deliberately excludes because they build in the step
-      # right before this one. A showcase is published like any other package,
-      # and a declared entry point it does not ship breaks a user the same way:
-      # `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` promised four
-      # runtimes, shipped only the GJS bundle, and `deno run npm:@gjsify/cli
-      # showcase excalibur-jelly-jumper` died on the file it named. Gated on the
-      # SAME condition as `Build examples` — it reads what that step produces.
-      - name: Verify declared example outputs exist
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        run: su testuser -c 'node scripts/verify-package-outputs.mjs --scope examples'
-
-      # Type-check the examples. UNLIKE the package `check` job (which runs in
-      # parallel off the build cache), this MUST stay in the build job: the
-      # example type-check resolves workspace deps to their SOURCE (e.g.
-      # @gjsify/adwaita-web/src/index.ts → ./styles.generated.js), and those
-      # generated sources only exist after this job's full build. The cache
-      # carries lib/.d.ts, not generated src, so a cache-only job can't do it.
-      - name: Check examples
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
-
-      # Hand the freshly-built example dist to the e2e + examples jobs. They
-      # CANNOT rebuild examples themselves (build:examples needs the full
-      # package tree of THIS job), so the dist travels as an artifact instead.
-      - name: Upload example build output
+      - name: Upload the built tree
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         uses: actions/upload-artifact@v7
         with:
-          name: example-dist-fedora${{ matrix.fedora.v }}
-          path: |
-            showcases/*/*/dist
-            examples/*/*/dist
+          name: build-tree-fedora${{ matrix.fedora.v }}
+          path: .gjsify-cache/build-tree.tgz
           retention-days: 1
+          # Already gzip'd; a second pass buys nothing.
+          compression-level: 0
           if-no-files-found: error
 
       # ── macOS leg: build the bundles HERE, run them THERE ────────────────
@@ -1010,6 +1001,145 @@ jobs:
           # reports the count it received and no-ops cleanly at zero.
           if-no-files-found: warn
 
+  # ── Committed bundles reproduce from source ──────────────────────────
+  # Rebuilds the two generated things still committed — `affected.gjs.mjs`
+  # and `@gjsify/tsc`'s shipped libs — and compares them byte-for-byte
+  # against `git show HEAD:<path>`. `affected.gjs.mjs` is the one that needs
+  # it: the `changes` job boots it before any install and it gates every
+  # other job, so a stale copy does not fail, it silently gates today's PR
+  # with an older commit's tables.
+  #
+  # And it is the guard that ADR 0002's untracking STAYS: the artifact set
+  # is discovered from git and a committed bundle with no rebuild recipe is
+  # a hard error, so re-committing one reds CI.
+  #
+  # ITS OWN JOB since it stopped being the producer of anything a later job
+  # reads: the `build` job makes the bootstrap bundles itself
+  # (`--bootstrap`), so this 325 s check (run 36433926348) left the required
+  # gate's critical path and runs beside `check`, `test` and `e2e`. It
+  # restores the tree `build` just saved and is self-sufficient on a cold
+  # one anyway: `--with-dependencies` rebuilds the inlined closure from HEAD,
+  # and the script bootstraps the native facades itself. The expected bytes
+  # come from git, NOT the working tree, so what the cache restored cannot
+  # make it pass.
+  verify-bundles:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [26.x]
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Verify committed bundles Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+          node-version: ${{ matrix.node-version }}
+      - name: Verify committed bundles rebuild from source
+        timeout-minutes: 30
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/verify-committed-bundles.mjs'
+
+  # ── Examples: build + type-check ────────────────────────────────────
+  # Were the last four steps of `build` (396 s build + 179 s check, run
+  # 36433926348), so every job that `needs: build` waited for them — `check`,
+  # `test`, `e2e`, the ship legs — though only `examples` and the example-dist
+  # e2e suite read what they produce. Now only those two wait.
+  #
+  # The package tree is the `build` job's own (`build-tree-fedora<v>`, see
+  # "Pack the built tree"), extracted over what `gjsify-setup` restored, so
+  # this job bundles the examples against exactly the bytes a single-job
+  # build would have. The job-level `if:` is the examples gate the four steps
+  # used to share, and `build`'s FULL expression supersets it, so whenever
+  # this runs the tree is complete.
+  #
+  # --jobs 1: native rolldown's --globals auto multi-pass is memory-heavy and
+  # the three.js example bundles exhaust the runner's RAM at cpu-count
+  # parallelism.
+  examples-build:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [26.x]
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Build examples Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+          node-version: ${{ matrix.node-version }}
+          # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
+          bootstrap-bundles: 'true'
+      - name: Download the built tree
+        uses: actions/download-artifact@v8
+        with:
+          name: build-tree-fedora${{ matrix.fedora.v }}
+          path: .gjsify-cache
+      # AFTER `gjsify-setup`, so this run's tree wins over the cache it restored.
+      # The archive carries none of the paths the composite re-asserts from HEAD
+      # or takes from the bootstrap artifact — the cache's own `!` excludes.
+      - name: Extract the built tree
+        run: |
+          tar -xzf .gjsify-cache/build-tree.tgz --no-same-owner
+          rm .gjsify-cache/build-tree.tgz
+          chown -R testuser:testuser packages
+
+      - name: Build examples
+        timeout-minutes: 45
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
+
+      # Same declared-output post-condition as the core sweep in `build`, for
+      # the packages that sweep deliberately excludes because they build in the
+      # step right before this one. A showcase is published like any other
+      # package, and a declared entry point it does not ship breaks a user the
+      # same way: `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` promised
+      # four runtimes, shipped only the GJS bundle, and `deno run
+      # npm:@gjsify/cli showcase excalibur-jelly-jumper` died on the file it
+      # named.
+      - name: Verify declared example outputs exist
+        run: su testuser -c 'node scripts/verify-package-outputs.mjs --scope examples'
+
+      # Type-check the examples. UNLIKE the package `check` job (which runs off
+      # the build cache), this needs the build's GENERATED sources: the example
+      # type-check resolves workspace deps to their SOURCE (e.g.
+      # @gjsify/adwaita-web/src/index.ts → ./styles.generated.js), and those
+      # exist only after a full build. The built-tree artifact carries them.
+      - name: Check examples
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
+
+      # Hand the freshly-built example dist to the e2e + examples jobs. They
+      # CANNOT rebuild examples themselves (build:examples needs the full
+      # package tree), so the dist travels as an artifact instead.
+      - name: Upload example build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: example-dist-fedora${{ matrix.fedora.v }}
+          path: |
+            showcases/*/*/dist
+            examples/*/*/dist
+          retention-days: 1
+          if-no-files-found: error
+
   # ── Type-check: packages ────────────────────────────────────────────
   # Restores the build job's .d.ts and type-checks the workspace packages in
   # its own job so it overlaps with test/e2e instead of serializing after the
@@ -1118,8 +1248,8 @@ jobs:
       # which drags in `@gjsify/example-node-cli-sab-parallel-hash`) died on
       # `Error opening file …/dist/index.gjs.js: No such file or directory`,
       # attributing a CI-plumbing gap to whatever package the PR touched.
-      # Examples keep their coverage — `Build examples` + `Check examples` here,
-      # `Test CLI/net examples` in the `examples` job — this only stops the test
+      # Examples keep their coverage — `Build examples` + `Check examples` in
+      # `examples-build`, `Test CLI/net examples` in the `examples` job — this only stops the test
       # shards from running something they cannot have built.
       # GJSIFY_TEST_EXPECT_AXES=Gl: xvfb + llvmpipe IS a GL host, so an
       # `on('Gl')` suite that stands down here is a regression, not a skip —
@@ -1388,8 +1518,8 @@ jobs:
   # lint-engines suite asserts every example has built output). Gated when an
   # `e2e` path was touched OR on a full run.
   e2e:
-    needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    needs: [changes, setup, build, examples-build]
+    if: ${{ always() && needs.build.result == 'success' && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1681,8 +1811,8 @@ jobs:
   # cache-only state). Gated when an example/showcase is in the closure (or a
   # full run).
   examples:
-    needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    needs: [changes, setup, build, examples-build]
+    if: ${{ always() && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -2834,7 +2964,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -2854,6 +2984,8 @@ jobs:
           R_CHANGES: ${{ needs.changes.result }}
           R_TREE: ${{ needs.tree-checks.result }}
           R_BUILD: ${{ needs.build.result }}
+          R_VERIFY_BUNDLES: ${{ needs.verify-bundles.result }}
+          R_EXAMPLES_BUILD: ${{ needs.examples-build.result }}
           R_CHECK: ${{ needs.check.result }}
           R_TEST: ${{ needs.test.result }}
           R_CROSS: ${{ needs.cross-runtime.result }}
@@ -2886,7 +3018,9 @@ jobs:
             printf '| Matrix planner (setup) | `%s` |\n'        "$R_SETUP"
             printf '| Affected classifier (changes) | `%s` |\n' "$R_CHANGES"
             printf '| Whole-tree checks (lint/format/deps) | `%s` |\n' "$R_TREE"
-            printf '| Build + examples | `%s` |\n'              "$R_BUILD"
+            printf '| Build | `%s` |\n'                         "$R_BUILD"
+            printf '| Committed bundles reproduce | `%s` |\n'   "$R_VERIFY_BUNDLES"
+            printf '| Examples: build + type-check | `%s` |\n'  "$R_EXAMPLES_BUILD"
             printf '| Type-check | `%s` |\n'                    "$R_CHECK"
             printf '| Unit tests (GJS, 4 shards) | `%s` |\n'    "$R_TEST"
             printf '| Cross-runtime (node+bun+deno) | `%s` |\n' "$R_CROSS"
@@ -2998,7 +3132,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -3084,6 +3218,8 @@ jobs:
             changes=${{ needs.changes.result }}
             tree-checks=${{ needs.tree-checks.result }}
             build=${{ needs.build.result }}
+            verify-bundles=${{ needs.verify-bundles.result }}
+            examples-build=${{ needs.examples-build.result }}
             check=${{ needs.check.result }}
             test=${{ needs.test.result }}
             cross-runtime=${{ needs.cross-runtime.result }}
