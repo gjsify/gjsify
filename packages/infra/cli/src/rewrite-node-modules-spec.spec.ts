@@ -23,8 +23,29 @@
 // `test:node` script of its own — same placement rationale as
 // `entry-points.spec.ts` / `alias-plugin.spec.ts`.
 
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+
 import { describe, expect, it } from '@gjsify/unit';
-import { extractPackageSpec } from '@gjsify/rolldown-plugin-gjsify';
+import { extractPackageSpec, rewriteContents } from '@gjsify/rolldown-plugin-gjsify';
+
+/**
+ * Run the `var __dirname`/`var __filename` preamble a rewrite emitted, as if the
+ * bundle lived at `bundleUrl`, and return what the two names came out as.
+ *
+ * The preamble is lifted off the rewritten code and evaluated, not string-matched:
+ * the defect is in what the expression EVALUATES to, and a raw file on disk could
+ * not be imported under GJS, where `node:url` only exists inside a bundle. So the
+ * import line is dropped and the test's own `fileURLToPath` is passed in under the
+ * name that line would have bound.
+ */
+function evalPreamble(code: string, bundleUrl: string): { dirname: string; filename: string } {
+    const lines = code.split('\n').filter((line) => line.startsWith('var __'));
+    const body = lines.join('\n').replaceAll('import.meta.url', JSON.stringify(bundleUrl));
+    const run = new Function('__gjsifyFileURLToPath', `${body}\nreturn [__dirname, __filename];`);
+    const [dirname, filename] = run(fileURLToPath) as [string, string];
+    return { dirname, filename };
+}
 
 export default async () => {
     await describe('extractPackageSpec — POSIX paths', async () => {
@@ -85,6 +106,56 @@ export default async () => {
             // Not a package file — but the caller writes this into the bundle,
             // so it must at least be separator-consistent.
             expect(extractPackageSpec('C:\\ws\\src\\index.js', 'win32')).toBe('C:/ws/src/index.js');
+        });
+    });
+
+    await describe('rewriteContents — __dirname/__filename are filesystem paths', async () => {
+        // Cases 2 (build-relative) and 3 (PnP zip) derived both names from
+        // `new URL(…).pathname`, a URL path: `%20` stayed encoded on every OS, and on
+        // win32 the drive came out as `/C:/…`, which nothing on Windows opens. Both
+        // now go through `fileURLToPath`; the space shows the difference on any host.
+        const root = join(fileURLToPath(pathToFileURL('.')), 'my app');
+        const bundleDir = join(root, 'dist');
+        const bundleUrl = pathToFileURL(join(bundleDir, 'bundle.js')).href;
+        const dep = join(root, 'node_modules', 'pkg', 'lib', 'x.js');
+        const src = 'export const u = import.meta.url, d = __dirname, f = __filename;';
+
+        await it('decodes the build-relative case to the dep file itself', async () => {
+            const out = rewriteContents({ path: dep }, src, bundleDir, false);
+            const got = evalPreamble(out!.code, bundleUrl);
+            expect(got.filename).toBe(dep);
+            expect(got.dirname).toBe(join(root, 'node_modules', 'pkg', 'lib'));
+        });
+
+        await it('decodes the zip-resident case to the bundle itself', async () => {
+            const zipped = join(bundleDir, 'cache', 'pkg.zip', 'node_modules', 'pkg', 'x.js');
+            const out = rewriteContents({ path: zipped }, src, bundleDir, false);
+            const got = evalPreamble(out!.code, bundleUrl);
+            expect(got.filename).toBe(join(bundleDir, 'bundle.js'));
+            expect(got.dirname).toBe(bundleDir);
+        });
+
+        // The header is needed whenever a `__gjsifyFileURLToPath(…)` call SURVIVES into the
+        // output, which is not the same as the preamble being non-empty: a file declaring its
+        // OWN `__dirname` gets no generated declaration, yet `import.meta.dirname` is still
+        // rewritten to the helper. Keyed on `preamble.length` alone, that combination emitted a
+        // bare `__gjsifyFileURLToPath(…)` — a ReferenceError at first use, in a bundle that
+        // otherwise looked correct.
+        await it('imports fileURLToPath for a file that declares its own __dirname', async () => {
+            const own = 'var __dirname = "MINE";\nconst d = import.meta.dirname;\nexport { d };\n';
+            const out = rewriteContents({ path: dep }, own, bundleDir, false);
+            const code = out!.code;
+            expect(code.includes('__gjsifyFileURLToPath(')).toBe(true);
+            expect(code).toMatch(/import \{ fileURLToPath as __gjsifyFileURLToPath \} from "node:url";/);
+            // the file's own declaration is left alone — no second `var __dirname`
+            expect(code.match(/var __dirname/g)).toHaveLength(1);
+        });
+
+        await it('imports fileURLToPath for the zip-resident case too', async () => {
+            const zipped = join(bundleDir, 'cache', 'pkg.zip', 'node_modules', 'pkg', 'x.js');
+            const own = 'var __filename = "MINE";\nconst d = import.meta.dirname;\nexport { d };\n';
+            const out = rewriteContents({ path: zipped }, own, bundleDir, false);
+            expect(out!.code).toMatch(/import \{ fileURLToPath as __gjsifyFileURLToPath \} from "node:url";/);
         });
     });
 };

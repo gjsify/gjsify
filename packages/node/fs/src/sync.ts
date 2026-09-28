@@ -103,7 +103,7 @@ export function readdirSync(
         const childPath = join(pathStr, entry.name);
 
         if (options?.withFileTypes) {
-            result.push(new Dirent(childPath, entry.name, entry.type));
+            result.push(new Dirent(childPath, entry.name, entry.type, undefined, pathStr));
         } else {
             result.push(entry.name);
         }
