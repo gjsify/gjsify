@@ -401,6 +401,15 @@ export class Socket extends Duplex {
                         this.readyState = this.writable ? 'writeOnly' : 'closed';
                     }
                     this.push(null);
+                    // Node's `onStreamRead` follows the EOF push with
+                    // `read(0)` (lib/internal/stream_base_commons.js), which
+                    // emits 'end' on an EMPTY paused stream too. Without it a
+                    // socket nobody reads from (a server that only writes)
+                    // never sees 'end', so it never closes and
+                    // `server.close()` waits forever. Hidden on GJS by
+                    // @gjsify/stream; measured on Node's own stream under the
+                    // node-gi harness (given-socket.spec.ts).
+                    this.read(0);
                     break;
                 }
 
