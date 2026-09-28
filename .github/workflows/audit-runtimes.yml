@@ -2,6 +2,11 @@ name: Audit runtimes
 
 on:
   pull_request:
+  # `Detect runtime-triplet drift` is a required check, so a merge queue waits
+  # for it on the queue's own commit, which only this trigger produces. Nothing
+  # below reads PR context except `github.base_ref`, which falls back to `main`
+  # — the queue's base.
+  merge_group:
   push:
     branches:
       - main

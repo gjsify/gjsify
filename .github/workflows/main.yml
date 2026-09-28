@@ -2,6 +2,15 @@ name: GJS
 
 on:
   pull_request:
+  # MERGE QUEUE READINESS. `CI gate (GJS)` is a required check, and GitHub's
+  # merge queue waits for every required check on the queue's own
+  # `gh-readonly-queue/main/…` commit, which only a `merge_group` trigger
+  # produces — without it a queued PR waits forever. The trigger alone
+  # changes nothing until the ruleset turns the queue on (a governance
+  # decision, docs/governance.md). A merge_group run takes the PR path:
+  # `changes` classifies against `merge_group.base_sha`, and the macOS leg is
+  # off because a queue entry carries no labels to opt it in.
+  merge_group:
   push:
     branches:
       - main
@@ -217,6 +226,12 @@ jobs:
             echo 'macos-enabled=false' >> "$GITHUB_OUTPUT"
             echo 'macos-reason=pull_request without the `ci:macos` label (macOS runners bill at 10x) — add the label to opt this PR in' >> "$GITHUB_OUTPUT"
             echo "[ci] macOS leg: skipped (pull_request without the ci:macos label)"
+          elif [ "$EVENT" = "merge_group" ]; then
+            # A queue entry has no labels, and the push to main that follows the
+            # merge runs the leg anyway.
+            echo 'macos-enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'macos-reason=merge_group (a queue entry carries no labels; the push to main runs the leg)' >> "$GITHUB_OUTPUT"
+            echo "[ci] macOS leg: skipped (merge_group)"
           else
             echo 'macos-enabled=true' >> "$GITHUB_OUTPUT"
             echo "macos-reason=enabled for event '$EVENT'" >> "$GITHUB_OUTPUT"
@@ -266,6 +281,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "merge_group" ]; then
+            # The queue commit is `base_sha` + the queued PR(s), so this diff is
+            # exactly what the queue adds to main — the PR's closure, re-measured
+            # on the merged tree.
+            echo "sha=${{ github.event.merge_group.base_sha }}" >> "$GITHUB_OUTPUT"
           else
             # Push to a non-main branch: diff against HEAD~1.
             echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
