@@ -141,7 +141,6 @@
     "parse5-htmlparser2-tree-adapter@^7.1.0",
     "dotenv@^17.4.2",
     "@modelcontextprotocol/inspector@^0.22.0",
-    "zod@4.3.6",
     "@rollup/pluginutils@^5.3.0",
     "@types/streamx@^2.9.5",
     "streamx@^2.27.0",
@@ -16991,9 +16990,9 @@
       "integrity": "sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug=="
     },
     "node_modules/zod": {
-      "version": "4.3.6",
-      "resolved": "https://registry.npmjs.org/zod/-/zod-4.3.6.tgz",
-      "integrity": "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/zod/-/zod-4.4.3.tgz",
+      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
     },
     "node_modules/zod-to-json-schema": {
       "version": "3.25.2",
