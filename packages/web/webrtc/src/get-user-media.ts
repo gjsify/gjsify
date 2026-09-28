@@ -50,7 +50,7 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
 
     if (constraints.audio) {
         const audioConstraints = typeof constraints.audio === 'object' ? constraints.audio : {};
-        const source = _createAudioSource();
+        const source = _createAudioSource(audioConstraints);
         const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
@@ -74,7 +74,7 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
 
     if (constraints.video) {
         const videoConstraints = typeof constraints.video === 'object' ? constraints.video : {};
-        const source = _createVideoSource();
+        const source = _createVideoSource(videoConstraints);
         const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
@@ -221,7 +221,55 @@ function _chooseSource(kind: string, candidates: string[], converter: string, fa
     return Gst.ElementFactory.make(fallback, null)!;
 }
 
-function _createAudioSource(): Gst.Element {
+/**
+ * Property names a capture source may spell its device under. There is no
+ * single one, and writing the wrong name fails in the worst available way:
+ * GJS installs a GObject property as a prototype accessor, so assigning a name
+ * the element does not declare does NOT raise — it creates a dead JS
+ * own-property and the constraint is dropped with the process still healthy.
+ *
+ * Measured per element, `'device' in element` after `Gst.ElementFactory.make`:
+ * `pulsesrc`, `v4l2src` and `alsasrc` declare `device`; `pipewiresrc` — the
+ * FIRST candidate of both chains — declares `target-object` and `path`, not
+ * `device`;
+ * `autoaudiosrc`, `autovideosrc`, `audiotestsrc` and `videotestsrc` declare
+ * neither. So the untyped `device` write this replaced was inert on five of the
+ * eight, and inert on ALL of them in `ghcr.io/gjsify/ci-fedora:44`, where
+ * `pipewiresrc` is absent and the audio chain lands on `audiotestsrc`.
+ *
+ * On `pipewiresrc`, `target-object` comes before `path`: `path` is deprecated
+ * and takes a node id, while `target-object` takes a node name or serial, and
+ * `enumerateDevices()` reports `node.name` as the `deviceId`.
+ *
+ * `'prop' in el` is the existence test because `find_property` is not reachable
+ * from JS: `GObject.Object.prototype.find_property` is `undefined` under GJS.
+ */
+const _DEVICE_PROPS = ['device', 'target_object', 'path'] as const;
+
+/** Kinds already reported as unable to carry a `deviceId` — once per process. */
+const _unboundDevice = new Set<string>();
+
+/**
+ * Bind a W3C `deviceId` to a source element, reporting when the element cannot
+ * express one. A caller that asked for a specific device and silently receives
+ * another is the defect #1513 reports, so the unbindable case is never quiet.
+ */
+function _bindDevice(kind: string, el: Gst.Element, deviceId: string | undefined): void {
+    if (!deviceId) return;
+    for (const prop of _DEVICE_PROPS) {
+        if (!(prop in el)) continue;
+        (el as unknown as Record<string, string>)[prop] = deviceId;
+        return;
+    }
+    if (_unboundDevice.has(kind)) return;
+    _unboundDevice.add(kind);
+    console.warn(
+        `getUserMedia: deviceId ${JSON.stringify(deviceId)} ignored — ${el.name} has no device property, ` +
+            `so the ${kind} source is the host default. getSupportedConstraints() reports deviceId: true.`,
+    );
+}
+
+function _createAudioSource(constraints: MediaTrackConstraints): Gst.Element {
     // Real sources in priority order — each one OPENED, not just made.
     const el = _chooseSource('audio', ['pipewiresrc', 'pulsesrc', 'autoaudiosrc'], 'audioconvert', 'audiotestsrc');
     try {
@@ -232,14 +280,16 @@ function _createAudioSource(): Gst.Element {
     if (_sourceChoice.get('audio') === 'audiotestsrc') {
         (el as _GstElementProps).wave = 0; // sine — audible for debugging
     }
+    _bindDevice('audio', el, constraints.deviceId);
     return el;
 }
 
-function _createVideoSource(): Gst.Element {
+function _createVideoSource(constraints: MediaTrackConstraints): Gst.Element {
     const el = _chooseSource('video', ['pipewiresrc', 'v4l2src', 'autovideosrc'], 'videoconvert', 'videotestsrc');
     if (_sourceChoice.get('video') === 'videotestsrc') {
         (el as _GstElementProps).is_live = true;
         (el as _GstElementProps).pattern = 0; // SMPTE bars
     }
+    _bindDevice('video', el, constraints.deviceId);
     return el;
 }
