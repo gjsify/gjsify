@@ -35,7 +35,9 @@ import {
     printOxcNotFound,
     runOxfmt,
     setOxcExitCode,
+    shouldUseNativeOxfmt,
 } from '../utils/oxc-resolve.js';
+import { scanForNativeSkips } from '../utils/native-skip-scan.js';
 
 interface FormatOptions {
     paths?: string[];
@@ -115,6 +117,27 @@ export const formatCommand: Command<unknown, FormatOptions> = {
         if (configPath) oxfmtArgs.push('--config', resolve(configPath));
 
         oxfmtArgs.push(...paths);
+
+        // Under GJS the native oxfmt (pure-Rust core) cannot format CSS/HTML/
+        // Vue/Markdown — those need oxfmt's Node-API Prettier host. Without
+        // this scan those files are skipped SILENTLY: `gjsify format --check`
+        // exits 0 under GJS (green check that checked nothing) but fails
+        // under Node in CI. In `--check` mode we FAIL the check when files are
+        // skipped, so a "green check that checked nothing" is impossible.
+        if (args.check && (await shouldUseNativeOxfmt())) {
+            const scan = scanForNativeSkips(paths, cwd);
+            if (scan.skipped.length > 0) {
+                const list = scan.skipped.map((f) => `  ${f}`).join('\n');
+                console.error(
+                    `[gjsify format] ERROR: ${scan.skipped.length} file(s) skipped — ` +
+                        `the native oxfmt (GJS) cannot format them (CSS/HTML/Vue/Markdown):\n` +
+                        `${list}\n` +
+                        `  The format check is INCOMPLETE. Run \`gjsify format --check\` under Node to check these files.`,
+                );
+                setOxcExitCode(1);
+                return;
+            }
+        }
 
         try {
             const code = await runOxfmt(oxfmtArgs, { cwd, verbose: args.verbose });
