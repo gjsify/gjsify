@@ -22,9 +22,4 @@ export const UNCHECKED_FIELDS = {
     buildCache:
         'A boolean opt-OUT of the per-package build cache (ADR 0006). It promises less, not more — a package that ' +
         'sets it always runs uncached, which cannot be wrong in the way a false declaration is. Nothing to conform to.',
-    osDerived:
-        'Derived at runtime from `gjsify.os` + `gjsify.platforms` (ADR 0083), not declared in package.json. It is a ' +
-        'computed fact about the build host, not a promise about a shipped artifact, so there is no on-disk ' +
-        'declaration a conformance rule could compare it against. Listed here rather than silently ignored so the ' +
-        'judgement is reviewable.',
 };
